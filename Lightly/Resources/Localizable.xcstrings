@@ -1,0 +1,1124 @@
+{
+  "sourceLanguage": "en",
+  "version": "1.0",
+  "strings": {
+    "action.compare": {
+      "comment": "Compare action label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare"
+          }
+        }
+      }
+    },
+    "action.compare.accessibility": {
+      "comment": "VoiceOver label for Compare. Wording specified in spec section 4.5.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show original photograph"
+          }
+        }
+      }
+    },
+    "action.compare.unavailable": {
+      "comment": "VoiceOver hint when Compare is shown disabled before development.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available after you develop this photo"
+          }
+        }
+      }
+    },
+    "action.crop": {
+      "comment": "Crop action label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop"
+          }
+        }
+      }
+    },
+    "action.develop": {
+      "comment": "Primary action on the photo-selected screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Develop"
+          }
+        }
+      }
+    },
+    "action.share": {
+      "comment": "Share action label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        }
+      }
+    },
+    "brand.wordmark": {
+      "comment": "The Lightly wordmark on the launch screen. Product name — do not translate.",
+      "extractionState": "manual",
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightly"
+          }
+        }
+      }
+    },
+    "brand.wordmark.subtitle": {
+      "comment": "The LABS lockup beneath the wordmark. Company name — do not translate.",
+      "extractionState": "manual",
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LABS"
+          }
+        }
+      }
+    },
+    "debug.processing.notice": {
+      "comment": "Non-production disclosure required by spec section 24.8. States precisely what is and is not real: pixels genuinely change, but no scene or quality analysis occurs.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Debug engine — real rendering, no analysis"
+          }
+        }
+      }
+    },
+    "develop.progress.subtitle": {
+      "comment": "Canonical developing copy, locked by spec section 0.11. Do not change to 'intelligent enhancements'.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applying thoughtful enhancements"
+          }
+        }
+      }
+    },
+    "develop.progress.title": {
+      "comment": "Title of the developing overlay. Spec section 4.4.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Developing…"
+          }
+        }
+      }
+    },
+    "develop.stage.clarity": {
+      "comment": "Develop pipeline stage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clarity"
+          }
+        }
+      }
+    },
+    "develop.stage.colour": {
+      "comment": "Develop pipeline stage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colour"
+          }
+        }
+      }
+    },
+    "develop.stage.complete": {
+      "comment": "VoiceOver value for a finished develop stage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete"
+          }
+        }
+      }
+    },
+    "develop.stage.detail": {
+      "comment": "Develop pipeline stage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detail"
+          }
+        }
+      }
+    },
+    "develop.stage.exposure": {
+      "comment": "Develop pipeline stage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exposure"
+          }
+        }
+      }
+    },
+    "develop.stage.highlights": {
+      "comment": "Develop pipeline stage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlights"
+          }
+        }
+      }
+    },
+    "develop.stage.pending": {
+      "comment": "VoiceOver value for a develop stage that has not run.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending"
+          }
+        }
+      }
+    },
+    "develop.stage.shadows": {
+      "comment": "Develop pipeline stage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadows"
+          }
+        }
+      }
+    },
+    "develop.stage.whiteBalance": {
+      "comment": "Develop pipeline stage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "White balance"
+          }
+        }
+      }
+    },
+    "editor.back.accessibility": {
+      "comment": "VoiceOver label for the editor back button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to start"
+          }
+        }
+      }
+    },
+    "editor.more.accessibility": {
+      "comment": "VoiceOver label for the editor More control.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More options"
+          }
+        }
+      }
+    },
+    "editor.photo.accessibility": {
+      "comment": "VoiceOver label for the photograph in the editor.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your photograph"
+          }
+        }
+      }
+    },
+    "editor.photo.original.accessibility": {
+      "comment": "VoiceOver label while Compare is showing the original.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your original photograph"
+          }
+        }
+      }
+    },
+    "error.action.dismiss": {
+      "comment": "Dismiss action on the error alert.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "error.cloudFeatureUnavailable": {
+      "comment": "Spec section 28: cloud-assisted feature unavailable.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cloud-assisted feature is unavailable right now. Everything on-device still works."
+          }
+        }
+      }
+    },
+    "error.developFailed": {
+      "comment": "Spec section 28: Develop pipeline failure. Reassures that the original is intact.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Developing did not finish. Your original photo is unchanged."
+          }
+        }
+      }
+    },
+    "error.exportFailed": {
+      "comment": "Recovery copy for a failed export.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That photo could not be exported. Your edit is safe — please try again."
+          }
+        }
+      }
+    },
+    "error.insufficientMemory": {
+      "comment": "Spec section 28: insufficient memory.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo is too large to work on right now. Closing other apps may help."
+          }
+        }
+      }
+    },
+    "error.modelUnavailable": {
+      "comment": "Spec section 28: required model not available on this device tier.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This tool is not available on this device."
+          }
+        }
+      }
+    },
+    "error.multipleFacesDetected": {
+      "comment": "Spec section 28: ambiguous target when several faces are present.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightly found more than one face. Choose which person to work on."
+          }
+        }
+      }
+    },
+    "error.networkInterrupted": {
+      "comment": "Spec section 28: connection dropped mid-operation. Must state that credits were not consumed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection was interrupted, so this edit was not completed. You have not been charged."
+          }
+        }
+      }
+    },
+    "error.noFaceDetected": {
+      "comment": "Spec section 28: portrait tool invoked with no face present.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightly did not find a face in this photo, so portrait tools are unavailable here."
+          }
+        }
+      }
+    },
+    "error.permissionDenied": {
+      "comment": "Recovery copy when Photos add-only access is denied.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightly needs permission to add photos to your library. You can grant it in Settings."
+          }
+        }
+      }
+    },
+    "error.photoLoadingFailed": {
+      "comment": "Spec section 28: failed photo loading.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That photo could not be opened. Try again, or choose another one."
+          }
+        }
+      }
+    },
+    "error.rawFileTooLarge": {
+      "comment": "Spec section 28: RAW file exceeds device budget.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This RAW file is larger than this device can develop at full size. Lightly can work on a reduced version instead."
+          }
+        }
+      }
+    },
+    "error.storageFull": {
+      "comment": "Recovery copy for a full device.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is not enough space to save this photo. Free up some space and try again."
+          }
+        }
+      }
+    },
+    "error.title": {
+      "comment": "Title of the recoverable error alert.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something needs your attention"
+          }
+        }
+      }
+    },
+    "error.unsupportedImageFormat": {
+      "comment": "Spec section 28: unsupported image format.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo is in a format Lightly cannot open yet. Try choosing another one."
+          }
+        }
+      }
+    },
+    "error.userCancelled": {
+      "comment": "Spec section 28: user cancellation. Modelled for completeness but never presented — LightlyError.isFault filters it out.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelled."
+          }
+        }
+      }
+    },
+    "export.action.save": {
+      "comment": "Primary export action.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save to Photos"
+          }
+        }
+      }
+    },
+    "export.action.share": {
+      "comment": "Secondary export action, opens the system share sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share…"
+          }
+        }
+      }
+    },
+    "export.close.accessibility": {
+      "comment": "VoiceOver label for the export close button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close export"
+          }
+        }
+      }
+    },
+    "export.format.heic": {
+      "comment": "Export format. Technical name — do not translate.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HEIC"
+          }
+        }
+      }
+    },
+    "export.format.jpeg": {
+      "comment": "Export format. Technical name — do not translate.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JPEG"
+          }
+        }
+      }
+    },
+    "export.format.png": {
+      "comment": "Export format. Technical name — do not translate.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PNG"
+          }
+        }
+      }
+    },
+    "export.metadata.location": {
+      "comment": "Toggle for carrying GPS coordinates. Defaults to off.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include location"
+          }
+        }
+      }
+    },
+    "export.metadata.location.detail": {
+      "comment": "Explains why location is separated from other metadata and defaulted off.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off by default. Location can identify where you were."
+          }
+        }
+      }
+    },
+    "export.metadata.preserve": {
+      "comment": "Toggle for carrying EXIF capture date, camera, and lens to the exported file.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preserve photo details"
+          }
+        }
+      }
+    },
+    "export.quality.high": {
+      "comment": "Export quality option.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "High"
+          }
+        }
+      }
+    },
+    "export.quality.maximum": {
+      "comment": "Export quality option. Requires Lightly Pro, but must NOT be badged or locked in the interface — the boundary appears only on export (spec section 26.2).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum"
+          }
+        }
+      }
+    },
+    "export.saved.done": {
+      "comment": "Dismisses the save confirmation.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "export.saved.message": {
+      "comment": "Confirmation message. Reassures that non-destructive editing was honoured.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your photo has been added to your library. The original is unchanged."
+          }
+        }
+      }
+    },
+    "export.saved.title": {
+      "comment": "Title of the confirmation shown after saving to Photos.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
+          }
+        }
+      }
+    },
+    "export.section.format": {
+      "comment": "Export sheet section heading.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format"
+          }
+        }
+      }
+    },
+    "export.section.metadata": {
+      "comment": "Export sheet section heading.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadata"
+          }
+        }
+      }
+    },
+    "export.section.quality": {
+      "comment": "Export sheet section heading.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quality"
+          }
+        }
+      }
+    },
+    "export.title": {
+      "comment": "Title of the export sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export"
+          }
+        }
+      }
+    },
+    "launch.accessibility.hint": {
+      "comment": "VoiceOver hint describing the equivalent action for the swipe gesture.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Double tap to choose a photo"
+          }
+        }
+      }
+    },
+    "launch.accessibility.label": {
+      "comment": "VoiceOver label for the launch screen as a whole.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightly. See it as you remember it."
+          }
+        }
+      }
+    },
+    "launch.swipe.prompt": {
+      "comment": "Label beneath the upward chevron on the launch screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe up to choose a photo"
+          }
+        }
+      }
+    },
+    "launch.tagline": {
+      "comment": "Launch screen tagline. Line break is intentional and part of the composition.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See it as\nyou remember it."
+          }
+        }
+      }
+    },
+    "looks.apply": {
+      "comment": "Commits the previewed Look. This is the entitlement checkpoint.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply"
+          }
+        }
+      }
+    },
+    "looks.category.cinematic": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cinematic"
+          }
+        }
+      }
+    },
+    "looks.category.film": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film"
+          }
+        }
+      }
+    },
+    "looks.category.moody": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moody"
+          }
+        }
+      }
+    },
+    "looks.category.natural": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Natural"
+          }
+        }
+      }
+    },
+    "looks.category.recommended": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recommended"
+          }
+        }
+      }
+    },
+    "looks.close.accessibility": {
+      "comment": "VoiceOver label for the Looks close button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Looks"
+          }
+        }
+      }
+    },
+    "looks.intensity": {
+      "comment": "Label for the Look intensity slider.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intensity"
+          }
+        }
+      }
+    },
+    "looks.recommended.notTailored": {
+      "comment": "Honesty disclaimer shown above the Recommended grid. Spec section 7 requires Recommended to be scene-aware; scene classification is Phase 4, so the interface must not imply personalisation it has not performed. Remove this string only when classification is wired in.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A general starting set — not yet tailored to this photo."
+          }
+        }
+      }
+    },
+    "looks.thumbnail.failed": {
+      "comment": "Shown in place of a Look thumbnail that could not be rendered. The rest of the grid continues to work.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview unavailable"
+          }
+        }
+      }
+    },
+    "looks.title": {
+      "comment": "Title of the Looks screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looks"
+          }
+        }
+      }
+    },
+    "paywall.action.notNow": {
+      "comment": "Dismisses the upgrade prompt without purchasing.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
+        }
+      }
+    },
+    "paywall.export.message": {
+      "comment": "Shown when exporting at Maximum quality on the free tier. Names the free alternative rather than only the restriction.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum quality export is part of Lightly Pro. High quality is available now and looks excellent."
+          }
+        }
+      }
+    },
+    "paywall.looks.message": {
+      "comment": "Shown when applying a Pro Look on the free tier. Spec section 26.3: the user has already seen the result they liked, and the message must not imply the preview is being taken away.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Look is part of Lightly Pro. Everything you have already previewed stays free."
+          }
+        }
+      }
+    },
+    "paywall.title": {
+      "comment": "Title of the upgrade prompt.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lightly Pro"
+          }
+        }
+      }
+    },
+    "source.camera.subtitle": {
+      "comment": "Camera row detail on the source sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take a new photo"
+          }
+        }
+      }
+    },
+    "source.camera.title": {
+      "comment": "Camera row title on the source sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera"
+          }
+        }
+      }
+    },
+    "source.library.subtitle": {
+      "comment": "Photo library row detail on the source sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose from your library"
+          }
+        }
+      }
+    },
+    "source.library.title": {
+      "comment": "Photo library row title on the source sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Library"
+          }
+        }
+      }
+    },
+    "source.privacy.subtitle": {
+      "comment": "Privacy reassurance on the source sheet. Spec section 0.5 requires the qualified 'by default' wording. Never use an absolute claim such as 'Everything stays on your device' — opt-in cloud features make that untrue.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your photos stay on your device by default."
+          }
+        }
+      }
+    },
+    "source.title": {
+      "comment": "Title of the source selection sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a photo"
+          }
+        }
+      }
+    },
+    "tool.blackAndWhite": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B&W"
+          }
+        }
+      }
+    },
+    "tool.grain": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grain"
+          }
+        }
+      }
+    },
+    "tool.looks": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looks"
+          }
+        }
+      }
+    },
+    "tool.lowLight": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Low Light"
+          }
+        }
+      }
+    },
+    "tool.magic": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magic"
+          }
+        }
+      }
+    },
+    "tool.more": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        }
+      }
+    },
+    "tool.perspective": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perspective"
+          }
+        }
+      }
+    },
+    "tool.portrait": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait"
+          }
+        }
+      }
+    },
+    "tool.repairTools": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repair"
+          }
+        }
+      }
+    },
+    "tool.tone": {
+      "comment": "Contextual tool.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tone"
+          }
+        }
+      }
+    }
+  }
+}
