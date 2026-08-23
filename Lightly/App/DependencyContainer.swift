@@ -14,6 +14,7 @@ struct DependencyContainer {
     let thumbnailRenderer: any LookThumbnailRendering
     let exporter: any PhotoExporting
     let libraryWriter: any PhotoLibraryWriting
+    let favouritesManager: any FavouritesManaging
 
     /// The current composition.
     ///
@@ -41,7 +42,8 @@ struct DependencyContainer {
             presetCatalog: BuiltInPresetCatalog(),
             thumbnailRenderer: CoreImageThumbnailRenderer(),
             exporter: ImageIOPhotoExporter(),
-            libraryWriter: PhotoKitLibraryWriter()
+            libraryWriter: PhotoKitLibraryWriter(),
+            favouritesManager: UserDefaultsFavouritesManager()
         )
     }
 
@@ -54,7 +56,8 @@ struct DependencyContainer {
             presetCatalog: presetCatalog,
             thumbnailRenderer: thumbnailRenderer,
             exporter: exporter,
-            libraryWriter: libraryWriter
+            libraryWriter: libraryWriter,
+            favouritesManager: favouritesManager
         )
     }
 }

@@ -13,6 +13,34 @@ extension DevelopRecipe {
     func scaled(by factor: Double) -> DevelopRecipe {
         let clamped = max(0, min(1, factor))
 
+        // Scale HSL shifts
+        let scaledHSL = HSLAdjustments(
+            hue: scaleChannelSet(hsl.hue, by: clamped),
+            saturation: scaleChannelSet(hsl.saturation, by: clamped),
+            luminance: scaleChannelSet(hsl.luminance, by: clamped)
+        )
+
+        // Scale Color Grading
+        let scaledGrading = ColorGradingAdjustments(
+            shadowHue: colorGrading.shadowHue,
+            shadowSat: colorGrading.shadowSat * clamped,
+            highlightHue: colorGrading.highlightHue,
+            highlightSat: colorGrading.highlightSat * clamped,
+            balance: colorGrading.balance * clamped
+        )
+
+        // Scale Grain & Vignette
+        let scaledGrain = GrainAdjustments(
+            amount: grain.amount * clamped,
+            size: grain.size,
+            frequency: grain.frequency
+        )
+
+        let scaledVignette = VignetteAdjustments(
+            amount: vignette.amount * clamped,
+            midpoint: vignette.midpoint
+        )
+
         return DevelopRecipe(
             whiteBalance: .init(
                 temperature: whiteBalance.temperature * clamped,
@@ -21,27 +49,41 @@ extension DevelopRecipe {
             exposure: exposure * clamped,
             highlights: highlights * clamped,
             shadows: shadows * clamped,
+            whites: whites * clamped,
+            blacks: blacks * clamped,
             contrast: contrast * clamped,
             vibrance: vibrance * clamped,
+            saturation: saturation * clamped,
             clarity: clarity * clamped,
             dehaze: dehaze * clamped,
             sharpening: sharpening * clamped,
-            noiseReduction: noiseReduction * clamped
+            noiseReduction: noiseReduction * clamped,
+            toneCurve: clamped > 0.05 ? toneCurve : [],
+            toneCurveRed: clamped > 0.05 ? toneCurveRed : [],
+            toneCurveGreen: clamped > 0.05 ? toneCurveGreen : [],
+            toneCurveBlue: clamped > 0.05 ? toneCurveBlue : [],
+            hsl: scaledHSL,
+            colorGrading: scaledGrading,
+            grain: scaledGrain,
+            vignette: scaledVignette
         )
     }
 
     /// Stacks another recipe on top of this one.
     ///
-    /// Used to combine the Develop result with an applied Look. The combination
-    /// is additive on each parameter.
-    ///
-    /// PHASE 3 DEBT: real preset stacking is not purely additive — Lightroom
-    /// composes tone curves and HSL in a defined order, and summing two large
-    /// contrast values overshoots. This is adequate for the shell because the
-    /// starter recipes are deliberately small, and it must be revisited when
-    /// the converted library lands.
+    /// Used to combine the Develop result with an applied Look.
     func combined(with other: DevelopRecipe) -> DevelopRecipe {
-        DevelopRecipe(
+        let combinedHSL = HSLAdjustments(
+            hue: combineChannelSets(hsl.hue, other.hsl.hue),
+            saturation: combineChannelSets(hsl.saturation, other.hsl.saturation),
+            luminance: combineChannelSets(hsl.luminance, other.hsl.luminance)
+        )
+
+        let combinedGrading = other.colorGrading.isIdentity ? colorGrading : other.colorGrading
+        let combinedGrain = other.grain.isIdentity ? grain : other.grain
+        let combinedVignette = other.vignette.isIdentity ? vignette : other.vignette
+
+        return DevelopRecipe(
             whiteBalance: .init(
                 temperature: whiteBalance.temperature + other.whiteBalance.temperature,
                 tint: whiteBalance.tint + other.whiteBalance.tint
@@ -49,12 +91,51 @@ extension DevelopRecipe {
             exposure: exposure + other.exposure,
             highlights: highlights + other.highlights,
             shadows: shadows + other.shadows,
+            whites: whites + other.whites,
+            blacks: blacks + other.blacks,
             contrast: contrast + other.contrast,
             vibrance: vibrance + other.vibrance,
+            saturation: saturation + other.saturation,
             clarity: clarity + other.clarity,
             dehaze: dehaze + other.dehaze,
             sharpening: sharpening + other.sharpening,
-            noiseReduction: noiseReduction + other.noiseReduction
+            noiseReduction: noiseReduction + other.noiseReduction,
+            toneCurve: other.toneCurve.isEmpty ? toneCurve : other.toneCurve,
+            toneCurveRed: other.toneCurveRed.isEmpty ? toneCurveRed : other.toneCurveRed,
+            toneCurveGreen: other.toneCurveGreen.isEmpty ? toneCurveGreen : other.toneCurveGreen,
+            toneCurveBlue: other.toneCurveBlue.isEmpty ? toneCurveBlue : other.toneCurveBlue,
+            hsl: combinedHSL,
+            colorGrading: combinedGrading,
+            grain: combinedGrain,
+            vignette: combinedVignette
+        )
+    }
+
+    // MARK: - Helpers
+
+    private func scaleChannelSet(_ set: HSLAdjustments.ChannelSet, by factor: Double) -> HSLAdjustments.ChannelSet {
+        HSLAdjustments.ChannelSet(
+            red: set.red * factor,
+            orange: set.orange * factor,
+            yellow: set.yellow * factor,
+            green: set.green * factor,
+            aqua: set.aqua * factor,
+            blue: set.blue * factor,
+            purple: set.purple * factor,
+            magenta: set.magenta * factor
+        )
+    }
+
+    private func combineChannelSets(_ a: HSLAdjustments.ChannelSet, _ b: HSLAdjustments.ChannelSet) -> HSLAdjustments.ChannelSet {
+        HSLAdjustments.ChannelSet(
+            red: a.red + b.red,
+            orange: a.orange + b.orange,
+            yellow: a.yellow + b.yellow,
+            green: a.green + b.green,
+            aqua: a.aqua + b.aqua,
+            blue: a.blue + b.blue,
+            purple: a.purple + b.purple,
+            magenta: a.magenta + b.magenta
         )
     }
 }

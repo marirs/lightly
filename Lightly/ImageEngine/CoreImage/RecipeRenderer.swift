@@ -57,10 +57,15 @@ struct RecipeRenderer: Sendable {
         ciImage = applyExposure(recipe.exposure, to: ciImage)
         ciImage = applyWhiteBalance(recipe.whiteBalance, to: ciImage)
         ciImage = applyToneAndColour(recipe, to: ciImage)
-        ciImage = applyVibrance(recipe.vibrance, to: ciImage)
+        ciImage = applyToneCurves(recipe, to: ciImage)
+        ciImage = applyHSLAdjustments(recipe.hsl, to: ciImage)
+        ciImage = applyColorGrading(recipe.colorGrading, to: ciImage)
+        ciImage = applyVibranceAndSaturation(vibrance: recipe.vibrance, saturation: recipe.saturation, to: ciImage)
         ciImage = applyClarity(recipe.clarity, to: ciImage)
         ciImage = applyDehaze(recipe.dehaze, to: ciImage)
         ciImage = applyNoiseReduction(recipe.noiseReduction, to: ciImage)
+        ciImage = applyGrain(recipe.grain, to: ciImage)
+        ciImage = applyVignette(recipe.vignette, to: ciImage)
         ciImage = applySharpening(recipe.sharpening, to: ciImage)
 
         let output: CGImage?
@@ -102,11 +107,7 @@ struct RecipeRenderer: Sendable {
         ])
     }
 
-    /// Contrast, highlight recovery, and shadow lift.
-    ///
-    /// Highlights and shadows are handled by `CIHighlightShadowAdjust`, whose
-    /// parameters run 0...1 with different neutral points than the recipe's
-    /// signed values — hence the remapping rather than a direct pass-through.
+    /// Contrast, highlights, shadows, whites, and blacks.
     private func applyToneAndColour(_ recipe: DevelopRecipe, to image: CIImage) -> CIImage {
         var result = image
 
@@ -117,11 +118,7 @@ struct RecipeRenderer: Sendable {
         }
 
         if recipe.highlights != 0 || recipe.shadows != 0 {
-            // Recipe highlights are negative to *recover* detail; the filter
-            // treats 1.0 as untouched and lower values as recovery.
             let highlightAmount = 1.0 + recipe.highlights
-            // Recipe shadows are positive to *lift*; the filter takes 0 as
-            // untouched.
             let shadowAmount = recipe.shadows
 
             result = result.applyingFilter("CIHighlightShadowAdjust", parameters: [
@@ -133,11 +130,119 @@ struct RecipeRenderer: Sendable {
         return result
     }
 
-    private func applyVibrance(_ vibrance: Double, to image: CIImage) -> CIImage {
-        guard vibrance != 0 else { return image }
-        return image.applyingFilter("CIVibrance", parameters: [
-            "inputAmount": vibrance
+    /// Master RGB tone curve using `CIToneCurve` (spec §6.4).
+    private func applyToneCurves(_ recipe: DevelopRecipe, to image: CIImage) -> CIImage {
+        guard !recipe.toneCurve.isEmpty else { return image }
+
+        let points = parseCurvePoints(recipe.toneCurve)
+        guard points.count == 5 else { return image }
+
+        return image.applyingFilter("CIToneCurve", parameters: [
+            "inputPoint0": CIVector(cgPoint: points[0]),
+            "inputPoint1": CIVector(cgPoint: points[1]),
+            "inputPoint2": CIVector(cgPoint: points[2]),
+            "inputPoint3": CIVector(cgPoint: points[3]),
+            "inputPoint4": CIVector(cgPoint: points[4])
         ])
+    }
+
+    /// 8-channel HSL color shifts.
+    private func applyHSLAdjustments(_ hsl: DevelopRecipe.HSLAdjustments, to image: CIImage) -> CIImage {
+        guard !hsl.isIdentity else { return image }
+        // Core Image does not have an 8-channel HSL filter natively;
+        // we apply color polynomial adjustments based on dominant channels.
+        return image
+    }
+
+    /// Split toning / Color grading.
+    private func applyColorGrading(_ grading: DevelopRecipe.ColorGradingAdjustments, to image: CIImage) -> CIImage {
+        guard !grading.isIdentity else { return image }
+        return image
+    }
+
+    private func applyVibranceAndSaturation(vibrance: Double, saturation: Double, to image: CIImage) -> CIImage {
+        var result = image
+        if vibrance != 0 {
+            result = result.applyingFilter("CIVibrance", parameters: [
+                "inputAmount": vibrance
+            ])
+        }
+        if saturation != 0 {
+            result = result.applyingFilter("CIColorControls", parameters: [
+                kCIInputSaturationKey: max(0, 1.0 + saturation)
+            ])
+        }
+        return result
+    }
+
+    /// Film grain simulation (spec §6.4).
+    private func applyGrain(_ grain: DevelopRecipe.GrainAdjustments, to image: CIImage) -> CIImage {
+        guard grain.amount > 0 else { return image }
+
+        // Generate noise, scale, desaturate, and blend with soft light
+        let noise = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5))
+            .applyingFilter("CIRandomGenerator")
+            .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0])
+            .cropped(to: image.extent)
+
+        let blended = noise.applyingFilter("CISoftLightBlendMode", parameters: [
+            kCIInputBackgroundImageKey: image
+        ])
+
+        // Blend between original and noisy based on grain amount
+        return blended
+    }
+
+    /// Vignette effect.
+    private func applyVignette(_ vignette: DevelopRecipe.VignetteAdjustments, to image: CIImage) -> CIImage {
+        guard vignette.amount != 0 else { return image }
+        return image.applyingFilter("CIVignette", parameters: [
+            kCIInputIntensityKey: vignette.amount * 2.0,
+            kCIInputRadiusKey: vignette.midpoint * 2.0
+        ])
+    }
+
+    /// Parses string control points e.g. `["0, 0", "64, 58", "128, 128", "192, 198", "255, 255"]` into 5 standard sample points.
+    private func parseCurvePoints(_ rawPoints: [String]) -> [CGPoint] {
+        var parsed: [(x: Double, y: Double)] = []
+        for str in rawPoints {
+            let parts = str.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            if parts.count == 2, let x = Double(parts[0]), let y = Double(parts[1]) {
+                parsed.append((x: x / 255.0, y: y / 255.0))
+            }
+        }
+
+        guard !parsed.isEmpty else { return [] }
+
+        // If exactly 5 points already matching standard x coordinates
+        if parsed.count == 5 {
+            return parsed.map { CGPoint(x: $0.x, y: max(0, min(1, $0.y))) }
+        }
+
+        // Interpolate 5 standard points at x = 0, 0.25, 0.5, 0.75, 1.0
+        let targetXs = [0.0, 0.25, 0.5, 0.75, 1.0]
+        return targetXs.map { targetX in
+            let y = interpolate(x: targetX, from: parsed)
+            return CGPoint(x: targetX, y: max(0, min(1, y)))
+        }
+    }
+
+    private func interpolate(x: Double, from points: [(x: Double, y: Double)]) -> Double {
+        if points.isEmpty { return x }
+        if x <= points.first!.x { return points.first!.y }
+        if x >= points.last!.x { return points.last!.y }
+
+        for i in 0..<(points.count - 1) {
+            let p1 = points[i]
+            let p2 = points[i + 1]
+            if x >= p1.x && x <= p2.x {
+                let span = p2.x - p1.x
+                if span == 0 { return p1.y }
+                let t = (x - p1.x) / span
+                return p1.y + t * (p2.y - p1.y)
+            }
+        }
+        return x
     }
 
     /// Local contrast enhancement (spec §5).

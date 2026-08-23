@@ -760,6 +760,30 @@
         }
       }
     },
+    "looks.category.aerial": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aerial"
+          }
+        }
+      }
+    },
+    "looks.category.bw": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B&W"
+          }
+        }
+      }
+    },
     "looks.category.cinematic": {
       "comment": "Looks category tab.",
       "extractionState": "manual",
@@ -768,6 +792,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cinematic"
+          }
+        }
+      }
+    },
+    "looks.category.favourites": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favourites"
           }
         }
       }
@@ -784,26 +820,50 @@
         }
       }
     },
-    "looks.category.moody": {
+    "looks.category.golden_hour": {
       "comment": "Looks category tab.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Moody"
+            "value": "Golden Hour"
           }
         }
       }
     },
-    "looks.category.natural": {
+    "looks.category.landscape": {
       "comment": "Looks category tab.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Natural"
+            "value": "Landscape"
+          }
+        }
+      }
+    },
+    "looks.category.minimal": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimal"
+          }
+        }
+      }
+    },
+    "looks.category.portrait": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait"
           }
         }
       }
@@ -816,6 +876,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recommended"
+          }
+        }
+      }
+    },
+    "looks.category.urban": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Urban"
+          }
+        }
+      }
+    },
+    "looks.category.wedding": {
+      "comment": "Looks category tab.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wedding"
           }
         }
       }

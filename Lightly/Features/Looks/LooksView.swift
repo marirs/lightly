@@ -101,21 +101,25 @@ struct LooksView: View {
                     Button {
                         viewModel.load(category: category)
                     } label: {
-                        Text(LocalizedStringKey(category.localizationKey), bundle: .main)
-                            .font(LightlyTypography.rowSubtitle)
-                            .foregroundStyle(
-                                category == viewModel.category
-                                    ? LightlyColor.textPrimary(colorScheme)
-                                    : LightlyColor.textTertiary(colorScheme)
-                            )
-                            .overlay(alignment: .bottom) {
-                                if category == viewModel.category {
-                                    Rectangle()
-                                        .fill(LightlyColor.textPrimary(colorScheme))
-                                        .frame(height: 1.5)
-                                        .offset(y: 6)
-                                }
+                        HStack(spacing: LightlySpacing.xxs) {
+                            Image(systemName: category.iconName)
+                                .font(.system(size: 12))
+                            Text(LocalizedStringKey(category.localizationKey), bundle: .main)
+                                .font(LightlyTypography.rowSubtitle)
+                        }
+                        .foregroundStyle(
+                            category == viewModel.category
+                                ? LightlyColor.textPrimary(colorScheme)
+                                : LightlyColor.textTertiary(colorScheme)
+                        )
+                        .overlay(alignment: .bottom) {
+                            if category == viewModel.category {
+                                Rectangle()
+                                    .fill(LightlyColor.textPrimary(colorScheme))
+                                    .frame(height: 1.5)
+                                    .offset(y: 6)
                             }
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -182,6 +186,23 @@ struct LooksView: View {
                     .clipShape(
                         RoundedRectangle(cornerRadius: LightlyRadius.row, style: .continuous)
                     )
+                    .overlay(alignment: .topTrailing) {
+                        Button {
+                            viewModel.toggleFavourite(preset)
+                        } label: {
+                            Image(systemName: viewModel.isFavourite(preset) ? "star.fill" : "star")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(
+                                    viewModel.isFavourite(preset)
+                                        ? LightlyColor.accentWarm(colorScheme)
+                                        : .white.opacity(0.85)
+                                )
+                                .padding(5)
+                                .background(.black.opacity(0.4), in: Circle())
+                                .padding(4)
+                        }
+                        .buttonStyle(.plain)
+                    }
                     .overlay {
                         RoundedRectangle(cornerRadius: LightlyRadius.row, style: .continuous)
                             .strokeBorder(

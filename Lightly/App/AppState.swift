@@ -79,6 +79,7 @@ final class AppState {
     private let thumbnailRenderer: any LookThumbnailRendering
     private let exporter: any PhotoExporting
     private let libraryWriter: any PhotoLibraryWriting
+    private let favouritesManager: any FavouritesManaging
 
     init(
         photoLoader: any PhotoLoading,
@@ -87,7 +88,8 @@ final class AppState {
         presetCatalog: any PresetProviding = BuiltInPresetCatalog(),
         thumbnailRenderer: any LookThumbnailRendering = CoreImageThumbnailRenderer(),
         exporter: any PhotoExporting = ImageIOPhotoExporter(),
-        libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter()
+        libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
+        favouritesManager: any FavouritesManaging = UserDefaultsFavouritesManager()
     ) {
         self.photoLoader = photoLoader
         self.developer = developer
@@ -96,6 +98,7 @@ final class AppState {
         self.thumbnailRenderer = thumbnailRenderer
         self.exporter = exporter
         self.libraryWriter = libraryWriter
+        self.favouritesManager = favouritesManager
     }
 
     /// Returns the editor for a photograph, creating it on first request.
@@ -139,7 +142,8 @@ final class AppState {
             sourceImage: photo.image,
             catalog: presetCatalog,
             thumbnailRenderer: thumbnailRenderer,
-            entitlements: entitlements
+            entitlements: entitlements,
+            favouritesManager: favouritesManager
         )
     }
 

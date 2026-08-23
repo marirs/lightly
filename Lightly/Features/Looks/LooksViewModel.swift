@@ -53,6 +53,7 @@ final class LooksViewModel {
     private let catalog: any PresetProviding
     private let thumbnailRenderer: any LookThumbnailRendering
     private let entitlements: any EntitlementResolving
+    private let favouritesManager: any FavouritesManaging
     private let sourceImage: CGImage
 
     /// In-flight thumbnail work, retained so it can be cancelled when the
@@ -60,21 +61,33 @@ final class LooksViewModel {
     private var thumbnailTask: Task<Void, Never>?
 
     /// Thumbnail edge length in pixels.
-    ///
-    /// Comfortably above the ~110pt cell at 3x without approaching full
-    /// resolution.
     private let thumbnailDimension = 360
 
     init(
         sourceImage: CGImage,
         catalog: any PresetProviding,
         thumbnailRenderer: any LookThumbnailRendering,
-        entitlements: any EntitlementResolving
+        entitlements: any EntitlementResolving,
+        favouritesManager: any FavouritesManaging = UserDefaultsFavouritesManager()
     ) {
         self.sourceImage = sourceImage
         self.catalog = catalog
         self.thumbnailRenderer = thumbnailRenderer
         self.entitlements = entitlements
+        self.favouritesManager = favouritesManager
+    }
+
+    // MARK: - Favourites
+
+    func isFavourite(_ preset: LightlyPreset) -> Bool {
+        favouritesManager.isFavourite(presetID: preset.id)
+    }
+
+    func toggleFavourite(_ preset: LightlyPreset) {
+        favouritesManager.toggleFavourite(presetID: preset.id)
+        if category == .favourites {
+            load(category: .favourites)
+        }
     }
 
     // MARK: - Derived
@@ -112,12 +125,18 @@ final class LooksViewModel {
     /// reopening the sheet would throw away completed work and flash the grid
     /// back to placeholders.
     func load(category: PresetCategory) {
-        guard category != self.category || presets.isEmpty else { return }
+        guard category != self.category || presets.isEmpty || category == .favourites else { return }
 
         self.category = category
-        presets = category == .recommended
-            ? catalog.recommended(for: .unclassified)
-            : catalog.presets(in: category)
+
+        if category == .recommended {
+            presets = catalog.recommended(for: .unclassified)
+        } else if category == .favourites {
+            let favIDs = favouritesManager.allFavourites()
+            presets = favIDs.compactMap { catalog.preset(withID: $0) }
+        } else {
+            presets = catalog.presets(in: category)
+        }
 
         thumbnails = Dictionary(
             uniqueKeysWithValues: presets.map { ($0.id, ThumbnailState.loading) }

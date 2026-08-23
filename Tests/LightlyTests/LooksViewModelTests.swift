@@ -120,23 +120,52 @@ final class LooksViewModelTests: XCTestCase {
 
     /// A single failing thumbnail must not blank the grid.
     func testOneFailingThumbnailDoesNotAffectTheOthers() async {
+        let sampleCatalog = BuiltInPresetCatalog()
+        let targetID = sampleCatalog.recommended(for: .unclassified).first?.id ?? "cinematic.green-hawaii-f149aa"
+
         let viewModel = makeViewModel(
             renderer: ScriptedThumbnailRenderer(
-                behaviour: .failOnly(presetID: "film.golden-memory")
+                behaviour: .failOnly(presetID: targetID)
             )
         )
         viewModel.load(category: .recommended)
         await viewModel.inFlightThumbnailWork?.value
 
-        XCTAssertEqual(viewModel.thumbnails["film.golden-memory"], .failed)
+        XCTAssertEqual(viewModel.thumbnails[targetID], .failed)
 
-        let others = viewModel.presets.filter { $0.id != "film.golden-memory" }
+        let others = viewModel.presets.filter { $0.id != targetID }
         for preset in others {
             XCTAssertNotNil(
                 viewModel.thumbnails[preset.id]?.image,
                 "\(preset.id) should still have rendered."
             )
         }
+    }
+
+    func testFavouritesCategoryWorkflow() {
+        let favouritesManager = UserDefaultsFavouritesManager(userDefaults: UserDefaults(suiteName: "test.looks.vm.favs")!)
+        let viewModel = LooksViewModel(
+            sourceImage: TestFixtures.makeImage(),
+            catalog: BuiltInPresetCatalog(),
+            thumbnailRenderer: ScriptedThumbnailRenderer(behaviour: .succeed),
+            entitlements: FreeTierEntitlementResolver(),
+            favouritesManager: favouritesManager
+        )
+
+        viewModel.load(category: .recommended)
+        guard let firstLook = viewModel.presets.first else {
+            return XCTFail("Expected presets in recommended")
+        }
+
+        XCTAssertFalse(viewModel.isFavourite(firstLook))
+        viewModel.toggleFavourite(firstLook)
+        XCTAssertTrue(viewModel.isFavourite(firstLook))
+
+        viewModel.load(category: .favourites)
+        XCTAssertTrue(viewModel.presets.contains { $0.id == firstLook.id })
+
+        viewModel.toggleFavourite(firstLook)
+        XCTAssertFalse(viewModel.isFavourite(firstLook))
     }
 
     func testAllThumbnailsFailingLeavesEveryCellInFailedState() async {

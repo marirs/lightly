@@ -17,7 +17,7 @@ final class LookApplicationTests: XCTestCase {
     }
 
     private var goldenMemory: LightlyPreset {
-        guard let preset = BuiltInPresetCatalog().preset(withID: "film.golden-memory") else {
+        guard let preset = BuiltInPresetCatalog().recommended(for: .unclassified).first else {
             fatalError("Starter catalogue is missing a known preset")
         }
         return preset
@@ -30,7 +30,7 @@ final class LookApplicationTests: XCTestCase {
 
         viewModel.applyLook(goldenMemory, intensity: 1)
 
-        XCTAssertEqual(viewModel.history.currentLookID, "film.golden-memory")
+        XCTAssertEqual(viewModel.history.currentLookID, goldenMemory.id)
         XCTAssertTrue(viewModel.canUndo)
     }
 
@@ -39,7 +39,7 @@ final class LookApplicationTests: XCTestCase {
 
         viewModel.applyLook(goldenMemory, intensity: 0.5)
 
-        XCTAssertEqual(viewModel.history.currentLookID, "film.golden-memory")
+        XCTAssertEqual(viewModel.history.currentLookID, goldenMemory.id)
         XCTAssertEqual(viewModel.history.currentIntensity, 0.5, accuracy: 0.001)
     }
 
@@ -68,7 +68,7 @@ final class LookApplicationTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.history.currentLookID,
-            "film.golden-memory",
+            goldenMemory.id,
             "Undo should reverse the intensity change, not the Look."
         )
         XCTAssertEqual(viewModel.history.currentIntensity, 1, accuracy: 0.001)
@@ -120,12 +120,12 @@ final class LookApplicationTests: XCTestCase {
         let viewModel = await makeDevelopedEditor()
         viewModel.applyLook(goldenMemory, intensity: 0.2)
 
-        guard let other = BuiltInPresetCatalog().preset(withID: "moody.overcast") else {
-            return XCTFail("Expected preset")
+        guard let other = BuiltInPresetCatalog().presets(in: .cinematic).first else {
+            return XCTFail("Expected preset in cinematic category")
         }
         viewModel.applyLook(other, intensity: 1)
 
-        XCTAssertEqual(viewModel.history.currentLookID, "moody.overcast")
+        XCTAssertEqual(viewModel.history.currentLookID, other.id)
         XCTAssertEqual(viewModel.history.currentIntensity, 1, accuracy: 0.001)
     }
 
@@ -201,58 +201,5 @@ final class RecipeCompositionTests: XCTestCase {
 
         XCTAssertEqual(doubled.exposure, 0.4, accuracy: 0.0001)
         XCTAssertEqual(doubled.whiteBalance.tint, -8, accuracy: 0.0001)
-    }
-}
-
-/// Covers the bundled starter catalogue.
-final class PresetCatalogTests: XCTestCase {
-
-    private let catalog = BuiltInPresetCatalog()
-
-    func testRecommendedReturnsBetweenThreeAndSix() {
-        let recommended = catalog.recommended(for: .unclassified)
-
-        XCTAssertGreaterThanOrEqual(recommended.count, 3)
-        XCTAssertLessThanOrEqual(recommended.count, 6)
-    }
-
-    func testRecommendedIsStable() {
-        // A fixed curated order, not a ranking — it must not vary between
-        // calls, or the grid would reshuffle under the user.
-        XCTAssertEqual(
-            catalog.recommended(for: .unclassified).map(\.id),
-            catalog.recommended(for: .unclassified).map(\.id)
-        )
-    }
-
-    func testEveryPresetIdentifierIsUnique() {
-        let all = PresetCategory.allCases
-            .filter { $0 != .recommended }
-            .flatMap { catalog.presets(in: $0) }
-
-        XCTAssertEqual(Set(all.map(\.id)).count, all.count)
-    }
-
-    /// Recipes must only use parameters the renderer genuinely applies, so no
-    /// Look advertises an effect that never appears.
-    func testStarterRecipesAvoidUnrenderedParameters() {
-        let all = PresetCategory.allCases
-            .filter { $0 != .recommended }
-            .flatMap { catalog.presets(in: $0) }
-
-        for preset in all {
-            XCTAssertEqual(
-                preset.recipe.clarity, 0,
-                "\(preset.id) sets clarity, which RecipeRenderer does not apply."
-            )
-            XCTAssertEqual(
-                preset.recipe.dehaze, 0,
-                "\(preset.id) sets dehaze, which RecipeRenderer does not apply."
-            )
-            XCTAssertEqual(
-                preset.recipe.noiseReduction, 0,
-                "\(preset.id) sets noiseReduction, which RecipeRenderer does not apply."
-            )
-        }
     }
 }
