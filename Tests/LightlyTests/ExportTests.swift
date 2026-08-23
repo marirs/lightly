@@ -29,7 +29,7 @@ private actor SpyLibraryWriter: PhotoLibraryWriting {
 }
 
 private struct FailingExporter: PhotoExporting {
-    func encode(_ image: CGImage, originalData: Data, settings: ExportSettings) throws -> Data {
+    func encode(_ image: CGImage, originalData: Data, settings: ExportSettings, colorSpace: CGColorSpace?) throws -> Data {
         throw LightlyError.exportFailed
     }
 }
@@ -304,7 +304,8 @@ final class ExportViewModelTests: XCTestCase {
         writer: any PhotoLibraryWriting = SpyLibraryWriter()
     ) -> ExportViewModel {
         ExportViewModel(
-            renderedImage: TestFixtures.makeImage(),
+            originalImage: TestFixtures.makeImage(),
+            recipe: .unmodified,
             originalData: Data(),
             exporter: exporter,
             libraryWriter: writer,
@@ -520,7 +521,8 @@ final class ExportPreservesOriginalTests: XCTestCase {
 
         let writer = SpyLibraryWriter()
         let exportViewModel = ExportViewModel(
-            renderedImage: editor.renderedImage,
+            originalImage: editor.original.image,
+            recipe: editor.composedRecipe,
             originalData: photo.originalData,
             exporter: ImageIOPhotoExporter(),
             libraryWriter: writer,

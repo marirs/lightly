@@ -17,28 +17,22 @@ struct DependencyContainer {
 
     /// The current composition.
     ///
-    /// **Release builds cannot be produced while the Develop engine is a
-    /// placeholder.** The `#else` branch below fails compilation deliberately.
+    /// Phase 2 introduces the production Develop engine backed by histogram
+    /// analysis. The `#error` that blocked release builds in Phase 1 has been
+    /// removed — `AnalysingDeveloper` reports `.production`, so the debug
+    /// disclosure banner no longer appears.
     ///
-    /// This is stronger than hiding the debug notice in release, which would be
-    /// the worst possible outcome: a placeholder engine shipping *without* its
-    /// disclosure. Making the build fail means the placeholder cannot reach a
-    /// release binary at all, so the notice can never appear there either —
-    /// there is nothing for it to disclose.
-    ///
-    /// To produce a release build, implement a `PhotoDeveloping` that reports
-    /// `.production` and select it here.
+    /// In DEBUG builds, the `DebugFixedRecipeDeveloper` can be activated via
+    /// the launch argument `--fixed-recipe` for deterministic snapshot testing.
     static func live() -> DependencyContainer {
-        #if DEBUG
-        let developer: any PhotoDeveloping = DebugFixedRecipeDeveloper()
-        #else
-        #error("""
-        No production Develop engine exists yet. A release build must not ship \
-        DebugFixedRecipeDeveloper: it performs real rendering but no analysis, \
-        and presenting it as finished would violate specification §24.8. \
-        Implement a PhotoDeveloping returning .production and select it here.
-        """)
-        #endif
+        let developer: any PhotoDeveloping = {
+            #if DEBUG
+            if CommandLine.arguments.contains("--fixed-recipe") {
+                return DebugFixedRecipeDeveloper()
+            }
+            #endif
+            return AnalysingDeveloper(analyser: HistogramAnalyser())
+        }()
 
         return DependencyContainer(
             photoLoader: ImageIOPhotoLoader(),

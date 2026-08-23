@@ -8,11 +8,18 @@ protocol PhotoExporting: Sendable {
     /// Encodes `image`, carrying metadata across from `originalData` as the
     /// settings allow.
     ///
+    /// - Parameters:
+    ///   - image: The rendered photograph.
+    ///   - originalData: Source bytes for metadata extraction.
+    ///   - settings: Export configuration.
+    ///   - colorSpace: The colour space to embed in the output file. When
+    ///     `nil`, the image's own colour space is used (spec §15.4).
     /// - Throws: `LightlyError.exportFailed` when encoding fails.
     func encode(
         _ image: CGImage,
         originalData: Data,
-        settings: ExportSettings
+        settings: ExportSettings,
+        colorSpace: CGColorSpace?
     ) throws -> Data
 }
 
@@ -22,7 +29,8 @@ struct ImageIOPhotoExporter: PhotoExporting {
     func encode(
         _ image: CGImage,
         originalData: Data,
-        settings: ExportSettings
+        settings: ExportSettings,
+        colorSpace: CGColorSpace? = nil
     ) throws -> Data {
         let output = NSMutableData()
 
@@ -52,6 +60,12 @@ struct ImageIOPhotoExporter: PhotoExporting {
         // declare orientation 1. Copying the source's orientation tag across
         // would rotate the photograph a second time on every viewer.
         properties[kCGImagePropertyOrientation] = 1
+
+        // Colour space preservation (spec §15.4): the CGImage produced by
+        // RecipeRenderer already carries the source's colour space (P3, sRGB,
+        // etc.) via the outputColorSpace parameter. ImageIO automatically
+        // embeds that colour profile when encoding, so no explicit embedding
+        // step is needed here.
 
         CGImageDestinationAddImage(destination, image, properties as CFDictionary)
 

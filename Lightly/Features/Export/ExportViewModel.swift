@@ -35,10 +35,16 @@ final class ExportViewModel {
 
     // MARK: - Dependencies
 
-    /// The fully rendered image, at full resolution.
-    private let renderedImage: CGImage
+    /// The original, full-resolution photograph.
+    private let originalImage: CGImage
+    /// The recipe to render at full resolution for export.
+    private let recipe: DevelopRecipe
     /// Bytes of the original, used as the metadata source.
     private let originalData: Data
+    /// The source photograph's colour space, embedded in the export (spec §15.4).
+    private let colorSpace: CGColorSpace?
+    /// Renders at full resolution for export (spec §15.3).
+    private let previewRenderer: PreviewRenderer
 
     private let exporter: any PhotoExporting
     private let libraryWriter: any PhotoLibraryWriting
@@ -47,14 +53,20 @@ final class ExportViewModel {
     private var exportTask: Task<Void, Never>?
 
     init(
-        renderedImage: CGImage,
+        originalImage: CGImage,
+        recipe: DevelopRecipe,
         originalData: Data,
+        colorSpace: CGColorSpace? = nil,
+        previewRenderer: PreviewRenderer = PreviewRenderer(),
         exporter: any PhotoExporting,
         libraryWriter: any PhotoLibraryWriting,
         entitlements: any EntitlementResolving
     ) {
-        self.renderedImage = renderedImage
+        self.originalImage = originalImage
+        self.recipe = recipe
         self.originalData = originalData
+        self.colorSpace = colorSpace
+        self.previewRenderer = previewRenderer
         self.exporter = exporter
         self.libraryWriter = libraryWriter
         self.entitlements = entitlements
@@ -134,10 +146,21 @@ final class ExportViewModel {
 
     private func performExport(to destination: ExportDestination) async {
         do {
+            // Render at full resolution from the original photograph (spec
+            // §15.3). The editor displays a preview-resolution image during
+            // editing; export produces the final output at the source's native
+            // dimensions so the user gets maximum quality.
+            let fullResImage = try await previewRenderer.renderFullResolution(
+                originalImage, with: recipe
+            )
+
+            try Task.checkCancellation()
+
             let data = try exporter.encode(
-                renderedImage,
+                fullResImage,
                 originalData: originalData,
-                settings: settings
+                settings: settings,
+                colorSpace: colorSpace
             )
 
             try Task.checkCancellation()

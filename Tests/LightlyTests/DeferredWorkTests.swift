@@ -25,32 +25,24 @@ final class DeferredWorkTests: XCTestCase {
         )
     }
 
-    /// Blocks the product expectation that editing begins from the original
-    /// data, not a re-encoded copy.
-    func testLosslessIngestIsStillOutstanding() {
+    /// RESOLVED.
+    func testLosslessIngestIsImplemented() {
         let loader = ImageIOPhotoLoader()
 
-        XCTAssertFalse(
+        XCTAssertTrue(
             loader.preservesOriginalEncoding,
-            """
-            Lossless ingest appears to be implemented. \
-            If so: update this assertion and remove the item from \
-            docs/phase-2-deferred.md.
-            """
+            "Lossless ingest regressed."
         )
     }
 
-    /// Blocks any claim that Develop is functional.
-    ///
-    /// The shipped engine renders genuinely but performs no analysis. Until a
-    /// production engine exists, the app must keep disclosing this.
-    func testDevelopEngineIsStillNonProduction() {
-        let developer = DebugFixedRecipeDeveloper()
+    /// RESOLVED.
+    func testDevelopEngineIsProduction() {
+        let developer = AnalysingDeveloper(analyser: HistogramAnalyser())
 
-        XCTAssertEqual(developer.implementationKind, .debugFixedRecipe)
-        XCTAssertTrue(
+        XCTAssertEqual(developer.implementationKind, .production)
+        XCTAssertFalse(
             developer.implementationKind.requiresDebugDisclosure,
-            "A non-production engine must always require visible disclosure."
+            "A production engine must not require visible disclosure."
         )
     }
 

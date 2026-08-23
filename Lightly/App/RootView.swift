@@ -30,8 +30,8 @@ struct RootView: View {
                         viewModel: appState.makeEditorViewModel(for: photo),
                         onBack: { appState.returnToLaunch() },
                         makeLooksViewModel: { appState.makeLooksViewModel(for: photo) },
-                        makeExportViewModel: { rendered in
-                            appState.makeExportViewModel(for: photo, renderedImage: rendered)
+                        makeExportViewModel: { recipe in
+                            appState.makeExportViewModel(for: photo, recipe: recipe)
                         }
                     )
                     .id(photo.id)

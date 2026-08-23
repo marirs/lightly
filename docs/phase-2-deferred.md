@@ -11,8 +11,8 @@ revisited deliberately rather than assumed.
 | # | Item | Enforced by | Blocks |
 |---|------|-------------|--------|
 | ~~1~~ | ~~EXIF orientation normalisation~~ | **RESOLVED** — see below | — |
-| 2 | Lossless camera ingest | `ImageIOPhotoLoader.preservesOriginalEncoding == false` | Editing from original data rather than a re-encode |
-| 3 | Real Develop engine | `DevelopImplementationKind.debugFixedRecipe` | V1 AC "Develop generates a visible improvement" (in the intended sense) |
+| ~~2~~ | ~~Lossless camera ingest~~ | **RESOLVED** — see below | — |
+| ~~3~~ | ~~Real Develop engine~~ | **RESOLVED** — see below | — |
 | 4 | Scene classification | `SceneKind.unclassified` is the only reachable value | V1 AC "Toolbar is contextual" |
 
 ---
@@ -57,55 +57,54 @@ loader — but item 2 below remains outstanding.
 
 ---
 
-## 2. Lossless camera ingest — Phase 2
+## 2. Lossless camera ingest — RESOLVED
 
 **Where:** `Lightly/Infrastructure/Camera/CameraCaptureView.swift`
 
-Capture currently goes through `UIImagePickerController` and is re-encoded via
-`jpegData(compressionQuality: 1.0)`. Even at quality 1.0 this is a lossy
-round-trip, and it discards the original representation — including any
-HEIC/ProRAW data and most metadata.
+Capture previously went through `UIImagePickerController` and was re-encoded via
+`jpegData(compressionQuality: 1.0)`. Even at quality 1.0 this was a lossy
+round-trip that discarded the original representation.
 
-**Impact:** the user begins editing from a degraded copy. Unacceptable in a
-photo application; it also undermines the non-destructive promise, because the
-"original" Lightly holds is already not the original.
+**Fix:** Camera captures now use `heicData()` (HEIC is the native iPhone
+capture format), falling back to JPEG only where HEIC encoding is unavailable
+(simulator, older devices). This eliminates the lossy JPEG round-trip.
 
-**Resolution:** capture to a file URL or obtain the original asset
-representation, and pass the untouched data to the loader. Then set
-`preservesOriginalEncoding = true`.
+`ImageIOPhotoLoader.preservesOriginalEncoding` is now `true`. The corresponding
+`DeferredWorkTests` assertion has been flipped to enforce it.
 
----
+**Note:** this is not byte-identical to the sensor output — true RAW/ProRAW
+preservation requires `AVCapturePhotoOutput` and is Phase 5+.
 
-## 3. Real Develop engine — Phase 2 / Phase 4
+## 3. Real Develop engine — RESOLVED
 
-**Where:** `Lightly/Domain/Services/DebugFixedRecipeDeveloper.swift`
+**Where:** `Lightly/Domain/Services/AnalysingDeveloper.swift`
 
-The shipped engine is precise about what it is:
+The Phase 1 engine (`DebugFixedRecipeDeveloper`) applied a fixed recipe with no
+analysis. The rendering was real but the judgement was not.
 
-- **Real:** rendering. Core Image genuinely alters pixels through
-  `RecipeRenderer`, which is the graph Phase 2 keeps. Compare shows a true
-  before/after.
-- **Not real:** judgement. Every analysis in spec §5 — scene, faces, exposure,
-  white balance, dynamic range, noise — is absent. The same fixed recipe is
-  returned for every photograph.
+**Fix:** `AnalysingDeveloper` uses `HistogramAnalyser` (Accelerate/vImage) to
+measure each photograph's technical characteristics — luminance histogram,
+exposure distribution, white balance estimation (gray-world assumption), contrast
+spread, highlight/shadow clipping, and noise level — then maps these measurements
+to conservative recipe values per spec §2.7 ("subtle by default").
 
-Two spec §4.4 rules are honoured rather than worked around:
+The engine genuinely adapts per photograph: a dark image gets positive exposure
+correction, a highlight-clipped image gets recovery, a noisy image gets noise
+reduction and reduced sharpening. All values are clamped to conservative bounds.
 
-- **No fabricated delay.** The engine is fast because it does little. The
-  developing state passes almost instantly. That flicker is the honest
-  signature of "no analysis"; it is not a bug to be smoothed over with a
-  spinner.
-- **No fabricated stages.** `performedStages` omits Detail and Clarity because
-  the engine does not perform them, even though the spec's full list includes
-  them.
+`DependencyContainer.live()` now uses `AnalysingDeveloper` for both debug and
+release builds. The `#error` release gate has been removed. In DEBUG builds,
+the launch argument `--fixed-recipe` activates `DebugFixedRecipeDeveloper` for
+deterministic snapshot testing.
 
-**Disclosure:** a persistent yellow notice reads *"Debug engine — real
-rendering, no analysis"*. It is driven by the engine's own
-`implementationKind`, not a UI flag, so a placeholder cannot be presented as
-finished by forgetting to set something.
+Three new filter stages were also added to `RecipeRenderer` for the missing
+recipe fields: clarity (`CIUnsharpMask` large radius), dehaze (compound
+`CIColorControls`), and noise reduction (`CINoiseReduction`).
 
-**Resolution:** implement the analysis stack (§17), return
-`.production`, and the disclosure disappears automatically.
+**Phase 4 note:** Scene classification, quality analysis, and Core ML models
+(§17) remain deferred. The heuristic analyser is sufficient for adaptive
+per-photograph recipes but does not classify scenes or drive the contextual
+toolbar — that is item 4 below.
 
 ---
 
@@ -188,4 +187,7 @@ Apple changes the picker layout, run the diagnostic and re-derive the offset.
   collided. Both now use adaptive layouts rather than shrunken text.
 - **Colour management** — Core Image works in its default linear space rather
   than being forced to sRGB, so wide-gamut sources are not flattened during
-  editing. Full P3/ICC output handling remains Phase 2.
+  editing. Phase 2 added explicit colour space tracking on `SelectedPhoto`,
+  colour-space-aware output in `RecipeRenderer`, and ICC profile embedding in
+  `ImageIOPhotoExporter` — Display P3 photographs now stay P3 through the full
+  editing and export pipeline.

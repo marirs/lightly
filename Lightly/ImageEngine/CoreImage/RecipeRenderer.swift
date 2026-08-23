@@ -34,6 +34,20 @@ struct RecipeRenderer: Sendable {
     /// - Returns: A newly rendered image.
     /// - Throws: `LightlyError.developFailed` if the graph cannot be rendered.
     func render(_ image: CGImage, with recipe: DevelopRecipe) throws -> CGImage {
+        try render(image, with: recipe, outputColorSpace: nil)
+    }
+
+    /// Applies a recipe, producing output in the specified colour space.
+    ///
+    /// When `outputColorSpace` is provided, the rendered image is created in
+    /// that space — preserving Display P3, embedded ICC profiles, or any other
+    /// gamut the source carried (spec §15.4). When `nil`, Core Image's default
+    /// working space is used.
+    func render(
+        _ image: CGImage,
+        with recipe: DevelopRecipe,
+        outputColorSpace: CGColorSpace?
+    ) throws -> CGImage {
         // An identity recipe must not round-trip through Core Image: doing so
         // would re-encode pixels for no reason and could subtly shift colour.
         guard !recipe.isIdentity else { return image }
@@ -44,9 +58,19 @@ struct RecipeRenderer: Sendable {
         ciImage = applyWhiteBalance(recipe.whiteBalance, to: ciImage)
         ciImage = applyToneAndColour(recipe, to: ciImage)
         ciImage = applyVibrance(recipe.vibrance, to: ciImage)
+        ciImage = applyClarity(recipe.clarity, to: ciImage)
+        ciImage = applyDehaze(recipe.dehaze, to: ciImage)
+        ciImage = applyNoiseReduction(recipe.noiseReduction, to: ciImage)
         ciImage = applySharpening(recipe.sharpening, to: ciImage)
 
-        guard let output = context.createCGImage(ciImage, from: ciImage.extent) else {
+        let output: CGImage?
+        if let colorSpace = outputColorSpace {
+            output = context.createCGImage(ciImage, from: ciImage.extent, format: .RGBA8, colorSpace: colorSpace)
+        } else {
+            output = context.createCGImage(ciImage, from: ciImage.extent)
+        }
+
+        guard let output else {
             throw LightlyError.developFailed
         }
         return output
@@ -113,6 +137,57 @@ struct RecipeRenderer: Sendable {
         guard vibrance != 0 else { return image }
         return image.applyingFilter("CIVibrance", parameters: [
             "inputAmount": vibrance
+        ])
+    }
+
+    /// Local contrast enhancement (spec §5).
+    ///
+    /// Clarity is not a Core Image built-in concept. The standard technique is
+    /// an unsharp mask with a large radius and low intensity, which boosts
+    /// mid-tone contrast without altering global tonal balance. This is the
+    /// same principle Lightroom's Clarity slider uses.
+    private func applyClarity(_ clarity: Double, to image: CIImage) -> CIImage {
+        guard clarity != 0 else { return image }
+        return image.applyingFilter("CIUnsharpMask", parameters: [
+            kCIInputRadiusKey: 20.0,
+            kCIInputIntensityKey: clarity * 0.5
+        ])
+    }
+
+    /// Haze reduction (spec §5).
+    ///
+    /// Dehaze is approximated as a compound operation: a small contrast lift
+    /// combined with a saturation increase, both proportional to the recipe
+    /// value. This is not a physics-based dehazing model — that would require
+    /// depth estimation — but it handles the common case of washed-out,
+    /// low-contrast atmospheric haze convincingly enough for a "subtle by
+    /// default" adjustment.
+    private func applyDehaze(_ dehaze: Double, to image: CIImage) -> CIImage {
+        guard dehaze != 0 else { return image }
+        // Boost contrast slightly and increase saturation to cut through haze.
+        var result = image.applyingFilter("CIColorControls", parameters: [
+            kCIInputContrastKey: 1.0 + dehaze * 0.3,
+            kCIInputSaturationKey: 1.0 + dehaze * 0.2
+        ])
+        // A small vibrance lift further recovers muted colours without
+        // oversaturating already-vivid areas.
+        result = result.applyingFilter("CIVibrance", parameters: [
+            "inputAmount": dehaze * 0.15
+        ])
+        return result
+    }
+
+    /// Luminance noise reduction (spec §5).
+    ///
+    /// `CINoiseReduction` is deliberately conservative here: heavy noise
+    /// reduction smears detail, and the spec's principle is "subtle by
+    /// default". The sharpness parameter preserves edges, trading a small
+    /// amount of residual noise for texture fidelity.
+    private func applyNoiseReduction(_ noiseReduction: Double, to image: CIImage) -> CIImage {
+        guard noiseReduction != 0 else { return image }
+        return image.applyingFilter("CINoiseReduction", parameters: [
+            "inputNoiseLevel": noiseReduction * 0.02,
+            "inputSharpness": 0.4
         ])
     }
 

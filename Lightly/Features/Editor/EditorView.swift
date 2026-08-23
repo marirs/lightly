@@ -15,8 +15,8 @@ struct EditorView: View {
     /// screen opens, not when the editor appears.
     var makeLooksViewModel: (() -> LooksViewModel)?
 
-    /// Builds the export view model for whatever is currently rendered.
-    var makeExportViewModel: ((CGImage) -> ExportViewModel)?
+    /// Builds the export view model using the current edit recipe.
+    var makeExportViewModel: ((DevelopRecipe) -> ExportViewModel)?
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isShowingLooks = false
@@ -26,7 +26,7 @@ struct EditorView: View {
         viewModel: EditorViewModel,
         onBack: @escaping () -> Void,
         makeLooksViewModel: (() -> LooksViewModel)? = nil,
-        makeExportViewModel: ((CGImage) -> ExportViewModel)? = nil
+        makeExportViewModel: ((DevelopRecipe) -> ExportViewModel)? = nil
     ) {
         _viewModel = State(initialValue: viewModel)
         self.onBack = onBack
@@ -78,11 +78,10 @@ struct EditorView: View {
         }
         .sheet(isPresented: $isShowingExport) {
             if let makeExportViewModel {
-                // Built from the currently rendered image, so what is exported
-                // is exactly what the user is looking at — including any Look
-                // and intensity already applied.
+                // Built from the current composed recipe so export renders at
+                // full resolution from the original photograph (spec §15.3).
                 ExportSheet(
-                    viewModel: makeExportViewModel(viewModel.renderedImage),
+                    viewModel: makeExportViewModel(viewModel.composedRecipe),
                     onClose: { isShowingExport = false }
                 )
                 .presentationDetents([.medium, .large])

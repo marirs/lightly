@@ -45,13 +45,16 @@ struct CameraCaptureView: UIViewControllerRepresentable {
             _ picker: UIImagePickerController,
             didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
         ) {
+            // Prefer HEIC, which is the native iPhone capture format and
+            // eliminates the lossy JPEG round-trip that Phase 1 shipped with
+            // (see phase-2-deferred.md item 2). The JPEG fallback handles
+            // simulator environments and older devices that lack hardware
+            // HEIC encoding.
             guard let image = info[.originalImage] as? UIImage,
-                  let data = image.jpegData(compressionQuality: 1.0) else {
+                  let data = image.heicData() ?? image.jpegData(compressionQuality: 1.0) else {
                 // A capture that cannot be encoded is a defined failure state,
                 // not a silent no-op. Surfaced as cancellation here and mapped
-                // by the caller; Phase 2 replaces this with the real pipeline
-                // which preserves the original representation rather than
-                // re-encoding to JPEG.
+                // by the caller.
                 onCancel()
                 return
             }

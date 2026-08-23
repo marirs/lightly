@@ -21,7 +21,8 @@ final class ExportSnapshotTests: XCTestCase {
         entitlements: any EntitlementResolving = FreeTierEntitlementResolver()
     ) -> ExportViewModel {
         ExportViewModel(
-            renderedImage: TestFixtures.makeImage(),
+            originalImage: TestFixtures.makeImage(),
+            recipe: .unmodified,
             originalData: TestFixtures.makeJPEGData(),
             exporter: ImageIOPhotoExporter(),
             libraryWriter: NoopLibraryWriter(),

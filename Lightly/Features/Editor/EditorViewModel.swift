@@ -52,7 +52,7 @@ final class EditorViewModel {
     // MARK: - Dependencies
 
     private let developer: any PhotoDeveloping
-    private let renderer: RecipeRenderer
+    private let previewRenderer: PreviewRenderer
 
     /// The in-flight development, retained so it can be cancelled.
     ///
@@ -64,15 +64,23 @@ final class EditorViewModel {
     init(
         original: SelectedPhoto,
         developer: any PhotoDeveloping,
-        renderer: RecipeRenderer = RecipeRenderer()
+        previewRenderer: PreviewRenderer = PreviewRenderer()
     ) {
         self.original = original
         self.renderedImage = original.image
         self.developer = developer
-        self.renderer = renderer
+        self.previewRenderer = previewRenderer
     }
 
     // MARK: - Derived availability rules
+
+    /// The full recipe as it stands after all edits, suitable for export.
+    ///
+    /// Exposed so the export sheet can hand this to `ExportViewModel`, which
+    /// renders at full resolution from the original using this recipe.
+    var composedRecipe: DevelopRecipe {
+        history.composedRecipe
+    }
 
     /// Whether Compare may be offered.
     ///
@@ -141,7 +149,9 @@ final class EditorViewModel {
 
             try Task.checkCancellation()
 
-            let rendered = try renderer.render(original.image, with: recipe)
+            let rendered = try await previewRenderer.renderPreview(
+                original.image, with: recipe
+            )
 
             renderedImage = rendered
             history.record(.develop(recipe))
@@ -222,15 +232,18 @@ final class EditorViewModel {
         let composed = history.composedRecipe
             .combined(with: preset.recipe.scaled(by: intensity))
 
-        do {
-            renderedImage = try renderer.render(original.image, with: composed)
-        } catch {
-            // A failed preview leaves the committed image on screen rather than
-            // blanking it; the user has lost nothing.
-            renderedImage = (try? renderer.render(
-                original.image,
-                with: history.composedRecipe
-            )) ?? original.image
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let rendered = try await previewRenderer.renderPreview(
+                    original.image, with: composed
+                )
+                renderedImage = rendered
+            } catch {
+                // A failed preview leaves the committed image on screen rather than
+                // blanking it; the user has lost nothing.
+                rerenderFromHistory()
+            }
         }
     }
 
@@ -257,19 +270,32 @@ final class EditorViewModel {
         // its intensity survive undo of a later step.
         let recipe = history.composedRecipe
 
-        do {
-            renderedImage = try renderer.render(original.image, with: recipe)
-        } catch {
-            // Re-rendering the original can only fail for environmental
-            // reasons; fall back to the untouched source so the user is never
-            // left looking at a stale result.
-            renderedImage = original.image
-            activeError = .developFailed
-        }
-
+        // Phase and Compare state update synchronously so the UI reflects the
+        // change immediately; the pixel render follows asynchronously.
         phase = history.hasDevelopedVersion ? .developed : .readyToDevelop
         if !isCompareAvailable {
             isShowingOriginal = false
+        }
+
+        guard !recipe.isIdentity else {
+            renderedImage = original.image
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let rendered = try await previewRenderer.renderPreview(
+                    original.image, with: recipe
+                )
+                renderedImage = rendered
+            } catch {
+                // Re-rendering the original can only fail for environmental
+                // reasons; fall back to the untouched source so the user is never
+                // left looking at a stale result.
+                renderedImage = original.image
+                activeError = .developFailed
+            }
         }
     }
 

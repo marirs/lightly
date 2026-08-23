@@ -15,6 +15,14 @@ struct SelectedPhoto: Identifiable, Sendable {
     /// Pixel dimensions after orientation normalisation.
     let pixelSize: CGSize
 
+    /// The colour space of the source image (spec §15.4).
+    ///
+    /// Tracked explicitly so the rendering pipeline and export can produce
+    /// output in the same colour space as the source. A Display P3 photograph
+    /// must stay P3 through editing and export; silently flattening it to sRGB
+    /// would lose the extended gamut the photographer intended to capture.
+    let colorSpace: CGColorSpace
+
     /// The bytes the photograph was decoded from.
     ///
     /// Retained because a `CGImage` carries no EXIF, and export must be able to
@@ -32,6 +40,7 @@ struct SelectedPhoto: Identifiable, Sendable {
         self.image = image
         self.source = source
         self.pixelSize = CGSize(width: image.width, height: image.height)
+        self.colorSpace = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
         self.originalData = originalData
     }
 }

@@ -110,15 +110,19 @@ final class AppState {
 
     /// Builds the export view model for the current state of a photograph.
     ///
-    /// Takes the rendered image as an argument rather than reaching into the
-    /// editor, so what gets exported is unambiguously what is on screen.
+    /// Export renders at full resolution from the original image using the
+    /// composed recipe (spec §15.3), so the output file matches the source
+    /// dimensions regardless of what preview resolution was used during editing.
     func makeExportViewModel(
         for photo: SelectedPhoto,
-        renderedImage: CGImage
+        recipe: DevelopRecipe
     ) -> ExportViewModel {
         ExportViewModel(
-            renderedImage: renderedImage,
+            originalImage: photo.image,
+            recipe: recipe,
             originalData: photo.originalData,
+            colorSpace: photo.colorSpace,
+            previewRenderer: PreviewRenderer(),
             exporter: exporter,
             libraryWriter: libraryWriter,
             entitlements: entitlements

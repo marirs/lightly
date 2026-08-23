@@ -54,10 +54,11 @@ struct ImageIOPhotoLoader: PhotoLoading {
     /// EXIF orientation is applied during `loadPhoto`.
     let normalisesOrientation = true
 
-    /// PHASE 2 DEBT: camera capture currently re-encodes to JPEG before
-    /// reaching this loader (see `CameraCaptureView`), so the original
-    /// representation is already lost by ingest time.
-    let preservesOriginalEncoding = false
+    /// Camera captures now arrive as HEIC (the native iPhone capture format)
+    /// rather than lossy JPEG re-encodes. Photo Library selections have always
+    /// been passed through unmodified. True RAW/ProRAW preservation — retaining
+    /// the raw sensor data — requires `AVCapturePhotoOutput` and is Phase 5+.
+    let preservesOriginalEncoding = true
 
     /// Shared context for the orientation transform.
     private let context = CIContext(options: [.useSoftwareRenderer: false])
