@@ -8,29 +8,41 @@ struct SourceSelectionSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Sheet heights. 280 pt fits the content at standard text sizes; at
+    /// accessibility sizes the content is several times taller, so the
+    /// sheet opens large (and still scrolls) instead of clipping.
+    static func detents(for size: DynamicTypeSize) -> Set<PresentationDetent> {
+        size.isAccessibilitySize ? [.large] : [.height(280)]
+    }
+
     var body: some View {
-        VStack(spacing: LightlySpacing.l) {
-            header
+        // Scrolls so that at accessibility text sizes the rows keep their
+        // natural height. Without it the fixed sheet height compressed the
+        // rows and their wrapped text spilled into the neighbouring row.
+        ScrollView {
+            VStack(spacing: LightlySpacing.l) {
+                header
 
-            VStack(spacing: LightlySpacing.s) {
-                sourceRow(
-                    .camera,
-                    icon: "camera",
-                    title: "source.camera.title",
-                    subtitle: "source.camera.subtitle"
-                )
-                sourceRow(
-                    .photoLibrary,
-                    icon: "photo.on.rectangle",
-                    title: "source.library.title",
-                    subtitle: "source.library.subtitle"
-                )
+                VStack(spacing: LightlySpacing.s) {
+                    sourceRow(
+                        .camera,
+                        icon: "camera",
+                        title: "source.camera.title",
+                        subtitle: "source.camera.subtitle"
+                    )
+                    sourceRow(
+                        .photoLibrary,
+                        icon: "photo.on.rectangle",
+                        title: "source.library.title",
+                        subtitle: "source.library.subtitle"
+                    )
+                }
             }
-
-            Spacer(minLength: 0)
+            .padding(.horizontal, LightlySpacing.l)
+            .padding(.top, LightlySpacing.l)
+            .padding(.bottom, LightlySpacing.l)
         }
-        .padding(.horizontal, LightlySpacing.l)
-        .padding(.top, LightlySpacing.xl)
+        .scrollBounceBehavior(.basedOnSize)
         .background(LightlyColor.surface(colorScheme))
     }
 
@@ -48,6 +60,8 @@ struct SourceSelectionSheet: View {
                 .font(LightlyTypography.subtitle)
                 .foregroundStyle(LightlyColor.textSecondary(colorScheme))
                 .multilineTextAlignment(.center)
+                // Wrap, never truncate: this line is the privacy promise.
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -70,10 +84,13 @@ struct SourceSelectionSheet: View {
                     Text(title, bundle: .main)
                         .font(LightlyTypography.rowTitle)
                         .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                        .layoutAnchor("source.\(source).title")
 
                     Text(subtitle, bundle: .main)
                         .font(LightlyTypography.rowSubtitle)
                         .foregroundStyle(LightlyColor.textSecondary(colorScheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutAnchor("source.\(source).subtitle")
                 }
 
                 Spacer(minLength: 0)
@@ -82,12 +99,19 @@ struct SourceSelectionSheet: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(LightlyColor.textTertiary(colorScheme))
             }
-            .padding(LightlySpacing.m)
+            // Vertical padding `xs`, not `m`: at standard sizes the whole
+            // sheet must fit the 280 pt detent at its natural height. The
+            // old `m` padding only fitted because the rows were being
+            // compressed below their content, which at large text made
+            // the rows overlap.
+            .padding(.horizontal, LightlySpacing.m)
+            .padding(.vertical, LightlySpacing.xs)
             .frame(minHeight: LightlySize.minimumTapTarget)
             .background(
                 RoundedRectangle(cornerRadius: LightlyRadius.row, style: .continuous)
                     .fill(LightlyColor.surfaceElevated(colorScheme))
             )
+            .layoutAnchor("source.\(source).row")
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

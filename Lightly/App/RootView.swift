@@ -10,6 +10,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Selection binding for Apple's system photo picker.
     @State private var pickerSelection: PhotosPickerItem?
@@ -40,7 +41,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $appState.isSourceSheetPresented) {
             SourceSelectionSheet()
-                .presentationDetents([.height(280)])
+                .presentationDetents(SourceSelectionSheet.detents(for: dynamicTypeSize))
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(LightlyRadius.sheet)
         }

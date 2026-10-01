@@ -218,7 +218,9 @@ final class LaunchSnapshotTests: XCTestCase {
         SnapshotAssertion.assert(
             of: view,
             named: "source-sheet-accessibility3",
-            size: CGSize(width: 402, height: 360)
+            // The sheet opens at the large detent at accessibility sizes
+            // (SourceSelectionSheet.detents), so the snapshot is full height.
+            size: SnapshotAssertion.defaultSize
         )
     }
 }

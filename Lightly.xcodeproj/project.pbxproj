@@ -38,6 +38,7 @@
 		41A0B6869C0268CEB2FA721D /* LUTKernelSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D966F6DE946474C26273E04A /* LUTKernelSource.swift */; };
 		43710550D6CB40A64E155B88 /* LaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7648DFE969409AB6F6AFC71 /* LaunchView.swift */; };
 		45FAD05F4E71AA9577515028 /* LockedDecisionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C873B5606C4AD11DB6FA1 /* LockedDecisionsTests.swift */; };
+		46860180346A74864DD96DB6 /* SourceSheetLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E2C7356941352ABD05F0F7 /* SourceSheetLayoutTests.swift */; };
 		4AF21CECBD3FA5C1163CA9A1 /* ExportSheetLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB2D8C1CB74D6269DBF7DEF /* ExportSheetLayoutTests.swift */; };
 		4C4B1B342F45110F5B45AEB0 /* ColorPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67235CB2F09149021FA6809B /* ColorPipeline.swift */; };
 		4DD1E0AF5C6A7EDF4B094E03 /* AnalysisProxyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15118BEA84CD488D75B7DAA1 /* AnalysisProxyTests.swift */; };
@@ -181,6 +182,7 @@
 		7C3F3D3C685B0B45184C248B /* DebugFixedRecipeDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFixedRecipeDeveloper.swift; sourceTree = "<group>"; };
 		7ED6748D67469348D11E4C57 /* PresetLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetLookupTests.swift; sourceTree = "<group>"; };
 		7F6E560883970B346EDA7FFF /* LightlyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LightlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		85E2C7356941352ABD05F0F7 /* SourceSheetLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSheetLayoutTests.swift; sourceTree = "<group>"; };
 		87B8C011B45EA042A8B4D617 /* PhotoOrientationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoOrientationTests.swift; sourceTree = "<group>"; };
 		946E87F41D28B673539E8E10 /* PresetIDMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetIDMigrations.swift; sourceTree = "<group>"; };
 		964B21295E706AB4C0F737A7 /* LookApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookApplicationTests.swift; sourceTree = "<group>"; };
@@ -370,6 +372,7 @@
 				38A65CD47975A752738D3F1F /* RenderCacheIdentityTests.swift */,
 				A6DAB9C6D7730E8B0FD6DB61 /* RenderSchedulingTests.swift */,
 				D217669F870E951BD92C014A /* SnapshotEnvironmentTests.swift */,
+				85E2C7356941352ABD05F0F7 /* SourceSheetLayoutTests.swift */,
 				4AEE30EB2606BD4FA51B643F /* Fixtures */,
 				120B09B716865717E09C62AE /* Support */,
 			);
@@ -808,6 +811,7 @@
 				AAF610509B2E837FB28CA666 /* SnapshotAssertion.swift in Sources */,
 				228FFCD1BC0744D1F47D9682 /* SnapshotEnvironment.swift in Sources */,
 				9C4FC2B1099AF58E7B2E48DF /* SnapshotEnvironmentTests.swift in Sources */,
+				46860180346A74864DD96DB6 /* SourceSheetLayoutTests.swift in Sources */,
 				F428117121D672174DE135FA /* TestFixtures.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
