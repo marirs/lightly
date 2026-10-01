@@ -575,7 +575,7 @@ const CATEGORIES = [
 ];
 const CAT = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
 const PHOTO_SUBJECT = 'sunset over a misty meadow';
-const COMMIT_SETTLE_MS = 450;
+// Commits happen on gesture completion, not on a settle timer (Codex M1 finding 6).
 const DEVELOP_MS = 2600;
 const SAVE_MS = 1600;
 
@@ -849,35 +849,35 @@ function clearTransientSaveFeedback() {
   if (S.save === 'saved' || S.save === 'failed' || S.save === 'denied' || S.save === 'viewed') S.save = 'idle';
 }
 
-/** Choose a stop in a category. Stop 0 = Auto; a non-Auto stop REPLACES the current Look (never stacks). */
-function chooseStop(cat, stop, { announceValue = false } = {}) {
-  const current = sliderValue();
-  if (stop === current && cat === S.viewCat) return;
-  if (stop === 0) {
-    // Moving to Auto in the category that owns the Look clears it. In another category the Look is kept.
-    if (S.look && S.look.cat === cat) { S.look = null; S.strength = 100; }
-  } else {
-    S.look = { cat, stop };
-  }
+/**
+ * Choose a stop in a category. Stop 0 = Auto; a non-Auto stop REPLACES the current Look (never stacks).
+ * Explicitly choosing Auto ALWAYS removes the active Look, whichever category owns it (Codex M1 finding 5).
+ * Browsing a category without choosing a stop leaves the Look alone (see selectCategory).
+ * `commitNow`: keyboard / assistive-technology steps and label taps commit immediately (one undo step each);
+ * pointer drags pass false and commit once on pointerup (finding 6).
+ */
+function chooseStop(cat, stop, { announceValue = false, commitNow = true } = {}) {
+  const unchanged = stop === 0 ? !S.look : (S.look && S.look.cat === cat && S.look.stop === stop);
+  if (unchanged) return;
+  if (stop === 0) { S.look = null; S.strength = 100; }
+  else S.look = { cat, stop };
   S.compareToggle = false;
   clearTransientSaveFeedback();
   requestRender();
-  scheduleCommit();
+  if (commitNow) commit();
   update();
   if (announceValue) srPush('value', el.stepper.getAttribute('aria-valuetext'));
 }
+/** Transient: renders while the Strength thumb moves; the 'change' event (release / key step) commits. */
 function setStrength(v) {
   if (!S.look) return;
   S.strength = v;
   clearTransientSaveFeedback();
   requestRender();
-  scheduleCommit();
   update();
 }
-function scheduleCommit() { clearTimeout(commitTimer); commitTimer = setTimeout(commit, COMMIT_SETTLE_MS); }
-/** One undo step per settled change. */
+/** One undo step per completed gesture or discrete step. No timers: a paused drag never commits. */
 function commit() {
-  clearTimeout(commitTimer);
   const cur = snap();
   if (sameSnap(cur, S.committed)) return;
   S.undo.push(S.committed);
@@ -1313,7 +1313,7 @@ function wireEvents() {
     const r = el.track.getBoundingClientRect();
     const n = CAT[S.viewCat].stops.length;
     const idx = Math.max(0, Math.min(n - 1, Math.round((clientX - r.left) / r.width * (n - 1))));
-    chooseStop(S.viewCat, idx);
+    chooseStop(S.viewCat, idx, { commitNow: false });
   };
   el.stepper.addEventListener('pointerdown', (e) => {
     if (isPanelInert()) return;
@@ -1333,12 +1333,14 @@ function wireEvents() {
     else return;
     e.preventDefault();
     nv = Math.max(0, Math.min(n - 1, nv));
-    if (nv !== v) chooseStop(S.viewCat, nv, { announceValue: true });
+    // At Auto in a category that doesn't own the Look, Home/Left/Down is an explicit "choose Auto": clear it.
+    const explicitAuto = nv === 0 && v === 0 && S.look && S.look.cat !== S.viewCat;
+    if (nv !== v || explicitAuto) chooseStop(S.viewCat, nv, { announceValue: true });
   });
 
   // Strength
   el.strength.addEventListener('input', () => setStrength(+el.strength.value));
-  el.strength.addEventListener('change', () => srPush('value', `${el.strength.value}%`));
+  el.strength.addEventListener('change', () => { commit(); srPush('value', `${el.strength.value}%`); });
 
   // Undo/redo shortcuts within the device
   el.device.addEventListener('keydown', (e) => {

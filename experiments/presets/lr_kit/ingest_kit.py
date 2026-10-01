@@ -1,0 +1,231 @@
+"""Ingest Lightroom exports from the kit: HALD -> LUT, then validate the LUT against Lightroom photo exports.
+
+Usage: python ingest_kit.py <kit dir>  ->  <kit>/results/{luts/*.cube, luts/*.f32, report.json, report.md, sheets/*.jpg}
+
+Per Look and photo, compares   Lightly = LUT(original) [+ experimental local contrast if the preset uses it]
+                       against Lightroom photo export.
+Acceptance (proposed in docs/m1/preset-conversion.md): mean dE00 <= 2 and p95 <= 5 on every photo.
+A Look is reported 'validated' only if all 22 photos pass; otherwise 'failed' with the failing photos listed.
+Also checks the neutrality export (no preset): Lightroom's rendering of an untouched JPEG must equal the input,
+otherwise the comparison baseline itself is off and every result is flagged.
+"""
+from __future__ import annotations
+
+import io, json, sys
+from pathlib import Path
+import numpy as np
+import tifffile
+from PIL import Image, ImageCms, ImageOps
+from skimage import color
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lut3d/reference"))
+import ia3dlut as ia  # noqa: E402
+import lrsettings  # noqa: E402
+
+PRESETS = Path(__file__).resolve().parents[1]
+
+MEAN_MAX, P95_MAX = 2.0, 5.0
+
+
+def hald_to_lut(path: Path, out_dim=33) -> np.ndarray:
+    """Read an exported HALD (level 8, 64^3) and resample to the contract's 33^3 LUT[c,b,g,r]."""
+    img = tifffile.imread(path).astype(np.float64)
+    img = img / (65535.0 if img.max() > 255 else 255.0)
+    side = img.shape[0]; n = round(side ** (2 / 3))
+    assert img.shape[:2] == (side, side) and n ** 3 == side * side, img.shape
+    cube = img[..., :3].reshape(n, n, n, 3)  # [b, g, r, ch] since index = r + g*n + b*n^2
+    lut64 = np.moveaxis(cube, -1, 0).astype(np.float32)
+    g = np.moveaxis(ia.identity_lut(out_dim), 0, -1).reshape(-1, 1, 3)
+    out = ia.apply_lut_reference(lut64, g.astype(np.float32), binsize_numerator=1.0).reshape(out_dim, out_dim, out_dim, 3)
+    return np.moveaxis(out, -1, 0).astype(np.float32)
+
+
+def write_cube(lut: np.ndarray, path: Path, title: str):
+    n = lut.shape[-1]
+    with open(path, "w") as f:
+        f.write(f'TITLE "{title}"\nLUT_3D_SIZE {n}\n')
+        for b in range(n):
+            for g in range(n):
+                for r in range(n):
+                    f.write("%.6f %.6f %.6f\n" % tuple(lut[:, b, g, r]))
+
+
+def sha256_file(p: Path) -> str:
+    import hashlib
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def calibration():
+    import lr_model as lm, torch
+    C = lm.Calib()
+    C.load_state_dict({k: torch.tensor(v) for k, v in json.load(open(PRESETS / "calibration_natural.json"))["constants"].items()})
+    return C
+
+
+def spatial_calibration():
+    import lr_model as lm, torch
+    S = lm.SpatialCalib()
+    S.load_state_dict({k: torch.tensor(v) for k, v in json.load(open(PRESETS / "calibration_spatial_natural.json")).items()})
+    return S
+
+
+def load_full_settings(kit: Path, look: dict) -> dict:
+    path = kit / look.get("full_xmp", f"presets/full/{look['look_id']}__full.xmp")
+    return lrsettings.parse_xmp_text(path.read_text()) if path.exists() else {}
+
+
+def apply_global(lut, src8):
+    return ia.to_uint8(ia.apply_lut_reference(lut, src8.astype(np.float32) / 255, 1.0))
+
+
+SEPARATED_TONE = ("Highlights2012", "Shadows2012", "Whites2012", "Blacks2012", "Dehaze")
+
+
+def full_recipe(lut, settings):
+    """Lightly's complete recipe for a Look: separated adaptive-tone operators (calibrated GLOBAL approximation
+    from lr_model, applied before the LUT as Lightroom applies basic tone before curves/colour), then the global
+    LUT from the global-only HALD, then experimental local contrast (Clarity/Texture). Returns (fn, unimplemented,
+    approximated) where unimplemented lists every non-default parameter Lightly cannot render."""
+    import classify, lr_model as lm, torch
+    rep = classify.classify(lrsettings.ParsedPreset("kit", "xmp", "kit", settings))
+    unimplemented = sorted(rep.get("not-implemented", []))
+    approximated = sorted(set(rep.get("approximated", [])) | set(rep.get("experimental", [])))
+    tone_only = {k: settings[k] for k in SEPARATED_TONE if k in settings}
+    tone = lm.Preset(tone_only, wb_mode="rendered") if any(lm._f(tone_only, k) for k in tone_only) else None
+    clarity, texture = lm._f(settings, "Clarity2012"), lm._f(settings, "Texture")
+    C = calibration() if tone else None
+    S = spatial_calibration() if (clarity or texture) else None
+
+    def recipe(src8):
+        x = src8.astype(np.float32) / 255
+        if tone is not None:
+            with torch.no_grad():
+                x = lm.render(torch.from_numpy(x), tone, C).numpy()
+        y = ia.apply_lut_reference(lut, np.clip(x, 0, 1).astype(np.float32), 1.0)
+        if S is not None:
+            with torch.no_grad():
+                y = lm.apply_local_contrast(torch.from_numpy(np.clip(y, 0, 1).astype(np.float32)), clarity, texture, S).numpy()
+        return ia.to_uint8(y)
+    return recipe, unimplemented, approximated
+
+
+def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok, prefix, missing_hald, render):
+    """One validation (global or full) with the complete-evidence rules of Codex finding 6."""
+    out = {"photos": {}, "missing": [f"input photo {s}.jpg" for s in missing_inputs]}
+    if missing_hald is not None:
+        out["missing"].append(missing_hald.name)
+    for ph in photos:
+        e = kit / "exports/photos" / f"{prefix}__{ph.stem}.jpg"
+        if not e.exists():
+            out["missing"].append(e.name); continue
+        if missing_hald is not None:
+            continue
+        src, lr = load(ph), load(e)
+        if lr.shape != src.shape:
+            out["photos"][ph.stem] = {"error": f"size mismatch {lr.shape} vs {src.shape}"}; continue
+        ours = render(src)
+        mean, p95 = de_stats(ours[::2, ::2], lr[::2, ::2])
+        ok = mean <= MEAN_MAX and p95 <= P95_MAX
+        out["photos"][ph.stem] = {"mean": round(mean, 2), "p95": round(p95, 2), "pass": ok}
+        if not ok:
+            s = 360 / max(src.shape[:2]); sz = (round(src.shape[1] * s), round(src.shape[0] * s))
+            sheet = Image.new("RGB", (sz[0] * 3 + 20, sz[1]), (24, 24, 26))
+            for i, im in enumerate((src, ours, lr)):
+                sheet.paste(Image.fromarray(im).resize(sz), (i * (sz[0] + 10), 0))
+            sheet.save(res / "sheets" / f"{prefix}__{ph.stem}.jpg", quality=85)
+    complete = not out["missing"] and len(out["photos"]) == len(inputs)
+    passed = complete and all(v.get("pass") for v in out["photos"].values())
+    out["status"] = ("incomplete" if not complete or not inputs_ok or report["missing_neutral"]
+                     else "validated" if passed and neutral_ok else "failed")
+    return out
+
+
+def de_stats(a8, b8):
+    de = color.deltaE_ciede2000(color.rgb2lab(a8), color.rgb2lab(b8))
+    return float(de.mean()), float(np.percentile(de, 95))
+
+
+_SRGB = ImageCms.createProfile("sRGB")
+
+
+def load(p):
+    """Decode as Lightroom exports are compared: EXIF-upright and converted to sRGB (Codex finding 4).
+
+    Lightroom colour-manages its input and exports sRGB, so an original tagged Display P3 / Adobe RGB must be
+    converted (relative colorimetric) before a LUT is applied or a difference is scored. Untagged images are
+    treated as sRGB, matching Lightroom's assumption for untagged JPEGs.
+    """
+    im = Image.open(p)
+    icc = im.info.get("icc_profile")
+    im = ImageOps.exif_transpose(im).convert("RGB")
+    if icc:
+        src = ImageCms.ImageCmsProfile(io.BytesIO(icc))
+        if "srgb" not in ImageCms.getProfileDescription(src).lower():
+            im = ImageCms.profileToProfile(im, src, _SRGB, renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC, outputMode="RGB")
+    return np.asarray(im)
+
+
+def main(kit: Path):
+    looks = json.load(open(kit / "shortlist.json"))
+    res = kit / "results"; (res / "luts").mkdir(parents=True, exist_ok=True); (res / "sheets").mkdir(exist_ok=True)
+    # The expected inputs come from the kit's record, never from the folder contents (Codex finding 6).
+    inputs_path = kit / "inputs.json"
+    if not inputs_path.exists():
+        raise FileNotFoundError(f"{inputs_path} missing: not a kit produced by make_kit.py; refusing to validate")
+    inputs = json.load(open(inputs_path))["photos"]
+    missing_inputs = [s for s in inputs if not (kit / "photos" / f"{s}.jpg").exists()]
+    changed_inputs = [s for s in inputs if s not in missing_inputs and sha256_file(kit / "photos" / f"{s}.jpg") != inputs[s]]
+    photos = [kit / "photos" / f"{s}.jpg" for s in sorted(inputs) if s not in missing_inputs]
+    report = {"neutrality": {}, "looks": {}, "missing_inputs": missing_inputs, "changed_inputs": changed_inputs, "missing_neutral": []}
+    # 1. neutrality: Lightroom with no preset must reproduce EVERY input
+    for stem in sorted(inputs):
+        e = kit / "exports/photos" / f"none__{stem}.jpg"
+        if stem in missing_inputs or not e.exists():
+            report["missing_neutral"].append(e.name); continue
+        report["neutrality"][stem] = dict(zip(("mean", "p95"), de_stats(load(kit / "photos" / f"{stem}.jpg"), load(e))))
+    inputs_ok = not missing_inputs and not changed_inputs
+    neutral_ok = (inputs_ok and not report["missing_neutral"] and len(report["neutrality"]) == len(inputs)
+                  and all(v["mean"] <= 1.0 for v in report["neutrality"].values()))
+    for L in looks:
+        lid = L["look_id"]
+        entry = {"category": L["category"], "stop": L["stop"], "name": L["name"]}
+        h = kit / "exports/hald" / f"{lid}__global.tif"
+        lut = None
+        if h.exists():
+            lut = hald_to_lut(h)
+            np.save(res / "luts" / f"{lid}__global.npy", lut)
+            write_cube(lut, res / "luts" / f"{lid}__global.cube", f"{lid} global")
+        settings = load_full_settings(kit, L)
+        # 1. global-transform validation: LUT(original) vs Lightroom's GLOBAL-ONLY photo exports
+        entry["global"] = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
+                                   f"{lid}__global", h if lut is None else None,
+                                   lambda src: apply_global(lut, src))
+        # 2. full-recipe validation: Lightly's complete recipe vs Lightroom's FULL photo exports
+        recipe, unimplemented, approximated = full_recipe(lut, settings)
+        full = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
+                        f"{lid}__full", h if lut is None else None, recipe)
+        full["unimplemented"] = unimplemented
+        full["approximated"] = approximated
+        if unimplemented and full["status"] == "validated":
+            full["status"] = "failed"  # numbers can't validate a recipe Lightly cannot render
+            full["reason"] = "operators not implemented by Lightly: " + ", ".join(unimplemented)
+        entry["full"] = full
+        report["looks"][lid] = entry
+    report["neutral_baseline_ok"] = neutral_ok
+    json.dump(report, open(res / "report.json", "w"), indent=1)
+    lines = ["# Lightroom export validation", "", f"Neutral baseline OK: {neutral_ok}", "",
+             "| Look | Global status | Global worst mean / p95 | Full-recipe status | Full worst mean / p95 | Not implemented |",
+             "|---|---|---|---|---|---|"]
+    def worst(v):
+        vals = [x for x in v["photos"].values() if "mean" in x]
+        return f"{max((x['mean'] for x in vals), default=float('nan')):.2f} / {max((x['p95'] for x in vals), default=float('nan')):.2f}"
+    for lid, e in report["looks"].items():
+        lines.append(f"| `{lid}` | {e['global']['status']} | {worst(e['global'])} | {e['full']['status']} | {worst(e['full'])} | "
+                     f"{', '.join(e['full']['unimplemented']) or '-'} |")
+    (res / "report.md").write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+
+
+if __name__ == "__main__":
+    main(Path(sys.argv[1]))

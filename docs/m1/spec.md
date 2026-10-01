@@ -63,7 +63,7 @@ Ready ──► pick category ──► move stepped slider (each stop previews 
 
 1. **Select.** Uses the system picker (iOS `PHPickerViewController`/`PhotosPicker`; Android Photo Picker, via the Play-services backport below API 33). This needs no full-library permission. The app receives the asset identifier or URI and reads it.
 2. **Decode a proxy.** Decode at display resolution first (ImageIO thumbnail / `ImageDecoder` target size), so the photo appears in under ~300 ms even for 48 MP assets. Full resolution is decoded only at export.
-3. **Auto develop.** Run the model on a 256×256 view of the proxy, fuse the LUT, apply it to the proxy, and show the result. The photo stays visible throughout, with a subtle progress indicator and a Cancel action.
+3. **Auto develop.** Run the model on the canonical 256×256 analysis input (§4.6, independent of screen size), fuse the LUT, apply it to the proxy, and show the result. The photo stays visible throughout, with a subtle progress indicator and a Cancel action.
 4. **Looks.** Pick a category tab and move the stepped slider. Every stop change renders a preview immediately. A Look commits to history when the slider settles (pointer up, or a keyboard/accessibility increment). Changing category alone does not change the Look.
 5. **Strength.** An optional secondary control, 0–100%, default 100%, shown only when a Look other than Auto is active. It commits on release.
 6. **Compare.** Press and hold the photo to see the Original. The Compare toggle (`aria-pressed` / `accessibilityAddTraits(.isSelected)`) does the same for people who cannot hold. Compare always shows the Original, not the Auto result. A secondary "Compare to Auto" is out of scope for V1.
@@ -112,19 +112,29 @@ O0 decode + EXIF orientation + convert to sRGB (relative colorimetric), 8- or 16
 O0b (proposed, U10) Auto local exposure: smooth low-res gain map, applied in linear light
 O1 Auto LUT           (3D LUT, sRGB-encoded domain)          strength-blended toward identity
 O2 Look LUT           (3D LUT, sRGB-encoded domain)          strength-blended toward identity
-O3 Look spatial ops   (V1: vignette, grain only; parameters in normalised units)
+O3 Look spatial ops   (V1: local contrast [Clarity/Texture], vignette, grain; radii and positions in units of
+                      the image's long edge, so preview and export match; local contrast is EXPERIMENTAL)
 O4 clamp [0,1] → encode sRGB 8-bit → JPEG (export only)
 ```
 
-- **O1+O2 may be baked** into one 33³ LUT for preview and export (`L = blend(L_look, s_l) ∘ blend(L_auto, s_a)`, sampled on the 33³ grid). Whether baking is used is an implementation choice. The golden tests decide whether baking error is within tolerance (it adds one resampling).
-- Clarity, texture, dehaze, sharpening and noise reduction are **not in V1 Looks**. They are either expressed in the LUT or omitted. The importer must report any preset that relies on them (§4.5).
+- **O1+O2 may be baked** into one 33³ LUT for preview and export: `B(g) = L_look(clamp(L_auto(g)))` sampled on the 33³ grid, applied as `B(clamp(x))`.
+  - Measured on 8 real Auto LUTs (which span −0.14…1.35) plus a strong Look LUT: baked vs two-stage max **1.64/255**, p99 0.17/255. Test: `experiments/lut3d/reference/test_lut_composition.py`.
+  - Contract tolerance for baking: max ≤ 2/255.
+- **Decision (Codex M1 finding 4):** Clarity and Texture are **included** in the V1 Look format as one O3 operator, `localContrast {clarity, texture}`.
+  - Why: 81% of the collection uses Clarity.
+  - It stays *experimental*: a Look that uses it ships only if its Lightroom-export validation passes (§4.4). Otherwise the Look is excluded, not silently degraded.
+  - The provisional shortlist prefers presets with |Clarity| ≤ 15 to limit exposure to this risk.
+- Dehaze, sharpening and noise reduction are not in V1 Looks. The importer reports them per preset (§4.5).
+- Vignette and grain are O3 parameters. They are not implemented in the experimental renderer yet, so presets that use them count as *coverage incomplete*.
 
 ### 4.2 LUT representation
 
 - Dimension 33. Values are float32 RGBA. Memory order is red fastest: `index = r + 33·g + 33²·b`, which matches Core Image `CIColorCube` and GL 3D-texture uploads.
 - Domain and codomain are **sRGB-encoded** (gamma) values in [0,1]. That is the space the model was trained in, and it makes LUT authoring match Lightroom's display-referred export.
 - Interpolation is exact-grid trilinear: `pos = v·(N−1)`. The upstream `1.0001/(N−1)` bin-size quirk is **not** reproduced; its maximum effect was measured at 0.02/255.
-- Values outside [0,1] inside the LUT are allowed. Clamping happens only at O4. Implementations must not clamp between O1 and O2 unless the LUTs are baked.
+- **Boundary rule (single rule, baked or not):** every LUT stage clamps its *input* to [0,1] (clamp-to-edge, as GPU texture addressing does). LUT *entries* may be outside [0,1], so a stage's output may be out of range, and the next stage clamps it on input. The final output is clamped once at O4. No extrapolation beyond the cube is defined or allowed.
+  - Consequence: Auto's out-of-range highlights (values > 1) are clipped before the Look sees them. This is an accepted V1 limitation.
+  - Tested with values < 0 and > 1 (`test_lut_composition.py`).
 - Strength blend: `L_s = I + s·(L − I)`, where `I` is the exact identity LUT.
 
 ### 4.3 Colour management
@@ -139,7 +149,11 @@ O4 clamp [0,1] → encode sRGB 8-bit → JPEG (export only)
 - **Golden set:** `experiments/lut3d/golden/` now; it moves to `contracts/golden/` in M2. It contains a source PNG, the expected 256-input tensor, the fused LUT, and the reference output per image.
 - **Per-platform test:** render the golden source with the golden LUT and compare to the reference. Pass when max |Δ| ≤ 2/255 and the share of pixels with |Δ| > 1 is ≤ 1%. Numbers are confirmed from harness results in the feasibility report.
 - **Cross-platform test:** the iOS and Android exports of the same `EditState` must satisfy mean CIEDE2000 ≤ 0.5 and p99 ≤ 2.0.
-- **Model parity:** weights within 1e-3 of the reference on golden `input256.f32`. Preprocessing parity (decode + resize on device) within 0.05. That tolerance is necessary because the preprocessing algorithm alone moved output by up to 14/255 in the experiment, so the resize algorithm is part of the contract (§4.6).
+- **Model parity:** weights within 1e-3 of the reference on golden `input256.f32`.
+- **End-to-end Auto parity** (decode → canonical analysis input → model → fuse → apply) is measured as **max 8-bit output difference vs the golden reference ≤ 2/255** on every golden image, and is reported together with max |Δw|.
+  - Justification from measurements: with the pinned antialiased resize, varying the intermediate size (512–2732 px) or adding ±1 LSB decoder noise changed weights by ≤ 0.019, which is ≤ 1/255 of output (`experiments/lut3d/report/analysis_input_sensitivity.json`).
+  - A non-pinned resampler (vImage Lanczos) moved weights by 0.145. A non-antialiased resize moved them by 0.43, which is 14/255.
+  - The weight bound is therefore set at 0.05 (≈ 1.6/255 at the measured slope). It is a diagnostic; the output bound is the acceptance criterion.
 - Tests that only assert dimensions or non-nil do not count as filter tests.
 
 ### 4.5 Looks and presets
@@ -153,7 +167,12 @@ O4 clamp [0,1] → encode sRGB 8-bit → JPEG (export only)
 
 ### 4.6 Model contract (`ia3dlut` family)
 
-- **Input:** float32 `[1,3,256,256]`, RGB, sRGB-encoded [0,1], no mean/std. The whole frame is resized ignoring aspect ratio, from the Proxy, with an **antialiased area-style downscale**. The exact algorithm is pinned in the contract and implemented identically on both platforms. Candidate: box prefilter to an integer factor, then bilinear to 256, specified in pseudo-code with golden tensors.
+- **Canonical analysis input (Codex M1 finding 2): independent of screen size.**
+  - Source: the decoded, oriented, sRGB-converted frame at **any resolution with long edge ≥ 1024 px**. A platform may use its decoder's reduced-size decode as long as the long edge stays ≥ 1024.
+  - Transform: resize the whole frame (aspect ignored) to 256×256 with the **pinned antialiased bilinear resize**. Use the exact algorithm of `torch.nn.functional.interpolate(..., mode="bilinear", antialias=True, align_corners=False)`, written out in the contract as pseudo-code with golden tensors.
+  - Result: float32 `[1,3,256,256]`, RGB, sRGB-encoded [0,1], no mean/std.
+  - The display **Proxy is never the model input**, so a phone and a tablet produce the same Auto result for the same photo (within the §4.4 end-to-end tolerance).
+  - Ported implementations measured so far: iOS CPU port matches golden tensors to 2e-6 on device; Android Kotlin port to 2.4e-7, on an emulator only.
 - **Output:** `weights[3]`, raw linear.
 - **Fusion:** `L = Σ wᵢ·Bᵢ`, using basis LUT file `basis_luts_f32.bin` with a sha256.
 - **Guardrail (experimental, M1):** endpoint renormalisation (see feasibility report). It is versioned as part of `AutoResult` so old edits re-render identically.
@@ -200,7 +219,7 @@ Empty ─select─► Loading(asset) ─proxy ok─► Developing ─ok─► Re
 2. Decode the Original at full resolution, oriented, as sRGB.
 3. Render with the same operator chain.
 4. Encode **once** as JPEG (quality 0.92, sRGB ICC, EXIF orientation = 1). Copy safe metadata: capture date, camera make/model, lens. Location is copied only if the user setting allows it (default on, matching the system behaviour of other editors; to be confirmed, see U7).
-5. Write a **new** asset. iOS: `PHAssetCreationRequest` with add-only authorisation (`.addOnly`). Android: `MediaStore.Images` insert with `IS_PENDING=1`, write, then `IS_PENDING=0`. The original URI is never opened for write.
+5. Write a **new** asset. iOS: `PHAssetCreationRequest` with add-only authorisation (`.addOnly`). Android (minimum API 29; see U6 and Codex M1 finding 8): `MediaStore.Images` insert with `IS_PENDING=1`, write, then `IS_PENDING=0`. On failure, delete the pending row. `IS_PENDING` and scoped-storage inserts without `WRITE_EXTERNAL_STORAGE` exist only from API 29, so the V1 save path is defined for API 29+ only. The original URI is never opened for write.
 6. Success: banner "Saved as a new photo. Original unchanged." with a [View] action, announced politely to assistive tech.
 7. Failure mapping:
    - permission denied → explain the setting
@@ -271,7 +290,7 @@ contracts/            (git submodule or shared dir) golden images + schema; cons
 ```
 
 **Rendering strategy, chosen: OpenGL ES 3.0, offscreen.**
-- Available on effectively every device with API 26+. It has 3D textures and float textures, renders off the UI thread with its own EGL context, and draws the result into a `SurfaceView`/`TextureView` for display, or reads back for export.
+- Available on every device in the V1 support range (API 29+; GLES 3.0 itself is API 18+). It has 3D textures and float textures, renders off the UI thread with its own EGL context, and draws the result into a `SurfaceView`/`TextureView` for display, or reads back for export.
 - **Rejected for V1:**
   - RenderEffect/AGSL: API 33+, no 3D textures, and tied to the View/Compose draw pass, so export would need a separate path and preview≠export becomes likely.
   - Vulkan: more capability than this pipeline needs, and much more code.
@@ -382,7 +401,7 @@ The descriptions below were confirmed by reading the code. Comments and docs cla
 | U3 | Looks as compiled LUTs (+vignette/grain) vs a full parametric engine | Compiled LUTs | LUTs make preview=export and iOS/Android parity tractable. Clarity/texture-style local contrast Looks can't be expressed and need a later spatial operator |
 | U4 | Export colour space | sRGB JPEG in V1 | Loses about 3% of out-of-gamut pixels on P3 originals. A P3 path needs extended-range LUT application and a separate validation pass |
 | U5 | HDR gain-map handling | Drop it (SDR export), disclosed | Users with HDR photos see a flatter saved copy |
-| U6 | Android minimum API | 26 (Photo Picker backport) | API 29+ would simplify MediaStore scoped-storage code at the cost of ~5% of devices |
+| U6 | Android minimum API | **29** (revised after Codex M1 finding 8). The save path (`IS_PENDING`, scoped-storage insert without a storage permission) exists only from API 29. The Photo Picker backport covers selection on 29–32 | Supporting 26–28 would need a second save path: `WRITE_EXTERNAL_STORAGE` permission, a direct file write plus a `MediaStore` insert, manual cleanup on failure, and a permission-denied UX. Current device-share figures should be checked before deciding; none are asserted here |
 | U7 | Location metadata in saved copy | Keep (match the original) with a setting | Privacy expectations vs continuity |
 | U8 | Launch categories/stops names | As in the prototype (illustrative) | Needs brand and curation input in M4 |
 | U9 | Deep Color comparison method | Capture 20–30 scenes with an Arsenal 2 rig and a phone at the same time, then score both outputs on the §1.1 criteria plus a blind preference test | Needs hardware (~$200) and photographer time; without it, "matches Deep Color" can't be verified |

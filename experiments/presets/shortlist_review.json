@@ -1,0 +1,32 @@
+{
+ "_note": "Human curation decisions on contact sheets (approximate renders). Excluded presets are skipped by shortlist.py; reasons are recorded for review.",
+ "exclude": {
+  "09 Rich Black 09": "cool: desaturates foliage to grey-green and pushes deep skin red",
+  "03 Adventure 03": "cool: muddy midtones, light skin turns pink",
+  "Cinematic Drone Tone (5)": "film: saturated grade without faded blacks; not a film character",
+  "12 Black and White 12": "mono: crushes the whole frame toward black (deep skin -16.5 L*)",
+  "10 Drone 10": "cool: same failure as 03 Adventure 03 (light skin pink, muddy midtones)",
+  "Cinematic Drone Tone (3)": "film: saturated green grade, no fade; whole 'Cinematic Drone Tone' family rejected for Film",
+  "02 Black and White 02": "mono: visually near-identical to '11 Black and White 11'; stops must be distinct",
+  "Drone Green Tone (9)": "warm: reads green/muted rather than warm; light skin turns greenish"
+ },
+ "exclude_families": {
+  "cinematic drone tone": "film: family is saturated grades, not film character"
+ },
+ "max_looks": {
+  "cool": 3,
+  "mono": 3
+ },
+ "pin": {
+  "warm": [
+   "Earthy Wedding Tone (6)",
+   "Nordic Tone  (10)",
+   "Adventure Tone (3)",
+   "Golden Hour 9"
+  ]
+ },
+ "flags": {
+  "Black Paris Tone (11)": "cool: borderline accept - light skin desaturates toward pink; verify on Lightroom exports",
+  "S1 - Vibes": "natural: slight green-cyan cast on light-skin portrait background; verify"
+ }
+}

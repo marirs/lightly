@@ -149,3 +149,24 @@ in `#shot` mode.
 Photo: Dawid Zawiła on Unsplash (Unsplash License),
 <https://unsplash.com/photos/trees-under-cloudy-sky-during-sunset--G3rw6Y02D0>,
 downscaled to 1100 px.
+
+## Corrections after Codex M1 review
+
+- **Choosing Auto always removes the Look (finding 5).**
+  - Before: Film → browse Warm → choose Auto left Film applied.
+  - Now: explicitly choosing Auto clears the active Look in any category, whether by tapping the Auto label or pressing Home/Left at Auto in a non-owning category.
+  - Browsing a category without choosing a stop still keeps the current Look.
+- **One gesture = one undo step (finding 6).** The 450 ms settle timer was removed, so a paused drag no longer commits.
+  - Pointer drag on the stepped slider: renders live, commits once on release.
+  - Keyboard / assistive-technology increment: each step commits once.
+  - Strength: renders on `input`, commits on `change` (release or key step).
+- **Regression test:** `tests/codex_findings.test.js` uses Playwright and drives the real UI. It passes on this version and fails on `f7336fb`.
+
+```bash
+NODE_PATH=<dir containing playwright> node tests/codex_findings.test.js
+```
+
+## Limits of this prototype (not validated)
+
+- The screen-reader panel is a **simulation** of VoiceOver/TalkBack wording. It is not accessibility validation: real VoiceOver and TalkBack testing on devices is required in M3/M4.
+- The large-text layout needs refinement. On a compact phone the panel grows to about 42% of the height and must scroll, and the Strength row can sit below the fold.

@@ -9,9 +9,9 @@ Distribution terms for these presets are tracked separately in `docs/m1/licensin
 | Question | Answer |
 |---|---|
 | Can every preset be read losslessly? | **Yes.** 11,078 files parsed (6,520 XMP, 2,966 DNG-embedded, 1,592 lrtemplate, incl. inside zips). 2 parse errors are reported with their exception text, never swallowed. Every `crs` key is kept |
-| Is every parameter accounted for? | **Yes.** Each non-default parameter of each preset is classified (§2). A preset with any unsupported parameter is `partial` and is never marked converted |
-| Is the conversion faithful today? | **No.** On held-out preset families, the calibrated parametric approximation reaches median ΔE00 **4.8** against Lightroom's own renders (not applying the preset at all scores 7.8). 0% of held-out photos are within ΔE00 2, 2% within 3, 57% within 5, and 10% are *worse* than not applying the preset (§4) |
-| What would make global colour faithful? | Extract each curated preset's global transform from a **Lightroom render of an identity (HALD) image** instead of re-deriving Adobe's maths (§5). This needs Lightroom exports (blocker B1) |
+| Is every parameter accounted for? | **Yes, with three separate statuses** (Codex M1 finding 1): **parsed** / **parameter coverage** / **validation**. "Modelled" now means *read by the renderer*. The set is derived at runtime from `lr_model.Preset`, not hand-listed. Coverage complete: 770 presets (136 without and 634 with approximated parameters); incomplete: 10,306. **Validated against Lightroom: 0** (§2) |
+| Is the conversion faithful today? | **No.** On held-out preset families, the calibrated parametric approximation reaches median ΔE00 **4.8** against *candidate* Lightroom reference pairs (§3) (not applying the preset at all scores 7.8). 0% of held-out photos are within ΔE00 2, 2% within 3, 57% within 5, and 10% are *worse* than not applying the preset (§4) |
+| What could make global colour faithful? | **Promising, not established:** extract each curated preset's global transform from a **Lightroom render of an identity (HALD) image**. Whether that LUT reproduces Lightroom on real photographs must be **measured** on photo exports (Codex M1 finding 4). The export kit does exactly this measurement (§6) |
 | The existing app conversion (`scripts/ingest_presets.py`)? | Superseded. It silently drops 20+ parameter families, mis-scales exposure and white balance, and collapses curves (see spec §12) |
 
 ## 1. Inventory of the collection
@@ -32,43 +32,62 @@ Distribution terms for these presets are tracked separately in `docs/m1/licensin
   - Clarity: 8,932.
   - Point curves: 9,965 (RGB) and ~7k (each of R/G/B).
 
-## 2. Per-preset classification (`classify.py` → `conversion_summary.md`, `conversion_report.json`)
+## 2. Per-preset classification (`classify.py` → `conversion_summary.md`, `conversion_report.json`; tests `test_classify.py`)
+
+Three statuses are kept separate (Codex M1 finding 1). Nothing is called "converted".
+- **parsed:** read losslessly.
+- **parameter coverage:** `complete` only if every non-default parameter is *read by the renderer* (modelled or approximated) or is not a look parameter.
+- **validation:** `none` until a Lightroom reference comparison passes. Candidate DNG pairs are reported as candidate evidence, never as validation.
 
 | Class | Meaning | Parameters |
 |---|---|---|
-| **modelled** | Global op implemented in the Lightly renderer; accuracy measured in §4 | Exposure, Contrast, incremental WB, Vibrance, Saturation, parametric curve, point curves (RGB/R/G/B), HSL (8 bands × H/S/L), colour grading + legacy split toning, calibration primaries + shadow tint, grayscale + mixer |
-| **approximated** | Local or adaptive in Lightroom, but modelled as a global curve | Highlights, Shadows, Whites, Blacks, Dehaze. Absolute Temperature/Tint are ignored on rendered photos, matching Lightroom's behaviour on JPEG |
-| **spatial** | Not a colour transform; carried as Look parameters outside the LUT | Post-crop vignette (amount, midpoint, feather, roundness, style, highlight contrast), grain |
-| **unsupported** | Not converted; listed per preset | Clarity, Texture, local masks/brushes/gradients, creative-profile `Look` RGB tables, Point Color, PV2010 process, unrecognised keys |
-| **not-a-look** | Detail or geometry, intentionally ignored | Sharpening, noise reduction, lens/CA/defringe, crop/perspective, and legacy PV2010 keys that are inactive under PV2012+ |
+| **modelled** | Read by `lr_model.render`. The key set is derived at runtime by recording what `Preset` reads | Exposure, Contrast, incremental WB, Vibrance, Saturation, parametric curve, point curves (RGB/R/G/B), HSL (8 × H/S/L), colour grading + legacy split toning, calibration primaries + shadow tint, grayscale + mixer |
+| **approximated** | Read by the renderer, but local/adaptive in Lightroom (modelled as a global curve), or an unverified assumption | Highlights, Shadows, Whites, Blacks, Dehaze. Absolute Temperature/Tint are not applied to rendered photos, on the **unverified** assumption that Lightroom ignores them on JPEG/HEIC |
+| **experimental** | Implemented as a spatial operator, unvalidated | Clarity, Texture (`lr_model.apply_local_contrast`) |
+| **not-implemented** | Parsed and kept, not rendered | **CameraProfile other than Embedded** (the renderer never reads it), vignette, grain, local masks/brushes/gradients, creative-profile `Look` RGB tables, Point Color, PV2010 process, unrecognised keys |
+| **not-a-look** | Detail or geometry, intentionally ignored | Sharpening, noise reduction, lens/CA/defringe, crop/perspective, and legacy PV2010 keys inactive under PV2012+ |
 
 **Result over 11,076 parsed presets:**
 
-| Status | Presets |
-|---|---|
-| converted (all parameters modelled/spatial/not-a-look) | 177 |
-| approximated (≥ 1 approximated parameter, nothing unsupported) | 1,494 |
-| partial (≥ 1 unsupported parameter) | 9,405 |
+| Coverage | Uses approximation | Presets |
+|---|---|---|
+| complete | no | 136 |
+| complete | yes | 634 |
+| incomplete | — | 10,306 |
 
-Of the 9,405 partial presets, **8,155 are partial only because of Clarity and/or Texture.** Unsupported parameters by number of presets affected:
+Validated against Lightroom: **0**.
+
+- 3,309 presets are incomplete *only* because of experimental Clarity/Texture.
+- The largest not-implemented/experimental causes:
 
 | Parameter | Presets |
 |---|---|
 | Clarity | 8,932 |
+| Grain | ~2,700 |
 | Texture | 2,095 |
+| Vignette | ~1,800 |
 | PV2010 process | 408 |
 | Local masks | ~360 |
 | Creative-profile `Look` | 192 |
 
+The previous report's "177 converted" counted `CameraProfile = Adobe Standard` and vignette/grain as covered, although the renderer reads neither. That count is withdrawn.
+
 ## 3. Reference data used
 
-**Lightroom-rendered pairs extracted from the vendor DNG presets** (`dng_pairs.py`).
+**Candidate reference pairs extracted from the vendor DNG presets** (`dng_pairs.py`). They are *candidates*, not authoritative Lightroom-conversion accuracy (Codex M1 finding 7).
 
 Each DNG was created by Lightroom from a JPEG/PNG. This is verified per file:
 - `UniqueCameraModel` is JPEG/PNG.
 - The profile is `Embedded`.
 - The raw `LinearizationTable` equals the sRGB EOTF (max error 7.6e-6), so the stored bytes **are** the original sRGB pixels.
-- The DNG's preview is Lightroom's own render with the embedded preset applied.
+- The DNG's preview is Lightroom's own render with the embedded preset applied. This is now **checked per file**, and any failure rejects the pair:
+  - `PreviewApplicationName` is Lightroom Classic (all are 15.2).
+  - `PreviewColorSpace` = sRGB.
+  - **Freshness:** the XMP `MetadataDate` is within 10 s of `PreviewDateTime` (max observed gap 1 s).
+  - **Geometry:** orientation 1, no crop, preview aspect = raw default-crop aspect.
+  - **Alignment:** the gradient structure of the resized original correlates ≥ 0.5 with the preview, and better than a rotated or mirrored copy does.
+  - All 684 pass.
+  - **Not verifiable:** `PreviewSettingsDigest` is Adobe-proprietary, so "the preview reflects exactly these settings" still rests on the freshness check.
 
 Coverage:
 - **684 valid pairs.** 548 are real photographs (all Huliluts, 47 families). 136 are near-uniform grey title cards (mostly WithLuke), which test tone and WB only.
@@ -104,9 +123,10 @@ Limitations:
 
 ## 5. Recommended path to faithful conversion
 
-1. **Global colour/tone, exact: HALD extraction.**
+1. **Global colour/tone: HALD extraction (promising; fidelity to be measured, not assumed).**
    - Render a 33³ (or 64³) identity HALD image through Lightroom with each **curated** preset, and export it as 16-bit TIFF in sRGB.
-   - Read the exported grid back directly as the Look LUT. This captures Adobe's real maths for every global operator: curves, HSL, grading, calibration, profiles, and creative-profile RGB tables.
+   - Read the exported grid back as the Look LUT. This samples Lightroom's own output for colours *as they appear in the identity image*.
+   - Whether that equals what Lightroom does to the same colours inside a photograph is **not established**. It holds only for purely global, pixel-independent operators, and is the hypothesis the photo-export comparison tests.
    - Caveat: local or adaptive operators (Highlights/Shadows/Whites/Blacks, Clarity, Dehaze) behave differently on a HALD image than on a photo. Neutralise them for the HALD render and handle them separately, as in point 2.
    - Cost: one export per curated preset (the launch set is ~25 Looks, not 11k).
 2. **Local/adaptive operators:** keep them as named spatial operators in the rendering contract.
@@ -120,10 +140,28 @@ Limitations:
    - Proposed acceptance: mean ΔE00 ≤ 2 and p95 ≤ 5 per image. Anything else is listed with its reason.
 4. **Parametric model (this experiment):** keep it as the fallback for presets without a HALD export, labelled with its measured error. Never present it as faithful.
 
-## 6. Blockers and inputs needed
+## 6. Shortlist and Lightroom export kit (prepared)
 
-- **B1, Lightroom exports.** Lightroom isn't installed on this machine. Needed: (a) HALD renders for the curated presets; (b) full-resolution exports of the test photos with those presets. A ready-to-run export kit (HALD image, folder layout, settings) can be prepared in a few minutes once the curated list exists.
-- **B2, curated list.** Which ~25 presets make up V1 (5 categories × 4–6 stops). Validation effort should go there, not into all 11k.
+- **Provisional shortlist:** 18 Looks across 5 categories, each with reasons and contact sheets. See `docs/m1/shortlist.md`; the code is `experiments/presets/shortlist.py`, and human decisions are in `shortlist_review.json`.
+- **Export kit (corrected after Codex review: F3–F7):** `experiments/presets/lr_kit/`. The generated `kit/` is git-ignored. It contains:
+  - a 16-bit sRGB identity HALD (64³)
+  - the 22 test photos, with their sha256 recorded in `inputs.json`
+  - **complete** generated presets per Look: `[full]`, and `[global]` with adaptive tone (Highlights/Shadows/Whites/Blacks), Clarity, Texture, Dehaze, vignette, grain and detail set neutral
+  - the vendor originals, for reference only
+  - Lightroom Classic instructions: a fresh reset copy for every render; exact export settings and naming
+  - Regenerating the kit never deletes exports.
+- **Ingest** (`ingest_kit.py`) runs two separate validations per Look:
+  - **global:** the LUT extracted from the global HALD, compared with Lightroom's global-only photo exports;
+  - **full recipe:** Lightly's complete recipe (calibrated adaptive-tone approximation → global LUT → experimental local contrast), compared with Lightroom's full photo exports. Operators Lightly can't render are listed and block "validated".
+
+  Originals are ICC-converted to sRGB and EXIF-oriented before scoring. "Validated" requires every recorded input unchanged, every neutral and Look export present, and every photo within mean ΔE00 ≤ 2 and p95 ≤ 5.
+- **Kit tests:** `lr_kit/tests/` holds 17 tests, all passing. Each finding's regression test was confirmed to fail before its fix.
+  - **Not yet verified:** that Lightroom accepts the generated XMPs.
+  - **Known gap:** 10 of the 18 shortlisted Looks use grain and/or vignette, which Lightly doesn't implement yet. Their **full-recipe status cannot reach "validated"** until those operators exist; their global status still can.
+    - Grain: Old Street-4, Black Paris Tone (11), Retro Wedding Tone (15), C4 - Teals, T2, Vintage Flim Tone (7), 11 Black and White 11.
+    - Vignette: Black Paris Tone (11), C4 - Teals, Rainy Tone (10), 03 Black and White 03, Golden Hour 9.
+    - Next step: grain needs both an operator *and* a grain-insensitive comparison (noise statistics plus a blurred ΔE), because random grain can't match pixel-for-pixel.
+- **Remaining input:** running the corrected kit in Lightroom (about 60–90 min; 1 HALD + 44 photos per Look, plus 22 neutral photos).
 
 ## 7. Reproduce
 

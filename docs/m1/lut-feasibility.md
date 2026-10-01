@@ -3,11 +3,28 @@
 Status: **for Codex review**. Experiment code: `experiments/lut3d/` (isolated from `Lightly/`).
 Reproduce: `experiments/lut3d/README.md`.
 
+## Validated vs experimental (read first; added after Codex M1 review)
+
+| Claim | Status | Evidence / caveat |
+|---|---|---|
+| Python port reproduces the upstream kernel and classifier | **Validated** (desktop) | `verify_port.py`, max 2.4e-7 |
+| Core ML fp32 / ONNX conversions match PyTorch | **Validated** on desktop. iOS Core ML also on 2 phones | ONNX on an Android phone: **not run** |
+| iOS on-device inference + fused LUT match golden | **Validated** on iPhone SE 3 and iPhone 11 Pro Max | Weights within 2e-6, LUT within 1.2e-7 |
+| Android on-device inference | **Not validated** | Phones disconnected. The emulator hit SIGILL in ONNX Runtime; this cannot be dismissed as emulator-only until a phone runs |
+| Cross-platform (iOS ↔ Android) inference parity | **Not validated** | Needs Android phone runs |
+| Android GL LUT application within 1/255 | **Emulator only** | Must be re-measured on Adreno and Mali |
+| iOS LUT application within contract tolerance | **Fails** with `CIColorCube*` (5/255) | A float-LUT Metal kernel is proposed but not built or measured |
+| Timings in §6 | **Experimental pipeline only** | They do not cover the final Metal kernel, the proposed local-exposure pass, or a full export |
+| 48 MP | LUT application timed (269–380 ms) | Full 48 MP decode → render → JPEG export memory and time **not measured** |
+| Quality rubric results (§5) | **Experimental** | Heuristic metrics; no human study; already-edited web photos |
+| Guardrails and local exposure | **Experimental** | Tuned and evaluated on the same 22 images |
+| Canonical analysis input robustness | **Measured** on desktop (23 images) | Not yet measured end-to-end on devices |
+
 ## 0. Verdict
 
 | Question | Answer | Evidence |
 |---|---|---|
-| Can the architecture be converted and run on iOS and Android? | **Yes.** Core ML fp32 and ONNX match PyTorch to ≤ 1/255. On iOS devices the model matches within 2e-6. LUT application via Core Image misses tolerance (5/255), so a float-LUT Metal kernel is required. Android GL meets it (≤ 1/255, emulator) | §3, §6 |
+| Can the architecture be converted and run on iOS and Android? | **iOS: yes. Android: not yet validated.** Core ML fp32 and ONNX match PyTorch to ≤ 1/255 on desktop. On iOS devices the model matches within 2e-6. ONNX on an Android phone has not run (emulator SIGILL). LUT application via Core Image misses tolerance (5/255), so a float-LUT Metal kernel is required. Android GL meets it (≤ 1/255, emulator) | §3, §6 |
 | Is low-res inference separable from full-res LUT application? | **Yes.** The model sees only 256×256. The LUT (33³) is applied on the GPU at any resolution | §2 |
 | Is it fast and light enough on phones? | **iOS: yes.** Inference ~1 ms, LUT apply 4–9 ms at preview size and 18–39 ms at 12 MP, peak ~550 MB (iPhone SE 3, 11 Pro Max). **Android: phone timings blocked** (devices disconnected). Emulator correctness passes | §6 |
 | Do the pretrained weights meet the Deep Color-style objective? | **No.** They behave like a mostly fixed "punchy" style: brightening, +20–50% chroma, crushed blacks, and they darken backlit subjects. Already-good photos change by mean ΔE00 ≈ 8 | §5 |
@@ -180,7 +197,10 @@ Only development devices were used: iOS phones with Developer Mode on, and Andro
 - fp32 weights within 2e-6 of golden, and the fused LUT within 1.2e-7.
 - fp16 is device-dependent: 3.4e-3 on the ANE, but 0.11–0.23 on CPU or GPU, so fp16 is rejected.
 - **LUT application via `CIColorCubeWithColorSpace`: max 5/255, mean 0.15/255, 1.8% of pixels > 1/255, 0.4% > 2/255.** This fails the contract tolerance of max 2/255.
-- Root cause, found by the harness: Core Image stores cube data clamped to [0,1] at 8-bit precision. The fused LUT spans −0.14…1.35, and a CPU emulation of "clamp + 8-bit" reproduces Core Image to within 1 level.
+- Likely cause, inferred from the configurations tested (not a documented Core Image fact):
+  - In those configurations, Core Image behaved as if it stored cube data clamped to [0,1] at 8-bit precision.
+  - A CPU emulation of "clamp + 8-bit" reproduces its output to within 1 level, and the fused LUT spans −0.14…1.35.
+  - Untested configurations: other cube data formats, and other context/working formats beyond RGBAf.
 - **iOS must therefore apply LUTs with a custom Metal kernel (or `CIKernel`) on a float 3D texture.**
 - Plain `CIColorCube` in Core Image's default linear working space is badly wrong (mean 30/255). The colour-space wrapper is mandatory.
 
@@ -210,7 +230,7 @@ Only development devices were used: iOS phones with Developer Mode on, and Andro
 | On-device 256×256 tensor vs golden | ≤ 2.4e-7 |
 | Fused LUT vs golden | ≤ 2.4e-7 |
 | 12 MP / 48 MP render (single tile; GL max texture 8192) | completed; peak 539 MB |
-| ONNX Runtime inference | **SIGILL inside `libonnxruntime.so` on the emulator's virtual CPU.** Likely emulator-only, but unconfirmed until it runs on a phone |
+| ONNX Runtime inference | **SIGILL inside `libonnxruntime.so`** on the emulator. Cause unknown. It may be emulator-specific, but it **cannot be dismissed** until phones run, and it is an Android blocker until then |
 
 Unlike Core Image, both GL variants meet the contract tolerance. `RGBA16F` hardware filtering suffices on this GPU emulation, but must be re-checked on Adreno (SM7635) and Mali (MT6878).
 
@@ -220,7 +240,7 @@ From the golden comparisons:
 - iOS (Core Image) is within 5/255 of the reference.
 - Android GL is within 1/255 on the emulator.
 
-Once iOS moves to a float-LUT Metal kernel, both platforms are expected to be ≤ 1/255 from the same reference, and therefore ≤ 2/255 from each other. This is unverified until the Metal kernel exists and the phones have run.
+**Cross-platform parity is NOT validated.** Once iOS moves to a float-LUT Metal kernel, both platforms are *expected* to be ≤ 1/255 from the same reference. That expectation is unverified until the Metal kernel exists and the Android phones have run inference and LUT application.
 
 ## 7. Limitations of this experiment
 

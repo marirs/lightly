@@ -2,3 +2,5 @@ pairs/
 __pycache__/
 conversion_report.json
 *.log
+descriptors_cache.json
+shortlist.log
