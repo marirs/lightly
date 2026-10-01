@@ -99,7 +99,7 @@ def classify_key(k, v, process_version):
     if k in MODELLED:
         return "modelled", None
     if k in SPATIAL:
-        return "not-implemented", "spatial Look parameter (vignette/grain): parsed and kept, renderer not implemented yet"
+        return "experimental", "spatial Look parameter (vignette/grain): experimental, uncalibrated operator (lr_model.apply_vignette / apply_grain)"
     if k in ("Clarity2012", "Texture"):
         return "experimental", "local contrast: experimental spatial operator (lr_model.apply_local_contrast), not validated"
     legacy = {"Brightness", "Shadows", "Contrast", "Exposure", "Clarity", "FillLight", "HighlightRecovery", "ToneCurve", "ToneCurveName"}

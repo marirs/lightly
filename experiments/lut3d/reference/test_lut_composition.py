@@ -3,8 +3,8 @@
 Rule (rendering contract v1): every LUT stage clamps its INPUT to [0,1] (clamp-to-edge, as GPU texture
 addressing does) and may produce any output; the final output is clamped once at encode. A baked LUT is
 B(g) = Look(clamp(Auto(g))) sampled on the 33^3 grid and applied as B(clamp(x)).
-This test measures baked vs unbaked equivalence with real out-of-range Auto LUTs (values < 0 and > 1) and
-records the resulting tolerance. Run: python -m pytest test_lut_composition.py -q -s
+This test samples baked vs unbaked equivalence on 8 Auto LUTs. NOTE: sampling understated the worst case;
+see test_lut_composition_exhaustive.py (up to 6/255), which is why the contract requires two LUT passes. Run: python -m pytest test_lut_composition.py -q -s
 """
 import glob, json, os
 import numpy as np
@@ -56,7 +56,7 @@ def test_baked_matches_two_stage_within_tolerance():
         p99 = np.percentile(np.abs(two - baked) * 255, 99)
         worst = max(worst, err)
         print(f"{stem:20s} max {err:.2f}/255  p99 {p99:.2f}/255")
-    # Tolerance recorded from this measurement; the contract cites it (spec §4.2).
+    # Sampled check only (8 LUTs, random colours). Not a contract tolerance: see the exhaustive test.
     assert worst <= 2.0, worst
 
 

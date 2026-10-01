@@ -16,10 +16,10 @@ def test_embedded_profile_is_neutral():
     assert r["coverage"] == "complete" and r["modelled"] == ["Exposure2012"]
 
 
-def test_vignette_and_grain_are_not_implemented():
+def test_vignette_and_grain_are_experimental_not_complete():
     r = classify.classify(_p({"ProcessVersion": "11.0", "PostCropVignetteAmount": "-20", "GrainAmount": "15"}))
     assert r["coverage"] == "incomplete"
-    assert {"PostCropVignetteAmount", "GrainAmount"} <= set(r["not-implemented"])
+    assert {"PostCropVignetteAmount", "GrainAmount"} <= set(r["experimental"])
 
 
 def test_clarity_is_experimental_not_complete():

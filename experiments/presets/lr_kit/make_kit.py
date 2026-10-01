@@ -7,11 +7,14 @@ kit/
   identity/hald_64_srgb16.tif     identity HALD CLUT, level 8 (64^3 colours, 512x512), 16-bit, sRGB ICC embedded
   photos/                         the 22 test photos (copied from experiments/lut3d/photos)
   presets/original/<look_id>.<ext> the shortlisted presets exactly as found in the collection
-  presets/global/<look_id>__global.xmp  generated: same settings with local/spatial sliders zeroed (HALD render only)
+  presets/full/<look_id>__full.xmp      generated COMPLETE preset (every look-relevant key explicit)
+  presets/global/<look_id>__global.xmp  generated: complete, with adaptive-tone, local and spatial sliders neutral
   shortlist.json, manifest.json   look ids, sources, sha256 of every kit file
 Export targets the user fills (see README):
-  exports/hald/<look_id>__full.tif, exports/hald/<look_id>__global.tif
-  exports/photos/<look_id>__<photo_stem>.jpg, exports/photos/none__<photo_stem>.jpg (no preset; neutrality check)
+  exports/hald/<look_id>__global.tif                    global-only variant on the identity HALD
+  exports/photos/<look_id>__global__<photo_stem>.jpg    global-only variant on each input photo
+  exports/photos/<look_id>__full__<photo_stem>.jpg      full Look on each input photo
+  exports/photos/none__<photo_stem>.jpg                 no preset (neutral baseline)
 """
 from __future__ import annotations
 
@@ -26,14 +29,85 @@ import lrsettings  # noqa: E402
 
 HERE = Path(__file__).parent
 PRESETS = HERE.parent
-ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.home() / "Downloads/Presets - for lightly"
+ROOT = Path(next((a for a in sys.argv[1:] if not a.startswith("--")), "")) if any(not a.startswith("--") for a in sys.argv[1:]) else Path.home() / "Downloads/Presets - for lightly"
 KIT = HERE / "kit"
 HALD_LEVEL = 8  # cube size 64, image 512x512
 
 # Zeroed for the "global" HALD variant: these act spatially or adaptively, so on a synthetic HALD image they
 # would not represent what they do to photographs. Their effect is measured separately on the photo exports.
-LOCAL_KEYS = {"Clarity2012": "0", "Texture": "0", "Dehaze": "0", "PostCropVignetteAmount": "0", "GrainAmount": "0",
+# Neutralised in the GLOBAL-ONLY variant (Codex finding 7): everything Lightroom applies adaptively or spatially,
+# including the adaptive tone sliders, so the HALD captures only pixel-independent colour/tone. These operators
+# are re-added (as Lightly's own implementations) in the full-recipe validation.
+LOCAL_KEYS = {"Highlights2012": "0", "Shadows2012": "0", "Whites2012": "0", "Blacks2012": "0",
+              "Clarity2012": "0", "Texture": "0", "Dehaze": "0", "PostCropVignetteAmount": "0", "GrainAmount": "0",
               "Sharpness": "0", "LuminanceSmoothing": "0", "ColorNoiseReduction": "0", "VignetteAmount": "0"}
+
+
+_BANDS = ("Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta")
+_LINEAR = ["0, 0", "255, 255"]
+# Lightroom's neutral value for every look-relevant develop key (rendered/JPEG input). Kit presets set ALL of
+# these explicitly, so applying one can never inherit a previous Look's values (Codex finding 5).
+DEVELOP_DEFAULTS = {
+    **{k: "0" for k in ("IncrementalTemperature", "IncrementalTint", "Exposure2012", "Contrast2012", "Highlights2012",
+                        "Shadows2012", "Whites2012", "Blacks2012", "Texture", "Clarity2012", "Dehaze", "Vibrance", "Saturation",
+                        "ParametricShadows", "ParametricDarks", "ParametricLights", "ParametricHighlights",
+                        "RedHue", "RedSaturation", "GreenHue", "GreenSaturation", "BlueHue", "BlueSaturation", "ShadowTint",
+                        "SplitToningShadowHue", "SplitToningShadowSaturation", "SplitToningHighlightHue",
+                        "SplitToningHighlightSaturation", "SplitToningBalance",
+                        "ColorGradeShadowHue", "ColorGradeShadowSat", "ColorGradeShadowLum", "ColorGradeMidtoneHue",
+                        "ColorGradeMidtoneSat", "ColorGradeMidtoneLum", "ColorGradeHighlightHue", "ColorGradeHighlightSat",
+                        "ColorGradeHighlightLum", "ColorGradeGlobalHue", "ColorGradeGlobalSat", "ColorGradeGlobalLum",
+                        "ColorGradeBalance", "PostCropVignetteAmount", "PostCropVignetteHighlightContrast", "GrainAmount",
+                        "Sharpness", "LuminanceSmoothing", "ColorNoiseReduction", "VignetteAmount")},
+    **{f"{a}Adjustment{b}": "0" for a in ("Hue", "Saturation", "Luminance") for b in _BANDS},
+    **{f"GrayMixer{b}": "0" for b in _BANDS},
+    "ParametricShadowSplit": "25", "ParametricMidtoneSplit": "50", "ParametricHighlightSplit": "75",
+    "ColorGradeBlending": "50", "ConvertToGrayscale": "False", "PostCropVignetteMidpoint": "50",
+    "PostCropVignetteFeather": "50", "PostCropVignetteRoundness": "0", "PostCropVignetteStyle": "1",
+    "GrainSize": "25", "GrainFrequency": "50", "ToneCurveName2012": "Custom",
+    "ToneCurvePV2012": _LINEAR, "ToneCurvePV2012Red": _LINEAR, "ToneCurvePV2012Green": _LINEAR, "ToneCurvePV2012Blue": _LINEAR,
+}
+
+
+def kit_preset_settings(settings: dict, variant: str) -> dict:
+    """Complete preset for the kit: Lightroom neutral defaults, overlaid with the preset's own values, and for the
+    'global' variant with the local/spatial keys forced neutral. Non-develop keys are passed through."""
+    out = dict(DEVELOP_DEFAULTS)
+    out.update({k: v for k, v in settings.items() if isinstance(v, (str, list))})
+    if variant == "global":
+        out.update({k: DEVELOP_DEFAULTS.get(k, "0") for k in LOCAL_KEYS})
+    elif variant != "full":
+        raise ValueError(variant)
+    return out
+
+
+class KitHasExportsError(RuntimeError):
+    """Raised instead of touching a kit that already holds Lightroom exports or ingest results."""
+
+
+# Only these folders are produced by the generator; anything else in a kit (exports/, results/) is user data.
+GENERATED_DIRS = ("identity", "photos", "presets")
+
+
+def prepare_kit_dir(kit: Path, new_version: bool = False) -> Path:
+    """Return the directory to generate into. Never deletes exports or results (Codex finding 3).
+
+    - kit without exports/results: generated folders are rebuilt in place.
+    - kit with exports/results: refuse, unless new_version=True, which returns a fresh kit-vN sibling.
+    """
+    has_user_data = any(p.is_file() for d in ("exports", "results") for p in (kit / d).rglob("*")) if kit.exists() else False
+    if has_user_data:
+        if not new_version:
+            raise KitHasExportsError(f"{kit} contains Lightroom exports or results; rerun with --new-version to write a fresh kit")
+        n = 2
+        while (kit.parent / f"{kit.name}-v{n}").exists():
+            n += 1
+        kit = kit.parent / f"{kit.name}-v{n}"
+    kit.mkdir(parents=True, exist_ok=True)
+    for d in GENERATED_DIRS:
+        if (kit / d).exists():
+            shutil.rmtree(kit / d)
+    return kit
 
 
 def look_id(rec):
@@ -54,6 +128,14 @@ def hald_identity(level=HALD_LEVEL) -> np.ndarray:
 def write_hald(path: Path):
     icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
     tifffile.imwrite(path, hald_identity(), photometric="rgb", extratags=[(34675, "B", len(icc), icc, True)])
+
+
+def write_inputs(kit: Path):
+    """Record the kit's complete input set (photo stems + sha256, HALD sha256). Ingest validates against THIS
+    list, not against whatever files happen to remain in the folder (Codex finding 6)."""
+    photos = {p.stem: sha(p) for p in sorted((kit / "photos").glob("*.jpg"))}
+    hald = kit / "identity/hald_64_srgb16.tif"
+    json.dump({"photos": photos, "hald_sha256": sha(hald) if hald.exists() else None}, open(kit / "inputs.json", "w"), indent=1)
 
 
 def settings_to_xmp(settings: dict, name: str) -> str:
@@ -88,16 +170,17 @@ def sha(p: Path):
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
-def main():
+def main(new_version: bool = False):
+    global KIT
+    KIT = prepare_kit_dir(KIT, new_version)
     shortlist = json.load(open(PRESETS / "shortlist.json"))
     looks = [rec for cat in shortlist.values() for rec in cat["looks"]]
-    if KIT.exists():
-        shutil.rmtree(KIT)
-    for d in ("identity", "photos", "presets/original", "presets/global", "exports/hald", "exports/photos"):
+    for d in ("identity", "photos", "presets/original", "presets/full", "presets/global", "exports/hald", "exports/photos"):
         (KIT / d).mkdir(parents=True, exist_ok=True)
     write_hald(KIT / "identity/hald_64_srgb16.tif")
     for jpg in sorted((PRESETS.parent / "lut3d/photos").glob("*.jpg")):
         shutil.copy2(jpg, KIT / "photos" / jpg.name)
+    write_inputs(KIT)
     by_source = {}
     for p in lrsettings.walk(ROOT):
         by_source[p.source] = p
@@ -114,15 +197,18 @@ def main():
             orig_path.write_bytes(zipfile.ZipFile(ROOT / zpath).read(member))
         else:
             shutil.copy2(ROOT / rec["source"], orig_path)
-        g = dict(p.settings); g.update({k: v for k, v in LOCAL_KEYS.items() if k in g})
-        (KIT / "presets/global" / f"{lid}__global.xmp").write_text(settings_to_xmp(g, f"{lid} [global]"))
-        # Round-trip check: the generated XMP must parse back to the same develop values.
-        back = lrsettings.parse_xmp_text((KIT / "presets/global" / f"{lid}__global.xmp").read_text())
         identity_keys = {"Name", "UUID", "Group", "PresetType", "Cluster", "SupportsAmount", "SupportsColor", "SupportsMonochrome"}
-        mism = [k for k, v in g.items() if isinstance(v, (str, list)) and k not in identity_keys and not k.startswith("Supports") and back.get(k) != v]
-        assert not mism, (lid, mism[:5])
+        for variant in ("full", "global"):
+            g = kit_preset_settings(p.settings, variant)
+            path = KIT / "presets" / variant / f"{lid}__{variant}.xmp"
+            path.write_text(settings_to_xmp(g, f"{lid} [{variant}]"))
+            # Round-trip check: the generated XMP must parse back to the same develop values.
+            back = lrsettings.parse_xmp_text(path.read_text())
+            mism = [k for k, v in g.items() if k not in identity_keys and not k.startswith("Supports") and back.get(k) != v]
+            assert not mism, (lid, variant, mism[:5])
         entries.append({"look_id": lid, **{k: rec[k] for k in ("category", "stop", "name", "source")},
-                        "original_file": str(orig_path.relative_to(KIT)), "global_xmp": f"presets/global/{lid}__global.xmp",
+                        "original_file": str(orig_path.relative_to(KIT)), "full_xmp": f"presets/full/{lid}__full.xmp",
+                        "global_xmp": f"presets/global/{lid}__global.xmp",
                         "zeroed_for_global": sorted(k for k in LOCAL_KEYS if k in p.settings and str(p.settings[k]).strip("+") not in ("0", "0.00"))})
     json.dump(entries, open(KIT / "shortlist.json", "w"), indent=1)
     (KIT / "README.md").write_text((HERE / "README_TEMPLATE.md").read_text().replace("{{LOOK_TABLE}}", "\n".join(
@@ -133,4 +219,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(new_version="--new-version" in sys.argv)

@@ -362,3 +362,52 @@ def apply_local_contrast(img: torch.Tensor, clarity: float, texture: float, S: S
         out = out + S.k_texture * texture / 100 * (L - _gauss_blur(L, S.r_texture * long_edge))
     lab = torch.stack([out.clamp(0, 1), lab[..., 1], lab[..., 2]], -1)
     return linear_to_srgb(oklab_to_lin(lab)).clamp(0, 1)
+
+
+# ------------------------------------------------------------------ spatial: vignette and grain (contract stage O3)
+# EXPERIMENTAL and UNCALIBRATED: shapes follow Lightroom's controls (amount, midpoint, feather, roundness; grain
+# amount, size, frequency) but the constants are first guesses to be fitted on the export kit's full-Look photos.
+# Both are defined in normalised frame coordinates so preview and export match (invariant P=E).
+
+VIGNETTE_K = 0.9       # linear-light gain change at the frame corner for amount = +/-100
+GRAIN_K = 0.12         # OKLab L standard deviation for amount = 100
+GRAIN_REF_LONG = 1200  # grains along the long edge at size 0, independent of output resolution
+
+
+def apply_vignette(img: torch.Tensor, s: dict) -> torch.Tensor:
+    a = _f(s, "PostCropVignetteAmount") / 100
+    if not a:
+        return img
+    mid = _f(s, "PostCropVignetteMidpoint", 50) / 100
+    feather = _f(s, "PostCropVignetteFeather", 50) / 100
+    roundness = _f(s, "PostCropVignetteRoundness", 0) / 100
+    h, w = img.shape[:2]
+    y, x = torch.meshgrid(torch.linspace(-1, 1, h), torch.linspace(-1, 1, w), indexing="ij")
+    if roundness > 0:  # towards a true circle in pixel space
+        x = x * (1 + roundness * (w / h - 1))
+    p = 2.0 + max(0.0, -roundness) * 6.0  # towards the frame's rectangle (superellipse)
+    r = ((x.abs() ** p + y.abs() ** p) ** (1 / p)) / (2 ** (1 / p))
+    centre = 0.25 + 0.65 * mid
+    width = 0.05 + 0.6 * feather
+    t = smoothstep(centre - width / 2, centre + width / 2, r)
+    factor = (1 + VIGNETTE_K * a * t).clamp(min=0).unsqueeze(-1)
+    return linear_to_srgb(srgb_to_linear(img) * factor).clamp(0, 1)
+
+
+def apply_grain(img: torch.Tensor, s: dict, seed: int = 0) -> torch.Tensor:
+    amount = _f(s, "GrainAmount") / 100
+    if not amount:
+        return img
+    size = _f(s, "GrainSize", 25) / 100
+    h, w = img.shape[:2]
+    long_edge = max(h, w)
+    ref_long = max(8, int(round(GRAIN_REF_LONG / (1 + 4 * size))))
+    gh, gw = max(2, round(ref_long * h / long_edge)), max(2, round(ref_long * w / long_edge))
+    gen = torch.Generator().manual_seed(int(seed))
+    noise = torch.randn((gh, gw), generator=gen)
+    noise = torch.nn.functional.interpolate(noise[None, None], size=(h, w), mode="bilinear", align_corners=False)[0, 0]
+    noise = noise / noise.std().clamp(min=1e-6)
+    lab = lin_to_oklab(srgb_to_linear(img))
+    L = lab[..., 0]
+    L = L + GRAIN_K * amount * noise * (4 * L * (1 - L) + 0.2)
+    return linear_to_srgb(oklab_to_lin(torch.stack([L.clamp(0, 1), lab[..., 1], lab[..., 2]], -1))).clamp(0, 1)

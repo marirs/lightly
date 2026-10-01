@@ -1,12 +1,16 @@
 # Lightly — Lightroom export kit (provisional shortlist)
 
-Purpose: get Lightroom's own renders of the provisional V1 Looks, so Lightly can:
-1. extract each Look's global colour/tone transform from an identity image;
-2. measure how well that extracted transform reproduces Lightroom on real photographs.
+Purpose: get Lightroom's own renders of the provisional V1 Looks, so Lightly can measure two separate things:
+1. **Global transform.** Extract each Look's pixel-independent colour/tone transform from an identity (HALD) image rendered with the *global-only* variant. Compare it with Lightroom's renders of the same global-only variant on real photographs.
+2. **Full recipe.** Compare Lightly's complete recipe with Lightroom's renders of the *full* Look on the same photographs. The complete recipe is the global transform plus Lightly's own versions of the operators the global-only variant removes:
+   - Highlights, Shadows, Whites, Blacks, Dehaze
+   - Clarity, Texture
 
-Point 2 decides whether the extraction is faithful. It is **not assumed**.
+   Operators Lightly does not implement (vignette, grain) prevent a Look from being validated, and are listed.
 
-Time needed: about 30–45 minutes in Lightroom Classic (most of it is waiting for exports).
+Neither result is assumed.
+
+Exports per Look: 1 HALD + 22 global-only photos + 22 full photos. Plus 22 neutral photos once. Time needed: about 60–90 minutes in Lightroom Classic, mostly export time.
 
 ## Looks in this kit
 
@@ -17,27 +21,45 @@ Time needed: about 30–45 minutes in Lightroom Classic (most of it is waiting f
 ## 1. Import
 
 1. In **Lightroom Classic**, choose Develop → Presets panel → **+** → *Import Presets…*.
-   - Select every file in `presets/original/` and `presets/global/`.
-   - `.dng` presets: import them as photos instead. Then, from each, create a preset with *Develop → New Preset* (all settings ticked) and give it the same name as the file.
+   - Select every file in `presets/full/` and `presets/global/`. These are **complete** presets: every look-relevant setting is written explicitly. `presets/original/` holds the vendor files for reference only; **do not apply them**, because some omit settings and would inherit values from a previous Look.
 2. Choose *File → Import* and add `identity/hald_64_srgb16.tif` and all of `photos/`. Use **Add** (don't move or copy). **Make sure Import → "Apply During Import" has no develop preset selected.**
+
+## Rule for every render (do not skip)
+
+- **Every** render starts from a **fresh virtual copy of the untouched master** (the imported photo or HALD), created with *Photo → Create Virtual Copy* from the master, not from another copy.
+- Before applying a Look, click **Reset** (bottom right of the Develop module) on that copy.
+- **Never apply a Look to a copy that already has another Look**, and never use *Sync Settings* from a copy that had a different Look.
+- If in doubt, delete the copy and make a new one from the master.
 
 ## 2. Neutrality check (no preset)
 
 Select the 22 photos and confirm none of them has any develop settings: *Reset* in the Develop module if in doubt. Then export them with the **Photo export settings** (§5), using the filename `none__{original filename}`.
 
-## 3. Identity (HALD) renders
+## 3. Identity (HALD) render: global-only variant
 
 For **each** Look id:
-
-1. Select `hald_64_srgb16.tif`, then choose *Photo → Create Virtual Copy*.
-2. Apply the preset `<look_id>` (from `presets/original`). Export with the **HALD export settings**, filename `<look_id>__full`.
-3. Make another virtual copy and apply `<look_id> [global]`. Export it with the same settings, filename `<look_id>__global`.
+1. Create a virtual copy of the master `hald_64_srgb16.tif` and click **Reset**.
+2. Apply `<look_id> [global]`.
+3. Export with the **HALD export settings**, filename `<look_id>__global`.
 
 Do not crop, straighten or touch any slider.
 
-## 4. Photo renders
+## 4. Photo renders: two sets per Look
 
-For **each** Look id, select the 22 photos, apply the preset `<look_id>` (from `presets/original`), and export with the **Photo export settings**, filename `<look_id>__{original filename}`. Batch-apply with *Sync Settings* (all boxes ticked) after applying to one photo.
+For **each** Look id, do both sets. Each set uses its own fresh copies of the 22 **master** photos; follow the rule above.
+
+| Set | Preset to apply | Export filename |
+|---|---|---|
+| Global-only | `<look_id> [global]` | `<look_id>__global__{original filename}` |
+| Full | `<look_id> [full]` | `<look_id>__full__{original filename}` |
+
+Steps for one set:
+1. Create a fresh virtual copy of each of the 22 master photos.
+2. Select the new copies and click **Reset**.
+3. Apply the set's preset to all of them: select them all and click the preset with Auto Sync on.
+4. Export with the **Photo export settings**.
+
+Never reuse copies across sets or Looks.
 
 ## 5. Export settings
 
@@ -58,10 +80,8 @@ For **each** Look id, select the 22 photos, apply the preset `<look_id>` (from `
 
 ## 6. Return
 
-Zip the `exports/` folder and put it back in this kit folder, or tell Claude where it is. Then run `python ingest_kit.py <kit>/` from `experiments/presets/lr_kit/`. That:
-- extracts LUTs from the HALD exports;
-- applies them to the original photos;
-- compares the result with your photo exports (ΔE00 per image);
-- writes a report with side-by-side sheets.
+Leave `exports/` inside this kit folder, or tell Claude where it is. Do not move or rename `photos/` or `inputs.json`. Then run `python ingest_kit.py <kit>/` from `experiments/presets/lr_kit/`. It reports, per Look:
+- **global status:** extracted LUT vs your global-only exports;
+- **full-recipe status:** Lightly's complete recipe vs your full exports, with any operators Lightly does not implement listed.
 
-Acceptance and failures are reported per Look. Nothing is marked validated automatically unless it meets the stated thresholds.
+A Look is reported **validated** only if every one of the 22 photos passes (mean ΔE00 ≤ 2 and p95 ≤ 5), every expected export exists, and the neutral baseline passes. Otherwise it is **incomplete** or **failed**, with the reason. Regenerating the kit never deletes your exports.

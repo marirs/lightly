@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np, tifffile
 from PIL import Image
 
-HERE = Path(__file__).parent
+HERE = Path(__file__).resolve().parents[1]  # lr_kit/
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent)); sys.path.insert(0, str(HERE.parents[1] / "lut3d/reference"))
 import make_kit, ingest_kit, ia3dlut as ia
 
@@ -30,15 +30,16 @@ def build(tmp: Path, corrupt=False):
     side = hald.shape[0]
     out = ia.apply_lut_reference(L, hald.reshape(-1, 1, 3), 1.0).reshape(side, side, 3)
     tifffile.imwrite(kit / "exports/hald/test.1.x__global.tif", np.round(np.clip(out, 0, 1) * 65535).astype(np.uint16))
-    tifffile.imwrite(kit / "exports/hald/test.1.x__full.tif", np.round(np.clip(out, 0, 1) * 65535).astype(np.uint16))
     for stem in ("portrait_deep_01", "sunset_02"):
         src = Image.open(HERE.parents[1] / f"lut3d/golden/{stem}/source.png").convert("RGB").resize((600, 400))
         src.save(kit / "photos" / f"{stem}.jpg", quality=100)
         s = np.asarray(Image.open(kit / "photos" / f"{stem}.jpg"))
         lr = ia.to_uint8(ia.apply_lut_reference(L if not corrupt else ia.blend_toward_identity(L, -1.5), s.astype(np.float32) / 255, 1.0))
-        Image.fromarray(lr).save(kit / "exports/photos" / f"test.1.x__{stem}.jpg", quality=100)
+        for variant in ("global", "full"):  # no separated operators in this preset, so both match the LUT
+            Image.fromarray(lr).save(kit / "exports/photos" / f"test.1.x__{variant}__{stem}.jpg", quality=100)
         Image.fromarray(s).save(kit / "exports/photos" / f"none__{stem}.jpg", quality=100)
     json.dump([{"look_id": "test.1.x", "category": "test", "stop": 1, "name": "x"}], open(kit / "shortlist.json", "w"))
+    make_kit.write_inputs(kit)
     return kit, L
 
 
@@ -48,10 +49,12 @@ def test_roundtrip_validates(tmp_path):
     lut = np.load(kit / "results/luts/test.1.x__global.npy")
     assert np.abs(lut - L).max() < 2 / 255
     rep = json.load(open(kit / "results/report.json"))
-    assert rep["neutral_baseline_ok"] and rep["looks"]["test.1.x"]["status"] == "validated"
+    look = rep["looks"]["test.1.x"]
+    assert rep["neutral_baseline_ok"] and look["global"]["status"] == "validated" and look["full"]["status"] == "validated"
 
 
 def test_wrong_export_fails(tmp_path):
     kit, _ = build(tmp_path, corrupt=True)
     ingest_kit.main(kit)
-    assert json.load(open(kit / "results/report.json"))["looks"]["test.1.x"]["status"] == "failed"
+    look = json.load(open(kit / "results/report.json"))["looks"]["test.1.x"]
+    assert look["global"]["status"] == "failed" and look["full"]["status"] == "failed"
