@@ -29,6 +29,7 @@ android {
 
 dependencies {
     implementation(project(":core-session"))
+    implementation(project(":core-model"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

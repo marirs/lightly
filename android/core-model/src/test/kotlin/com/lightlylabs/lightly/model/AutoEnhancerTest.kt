@@ -5,10 +5,13 @@ import com.lightlylabs.lightly.render.lut.Lut3D
 import com.lightlylabs.lightly.render.testing.SyntheticLuts
 import com.lightlylabs.lightly.session.AutoGuardrail
 import com.lightlylabs.lightly.session.SourceFingerprint
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertSame
 
 /** Develop orchestration with a fake model; real ORT inference is PENDING on device. */
@@ -31,13 +34,30 @@ class AutoEnhancerTest {
     private val fingerprintA = SourceFingerprint("aa".repeat(32), 1000, 1024, 768)
     private val fingerprintB = SourceFingerprint("bb".repeat(32), 1000, 1024, 768)
 
+    private fun bytesOf(basis: BasisLuts): ByteArray {
+        val buffer = ByteBuffer.allocate(basis.luts.size * Lut3D.floatCount(basis.dimension) * 4).order(ByteOrder.LITTLE_ENDIAN)
+        basis.luts.forEach { lut -> lut.rgba.forEach(buffer::putFloat) }
+        return buffer.array()
+    }
+
+    /** Registry with the basis installed for "fake-1" only. */
+    private val resolver: AutoLutResolver = run {
+        val bytes = bytesOf(basis)
+        RegistryAutoLutResolver(
+            BasisRegistry(listOf(InstalledBasis(ModelKey("ia3dlut", "fake-1"), BasisRegistry.sha256Hex(bytes)) { bytes })),
+        )
+    }
+
     private fun enhancer(model: AutoModel) =
-        AutoEnhancer(model, basis, guardrail = AutoGuardrail.ENDPOINT_V1, initialStrength = 0.75f)
+        AutoEnhancer(model, resolver, guardrail = AutoGuardrail.ENDPOINT_V1, initialStrength = 0.75f)
+
+    private fun AutoEnhancer.developOrFail(fingerprint: SourceFingerprint) =
+        assertIs<DevelopOutcome.Developed>(develop(fingerprint, image)).development
 
     @Test
     fun `develop feeds the canonical 256 input to the model and records the result`() {
         val model = FakeAutoModel()
-        val development = enhancer(model).develop(fingerprintA, image)
+        val development = enhancer(model).developOrFail(fingerprintA)
 
         assertEquals(3 * 256 * 256, model.inputs.single().size)
         assertContentEquals(CanonicalAnalysisInput.prepare(image, 1024), model.inputs.single())
@@ -57,9 +77,9 @@ class AutoEnhancerTest {
         val model = FakeAutoModel()
         val enhancer = enhancer(model)
 
-        val first = enhancer.develop(fingerprintA, image)
-        val again = enhancer.develop(fingerprintA, image)
-        enhancer.develop(fingerprintB, image)
+        val first = enhancer.developOrFail(fingerprintA)
+        val again = enhancer.developOrFail(fingerprintA)
+        enhancer.developOrFail(fingerprintB)
 
         assertSame(first, again)
         assertEquals(2, model.inputs.size, "A twice + B once = two model runs")
@@ -68,12 +88,21 @@ class AutoEnhancerTest {
     @Test
     fun `a stored AutoResult re-renders from its saved weights without running the model`() {
         val model = FakeAutoModel()
-        val stored = enhancer(FakeAutoModel(weights = floatArrayOf(1f, 0f, 0f))).develop(fingerprintA, image).result
+        val stored = enhancer(FakeAutoModel(weights = floatArrayOf(1f, 0f, 0f))).developOrFail(fingerprintA).result
 
-        val lut = enhancer(model).lutFor(stored)
+        val ready = assertIs<AutoLutResolution.Ready>(resolver.resolve(stored))
 
         assertEquals(0, model.inputs.size)
-        assertContentEquals(AutoGuardrails.apply(AutoGuardrail.ENDPOINT_V1, basis.fuse(floatArrayOf(1f, 0f, 0f))).rgba, lut.rgba)
+        assertContentEquals(AutoGuardrails.apply(AutoGuardrail.ENDPOINT_V1, basis.fuse(floatArrayOf(1f, 0f, 0f))).rgba, ready.lut.rgba)
+    }
+
+    @Test
+    fun `a model whose own basis is not installed fails to develop explicitly`() {
+        val outcome = enhancer(FakeAutoModel(modelVersion = "fake-2")).develop(fingerprintA, image)
+
+        val unavailable = assertIs<DevelopOutcome.Unavailable>(outcome).unavailable
+        assertEquals("fake-2", unavailable.modelVersion)
+        assertEquals(BasisUnavailableReason.NotInstalled, unavailable.reason)
     }
 
     @Test

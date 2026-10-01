@@ -49,6 +49,11 @@ fun EditorScreen(viewModel: EditorViewModel) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PhotoPlaceholder(ui, Modifier.fillMaxWidth().weight(1f))
 
+        (ui.autoStatus as? AutoStatus.Unavailable)?.let { unavailable ->
+            // Visible text (read by TalkBack); Auto renders as identity meanwhile.
+            Text(unavailable.notice, color = MaterialTheme.colorScheme.error)
+        }
+
         if (session == null) {
             Button(onClick = { viewModel.startSession(DemoSession.source, DemoSession.auto) }) {
                 Text("Start demo session")
@@ -96,8 +101,10 @@ private fun PhotoPlaceholder(ui: EditorUiState, modifier: Modifier) {
     val description = when {
         displayed == null -> "No photo"
         ui.compareOn -> "Photo, original"
-        else -> displayed.look?.let { "Photo, enhanced automatically, ${it.lookId} at ${(it.strength * 100).toInt()} percent" }
-            ?: "Photo, enhanced automatically"
+        else -> {
+            val base = if (ui.autoStatus is AutoStatus.Unavailable) "Photo, auto enhancement unavailable" else "Photo, enhanced automatically"
+            displayed.look?.let { "$base, ${it.lookId} at ${(it.strength * 100).toInt()} percent" } ?: base
+        }
     }
     Box(
         modifier.background(MaterialTheme.colorScheme.surfaceVariant).semantics { contentDescription = description },

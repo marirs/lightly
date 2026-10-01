@@ -2,6 +2,14 @@ package com.lightlylabs.lightly.editor
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.lightlylabs.lightly.model.AutoLutResolution
+import com.lightlylabs.lightly.model.AutoLutResolver
+import com.lightlylabs.lightly.model.BasisUnavailableReason
+import com.lightlylabs.lightly.render.lut.Lut3D
 import com.lightlylabs.lightly.session.AutoResult
 import com.lightlylabs.lightly.session.EditSession
 import com.lightlylabs.lightly.session.EditState
@@ -20,12 +28,29 @@ data class EditorUiState(
     val transientPreview: EditState? = null,
     val compareOn: Boolean = false,
     val selectedCategory: String = DEFAULT_CATEGORY,
+    val autoStatus: AutoStatus = AutoStatus.NoSession,
 ) {
     /** What the photo area shows: the transient preview if any, else the committed state. */
     val displayed: EditState? get() = transientPreview ?: session?.current
 
     companion object {
         const val DEFAULT_CATEGORY = "Natural"
+    }
+}
+
+/** Whether the O1 Auto stage can render for the current session (Codex M2 finding 4). */
+sealed interface AutoStatus {
+    data object NoSession : AutoStatus
+
+    data class Applied(val modelId: String, val modelVersion: String) : AutoStatus
+
+    /**
+     * The saved edit names a model version whose basis is not installed or fails verification.
+     * Auto renders as identity ("off") and the screen shows [notice]. The stored AutoResult is kept
+     * untouched, so the edit renders correctly again once that version is available.
+     */
+    data class Unavailable(val modelId: String, val modelVersion: String, val reason: BasisUnavailableReason) : AutoStatus {
+        val notice: String get() = "Auto enhancement unavailable for this edit (model $modelId $modelVersion is not installed on this device)."
     }
 }
 
@@ -39,9 +64,24 @@ data class EditorUiState(
  *
  * State changes are synchronous; rendering is driven from [uiState] by the render scheduler (M3).
  */
-class EditorViewModel(private val savedState: SavedStateHandle) : ViewModel() {
+class EditorViewModel(
+    private val savedState: SavedStateHandle,
+    private val autoResolver: AutoLutResolver,
+) : ViewModel() {
+
+    // Resolved O1 LUT for the session's AutoResult; null while there is no session or Auto is unavailable.
+    // Memoised per AutoResult because every entry of a session shares one Auto result.
+    private var resolvedAuto: Pair<AutoResult, AutoLutResolution>? = null
 
     private val state = MutableStateFlow(restore())
+
+    /**
+     * The O1 LUT the renderer must use, or `null` meaning "Auto off" (identity). Never a LUT from a
+     * different model version than the one stored in the edit.
+     */
+    val autoLutForRendering: Lut3D?
+        get() = (resolvedAuto?.second as? AutoLutResolution.Ready)?.lut
+
     val uiState: StateFlow<EditorUiState> = state.asStateFlow()
 
     fun startSession(source: SourceRef, auto: AutoResult) {
@@ -84,7 +124,20 @@ class EditorViewModel(private val savedState: SavedStateHandle) : ViewModel() {
 
     private fun commit(session: EditSession) {
         savedState[KEY_SESSION] = SessionJson.encodeToString(EditSession.serializer(), session)
-        state.value = state.value.copy(session = session, transientPreview = null)
+        state.value = state.value.copy(session = session, transientPreview = null, autoStatus = autoStatusFor(session))
+    }
+
+    private fun autoStatusFor(session: EditSession?): AutoStatus {
+        val auto = session?.current?.auto ?: run {
+            resolvedAuto = null
+            return AutoStatus.NoSession
+        }
+        val resolution = resolvedAuto?.takeIf { it.first == auto }?.second
+            ?: autoResolver.resolve(auto).also { resolvedAuto = auto to it }
+        return when (resolution) {
+            is AutoLutResolution.Ready -> AutoStatus.Applied(auto.modelId, auto.modelVersion)
+            is AutoLutResolution.AutoUnavailable -> AutoStatus.Unavailable(resolution.modelId, resolution.modelVersion, resolution.reason)
+        }
     }
 
     private fun restore(): EditorUiState {
@@ -97,6 +150,7 @@ class EditorViewModel(private val savedState: SavedStateHandle) : ViewModel() {
             session = session,
             compareOn = savedState.get<Boolean>(KEY_COMPARE) ?: false,
             selectedCategory = savedState.get<String>(KEY_CATEGORY) ?: EditorUiState.DEFAULT_CATEGORY,
+            autoStatus = autoStatusFor(session),
         )
     }
 
@@ -104,5 +158,9 @@ class EditorViewModel(private val savedState: SavedStateHandle) : ViewModel() {
         const val KEY_SESSION = "editor.session.json"
         const val KEY_COMPARE = "editor.compare"
         const val KEY_CATEGORY = "editor.category"
+
+        fun factory(autoResolver: AutoLutResolver): ViewModelProvider.Factory = viewModelFactory {
+            initializer { EditorViewModel(createSavedStateHandle(), autoResolver) }
+        }
     }
 }

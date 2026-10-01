@@ -28,7 +28,16 @@ class FusionAndGuardrailTest {
                     "-PlightlyModelsDir=/abs/path/to/experiments/lut3d/models (or LIGHTLY_MODELS_DIR).",
             )
         }
-        BasisLuts.fromLittleEndianBytes(file.readBytes())
+        // Load through the registry with the sha256 pinned by MODEL_CARD.json, as the app will.
+        val card = File(dir, "MODEL_CARD.json").takeIf { it.isFile }?.readText()
+            ?: fail("MODEL_CARD.json missing next to $file")
+        val pinnedSha = Regex("\"ia3dlut_basis_luts_f32\\.bin\"\\s*:\\s*\\{[^}]*\"sha256\"\\s*:\\s*\"([0-9a-f]{64})\"")
+            .find(card)?.groupValues?.get(1) ?: fail("MODEL_CARD.json has no sha256 for the basis file")
+        val key = ModelKey("ia3dlut", "research-fivek-b491f6d")
+        when (val resolution = BasisRegistry(listOf(InstalledBasis.fromFile(key, file, pinnedSha))).resolve(key)) {
+            is BasisResolution.Available -> resolution.basis
+            is BasisResolution.Unavailable -> fail("Research basis failed verification: ${resolution.reason}")
+        }
     }
 
     @Test
