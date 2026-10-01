@@ -143,16 +143,25 @@ Limitations:
 ## 6. Shortlist and Lightroom export kit (prepared)
 
 - **Provisional shortlist:** 18 Looks across 5 categories, each with reasons and contact sheets. See `docs/m1/shortlist.md`; the code is `experiments/presets/shortlist.py`, and human decisions are in `shortlist_review.json`.
-- **Export kit:** `experiments/presets/lr_kit/` (generated `kit/` is git-ignored, 51 MB). It contains:
+- **Export kit (corrected after Codex review: F3–F7):** `experiments/presets/lr_kit/`. The generated `kit/` is git-ignored. It contains:
   - a 16-bit sRGB identity HALD (64³)
-  - the 22 test photos
-  - the 18 original preset files, plus generated "global-only" XMPs with local/spatial sliders zeroed
-  - Lightroom Classic instructions with exact export settings and naming
-- **Ingest:** `ingest_kit.py` extracts 33³ LUTs from the HALD exports, applies them to the originals, and compares the result with Lightroom's photo exports.
-  - Acceptance: per photo, mean ΔE00 ≤ 2 and p95 ≤ 5. A Look is "validated" only if all photos pass and Lightroom's neutral (no-preset) export reproduces the input.
-  - Self-test without Lightroom (`test_kit_roundtrip.py`): a known LUT is recovered within 2/255, a correct export is reported validated, and a wrong export is reported failed.
-  - **Not yet verified:** that Lightroom accepts the generated global-only XMPs. The README asks for this to be reported if not.
-- **Remaining input:** running the kit in Lightroom (about 30–45 min). Nothing else blocks it.
+  - the 22 test photos, with their sha256 recorded in `inputs.json`
+  - **complete** generated presets per Look: `[full]`, and `[global]` with adaptive tone (Highlights/Shadows/Whites/Blacks), Clarity, Texture, Dehaze, vignette, grain and detail set neutral
+  - the vendor originals, for reference only
+  - Lightroom Classic instructions: a fresh reset copy for every render; exact export settings and naming
+  - Regenerating the kit never deletes exports.
+- **Ingest** (`ingest_kit.py`) runs two separate validations per Look:
+  - **global:** the LUT extracted from the global HALD, compared with Lightroom's global-only photo exports;
+  - **full recipe:** Lightly's complete recipe (calibrated adaptive-tone approximation → global LUT → experimental local contrast), compared with Lightroom's full photo exports. Operators Lightly can't render are listed and block "validated".
+
+  Originals are ICC-converted to sRGB and EXIF-oriented before scoring. "Validated" requires every recorded input unchanged, every neutral and Look export present, and every photo within mean ΔE00 ≤ 2 and p95 ≤ 5.
+- **Kit tests:** `lr_kit/tests/` holds 17 tests, all passing. Each finding's regression test was confirmed to fail before its fix.
+  - **Not yet verified:** that Lightroom accepts the generated XMPs.
+  - **Known gap:** 10 of the 18 shortlisted Looks use grain and/or vignette, which Lightly doesn't implement yet. Their **full-recipe status cannot reach "validated"** until those operators exist; their global status still can.
+    - Grain: Old Street-4, Black Paris Tone (11), Retro Wedding Tone (15), C4 - Teals, T2, Vintage Flim Tone (7), 11 Black and White 11.
+    - Vignette: Black Paris Tone (11), C4 - Teals, Rainy Tone (10), 03 Black and White 03, Golden Hour 9.
+    - Next step: grain needs both an operator *and* a grain-insensitive comparison (noise statistics plus a blurred ΔE), because random grain can't match pixel-for-pixel.
+- **Remaining input:** running the corrected kit in Lightroom (about 60–90 min; 1 HALD + 44 photos per Look, plus 22 neutral photos).
 
 ## 7. Reproduce
 
