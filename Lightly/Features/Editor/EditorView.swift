@@ -19,7 +19,16 @@ struct EditorView: View {
     var makeExportViewModel: ((DevelopRecipe) -> ExportViewModel)?
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isShowingLooks = false
+
+    /// Whether the controls get their own bands above and below the photo.
+    ///
+    /// At standard sizes the photo is full-bleed and the compact controls
+    /// float over it (spec §4.3). At accessibility sizes the action bar
+    /// grows to two rows of large labels and covered up to ~100 pt of the
+    /// photo, so there the photo is fitted between the controls instead.
+    private var controlsReservePhotoSpace: Bool { dynamicTypeSize.isAccessibilitySize }
     @State private var isShowingExport = false
 
     init(
@@ -49,11 +58,21 @@ struct EditorView: View {
                 .transition(.opacity)
             }
 
-            VStack(spacing: 0) {
-                topControls
-                Spacer()
-                bottomControls
+            if !controlsReservePhotoSpace {
+                VStack(spacing: 0) {
+                    topControls
+                    Spacer()
+                    bottomControls
+                }
             }
+        }
+        // At accessibility sizes the controls take their own space and the
+        // photo fits between them (see `controlsReservePhotoSpace`).
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if controlsReservePhotoSpace { topControls }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if controlsReservePhotoSpace { bottomControls }
         }
         .animation(LightlyMotion.surface, value: viewModel.phase)
         .sheet(isPresented: $isShowingLooks) {
@@ -116,8 +135,11 @@ struct EditorView: View {
         Image(decorative: viewModel.displayedImage, scale: 1)
             .resizable()
             .scaledToFit()
+            .layoutAnchor("editor.photo")
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea()
+            // Full-bleed only when the controls float over it; otherwise it
+            // must respect the insets the controls occupy.
+            .ignoresSafeArea(edges: controlsReservePhotoSpace ? [] : .all)
             .accessibilityLabel(
                 viewModel.isShowingOriginal
                     ? Text("editor.photo.original.accessibility", bundle: .main)
@@ -168,6 +190,7 @@ struct EditorView: View {
                 onDevelop: { viewModel.develop() }
             )
             .padding(.bottom, LightlySpacing.l)
+            .layoutAnchor("editor.bottomControls")
 
         case .developing:
             // The overlay owns this state; no actions are offered while work is
@@ -188,6 +211,7 @@ struct EditorView: View {
                 )
             }
             .padding(.bottom, LightlySpacing.s)
+            .layoutAnchor("editor.bottomControls")
         }
     }
 
