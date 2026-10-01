@@ -1,0 +1,685 @@
+id,split,family,name,colour_bins,dE_identity,dE_uncalibrated,dE_mean,dE_p95
+779efe2955,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (1),85,6.62,nan,2.92,7.52
+cc95ab51a9,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (10),86,7.7,nan,3.42,6.09
+c9ba78c758,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (11),86,5.42,nan,4.15,6.42
+c62f2ef54b,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (12),85,4.64,nan,3.45,6.93
+6781ce78d6,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (13),86,8.55,nan,4.94,11.28
+fa49fbbfea,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (14),86,5.57,nan,4.39,10.82
+2ebc200bda,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (15),86,8.01,nan,4.87,8.04
+4fe2844370,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (16),86,6.72,nan,3.56,5.68
+750c5386c2,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (17),86,7.12,nan,3.47,6.09
+cf5f903eaa,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (18),86,7.63,nan,4.12,7.38
+3e67a43046,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (19),85,5.98,nan,4.53,8.93
+3ea21ea66f,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (2),85,7.43,nan,4.74,8.33
+a704a2cfff,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (20),86,5.27,nan,2.94,5.8
+3a928bfc7e,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (3),86,5.41,nan,3.63,9.95
+8d9c4e0418,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (4),85,7.22,nan,3.44,6.75
+7f813c17dd,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (5),85,5.75,nan,3.67,7.97
+66e537d6bb,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (6),85,5.9,nan,3.65,6.42
+14007a8f8f,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (7),85,5.04,nan,4.77,7.44
+de8b19f062,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (8),85,7.2,nan,5.6,10.45
+7293741dd8,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,Cinematic Drone Tone (9),85,5.89,nan,2.88,4.7
+6b69c49bde,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (1),119,10.36,12.15,7.25,12.64
+4f391c61b2,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (10),119,6.07,4.87,3.6,7.94
+427a9ca348,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (11),119,9.24,4.25,4.27,9.38
+6fc86f79b9,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (12),119,12.75,4.59,7.19,11.5
+a8ef529948,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (13),119,11.83,4.42,6.5,10.43
+c6e2515646,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (14),119,10.93,5.05,5.44,10.44
+81b1352235,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (15),119,7.84,8.56,4.19,10.68
+003d98f397,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (2),119,9.51,11.21,7.19,12.22
+d65cbcfdba,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (3),119,7.56,5.33,6.04,10.66
+7be46cf274,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (4),119,4.15,7.18,3.13,6.89
+6f1352ca63,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (5),119,11.61,4.42,6.95,13.09
+5d6d795b03,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (6),119,9.1,10.43,4.71,11.12
+7edc5249fe,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (7),119,4.9,11.84,5.01,13.52
+c7162cca39,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (8),119,12.71,16.05,7.25,11.88
+367379e464,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,City Drone Tone (9),119,5.79,4.67,4.74,11.97
+9700fda53e,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,Dark Cinema Drone Tone (1),70,9.99,nan,3.31,5.52
+60d0db2755,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,Dark Cinema Drone Tone (2),70,11.63,nan,2.78,5.72
+ef285d7d28,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,Dark Cinema Drone Tone (3),71,12.5,nan,5.28,8.35
+285c61182a,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,Dark Cinema Drone Tone (4),71,11.53,nan,4.65,8.02
+5198a70b4f,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,Dark Cinema Drone Tone (5),70,9.79,nan,3.32,6.27
+7797a5fe40,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (1),75,21.89,8.6,9.63,16.16
+457cd2b938,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (10),75,23.63,8.47,7.56,11.17
+bcd7748273,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (2),75,21.77,9.1,8.82,12.76
+d065bc5b31,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (3),76,17.85,7.67,8.84,13.19
+e595983883,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (4),75,15.79,8.13,8.06,11.32
+872a79b4ef,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (5),75,22.17,9.63,9.34,12.62
+25cd2e67ad,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (6),75,20.3,10.15,10.14,13.6
+36afe6db96,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (7),75,20.59,10.74,11.06,15.81
+1ab707ff3f,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (8),75,18.68,12.77,12.51,16.96
+515236c63a,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,Dark City Drone Tone (9),75,19.7,9.15,10.46,15.68
+9c2238525d,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (1),79,7.78,nan,5.16,8.24
+a347be7776,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (10),79,7.24,nan,3.86,6.33
+d85b70a248,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (11),79,7.28,nan,4.98,9.68
+5368ad6512,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (12),79,6.18,nan,4.23,7.45
+979fdde51f,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (13),79,5.15,nan,2.82,4.46
+136889002d,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (14),79,4.98,nan,2.52,4.78
+d470db5cc4,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (15),79,5.47,nan,3.43,5.2
+0ea2af5c92,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (2),79,8.58,nan,5.42,8.18
+46c293126d,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (3),79,7.72,nan,3.27,5.25
+85900374c9,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (4),79,6.67,nan,3.45,5.35
+d951edd17a,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (5),79,8.27,nan,5.14,8.91
+bded13ea25,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (6),79,8.34,nan,5.55,8.36
+6203527d37,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (7),79,5.4,nan,2.37,4.92
+bbb577fc1f,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (8),79,9.26,nan,2.72,5.36
+a8feec917b,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,Deep Blue Drone Tone  (9),79,7.76,nan,3.82,5.92
+a8b71b2614,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (1),76,10.04,nan,2.58,5.93
+09bc05c2af,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (10),76,7.37,nan,3.77,7.45
+1a0b7dae8f,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (2),76,5.14,nan,2.63,4.64
+8b22040c1a,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (3),76,7.86,nan,2.82,6.98
+e4d964a3c9,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (4),76,7.85,nan,2.82,6.98
+b80ec71d0e,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (5),76,6.85,nan,3.15,7.3
+eacc99b4e4,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (6),76,8.64,nan,3.36,6.47
+290129cc7b,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (7),76,10.17,nan,3.51,8.65
+8c9476d6c7,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (8),76,8.98,nan,4.59,7.66
+76bdb97e70,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,Drone Forest Tone (9),76,6.37,nan,5.22,9.75
+2f33b7e998,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (1),81,7.38,4.52,5.35,10.48
+df2c337038,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (10),81,8.14,6.23,4.03,9.63
+0a1e029777,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (2),81,3.6,6.12,4.4,9.09
+660e60de1b,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (3),81,9.47,6.93,6.27,11.99
+3e7b30e657,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (4),81,6.38,4.02,4.98,8.9
+a2bb47cc93,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (5),81,4.42,5.57,3.2,6.2
+c7ca48fa6a,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (6),81,7.34,5.46,4.03,7.73
+4692108d18,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (7),81,7.88,5.63,5.15,8.57
+45cce8407b,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (8),81,6.48,4.89,4.65,7.73
+134d63fb74,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,Drone Green Tone (9),81,6.45,7.3,4.39,8.13
+99a3221050,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (1),112,8.74,nan,5.62,14.8
+793940c34a,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (10),112,9.31,nan,5.75,12.62
+c0a0f35f9d,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (2),112,7.93,nan,4.03,10.31
+0d485b955e,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (3),112,10.46,nan,6.34,17.18
+5a83611ec7,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (4),112,7.98,nan,3.33,7.78
+6e00a76014,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (5),112,10.69,nan,4.79,10.14
+27812bdc65,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (6),112,7.92,nan,7.8,12.3
+b51a92e8a8,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (7),112,7.5,nan,4.5,10.41
+803cb3fe36,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (8),112,8.88,nan,5.09,10.45
+5cec720033,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,Drone Island Tone (9),112,13.19,nan,6.46,14.36
+8e90d61c8b,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (1),60,14.31,nan,4.03,6.33
+82db16e9bd,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (10),60,10.95,nan,3.14,5.51
+80b92e1efc,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (2),60,13.41,nan,6.53,9.94
+fb7499d2ae,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (3),60,8.08,nan,3.99,7.96
+11d3177166,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (4),60,10.32,nan,5.28,11.74
+8d8186fe7f,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (5),60,9.8,nan,4.75,10.5
+67436179b5,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (6),60,13.09,nan,7.92,10.81
+a366a926da,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (7),60,10.01,nan,7.13,9.87
+edfd752534,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (8),60,9.87,nan,7.07,9.97
+3a922f8839,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,Landscapes Drone Tone  (9),60,10.01,nan,5.55,10.18
+8652c8c285,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (1),80,6.29,nan,4.64,6.91
+e5cccf7eed,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (10),80,5.41,nan,3.43,5.93
+04f8c33408,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (11),81,4.7,nan,4.42,7.16
+2a044d7022,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (12),81,3.98,nan,3.45,5.73
+fdfce927fc,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (13),80,6.22,nan,4.55,7.75
+3d2f104de8,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (14),80,6.13,nan,2.72,4.98
+9c35063ace,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (15),80,8.32,nan,3.51,5.82
+91c36a612e,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (2),80,7.35,nan,3.66,6.16
+0ef2e2ae51,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (3),80,6.81,nan,2.53,4.68
+1dc0818801,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (4),80,6.29,nan,2.83,4.63
+f959ceae47,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (5),81,5.65,nan,7.31,11.37
+5fc6b4989e,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (6),81,5.98,nan,5.64,10.4
+fdf36f5bd9,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (7),80,7.0,nan,5.31,9.87
+858435077b,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (8),80,6.13,nan,5.4,9.21
+e9a32d95f4,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,Sunset Drone Tone 1 (9),80,6.81,nan,4.89,7.15
+69241a8401,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (1),103,9.46,nan,7.76,12.4
+bd00b58ba3,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (10),103,8.44,nan,6.5,11.01
+b3a9ff717a,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (2),103,8.53,nan,9.76,16.4
+8101e0500c,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (3),103,8.47,nan,7.89,12.65
+09bbb688da,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (4),103,14.66,nan,9.25,13.74
+af3fc22138,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (5),103,17.66,nan,8.86,12.59
+3e79aeebfb,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (6),103,9.31,nan,4.57,8.24
+3936ff6e1d,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (7),103,12.01,nan,7.6,15.01
+1b96b5141d,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (8),103,8.84,nan,7.6,12.79
+12734467dc,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,Urban Light Drone Tone (9),103,8.94,nan,7.05,10.67
+75d4142e59,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (1),45,8.62,nan,7.05,10.83
+e0eb1b8110,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (10),45,7.51,nan,8.66,12.61
+7dd04b5040,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (2),44,6.96,nan,4.74,8.44
+cf23bb500c,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (3),44,9.66,nan,5.92,10.5
+e747331cce,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (4),44,7.86,nan,5.35,9.68
+783ca44469,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (5),44,8.54,nan,6.98,10.84
+c939f70b5e,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (6),45,6.63,nan,7.67,11.26
+1127295cec,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (7),44,7.98,nan,4.63,7.92
+2be243d3df,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (8),44,5.33,nan,4.78,8.12
+db5de77505,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,Winter Drone Tone (9),45,8.62,nan,8.92,12.74
+6ebb3105ce,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (1),107,5.53,4.27,4.43,8.51
+800b33d1fe,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (10),108,6.7,5.31,3.51,7.41
+ba9e175943,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (11),107,6.8,4.81,4.92,8.61
+7730f3f1dd,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (12),107,7.68,7.99,5.7,14.1
+7536336c4f,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (13),107,5.69,3.26,3.88,7.61
+e8302bc040,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (14),107,5.39,6.26,9.1,21.1
+aa4b69d8f1,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (15),107,7.36,13.46,9.96,24.28
+f8b8d6ff87,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (16),107,5.56,9.44,8.81,20.17
+f0ae56f4cb,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (17),107,5.31,11.68,12.22,26.26
+0524464cc7,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (18),107,6.66,4.67,4.17,9.51
+750973edd6,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (19),107,6.2,4.19,3.4,7.3
+2ec61644b3,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (2),107,6.93,4.95,4.57,9.62
+31a57194ff,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (20),107,5.23,5.39,3.78,7.28
+43fc88dbc2,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (3),107,6.73,4.32,4.01,8.15
+a1c34bd5f9,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (4),107,5.85,7.01,6.26,16.59
+ad372d2513,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (5),107,8.66,10.16,7.65,21.09
+c7cd82d04d,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (6),107,5.04,8.49,7.32,19.19
+bafb08d51e,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (7),107,5.47,12.51,9.31,23.93
+e624adae03,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (8),107,6.83,4.8,4.34,9.44
+56fdbbd25a,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,Adventure Tone (9),107,7.68,5.13,3.59,7.31
+46bcb905ab,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (1),35,5.71,7.58,6.01,9.45
+84614b53a6,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (10),35,6.53,10.7,5.83,8.41
+687f995c8e,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (2),38,7.28,9.87,7.45,11.37
+e9cbd4b0f3,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (3),35,8.2,12.32,3.97,9.07
+816577f41c,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (4),36,5.88,11.11,3.97,7.17
+1fb02d4e51,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (5),35,5.94,7.42,6.79,10.88
+0eafb95470,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (6),35,5.69,8.03,7.7,11.36
+d40116139b,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (7),35,5.11,10.32,4.71,7.53
+ce088b05a8,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (8),35,6.69,8.79,6.02,11.18
+47c04392e6,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,Aesthetic Tone (9),35,9.13,11.72,8.29,13.34
+3fe53f02c8,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (1),75,4.25,nan,3.05,5.5
+9c937ae47c,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (10),75,5.22,nan,2.79,5.27
+9cb630c78a,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (11),75,9.76,nan,5.96,12.9
+b3e9ad9b86,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (12),75,6.29,nan,2.63,6.49
+005c832694,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (2),75,4.61,nan,3.23,5.64
+1191d77374,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (3),75,5.85,nan,3.01,5.41
+a2bc81da74,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (4),75,5.89,nan,3.06,5.38
+5d5d1dd7b9,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (5),75,7.66,nan,3.71,5.68
+7af3fd01df,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (6),75,7.76,nan,3.9,5.82
+84174c20fa,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (7),75,5.66,nan,2.22,4.61
+e0f4197d68,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (8),75,5.54,nan,3.46,5.7
+580b490194,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,Analog Flim Tone  (9),75,4.73,nan,4.97,9.21
+a004b426b4,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 1,56,10.63,nan,4.92,8.65
+262ad040ab,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 10,56,5.0,nan,2.78,6.81
+29d93bf19c,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 2,56,5.67,nan,3.3,7.01
+55c0ed9df7,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 3,56,5.97,nan,2.18,5.4
+c7374b8e7e,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 4,56,7.12,nan,3.77,7.35
+ca608e8753,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 5,56,6.38,nan,2.98,7.24
+fb4dbfb514,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 6,56,4.81,nan,2.35,5.71
+eba4e7f1d6,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 7,56,5.39,nan,2.76,7.45
+0c9c10536f,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 8,56,6.35,nan,2.91,6.24
+b9911dc59c,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,Black Tone 9,56,5.31,nan,3.91,7.82
+7e61fa0a52,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 1,105,5.71,nan,3.68,7.18
+f33cc46aeb,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 2,106,7.15,nan,4.42,8.33
+f5acb3df53,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 3,105,8.69,nan,5.01,11.42
+ad9a68d6b7,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 4,105,11.27,nan,5.9,10.74
+add24f7647,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 5,105,8.05,nan,5.06,11.87
+ee1cb5604d,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 6,105,7.1,nan,5.11,8.12
+b10f37178c,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 7,105,8.89,nan,5.81,16.52
+536a1aef5f,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 8,105,8.72,nan,5.48,13.21
+f300558137,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,Cinematic Tone 9,105,10.19,nan,5.65,12.56
+7f67842a3b,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (1),73,13.68,nan,2.6,5.76
+99d27b1a19,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (10),73,11.67,nan,3.22,5.69
+69a388af7e,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (2),73,11.83,nan,2.71,5.69
+2be438924a,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (3),73,10.75,nan,2.73,5.91
+dc616d797c,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (4),73,10.0,nan,4.6,8.08
+61baaec353,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (5),73,6.94,nan,2.48,7.22
+5dfef0b17e,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (6),73,9.47,nan,2.78,5.0
+5a009d6590,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (7),73,7.6,nan,3.71,7.51
+fdf8814713,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (8),73,5.44,nan,2.42,5.25
+75d793873e,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,Cinematic Green Tone (9),73,5.33,nan,4.25,7.37
+79168e643c,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (1),109,9.17,nan,4.22,7.81
+53a410c50e,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (10),109,8.16,nan,3.73,6.96
+56749f3842,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (11),109,9.51,nan,5.51,9.61
+01d57175a7,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (12),109,14.9,nan,9.62,17.08
+0feb229f51,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (13),109,8.62,nan,3.75,6.95
+939082323f,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (14),109,5.96,nan,2.35,3.98
+8f5e99acf1,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (15),109,9.08,nan,4.3,7.21
+b5156ea984,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (2),109,9.09,nan,4.28,7.86
+d428d89903,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (3),109,9.09,nan,4.22,7.88
+7fd6abbffe,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (4),109,8.84,nan,4.35,7.72
+d56e5f0a08,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (5),109,13.14,nan,5.75,9.79
+ccb10a03e5,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (6),109,10.89,nan,5.46,9.28
+e1e5008e6f,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (7),109,15.49,nan,8.31,15.1
+a52ef0220a,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (8),109,9.65,nan,4.49,8.06
+0d1a9ccf1f,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,Classic Flim Tone (9),109,14.49,nan,6.29,11.25
+7a1c899daa,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 1,57,9.64,nan,5.84,13.77
+10910474d1,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 10,57,7.93,nan,4.71,10.95
+e1d5ad2482,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 2,57,9.15,nan,4.6,9.24
+828071d8ed,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 3,57,7.02,nan,3.89,6.28
+f71d6b24f2,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 4,57,8.67,nan,4.48,10.2
+bc5646e43e,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 5,57,9.1,nan,4.66,7.25
+494dc34f45,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 6,57,7.72,nan,4.95,10.41
+41d08f7220,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 7,57,9.35,nan,3.23,6.95
+5c797b757d,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 8,57,10.31,nan,3.18,6.99
+faa894ddbe,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,ACADEMIA TONE 9,57,7.65,nan,3.13,6.16
+783c92bb6b,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (1),96,7.54,nan,5.74,12.99
+bb88e981bd,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (10),96,5.07,nan,8.0,14.26
+b6ca3e9017,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (2),96,4.53,nan,3.35,7.22
+b6bc1aca77,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (3),96,7.03,nan,4.03,9.85
+4b3db7b714,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (4),96,5.02,nan,4.0,7.68
+f0e3fa21ba,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (5),96,9.28,nan,8.06,17.1
+8c70b63f66,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (6),96,6.84,nan,8.36,15.82
+dedcbbcded,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (7),96,6.58,nan,3.44,8.14
+18df9c7197,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (8),96,4.56,nan,3.77,7.42
+aabd439020,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,Dark Winter Tone (9),96,7.45,nan,8.21,14.7
+e1e620366f,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 1,116,7.9,nan,5.08,8.85
+d5bd099bf6,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 10,116,17.81,nan,5.14,9.04
+a5e77ba231,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 2,116,8.92,nan,6.32,10.83
+706a798ec4,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 3,116,8.92,nan,6.31,10.82
+5f3bfc7a20,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 4,116,9.1,nan,4.13,12.48
+73d1e20cca,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 5,116,6.6,nan,4.45,8.0
+7ccf522166,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 6,116,13.54,nan,3.31,6.28
+1ccb6f8d5e,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 7,116,4.62,nan,4.07,9.37
+a90c0f9e90,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 8,116,7.94,nan,4.8,7.96
+4db0538a6b,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,Dystopia Tone 9,116,20.73,nan,9.04,12.84
+3f53147baf,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (1),63,8.1,nan,3.22,8.03
+3d5bc8841e,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (10),63,9.16,nan,3.49,7.64
+77abf3c8df,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (2),63,7.63,nan,2.65,5.16
+fada98935e,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (3),63,11.29,nan,4.63,7.1
+6b7e3abfe9,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (4),63,6.68,nan,3.32,6.9
+58f8ff84ca,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (5),63,7.8,nan,5.74,9.71
+3ce857f6e5,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (6),63,4.78,nan,2.23,4.75
+218d274fea,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (7),63,8.9,nan,2.66,5.31
+2cc6a5acf6,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (8),63,11.83,nan,5.14,9.87
+07e587a90b,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,Garden Tone  (9),63,6.43,nan,4.1,7.02
+e32bb5478b,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 1,73,10.19,nan,3.6,5.63
+5e4ac21cd3,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 10,73,8.46,nan,3.39,5.85
+ed50b1483e,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 11,73,8.67,nan,4.78,7.22
+c5d9fdf637,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 12,73,8.25,nan,4.16,7.21
+370a5e99d6,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 13,73,10.45,nan,6.13,9.72
+23f0d11f0d,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 14,73,9.5,nan,5.32,8.85
+9a4e948ccc,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 15,73,9.61,nan,4.85,8.23
+73bc8fa8d2,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 2,73,12.53,nan,4.92,7.54
+c454e11b47,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 3,73,8.76,nan,2.99,5.05
+ade4537bf3,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 4,73,11.63,nan,4.09,7.06
+f9f83aa280,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 5,73,10.55,nan,3.95,7.68
+83c1a2d7cd,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 6,73,12.04,nan,4.8,9.95
+0006ee6010,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 7,73,7.03,nan,4.1,8.01
+0c2b6ad9f6,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 8,73,7.4,nan,4.6,8.21
+ff9d88d53b,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,Golden Hour 9,73,8.48,nan,3.89,6.11
+f8d7b4b959,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (1),72,7.62,4.3,4.64,9.29
+cf4e44516c,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (10),72,8.71,3.88,5.56,15.45
+1dae7597a5,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (2),72,8.07,3.46,4.37,12.85
+72cae61e99,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (3),73,8.43,3.98,4.83,11.55
+c20351c73d,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (4),72,4.69,4.05,3.5,6.5
+99a82e91f3,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (5),72,4.76,3.64,3.41,6.6
+4591ca634f,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (6),72,8.08,3.31,4.4,13.64
+28ec12a1dc,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (7),72,4.69,4.05,3.5,6.48
+7335390063,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (8),72,6.89,3.64,3.9,7.92
+a832c6188e,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,Kodak Flim Tone (9),72,6.68,3.46,4.54,13.1
+29563e797f,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (1),157,10.37,nan,5.98,9.66
+e3ab4124f0,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (10),157,10.65,nan,5.62,9.56
+d1eec1cc76,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (11),157,10.58,nan,6.89,11.15
+0b958dfa74,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (12),157,13.17,nan,7.75,11.08
+0fe7f06688,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (13),157,10.14,nan,5.61,8.6
+8ef80d5450,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (14),157,10.14,nan,5.61,8.59
+447b5e1960,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (15),157,9.74,nan,5.87,9.49
+3a274d8475,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (16),157,11.0,nan,6.08,10.35
+d85c81be62,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (17),157,14.14,nan,8.55,13.47
+ab94d66a27,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (18),157,12.3,nan,8.4,16.96
+7d86ebf17a,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (19),157,12.21,nan,6.11,12.2
+52c2f6bf24,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (2),157,13.89,nan,7.36,12.13
+d6b2645c60,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (20),157,11.21,nan,5.36,11.43
+a2c4b3e413,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (21),157,10.07,nan,5.76,10.53
+e5dd47a844,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (3),157,12.3,nan,6.17,11.65
+fb3f241150,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (4),157,10.67,nan,5.84,9.78
+f931954da4,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (5),157,11.82,nan,6.29,10.52
+8d834bc40e,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (6),157,13.78,nan,6.64,9.39
+39053faac8,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (7),157,7.26,nan,5.68,11.26
+196810294f,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (8),157,12.01,nan,5.58,9.53
+0249fffc3c,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,London Style Tone  (9),157,10.3,nan,6.3,10.67
+186b595177,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone  5,68,8.03,4.74,3.07,6.89
+515f86f277,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone  6,68,7.57,4.75,2.82,6.02
+b9a2dfded9,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone 1,69,7.6,4.3,2.78,6.44
+e78a3d3177,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone 10,69,8.37,4.97,3.49,6.94
+3f2d3fdc1a,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone 2,68,9.75,6.19,4.75,12.38
+6ca4e5a9ad,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone 3,68,8.03,6.16,4.56,10.67
+1626197b2b,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone 4,68,7.56,6.92,3.86,9.13
+26277ebdf0,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone 7,68,10.07,6.33,4.24,9.22
+188ac92625,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone 8,68,9.14,6.13,4.44,11.04
+e77daf8243,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,Moody Earthy Tone 9,68,10.19,6.15,3.97,9.93
+f7010e1018,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (1),63,9.1,nan,3.56,7.06
+bb157b3223,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (10),63,9.16,nan,4.31,8.21
+e60f71ccf2,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (2),63,11.15,nan,3.07,5.41
+b81bfb2030,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (3),63,6.23,nan,3.53,7.55
+634998fb61,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (4),63,14.83,nan,2.26,6.57
+e948fa9f42,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (5),63,6.74,nan,6.31,11.64
+b0ce6d9e52,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (6),63,8.55,nan,4.1,6.83
+86b9f9786b,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (7),63,10.86,nan,2.95,6.3
+818ce685cc,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (8),63,12.37,nan,2.8,6.22
+ef3d8d5ffe,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,Moody Forest Tone  (9),63,6.38,nan,2.14,5.39
+343dc95799,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,Movie Tone (1),81,9.17,nan,6.71,17.59
+a8195b64b6,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,Movie Tone (2),81,5.2,nan,5.51,17.27
+3b3715fb4a,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,Movie Tone (3),81,8.76,nan,5.6,16.81
+7d925f5b43,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,Movie Tone (4),81,5.19,nan,3.9,8.8
+709a7d0b8a,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,Movie Tone (5),81,4.45,nan,5.05,14.03
+2d7edf3607,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,Movie Tone (6),81,1.29,nan,1.29,2.93
+12f01eed5e,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (1),128,6.72,nan,3.41,9.27
+8077ed3bc6,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (10),128,19.78,nan,4.85,18.48
+3e00b93264,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (11),128,6.73,nan,3.81,9.83
+1c3a95f294,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (12),128,14.07,nan,4.22,13.85
+769772d585,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (13),128,9.12,nan,4.16,12.26
+2fc0980231,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (14),128,13.47,nan,4.66,15.39
+b1d8d935a2,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (2),129,12.18,nan,3.48,9.84
+6c76bd32e5,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (3),128,18.47,nan,4.07,13.74
+1d898cd992,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (4),128,6.35,nan,3.59,9.72
+5e4172e2f6,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (5),128,14.28,nan,4.7,17.07
+5caface415,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (6),128,7.91,nan,3.4,9.75
+aeae99f51e,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (7),128,17.1,nan,4.81,18.47
+7553293c50,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (8),128,15.43,nan,3.86,12.38
+1adb859eab,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,New York Tone (9),129,7.53,nan,4.1,11.03
+3b45d87343,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,Night Street Tone  (1),137,12.55,10.42,7.87,13.77
+6755fdc580,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,Night Street Tone  (2),138,13.31,13.89,10.98,21.75
+844d8984ef,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,Night Street Tone  (3),138,8.71,7.41,4.96,10.99
+2aefc6fe73,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,Night Street Tone  (4),137,8.77,8.42,7.16,12.59
+faa42c85d9,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,Night Street Tone  (5),137,8.25,6.68,5.26,10.68
+e21b7be316,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,Night Street Tone  (6),137,13.0,10.11,7.61,12.3
+5c50589fbd,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (1),88,7.57,nan,3.46,8.34
+76e904d9f1,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (10),88,6.29,nan,2.79,6.12
+4d52463abc,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (2),87,6.73,nan,3.72,9.0
+3d66230cf4,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (3),87,7.73,nan,2.7,6.26
+a2a9eba543,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (4),87,10.29,nan,4.21,9.84
+e344f6c335,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (5),87,7.36,nan,4.25,11.2
+a45554d546,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (6),87,8.03,nan,3.79,9.46
+d065ef5a0b,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (7),87,5.12,nan,3.15,6.74
+798a55f637,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (8),87,9.13,nan,3.25,8.08
+422a7dd982,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,Nordic Tone  (9),87,7.2,nan,3.59,6.75
+d10aeb8c61,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (1),115,6.87,3.12,4.95,7.93
+4c7e68f441,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (10),115,9.56,6.0,5.01,8.06
+96c25747e3,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (2),115,10.11,4.44,4.54,7.55
+81b8fade93,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (3),115,14.25,4.01,3.81,7.09
+d22b8b47ca,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (4),115,6.72,6.94,5.93,10.63
+f4cd976742,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (5),115,11.6,4.78,4.77,9.99
+0cac533bb8,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (6),115,7.89,7.01,8.78,14.06
+8072e11d5b,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (7),115,9.71,3.68,5.89,9.23
+89ff847374,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (8),115,7.6,7.21,4.49,9.27
+def845f60f,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,Organic Tone  (9),115,7.39,5.53,3.32,5.78
+59197abd86,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (1),81,8.85,nan,3.53,8.85
+3e2b87ae21,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (10),81,9.29,nan,7.37,9.7
+6e77e9074b,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (11),81,5.96,nan,5.13,10.74
+7bb4448e1e,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (12),81,8.7,nan,3.59,8.31
+fdaddec19a,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (13),81,8.19,nan,3.54,9.74
+0706747d09,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (14),81,8.83,nan,4.18,9.6
+f69ed3e9bb,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (15),81,8.45,nan,6.61,9.97
+bd326c534a,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (2),81,8.22,nan,3.66,9.13
+f3f0fbabf7,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (3),81,7.73,nan,5.44,8.67
+6aed5b3154,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (4),81,8.4,nan,4.75,9.06
+125252d9b4,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (5),81,9.59,nan,3.79,8.05
+c68d5b022e,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (6),81,4.79,nan,3.04,7.34
+820af17fbe,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (7),81,7.77,nan,4.78,10.35
+7e0937a48c,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (8),81,6.39,nan,3.49,7.15
+abdb02ac63,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,Rainy Tone (9),81,6.14,nan,3.43,6.96
+f504827c7f,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,Black tone 1,117,5.47,nan,4.07,9.93
+bba7ea1357,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,Black tone 2,117,5.45,nan,4.06,9.89
+01026a59c1,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,Black tone 3,117,10.98,nan,3.69,9.02
+985b834298,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,Black tone 4,117,7.21,nan,3.97,10.12
+ceeb6a4e90,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,Black tone 5,117,7.21,nan,3.96,10.09
+f47f34474d,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,Black tone 6,117,6.12,nan,5.96,13.41
+9679425197,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (1),116,8.6,nan,7.64,13.88
+6b758b7eea,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (10),116,5.74,nan,9.74,14.65
+9aada6c877,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (2),116,7.51,nan,6.92,11.82
+7ed66849ab,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (3),116,6.74,nan,5.18,9.53
+3432aa686b,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (4),116,7.57,nan,5.49,9.6
+d67537e43b,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (5),116,9.51,nan,11.37,17.57
+1d3793c47a,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (6),116,11.45,nan,12.38,22.67
+69939572ce,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (7),116,6.12,nan,7.92,11.59
+285dda417e,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (8),116,4.92,nan,7.46,12.26
+7383919ae8,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,Street Flim Tone (9),116,5.13,nan,11.23,18.83
+ef6d47ee23,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (1),54,8.88,nan,4.61,8.94
+77ca1a2a4d,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (10),54,8.39,nan,4.14,6.96
+277c9aac1e,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (2),54,8.85,nan,5.83,9.7
+551b1061fb,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (3),54,6.74,nan,4.62,10.25
+c9e67ab5e5,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (4),55,7.58,nan,3.32,6.25
+a79c7bafad,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (5),54,6.0,nan,4.54,9.05
+14ce0f8898,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (6),54,6.45,nan,4.26,6.44
+4fba438282,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (7),54,6.01,nan,3.73,6.09
+104910185d,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (8),54,8.86,nan,6.75,9.97
+3df07aba6d,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,Travel Tone  (9),55,6.59,nan,3.24,5.87
+2cb91b4d9e,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (1),76,7.47,nan,9.29,13.78
+e1309d14a4,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (10),76,5.59,nan,5.48,8.64
+8988b5aae4,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (2),76,5.51,nan,8.34,14.6
+aef57f0f37,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (3),76,5.77,nan,8.39,13.37
+587b8efbfb,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (4),76,6.32,nan,4.96,11.58
+b59565f8e3,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (5),76,6.37,nan,5.17,10.71
+18ba188141,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (6),76,5.95,nan,4.36,8.93
+fb5f25cb6a,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (7),76,6.74,nan,5.39,9.5
+8d30b99622,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (8),76,8.55,nan,9.44,15.86
+ef14bac749,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,Urban Tone (9),76,8.87,nan,6.6,11.73
+65bccecb77,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (1),133,11.62,nan,8.11,16.25
+2289659dd8,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (10),133,11.46,nan,6.72,15.11
+93f9479a58,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (2),133,11.38,nan,6.63,15.07
+a3f08d4d25,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (3),133,11.61,nan,8.41,15.91
+3cf306bac2,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (4),133,10.44,nan,6.4,11.37
+70cbb033d2,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (5),133,12.62,nan,6.83,13.91
+64549b181f,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (6),133,11.78,nan,9.05,19.33
+2a7b6ed3e4,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (7),133,12.49,nan,7.05,12.95
+ec4bcbfb68,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (8),133,13.08,nan,7.49,14.17
+d951576783,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,Urban Night Tone (9),133,10.79,nan,6.17,11.11
+c41b15cd1d,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,Vintage Flim Tone (1),73,5.78,nan,4.3,8.33
+99b59adca5,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,Vintage Flim Tone (2),73,5.35,nan,3.77,6.57
+d351badd3f,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,Vintage Flim Tone (3),73,7.08,nan,5.5,10.5
+c556141aa8,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,Vintage Flim Tone (4),73,6.1,nan,5.38,10.0
+7d75106a23,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,Vintage Flim Tone (5),73,9.35,nan,3.9,6.79
+25922f977a,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,Vintage Flim Tone (6),73,7.23,nan,4.64,9.36
+5ac5ae2fb3,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,Vintage Flim Tone (7),73,10.24,nan,2.67,3.61
+5af3b58211,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (1),53,8.07,nan,4.79,7.78
+2dfc9d5b1e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (10),54,6.07,nan,4.96,7.94
+a9e76e44ce,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (2),53,7.13,nan,5.95,9.16
+8d083ac7f3,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (3),53,8.02,nan,3.91,6.86
+2bc44f1f45,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (4),53,7.32,nan,2.75,4.78
+7b5318e424,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (5),53,7.32,nan,2.75,4.78
+ab8926593e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (6),53,6.1,nan,5.58,7.57
+f128133686,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (7),53,6.14,nan,2.95,5.63
+d8d4c33298,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (8),53,5.5,nan,3.38,5.87
+0638c807b9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,Autumn Wedding Tone (9),53,6.26,nan,2.97,4.98
+2db73cc605,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (1),64,5.63,nan,3.31,7.17
+5476bea837,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (10),64,5.79,nan,2.49,4.66
+30d8974271,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (11),64,5.13,nan,2.57,5.06
+a4d18dee16,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (12),64,6.31,nan,3.63,7.44
+97acd3b11d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (13),64,7.17,nan,3.01,5.17
+16518ca108,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (14),64,6.68,nan,4.22,6.97
+c46ffd2dfb,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (15),64,5.62,nan,2.75,4.79
+f4f78efa8f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (16),64,6.77,nan,4.74,7.81
+0368fe8d9e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (17),64,6.46,nan,3.02,5.12
+076a2e98a8,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (18),64,5.74,nan,3.9,7.07
+121bd303d0,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (19),64,5.32,nan,2.57,4.84
+51c2a78403,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (2),64,7.32,nan,3.87,8.61
+9e6b7f78e6,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (20),64,4.82,nan,3.92,7.88
+0c47a9169d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (3),64,5.08,nan,3.06,5.94
+2bd5272a74,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (4),64,6.02,nan,3.74,6.83
+b506a075c8,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (5),64,6.68,nan,2.71,4.63
+61a5fa71cd,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (6),64,5.24,nan,3.11,4.74
+4a7c8d5897,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (7),64,6.33,nan,3.17,4.94
+a22052053e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (8),64,7.25,nan,3.35,5.62
+6a36ce2520,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,Boho Wedding Tone (9),64,5.93,nan,2.28,4.49
+989b37332d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (1),59,4.84,nan,2.24,3.61
+95bf6e39bf,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (10),59,6.28,nan,2.63,4.71
+8ab12817b2,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (11),59,5.83,nan,2.59,5.89
+fd99ccd3e9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (12),59,5.09,nan,2.0,3.62
+8e9aa72341,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (13),59,6.5,nan,2.3,4.08
+26628d8e6a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (14),59,8.43,nan,2.13,4.79
+8cb37760f4,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (15),59,10.98,nan,3.47,7.25
+7e8861790b,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (2),59,5.56,nan,2.68,5.12
+9f46606819,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (3),59,6.84,nan,2.29,4.0
+9e85e68c4a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (4),59,7.3,nan,2.26,3.92
+0ac6358402,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (5),59,5.48,nan,2.79,4.56
+4d05c38aa1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (6),59,8.15,nan,2.77,6.94
+e06456cc0e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (7),59,5.68,nan,1.97,3.68
+7547b77764,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (8),59,4.86,nan,2.3,4.27
+82fd2dcfe7,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,Bronze Wedding Tone (9),59,6.48,nan,2.12,4.91
+681813d79e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (1),46,3.31,nan,3.7,4.87
+9d47aca0a7,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (10),46,5.53,nan,3.23,5.08
+bf71635312,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (11),46,4.59,nan,3.91,5.95
+c9608eeb90,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (12),46,5.04,nan,4.59,6.12
+1647d2c94f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (13),46,5.3,nan,3.56,5.52
+a93fb7bea6,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (14),46,4.09,nan,3.73,5.1
+4da9babc0b,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (15),46,3.99,nan,6.49,7.78
+5cc7c24d34,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (2),46,3.76,nan,3.43,4.77
+0ae81c9bfa,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (3),46,4.68,nan,5.18,7.06
+fe0bbe8f7f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (4),46,4.63,nan,3.4,5.68
+7c36cce3cb,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (5),46,3.83,nan,4.25,5.58
+e5670d1fc9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (6),46,3.53,nan,3.49,4.86
+d9a018ab3a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (7),46,3.8,nan,4.12,6.17
+6a9537c104,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (8),46,4.0,nan,3.76,5.15
+c57089ee8b,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,Classy Wedding Tone  (9),46,3.75,nan,3.19,5.23
+da6051d9f7,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (1),81,7.16,nan,4.83,8.17
+50f0a53855,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (10),81,5.91,nan,4.69,9.18
+a9db1abb59,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (11),81,7.78,nan,4.8,7.16
+3fa2d2dab1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (12),81,5.32,nan,2.98,7.03
+9bfde64f01,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (13),81,7.1,nan,4.94,8.51
+4bf1693eba,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (14),81,5.85,nan,4.52,8.41
+69cf5e09e1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (15),81,5.26,nan,2.94,7.08
+eb2c6f7f47,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (16),81,6.36,nan,4.97,8.26
+de34482eda,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (17),81,4.83,nan,3.72,5.89
+e868bde053,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (18),81,5.46,nan,3.93,7.44
+40bad8faa0,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (19),81,7.7,nan,4.23,7.08
+a57c8c4bf1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (2),81,5.96,nan,2.64,5.23
+f08962754d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (20),81,7.15,nan,3.53,5.89
+b19551e87b,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (3),81,7.5,nan,3.67,6.94
+e5ff75b06d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (4),81,5.03,nan,4.49,8.81
+12ec336842,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (5),81,4.56,nan,2.6,5.31
+a8a000d04f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (6),81,5.92,nan,4.26,7.56
+d6454379ef,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (7),81,5.32,nan,4.06,8.29
+4342c21452,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (8),81,5.11,nan,3.82,7.76
+1a5515b1c5,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,Earthy Wedding Tone (9),81,4.2,nan,4.37,7.71
+c5b8897cc6,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,Golden Wedding Tone (1),86,6.21,3.95,3.75,7.31
+464bc28618,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,Golden Wedding Tone (2),86,6.18,4.57,4.16,7.0
+4c8b9455b7,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,Golden Wedding Tone (3),86,6.03,4.66,4.78,7.23
+8ccc986a92,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,Golden Wedding Tone (4),86,7.05,3.39,3.57,7.09
+9ef883c115,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,Golden Wedding Tone (5),86,10.15,3.85,4.06,6.82
+8c0472087b,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,Golden Wedding Tone (6),86,6.71,3.58,4.19,8.54
+3e2f9404d2,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,Golden Wedding Tone (7),86,12.17,8.99,7.31,12.53
+283e57e3a8,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (1),53,4.54,nan,3.7,6.07
+f4f4639445,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (10),53,6.89,nan,4.24,9.78
+e3c6f4f2fb,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (11),53,5.73,nan,4.2,8.21
+3bd9ab6c78,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (12),53,4.28,nan,3.88,7.28
+18aefab2a8,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (13),53,5.35,nan,4.91,9.15
+d2d2ab4e04,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (14),53,5.77,nan,3.76,6.91
+2843eb8e39,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (15),53,6.06,nan,3.24,5.93
+86842c19ea,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (2),53,7.18,nan,4.08,8.54
+5c84cd5be5,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (3),53,3.53,nan,4.02,7.12
+080a4344b5,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (4),53,6.98,nan,3.72,7.41
+e5b63cb146,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (5),53,4.83,nan,3.09,5.99
+4b911dba18,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (6),53,6.88,nan,4.49,9.55
+9601ec50e5,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (7),53,5.29,nan,5.05,9.15
+decf5a98b9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (8),53,5.13,nan,4.72,10.03
+77df2973e7,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,Retro Wedding Tone (9),53,5.56,nan,4.1,8.33
+b5ac2d0e9a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (1),64,12.57,nan,3.48,7.83
+9c49afe5d9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (10),64,12.99,nan,3.96,7.6
+4acbaccfc1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (2),64,7.38,nan,3.79,6.28
+292ad4c171,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (3),64,4.29,nan,2.65,5.92
+85a24ec76f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (4),64,16.76,nan,4.73,8.83
+5e64d93c50,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (5),64,15.77,nan,4.37,7.94
+0b19b9e7d2,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (6),65,10.9,nan,4.08,7.66
+6cb023bc67,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (7),64,11.07,nan,3.47,5.75
+aac9ef700a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (8),64,5.68,nan,2.99,6.24
+38b6c6bb33,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,Vintage Wedding Tone (9),64,7.78,nan,3.91,6.48
+b9262da7d6,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC1 - Creator _ Seoul,8,2.18,nan,0.95,1.1
+6a966bf4cb,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC10 - Green _ Sunlit,8,1.86,nan,0.95,1.16
+35119d1df8,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC11 - Green _ Lime,8,4.01,nan,2.4,2.85
+437db9447b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC12 - Green _ Zeal,8,3.46,nan,1.75,2.13
+699f2a0b59,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC13 - Green _ Moody,8,2.25,nan,1.2,1.16
+2c0dbd1a71,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC14 - Green _ Hawaii,8,2.81,nan,1.35,1.58
+6c73943abe,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC15 - Green _ Deep,8,1.85,nan,1.0,1.19
+4f642f9fd6,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC16 - Green _ Moss,8,2.22,nan,1.03,1.13
+5415abc197,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC17 - Green _ Teal,8,1.85,nan,0.86,1.12
+6388bdf70b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC18 - Green _ Emerald,8,2.4,nan,1.12,1.51
+3dba428820,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC19 - Green _ Aqua,8,1.52,nan,0.88,0.89
+bdeda15989,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC2 - Creator _ Tokyo,8,2.19,nan,1.04,1.5
+f4f00af573,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC20 - Earthy _ Heated,8,2.11,nan,1.15,1.21
+66392c894b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC21 - Earthy _ Fire,8,2.96,nan,1.34,1.54
+8c63fc2140,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC22 - Earthy _ Skye,8,7.38,nan,0.82,0.89
+4e6dd4e4a1,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC23 - Earthy _ Vivid,8,1.82,nan,0.97,1.16
+486c7b15e4,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC24 - Earthy _ Sixties,8,4.08,nan,2.49,3.08
+3b9034f6e0,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC25 - Earthy _ Faded,8,7.39,nan,0.87,0.95
+982372d58f,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC26 - Blue _ Clean White,8,1.84,nan,0.96,1.16
+2a34e5497a,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC27 - Blue _ Natural,8,4.17,nan,1.05,1.18
+1d6f0a0123,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC28 - Blue _ Reynisdrangar,8,3.2,nan,0.16,0.78
+354ed27803,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC29 - Blue _ Lofoten,8,4.78,nan,1.0,1.44
+f45750adbd,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC3 - Creator _ Kyoto,8,2.41,nan,1.23,1.52
+699190e0fc,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC30 - Blue _ Iceland Blue,8,4.26,nan,1.8,2.27
+e0b2891fa6,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC31 - Blue _ Diamond,8,7.99,nan,4.11,4.54
+439e062675,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC32 - Blue _ Vestra,8,1.83,nan,0.97,1.17
+e0e7e554e4,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC33 - Blue _ Depth,8,3.36,nan,0.28,2.42
+72683d68ff,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC34 - Blue _ Tropical,8,3.32,nan,1.5,1.87
+12e233070b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC35 - Blue Hour _ Dusk,8,2.99,nan,1.01,1.35
+0f463b27e7,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC36 - Astro _ Andromeda,8,3.88,nan,2.02,2.41
+eb61302b1f,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC37 - Portrait _ Fern,8,3.15,nan,1.1,1.4
+2174c7b8e9,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC38 - Portrait _ Natural,8,3.21,nan,1.21,1.72
+8db0ae9ade,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC39 - Portrait _ Vibrant,8,3.33,nan,1.15,2.06
+a8b3443404,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC4 - Creator _ Osaka,8,4.04,nan,3.14,3.51
+97ba34edd1,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC40 - Portrait _ Spring,8,3.72,nan,1.51,2.21
+3787bff9af,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC41 - Portrait _ Kodak X,8,7.28,nan,3.52,4.81
+f715dbd5ce,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC5 - Green _ Breathe,8,2.34,nan,0.87,1.1
+d0d2d6d792,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC6 - Green _ Fresh,8,2.04,nan,0.97,1.08
+fad15c0aac,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC7 - Green _ Clean,8,2.38,nan,1.15,1.52
+8f6ee4104a,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC8 - Green_ Filmic,8,7.43,nan,0.95,1.11
+f8159e976a,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CC9 - Green _ Ivy,8,2.24,nan,1.19,1.48
+74eddc3541,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CCX1 - Green _ Crispy,8,3.3,nan,1.13,1.13
+fa592e306a,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CCX2 - Green _ Highland,8,2.37,nan,0.94,1.41
+8760a56008,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CCX3 - Golden _ Pop,8,9.84,nan,5.1,5.62
+c313204c97,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CCX4 - Blue _ Tropical,8,5.76,nan,1.6,2.09
+3dacbaf145,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CCX5 - Blue _ Cerulean,8,5.77,nan,1.6,2.09
+2c508d5789,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CCX6 - Lunar _ Secondi,8,11.6,nan,2.96,3.18
+3a73503baa,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),CCX7 - Urban _ Neon,8,6.79,nan,2.43,2.78
+dbe3e5b362,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A1,8,2.38,nan,1.15,1.45
+59cb3841e7,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A10,8,8.18,nan,2.12,2.39
+50f7d8a3c8,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A11,8,5.1,nan,0.86,1.45
+adc2f6cfd4,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A12,8,4.13,nan,0.86,0.93
+d08d264082,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A13,8,3.89,nan,1.75,1.82
+e7b1b4caa7,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A14,8,2.96,nan,1.01,1.34
+def7536897,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A2,8,4.73,nan,1.46,1.9
+b5581244b9,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A3,8,3.44,nan,1.3,1.6
+387842973b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A4,8,3.53,nan,1.19,1.3
+2e6de8117b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A5,8,4.5,nan,1.33,1.67
+c62a1a0d42,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A6,8,2.73,nan,1.15,1.45
+744c377f33,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A7,8,4.75,nan,1.47,1.9
+a501d72fc8,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A8,8,2.75,nan,1.16,1.45
+b76e590c16,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),A9,8,8.42,nan,2.12,2.82
+635a297673,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T1,8,7.26,3.08,3.5,4.81
+390205d0fa,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T10,8,0.01,0.01,0.01,0.0
+0c203b3f7c,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T2,8,3.43,1.54,1.46,1.98
+f5580439b9,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T3,8,3.32,1.56,1.44,1.82
+31983c6913,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T4,8,5.85,1.87,2.03,2.9
+3eafc8c0c5,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T5,8,6.74,2.14,2.76,3.57
+d7b1e4daa5,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T6,8,5.37,1.62,1.67,2.2
+e942174372,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T7,8,3.48,0.44,0.56,0.94
+e457aeb746,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T8,8,4.82,1.66,1.64,5.27
+7fe49a14e4,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),T9,8,3.98,1.74,1.72,2.2
+9724cd3b40,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Astro - 1,5,14.53,13.6,18.82,20.22
+5ee9d9e1e7,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Astro - 2,6,6.36,4.47,12.7,14.19
+056844435d,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Blue - 1,6,17.44,15.73,27.32,29.43
+8a607f3e1b,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Blue - 2,5,16.67,10.69,7.89,8.86
+ca95802b1b,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Blue - 3,5,20.55,19.38,15.86,17.28
+ff02dc4b4f,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Blue - 4,5,6.92,1.8,1.52,1.93
+b7a245610a,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Blue - 5,6,19.84,17.41,11.77,13.15
+55d2b306e9,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Blue - 6,6,12.12,8.74,14.77,16.23
+85ac6d6f74,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Blue - 7,6,19.87,17.43,11.79,13.13
+00228dfbfe,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Blue - 8,6,6.84,2.38,4.02,4.7
+fc137da006,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 1,6,4.68,1.68,12.74,15.42
+9232a9d045,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 10,6,20.36,17.86,28.83,31.64
+b64ee7939e,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 11,5,16.94,14.57,19.52,21.36
+33b489f162,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 12,6,26.41,20.34,14.15,15.78
+d0d20c719e,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 13,6,21.99,16.85,17.1,18.76
+959e0a5fc2,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 14,6,11.76,9.15,9.97,11.57
+83028f50ce,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 2,6,22.21,20.67,28.54,30.53
+97a2da7272,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 3,6,16.63,14.0,7.46,9.05
+ceb65cc7dc,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 4,6,11.68,7.05,7.52,8.87
+44fb7cf063,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 5,6,23.53,25.2,25.0,26.67
+bec00a2794,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 6,6,21.67,17.69,23.67,25.8
+903a462e35,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 7,6,18.69,14.83,19.65,21.71
+6b823b4098,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 8,6,22.74,25.06,27.24,29.08
+3f1035a2f6,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Desert - 9,6,13.83,14.92,28.74,33.06
+5f565a852e,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 1,6,18.34,7.86,5.88,6.88
+c882e9f6d6,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 10,6,19.9,9.35,6.42,7.61
+701154f835,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 11,6,21.1,18.76,22.66,23.91
+c18d258cff,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 12,6,12.24,14.99,17.65,19.23
+303995b235,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 13,6,18.6,20.07,22.72,24.42
+fe3889fd1b,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 14,6,12.16,16.06,21.9,23.65
+422afac425,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 2,5,17.19,9.94,11.67,12.54
+9f362f8a60,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 3,6,13.28,16.62,21.23,22.55
+eb511b1801,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 4,6,13.43,16.15,20.62,21.86
+8095426fc7,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 5,6,18.75,23.71,35.06,37.04
+63be84764b,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 6,6,13.6,8.73,12.02,13.17
+2100f386d4,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 7,6,15.21,17.48,23.91,25.66
+f18e865aac,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 8,6,15.44,17.05,27.98,30.53
+41e9b2a727,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Green - 9,6,22.85,22.21,26.11,28.05
+8845d3c665,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 1,6,10.88,6.94,8.36,10.01
+59d63268ce,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 10,6,16.73,12.55,12.98,14.56
+4f93e1ad90,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 11,6,20.92,25.19,35.16,37.36
+0e9c055071,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 2,6,21.59,16.37,15.26,16.98
+f51f217e45,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 3,6,18.39,12.53,10.16,11.72
+f9bd131732,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 4,6,14.87,10.54,16.31,17.49
+f48adb793a,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 5,5,9.78,5.51,7.35,8.97
+b7ea50f304,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 6,6,16.13,10.83,17.68,19.0
+2fc9f8d0e8,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 7,6,6.67,7.75,5.08,6.09
+e03abee4c4,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 8,6,17.0,10.08,12.05,13.27
+72a06ca023,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Nature - 9,6,12.99,6.86,4.49,4.84
+53ba2e5367,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Portrait - 1,5,7.68,4.3,4.69,6.17
+48a1b8e5a4,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Urban - 1,5,7.38,3.16,3.22,3.86
+e4f31fb2f1,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Urban - 2,5,11.72,9.79,14.84,15.83
+0126b279ba,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Urban - 3,5,22.46,18.25,15.93,17.24
+8366ff7046,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,Urban - 4,5,13.93,11.39,9.18,10.18

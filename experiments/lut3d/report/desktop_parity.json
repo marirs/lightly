@@ -1,0 +1,52 @@
+{
+  "hardware": "Apple M4 Mac (desktop) - NOT phone performance",
+  "configs": {
+    "coreml_fp32_cpu": {
+      "load_s": 0.172,
+      "max_w_err": 0.0,
+      "max_px_err": 1,
+      "median_ms": 0.735
+    },
+    "coreml_fp32_gpu": {
+      "load_s": 0.266,
+      "max_w_err": 0.0,
+      "max_px_err": 1,
+      "median_ms": 1.813
+    },
+    "coreml_fp32_ane": {
+      "load_s": 0.137,
+      "max_w_err": 0.0,
+      "max_px_err": 1,
+      "median_ms": 0.692
+    },
+    "coreml_fp16_cpu": {
+      "load_s": 0.107,
+      "max_w_err": 0.11266,
+      "max_px_err": 7,
+      "median_ms": 0.691
+    },
+    "coreml_fp16_gpu": {
+      "load_s": 0.098,
+      "max_w_err": 0.00381,
+      "max_px_err": 1,
+      "median_ms": 1.8
+    },
+    "coreml_fp16_ane": {
+      "load_s": 0.527,
+      "max_w_err": 0.0038,
+      "max_px_err": 1,
+      "median_ms": 0.34
+    },
+    "onnxruntime_cpu": {
+      "load_s": 0.049,
+      "max_w_err": 1e-05,
+      "max_px_err": 1,
+      "median_ms": 1.382
+    }
+  },
+  "preprocessing_upstream_fullres_vs_deploy_aa256": {
+    "max_w_err": 0.42538875341415405,
+    "max_px_err": 14,
+    "worst": "wellexposed_03"
+  }
+}

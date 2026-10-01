@@ -1,0 +1,4 @@
+pairs/
+__pycache__/
+conversion_report.json
+*.log

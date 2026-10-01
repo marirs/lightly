@@ -1,0 +1,9 @@
+# Build outputs and local machine state for the LUTBench harness
+LUTBench/.gradle/
+LUTBench/.kotlin/
+LUTBench/build/
+LUTBench/app/build/
+LUTBench/local.properties
+LUTBench/.idea/
+*.iml
+*.apk

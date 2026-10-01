@@ -1,0 +1,685 @@
+id,split,family,photo,uses_local_contrast,dE_global,dE_global_spatial,dE_p95_global_spatial
+779efe2955,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,2.92,2.92,7.52
+cc95ab51a9,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,False,3.42,3.42,6.09
+c9ba78c758,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,False,4.15,4.15,6.42
+c62f2ef54b,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,3.45,3.45,6.93
+6781ce78d6,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,4.94,4.96,11.35
+fa49fbbfea,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,4.39,4.38,10.91
+2ebc200bda,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,False,4.87,4.87,8.04
+4fe2844370,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,3.56,3.56,5.67
+750c5386c2,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,3.47,3.45,6.08
+cf5f903eaa,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,4.12,4.12,7.41
+3e67a43046,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,4.53,4.45,8.84
+3ea21ea66f,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,False,4.74,4.74,8.33
+a704a2cfff,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,2.94,2.94,5.88
+3a928bfc7e,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,3.63,3.63,9.95
+8d9c4e0418,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,False,3.44,3.44,6.75
+7f813c17dd,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,3.67,3.68,8.0
+66e537d6bb,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,False,3.65,3.65,6.42
+14007a8f8f,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,4.77,4.74,7.4
+de8b19f062,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,False,5.6,5.6,10.45
+7293741dd8,train,The Ultimate Preset Bundle - Huliluts/Drone/Cinematic Drone/Mobile Presets,True,True,2.88,2.88,4.7
+6b69c49bde,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,True,7.25,7.15,12.3
+4f391c61b2,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,3.6,3.6,7.94
+427a9ca348,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,True,4.27,4.23,9.18
+6fc86f79b9,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,True,7.19,7.15,11.5
+a8ef529948,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,True,6.5,6.46,10.42
+c6e2515646,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,True,5.44,5.39,10.35
+81b1352235,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,4.19,4.19,10.68
+003d98f397,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,7.19,7.19,12.22
+d65cbcfdba,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,6.04,6.04,10.66
+7be46cf274,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,3.13,3.13,6.89
+6f1352ca63,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,True,6.95,7.04,13.96
+5d6d795b03,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,4.71,4.71,11.12
+7edc5249fe,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,5.01,5.01,13.52
+c7162cca39,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,7.25,7.25,11.88
+367379e464,test,The Ultimate Preset Bundle - Huliluts/Drone/City Drone/Mobile Presets,True,False,4.74,4.74,11.97
+9700fda53e,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,True,True,3.31,3.31,5.56
+60d0db2755,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,True,True,2.78,2.78,5.73
+ef285d7d28,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,True,True,5.28,5.29,8.41
+285c61182a,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,True,True,4.65,4.67,8.09
+5198a70b4f,train,The Ultimate Preset Bundle - Huliluts/Drone/Dark Cinema Drone/Mobile Presets,True,True,3.32,3.33,6.29
+7797a5fe40,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,9.63,9.65,16.22
+457cd2b938,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,7.56,7.59,11.26
+bcd7748273,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,8.82,8.66,12.36
+d065bc5b31,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,8.84,8.83,13.03
+e595983883,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,8.06,8.03,11.33
+872a79b4ef,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,9.34,9.32,12.61
+25cd2e67ad,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,10.14,10.14,13.61
+36afe6db96,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,11.06,11.07,15.8
+1ab707ff3f,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,12.51,12.52,16.96
+515236c63a,test,The Ultimate Preset Bundle - Huliluts/Drone/Dark City Drone/Mobile Presets,True,True,10.46,10.41,15.51
+9c2238525d,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,5.16,5.16,8.23
+a347be7776,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,3.86,3.9,6.36
+d85b70a248,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,4.98,4.95,9.64
+5368ad6512,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,4.23,4.22,7.4
+979fdde51f,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,2.82,2.84,4.51
+136889002d,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,2.52,2.52,4.77
+d470db5cc4,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,3.43,3.44,5.21
+0ea2af5c92,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,5.42,5.41,8.16
+46c293126d,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,3.27,3.28,5.29
+85900374c9,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,3.45,3.38,5.2
+d951edd17a,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,5.14,5.14,8.89
+bded13ea25,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,5.55,5.52,8.34
+6203527d37,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,2.37,2.37,4.92
+bbb577fc1f,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,2.72,2.72,5.36
+a8feec917b,train,The Ultimate Preset Bundle - Huliluts/Drone/Deep Blue/Mobile Presets,True,True,3.82,3.85,5.93
+a8b71b2614,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,True,2.58,2.59,6.0
+09bc05c2af,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,True,3.77,3.76,7.35
+1a0b7dae8f,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,True,2.63,2.62,4.59
+8b22040c1a,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,False,2.82,2.82,6.98
+e4d964a3c9,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,False,2.82,2.82,6.98
+b80ec71d0e,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,True,3.15,3.12,7.09
+eacc99b4e4,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,True,3.36,3.37,6.48
+290129cc7b,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,True,3.51,3.52,8.65
+8c9476d6c7,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,True,4.59,4.59,7.53
+76bdb97e70,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Forest/Mobile Presets,True,True,5.22,5.18,9.46
+2f33b7e998,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,False,5.35,5.35,10.48
+df2c337038,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,False,4.03,4.03,9.63
+0a1e029777,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,False,4.4,4.4,9.09
+660e60de1b,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,True,6.27,6.33,12.27
+3e7b30e657,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,True,4.98,5.04,9.12
+a2bb47cc93,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,True,3.2,3.21,6.37
+c7ca48fa6a,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,False,4.03,4.03,7.73
+4692108d18,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,True,5.15,5.23,8.78
+45cce8407b,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,False,4.65,4.65,7.73
+134d63fb74,test,The Ultimate Preset Bundle - Huliluts/Drone/Drone Green/Mobile Presets,True,False,4.39,4.39,8.13
+99a3221050,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,5.62,5.56,14.83
+793940c34a,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,5.75,5.71,12.73
+c0a0f35f9d,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,4.03,3.98,10.26
+0d485b955e,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,6.34,6.27,17.17
+5a83611ec7,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,3.33,3.32,7.77
+6e00a76014,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,4.79,4.84,10.14
+27812bdc65,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,7.8,7.7,12.24
+b51a92e8a8,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,4.5,4.52,10.81
+803cb3fe36,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,5.09,4.91,10.22
+5cec720033,train,The Ultimate Preset Bundle - Huliluts/Drone/Drone Island/Mobile Presets,True,True,6.46,6.39,14.57
+8e90d61c8b,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,False,4.03,4.03,6.33
+82db16e9bd,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,False,3.14,3.14,5.51
+80b92e1efc,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,True,6.53,6.49,9.88
+fb7499d2ae,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,True,3.99,3.98,7.9
+11d3177166,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,True,5.28,5.27,11.53
+8d8186fe7f,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,True,4.75,4.71,10.33
+67436179b5,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,True,7.92,7.92,10.77
+a366a926da,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,True,7.13,7.13,9.83
+edfd752534,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,True,7.07,7.06,9.92
+3a922f8839,train,The Ultimate Preset Bundle - Huliluts/Drone/Landscapes Drone/Mobile Presets,True,True,5.55,5.45,9.76
+8652c8c285,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,4.64,4.63,6.92
+e5cccf7eed,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,3.43,3.46,5.92
+04f8c33408,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,4.42,4.39,7.17
+2a044d7022,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,3.45,3.46,5.73
+fdfce927fc,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,4.55,4.54,7.75
+3d2f104de8,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,2.72,2.69,4.98
+9c35063ace,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,3.51,3.48,5.8
+91c36a612e,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,3.66,3.68,6.11
+0ef2e2ae51,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,2.53,2.58,4.73
+1dc0818801,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,2.83,2.8,4.57
+f959ceae47,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,7.31,7.31,11.27
+5fc6b4989e,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,5.64,5.64,10.37
+fdf36f5bd9,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,5.31,5.31,9.8
+858435077b,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,5.4,5.39,9.1
+e9a32d95f4,train,The Ultimate Preset Bundle - Huliluts/Drone/Sunset Drone/Mobile Presets,True,True,4.89,4.91,7.15
+69241a8401,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,True,7.76,7.61,12.25
+bd00b58ba3,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,True,6.5,6.51,10.98
+b3a9ff717a,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,True,9.76,9.66,16.22
+8101e0500c,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,True,7.89,7.96,12.75
+09bbb688da,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,True,9.25,9.31,13.85
+af3fc22138,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,True,8.86,8.87,12.65
+3e79aeebfb,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,False,4.57,4.57,8.24
+3936ff6e1d,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,False,7.6,7.6,15.01
+1b96b5141d,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,True,7.6,7.72,12.98
+12734467dc,train,The Ultimate Preset Bundle - Huliluts/Drone/Urban Light/Mobile Presets,True,False,7.05,7.05,10.67
+75d4142e59,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,False,7.05,7.05,10.83
+e0eb1b8110,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,True,8.66,8.66,12.61
+7dd04b5040,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,False,4.74,4.74,8.44
+cf23bb500c,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,False,5.92,5.92,10.5
+e747331cce,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,False,5.35,5.35,9.68
+783ca44469,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,True,6.98,7.0,10.83
+c939f70b5e,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,True,7.67,7.67,11.25
+1127295cec,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,False,4.63,4.63,7.92
+2be243d3df,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,False,4.78,4.78,8.12
+db5de77505,train,The Ultimate Preset Bundle - Huliluts/Drone/Winter Drone/Mobile Presets,True,True,8.92,8.92,12.73
+6ebb3105ce,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,4.43,4.52,8.72
+800b33d1fe,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,3.51,3.51,7.43
+ba9e175943,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,4.92,4.99,8.7
+7730f3f1dd,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,False,5.7,5.7,14.1
+7536336c4f,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,3.88,3.91,7.71
+e8302bc040,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,9.1,9.2,21.69
+aa4b69d8f1,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,9.96,10.01,24.52
+f8b8d6ff87,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,False,8.81,8.81,20.17
+f0ae56f4cb,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,12.22,12.19,26.11
+0524464cc7,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,4.17,4.21,9.59
+750973edd6,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,False,3.4,3.4,7.3
+2ec61644b3,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,4.57,4.66,9.82
+31a57194ff,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,3.78,3.75,7.26
+43fc88dbc2,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,4.01,4.05,8.24
+a1c34bd5f9,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,6.26,6.33,17.1
+ad372d2513,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,7.65,7.71,21.35
+c7cd82d04d,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,False,7.32,7.32,19.19
+bafb08d51e,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,False,9.31,9.31,23.93
+e624adae03,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,True,4.34,4.38,9.51
+56fdbbd25a,test,The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets,True,False,3.59,3.59,7.31
+46bcb905ab,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,6.01,6.02,9.51
+84614b53a6,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,5.83,5.84,8.42
+687f995c8e,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,7.45,7.49,11.49
+e9cbd4b0f3,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,3.97,4.01,9.21
+816577f41c,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,3.97,3.99,7.33
+1fb02d4e51,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,6.79,6.79,10.9
+0eafb95470,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,7.7,7.7,11.38
+d40116139b,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,False,4.71,4.71,7.53
+ce088b05a8,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,6.02,6.03,11.26
+47c04392e6,test,The Ultimate Preset Bundle - Huliluts/Trending/Aesthetic/Mobile Presets,False,True,8.29,8.31,13.41
+3fe53f02c8,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,False,3.05,3.05,5.5
+9c937ae47c,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,False,2.79,2.79,5.27
+9cb630c78a,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,True,5.96,5.99,12.9
+b3e9ad9b86,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,True,2.63,2.66,6.75
+005c832694,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,False,3.23,3.23,5.64
+1191d77374,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,True,3.01,3.03,5.48
+a2bc81da74,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,True,3.06,3.08,5.45
+5d5d1dd7b9,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,True,3.71,3.71,5.73
+7af3fd01df,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,True,3.9,3.91,5.87
+84174c20fa,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,False,2.22,2.22,4.61
+e0f4197d68,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,False,3.46,3.46,5.7
+580b490194,train,The Ultimate Preset Bundle - Huliluts/Trending/Analog Flim/Mobile Presets,True,False,4.97,4.97,9.21
+a004b426b4,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,4.92,4.89,8.62
+262ad040ab,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,2.78,2.78,6.76
+29d93bf19c,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,3.3,3.3,6.94
+55c0ed9df7,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,2.18,2.17,5.38
+c7374b8e7e,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,3.77,3.77,7.28
+ca608e8753,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,2.98,2.96,7.21
+fb4dbfb514,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,2.35,2.34,5.69
+eba4e7f1d6,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,2.76,2.76,7.38
+0c9c10536f,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,2.91,2.9,6.22
+b9911dc59c,train,The Ultimate Preset Bundle - Huliluts/Trending/Black/Mobile Presets,True,True,3.91,3.93,7.84
+7e61fa0a52,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,False,3.68,3.68,7.18
+f33cc46aeb,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,False,4.42,4.42,8.33
+f5acb3df53,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,False,5.01,5.01,11.42
+ad9a68d6b7,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,False,5.9,5.9,10.74
+add24f7647,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,False,5.06,5.06,11.87
+ee1cb5604d,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,False,5.11,5.11,8.12
+b10f37178c,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,True,5.81,5.74,16.17
+536a1aef5f,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,True,5.48,5.44,13.12
+f300558137,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic/Mobile Presets,True,True,5.65,5.73,12.59
+7f67842a3b,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,2.6,2.64,5.85
+99d27b1a19,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,3.22,3.21,5.67
+69a388af7e,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,2.71,2.76,5.78
+2be438924a,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,2.73,2.7,5.74
+dc616d797c,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,4.6,4.62,8.08
+61baaec353,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,2.48,2.52,7.18
+5dfef0b17e,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,2.78,2.78,4.99
+5a009d6590,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,3.71,3.74,7.51
+fdf8814713,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,2.42,2.46,5.12
+75d793873e,train,The Ultimate Preset Bundle - Huliluts/Trending/Cinematic Green/Mobile Presets,True,True,4.25,4.24,7.34
+79168e643c,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,4.22,4.2,7.85
+53a410c50e,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,3.73,3.68,7.1
+56749f3842,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,5.51,5.46,9.63
+01d57175a7,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,9.62,9.49,17.0
+0feb229f51,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,3.75,3.68,7.05
+939082323f,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,False,2.35,2.35,3.98
+8f5e99acf1,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,4.3,4.25,7.28
+b5156ea984,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,4.28,4.24,7.92
+d428d89903,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,False,4.22,4.22,7.88
+7fd6abbffe,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,4.35,4.31,7.81
+d56e5f0a08,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,5.75,5.65,9.75
+ccb10a03e5,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,5.46,5.41,9.37
+e1e5008e6f,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,8.31,8.18,14.97
+a52ef0220a,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,4.49,4.46,8.12
+0d1a9ccf1f,train,The Ultimate Preset Bundle - Huliluts/Trending/Classic Flim/Mobile Presets,True,True,6.29,6.18,11.11
+7a1c899daa,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,False,5.84,5.84,13.77
+10910474d1,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,True,4.71,4.85,11.22
+e1d5ad2482,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,True,4.6,4.72,9.62
+828071d8ed,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,False,3.89,3.89,6.28
+f71d6b24f2,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,True,4.48,4.59,10.48
+bc5646e43e,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,False,4.66,4.66,7.25
+494dc34f45,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,True,4.95,4.89,10.29
+41d08f7220,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,True,3.23,3.33,7.15
+5c797b757d,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,True,3.18,3.23,7.02
+faa894ddbe,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Academia/Mobile Presets,True,True,3.13,3.25,6.46
+783c92bb6b,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,False,5.74,5.74,12.99
+bb88e981bd,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,True,8.0,8.01,14.24
+b6ca3e9017,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,False,3.35,3.35,7.22
+b6bc1aca77,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,False,4.03,4.03,9.85
+4b3db7b714,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,False,4.0,4.0,7.68
+f0e3fa21ba,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,True,8.06,8.07,17.1
+8c70b63f66,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,True,8.36,8.38,15.81
+dedcbbcded,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,False,3.44,3.44,8.14
+18df9c7197,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,False,3.77,3.77,7.42
+aabd439020,train,The Ultimate Preset Bundle - Huliluts/Trending/Dark Winter/Mobile Presets,True,True,8.21,8.22,14.7
+e1e620366f,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,5.08,5.08,8.86
+d5bd099bf6,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,5.14,5.19,9.11
+a5e77ba231,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,6.32,6.36,10.87
+706a798ec4,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,6.31,6.36,10.86
+5f3bfc7a20,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,4.13,4.18,12.57
+73d1e20cca,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,4.45,4.5,8.01
+7ccf522166,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,3.31,3.23,6.15
+1ccb6f8d5e,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,4.07,4.1,9.37
+a90c0f9e90,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,True,4.8,4.81,7.97
+4db0538a6b,train,The Ultimate Preset Bundle - Huliluts/Trending/Dystopia/Mobile Presets,True,False,9.04,9.04,12.84
+3f53147baf,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,3.22,3.17,8.23
+3d5bc8841e,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,3.49,3.43,7.52
+77abf3c8df,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,2.65,2.64,5.15
+fada98935e,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,4.63,4.55,7.19
+6b7e3abfe9,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,3.32,3.3,6.8
+58f8ff84ca,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,5.74,5.72,9.69
+3ce857f6e5,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,2.23,2.25,4.9
+218d274fea,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,2.66,2.69,5.31
+2cc6a5acf6,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,5.14,5.14,9.89
+07e587a90b,train,The Ultimate Preset Bundle - Huliluts/Trending/Garden/Mobile Presets,True,True,4.1,4.1,6.9
+e32bb5478b,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,3.6,3.6,5.63
+5e4ac21cd3,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,True,3.39,3.4,5.94
+ed50b1483e,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,4.78,4.78,7.22
+c5d9fdf637,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,True,4.16,4.16,7.21
+370a5e99d6,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,True,6.13,6.12,9.83
+23f0d11f0d,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,5.32,5.32,8.85
+9a4e948ccc,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,4.85,4.85,8.23
+73bc8fa8d2,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,4.92,4.92,7.54
+c454e11b47,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,2.99,2.99,5.05
+ade4537bf3,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,4.09,4.09,7.06
+f9f83aa280,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,True,3.95,3.94,7.66
+83c1a2d7cd,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,4.8,4.8,9.95
+0006ee6010,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,True,4.1,4.11,8.05
+0c2b6ad9f6,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,False,4.6,4.6,8.21
+ff9d88d53b,train,The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets,True,True,3.89,3.93,6.22
+f8d7b4b959,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,True,4.64,4.61,9.28
+cf4e44516c,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,True,5.56,5.45,15.43
+1dae7597a5,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,True,4.37,4.3,12.88
+72cae61e99,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,True,4.83,4.77,11.69
+c20351c73d,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,False,3.5,3.5,6.5
+99a82e91f3,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,False,3.41,3.41,6.6
+4591ca634f,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,True,4.4,4.37,13.63
+28ec12a1dc,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,False,3.5,3.5,6.48
+7335390063,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,True,3.9,3.93,7.76
+a832c6188e,test,The Ultimate Preset Bundle - Huliluts/Trending/Kodak Flim/Mobile Presets,True,True,4.54,4.45,13.18
+29563e797f,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.98,5.97,9.65
+e3ab4124f0,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.62,5.62,9.59
+d1eec1cc76,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,6.89,6.92,11.05
+0b958dfa74,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,7.75,7.71,11.12
+0fe7f06688,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.61,5.62,8.59
+8ef80d5450,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.61,5.62,8.58
+447b5e1960,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.87,5.82,9.57
+3a274d8475,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,6.08,6.07,10.48
+d85c81be62,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,8.55,8.55,13.47
+ab94d66a27,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,False,8.4,8.4,16.96
+7d86ebf17a,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,6.11,6.19,12.36
+52c2f6bf24,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,7.36,7.28,12.33
+d6b2645c60,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,False,5.36,5.36,11.43
+a2c4b3e413,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.76,5.76,10.53
+e5dd47a844,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,6.17,6.16,11.62
+fb3f241150,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.84,5.81,9.73
+f931954da4,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,False,6.29,6.29,10.52
+8d834bc40e,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,6.64,6.65,9.36
+39053faac8,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.68,5.68,11.27
+196810294f,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,5.58,5.57,9.64
+0249fffc3c,train,The Ultimate Preset Bundle - Huliluts/Trending/London Style/Mobile Presets,True,True,6.3,6.28,10.64
+186b595177,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,True,3.07,3.08,6.89
+515f86f277,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,True,2.82,2.82,5.98
+b9a2dfded9,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,True,2.78,2.79,6.42
+e78a3d3177,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,True,3.49,3.49,6.94
+3f2d3fdc1a,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,True,4.75,4.77,12.41
+6ca4e5a9ad,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,False,4.56,4.56,10.67
+1626197b2b,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,False,3.86,3.86,9.13
+26277ebdf0,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,True,4.24,4.25,9.25
+188ac92625,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,True,4.44,4.45,11.07
+e77daf8243,test,The Ultimate Preset Bundle - Huliluts/Trending/Moody Earthy/Mobile Presets,True,True,3.97,3.98,9.98
+f7010e1018,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,3.56,3.54,6.99
+bb157b3223,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,4.31,4.31,8.12
+e60f71ccf2,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,3.07,3.08,5.51
+b81bfb2030,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,3.53,3.46,7.25
+634998fb61,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,2.26,2.22,6.16
+e948fa9f42,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,6.31,6.25,11.2
+b0ce6d9e52,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,4.1,4.12,6.94
+86b9f9786b,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,2.95,2.94,6.21
+818ce685cc,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,2.8,2.81,6.16
+ef3d8d5ffe,train,The Ultimate Preset Bundle - Huliluts/Trending/Moody Forest/Mobile Presets,True,True,2.14,2.14,5.42
+343dc95799,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,True,True,6.71,6.65,17.28
+a8195b64b6,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,True,False,5.51,5.51,17.27
+3b3715fb4a,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,True,True,5.6,5.93,18.33
+7d925f5b43,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,True,True,3.9,3.95,9.21
+709a7d0b8a,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,True,True,5.05,5.32,14.97
+2d7edf3607,train,The Ultimate Preset Bundle - Huliluts/Trending/Movie/Mobile Presets,True,False,1.29,1.29,2.93
+12f01eed5e,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,3.41,3.39,9.18
+8077ed3bc6,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,4.85,4.84,18.52
+3e00b93264,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,3.81,3.8,9.73
+1c3a95f294,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,4.22,4.18,13.87
+769772d585,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,4.16,4.1,12.17
+2fc0980231,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,4.66,4.61,15.41
+b1d8d935a2,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,3.48,3.42,9.68
+6c76bd32e5,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,4.07,4.04,13.53
+1d898cd992,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,3.59,3.58,9.61
+5e4172e2f6,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,4.7,4.67,17.09
+5caface415,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,3.4,3.36,9.64
+aeae99f51e,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,4.81,4.79,18.56
+7553293c50,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,3.86,3.8,12.18
+1adb859eab,train,The Ultimate Preset Bundle - Huliluts/Trending/New York/Mobile Presets,True,True,4.1,4.1,10.95
+3b45d87343,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,True,True,7.87,7.33,13.01
+6755fdc580,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,True,True,10.98,11.03,21.96
+844d8984ef,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,True,True,4.96,4.58,10.35
+2aefc6fe73,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,True,True,7.16,6.67,12.19
+faa42c85d9,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,True,True,5.26,4.89,10.07
+e21b7be316,test,The Ultimate Preset Bundle - Huliluts/Trending/Night Street/Mobile Presets,True,True,7.61,7.12,11.82
+5c50589fbd,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,3.46,3.45,8.32
+76e904d9f1,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,2.79,2.8,6.13
+4d52463abc,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,3.72,3.72,8.99
+3d66230cf4,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,2.7,2.75,6.32
+a2a9eba543,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,4.21,4.23,9.84
+e344f6c335,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,4.25,4.26,11.14
+a45554d546,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,3.79,3.79,9.49
+d065ef5a0b,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,3.15,3.15,6.73
+798a55f637,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,3.25,3.29,8.11
+422a7dd982,train,The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets,True,True,3.59,3.57,6.71
+d10aeb8c61,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,4.95,4.96,7.92
+4c7e68f441,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,5.01,5.02,8.04
+96c25747e3,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,4.54,4.6,7.9
+81b8fade93,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,3.81,3.82,7.34
+d22b8b47ca,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,5.93,5.89,10.46
+f4cd976742,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,4.77,4.74,9.83
+0cac533bb8,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,8.78,8.77,14.35
+8072e11d5b,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,5.89,6.0,9.53
+89ff847374,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,4.49,4.34,8.8
+def845f60f,test,The Ultimate Preset Bundle - Huliluts/Trending/Organic/Mobile Presets,True,True,3.32,3.3,5.69
+59197abd86,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,3.53,3.52,8.87
+3e2b87ae21,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,7.37,7.37,9.69
+6e77e9074b,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,5.13,5.11,10.8
+7bb4448e1e,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,3.59,3.54,8.3
+fdaddec19a,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,3.54,3.53,9.76
+0706747d09,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,4.18,4.18,9.6
+f69ed3e9bb,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,6.61,6.62,9.97
+bd326c534a,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,3.66,3.69,9.14
+f3f0fbabf7,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,False,5.44,5.44,8.67
+6aed5b3154,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,4.75,4.71,9.0
+125252d9b4,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,3.79,3.79,8.04
+c68d5b022e,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,3.04,2.99,7.31
+820af17fbe,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,4.78,4.79,10.39
+7e0937a48c,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,3.49,3.51,7.16
+abdb02ac63,train,The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets,True,True,3.43,3.35,6.79
+f504827c7f,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,True,True,4.07,4.1,10.06
+bba7ea1357,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,True,True,4.06,4.1,10.03
+01026a59c1,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,True,True,3.69,3.76,9.14
+985b834298,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,True,True,3.97,4.03,10.2
+ceeb6a4e90,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,True,True,3.96,4.03,10.19
+f47f34474d,train,The Ultimate Preset Bundle - Huliluts/Trending/Rich Black/Mobile Presets,True,True,5.96,5.95,13.41
+9679425197,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,7.64,7.64,13.86
+6b758b7eea,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,9.74,9.73,14.56
+9aada6c877,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,6.92,6.9,11.69
+7ed66849ab,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,5.18,5.01,9.19
+3432aa686b,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,5.49,5.44,9.44
+d67537e43b,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,11.37,11.39,17.55
+1d3793c47a,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,12.38,12.42,22.67
+69939572ce,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,7.92,7.9,11.52
+285dda417e,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,7.46,7.44,12.13
+7383919ae8,train,The Ultimate Preset Bundle - Huliluts/Trending/Street Flim/Mobile Presets,True,True,11.23,11.22,18.79
+ef6d47ee23,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,True,4.61,4.61,8.94
+77ca1a2a4d,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,False,4.14,4.14,6.96
+277c9aac1e,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,False,5.83,5.83,9.7
+551b1061fb,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,True,4.62,4.62,10.25
+c9e67ab5e5,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,False,3.32,3.32,6.25
+a79c7bafad,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,True,4.54,4.53,9.04
+14ce0f8898,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,False,4.26,4.26,6.44
+4fba438282,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,True,3.73,3.69,6.01
+104910185d,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,False,6.75,6.75,9.97
+3df07aba6d,train,The Ultimate Preset Bundle - Huliluts/Trending/Travel/Mobile Presets,True,True,3.24,3.24,5.87
+2cb91b4d9e,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,9.29,9.2,13.5
+e1309d14a4,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,5.48,5.39,8.54
+8988b5aae4,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,8.34,8.23,14.03
+aef57f0f37,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,8.39,8.3,12.97
+587b8efbfb,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,4.96,4.85,10.99
+b59565f8e3,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,5.17,5.04,10.2
+18ba188141,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,4.36,4.27,8.59
+fb5f25cb6a,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,5.39,5.26,9.16
+8d30b99622,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,9.44,9.46,15.88
+ef14bac749,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban/Mobile Presets,True,True,6.6,6.51,11.67
+65bccecb77,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,8.11,8.04,15.88
+2289659dd8,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,6.72,6.66,14.71
+93f9479a58,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,6.63,6.57,14.68
+a3f08d4d25,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,8.41,8.35,15.53
+3cf306bac2,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,6.4,6.35,11.31
+70cbb033d2,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,6.83,6.79,13.8
+64549b181f,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,9.05,9.0,18.85
+2a7b6ed3e4,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,7.05,7.03,12.92
+ec4bcbfb68,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,7.49,7.45,13.97
+d951576783,train,The Ultimate Preset Bundle - Huliluts/Trending/Urban Night/Mobile Presets,True,True,6.17,6.18,11.14
+c41b15cd1d,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,True,True,4.3,4.3,8.34
+99b59adca5,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,True,True,3.77,3.77,6.57
+d351badd3f,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,True,True,5.5,5.53,10.54
+c556141aa8,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,True,True,5.38,5.4,9.97
+7d75106a23,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,True,False,3.9,3.9,6.79
+25922f977a,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,True,False,4.64,4.64,9.36
+5ac5ae2fb3,train,The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets,True,False,2.67,2.67,3.61
+5af3b58211,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,4.79,4.79,7.78
+2dfc9d5b1e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,4.96,4.96,7.94
+a9e76e44ce,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,5.95,5.95,9.16
+8d083ac7f3,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,3.91,3.91,6.86
+2bc44f1f45,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,2.75,2.75,4.78
+7b5318e424,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,2.75,2.75,4.78
+ab8926593e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,5.58,5.58,7.57
+f128133686,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,2.95,2.95,5.63
+d8d4c33298,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,3.38,3.38,5.87
+0638c807b9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Autumn Wedding/Mobile Presets,True,False,2.97,2.97,4.98
+2db73cc605,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.31,3.31,7.08
+5476bea837,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,2.49,2.5,4.62
+30d8974271,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,2.57,2.58,5.08
+a4d18dee16,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.63,3.65,7.23
+97acd3b11d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,False,3.01,3.01,5.17
+16518ca108,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,False,4.22,4.22,6.97
+c46ffd2dfb,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,2.75,2.72,4.73
+f4f78efa8f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,False,4.74,4.74,7.81
+0368fe8d9e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.02,3.03,5.06
+076a2e98a8,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.9,3.92,7.09
+121bd303d0,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,2.57,2.57,4.82
+51c2a78403,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.87,3.88,8.45
+9e6b7f78e6,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.92,3.89,7.83
+0c47a9169d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.06,3.07,5.78
+2bd5272a74,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.74,3.75,6.59
+b506a075c8,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,False,2.71,2.71,4.63
+61a5fa71cd,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,False,3.11,3.11,4.74
+4a7c8d5897,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,3.17,3.18,4.94
+a22052053e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,False,3.35,3.35,5.62
+6a36ce2520,train,The Ultimate Preset Bundle - Huliluts/Wedding/Boho Wedding/Mobile Presets,True,True,2.28,2.23,4.39
+989b37332d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,2.24,2.22,3.58
+95bf6e39bf,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,False,2.63,2.63,4.71
+8ab12817b2,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,False,2.59,2.59,5.89
+fd99ccd3e9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,2.0,1.98,3.6
+8e9aa72341,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,2.3,2.28,4.08
+26628d8e6a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,2.13,2.13,4.85
+8cb37760f4,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,3.47,3.5,7.53
+7e8861790b,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,False,2.68,2.68,5.12
+9f46606819,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,False,2.29,2.29,4.0
+9e85e68c4a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,False,2.26,2.26,3.92
+0ac6358402,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,2.79,2.77,4.49
+4d05c38aa1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,2.77,2.78,6.97
+e06456cc0e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,False,1.97,1.97,3.68
+7547b77764,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,2.3,2.28,4.26
+82fd2dcfe7,train,The Ultimate Preset Bundle - Huliluts/Wedding/Bronze Wedding/Mobile Presets,True,True,2.12,2.11,4.92
+681813d79e,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.7,3.7,4.87
+9d47aca0a7,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.23,3.23,5.08
+bf71635312,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.91,3.91,5.95
+c9608eeb90,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,4.59,4.59,6.12
+1647d2c94f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,True,3.56,3.51,5.53
+a93fb7bea6,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.73,3.73,5.1
+4da9babc0b,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,True,6.49,6.47,7.74
+5cc7c24d34,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.43,3.43,4.77
+0ae81c9bfa,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,5.18,5.18,7.06
+fe0bbe8f7f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.4,3.4,5.68
+7c36cce3cb,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,True,4.25,4.23,5.53
+e5670d1fc9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.49,3.49,4.86
+d9a018ab3a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,4.12,4.12,6.17
+6a9537c104,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.76,3.76,5.15
+c57089ee8b,train,The Ultimate Preset Bundle - Huliluts/Wedding/Classy Wedding/Mobile Presets,True,False,3.19,3.19,5.23
+da6051d9f7,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.83,4.84,8.13
+50f0a53855,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.69,4.7,9.15
+a9db1abb59,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.8,4.82,7.15
+3fa2d2dab1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,2.98,2.94,6.98
+9bfde64f01,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.94,4.95,8.52
+4bf1693eba,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.52,4.53,8.38
+69cf5e09e1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,2.94,2.93,7.04
+eb2c6f7f47,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.97,4.94,8.25
+de34482eda,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,3.72,3.76,5.92
+e868bde053,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,3.93,3.92,7.27
+40bad8faa0,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.23,4.25,7.06
+a57c8c4bf1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,2.64,2.65,5.23
+f08962754d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,3.53,3.54,5.86
+b19551e87b,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,3.67,3.66,6.92
+e5ff75b06d,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.49,4.5,8.79
+12ec336842,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,2.6,2.61,5.28
+a8a000d04f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.26,4.26,7.54
+d6454379ef,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.06,4.07,8.28
+4342c21452,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,3.82,3.82,7.74
+1a5515b1c5,train,The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets,True,True,4.37,4.38,7.65
+c5b8897cc6,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,True,True,3.75,3.75,7.31
+464bc28618,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,True,True,4.16,4.16,7.0
+4c8b9455b7,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,True,True,4.78,4.78,7.23
+8ccc986a92,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,True,False,3.57,3.57,7.09
+9ef883c115,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,True,False,4.06,4.06,6.82
+8c0472087b,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,True,False,4.19,4.19,8.54
+3e2f9404d2,test,The Ultimate Preset Bundle - Huliluts/Wedding/Golden Wedding/Mobile Presets,True,False,7.31,7.31,12.53
+283e57e3a8,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,3.7,3.57,5.84
+f4f4639445,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,4.24,4.1,9.5
+e3c6f4f2fb,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,False,4.2,4.2,8.21
+3bd9ab6c78,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,False,3.88,3.88,7.28
+18aefab2a8,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,4.91,4.85,9.09
+d2d2ab4e04,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,False,3.76,3.76,6.91
+2843eb8e39,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,3.24,3.32,5.95
+86842c19ea,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,4.08,3.93,8.2
+5c84cd5be5,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,4.02,4.17,7.48
+080a4344b5,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,False,3.72,3.72,7.41
+e5b63cb146,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,3.09,3.17,6.14
+4b911dba18,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,4.49,4.56,9.75
+9601ec50e5,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,5.05,5.0,9.11
+decf5a98b9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,4.72,4.85,10.34
+77df2973e7,train,The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets,True,True,4.1,3.93,8.0
+b5ac2d0e9a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,3.48,3.48,7.83
+9c49afe5d9,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,3.96,3.96,7.6
+4acbaccfc1,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,3.79,3.79,6.28
+292ad4c171,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,2.65,2.65,5.92
+85a24ec76f,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,4.73,4.73,8.83
+5e64d93c50,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,4.37,4.37,7.94
+0b19b9e7d2,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,4.08,4.08,7.66
+6cb023bc67,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,3.47,3.47,5.75
+aac9ef700a,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,2.99,2.99,6.24
+38b6c6bb33,train,The Ultimate Preset Bundle - Huliluts/Wedding/Vintage Wedding/Mobile Presets,True,False,3.91,3.91,6.48
+b9262da7d6,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.95,0.95,1.1
+6a966bf4cb,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.95,0.94,1.16
+35119d1df8,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,2.4,2.4,2.85
+437db9447b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.75,1.73,2.13
+699f2a0b59,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.2,1.19,1.29
+2c0dbd1a71,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.35,1.34,1.58
+6c73943abe,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.0,1.0,1.19
+4f642f9fd6,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.03,1.04,1.13
+5415abc197,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.86,0.86,1.12
+6388bdf70b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,False,1.12,1.12,1.51
+3dba428820,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.88,0.88,0.89
+bdeda15989,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.04,1.04,1.5
+f4f00af573,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.15,1.14,1.41
+66392c894b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.34,1.34,1.54
+8c63fc2140,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.82,0.84,0.92
+4e6dd4e4a1,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.97,0.96,1.16
+486c7b15e4,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,2.49,2.47,3.08
+3b9034f6e0,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.87,0.89,0.96
+982372d58f,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.96,0.96,1.16
+2a34e5497a,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.05,1.04,1.18
+1d6f0a0123,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.16,0.2,1.09
+354ed27803,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.0,1.0,1.44
+f45750adbd,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.23,1.24,1.52
+699190e0fc,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.8,1.81,2.27
+e0b2891fa6,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,4.11,4.11,4.62
+439e062675,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.97,0.97,1.17
+e0e7e554e4,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.28,0.29,1.67
+72683d68ff,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.5,1.5,1.87
+12e233070b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,False,1.01,1.01,1.35
+0f463b27e7,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,2.02,2.01,2.41
+eb61302b1f,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.1,1.09,1.4
+2174c7b8e9,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.21,1.2,1.72
+8db0ae9ade,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.15,1.12,1.73
+a8b3443404,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,3.14,3.14,3.51
+97ba34edd1,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.51,1.49,2.01
+3787bff9af,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,3.52,3.5,4.81
+f715dbd5ce,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.87,0.88,1.1
+d0d2d6d792,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.97,0.97,1.08
+fad15c0aac,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,False,1.15,1.15,1.52
+8f6ee4104a,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.95,0.95,1.11
+f8159e976a,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.19,1.19,1.48
+74eddc3541,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.13,1.13,1.13
+fa592e306a,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,0.94,0.94,1.41
+8760a56008,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,5.1,5.09,5.62
+c313204c97,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.6,1.6,2.09
+3dacbaf145,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,1.6,1.6,2.09
+2c508d5789,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,2.96,2.99,3.25
+3a73503baa,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Cinematic Collection/WithLuke Cinematic Collection - MOBILE Presets (DNG),False,True,2.43,2.43,2.78
+dbe3e5b362,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.15,1.15,1.45
+59cb3841e7,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,False,2.12,2.12,2.39
+50f7d8a3c8,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,False,0.86,0.86,1.45
+adc2f6cfd4,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,0.86,0.85,0.93
+d08d264082,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.75,1.75,1.87
+e7b1b4caa7,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.01,1.02,1.34
+def7536897,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.46,1.46,1.9
+b5581244b9,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.3,1.3,1.63
+387842973b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.19,1.19,1.3
+2e6de8117b,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.33,1.44,1.99
+c62a1a0d42,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.15,1.15,1.45
+744c377f33,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.47,1.46,1.91
+a501d72fc8,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,True,1.16,1.17,1.45
+b76e590c16,train,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Africa Presets (Added 31.08.21)/WithLuke Africa Collection - MOBILE Presets (DNG),False,False,2.12,2.12,2.82
+635a297673,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,3.5,3.5,4.8
+390205d0fa,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,False,0.01,0.01,0.0
+0c203b3f7c,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,1.46,1.46,1.98
+f5580439b9,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,1.44,1.44,1.87
+31983c6913,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,2.03,2.04,2.9
+3eafc8c0c5,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,2.76,2.76,3.57
+d7b1e4daa5,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,1.67,1.68,2.23
+e942174372,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,0.56,0.57,0.94
+e457aeb746,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,1.64,1.62,4.95
+7fe49a14e4,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG),False,True,1.72,1.7,2.2
+9724cd3b40,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,18.82,18.78,19.92
+5ee9d9e1e7,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,12.7,12.72,14.35
+056844435d,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,27.32,27.39,30.0
+8a607f3e1b,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,7.89,7.89,8.86
+ca95802b1b,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,15.86,15.8,16.88
+ff02dc4b4f,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,False,1.52,1.52,1.93
+b7a245610a,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,11.77,11.72,12.68
+55d2b306e9,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,False,14.77,14.77,16.23
+85ac6d6f74,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,11.79,11.74,12.68
+00228dfbfe,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,False,4.02,4.02,4.7
+fc137da006,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,12.74,12.64,14.69
+9232a9d045,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,28.83,28.76,31.0
+b64ee7939e,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,19.52,19.45,20.8
+33b489f162,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,14.15,14.1,15.39
+d0d20c719e,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,17.1,17.06,18.5
+959e0a5fc2,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,9.97,9.89,10.92
+83028f50ce,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,28.54,28.54,30.53
+97a2da7272,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,7.46,7.41,8.63
+ceb65cc7dc,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,7.52,7.46,8.58
+44fb7cf063,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,25.0,24.92,26.4
+bec00a2794,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,23.67,23.67,25.8
+903a462e35,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,19.65,19.58,21.17
+6b823b4098,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,27.24,27.17,28.79
+3f1035a2f6,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,28.74,28.62,31.91
+5f565a852e,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,5.88,5.86,6.58
+c882e9f6d6,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,6.42,6.39,7.34
+701154f835,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,22.66,22.6,23.68
+c18d258cff,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,17.65,17.6,18.96
+303995b235,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,22.72,22.67,24.0
+fe3889fd1b,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,21.9,21.85,23.42
+422afac425,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,11.67,11.63,12.48
+9f362f8a60,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,21.23,21.19,22.21
+eb511b1801,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,20.62,20.56,21.54
+8095426fc7,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,35.06,34.97,36.72
+63be84764b,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,12.02,11.99,13.06
+2100f386d4,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,23.91,23.86,25.39
+f18e865aac,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,27.98,27.89,29.82
+41e9b2a727,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,26.11,26.02,27.56
+8845d3c665,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,8.36,8.3,9.66
+59d63268ce,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,12.98,12.96,14.39
+4f93e1ad90,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,35.16,35.03,36.83
+0e9c055071,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,15.26,15.22,16.68
+f51f217e45,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,10.16,10.12,11.36
+f9bd131732,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,16.31,16.25,17.22
+f48adb793a,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,7.35,7.29,8.63
+b7ea50f304,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,17.68,17.62,18.71
+2fc9f8d0e8,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,5.08,5.04,5.86
+e03abee4c4,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,12.05,12.0,13.0
+72a06ca023,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,4.49,4.49,4.84
+53ba2e5367,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,4.69,4.65,6.2
+48a1b8e5a4,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,3.22,3.2,3.77
+e4f31fb2f1,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,14.84,14.83,15.67
+0126b279ba,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,15.93,15.88,16.78
+8366ff7046,test,WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Timeless Collection (Added 01.06.22)/#DNG Files - For OLD Lightroom Mobile,False,True,9.18,9.14,9.8

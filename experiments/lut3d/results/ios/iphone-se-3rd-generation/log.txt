@@ -1,0 +1,38 @@
+[82515.416] run run-20261001-173550-3554 started
+[82515.455] compiled fp32 in 0.037 s
+[82515.529] loaded fp32_cpuOnly: cold 25.5 ms
+[82515.609] loaded fp32_cpuAndGPU: cold 28.5 ms
+[82515.734] loaded fp32_cpuAndNeuralEngine: cold 46.1 ms
+[82515.856] loaded fp32_all: cold 37.7 ms
+[82515.883] compiled fp16 in 0.027 s
+[82515.944] loaded fp16_cpuOnly: cold 20.2 ms
+[82516.008] loaded fp16_cpuAndGPU: cold 20.2 ms
+[82516.323] loaded fp16_cpuAndNeuralEngine: cold 144.3 ms
+[82516.630] loaded fp16_all: cold 123.3 ms
+[82516.699] golden stems (23): a1629, backlit_01, backlit_02, backlit_03, landscape_01, landscape_02, landscape_03, night_01, night_02, night_03, portrait_deep_01, portrait_deep_02, portrait_deep_03, portrait_light_01, portrait_light_02, portrait_medium_01, portrait_medium_02, sunset_01, sunset_02, sunset_03, wellexposed_01, wellexposed_02, wellexposed_03
+[82517.584] a1629: ok
+[82522.333] backlit_01: ok
+[82524.649] backlit_02: ok
+[82526.693] backlit_03: ok
+[82531.386] landscape_01: ok
+[82536.359] landscape_02: ok
+[82538.653] landscape_03: ok
+[82543.131] night_01: ok
+[82548.259] night_02: ok
+[82553.153] night_03: ok
+[82557.625] portrait_deep_01: ok
+[82559.905] portrait_deep_02: ok
+[82565.012] portrait_deep_03: ok
+[82569.655] portrait_light_01: ok
+[82574.445] portrait_light_02: ok
+[82579.157] portrait_medium_01: ok
+[82583.747] portrait_medium_02: ok
+[82585.999] sunset_01: ok
+[82588.393] sunset_02: ok
+[82590.718] sunset_03: ok
+[82594.820] wellexposed_01: ok
+[82597.327] wellexposed_02: ok
+[82601.881] wellexposed_03: ok
+[82602.236] 12 MP done
+[82605.120] 48 MP done
+[82605.166] done (ok)

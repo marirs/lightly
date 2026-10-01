@@ -1,0 +1,1251 @@
+{
+ "files": 11078,
+ "kinds": {
+  "xmp": 6520,
+  "dng": 2966,
+  "lrtemplate": 1592
+ },
+ "packs": {
+  "SolutionPresets": 3043,
+  "The Ultimate Preset Bundle - Huliluts": 2837,
+  "WithLuke - Master Collection": 1658,
+  "WithLuke studios": 3540
+ },
+ "errors": [
+  {
+   "source": "WithLuke studios/Master Lightroom Presets Collection/1 Desktop/Desktop (LRtemplate)/Carbon Collection Lightroom Desktop _ Mobile Presets/10 Carbon 10.lrtemplate",
+   "error": "AttributeError: 'list' object has no attribute 'items'"
+  },
+  {
+   "source": "WithLuke studios/Master-Lightroom-Presets-Collection-20251112-lenedf.zip -> Master Lightroom Presets Collection/1 Desktop/Desktop (LRtemplate)/Carbon Collection Lightroom Desktop _ Mobile Presets/10 Carbon 10.lrtemplate",
+   "error": "AttributeError: 'list' object has no attribute 'items'"
+  }
+ ],
+ "keys": {
+  "ProcessVersion": {
+   "present": 11072,
+   "non_default": 11072,
+   "example": "11.0"
+  },
+  "ParametricShadowSplit": {
+   "present": 10995,
+   "non_default": 10995,
+   "example": "25"
+  },
+  "ParametricMidtoneSplit": {
+   "present": 10995,
+   "non_default": 10995,
+   "example": "50"
+  },
+  "ParametricHighlightSplit": {
+   "present": 10995,
+   "non_default": 10995,
+   "example": "75"
+  },
+  "ToneCurveName2012": {
+   "present": 10965,
+   "non_default": 10965,
+   "example": "Custom"
+  },
+  "Highlights2012": {
+   "present": 10889,
+   "non_default": 10616,
+   "example": "+20"
+  },
+  "Shadows2012": {
+   "present": 10889,
+   "non_default": 10499,
+   "example": "-20"
+  },
+  "Blacks2012": {
+   "present": 10889,
+   "non_default": 10306,
+   "example": "+50"
+  },
+  "Whites2012": {
+   "present": 10889,
+   "non_default": 10244,
+   "example": "-70"
+  },
+  "Contrast2012": {
+   "present": 10886,
+   "non_default": 10137,
+   "example": "+60"
+  },
+  "SaturationAdjustmentBlue": {
+   "present": 10814,
+   "non_default": 10132,
+   "example": "-100"
+  },
+  "ToneCurvePV2012": {
+   "present": 10965,
+   "non_default": 9965,
+   "example": "['0, 0', '73, 52', '196, 176', '255, 255']"
+  },
+  "SaturationAdjustmentYellow": {
+   "present": 10814,
+   "non_default": 9667,
+   "example": "-100"
+  },
+  "SaturationAdjustmentOrange": {
+   "present": 10814,
+   "non_default": 9665,
+   "example": "+10"
+  },
+  "SaturationAdjustmentGreen": {
+   "present": 10814,
+   "non_default": 9658,
+   "example": "-100"
+  },
+  "CameraProfile": {
+   "present": 9618,
+   "non_default": 9618,
+   "example": "Embedded"
+  },
+  "WhiteBalance": {
+   "present": 9605,
+   "non_default": 9605,
+   "example": "As Shot"
+  },
+  "DefringePurpleHueLo": {
+   "present": 9359,
+   "non_default": 9359,
+   "example": "30"
+  },
+  "DefringePurpleHueHi": {
+   "present": 9359,
+   "non_default": 9359,
+   "example": "70"
+  },
+  "DefringeGreenHueLo": {
+   "present": 9359,
+   "non_default": 9359,
+   "example": "40"
+  },
+  "DefringeGreenHueHi": {
+   "present": 9359,
+   "non_default": 9359,
+   "example": "60"
+  },
+  "SaturationAdjustmentAqua": {
+   "present": 10814,
+   "non_default": 9159,
+   "example": "-100"
+  },
+  "Vibrance": {
+   "present": 10814,
+   "non_default": 8948,
+   "example": "-30"
+  },
+  "Clarity2012": {
+   "present": 10886,
+   "non_default": 8932,
+   "example": "+20"
+  },
+  "LuminanceAdjustmentOrange": {
+   "present": 10814,
+   "non_default": 8844,
+   "example": "+12"
+  },
+  "SaturationAdjustmentRed": {
+   "present": 10814,
+   "non_default": 8778,
+   "example": "-28"
+  },
+  "Saturation": {
+   "present": 10814,
+   "non_default": 8709,
+   "example": "-30"
+  },
+  "HueAdjustmentYellow": {
+   "present": 10814,
+   "non_default": 8595,
+   "example": "-100"
+  },
+  "SharpenRadius": {
+   "present": 8568,
+   "non_default": 8568,
+   "example": "+1.0"
+  },
+  "LuminanceAdjustmentBlue": {
+   "present": 10814,
+   "non_default": 8549,
+   "example": "-100"
+  },
+  "HueAdjustmentGreen": {
+   "present": 10814,
+   "non_default": 8427,
+   "example": "-100"
+  },
+  "SharpenDetail": {
+   "present": 8563,
+   "non_default": 8386,
+   "example": "25"
+  },
+  "Sharpness": {
+   "present": 10803,
+   "non_default": 8173,
+   "example": "25"
+  },
+  "LuminanceAdjustmentRed": {
+   "present": 10814,
+   "non_default": 8158,
+   "example": "-10"
+  },
+  "SaturationAdjustmentPurple": {
+   "present": 10811,
+   "non_default": 8155,
+   "example": "-100"
+  },
+  "ColorGradeBlending": {
+   "present": 8091,
+   "non_default": 8070,
+   "example": "100"
+  },
+  "LuminanceAdjustmentGreen": {
+   "present": 10811,
+   "non_default": 8020,
+   "example": "-24"
+  },
+  "SplitToningShadowHue": {
+   "present": 10801,
+   "non_default": 8016,
+   "example": "220"
+  },
+  "SaturationAdjustmentMagenta": {
+   "present": 10814,
+   "non_default": 7991,
+   "example": "-100"
+  },
+  "HueAdjustmentOrange": {
+   "present": 10814,
+   "non_default": 7914,
+   "example": "-10"
+  },
+  "LuminanceAdjustmentYellow": {
+   "present": 10811,
+   "non_default": 7907,
+   "example": "-63"
+  },
+  "SplitToningHighlightHue": {
+   "present": 10801,
+   "non_default": 7792,
+   "example": "210"
+  },
+  "HueAdjustmentBlue": {
+   "present": 10814,
+   "non_default": 7777,
+   "example": "-100"
+  },
+  "SplitToningShadowSaturation": {
+   "present": 10801,
+   "non_default": 7599,
+   "example": "10"
+  },
+  "HueAdjustmentAqua": {
+   "present": 10814,
+   "non_default": 7557,
+   "example": "+100"
+  },
+  "ColorNoiseReductionDetail": {
+   "present": 7601,
+   "non_default": 7540,
+   "example": "50"
+  },
+  "Exposure2012": {
+   "present": 9668,
+   "non_default": 7528,
+   "example": "-0.52"
+  },
+  "ColorNoiseReductionSmoothness": {
+   "present": 7419,
+   "non_default": 7410,
+   "example": "50"
+  },
+  "LuminanceAdjustmentAqua": {
+   "present": 10811,
+   "non_default": 7385,
+   "example": "-80"
+  },
+  "HueAdjustmentRed": {
+   "present": 10814,
+   "non_default": 7382,
+   "example": "+16"
+  },
+  "ToneCurvePV2012Blue": {
+   "present": 10965,
+   "non_default": 7369,
+   "example": "['0, 0', '39, 18', '86, 62', '123, 126', '178, 193', '255, 239']"
+  },
+  "ColorNoiseReduction": {
+   "present": 10727,
+   "non_default": 7214,
+   "example": "32"
+  },
+  "RedHue": {
+   "present": 10837,
+   "non_default": 7213,
+   "example": "+2"
+  },
+  "ToneCurvePV2012Red": {
+   "present": 10965,
+   "non_default": 7207,
+   "example": "['0, 0', '255, 249']"
+  },
+  "PerspectiveScale": {
+   "present": 7197,
+   "non_default": 7197,
+   "example": "100"
+  },
+  "GreenHue": {
+   "present": 10837,
+   "non_default": 7069,
+   "example": "+30"
+  },
+  "ToneCurvePV2012Green": {
+   "present": 10965,
+   "non_default": 6983,
+   "example": "['0, 0', '255, 249']"
+  },
+  "SplitToningHighlightSaturation": {
+   "present": 10801,
+   "non_default": 6976,
+   "example": "5"
+  },
+  "BlueHue": {
+   "present": 10837,
+   "non_default": 6866,
+   "example": "-59"
+  },
+  "BlueSaturation": {
+   "present": 10837,
+   "non_default": 6395,
+   "example": "-14"
+  },
+  "RedSaturation": {
+   "present": 10837,
+   "non_default": 6233,
+   "example": "-20"
+  },
+  "CameraProfileDigest": {
+   "present": 6196,
+   "non_default": 6196,
+   "example": "54650A341B5B5CCAE8442D0B43A92BCE"
+  },
+  "GreenSaturation": {
+   "present": 10837,
+   "non_default": 5962,
+   "example": "-65"
+  },
+  "LuminanceNoiseReductionDetail": {
+   "present": 5872,
+   "non_default": 5872,
+   "example": "50"
+  },
+  "LuminanceSmoothing": {
+   "present": 10727,
+   "non_default": 5552,
+   "example": "20"
+  },
+  "SplitToningBalance": {
+   "present": 10801,
+   "non_default": 4899,
+   "example": "-70"
+  },
+  "IncrementalTemperature": {
+   "present": 6852,
+   "non_default": 4892,
+   "example": "+26"
+  },
+  "PointColors": {
+   "present": 4777,
+   "non_default": 4777,
+   "example": "['-1.000000, -1.000000, -1.000000, -1.000000, -1.000000, -1.000000, -1.000000, -1.000000, -1.000000, -1.000000, -1.00000"
+  },
+  "LuminanceAdjustmentPurple": {
+   "present": 10811,
+   "non_default": 4767,
+   "example": "-100"
+  },
+  "IncrementalTint": {
+   "present": 6852,
+   "non_default": 4627,
+   "example": "-10"
+  },
+  "CurveRefineSaturation": {
+   "present": 4492,
+   "non_default": 4492,
+   "example": "100"
+  },
+  "LuminanceAdjustmentMagenta": {
+   "present": 10811,
+   "non_default": 4416,
+   "example": "-2"
+  },
+  "GrainSize": {
+   "present": 4127,
+   "non_default": 4111,
+   "example": "4"
+  },
+  "GrainFrequency": {
+   "present": 4080,
+   "non_default": 4031,
+   "example": "3"
+  },
+  "HueAdjustmentMagenta": {
+   "present": 10814,
+   "non_default": 3823,
+   "example": "-100"
+  },
+  "HueAdjustmentPurple": {
+   "present": 10814,
+   "non_default": 3667,
+   "example": "-100"
+  },
+  "Dehaze": {
+   "present": 10628,
+   "non_default": 3664,
+   "example": "+40"
+  },
+  "ParametricLights": {
+   "present": 10995,
+   "non_default": 3612,
+   "example": "+12"
+  },
+  "PostCropVignetteFeather": {
+   "present": 3038,
+   "non_default": 3038,
+   "example": "50"
+  },
+  "PostCropVignetteMidpoint": {
+   "present": 3221,
+   "non_default": 2888,
+   "example": "50"
+  },
+  "SharpenEdgeMasking": {
+   "present": 8626,
+   "non_default": 2843,
+   "example": "27"
+  },
+  "ParametricDarks": {
+   "present": 10995,
+   "non_default": 2767,
+   "example": "+15"
+  },
+  "ShadowTint": {
+   "present": 10837,
+   "non_default": 2549,
+   "example": "+3"
+  },
+  "ParametricHighlights": {
+   "present": 10995,
+   "non_default": 2512,
+   "example": "-15"
+  },
+  "ParametricShadows": {
+   "present": 10995,
+   "non_default": 2469,
+   "example": "-10"
+  },
+  "GrainAmount": {
+   "present": 10518,
+   "non_default": 2453,
+   "example": "38"
+  },
+  "ShowInPresets": {
+   "present": 2171,
+   "non_default": 2171,
+   "example": "True"
+  },
+  "Texture": {
+   "present": 8898,
+   "non_default": 2095,
+   "example": "+20"
+  },
+  "Temperature": {
+   "present": 2030,
+   "non_default": 2030,
+   "example": "5315"
+  },
+  "ColorVariance": {
+   "present": 1989,
+   "non_default": 1989,
+   "example": "['-50.000000']"
+  },
+  "Tint": {
+   "present": 2030,
+   "non_default": 1941,
+   "example": "+10"
+  },
+  "PostCropVignetteAmount": {
+   "present": 10119,
+   "non_default": 1797,
+   "example": "-20"
+  },
+  "PostCropVignetteStyle": {
+   "present": 1737,
+   "non_default": 1737,
+   "example": "1"
+  },
+  "OverrideLookVignette": {
+   "present": 8821,
+   "non_default": 1607,
+   "example": "True"
+  },
+  "Parameters": {
+   "present": 1367,
+   "non_default": 1338,
+   "example": "{'Version': '18.2.2', 'CompatibleVersion': '234881024', 'ProcessVersion': '15.4', 'WhiteBalance': 'Custom', 'Incremental"
+  },
+  "Preset": {
+   "present": 1338,
+   "non_default": 1338,
+   "example": "{'Name': 'Analog - Tone 10', 'Amount': '1', 'UUID': 'DD2C7F88561616488C25E48BE6C886A9', 'Group': ['Analog Film (Huliluts"
+  },
+  "PostCropVignetteRoundness": {
+   "present": 2777,
+   "non_default": 1316,
+   "example": "-2"
+  },
+  "Shadows": {
+   "present": 1279,
+   "non_default": 1279,
+   "example": "5"
+  },
+  "Brightness": {
+   "present": 1279,
+   "non_default": 1279,
+   "example": "+50"
+  },
+  "Contrast": {
+   "present": 1279,
+   "non_default": 1279,
+   "example": "+25"
+  },
+  "ColorGradeMidtoneHue": {
+   "present": 8091,
+   "non_default": 988,
+   "example": "38"
+  },
+  "LensProfileSetup": {
+   "present": 964,
+   "non_default": 964,
+   "example": "LensDefaults"
+  },
+  "PostCropVignetteHighlightContrast": {
+   "present": 2310,
+   "non_default": 930,
+   "example": "30"
+  },
+  "ColorGradeMidtoneSat": {
+   "present": 8091,
+   "non_default": 902,
+   "example": "22"
+  },
+  "AutoLateralCA": {
+   "present": 9446,
+   "non_default": 886,
+   "example": "1"
+  },
+  "GrainSeed": {
+   "present": 834,
+   "non_default": 834,
+   "example": "300152563"
+  },
+  "LuminanceNoiseReductionContrast": {
+   "present": 5876,
+   "non_default": 646,
+   "example": "65"
+  },
+  "CompatibleVersion": {
+   "present": 505,
+   "non_default": 505,
+   "example": "234881024"
+  },
+  "ToneCurveName": {
+   "present": 452,
+   "non_default": 452,
+   "example": "Custom"
+  },
+  "What": {
+   "present": 358,
+   "non_default": 358,
+   "example": "Correction"
+  },
+  "CorrectionAmount": {
+   "present": 358,
+   "non_default": 358,
+   "example": "1.000000"
+  },
+  "CorrectionActive": {
+   "present": 358,
+   "non_default": 358,
+   "example": "true"
+  },
+  "CorrectionMasks": {
+   "present": 358,
+   "non_default": 358,
+   "example": "['']"
+  },
+  "MaskGroupBasedCorrections": {
+   "present": 343,
+   "non_default": 343,
+   "example": "[{'What': 'Correction', 'CorrectionAmount': '1', 'CorrectionActive': 'true', 'CorrectionName': 'M\u00e1scara 1', 'CorrectionS"
+  },
+  "CorrectionName": {
+   "present": 343,
+   "non_default": 343,
+   "example": "M\u00e1scara 3"
+  },
+  "CorrectionSyncID": {
+   "present": 343,
+   "non_default": 343,
+   "example": "046E35BDDE7A644ABD46FB9436464D92"
+  },
+  "GrayMixerRed": {
+   "present": 359,
+   "non_default": 337,
+   "example": "-7"
+  },
+  "GrayMixerOrange": {
+   "present": 359,
+   "non_default": 329,
+   "example": "-13"
+  },
+  "GrayMixerYellow": {
+   "present": 359,
+   "non_default": 329,
+   "example": "-25"
+  },
+  "GrayMixerPurple": {
+   "present": 359,
+   "non_default": 323,
+   "example": "+12"
+  },
+  "GrayMixerMagenta": {
+   "present": 359,
+   "non_default": 321,
+   "example": "+10"
+  },
+  "GrayMixerGreen": {
+   "present": 359,
+   "non_default": 317,
+   "example": "-22"
+  },
+  "GrayMixerBlue": {
+   "present": 359,
+   "non_default": 317,
+   "example": "+6"
+  },
+  "GrayMixerAqua": {
+   "present": 359,
+   "non_default": 311,
+   "example": "-19"
+  },
+  "ColorGradeHighlightLum": {
+   "present": 8091,
+   "non_default": 302,
+   "example": "+20"
+  },
+  "LocalCurveRefineSaturation": {
+   "present": 295,
+   "non_default": 295,
+   "example": "100"
+  },
+  "ColorGradeGlobalHue": {
+   "present": 8091,
+   "non_default": 282,
+   "example": "216"
+  },
+  "ColorGradeGlobalSat": {
+   "present": 8091,
+   "non_default": 272,
+   "example": "52"
+  },
+  "LensProfileEnable": {
+   "present": 8069,
+   "non_default": 269,
+   "example": "1"
+  },
+  "ColorGradeShadowLum": {
+   "present": 8091,
+   "non_default": 254,
+   "example": "-30"
+  },
+  "ColorGradeMidtoneLum": {
+   "present": 8091,
+   "non_default": 244,
+   "example": "+30"
+  },
+  "LocalExposure2012": {
+   "present": 358,
+   "non_default": 210,
+   "example": "-0.263221"
+  },
+  "Look": {
+   "present": 1054,
+   "non_default": 192,
+   "example": "{'Name': 'Vintage 01', 'Amount': '1', 'Cluster': 'Adobe', 'UUID': '97291D549FC232787BDFD3353151BB62', 'SupportsMonochrom"
+  },
+  "GradientBasedCorrections": {
+   "present": 189,
+   "non_default": 189,
+   "example": "[{'What': 'Correction', 'CorrectionAmount': '1.000000', 'CorrectionActive': 'true', 'LocalExposure': '0.000000', 'LocalS"
+  },
+  "CircularGradientBasedCorrections": {
+   "present": 180,
+   "non_default": 180,
+   "example": "[{'What': 'Correction', 'CorrectionAmount': '1.000000', 'CorrectionActive': 'true', 'LocalExposure': '0.000000', 'LocalS"
+  },
+  "Stubbed": {
+   "present": 163,
+   "non_default": 163,
+   "example": "true"
+  },
+  "ISODependent": {
+   "present": 122,
+   "non_default": 122,
+   "example": "['', '']"
+  },
+  "Table_6938C31B6948CF8FBEB3F417D97F053B": {
+   "present": 120,
+   "non_default": 120,
+   "example": "[4000pY/cq)4eJaQTr3XG{'wUn]']f%V{X/jML2JRIdCDSxe1T*Px:)o}OApp{hDlljP@}'y!d=Go)uO!U%wN8YKO^')kAu#.2Ls@84|[ypS*Zx}sLUrqjl14lX$Pl6)lDrL[iJ52:qM$b(Q3?WXyjkq0Wh0aUr}l6T/}2oCvy}Jr2.9F{gQ3%8b{mFwrM%mDm3u0N?}*#F9mNZ^yARSBg/JKZ:OJ7+}`oY.{v4DZ4sqMCaMyrMWNt{3@=%{VGa6qjYnq}xEAAJ@B1XY^M)p#SA]}Q[1UN37AK'%57('6Y'-zd@Nf?Nv.@oHf/MgyDog3T81EO7(bdE)psLHMr!Pu2U/E94:k"
+  },
+  "AllowFilters": {
+   "present": 120,
+   "non_default": 120,
+   "example": "1"
+  },
+  "FilterList": {
+   "present": 120,
+   "non_default": 120,
+   "example": "{'Filters': [{'Name': '', 'Title': '', 'FilterID': '1', 'MinDisplayVersion': '285212672', 'MinEditVersion': '285212672',"
+  },
+  "FilterID": {
+   "present": 120,
+   "non_default": 120,
+   "example": "1"
+  },
+  "MinDisplayVersion": {
+   "present": 120,
+   "non_default": 120,
+   "example": "285212672"
+  },
+  "MinEditVersion": {
+   "present": 120,
+   "non_default": 120,
+   "example": "285212672"
+  },
+  "OrderIndexN": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100000"
+  },
+  "OrderIndexD": {
+   "present": 120,
+   "non_default": 120,
+   "example": "1"
+  },
+  "SrcBoundsBottom": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100"
+  },
+  "SrcBoundsRight": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100"
+  },
+  "DstBoundsBottom": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100"
+  },
+  "DstBoundsRight": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100"
+  },
+  "SrcDefaultCropAreaBottom": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100"
+  },
+  "SrcDefaultCropAreaRight": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100"
+  },
+  "DstDefaultCropAreaBottom": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100"
+  },
+  "DstDefaultCropAreaRight": {
+   "present": 120,
+   "non_default": 120,
+   "example": "100"
+  },
+  "ShouldDeleteImagesDueToUpstream": {
+   "present": 120,
+   "non_default": 120,
+   "example": "true"
+  },
+  "IsSignalForDelete": {
+   "present": 120,
+   "non_default": 120,
+   "example": "true"
+  },
+  "CompressedSettings": {
+   "present": 120,
+   "non_default": 120,
+   "example": "6938C31B6948CF8FBEB3F417D97F053B"
+  },
+  "Images": {
+   "present": 120,
+   "non_default": 120,
+   "example": "['']"
+  },
+  "ColorGradeGlobalLum": {
+   "present": 8091,
+   "non_default": 118,
+   "example": "-10"
+  },
+  "ConvertToGrayscale": {
+   "present": 9763,
+   "non_default": 90,
+   "example": "True"
+  },
+  "LocalSaturation": {
+   "present": 358,
+   "non_default": 84,
+   "example": "0.000000"
+  },
+  "LocalToningHue": {
+   "present": 358,
+   "non_default": 79,
+   "example": "0.000000"
+  },
+  "VignetteMidpoint": {
+   "present": 74,
+   "non_default": 74,
+   "example": "50"
+  },
+  "LocalDehaze": {
+   "present": 270,
+   "non_default": 72,
+   "example": "-0.043514"
+  },
+  "ToneCurve": {
+   "present": 452,
+   "non_default": 68,
+   "example": "['0, 0', '32, 22', '64, 56', '128, 128', '192, 196', '255, 255']"
+  },
+  "LocalHighlights2012": {
+   "present": 358,
+   "non_default": 49,
+   "example": "-1.000000"
+  },
+  "EnableCalibration": {
+   "present": 44,
+   "non_default": 44,
+   "example": "True"
+  },
+  "EnableCircularGradientBasedCorrections": {
+   "present": 44,
+   "non_default": 44,
+   "example": "True"
+  },
+  "EnableColorAdjustments": {
+   "present": 44,
+   "non_default": 44,
+   "example": "True"
+  },
+  "EnableDetail": {
+   "present": 44,
+   "non_default": 44,
+   "example": "True"
+  },
+  "EnableEffects": {
+   "present": 44,
+   "non_default": 44,
+   "example": "True"
+  },
+  "EnableGradientBasedCorrections": {
+   "present": 44,
+   "non_default": 44,
+   "example": "True"
+  },
+  "EnableLensCorrections": {
+   "present": 44,
+   "non_default": 44,
+   "example": "True"
+  },
+  "EnableSplitToning": {
+   "present": 44,
+   "non_default": 44,
+   "example": "True"
+  },
+  "orientation": {
+   "present": 44,
+   "non_default": 44,
+   "example": "AB"
+  },
+  "DefringePurpleAmount": {
+   "present": 9359,
+   "non_default": 36,
+   "example": "5"
+  },
+  "LocalShadows2012": {
+   "present": 358,
+   "non_default": 36,
+   "example": "0.542411"
+  },
+  "AsShotTemperature": {
+   "present": 32,
+   "non_default": 32,
+   "example": "4550"
+  },
+  "VignetteAmount": {
+   "present": 6201,
+   "non_default": 30,
+   "example": "+13"
+  },
+  "AsShotTint": {
+   "present": 32,
+   "non_default": 28,
+   "example": "11"
+  },
+  "LocalTemperature": {
+   "present": 358,
+   "non_default": 25,
+   "example": "0.000000"
+  },
+  "DefringeGreenAmount": {
+   "present": 9359,
+   "non_default": 24,
+   "example": "3"
+  },
+  "LocalSharpness": {
+   "present": 358,
+   "non_default": 24,
+   "example": "0.000000"
+  },
+  "LocalContrast2012": {
+   "present": 358,
+   "non_default": 23,
+   "example": "0.000000"
+  },
+  "LocalClarity2012": {
+   "present": 358,
+   "non_default": 22,
+   "example": "0.000000"
+  },
+  "CropBottom": {
+   "present": 21,
+   "non_default": 21,
+   "example": "1"
+  },
+  "CropRight": {
+   "present": 21,
+   "non_default": 21,
+   "example": "1"
+  },
+  "LocalLuminanceNoise": {
+   "present": 358,
+   "non_default": 18,
+   "example": "0.000000"
+  },
+  "LocalTint": {
+   "present": 358,
+   "non_default": 17,
+   "example": "0.000000"
+  },
+  "MaskActive": {
+   "present": 16,
+   "non_default": 16,
+   "example": "true"
+  },
+  "MaskName": {
+   "present": 16,
+   "non_default": 16,
+   "example": "Brush 1"
+  },
+  "MaskInverted": {
+   "present": 16,
+   "non_default": 16,
+   "example": "false"
+  },
+  "MaskSyncID": {
+   "present": 16,
+   "non_default": 16,
+   "example": "4BD3C7C027DC49898B51646F880A394C"
+  },
+  "MaskValue": {
+   "present": 16,
+   "non_default": 16,
+   "example": "1"
+  },
+  "Masks": {
+   "present": 16,
+   "non_default": 16,
+   "example": "[{'What': 'Mask/Paint', 'MaskActive': 'true', 'MaskBlendMode': '0', 'MaskInverted': 'false', 'MaskSyncID': '4BD3C7C027DC"
+  },
+  "Radius": {
+   "present": 16,
+   "non_default": 16,
+   "example": "0.103762"
+  },
+  "Flow": {
+   "present": 16,
+   "non_default": 16,
+   "example": "1"
+  },
+  "Dabs": {
+   "present": 16,
+   "non_default": 16,
+   "example": "['r 0.110390', 'd 0.620100 0.692125', 'd 0.639315 0.722219', 'd 0.635841 0.754856', 'd 0.620745 0.786255', 'd 0.620530 0"
+  },
+  "LocalExposure": {
+   "present": 288,
+   "non_default": 15,
+   "example": "0.000000"
+  },
+  "LocalContrast": {
+   "present": 288,
+   "non_default": 15,
+   "example": "0.000000"
+  },
+  "LocalClarity": {
+   "present": 288,
+   "non_default": 15,
+   "example": "0.000000"
+  },
+  "LocalBrightness": {
+   "present": 358,
+   "non_default": 15,
+   "example": "0.000000"
+  },
+  "LocalToningSaturation": {
+   "present": 358,
+   "non_default": 15,
+   "example": "0.000000"
+  },
+  "LocalMoire": {
+   "present": 358,
+   "non_default": 15,
+   "example": "0.000000"
+  },
+  "LocalDefringe": {
+   "present": 358,
+   "non_default": 15,
+   "example": "0.000000"
+  },
+  "AutoWhiteVersion": {
+   "present": 9,
+   "non_default": 9,
+   "example": "134348800"
+  },
+  "ToggleStyleDigest": {
+   "present": 6,
+   "non_default": 6,
+   "example": "3E4888AD7C466DF04528B795426B41DF"
+  },
+  "ToggleStyleAmount": {
+   "present": 6,
+   "non_default": 6,
+   "example": "1"
+  },
+  "LocalWhites2012": {
+   "present": 270,
+   "non_default": 5,
+   "example": "-0.027798"
+  },
+  "LocalBlacks2012": {
+   "present": 270,
+   "non_default": 3,
+   "example": "-1"
+  },
+  "LocalHue": {
+   "present": 48,
+   "non_default": 2,
+   "example": "0.000000"
+  },
+  "LocalTexture": {
+   "present": 52,
+   "non_default": 2,
+   "example": "0.000000"
+  },
+  "RequiresRGBTables": {
+   "present": 4872,
+   "non_default": 0,
+   "example": null
+  },
+  "LensManualDistortionAmount": {
+   "present": 8498,
+   "non_default": 0,
+   "example": null
+  },
+  "PerspectiveUpright": {
+   "present": 7212,
+   "non_default": 0,
+   "example": null
+  },
+  "PerspectiveVertical": {
+   "present": 7197,
+   "non_default": 0,
+   "example": null
+  },
+  "PerspectiveHorizontal": {
+   "present": 7197,
+   "non_default": 0,
+   "example": null
+  },
+  "PerspectiveRotate": {
+   "present": 7197,
+   "non_default": 0,
+   "example": null
+  },
+  "PerspectiveAspect": {
+   "present": 7197,
+   "non_default": 0,
+   "example": null
+  },
+  "PerspectiveX": {
+   "present": 7055,
+   "non_default": 0,
+   "example": null
+  },
+  "PerspectiveY": {
+   "present": 7055,
+   "non_default": 0,
+   "example": null
+  },
+  "CropConstrainToWarp": {
+   "present": 2417,
+   "non_default": 0,
+   "example": null
+  },
+  "CropTop": {
+   "present": 21,
+   "non_default": 0,
+   "example": null
+  },
+  "CropLeft": {
+   "present": 21,
+   "non_default": 0,
+   "example": null
+  },
+  "CropAngle": {
+   "present": 21,
+   "non_default": 0,
+   "example": null
+  },
+  "HasCrop": {
+   "present": 2966,
+   "non_default": 0,
+   "example": null
+  },
+  "HDREditMode": {
+   "present": 4837,
+   "non_default": 0,
+   "example": null
+  },
+  "CorrectionRangeMask": {
+   "present": 338,
+   "non_default": 0,
+   "example": null
+  },
+  "ShowInQuickActions": {
+   "present": 2171,
+   "non_default": 0,
+   "example": null
+  },
+  "LensBlur": {
+   "present": 172,
+   "non_default": 0,
+   "example": null
+  },
+  "Title": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "SrcBoundsTop": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "SrcBoundsLeft": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "DstBoundsTop": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "DstBoundsLeft": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "SrcDefaultCropAreaTop": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "SrcDefaultCropAreaLeft": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "DstDefaultCropAreaTop": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "DstDefaultCropAreaLeft": {
+   "present": 120,
+   "non_default": 0,
+   "example": null
+  },
+  "DepthMapInfo": {
+   "present": 9,
+   "non_default": 0,
+   "example": null
+  },
+  "MaskBlendMode": {
+   "present": 16,
+   "non_default": 0,
+   "example": null
+  },
+  "CenterWeight": {
+   "present": 16,
+   "non_default": 0,
+   "example": null
+  },
+  "LocalGrain": {
+   "present": 4,
+   "non_default": 0,
+   "example": null
+  },
+  "ChromaticAberrationB": {
+   "present": 44,
+   "non_default": 0,
+   "example": null
+  },
+  "ChromaticAberrationR": {
+   "present": 44,
+   "non_default": 0,
+   "example": null
+  },
+  "Defringe": {
+   "present": 44,
+   "non_default": 0,
+   "example": null
+  }
+ }
+}
