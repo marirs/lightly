@@ -78,9 +78,9 @@ struct ExportSettings: Equatable, Sendable {
     var preservesLocation: Bool
 
     static let `default` = ExportSettings(
-        // Deferred (spec D8 wants JPEG): switching the default changes the
-        // recorded export-sheet snapshots, which needs an approved re-record.
-        format: .heic,
+        // Spec D8: Save creates a new JPEG. HEIC/PNG remain selectable but
+        // are no longer the default (the v1 default was HEIC).
+        format: .jpeg,
         quality: .high,
         preservesMetadata: true,
         preservesLocation: false

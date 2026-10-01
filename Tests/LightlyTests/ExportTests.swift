@@ -315,10 +315,11 @@ final class ExportViewModelTests: XCTestCase {
 
     // MARK: Defaults
 
-    func testDefaultsToHeicHighWithLocationOff() {
+    /// Spec D8: the default is JPEG (previously HEIC).
+    func testDefaultsToJPEGHighWithLocationOff() {
         let viewModel = makeViewModel()
 
-        XCTAssertEqual(viewModel.settings.format, .heic)
+        XCTAssertEqual(viewModel.settings.format, .jpeg)
         XCTAssertEqual(viewModel.settings.quality, .high)
         XCTAssertTrue(viewModel.settings.preservesMetadata)
         XCTAssertFalse(viewModel.settings.preservesLocation)
@@ -443,7 +444,7 @@ final class ExportViewModelTests: XCTestCase {
         }
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-        XCTAssertEqual(url.pathExtension, "heic")
+        XCTAssertEqual(url.pathExtension, "jpg")
         try? FileManager.default.removeItem(at: url)
     }
 

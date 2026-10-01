@@ -52,9 +52,7 @@ final class ExportColorPipelineTests: XCTestCase {
             entitlements: FreeTierEntitlementResolver()
         )
 
-        // Selected explicitly: making JPEG the default (D8) is deferred
-        // pending approval to re-record the export-sheet snapshots.
-        viewModel.select(format: .jpeg)
+        // Default settings, so this also covers D8 (JPEG by default).
         viewModel.export(to: .photoLibrary)
         await viewModel.inFlightExport?.value
 
@@ -90,11 +88,11 @@ final class ExportColorPipelineTests: XCTestCase {
         XCTAssertEqual(mean.blue, expected.blue, accuracy: Self.tolerance, file: file, line: line)
     }
 
-    func testJPEGExportOfDisplayP3RedIsSRGBTaggedWithTheConvertedPixel() async throws {
+    func testDefaultExportOfDisplayP3RedIsAnSRGBJPEGWithTheConvertedPixel() async throws {
         let export = try await exportP3Red()
 
         let source = try XCTUnwrap(CGImageSourceCreateWithData(export.data as CFData, nil))
-        XCTAssertEqual(CGImageSourceGetType(source) as String?, UTType.jpeg.identifier)
+        XCTAssertEqual(CGImageSourceGetType(source) as String?, UTType.jpeg.identifier, "D8: default export is JPEG")
         XCTAssertEqual(export.fileExtension, "jpg")
 
         let props = properties(of: export.data)
@@ -128,6 +126,7 @@ final class ExportColorPipelineTests: XCTestCase {
 
     /// Spec §5.4: JPEG quality 0.92.
     func testDefaultQualityIsSpecJPEGQuality() {
+        XCTAssertEqual(ExportSettings.default.format, .jpeg)
         XCTAssertEqual(ExportSettings.default.quality.compressionQuality, 0.92, accuracy: 0.0001)
     }
 }
