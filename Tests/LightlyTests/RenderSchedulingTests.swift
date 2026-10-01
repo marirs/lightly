@@ -215,6 +215,33 @@ final class RenderSchedulingTests: XCTestCase {
         XCTAssertEqual(peak, 2)
     }
 
+    /// Spec §5.2: supersession compares scheduler request IDs, not edit
+    /// state. After Undo the *older* edit is the *newest* request and must
+    /// publish rather than be refused as stale.
+    func testUndoToAnOlderEditPublishesThatEdit() async {
+        let renderer = SlowEncodingRenderer()
+        let editor = makeEditor(renderer: renderer)
+        func look(_ id: String, exposure: Double) -> LightlyPreset {
+            var recipe = DevelopRecipe.unmodified
+            recipe.exposure = exposure
+            return LightlyPreset(id: id, name: id, category: .film, isIncludedInFreeTier: true, recipe: recipe)
+        }
+
+        editor.applyLook(look("a", exposure: 0.3), intensity: 1)   // commit A
+        await editor.settleRendering()
+        editor.applyLook(look("b", exposure: 0.7), intensity: 1)   // commit B
+        await editor.settleRendering()
+        XCTAssertEqual(meanRed(editor.renderedImage), 0.7, accuracy: 0.01)
+        let publishedBeforeUndo = editor.publishedRenderCount
+
+        editor.undo()                                               // back to A
+        await editor.settleRendering()
+
+        XCTAssertEqual(editor.history.currentLookID, "a")
+        XCTAssertEqual(editor.publishedRenderCount, publishedBeforeUndo + 1, "Undo's render must publish")
+        XCTAssertEqual(meanRed(editor.renderedImage), 0.3, accuracy: 0.01, "A's pixels must be shown after Undo")
+    }
+
     // MARK: - Cancellation is bounded by revision
 
     private func makeScheduler() -> PreviewRenderScheduler {

@@ -29,7 +29,9 @@ enum PreviewRenderOutcome: Sendable {
 /// At most one render runs and at most one waits. A new request replaces the
 /// waiting one, so a slider drag that fires sixty requests costs two renders,
 /// not sixty queued ones, and the last value the user chose is always the one
-/// that runs. Revisions are issued by the caller and only ever increase; a
+/// that runs. A "revision" here is a *request* ID (spec §5.2), issued per
+/// render request and only ever increasing — never an edit-state revision,
+/// because after Undo an older edit is the newest request. A
 /// request older than one already accepted is refused, so tasks that reach
 /// this actor out of order cannot reinstate a stale recipe.
 ///
