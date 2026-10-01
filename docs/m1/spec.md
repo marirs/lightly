@@ -202,8 +202,8 @@ Empty ─select─► Loading(asset) ─proxy ok─► Developing ─ok─► Re
 ### 5.2 Concurrency: bounded work, latest request wins
 
 - **One render scheduler per session**, on its own serial executor (iOS actor; Android single-thread dispatcher that owns the GL context).
-- Requests carry `(sessionId, revision, kind: preview|export)`. The scheduler has **one in-flight slot and one pending slot**. A new preview request replaces the pending one (coalescing), so the queue never grows during a slider drag.
-- A result is published only if `result.revision == viewModel.latestRequestedRevision` and `sessionId` matches. Otherwise it is dropped. This also covers Reset, Undo, closing Looks, and switching photo.
+- Requests carry `(sessionId, requestId, kind: preview|export)`. `requestId` is issued by the scheduler and increases on every request; it is **not** `EditState.revision`, which counts commits (after Undo, an older EditState can be the newest request). The scheduler has **one in-flight slot and one pending slot**. A new preview request replaces the pending one (coalescing), so the queue never grows during a slider drag.
+- A result is published only if `result.requestId == latestRequestId` and `sessionId` matches. Otherwise it is dropped. This also covers Reset, Undo, closing Looks, and switching photo.
 - Switching photo or leaving cancels the session's tasks cooperatively (Swift `Task` cancellation / coroutine `Job`). GPU work already submitted finishes, but its result is discarded.
 - The model runs at most once per Original and model version, and its result is memoised by source fingerprint.
 - **Thumbnails** (category and stop previews) are keyed by `(sourceFingerprint, editBase revision, lookId, lookVersion, size)`, never by dimensions alone. This fixes the cross-photo cache reuse (§12, d). They are rendered from a 256-px proxy of the current Auto result, so a stop thumbnail shows exactly what selecting it produces.
