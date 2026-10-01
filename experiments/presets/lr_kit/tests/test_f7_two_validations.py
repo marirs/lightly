@@ -28,7 +28,7 @@ def _lut():
     return np.moveaxis(np.clip(g ** 0.9 * np.array([1.05, 1.0, 0.92]) + 0.02, 0, 1), -1, 0).astype(np.float32)
 
 
-def _kit(tmp, full_settings, simulate_full):
+def _kit(tmp, full_settings, simulate_full, fixtures=False, textured_only=False, nograin_exports=True):
     kit = tmp / "kit"
     for d in ("photos", "exports/hald", "exports/photos", "presets/full"):
         (kit / d).mkdir(parents=True)
@@ -36,16 +36,34 @@ def _kit(tmp, full_settings, simulate_full):
     hald = make_kit.hald_identity().astype(np.float32) / 65535; side = hald.shape[0]
     out = ia.apply_lut_reference(L, hald.reshape(-1, 1, 3), 1.0).reshape(side, side, 3)
     tifffile.imwrite(kit / "exports/hald/t.1.x__global.tif", np.round(np.clip(out, 0, 1) * 65535).astype(np.uint16))
-    for stem in ("portrait_deep_01", "sunset_02"):
+    stems = [] if textured_only else ["portrait_deep_01", "sunset_02"]
+    if fixtures or textured_only:
+        make_kit.write_fixtures(kit / "photos", only=None if fixtures else ["fixture_textured"])
+    for stem in stems:
         src = Image.open(make_kit.PRESETS.parent / f"lut3d/golden/{stem}/source.png").convert("RGB").resize((600, 400))
         src.save(kit / "photos" / f"{stem}.jpg", quality=100, subsampling=0)
+    for stem in [p.stem for p in sorted((kit / "photos").glob("*.jpg"))]:
         s = np.asarray(Image.open(kit / "photos" / f"{stem}.jpg")).astype(np.float32) / 255
         glob_img = ia.apply_lut_reference(L, s, 1.0)
         Image.fromarray(ia.to_uint8(glob_img)).save(kit / f"exports/photos/t.1.x__global__{stem}.jpg", quality=100, subsampling=0)
         Image.fromarray(ia.to_uint8(simulate_full(s, glob_img))).save(kit / f"exports/photos/t.1.x__full__{stem}.jpg", quality=100, subsampling=0)
+        if nograin_exports and make_kit.needs_nograin(full_settings):
+            # Lightroom's full Look with only grain disabled. Simulators that add grain take grain=False.
+            import inspect
+            ng = simulate_full(s, glob_img, grain=False) if "grain" in inspect.signature(simulate_full).parameters else simulate_full(s, glob_img)
+            Image.fromarray(ia.to_uint8(ng)).save(kit / f"exports/photos/t.1.x__nograin__{stem}.jpg", quality=100, subsampling=0)
         Image.fromarray(np.asarray(Image.open(kit / "photos" / f"{stem}.jpg"))).save(kit / f"exports/photos/none__{stem}.jpg", quality=100, subsampling=0)
-    (kit / "presets/full/t.1.x__full.xmp").write_text(make_kit.settings_to_xmp(make_kit.kit_preset_settings(full_settings, "full"), "t"))
-    json.dump([{"look_id": "t.1.x", "category": "t", "stop": 1, "name": "x", "full_xmp": "presets/full/t.1.x__full.xmp"}], open(kit / "shortlist.json", "w"))
+    (kit / "identity").mkdir(exist_ok=True); make_kit.write_hald(kit / "identity/hald_64_srgb16.tif")
+    variants = ["full", "global"] + (["nograin"] if make_kit.needs_nograin(full_settings) else [])
+    for variant in variants:
+        (kit / "presets" / variant).mkdir(parents=True, exist_ok=True)
+        (kit / "presets" / variant / f"t.1.x__{variant}.xmp").write_text(
+            make_kit.settings_to_xmp(make_kit.kit_preset_settings(full_settings, variant), f"t [{variant}]"))
+    entry = {"look_id": "t.1.x", "category": "t", "stop": 1, "name": "x", "full_xmp": "presets/full/t.1.x__full.xmp",
+             "global_xmp": "presets/global/t.1.x__global.xmp"}
+    if "nograin" in variants:
+        entry["nograin_xmp"] = "presets/nograin/t.1.x__nograin.xmp"
+    json.dump([entry], open(kit / "shortlist.json", "w"))
     make_kit.write_inputs(kit)
     ingest_kit.main(kit)
     return json.load(open(kit / "results/report.json"))["looks"]["t.1.x"]

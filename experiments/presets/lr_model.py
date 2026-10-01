@@ -390,8 +390,26 @@ def apply_vignette(img: torch.Tensor, s: dict) -> torch.Tensor:
     centre = 0.25 + 0.65 * mid
     width = 0.05 + 0.6 * feather
     t = smoothstep(centre - width / 2, centre + width / 2, r)
-    factor = (1 + VIGNETTE_K * a * t).clamp(min=0).unsqueeze(-1)
-    return linear_to_srgb(srgb_to_linear(img) * factor).clamp(0, 1)
+    style = int(_f(s, "PostCropVignetteStyle", 1))
+    if style == 3:
+        # Paint Overlay: blend toward black (darkening) or white (lightening), flattening contrast at the edges.
+        target = 0.0 if a < 0 else 1.0
+        w = (abs(a) * VIGNETTE_K * t).clamp(0, 1).unsqueeze(-1)
+        return (img * (1 - w) + target * w).clamp(0, 1)
+    lin = srgb_to_linear(img)
+    gain = 1 + VIGNETTE_K * a * t
+    if style == 2:
+        # Color Priority: change lightness only, keeping hue and chroma.
+        lab = lin_to_oklab(lin)
+        L = (lab[..., 0] * gain.clamp(min=0) ** (1 / 3)).clamp(0, 1)
+        return linear_to_srgb(oklab_to_lin(torch.stack([L, lab[..., 1], lab[..., 2]], -1))).clamp(0, 1)
+    # Highlight Priority (default): darkening is reduced in highlights in proportion to Highlight Contrast.
+    hc = _f(s, "PostCropVignetteHighlightContrast", 0) / 100
+    if a < 0 and hc:
+        Y = (lin @ torch.tensor([0.2126, 0.7152, 0.0722])).clamp(0, 1)
+        protect = hc * smoothstep(0.35, 0.9, Y)
+        gain = 1 + (gain - 1) * (1 - protect)
+    return linear_to_srgb(lin * gain.clamp(min=0).unsqueeze(-1)).clamp(0, 1)
 
 
 def apply_grain(img: torch.Tensor, s: dict, seed: int = 0) -> torch.Tensor:
@@ -404,8 +422,13 @@ def apply_grain(img: torch.Tensor, s: dict, seed: int = 0) -> torch.Tensor:
     ref_long = max(8, int(round(GRAIN_REF_LONG / (1 + 4 * size))))
     gh, gw = max(2, round(ref_long * h / long_edge)), max(2, round(ref_long * w / long_edge))
     gen = torch.Generator().manual_seed(int(seed))
-    noise = torch.randn((gh, gw), generator=gen)
-    noise = torch.nn.functional.interpolate(noise[None, None], size=(h, w), mode="bilinear", align_corners=False)[0, 0]
+    up = lambda n: torch.nn.functional.interpolate(n[None, None], size=(h, w), mode="bilinear", align_corners=False)[0, 0]
+    fine = up(torch.randn((gh, gw), generator=gen))
+    # Frequency (Lightroom "Roughness"): higher values mix in a coarser, clumpier field. Strength is renormalised,
+    # so frequency changes the grain's structure, not its amount.
+    roughness = _f(s, "GrainFrequency", 50) / 100
+    coarse = up(torch.randn((max(2, gh // 3), max(2, gw // 3)), generator=gen))
+    noise = (1 - roughness) * fine / fine.std().clamp(min=1e-6) + roughness * coarse / coarse.std().clamp(min=1e-6)
     noise = noise / noise.std().clamp(min=1e-6)
     lab = lin_to_oklab(srgb_to_linear(img))
     L = lab[..., 0]

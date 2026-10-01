@@ -66,3 +66,49 @@ def test_grain_statistics_resolution_independent():
     pool = lambda t: torch.nn.functional.interpolate(t.permute(2, 0, 1)[None], size=(150, 225), mode="area")
     r = float(pool(big).std() / pool(small).std())
     assert 0.6 < r < 1.6, r
+
+
+# --- Codex re-review issue 2: no "implemented" spatial parameter may be silently ignored ---------------------
+import classify
+
+_BASE = {"GrainAmount": "35", "GrainSize": "25", "GrainFrequency": "50",
+         "PostCropVignetteAmount": "-40", "PostCropVignetteMidpoint": "50", "PostCropVignetteFeather": "50",
+         "PostCropVignetteRoundness": "0", "PostCropVignetteStyle": "1", "PostCropVignetteHighlightContrast": "0"}
+_ALT = {"GrainAmount": "70", "GrainSize": "60", "GrainFrequency": "90", "PostCropVignetteAmount": "-80",
+        "PostCropVignetteMidpoint": "20", "PostCropVignetteFeather": "90", "PostCropVignetteRoundness": "60",
+        "PostCropVignetteStyle": "3", "PostCropVignetteHighlightContrast": "80"}
+
+
+def _textured(h=240, w=360):
+    y, x = torch.meshgrid(torch.linspace(0, 1, h), torch.linspace(0, 1, w), indexing="ij")
+    return torch.stack([0.2 + 0.7 * x, 0.15 + 0.8 * y, 0.5 + 0.4 * torch.sin(9 * x)], -1).clamp(0, 1)
+
+
+def _render_spatial(s):
+    return lm.apply_grain(lm.apply_vignette(_textured(), s), s, seed=4)
+
+
+def test_every_experimental_spatial_parameter_changes_pixels():
+    spatial = sorted(k for k in classify.SPATIAL if k != "GrainSeed")
+    assert set(spatial) <= set(_BASE), sorted(set(spatial) - set(_BASE))
+    base = _render_spatial(_BASE)
+    ignored = [k for k in spatial if torch.equal(_render_spatial({**_BASE, k: _ALT[k]}), base)]
+    assert not ignored, f"parameters read as implemented but ignored: {ignored}"
+
+
+def test_grain_frequency_changes_grain_structure_not_strength():
+    img = _grey()
+    lo = lm.apply_grain(img, {**_BASE, "GrainFrequency": "23"}, seed=2) - img
+    hi = lm.apply_grain(img, {**_BASE, "GrainFrequency": "90"}, seed=2) - img
+    assert not torch.equal(lo, hi)
+    assert 0.7 < float(hi.std() / lo.std()) < 1.4
+
+
+def test_vignette_styles_differ_and_highlight_priority_protects_highlights():
+    bright = _grey(v=0.92)
+    s = {"PostCropVignetteAmount": "-60"}
+    hp = lm.apply_vignette(bright, {**s, "PostCropVignetteStyle": "1", "PostCropVignetteHighlightContrast": "100"})
+    hp0 = lm.apply_vignette(bright, {**s, "PostCropVignetteStyle": "1", "PostCropVignetteHighlightContrast": "0"})
+    paint = lm.apply_vignette(bright, {**s, "PostCropVignetteStyle": "3"})
+    assert float(hp[0, 0, 0]) > float(hp0[0, 0, 0])            # highlight contrast protects bright corners
+    assert not torch.equal(paint, hp0)                          # paint overlay is a different operator
