@@ -24,8 +24,10 @@ struct LaunchView: View {
     /// Vertical space reserved at the bottom for the swipe affordance.
     ///
     /// The artwork is inset by this amount and the affordance occupies exactly
-    /// it, so the two can never overlap regardless of device height.
-    private static let affordanceReservedHeight: CGFloat = 72
+    /// it, so the two can never overlap regardless of device height. Scaled
+    /// with the caption text: a fixed 72 pt truncated the prompt to one line
+    /// ("Swipe up to choose a ph…") at accessibility sizes.
+    @ScaledMetric(relativeTo: .caption) private var affordanceReservedHeight: CGFloat = 72
 
     var body: some View {
         ZStack {
@@ -42,7 +44,7 @@ struct LaunchView: View {
                     parallaxOffset: parallaxOffset
                 )
                 .frame(height: Self.artworkHeight)
-                .padding(.bottom, Self.affordanceReservedHeight)
+                .padding(.bottom, affordanceReservedHeight)
                 .allowsHitTesting(false)
             }
 
@@ -60,7 +62,7 @@ struct LaunchView: View {
                 Spacer()
 
                 swipeAffordance
-                    .frame(height: Self.affordanceReservedHeight)
+                    .frame(height: affordanceReservedHeight)
             }
             .padding(.horizontal, LightlySpacing.l)
         }
@@ -115,9 +117,8 @@ struct LaunchView: View {
                 .foregroundStyle(LightlyColor.textTertiary(colorScheme))
                 .offset(y: hintOffset)
 
-            Text("launch.swipe.prompt", bundle: .main)
-                .font(LightlyTypography.caption)
-                .foregroundStyle(LightlyColor.textTertiary(colorScheme))
+            Self.swipePrompt(colorScheme)
+                .layoutAnchor("launch.swipePrompt")
         }
         .animation(
             isHintingSwipe && !reduceMotion
@@ -125,6 +126,17 @@ struct LaunchView: View {
                 : .default,
             value: isHintingSwipe
         )
+    }
+
+    /// The prompt text, shared with layout tests so they can measure its
+    /// unconstrained height and detect truncation.
+    static func swipePrompt(_ colorScheme: ColorScheme) -> some View {
+        Text("launch.swipe.prompt", bundle: .main)
+            .font(LightlyTypography.caption)
+            .foregroundStyle(LightlyColor.textTertiary(colorScheme))
+            .multilineTextAlignment(.center)
+            // Wrap, never truncate: this is the only instruction on screen.
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Motion

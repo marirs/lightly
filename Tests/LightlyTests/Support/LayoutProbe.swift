@@ -37,6 +37,17 @@ final class LayoutProbe {
 
     func frame(_ name: String) -> CGRect? { frames[name] }
 
+    /// The height `view` wants at `width` with no vertical constraint.
+    /// Comparing it with the laid-out height detects truncated text.
+    static func idealHeight(of view: some View, width: CGFloat, dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        let controller = UIHostingController(rootView: AnyView(
+            view
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
+                .environment(\.locale, Locale(identifier: "en_US"))
+        ))
+        return controller.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+    }
+
     func tearDown() { window.isHidden = true }
 }
 
