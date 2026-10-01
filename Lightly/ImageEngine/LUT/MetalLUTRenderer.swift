@@ -64,45 +64,168 @@ final class MetalLUTRenderer: @unchecked Sendable {
         return try Self.makeImage(rgba8: output, width: width, height: height)
     }
 
+    static let defaultMaximumTileSide = 2_048
+
+    /// What the last `apply` cost, for tests and diagnostics.
+    struct RenderStatistics: Equatable, Sendable {
+        var tileCount = 0
+        /// Largest total of GPU buffer/texture bytes alive at once.
+        var peakBufferBytes = 0
+    }
+
+    private let statisticsLock = NSLock()
+    private var currentStatistics = RenderStatistics()
+    private var liveBufferBytes = 0
+    private(set) var lastRenderStatistics: RenderStatistics? {
+        get { statisticsLock.withLock { storedLastStatistics } }
+        set { statisticsLock.withLock { storedLastStatistics = newValue } }
+    }
+    private var storedLastStatistics: RenderStatistics?
+
     /// Applies `passes` to packed RGBA8 (sRGB-encoded) pixels; returns RGBA8.
-    func apply(_ passes: [LUT3D], toRGBA8 pixels: [UInt8], width: Int, height: Int) throws -> [UInt8] {
-        let pixelCount = width * height
-        let floats = try floatBuffer(applying: passes, toRGBA8: pixels, pixelCount: pixelCount)
-        let encoded = try makeBuffer(length: pixelCount * 4)
-        try run(encode, input: floats, output: encoded, lut: nil, pixelCount: pixelCount)
-        return Array(UnsafeBufferPointer(start: encoded.contents().assumingMemoryBound(to: UInt8.self), count: pixelCount * 4))
+    ///
+    /// Rendered in tiles of at most `maximumTileSide`², reusing one set of
+    /// GPU buffers, so GPU working memory is ~40 B × tile area instead of
+    /// 16 B/px of float for the whole frame (a 48 MP frame would need
+    /// ~0.8 GB per float pass). LUT stages are per-pixel, so tiles need no
+    /// overlap and cannot seam. Deferred: spatial operators (grain,
+    /// vignette, local contrast) will need a halo per tile when they land.
+    func apply(
+        _ passes: [LUT3D], toRGBA8 pixels: [UInt8], width: Int, height: Int,
+        maximumTileSide: Int = defaultMaximumTileSide
+    ) throws -> [UInt8] {
+        try renderLock.withLock {
+            var output = [UInt8](repeating: 0, count: pixels.count)
+            try render(passes, pixels: pixels, width: width, height: height, maximumTileSide: maximumTileSide) { tile, workspace in
+                try run(encode, input: workspace.finalFloats, output: workspace.encoded, lut: nil, pixelCount: tile.area)
+                Self.copyRows(from: workspace.encoded, tile: tile, imageWidth: width, bytesPerPixel: 4, into: &output)
+            }
+            return output
+        }
     }
 
     /// The float result before the final clamp and encode. Exposed so tests
     /// can prove out-of-range LUT entries survive (no 8-bit clamping).
     func applyUnencoded(_ passes: [LUT3D], toRGBA8 pixels: [UInt8], width: Int, height: Int) throws -> [SIMD4<Float>] {
-        let pixelCount = width * height
-        let floats = try floatBuffer(applying: passes, toRGBA8: pixels, pixelCount: pixelCount)
-        return Array(UnsafeBufferPointer(start: floats.contents().assumingMemoryBound(to: SIMD4<Float>.self), count: pixelCount))
+        try renderLock.withLock {
+            var output = [SIMD4<Float>](repeating: .zero, count: width * height)
+            try render(passes, pixels: pixels, width: width, height: height, maximumTileSide: Self.defaultMaximumTileSide) { tile, workspace in
+                let floats = workspace.finalFloats.contents().assumingMemoryBound(to: SIMD4<Float>.self)
+                for row in 0..<tile.height {
+                    for column in 0..<tile.width {
+                        output[(tile.y + row) * width + tile.x + column] = floats[row * tile.width + column]
+                    }
+                }
+            }
+            return output
+        }
     }
 
-    // MARK: - Passes
+    // MARK: - Tiles
 
-    private func floatBuffer(applying passes: [LUT3D], toRGBA8 pixels: [UInt8], pixelCount: Int) throws -> MTLBuffer {
-        guard pixels.count == pixelCount * 4 else { throw LUTError.renderFailed("pixel buffer size mismatch") }
+    /// Serialises renders: they share the statistics and one GPU queue.
+    private let renderLock = NSLock()
+
+    struct Tile: Equatable {
+        let x: Int, y: Int, width: Int, height: Int
+        var area: Int { width * height }
+    }
+
+    static func tiles(width: Int, height: Int, maximumSide: Int) -> [Tile] {
+        let side = max(1, maximumSide)
+        return stride(from: 0, to: height, by: side).flatMap { y in
+            stride(from: 0, to: width, by: side).map { x in
+                Tile(x: x, y: y, width: min(side, width - x), height: min(side, height - y))
+            }
+        }
+    }
+
+    /// GPU buffers sized for the largest tile and reused for every tile.
+    private struct Workspace {
+        let source: MTLBuffer
+        let floatsA: MTLBuffer
+        let floatsB: MTLBuffer
+        let encoded: MTLBuffer
+        var finalFloats: MTLBuffer
+    }
+
+    private func makeWorkspace(capacity: Int) throws -> Workspace {
+        let floatBytes = capacity * MemoryLayout<SIMD4<Float>>.stride
+        let floatsA = try makeBuffer(length: floatBytes)
+        return Workspace(
+            source: try makeBuffer(length: capacity * 4),
+            floatsA: floatsA,
+            floatsB: try makeBuffer(length: floatBytes),
+            encoded: try makeBuffer(length: capacity * 4),
+            finalFloats: floatsA
+        )
+    }
+
+    private func render(
+        _ passes: [LUT3D], pixels: [UInt8], width: Int, height: Int, maximumTileSide: Int,
+        finish: (Tile, Workspace) throws -> Void
+    ) throws {
+        guard width > 0, height > 0, pixels.count == width * height * 4 else {
+            throw LUTError.renderFailed("pixel buffer size mismatch")
+        }
+        beginStatistics()
         // No passes still means "convert to float", via the identity LUT, so
         // the encode stage always sees the same input type.
-        let chain = passes.isEmpty ? [LUT3D.identity()] : passes
-        let source = try pixels.withUnsafeBytes { bytes -> MTLBuffer in
-            guard let buffer = device.makeBuffer(bytes: bytes.baseAddress!, length: bytes.count, options: .storageModeShared) else {
-                throw LUTError.renderFailed("cannot allocate source buffer")
-            }
-            return buffer
+        let textures = try (passes.isEmpty ? [LUT3D.identity()] : passes).map(makeTexture)
+        let tiles = Self.tiles(width: width, height: height, maximumSide: maximumTileSide)
+        var workspace = try makeWorkspace(capacity: tiles.map(\.area).max() ?? 0)
+
+        for tile in tiles {
+            Self.copyRows(of: pixels, tile: tile, imageWidth: width, into: workspace.source)
+            workspace.finalFloats = try runPasses(textures, workspace: workspace, pixelCount: tile.area)
+            try finish(tile, workspace)
+            currentStatistics.tileCount += 1
         }
-        var current = try makeBuffer(length: pixelCount * MemoryLayout<SIMD4<Float>>.stride)
-        try run(firstStage, input: source, output: current, lut: try makeTexture(chain[0]), pixelCount: pixelCount)
-        for lut in chain.dropFirst() {
-            let next = try makeBuffer(length: pixelCount * MemoryLayout<SIMD4<Float>>.stride)
-            try run(laterStage, input: current, output: next, lut: try makeTexture(lut), pixelCount: pixelCount)
-            current = next
+        lastRenderStatistics = currentStatistics
+    }
+
+    /// First pass reads 8-bit; later passes ping-pong between float buffers.
+    private func runPasses(_ textures: [MTLTexture], workspace: Workspace, pixelCount: Int) throws -> MTLBuffer {
+        var current = workspace.floatsA, spare = workspace.floatsB
+        try run(firstStage, input: workspace.source, output: current, lut: textures[0], pixelCount: pixelCount)
+        for texture in textures.dropFirst() {
+            try run(laterStage, input: current, output: spare, lut: texture, pixelCount: pixelCount)
+            swap(&current, &spare)
         }
         return current
     }
+
+    private static func copyRows(of pixels: [UInt8], tile: Tile, imageWidth: Int, into buffer: MTLBuffer) {
+        let destination = buffer.contents().assumingMemoryBound(to: UInt8.self)
+        pixels.withUnsafeBufferPointer { source in
+            for row in 0..<tile.height {
+                let from = ((tile.y + row) * imageWidth + tile.x) * 4
+                (destination + row * tile.width * 4).update(from: source.baseAddress! + from, count: tile.width * 4)
+            }
+        }
+    }
+
+    private static func copyRows(from buffer: MTLBuffer, tile: Tile, imageWidth: Int, bytesPerPixel: Int, into output: inout [UInt8]) {
+        let source = buffer.contents().assumingMemoryBound(to: UInt8.self)
+        output.withUnsafeMutableBufferPointer { destination in
+            for row in 0..<tile.height {
+                let to = ((tile.y + row) * imageWidth + tile.x) * bytesPerPixel
+                (destination.baseAddress! + to).update(from: source + row * tile.width * bytesPerPixel, count: tile.width * bytesPerPixel)
+            }
+        }
+    }
+
+    private func beginStatistics() {
+        currentStatistics = RenderStatistics()
+        liveBufferBytes = 0
+    }
+
+    private func account(allocatedBytes: Int) {
+        liveBufferBytes += allocatedBytes
+        currentStatistics.peakBufferBytes = max(currentStatistics.peakBufferBytes, liveBufferBytes)
+    }
+
+    // MARK: - Passes
 
     private func run(
         _ pipeline: MTLComputePipelineState, input: MTLBuffer, output: MTLBuffer,
@@ -135,6 +258,9 @@ final class MetalLUTRenderer: @unchecked Sendable {
         guard let buffer = device.makeBuffer(length: length, options: .storageModeShared) else {
             throw LUTError.renderFailed("cannot allocate \(length) bytes")
         }
+        // Counted for the whole call and never released early, so the
+        // reported peak is an upper bound on what was alive at once.
+        account(allocatedBytes: length)
         return buffer
     }
 
@@ -171,6 +297,7 @@ final class MetalLUTRenderer: @unchecked Sendable {
         blit.endEncoding()
         commands.commit()
         commands.waitUntilCompleted()
+        account(allocatedBytes: 2 * rowBytes * n * n)   // texture + staging
         return texture
     }
 

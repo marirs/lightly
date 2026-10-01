@@ -80,6 +80,7 @@
 		9C4FC2B1099AF58E7B2E48DF /* SnapshotEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D217669F870E951BD92C014A /* SnapshotEnvironmentTests.swift */; };
 		9CDF5D9AC254EEEB958747EA /* EditorSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16CDBE2FA72A1F834B4F6E3B /* EditorSnapshotTests.swift */; };
 		9E8E4C0FC69F71AC701C625C /* BuiltInPresetCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47BE3CDEEB453B99C08BD00 /* BuiltInPresetCatalog.swift */; };
+		9FD464189E7C58BDA5087272 /* TiledLUTRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C7EC8B30C0EAE43B7FAF21 /* TiledLUTRenderTests.swift */; };
 		A757CFC23EE7514AD6E03676 /* LightlyTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6CCC548E65CB9D717533968 /* LightlyTypography.swift */; };
 		A805C2A832C73ABBC0C10769 /* MetalLUTRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D81EC476633A84CEB509F0 /* MetalLUTRendererTests.swift */; };
 		A914D5B7FCCF1AE08F0DD187 /* RecipeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D50B6F71288983AD9DEE26 /* RecipeRenderer.swift */; };
@@ -131,6 +132,7 @@
 		00A322BB6B4F2DE9741FDC26 /* LightlyError+Presentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LightlyError+Presentation.swift"; sourceTree = "<group>"; };
 		00EEFEED2D681AA207C32DC3 /* LooksViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LooksViewModelTests.swift; sourceTree = "<group>"; };
 		01E5A9ABA4E3FE5FC40D8905 /* ContextualTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextualTool.swift; sourceTree = "<group>"; };
+		02C7EC8B30C0EAE43B7FAF21 /* TiledLUTRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TiledLUTRenderTests.swift; sourceTree = "<group>"; };
 		03815F13274BE819399B6135 /* LaunchLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchLayoutTests.swift; sourceTree = "<group>"; };
 		0386C0B95ABECFC47053C72C /* ImageAnalyser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAnalyser.swift; sourceTree = "<group>"; };
 		03D81EC476633A84CEB509F0 /* MetalLUTRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalLUTRendererTests.swift; sourceTree = "<group>"; };
@@ -382,6 +384,7 @@
 				A6DAB9C6D7730E8B0FD6DB61 /* RenderSchedulingTests.swift */,
 				D217669F870E951BD92C014A /* SnapshotEnvironmentTests.swift */,
 				85E2C7356941352ABD05F0F7 /* SourceSheetLayoutTests.swift */,
+				02C7EC8B30C0EAE43B7FAF21 /* TiledLUTRenderTests.swift */,
 				4AEE30EB2606BD4FA51B643F /* Fixtures */,
 				120B09B716865717E09C62AE /* Support */,
 			);
@@ -825,6 +828,7 @@
 				9C4FC2B1099AF58E7B2E48DF /* SnapshotEnvironmentTests.swift in Sources */,
 				46860180346A74864DD96DB6 /* SourceSheetLayoutTests.swift in Sources */,
 				F428117121D672174DE135FA /* TestFixtures.swift in Sources */,
+				9FD464189E7C58BDA5087272 /* TiledLUTRenderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
