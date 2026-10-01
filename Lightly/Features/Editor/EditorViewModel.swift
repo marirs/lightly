@@ -81,6 +81,11 @@ final class EditorViewModel {
 
     private var latestRenderRevision: UInt64 = 0
     private var isClosed = false
+
+    /// Identifies the Develop run allowed to change state. Cleared when the
+    /// run completes or is abandoned, so a stale run's late progress, result
+    /// or error is recognisably stale.
+    private var activeDevelopRun: UUID?
     private var outstandingRenders: [UInt64: Task<Void, Never>] = [:]
     private var schedulerControl: [Task<Void, Never>] = []
 
@@ -161,8 +166,10 @@ final class EditorViewModel {
         phase = .developing
         completedStages = []
 
+        let run = UUID()
+        activeDevelopRun = run
         developTask = Task { [weak self] in
-            await self?.performDevelop()
+            await self?.performDevelop(run: run)
         }
     }
 
@@ -171,31 +178,79 @@ final class EditorViewModel {
     /// Any failure returns the user to `readyToDevelop` with the original
     /// intact — spec §28 requires that a failed Develop leave the original
     /// unchanged and never strand the UI mid-state.
-    private func performDevelop() async {
+    ///
+    /// Every state write is gated on `run` still being the active run. Task
+    /// cancellation alone is not enough: the engine and the render run in
+    /// work that does not observe it, so a cancelled run can still deliver
+    /// progress, a result or an error after the user has moved on.
+    private func performDevelop(run: UUID) async {
         do {
             let recipe = try await developer.develop(original) { [weak self] stage in
                 Task { @MainActor in
-                    self?.completedStages.insert(stage)
+                    self?.recordCompletedStage(stage, run: run)
                 }
             }
-
-            try Task.checkCancellation()
+            try ensureDevelopRunIsActive(run)
 
             let ticket = issueRenderTicket()
             let rendered = try await renderDevelopResult(recipe, ticket: ticket)
+            // Checked again after the render: Cancel may have arrived while
+            // it ran, and committing then would undo the user's Cancel.
+            try ensureDevelopRunIsActive(run)
 
+            activeDevelopRun = nil
             publish(rendered, for: ticket)
             history.record(.develop(recipe))
             phase = .developed
-        } catch is CancellationError {
+        } catch {
+            // Whoever ended the run (Cancel, Reset, close) already restored
+            // the screen; a stale run must not touch it, nor report errors.
+            guard isActive(run) else { return }
+            activeDevelopRun = nil
+            handleDevelopFailure(error)
+        }
+    }
+
+    private func handleDevelopFailure(_ error: Error) {
+        switch error {
+        case is CancellationError:
             // Cancellation unwinds with no side effects and no error (spec §28).
             phase = .readyToDevelop
             completedStages = []
-        } catch let error as LightlyError {
+        case let error as LightlyError:
             fail(with: error)
-        } catch {
+        default:
             fail(with: .developFailed)
         }
+    }
+
+    private func isActive(_ run: UUID) -> Bool {
+        !isClosed && activeDevelopRun == run
+    }
+
+    private func ensureDevelopRunIsActive(_ run: UUID) throws {
+        guard isActive(run), !Task.isCancelled else { throw CancellationError() }
+    }
+
+    private func recordCompletedStage(_ stage: DevelopStage, run: UUID) {
+        guard isActive(run) else { return }
+        completedStages.insert(stage)
+    }
+
+    /// Ends the active Develop run, if any, so nothing it later delivers is
+    /// applied, and stops its render.
+    ///
+    /// - Returns: Whether a run was active.
+    @discardableResult
+    private func abandonDevelopRun() -> Bool {
+        developTask?.cancel()
+        guard activeDevelopRun != nil else { return false }
+        activeDevelopRun = nil
+        // A fresh revision makes the Develop render's ticket stale, and the
+        // scheduler is told to stop it rather than finish unseen work.
+        let ticket = issueRenderTicket()
+        sendToScheduler { await $0.cancel(through: ticket.revision) }
+        return true
     }
 
     /// Renders the Develop result through the scheduler.
@@ -233,7 +288,12 @@ final class EditorViewModel {
     /// leaving the phase briefly stuck at `.developing` with nothing to await.
     /// The handle is replaced on the next `develop()`.
     func cancelDevelop() {
-        developTask?.cancel()
+        // v3 differs: v1 only cancelled the task and let the run unwind
+        // itself, which it could not do while its render was in flight. The
+        // pre-develop state is now restored here, synchronously.
+        guard abandonDevelopRun() else { return }
+        phase = .readyToDevelop
+        completedStages = []
     }
 
     /// Begins showing the original (press and hold Compare, spec §4.5).
@@ -302,7 +362,8 @@ final class EditorViewModel {
     func reset() {
         // A Develop still running would otherwise record itself on top of
         // the reset history when it finishes.
-        developTask?.cancel()
+        abandonDevelopRun()
+        completedStages = []
         history.reset()
         rerenderFromHistory()
     }
@@ -312,8 +373,8 @@ final class EditorViewModel {
     /// or replaced.
     func close() {
         guard !isClosed else { return }
+        abandonDevelopRun()
         isClosed = true
-        developTask?.cancel()
         sendToScheduler { await $0.close() }
     }
 

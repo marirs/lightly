@@ -5,14 +5,32 @@ import XCTest
 /// A deliberately slow renderer that encodes the recipe's exposure in the red
 /// channel, so tests can tell from pixels *which* request reached the screen.
 /// Being an actor that suspends mid-render, it also measures real concurrency.
-private actor SlowEncodingRenderer: PreviewRendering {
+actor SlowEncodingRenderer: PreviewRendering {
     private let delay: Duration
+    /// Core Image renders run to completion even when cancelled; this mode
+    /// reproduces that so tests cannot pass merely because a sleep threw.
+    private let ignoresCancellation: Bool
     private(set) var callCount = 0
+    private(set) var completedCount = 0
     private(set) var peakConcurrentRenders = 0
     private var activeRenders = 0
 
-    init(delay: Duration = .milliseconds(40)) {
+    init(delay: Duration = .milliseconds(40), ignoresCancellation: Bool = false) {
         self.delay = delay
+        self.ignoresCancellation = ignoresCancellation
+    }
+
+    private func pause() async throws {
+        guard ignoresCancellation else {
+            return try await Task.sleep(for: delay)
+        }
+        let nanoseconds = UInt64(delay.components.attoseconds / 1_000_000_000)
+            + UInt64(delay.components.seconds) * 1_000_000_000
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + .nanoseconds(Int(nanoseconds))) {
+                continuation.resume()
+            }
+        }
     }
 
     func renderPreview(
@@ -25,7 +43,8 @@ private actor SlowEncodingRenderer: PreviewRendering {
         peakConcurrentRenders = max(peakConcurrentRenders, activeRenders)
         defer { activeRenders -= 1 }
 
-        try await Task.sleep(for: delay)
+        try await pause()
+        completedCount += 1
         return TestFixtures.makeSolidImage(
             width: 8, height: 8,
             red: Self.encodedRed(for: recipe), green: 0, blue: 0
