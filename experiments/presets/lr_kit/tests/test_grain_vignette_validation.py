@@ -11,11 +11,14 @@ from test_f7_two_validations import _kit
 SETTINGS = {"ProcessVersion": "11.0", "GrainAmount": "35", "GrainSize": "25", "PostCropVignetteAmount": "-20"}
 
 
+_REAL_GRAIN = lm.apply_grain
+
+
 def _lightroom(seed, with_grain=True):
-    def full(src, glob_img):
+    def full(src, glob_img, grain=True):
         with torch.no_grad():
             x = lm.apply_vignette(torch.from_numpy(glob_img.astype(np.float32)), SETTINGS)
-            return (lm.apply_grain(x, SETTINGS, seed=seed) if with_grain else x).numpy()
+            return (_REAL_GRAIN(x, SETTINGS, seed=seed) if (with_grain and grain) else x).numpy()
     return full
 
 
@@ -28,4 +31,4 @@ def test_grain_from_a_different_seed_still_validates(tmp_path):
 def test_recipe_grain_vs_lightroom_without_grain_fails(tmp_path):
     look = _kit(tmp_path, SETTINGS, _lightroom(seed=0, with_grain=False))
     assert look["full"]["status"] == "failed"
-    assert any(not p.get("grain_ok", True) for p in look["full"]["photos"].values())
+    assert any(p.get("grain") == "fail" for p in look["full"]["photos"].values()), look["full"]["photos"]

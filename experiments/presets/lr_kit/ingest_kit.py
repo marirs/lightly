@@ -70,9 +70,43 @@ def spatial_calibration():
     return S
 
 
+def preset_paths(look: dict):
+    lid = look["look_id"]
+    paths = [look.get("full_xmp", f"presets/full/{lid}__full.xmp"), look.get("global_xmp", f"presets/global/{lid}__global.xmp")]
+    if look.get("nograin_xmp"):
+        paths.append(look["nograin_xmp"])
+    return paths
+
+
+def verify_presets(kit: Path, look: dict, recorded: dict) -> list:
+    """Every preset file the Look was rendered with must exist and match the hash recorded at kit creation."""
+    problems = []
+    full = kit / preset_paths(look)[0]
+    if full.exists() and not look.get("nograin_xmp"):
+        import make_kit
+        if make_kit.needs_nograin(lrsettings.parse_xmp_text(full.read_text())):
+            problems.append("grain Look has no [nograin] preset (matching grain-free reference)")
+    for rel in preset_paths(look):
+        p = kit / rel
+        if rel not in recorded:
+            problems.append(f"{Path(rel).name} not recorded in inputs.json")
+        elif not p.exists():
+            problems.append(f"{Path(rel).name} missing")
+        elif sha256_file(p) != recorded[rel]:
+            problems.append(f"{Path(rel).name} changed since kit creation")
+    return problems
+
+
 def load_full_settings(kit: Path, look: dict) -> dict:
-    path = kit / look.get("full_xmp", f"presets/full/{look['look_id']}__full.xmp")
-    return lrsettings.parse_xmp_text(path.read_text()) if path.exists() else {}
+    """No silent fallback: callers verify presence and hash first (verify_presets)."""
+    return lrsettings.parse_xmp_text((kit / preset_paths(look)[0]).read_text())
+
+
+def blocked(missing_hald, preset_problems, missing_inputs):
+    missing = [f"input {s}" for s in missing_inputs] + list(preset_problems)
+    if missing_hald is not None:
+        missing.append(missing_hald.name)
+    return {"photos": {}, "missing": missing, "status": "incomplete", "unimplemented": [], "approximated": []}
 
 
 def apply_global(lut, src8):
@@ -130,15 +164,37 @@ def _blur(img8, sigma_px):
     return np.asarray(Image.fromarray(img8).filter(ImageFilter.GaussianBlur(sigma_px)))
 
 
-def grain_strength(img8, sigma_px):
-    """Std of the high-pass luminance residual in midtones: a seed-independent grain statistic."""
-    y = img8.astype(np.float32) @ np.array([0.2126, 0.7152, 0.0722], np.float32)
-    yb = _blur(img8, sigma_px).astype(np.float32) @ np.array([0.2126, 0.7152, 0.0722], np.float32)
-    mid = (yb > 40) & (yb < 215)
-    return float((y - yb)[mid].std()) if mid.any() else 0.0
+GRAIN_MIN_SMOOTH_PX = 4000      # minimum smooth-region pixels for a grain measurement
+GRAIN_MIN_SMOOTH_FRAC = 0.02
+GRAIN_MIN_SIGNAL = 0.8           # Lightroom grain contribution (8-bit levels) below this is not measurable
 
 
-def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok, prefix, missing_hald, render, grain_frac=None):
+def _luma(img8):
+    return img8.astype(np.float32) @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+
+
+def _highpass(img8, sigma_px):
+    return _luma(img8) - _luma(_blur(img8, sigma_px))
+
+
+def smooth_mask(grain_free8, sigma_px):
+    """Pixels where the grain-free render is itself smooth at grain scale and in midtones: there, high-pass
+    energy in the full render is grain, not image detail (re-review issue 1)."""
+    hp = np.abs(_highpass(grain_free8, sigma_px))
+    local = _luma(_blur(np.repeat(np.clip(hp * 20, 0, 255).astype(np.uint8)[..., None], 3, -1), sigma_px * 3)) / 20
+    y = _luma(_blur(grain_free8, sigma_px))
+    return (local < 0.6) & (y > 40) & (y < 215)
+
+
+def grain_contribution(full8, grain_free8, mask, sigma_px):
+    """Grain energy added by the full render over its grain-free counterpart, in the smooth mask."""
+    a = float(_highpass(full8, sigma_px)[mask].std())
+    b = float(_highpass(grain_free8, sigma_px)[mask].std())
+    return float(np.sqrt(max(a * a - b * b, 0.0)))
+
+
+def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok, prefix, missing_hald, render, grain_frac=None,
+             grain_free_prefix=None, grain_free_render=None):
     """One validation (global or full) with the complete-evidence rules of Codex finding 6."""
     out = {"photos": {}, "missing": [f"input photo {s}.jpg" for s in missing_inputs]}
     if missing_hald is not None:
@@ -155,15 +211,35 @@ def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutra
         ours = render(src)
         rec = {}
         if grain_frac:
-            # Grain is random: compare tone/colour after hiding grain texture, and grain strength separately.
+            # Grain is random: compare tone/colour after hiding grain texture, and measure grain separately as
+            # its contribution over the grain-free render, in smooth regions only (re-review issue 1).
             sigma = grain_frac * max(src.shape[:2])
-            mean, p95 = de_stats(_blur(ours, sigma)[::2, ::2], _blur(lr, sigma)[::2, ::2])
-            g_ours, g_lr = grain_strength(ours, sigma), grain_strength(lr, sigma)
-            ratio = g_ours / max(g_lr, 1e-6)
-            rec.update(grain_ratio=round(ratio, 2), grain_ok=bool(0.6 <= ratio <= 1.6))
+            # Tone/colour comparison blurs at 3x grain scale so the coarse (roughness) component is hidden too.
+            mean, p95 = de_stats(_blur(ours, 3 * sigma)[::2, ::2], _blur(lr, 3 * sigma)[::2, ::2])
+            gf_path = kit / "exports/photos" / f"{grain_free_prefix}__{ph.stem}.jpg"
+            if not gf_path.exists():
+                out["missing"].append(gf_path.name); continue
+            lr_free, ours_free = load(gf_path), grain_free_render(src)
+            mask = smooth_mask(lr_free, sigma)
+            n = int(mask.sum())
+            g_lr = grain_contribution(lr, lr_free, mask, sigma) if n else 0.0
+            if n < max(GRAIN_MIN_SMOOTH_PX, GRAIN_MIN_SMOOTH_FRAC * mask.size):
+                rec.update(grain="insufficient", smooth_px=n)  # not enough smooth area to see grain at all
+            else:
+                g_ours = grain_contribution(ours, ours_free, mask, sigma)
+                if g_lr < GRAIN_MIN_SIGNAL:
+                    # Lightroom shows no measurable grain here. Lightly must not add any, but "neither has grain"
+                    # is not evidence that the Look's grain was reproduced (Codex review).
+                    verdict = "no-grain" if g_ours < GRAIN_MIN_SIGNAL else "fail"
+                    ratio = None
+                else:
+                    ratio = g_ours / g_lr
+                    verdict = "pass" if 0.6 <= ratio <= 1.6 else "fail"
+                rec.update(grain=verdict, grain_ratio=None if ratio is None else round(ratio, 2),
+                           grain_lr=round(g_lr, 2), grain_ours=round(g_ours, 2), smooth_px=n)
         else:
             mean, p95 = de_stats(ours[::2, ::2], lr[::2, ::2])
-        ok = mean <= MEAN_MAX and p95 <= P95_MAX and rec.get("grain_ok", True)
+        ok = mean <= MEAN_MAX and p95 <= P95_MAX and rec.get("grain") != "fail"
         out["photos"][ph.stem] = {"mean": round(mean, 2), "p95": round(p95, 2), "pass": ok, **rec}
         if not ok:
             s = 360 / max(src.shape[:2]); sz = (round(src.shape[1] * s), round(src.shape[0] * s))
@@ -175,6 +251,10 @@ def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutra
     passed = complete and all(v.get("pass") for v in out["photos"].values())
     out["status"] = ("incomplete" if not complete or not inputs_ok or report["missing_neutral"]
                      else "validated" if passed and neutral_ok else "failed")
+    if grain_frac and out["status"] == "validated" and not any(v.get("grain") == "pass" for v in out["photos"].values()):
+        # No photo allowed grain to be measured: absence of a failure is not evidence of a pass.
+        out["status"] = "incomplete"
+        out["reason"] = "insufficient grain evidence (no input had enough smooth area)"
     return out
 
 
@@ -210,9 +290,17 @@ def main(kit: Path):
     inputs_path = kit / "inputs.json"
     if not inputs_path.exists():
         raise FileNotFoundError(f"{inputs_path} missing: not a kit produced by make_kit.py; refusing to validate")
-    inputs = json.load(open(inputs_path))["photos"]
+    record = json.load(open(inputs_path))
+    inputs = record["photos"]
     missing_inputs = [s for s in inputs if not (kit / "photos" / f"{s}.jpg").exists()]
     changed_inputs = [s for s in inputs if s not in missing_inputs and sha256_file(kit / "photos" / f"{s}.jpg") != inputs[s]]
+    # Identity image and preset files must be present and unchanged (re-review issue 3).
+    hald_path = kit / "identity/hald_64_srgb16.tif"
+    if not record.get("hald_sha256") or not hald_path.exists():
+        missing_inputs.append("identity/hald_64_srgb16.tif")
+    elif sha256_file(hald_path) != record["hald_sha256"]:
+        changed_inputs.append("identity/hald_64_srgb16.tif")
+    preset_hashes = record.get("presets", {})
     photos = [kit / "photos" / f"{s}.jpg" for s in sorted(inputs) if s not in missing_inputs]
     report = {"neutrality": {}, "looks": {}, "missing_inputs": missing_inputs, "changed_inputs": changed_inputs, "missing_neutral": []}
     # 1. neutrality: Lightroom with no preset must reproduce EVERY input
@@ -233,15 +321,22 @@ def main(kit: Path):
             lut = hald_to_lut(h)
             np.save(res / "luts" / f"{lid}__global.npy", lut)
             write_cube(lut, res / "luts" / f"{lid}__global.cube", f"{lid} global")
-        settings = load_full_settings(kit, L)
+        preset_problems = verify_presets(kit, L, preset_hashes)
+        settings = load_full_settings(kit, L) if not preset_problems else None
         # 1. global-transform validation: LUT(original) vs Lightroom's GLOBAL-ONLY photo exports
+        if lut is None or settings is None:
+            entry["global"] = blocked(h if lut is None else None, preset_problems, missing_inputs)
+            entry["full"] = blocked(h if lut is None else None, preset_problems, missing_inputs)
+            report["looks"][lid] = entry
+            continue
         entry["global"] = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
                                    f"{lid}__global", h if lut is None else None,
                                    lambda src: apply_global(lut, src))
         # 2. full-recipe validation: Lightly's complete recipe vs Lightroom's FULL photo exports
         recipe, unimplemented, approximated = full_recipe(lut, settings)
         full = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
-                        f"{lid}__full", h if lut is None else None, recipe, grain_frac=grain_sigma_frac(settings))
+                        f"{lid}__full", h if lut is None else None, recipe, grain_frac=grain_sigma_frac(settings),
+                        grain_free_prefix=f"{lid}__nograin", grain_free_render=full_recipe(lut, {k: v for k, v in settings.items() if not k.startswith("Grain")})[0])
         full["unimplemented"] = unimplemented
         full["approximated"] = approximated
         if unimplemented and full["status"] == "validated":

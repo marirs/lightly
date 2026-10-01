@@ -171,7 +171,7 @@ O4 clamp [0,1] → encode sRGB 8-bit → JPEG (export only)
 ### 4.6 Model contract (`ia3dlut` family)
 
 - **Canonical analysis input (Codex M1 finding 2): independent of screen size.**
-  - Source: the decoded, oriented, sRGB-converted frame at **any resolution with long edge ≥ 1024 px**. A platform may use its decoder's reduced-size decode as long as the long edge stays ≥ 1024.
+  - Source: the decoded, oriented, sRGB-converted frame decoded to a **1024 px long edge** (or the original size if smaller). Both platforms use this size. The sensitivity measurements show any long edge ≥ 512 gives ≤ 1/255, but one fixed size keeps iOS and Android identical.
   - Transform: resize the whole frame (aspect ignored) to 256×256 with the **pinned antialiased bilinear resize**. Use the exact algorithm of `torch.nn.functional.interpolate(..., mode="bilinear", antialias=True, align_corners=False)`, written out in the contract as pseudo-code with golden tensors.
   - Result: float32 `[1,3,256,256]`, RGB, sRGB-encoded [0,1], no mean/std.
   - The display **Proxy is never the model input**, so a phone and a tablet produce the same Auto result for the same photo (within the §4.4 end-to-end tolerance).
@@ -211,7 +211,7 @@ Empty ─select─► Loading(asset) ─proxy ok─► Developing ─ok─► Re
 ### 5.3 Large assets and memory
 
 - Preview never touches the full-resolution image.
-- Analysis and model input come from the Proxy, so memory is O(proxy).
+- Analysis and model input come from a separate **analysis decode** (§4.6), never from the display Proxy, so memory is O(1024² px) regardless of screen.
 - Export renders full resolution in tiles where needed (Core Image handles tiling internally; Android renders FBO tiles of ≤ 4096² and streams them to the encoder bitmap).
 - Peak export budget targets: ≤ 600 MB for 48 MP on iOS 6 GB-RAM devices, and ≤ 600 MB on Android 8 GB devices. Measured numbers are in the feasibility report.
 - Assets above 100 MP or with unsupported formats are rejected up front with a specific message.
