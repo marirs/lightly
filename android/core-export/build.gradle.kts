@@ -28,7 +28,11 @@ android {
 }
 
 dependencies {
+    // Export renders through the same LutPassRenderer and TilePlan as previews (Invariant P=E).
+    api(project(":core-render"))
+
     testImplementation(kotlin("test-junit"))
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)

@@ -3,9 +3,12 @@ package com.lightlylabs.lightly.export
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.graphics.Bitmap
+import android.graphics.ColorSpace
 import android.net.Uri
 import android.provider.MediaStore
+import com.lightlylabs.lightly.render.image.Rgba8Image
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.io.OutputStream
 
 /** The real MediaStore gateway (API 29+). */
@@ -36,6 +39,25 @@ class ContentResolverGateway(
 
     override fun delete(handle: Uri) {
         resolver.delete(handle, null, null)
+    }
+}
+
+/**
+ * Rendered RGBA8 → ARGB_8888 sRGB Bitmap → [BitmapJpegEncoder]. The export path's encoder.
+ * PENDING (device): output verified only through the encoder interface in tests.
+ */
+class Rgba8JpegEncoder(private val bitmapEncoder: BitmapJpegEncoder = BitmapJpegEncoder()) : JpegEncoder<Rgba8Image> {
+    override fun encode(image: Rgba8Image, quality: Int, sink: OutputStream) {
+        val bitmap = Bitmap.createBitmap(
+            image.width, image.height, Bitmap.Config.ARGB_8888, true,
+            ColorSpace.get(ColorSpace.Named.SRGB),
+        )
+        try {
+            bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))
+            bitmapEncoder.encode(bitmap, quality, sink)
+        } finally {
+            bitmap.recycle()
+        }
     }
 }
 
