@@ -6,9 +6,11 @@ agp = "9.4.1"
 kotlin = "2.4.20"
 coroutines = "1.10.2"
 serialization = "1.8.1"
-composeBom = "2026.09.00"
+# Pinned to the newest releases that still compile against compileSdk 36: Compose BOM 2026.09.00
+# and lifecycle 2.11.0 declare minCompileSdk 37 in their AAR metadata. Raise together with compileSdk.
+composeBom = "2026.06.01"
 activityCompose = "1.13.0"
-lifecycle = "2.11.0"
+lifecycle = "2.10.0"
 junit = "4.13.2"
 robolectric = "4.16.1"
 androidxTestCore = "1.7.0"
