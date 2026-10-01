@@ -38,17 +38,20 @@ enum PreviewRenderOutcome: Sendable {
 /// The scheduler only bounds and orders work. Whether a finished render may
 /// be *shown* is still the caller's decision (it alone knows the latest
 /// revision and whether the session has closed).
-actor PreviewRenderScheduler {
+///
+/// Generic over the request so the recipe (Core Image) and LUT (Metal)
+/// preview paths share one implementation of these rules.
+actor LatestWinsRenderScheduler<Request: Sendable> {
+
+    typealias RenderWork = @Sendable (Request) async throws -> CGImage
 
     private struct Job {
         let revision: UInt64
-        let recipe: DevelopRecipe
+        let request: Request
         let continuation: CheckedContinuation<PreviewRenderOutcome, Never>
     }
 
-    private let renderer: any PreviewRendering
-    private let source: CGImage
-    private let identity: PhotoFingerprint
+    private let renderWork: RenderWork
 
     private var inFlight: (revision: UInt64, task: Task<Void, Never>)?
     private var pending: Job?
@@ -61,19 +64,17 @@ actor PreviewRenderScheduler {
     /// Renders actually started, as opposed to requests received.
     private(set) var startedRenderCount = 0
 
-    init(renderer: any PreviewRendering, source: CGImage, identity: PhotoFingerprint) {
-        self.renderer = renderer
-        self.source = source
-        self.identity = identity
+    init(render: @escaping RenderWork) {
+        self.renderWork = render
     }
 
     /// Requests a render and waits for its outcome.
     ///
     /// Never throws: every request resolves to exactly one outcome, so a
     /// caller cannot be left suspended by a replaced or cancelled request.
-    func render(_ recipe: DevelopRecipe, revision: UInt64) async -> PreviewRenderOutcome {
+    func render(_ request: Request, revision: UInt64) async -> PreviewRenderOutcome {
         await withCheckedContinuation { continuation in
-            accept(Job(revision: revision, recipe: recipe, continuation: continuation))
+            accept(Job(revision: revision, request: request, continuation: continuation))
         }
     }
 
@@ -133,7 +134,7 @@ actor PreviewRenderScheduler {
     }
 
     private func execute(_ job: Job) async {
-        let outcome = await outcome(rendering: job.recipe)
+        let outcome = await outcome(rendering: job.request)
         job.continuation.resume(returning: outcome)
         inFlight = nil
         startPendingIfAny()
@@ -146,11 +147,12 @@ actor PreviewRenderScheduler {
         recordOutstandingCount()
     }
 
-    private func outcome(rendering recipe: DevelopRecipe) async -> PreviewRenderOutcome {
+    private func outcome(rendering request: Request) async -> PreviewRenderOutcome {
         do {
-            let image = try await renderer.renderPreview(source, identity: identity, with: recipe)
-            // Core Image renders do not observe cancellation, so a render
-            // cancelled mid-way still completes; it must not report success.
+            let image = try await renderWork(request)
+            // Core Image and Metal renders do not observe cancellation, so a
+            // render cancelled mid-way still completes; it must not report
+            // success.
             return Task.isCancelled ? .cancelled : .rendered(image)
         } catch {
             return Task.isCancelled || error is CancellationError ? .cancelled : .failed(error)
@@ -160,5 +162,17 @@ actor PreviewRenderScheduler {
     private func recordOutstandingCount() {
         let outstanding = (inFlight == nil ? 0 : 1) + (pending == nil ? 0 : 1)
         peakOutstandingRequests = max(peakOutstandingRequests, outstanding)
+    }
+}
+
+/// The recipe (Core Image) preview path's scheduler.
+typealias PreviewRenderScheduler = LatestWinsRenderScheduler<DevelopRecipe>
+
+extension LatestWinsRenderScheduler where Request == DevelopRecipe {
+    /// Renders recipes of one photo at preview resolution.
+    init(renderer: any PreviewRendering, source: CGImage, identity: PhotoFingerprint) {
+        self.init { recipe in
+            try await renderer.renderPreview(source, identity: identity, with: recipe)
+        }
     }
 }
