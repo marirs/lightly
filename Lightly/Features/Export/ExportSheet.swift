@@ -10,6 +10,10 @@ struct ExportSheet: View {
     let onClose: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// See the layout comment in `body`.
+    private var actionsFlowWithContent: Bool { dynamicTypeSize.isAccessibilitySize }
 
     /// URL handed to the system share sheet once encoding finishes.
     @State private var shareURL: URL?
@@ -27,10 +31,13 @@ struct ExportSheet: View {
                 // which is drawn over the content rather than above it.
                 .padding(.top, LightlySpacing.m)
 
-            // The options scroll and the actions stay pinned. At accessibility
-            // text sizes the options alone exceed the sheet, and without this
-            // the Share action is pushed off-screen where it cannot be reached
-            // at all.
+            // The options always scroll, so nothing is pushed off-screen.
+            // At standard sizes the actions stay pinned below them. At
+            // accessibility sizes two 76–91 pt action buttons would leave the
+            // options a sliver of the sheet, with the Metadata section
+            // running underneath the actions; there the actions flow after
+            // the options instead, so every control is reachable by scrolling
+            // and nothing overlaps.
             ScrollView {
                 VStack(alignment: .leading, spacing: LightlySpacing.l) {
                     formatSection
@@ -38,14 +45,19 @@ struct ExportSheet: View {
                         qualitySection
                     }
                     metadataSection
+                    if actionsFlowWithContent {
+                        actions
+                    }
                 }
                 .padding(.horizontal, LightlySpacing.m)
                 .padding(.vertical, LightlySpacing.l)
             }
 
-            actions
-                .padding(.horizontal, LightlySpacing.m)
-                .padding(.bottom, LightlySpacing.m)
+            if !actionsFlowWithContent {
+                actions
+                    .padding(.horizontal, LightlySpacing.m)
+                    .padding(.bottom, LightlySpacing.m)
+            }
         }
         .background(LightlyColor.surface(colorScheme))
         .alert(
@@ -168,6 +180,7 @@ struct ExportSheet: View {
     private var metadataSection: some View {
         VStack(alignment: .leading, spacing: LightlySpacing.s) {
             sectionLabel("export.section.metadata")
+                .layoutAnchor("export.metadataHeader")
 
             Toggle(isOn: .init(
                 get: { viewModel.settings.preservesMetadata },
@@ -180,6 +193,7 @@ struct ExportSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityIdentifier("export.preserveMetadata")
+            .layoutAnchor("export.preserveMetadata")
 
             Toggle(isOn: .init(
                 get: { viewModel.settings.preservesLocation },
@@ -199,6 +213,7 @@ struct ExportSheet: View {
             }
             .disabled(!viewModel.settings.preservesMetadata)
             .accessibilityIdentifier("export.preserveLocation")
+            .layoutAnchor("export.preserveLocation")
         }
     }
 
@@ -212,6 +227,7 @@ struct ExportSheet: View {
             .buttonStyle(.plain)
             .disabled(viewModel.isExporting)
             .accessibilityIdentifier("export.save")
+            .layoutAnchor("export.save")
 
             Button {
                 viewModel.export(to: .share)
@@ -221,6 +237,7 @@ struct ExportSheet: View {
             .buttonStyle(.plain)
             .disabled(viewModel.isExporting)
             .accessibilityIdentifier("export.share")
+            .layoutAnchor("export.share")
         }
     }
 
