@@ -7,11 +7,14 @@ kit/
   identity/hald_64_srgb16.tif     identity HALD CLUT, level 8 (64^3 colours, 512x512), 16-bit, sRGB ICC embedded
   photos/                         the 22 test photos (copied from experiments/lut3d/photos)
   presets/original/<look_id>.<ext> the shortlisted presets exactly as found in the collection
-  presets/global/<look_id>__global.xmp  generated: same settings with local/spatial sliders zeroed (HALD render only)
+  presets/full/<look_id>__full.xmp      generated COMPLETE preset (every look-relevant key explicit)
+  presets/global/<look_id>__global.xmp  generated: complete, with adaptive-tone, local and spatial sliders neutral
   shortlist.json, manifest.json   look ids, sources, sha256 of every kit file
 Export targets the user fills (see README):
-  exports/hald/<look_id>__full.tif, exports/hald/<look_id>__global.tif
-  exports/photos/<look_id>__<photo_stem>.jpg, exports/photos/none__<photo_stem>.jpg (no preset; neutrality check)
+  exports/hald/<look_id>__global.tif                    global-only variant on the identity HALD
+  exports/photos/<look_id>__global__<photo_stem>.jpg    global-only variant on each input photo
+  exports/photos/<look_id>__full__<photo_stem>.jpg      full Look on each input photo
+  exports/photos/none__<photo_stem>.jpg                 no preset (neutral baseline)
 """
 from __future__ import annotations
 
@@ -32,7 +35,11 @@ HALD_LEVEL = 8  # cube size 64, image 512x512
 
 # Zeroed for the "global" HALD variant: these act spatially or adaptively, so on a synthetic HALD image they
 # would not represent what they do to photographs. Their effect is measured separately on the photo exports.
-LOCAL_KEYS = {"Clarity2012": "0", "Texture": "0", "Dehaze": "0", "PostCropVignetteAmount": "0", "GrainAmount": "0",
+# Neutralised in the GLOBAL-ONLY variant (Codex finding 7): everything Lightroom applies adaptively or spatially,
+# including the adaptive tone sliders, so the HALD captures only pixel-independent colour/tone. These operators
+# are re-added (as Lightly's own implementations) in the full-recipe validation.
+LOCAL_KEYS = {"Highlights2012": "0", "Shadows2012": "0", "Whites2012": "0", "Blacks2012": "0",
+              "Clarity2012": "0", "Texture": "0", "Dehaze": "0", "PostCropVignetteAmount": "0", "GrainAmount": "0",
               "Sharpness": "0", "LuminanceSmoothing": "0", "ColorNoiseReduction": "0", "VignetteAmount": "0"}
 
 

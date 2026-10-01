@@ -1,12 +1,16 @@
 # Lightly — Lightroom export kit (provisional shortlist)
 
-Purpose: get Lightroom's own renders of the provisional V1 Looks, so Lightly can:
-1. extract each Look's global colour/tone transform from an identity image;
-2. measure how well that extracted transform reproduces Lightroom on real photographs.
+Purpose: get Lightroom's own renders of the provisional V1 Looks, so Lightly can measure two separate things:
+1. **Global transform.** Extract each Look's pixel-independent colour/tone transform from an identity (HALD) image rendered with the *global-only* variant. Compare it with Lightroom's renders of the same global-only variant on real photographs.
+2. **Full recipe.** Compare Lightly's complete recipe with Lightroom's renders of the *full* Look on the same photographs. The complete recipe is the global transform plus Lightly's own versions of the operators the global-only variant removes:
+   - Highlights, Shadows, Whites, Blacks, Dehaze
+   - Clarity, Texture
 
-Point 2 decides whether the extraction is faithful. It is **not assumed**.
+   Operators Lightly does not implement (vignette, grain) prevent a Look from being validated, and are listed.
 
-Time needed: about 30–45 minutes in Lightroom Classic (most of it is waiting for exports).
+Neither result is assumed.
+
+Exports per Look: 1 HALD + 22 global-only photos + 22 full photos. Plus 22 neutral photos once. Time needed: about 60–90 minutes in Lightroom Classic, mostly export time.
 
 ## Looks in this kit
 
@@ -31,25 +35,31 @@ Time needed: about 30–45 minutes in Lightroom Classic (most of it is waiting f
 
 Select the 22 photos and confirm none of them has any develop settings: *Reset* in the Develop module if in doubt. Then export them with the **Photo export settings** (§5), using the filename `none__{original filename}`.
 
-## 3. Identity (HALD) renders
+## 3. Identity (HALD) render: global-only variant
 
 For **each** Look id:
-
-1. Select `hald_64_srgb16.tif`, then choose *Photo → Create Virtual Copy*.
-2. Click **Reset**, then apply the preset `<look_id> [full]`. Export with the **HALD export settings**, filename `<look_id>__full`.
-3. Make another virtual copy **from the master**, click **Reset**, and apply `<look_id> [global]`. Export it with the same settings, filename `<look_id>__global`.
+1. Create a virtual copy of the master `hald_64_srgb16.tif` and click **Reset**.
+2. Apply `<look_id> [global]`.
+3. Export with the **HALD export settings**, filename `<look_id>__global`.
 
 Do not crop, straighten or touch any slider.
 
-## 4. Photo renders
+## 4. Photo renders: two sets per Look
 
-For **each** Look id:
-1. Create a fresh virtual copy of each of the 22 **master** photos.
+For **each** Look id, do both sets. Each set uses its own fresh copies of the 22 **master** photos; follow the rule above.
+
+| Set | Preset to apply | Export filename |
+|---|---|---|
+| Global-only | `<look_id> [global]` | `<look_id>__global__{original filename}` |
+| Full | `<look_id> [full]` | `<look_id>__full__{original filename}` |
+
+Steps for one set:
+1. Create a fresh virtual copy of each of the 22 master photos.
 2. Select the new copies and click **Reset**.
-3. Apply the preset `<look_id> [full]` to all of them: select them all and click the preset in the Develop module with Auto Sync on.
-4. Export with the **Photo export settings**, filename `<look_id>__{original filename}`.
+3. Apply the set's preset to all of them: select them all and click the preset with Auto Sync on.
+4. Export with the **Photo export settings**.
 
-Never reuse copies across Looks.
+Never reuse copies across sets or Looks.
 
 ## 5. Export settings
 
@@ -70,10 +80,8 @@ Never reuse copies across Looks.
 
 ## 6. Return
 
-Zip the `exports/` folder and put it back in this kit folder, or tell Claude where it is. Then run `python ingest_kit.py <kit>/` from `experiments/presets/lr_kit/`. That:
-- extracts LUTs from the HALD exports;
-- applies them to the original photos;
-- compares the result with your photo exports (ΔE00 per image);
-- writes a report with side-by-side sheets.
+Leave `exports/` inside this kit folder, or tell Claude where it is. Do not move or rename `photos/` or `inputs.json`. Then run `python ingest_kit.py <kit>/` from `experiments/presets/lr_kit/`. It reports, per Look:
+- **global status:** extracted LUT vs your global-only exports;
+- **full-recipe status:** Lightly's complete recipe vs your full exports, with any operators Lightly does not implement listed.
 
-Acceptance and failures are reported per Look. Nothing is marked validated automatically unless it meets the stated thresholds.
+A Look is reported **validated** only if every one of the 22 photos passes (mean ΔE00 ≤ 2 and p95 ≤ 5), every expected export exists, and the neutral baseline passes. Otherwise it is **incomplete** or **failed**, with the reason. Regenerating the kit never deletes your exports.

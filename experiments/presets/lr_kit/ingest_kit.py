@@ -21,6 +21,9 @@ from skimage import color
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lut3d/reference"))
 import ia3dlut as ia  # noqa: E402
+import lrsettings  # noqa: E402
+
+PRESETS = Path(__file__).resolve().parents[1]
 
 MEAN_MAX, P95_MAX = 2.0, 5.0
 
@@ -51,6 +54,91 @@ def write_cube(lut: np.ndarray, path: Path, title: str):
 def sha256_file(p: Path) -> str:
     import hashlib
     return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def calibration():
+    import lr_model as lm, torch
+    C = lm.Calib()
+    C.load_state_dict({k: torch.tensor(v) for k, v in json.load(open(PRESETS / "calibration_natural.json"))["constants"].items()})
+    return C
+
+
+def spatial_calibration():
+    import lr_model as lm, torch
+    S = lm.SpatialCalib()
+    S.load_state_dict({k: torch.tensor(v) for k, v in json.load(open(PRESETS / "calibration_spatial_natural.json")).items()})
+    return S
+
+
+def load_full_settings(kit: Path, look: dict) -> dict:
+    path = kit / look.get("full_xmp", f"presets/full/{look['look_id']}__full.xmp")
+    return lrsettings.parse_xmp_text(path.read_text()) if path.exists() else {}
+
+
+def apply_global(lut, src8):
+    return ia.to_uint8(ia.apply_lut_reference(lut, src8.astype(np.float32) / 255, 1.0))
+
+
+SEPARATED_TONE = ("Highlights2012", "Shadows2012", "Whites2012", "Blacks2012", "Dehaze")
+
+
+def full_recipe(lut, settings):
+    """Lightly's complete recipe for a Look: separated adaptive-tone operators (calibrated GLOBAL approximation
+    from lr_model, applied before the LUT as Lightroom applies basic tone before curves/colour), then the global
+    LUT from the global-only HALD, then experimental local contrast (Clarity/Texture). Returns (fn, unimplemented,
+    approximated) where unimplemented lists every non-default parameter Lightly cannot render."""
+    import classify, lr_model as lm, torch
+    rep = classify.classify(lrsettings.ParsedPreset("kit", "xmp", "kit", settings))
+    unimplemented = sorted(rep.get("not-implemented", []))
+    approximated = sorted(set(rep.get("approximated", [])) | set(rep.get("experimental", [])))
+    tone_only = {k: settings[k] for k in SEPARATED_TONE if k in settings}
+    tone = lm.Preset(tone_only, wb_mode="rendered") if any(lm._f(tone_only, k) for k in tone_only) else None
+    clarity, texture = lm._f(settings, "Clarity2012"), lm._f(settings, "Texture")
+    C = calibration() if tone else None
+    S = spatial_calibration() if (clarity or texture) else None
+
+    def recipe(src8):
+        x = src8.astype(np.float32) / 255
+        if tone is not None:
+            with torch.no_grad():
+                x = lm.render(torch.from_numpy(x), tone, C).numpy()
+        y = ia.apply_lut_reference(lut, np.clip(x, 0, 1).astype(np.float32), 1.0)
+        if S is not None:
+            with torch.no_grad():
+                y = lm.apply_local_contrast(torch.from_numpy(np.clip(y, 0, 1).astype(np.float32)), clarity, texture, S).numpy()
+        return ia.to_uint8(y)
+    return recipe, unimplemented, approximated
+
+
+def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok, prefix, missing_hald, render):
+    """One validation (global or full) with the complete-evidence rules of Codex finding 6."""
+    out = {"photos": {}, "missing": [f"input photo {s}.jpg" for s in missing_inputs]}
+    if missing_hald is not None:
+        out["missing"].append(missing_hald.name)
+    for ph in photos:
+        e = kit / "exports/photos" / f"{prefix}__{ph.stem}.jpg"
+        if not e.exists():
+            out["missing"].append(e.name); continue
+        if missing_hald is not None:
+            continue
+        src, lr = load(ph), load(e)
+        if lr.shape != src.shape:
+            out["photos"][ph.stem] = {"error": f"size mismatch {lr.shape} vs {src.shape}"}; continue
+        ours = render(src)
+        mean, p95 = de_stats(ours[::2, ::2], lr[::2, ::2])
+        ok = mean <= MEAN_MAX and p95 <= P95_MAX
+        out["photos"][ph.stem] = {"mean": round(mean, 2), "p95": round(p95, 2), "pass": ok}
+        if not ok:
+            s = 360 / max(src.shape[:2]); sz = (round(src.shape[1] * s), round(src.shape[0] * s))
+            sheet = Image.new("RGB", (sz[0] * 3 + 20, sz[1]), (24, 24, 26))
+            for i, im in enumerate((src, ours, lr)):
+                sheet.paste(Image.fromarray(im).resize(sz), (i * (sz[0] + 10), 0))
+            sheet.save(res / "sheets" / f"{prefix}__{ph.stem}.jpg", quality=85)
+    complete = not out["missing"] and len(out["photos"]) == len(inputs)
+    passed = complete and all(v.get("pass") for v in out["photos"].values())
+    out["status"] = ("incomplete" if not complete or not inputs_ok or report["missing_neutral"]
+                     else "validated" if passed and neutral_ok else "failed")
+    return out
 
 
 def de_stats(a8, b8):
@@ -100,48 +188,41 @@ def main(kit: Path):
     neutral_ok = (inputs_ok and not report["missing_neutral"] and len(report["neutrality"]) == len(inputs)
                   and all(v["mean"] <= 1.0 for v in report["neutrality"].values()))
     for L in looks:
-        lid = L["look_id"]; entry = {"category": L["category"], "stop": L["stop"], "name": L["name"], "photos": {}, "missing": []}
-        for variant in ("full", "global"):
-            h = kit / "exports/hald" / f"{lid}__{variant}.tif"
-            if not h.exists():
-                entry["missing"].append(h.name); continue
+        lid = L["look_id"]
+        entry = {"category": L["category"], "stop": L["stop"], "name": L["name"]}
+        h = kit / "exports/hald" / f"{lid}__global.tif"
+        lut = None
+        if h.exists():
             lut = hald_to_lut(h)
-            np.save(res / "luts" / f"{lid}__{variant}.npy", lut)
-            write_cube(lut, res / "luts" / f"{lid}__{variant}.cube", f"{lid} {variant}")
-        gpath = res / "luts" / f"{lid}__global.npy"
-        if gpath.exists():
-            lut = np.load(gpath)
-            for stem in missing_inputs:
-                entry["missing"].append(f"input photo {stem}.jpg")
-            for ph in photos:
-                e = kit / "exports/photos" / f"{lid}__{ph.stem}.jpg"
-                if not e.exists():
-                    entry["missing"].append(e.name); continue
-                src = load(ph); lr = load(e)
-                if lr.shape != src.shape:
-                    entry["photos"][ph.stem] = {"error": f"size mismatch {lr.shape} vs {src.shape}"}; continue
-                ours = ia.to_uint8(ia.apply_lut_reference(lut, src.astype(np.float32) / 255, 1.0))
-                mean, p95 = de_stats(ours[::2, ::2], lr[::2, ::2])
-                entry["photos"][ph.stem] = {"mean": round(mean, 2), "p95": round(p95, 2), "pass": mean <= MEAN_MAX and p95 <= P95_MAX}
-                if not entry["photos"][ph.stem]["pass"]:
-                    s = 360 / max(src.shape[:2]); sz = (round(src.shape[1] * s), round(src.shape[0] * s))
-                    sheet = Image.new("RGB", (sz[0] * 3 + 20, sz[1]), (24, 24, 26))
-                    for i, im in enumerate((src, ours, lr)):
-                        sheet.paste(Image.fromarray(im).resize(sz), (i * (sz[0] + 10), 0))
-                    sheet.save(res / "sheets" / f"{lid}__{ph.stem}.jpg", quality=85)
-        complete = not entry["missing"] and len(entry["photos"]) == len(inputs)
-        passed = complete and all(v.get("pass") for v in entry["photos"].values())
-        # Validated only with complete, unchanged inputs, a complete passing neutral baseline and every export.
-        entry["status"] = ("incomplete" if not complete or not inputs_ok or report["missing_neutral"]
-                           else "validated" if passed and neutral_ok else "failed")
+            np.save(res / "luts" / f"{lid}__global.npy", lut)
+            write_cube(lut, res / "luts" / f"{lid}__global.cube", f"{lid} global")
+        settings = load_full_settings(kit, L)
+        # 1. global-transform validation: LUT(original) vs Lightroom's GLOBAL-ONLY photo exports
+        entry["global"] = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
+                                   f"{lid}__global", h if lut is None else None,
+                                   lambda src: apply_global(lut, src))
+        # 2. full-recipe validation: Lightly's complete recipe vs Lightroom's FULL photo exports
+        recipe, unimplemented, approximated = full_recipe(lut, settings)
+        full = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
+                        f"{lid}__full", h if lut is None else None, recipe)
+        full["unimplemented"] = unimplemented
+        full["approximated"] = approximated
+        if unimplemented and full["status"] == "validated":
+            full["status"] = "failed"  # numbers can't validate a recipe Lightly cannot render
+            full["reason"] = "operators not implemented by Lightly: " + ", ".join(unimplemented)
+        entry["full"] = full
         report["looks"][lid] = entry
     report["neutral_baseline_ok"] = neutral_ok
     json.dump(report, open(res / "report.json", "w"), indent=1)
-    lines = ["# Lightroom export validation", "", f"Neutral baseline OK: {neutral_ok}", "", "| Look | Status | Photos passing | Worst mean dE00 | Worst p95 |", "|---|---|---|---|---|"]
+    lines = ["# Lightroom export validation", "", f"Neutral baseline OK: {neutral_ok}", "",
+             "| Look | Global status | Global worst mean / p95 | Full-recipe status | Full worst mean / p95 | Not implemented |",
+             "|---|---|---|---|---|---|"]
+    def worst(v):
+        vals = [x for x in v["photos"].values() if "mean" in x]
+        return f"{max((x['mean'] for x in vals), default=float('nan')):.2f} / {max((x['p95'] for x in vals), default=float('nan')):.2f}"
     for lid, e in report["looks"].items():
-        vals = [v for v in e["photos"].values() if "mean" in v]
-        lines.append(f"| `{lid}` | {e['status']} | {sum(v['pass'] for v in vals)}/{len(photos)} | "
-                     f"{max((v['mean'] for v in vals), default=float('nan')):.2f} | {max((v['p95'] for v in vals), default=float('nan')):.2f} |")
+        lines.append(f"| `{lid}` | {e['global']['status']} | {worst(e['global'])} | {e['full']['status']} | {worst(e['full'])} | "
+                     f"{', '.join(e['full']['unimplemented']) or '-'} |")
     (res / "report.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 
