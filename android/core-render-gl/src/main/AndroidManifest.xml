@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 3D textures and texelFetch need OpenGL ES 3.0 (spec §8). -->
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+</manifest>

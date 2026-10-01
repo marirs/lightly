@@ -19,6 +19,7 @@ rootProject.name = "Lightly"
 // (see docs/m2/android-foundation.md); the editor shell lives in :app until then.
 include(":core-session")
 include(":core-render")
+include(":core-render-gl")
 include(":core-model")
 include(":core-export")
 include(":app")

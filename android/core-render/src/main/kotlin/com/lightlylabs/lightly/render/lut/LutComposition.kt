@@ -20,10 +20,14 @@ class LutStages(val auto: Lut3D, val look: Lut3D?) {
 
 object LutComposition {
     /**
-     * Bakes O1+O2 into one LUT (§4.1): `B(g) = L_look(clamp(L_auto(g)))` sampled on the grid, then
+     * Bakes O1+O2 into one LUT: `B(g) = L_look(clamp(L_auto(g)))` sampled on the grid, then
      * applied as `B(clamp(x))`. The inner clamp is the §4.2 boundary rule ([Lut3D.sample] clamps
-     * its input), so baked and two-stage rendering use one rule. Contract tolerance vs the
-     * two-stage path: max ≤ 2/255.
+     * its input).
+     *
+     * NOT the default render path: spec §4.1 (revised after M2) requires two LUT passes
+     * ([LutPassPlan]), because baking exceeds 2/255 on some golden Auto LUTs. Baking a specific
+     * Auto+Look pair is allowed only after that pair passes the exhaustive check. Kept for that check
+     * and for measurements.
      *
      * With no Look the Auto LUT is returned as-is: baking against identity would only add error.
      */
