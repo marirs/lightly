@@ -215,6 +215,63 @@ final class RenderSchedulingTests: XCTestCase {
         XCTAssertEqual(peak, 2)
     }
 
+    // MARK: - Cancellation is bounded by revision
+
+    private func makeScheduler() -> PreviewRenderScheduler {
+        let photo = TestFixtures.makePhoto()
+        return PreviewRenderScheduler(
+            renderer: SlowEncodingRenderer(), source: photo.image, identity: photo.fingerprint
+        )
+    }
+
+    private static func recipe(exposure: Double) -> DevelopRecipe {
+        var recipe = DevelopRecipe.unmodified
+        recipe.exposure = exposure
+        return recipe
+    }
+
+    /// Codex finding: `cancel(through: 1)` also cancelled revision 2.
+    func testOlderCancellationSparesANewerPendingRequest() async {
+        let scheduler = makeScheduler()
+
+        async let first = scheduler.render(Self.recipe(exposure: 0.1), revision: 1)
+        try? await Task.sleep(for: .milliseconds(5))
+        async let second = scheduler.render(Self.recipe(exposure: 0.2), revision: 2)
+        try? await Task.sleep(for: .milliseconds(5))
+        await scheduler.cancel(through: 1)
+
+        let outcomes = await [first, second]
+        XCTAssertEqual(outcomes.map(Self.label), ["cancelled", "rendered"])
+        if case .rendered(let image) = outcomes[1] {
+            XCTAssertEqual(TestFixtures.meanColour(of: image).red, 0.2, accuracy: 0.01)
+        }
+    }
+
+    func testOlderCancellationSparesANewerRunningRequest() async {
+        let scheduler = makeScheduler()
+        _ = await scheduler.render(Self.recipe(exposure: 0.1), revision: 1)
+
+        async let second = scheduler.render(Self.recipe(exposure: 0.2), revision: 2)
+        try? await Task.sleep(for: .milliseconds(5))
+        await scheduler.cancel(through: 1)
+
+        let outcome = await second
+        XCTAssertEqual(Self.label(outcome), "rendered")
+    }
+
+    func testCancellationThroughTheNewestRevisionCancelsRunningAndPending() async {
+        let scheduler = makeScheduler()
+
+        async let first = scheduler.render(Self.recipe(exposure: 0.1), revision: 1)
+        try? await Task.sleep(for: .milliseconds(5))
+        async let second = scheduler.render(Self.recipe(exposure: 0.2), revision: 2)
+        try? await Task.sleep(for: .milliseconds(5))
+        await scheduler.cancel(through: 2)
+
+        let outcomes = await [first, second]
+        XCTAssertEqual(outcomes.map(Self.label), ["cancelled", "cancelled"])
+    }
+
     private static func label(_ outcome: PreviewRenderOutcome) -> String {
         switch outcome {
         case .rendered: return "rendered"

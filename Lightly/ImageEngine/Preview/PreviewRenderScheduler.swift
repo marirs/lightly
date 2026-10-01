@@ -48,7 +48,7 @@ actor PreviewRenderScheduler {
     private let source: CGImage
     private let identity: PhotoFingerprint
 
-    private var inFlight: Task<Void, Never>?
+    private var inFlight: (revision: UInt64, task: Task<Void, Never>)?
     private var pending: Job?
     private var newestAcceptedRevision: UInt64 = 0
     private var isClosed = false
@@ -77,11 +77,19 @@ actor PreviewRenderScheduler {
 
     /// Abandons every request at or below `revision`: cancels the running
     /// render, resolves the waiting one, and refuses late arrivals.
+    ///
+    /// Requests newer than `revision` are left alone: cancel messages travel
+    /// in their own tasks and can arrive after the caller has already issued
+    /// a newer request, which must not be killed by the older intent.
     func cancel(through revision: UInt64) {
         newestAcceptedRevision = max(newestAcceptedRevision, revision)
-        inFlight?.cancel()
-        pending?.continuation.resume(returning: .cancelled)
-        pending = nil
+        if let running = inFlight, running.revision <= revision {
+            running.task.cancel()
+        }
+        if let waiting = pending, waiting.revision <= revision {
+            waiting.continuation.resume(returning: .cancelled)
+            pending = nil
+        }
     }
 
     /// Permanently stops the scheduler; later requests resolve as cancelled.
@@ -92,7 +100,7 @@ actor PreviewRenderScheduler {
 
     /// Returns once nothing is running or waiting. For tests and teardown.
     func waitUntilIdle() async {
-        while let running = inFlight {
+        while let running = inFlight?.task {
             await running.value
         }
     }
@@ -119,7 +127,7 @@ actor PreviewRenderScheduler {
 
     private func start(_ job: Job) {
         startedRenderCount += 1
-        inFlight = Task { await self.execute(job) }
+        inFlight = (job.revision, Task { await self.execute(job) })
     }
 
     private func execute(_ job: Job) async {
