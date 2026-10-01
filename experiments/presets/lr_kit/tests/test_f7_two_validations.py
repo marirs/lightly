@@ -64,8 +64,10 @@ def test_full_recipe_includes_separated_operators(tmp_path):
 
 
 def test_global_lut_alone_is_not_accepted_as_full_recipe(tmp_path):
-    """The old ingest compared the global LUT with the full Lightroom Look; a Look with grain must not validate."""
-    settings = {"ProcessVersion": "11.0", "GrainAmount": "35"}
-    look = _kit(tmp_path, settings, lambda s, g: g)  # numbers would match, but grain is not implemented by Lightly
+    """The old ingest compared the global LUT with the full Lightroom Look. A Look using an operator Lightly cannot
+    render must not validate even when the numbers match. (Originally exercised with grain; grain has since been
+    implemented as an experimental operator, so a non-Embedded camera profile, still not rendered, is used.)"""
+    settings = {"ProcessVersion": "11.0", "CameraProfile": "Adobe Standard"}
+    look = _kit(tmp_path, settings, lambda s, g: g)  # numbers match the LUT exactly
     assert look["full"]["status"] != "validated"
-    assert "GrainAmount" in look["full"]["unimplemented"]
+    assert "CameraProfile" in look["full"]["unimplemented"]
