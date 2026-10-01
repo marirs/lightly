@@ -28,7 +28,7 @@ def _lut():
     return np.moveaxis(np.clip(g ** 0.9 * np.array([1.05, 1.0, 0.92]) + 0.02, 0, 1), -1, 0).astype(np.float32)
 
 
-def _kit(tmp, full_settings, simulate_full):
+def _kit(tmp, full_settings, simulate_full, fixtures=False, textured_only=False):
     kit = tmp / "kit"
     for d in ("photos", "exports/hald", "exports/photos", "presets/full"):
         (kit / d).mkdir(parents=True)
@@ -36,9 +36,13 @@ def _kit(tmp, full_settings, simulate_full):
     hald = make_kit.hald_identity().astype(np.float32) / 65535; side = hald.shape[0]
     out = ia.apply_lut_reference(L, hald.reshape(-1, 1, 3), 1.0).reshape(side, side, 3)
     tifffile.imwrite(kit / "exports/hald/t.1.x__global.tif", np.round(np.clip(out, 0, 1) * 65535).astype(np.uint16))
-    for stem in ("portrait_deep_01", "sunset_02"):
+    stems = [] if textured_only else ["portrait_deep_01", "sunset_02"]
+    if fixtures or textured_only:
+        make_kit.write_fixtures(kit / "photos", only=None if fixtures else ["fixture_textured"])
+    for stem in stems:
         src = Image.open(make_kit.PRESETS.parent / f"lut3d/golden/{stem}/source.png").convert("RGB").resize((600, 400))
         src.save(kit / "photos" / f"{stem}.jpg", quality=100, subsampling=0)
+    for stem in [p.stem for p in sorted((kit / "photos").glob("*.jpg"))]:
         s = np.asarray(Image.open(kit / "photos" / f"{stem}.jpg")).astype(np.float32) / 255
         glob_img = ia.apply_lut_reference(L, s, 1.0)
         Image.fromarray(ia.to_uint8(glob_img)).save(kit / f"exports/photos/t.1.x__global__{stem}.jpg", quality=100, subsampling=0)

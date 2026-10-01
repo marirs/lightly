@@ -10,7 +10,13 @@ Purpose: get Lightroom's own renders of the provisional V1 Looks, so Lightly can
 
 Neither result is assumed.
 
-Exports per Look: 1 HALD + 22 global-only photos + 22 full photos. Plus 22 neutral photos once. Time needed: about 60–90 minutes in Lightroom Classic, mostly export time.
+The two **fixture cards** are needed for grain:
+- `fixture_smooth` provides the smooth areas where grain can be measured.
+- `fixture_textured` is detail everywhere.
+
+Treat them exactly like the photos. For Looks with grain, a Look can't be validated unless grain was measurable on at least one input.
+
+Exports per Look: 1 HALD + 24 global-only photos + 24 full photos. Plus 24 neutral photos once. Time needed: about 60–90 minutes in Lightroom Classic, mostly export time.
 
 ## Looks in this kit
 
@@ -33,7 +39,7 @@ Exports per Look: 1 HALD + 22 global-only photos + 22 full photos. Plus 22 neutr
 
 ## 2. Neutrality check (no preset)
 
-Select the 22 photos and confirm none of them has any develop settings: *Reset* in the Develop module if in doubt. Then export them with the **Photo export settings** (§5), using the filename `none__{original filename}`.
+Select the 24 photos in `photos/` (22 test photos plus the 2 fixture cards `fixture_smooth` and `fixture_textured`) and confirm none of them has any develop settings: *Reset* in the Develop module if in doubt. Then export them with the **Photo export settings** (§5), using the filename `none__{original filename}`.
 
 ## 3. Identity (HALD) render: global-only variant
 
@@ -46,7 +52,7 @@ Do not crop, straighten or touch any slider.
 
 ## 4. Photo renders: two sets per Look
 
-For **each** Look id, do both sets. Each set uses its own fresh copies of the 22 **master** photos; follow the rule above.
+For **each** Look id, do both sets. Each set uses its own fresh copies of the 24 **master** photos; follow the rule above.
 
 | Set | Preset to apply | Export filename |
 |---|---|---|
@@ -54,7 +60,7 @@ For **each** Look id, do both sets. Each set uses its own fresh copies of the 22
 | Full | `<look_id> [full]` | `<look_id>__full__{original filename}` |
 
 Steps for one set:
-1. Create a fresh virtual copy of each of the 22 master photos.
+1. Create a fresh virtual copy of each of the 24 master photos.
 2. Select the new copies and click **Reset**.
 3. Apply the set's preset to all of them: select them all and click the preset with Auto Sync on.
 4. Export with the **Photo export settings**.
@@ -84,4 +90,4 @@ Leave `exports/` inside this kit folder, or tell Claude where it is. Do not move
 - **global status:** extracted LUT vs your global-only exports;
 - **full-recipe status:** Lightly's complete recipe vs your full exports, with any operators Lightly does not implement listed.
 
-A Look is reported **validated** only if every one of the 22 photos passes (mean ΔE00 ≤ 2 and p95 ≤ 5), every expected export exists, and the neutral baseline passes. Otherwise it is **incomplete** or **failed**, with the reason. Regenerating the kit never deletes your exports.
+A Look is reported **validated** only if every one of the 24 inputs passes (mean ΔE00 ≤ 2 and p95 ≤ 5), every expected export exists, and the neutral baseline passes. Otherwise it is **incomplete** or **failed**, with the reason. Regenerating the kit never deletes your exports.

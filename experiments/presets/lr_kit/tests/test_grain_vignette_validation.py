@@ -28,4 +28,4 @@ def test_grain_from_a_different_seed_still_validates(tmp_path):
 def test_recipe_grain_vs_lightroom_without_grain_fails(tmp_path):
     look = _kit(tmp_path, SETTINGS, _lightroom(seed=0, with_grain=False))
     assert look["full"]["status"] == "failed"
-    assert any(not p.get("grain_ok", True) for p in look["full"]["photos"].values())
+    assert any(p.get("grain") == "fail" for p in look["full"]["photos"].values()), look["full"]["photos"]

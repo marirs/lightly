@@ -130,6 +130,33 @@ def write_hald(path: Path):
     tifffile.imwrite(path, hald_identity(), photometric="rgb", extratags=[(34675, "B", len(icc), icc, True)])
 
 
+def write_fixtures(photos_dir: Path, only=None):
+    """Controlled cards added to the kit's inputs (re-review issue 1): grain can only be measured where the image
+    itself is smooth, and real photos may not have enough smooth area.
+      fixture_smooth   flat patches (greys + muted colours) with gentle gradients -> grain evidence
+      fixture_textured fine high-frequency texture -> checks that image detail is not mistaken for grain
+    """
+    photos_dir.mkdir(parents=True, exist_ok=True)
+    from PIL import Image as _Image
+    h, w = 800, 1200
+    y, x = np.mgrid[0:h, 0:w] / np.array([h, w])[:, None, None]
+    cards = {}
+    patches = [(0.18, 0.18, 0.18), (0.35, 0.35, 0.35), (0.5, 0.5, 0.5), (0.65, 0.65, 0.65), (0.8, 0.8, 0.8),
+               (0.55, 0.42, 0.35), (0.35, 0.45, 0.55), (0.45, 0.55, 0.40)]
+    smooth = np.zeros((h, w, 3))
+    for i, c in enumerate(patches):
+        r0, c0 = (i // 4) * (h // 2), (i % 4) * (w // 4)
+        smooth[r0:r0 + h // 2, c0:c0 + w // 4] = c
+    smooth = smooth * (0.92 + 0.08 * x[..., None])  # gentle gradient so it is not perfectly flat
+    cards["fixture_smooth"] = smooth
+    # Strong detail at several scales everywhere: no smooth area, so it can never supply grain evidence.
+    tex = 0.5 + 0.3 * np.sin(2 * np.pi * x * 160) * np.sin(2 * np.pi * y * 110) + 0.15 * np.sin(2 * np.pi * (x * 61 + y * 43))
+    cards["fixture_textured"] = np.stack([tex, tex * 0.95 + 0.03, tex * 0.9 + 0.05], -1)
+    for name, img in cards.items():
+        if only is None or name in only:
+            _Image.fromarray(np.clip(img * 255 + 0.5, 0, 255).astype(np.uint8)).save(photos_dir / f"{name}.jpg", quality=100, subsampling=0)
+
+
 def write_inputs(kit: Path):
     """Record the kit's complete input set (photo stems + sha256, HALD sha256). Ingest validates against THIS
     list, not against whatever files happen to remain in the folder (Codex finding 6)."""
@@ -183,6 +210,7 @@ def main(new_version: bool = False):
     write_hald(KIT / "identity/hald_64_srgb16.tif")
     for jpg in sorted((PRESETS.parent / "lut3d/photos").glob("*.jpg")):
         shutil.copy2(jpg, KIT / "photos" / jpg.name)
+    write_fixtures(KIT / "photos")
     by_source = {}
     for p in lrsettings.walk(ROOT):
         by_source[p.source] = p
