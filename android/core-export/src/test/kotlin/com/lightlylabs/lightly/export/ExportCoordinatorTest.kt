@@ -11,7 +11,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -141,6 +143,82 @@ class ExportCoordinatorTest {
         val saved = assertIs<ExportState.Saved<String>>(h.coordinator.state.value)
         assertEquals(listOf(saved.newAsset), h.gateway.published)
         assertEquals(1, h.encoder.calls)
+    }
+
+    // --- Codex M2 review: cancellation must not break one-save-at-a-time ------------------------
+
+    @Test
+    fun `cancel during encode keeps the slot until the write completes, so no second save starts`() = runTest {
+        lateinit var h: Harness
+        val startsDuringWrite = mutableListOf<ExportStart>()
+        h = Harness(
+            this,
+            encoder = CountingEncoder(onEncode = {
+                // The user taps Cancel, then Save again, while the first copy is being written.
+                // Only during the first encode, so a bug shows up as two saves rather than a loop.
+                if (startsDuringWrite.isEmpty()) {
+                    h.coordinator.cancel()
+                    startsDuringWrite += h.coordinator.start(job(decodeMillis = 0))
+                }
+            }),
+        )
+        h.coordinator.start(job(decodeMillis = 0))
+        advanceUntilIdle()
+
+        assertEquals(listOf<ExportStart>(ExportStart.AlreadyRunning), startsDuringWrite, "slot must stay occupied while writing")
+        assertEquals(1, h.gateway.published.size, "exactly one asset saved")
+        assertEquals(1, h.encoder.calls)
+        assertIs<ExportState.Saved<String>>(h.coordinator.state.value)
+        // Released only after the write completed: a new export is accepted now.
+        assertIs<ExportStart.Started>(h.coordinator.start(job(decodeMillis = 0)))
+    }
+
+    @Test
+    fun `cancel before the export coroutine starts ends Cancelled, never stuck at decoding`() = runTest {
+        val h = Harness(this)
+        val started = h.coordinator.start(job()) as ExportStart.Started
+
+        h.coordinator.cancel() // before the dispatcher ever ran the export
+        advanceUntilIdle()
+
+        assertEquals(ExportState.Cancelled(started.exportId), h.coordinator.state.value)
+        assertTrue(h.gateway.inserted.isEmpty())
+        assertEquals(0, h.encoder.calls)
+        assertIs<ExportStart.Started>(h.coordinator.start(job(decodeMillis = 0)), "slot released after cancellation")
+    }
+
+    @Test
+    fun `state updates from export N never overwrite export N+1`() = runTest {
+        val h = Harness(this)
+        val history = mutableListOf<ExportState<String>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { h.coordinator.state.collect { history += it } }
+
+        val first = h.coordinator.start(job(decodeMillis = 500)) as ExportStart.Started
+        runCurrent()
+        h.coordinator.cancel()
+        // Retry immediately and keep retrying until accepted, as a UI would on the next tap.
+        var second = h.coordinator.start(job(decodeMillis = 0))
+        while (second !is ExportStart.Started) {
+            runCurrent()
+            second = h.coordinator.start(job(decodeMillis = 0))
+        }
+        advanceUntilIdle()
+
+        val secondId = second.exportId
+        val firstIndexOfSecond = history.indexOfFirst { it.exportIdOrNull() == secondId }
+        assertTrue(firstIndexOfSecond >= 0)
+        val laterStatesOfFirst = history.drop(firstIndexOfSecond).filter { it.exportIdOrNull() == first.exportId }
+        assertTrue(laterStatesOfFirst.isEmpty(), "export ${first.exportId} wrote state after ${secondId} began: $history")
+        assertIs<ExportState.Saved<String>>(h.coordinator.state.value)
+        assertEquals(1, h.gateway.published.size)
+    }
+
+    private fun ExportState<*>.exportIdOrNull(): Long? = when (this) {
+        is ExportState.Running -> exportId
+        is ExportState.Saved<*> -> exportId
+        is ExportState.Failed -> exportId
+        is ExportState.Cancelled -> exportId
+        ExportState.Idle -> null
     }
 
     @Test

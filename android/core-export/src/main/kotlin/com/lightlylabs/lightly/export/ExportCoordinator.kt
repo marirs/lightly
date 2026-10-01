@@ -8,6 +8,7 @@ import com.lightlylabs.lightly.render.lut.LutPassRenderer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -76,38 +77,72 @@ class ExportCoordinator<H>(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + renderDispatcher)
     private val lock = Any()
-    private var running: Job? = null
+
+    private class Slot(val exportId: Long, val job: Job)
+
+    // Guarded by [lock]. Occupied from start() until the export's Job has COMPLETED, not merely
+    // until it is cancelled: `Job.isActive` turns false at cancel() while a NonCancellable write is
+    // still running, and treating that as "free" let a second save start (Codex M2 review).
+    private var slot: Slot? = null
     private var nextExportId = 0L
 
     private val stateFlow = MutableStateFlow<ExportState<H>>(ExportState.Idle)
     val state: StateFlow<ExportState<H>> = stateFlow.asStateFlow()
 
     fun start(job: ExportJob<H>): ExportStart = synchronized(lock) {
-        if (running?.isActive == true) return ExportStart.AlreadyRunning
+        if (slot != null) return ExportStart.AlreadyRunning
         val exportId = ++nextExportId
         stateFlow.value = ExportState.Running(exportId, ExportState.Phase.DECODING)
-        running = scope.launch { runExport(exportId, job) }
+        // LAZY so the slot and the completion handler exist before the body can run or complete.
+        val exportJob = scope.launch(start = CoroutineStart.LAZY) { runExport(exportId, job) }
+        slot = Slot(exportId, exportJob)
+        exportJob.invokeOnCompletion { cause -> onExportCompleted(exportId, cause) }
+        exportJob.start()
         ExportStart.Started(exportId)
     }
 
     /** Cancels the running export if it has not started encoding; otherwise it completes. */
     fun cancel() {
-        synchronized(lock) { running }?.cancel(CancellationException("Export cancelled by the user"))
+        synchronized(lock) { slot?.job }?.cancel(CancellationException("Export cancelled by the user"))
+    }
+
+    /**
+     * Runs after the export's Job has fully completed, including a NonCancellable write. Covers a
+     * Job cancelled before its body ever ran (no catch block executes then), which previously left
+     * the state stuck at DECODING. Only then is the slot released.
+     */
+    private fun onExportCompleted(exportId: Long, cause: Throwable?) = synchronized(lock) {
+        if (slot?.exportId != exportId) return@synchronized
+        val current = stateFlow.value
+        if (current is ExportState.Running && current.exportId == exportId) {
+            stateFlow.value = if (cause == null || cause is CancellationException) {
+                ExportState.Cancelled(exportId)
+            } else {
+                ExportState.Failed(exportId, cause)
+            }
+        }
+        slot = null
+    }
+
+    /** State writes are accepted only from the export that owns the slot (export-ID guard). */
+    private fun publish(exportId: Long, newState: ExportState<H>) = synchronized(lock) {
+        if (slot?.exportId == exportId) stateFlow.value = newState
     }
 
     private suspend fun runExport(exportId: Long, job: ExportJob<H>) {
         try {
             val original = job.original.decode()
-            stateFlow.value = ExportState.Running(exportId, ExportState.Phase.RENDERING)
+            publish(exportId, ExportState.Running(exportId, ExportState.Phase.RENDERING))
             val rendered = renderTiled(original, job.plan)
             coroutineContext.ensureActive() // last cancellation point before anything is written
-            stateFlow.value = ExportState.Running(exportId, ExportState.Phase.ENCODING_AND_WRITING)
+            publish(exportId, ExportState.Running(exportId, ExportState.Phase.ENCODING_AND_WRITING))
             val saved = withContext(NonCancellable) { saver.save(job.sourceHandle, job.spec, rendered) }
-            stateFlow.value = ExportState.Saved(exportId, saved)
+            // A cancel that arrived during the write does not undo it: the asset exists, so report it.
+            publish(exportId, ExportState.Saved(exportId, saved))
         } catch (cancelled: CancellationException) {
-            stateFlow.value = ExportState.Cancelled(exportId)
+            publish(exportId, ExportState.Cancelled(exportId))
         } catch (failure: Throwable) {
-            stateFlow.value = ExportState.Failed(exportId, failure)
+            publish(exportId, ExportState.Failed(exportId, failure))
         }
     }
 
