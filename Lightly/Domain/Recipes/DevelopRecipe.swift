@@ -10,10 +10,10 @@ import Foundation
 /// Values are normalised: `0` means "no change" for every adjustment except
 /// white balance, which is expressed in Adobe-style temperature/tint units so
 /// that converted presets (§6) map onto the same type.
-struct DevelopRecipe: Equatable, Codable, Sendable {
+struct DevelopRecipe: Hashable, Codable, Sendable {
 
     /// White balance shift.
-    struct WhiteBalance: Equatable, Codable, Sendable {
+    struct WhiteBalance: Hashable, Codable, Sendable {
         /// Kelvin-style offset. Positive is warmer.
         var temperature: Double
         /// Green/magenta offset. Positive is magenta.
@@ -23,8 +23,8 @@ struct DevelopRecipe: Equatable, Codable, Sendable {
     }
 
     /// 8-channel HSL (Hue, Saturation, Luminance) shifts (spec §6.4).
-    struct HSLAdjustments: Equatable, Codable, Sendable {
-        struct ChannelSet: Equatable, Codable, Sendable {
+    struct HSLAdjustments: Hashable, Codable, Sendable {
+        struct ChannelSet: Hashable, Codable, Sendable {
             var red: Double = 0
             var orange: Double = 0
             var yellow: Double = 0
@@ -54,7 +54,7 @@ struct DevelopRecipe: Equatable, Codable, Sendable {
     }
 
     /// Split toning & three-way color grading (spec §6.4).
-    struct ColorGradingAdjustments: Equatable, Codable, Sendable {
+    struct ColorGradingAdjustments: Hashable, Codable, Sendable {
         var shadowHue: Double = 0
         var shadowSat: Double = 0
         var highlightHue: Double = 0
@@ -69,7 +69,7 @@ struct DevelopRecipe: Equatable, Codable, Sendable {
     }
 
     /// Film grain simulation (spec §6.4).
-    struct GrainAdjustments: Equatable, Codable, Sendable {
+    struct GrainAdjustments: Hashable, Codable, Sendable {
         var amount: Double = 0
         var size: Double = 0.25
         var frequency: Double = 0.50
@@ -82,7 +82,7 @@ struct DevelopRecipe: Equatable, Codable, Sendable {
     }
 
     /// Lens vignette simulation.
-    struct VignetteAdjustments: Equatable, Codable, Sendable {
+    struct VignetteAdjustments: Hashable, Codable, Sendable {
         var amount: Double = 0
         var midpoint: Double = 0.50
 

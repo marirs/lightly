@@ -55,6 +55,74 @@ enum TestFixtures {
         return image
     }
 
+    /// The gradient fixture as a Look thumbnail source on the Original.
+    static func makeThumbnailSource() -> LookThumbnailSource {
+        LookThumbnailSource(photo: makePhoto(), editBase: .unmodified)
+    }
+
+    /// A single-colour image, for tests that tell photos apart by pixels.
+    static func makeSolidImage(
+        width: Int = 300, height: Int = 400,
+        red: Double, green: Double, blue: Double
+    ) -> CGImage {
+        guard let context = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            fatalError("Test environment cannot create a bitmap context")
+        }
+        context.setFillColor(red: red, green: green, blue: blue, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        guard let image = context.makeImage() else {
+            fatalError("Test environment cannot render a bitmap")
+        }
+        return image
+    }
+
+    /// JPEG bytes for an arbitrary image.
+    static func makeJPEGData(for image: CGImage) -> Data {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data, UTType.jpeg.identifier as CFString, 1, nil
+        ) else {
+            return Data()
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        CGImageDestinationFinalize(destination)
+        return data as Data
+    }
+
+    /// Mean RGB of an image in 0...1, measured in sRGB.
+    ///
+    /// Lets tests assert on what was rendered rather than on dimensions or
+    /// non-nil results.
+    static func meanColour(of image: CGImage) -> (red: Double, green: Double, blue: Double) {
+        let width = image.width, height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn: Bool = pixels.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { fatalError("Test environment cannot read back pixels") }
+
+        var sums = (0.0, 0.0, 0.0)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            sums.0 += Double(pixels[index])
+            sums.1 += Double(pixels[index + 1])
+            sums.2 += Double(pixels[index + 2])
+        }
+        let count = Double(width * height) * 255
+        return (sums.0 / count, sums.1 / count, sums.2 / count)
+    }
+
     static func makePhoto(source: PhotoSource = .photoLibrary) -> SelectedPhoto {
         // Non-empty bytes so tests exercise the real metadata path rather than
         // the empty-source shortcut.

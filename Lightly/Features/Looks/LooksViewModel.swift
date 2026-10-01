@@ -63,7 +63,7 @@ final class LooksViewModel {
     private let thumbnailRenderer: any LookThumbnailRendering
     private let entitlements: any EntitlementResolving
     private let favouritesManager: any FavouritesManaging
-    private let sourceImage: CGImage
+    private let thumbnailSource: LookThumbnailSource
 
     /// In-flight thumbnail work, retained so it can be cancelled when the
     /// category changes or the screen closes.
@@ -73,13 +73,13 @@ final class LooksViewModel {
     private let thumbnailDimension = 360
 
     init(
-        sourceImage: CGImage,
+        thumbnailSource: LookThumbnailSource,
         catalog: any PresetProviding,
         thumbnailRenderer: any LookThumbnailRendering,
         entitlements: any EntitlementResolving,
         favouritesManager: any FavouritesManaging = UserDefaultsFavouritesManager()
     ) {
-        self.sourceImage = sourceImage
+        self.thumbnailSource = thumbnailSource
         self.catalog = catalog
         self.thumbnailRenderer = thumbnailRenderer
         self.entitlements = entitlements
@@ -195,7 +195,7 @@ final class LooksViewModel {
             do {
                 let image = try await thumbnailRenderer.thumbnail(
                     for: preset,
-                    from: sourceImage,
+                    from: thumbnailSource,
                     maximumDimension: thumbnailDimension
                 )
                 guard !Task.isCancelled else { return }

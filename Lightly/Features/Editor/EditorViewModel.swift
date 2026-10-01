@@ -150,7 +150,7 @@ final class EditorViewModel {
             try Task.checkCancellation()
 
             let rendered = try await previewRenderer.renderPreview(
-                original.image, with: recipe
+                original.image, identity: original.fingerprint, with: recipe
             )
 
             renderedImage = rendered
@@ -236,7 +236,7 @@ final class EditorViewModel {
             guard let self else { return }
             do {
                 let rendered = try await previewRenderer.renderPreview(
-                    original.image, with: composed
+                    original.image, identity: original.fingerprint, with: composed
                 )
                 renderedImage = rendered
             } catch {
@@ -286,7 +286,7 @@ final class EditorViewModel {
             guard let self else { return }
             do {
                 let rendered = try await previewRenderer.renderPreview(
-                    original.image, with: recipe
+                    original.image, identity: original.fingerprint, with: recipe
                 )
                 renderedImage = rendered
             } catch {

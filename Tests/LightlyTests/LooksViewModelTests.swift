@@ -22,7 +22,7 @@ private actor ScriptedThumbnailRenderer: LookThumbnailRendering {
 
     func thumbnail(
         for preset: LightlyPreset,
-        from image: CGImage,
+        from source: LookThumbnailSource,
         maximumDimension: Int
     ) async throws -> CGImage {
         renderCount += 1
@@ -59,7 +59,7 @@ final class LooksViewModelTests: XCTestCase {
         entitlements: any EntitlementResolving = FreeTierEntitlementResolver()
     ) -> LooksViewModel {
         LooksViewModel(
-            sourceImage: TestFixtures.makeImage(),
+            thumbnailSource: TestFixtures.makeThumbnailSource(),
             catalog: TestFixtures.bundledCatalog,
             thumbnailRenderer: renderer,
             entitlements: entitlements
@@ -145,7 +145,7 @@ final class LooksViewModelTests: XCTestCase {
     func testFavouritesCategoryWorkflow() {
         let favouritesManager = UserDefaultsFavouritesManager(userDefaults: UserDefaults(suiteName: "test.looks.vm.favs")!)
         let viewModel = LooksViewModel(
-            sourceImage: TestFixtures.makeImage(),
+            thumbnailSource: TestFixtures.makeThumbnailSource(),
             catalog: TestFixtures.bundledCatalog,
             thumbnailRenderer: ScriptedThumbnailRenderer(behaviour: .succeed),
             entitlements: FreeTierEntitlementResolver(),
@@ -186,7 +186,7 @@ final class LooksViewModelTests: XCTestCase {
         favouritesManager.toggleFavourite(presetID: "film.golden-memory")
 
         let viewModel = LooksViewModel(
-            sourceImage: TestFixtures.makeImage(),
+            thumbnailSource: TestFixtures.makeThumbnailSource(),
             catalog: catalog,
             thumbnailRenderer: ScriptedThumbnailRenderer(behaviour: .succeed),
             entitlements: FreeTierEntitlementResolver(),

@@ -139,7 +139,10 @@ final class AppState {
     /// current edit at render time rather than baked into the thumbnail.
     func makeLooksViewModel(for photo: SelectedPhoto) -> LooksViewModel {
         LooksViewModel(
-            sourceImage: photo.image,
+            // Deferred (spec §12 e): thumbnails still render on the Original
+            // rather than the committed edit. The base is passed explicitly so
+            // the cache key already distinguishes edits once that is fixed.
+            thumbnailSource: LookThumbnailSource(photo: photo, editBase: .unmodified),
             catalog: presetCatalog,
             thumbnailRenderer: thumbnailRenderer,
             entitlements: entitlements,
