@@ -17,9 +17,15 @@ Time needed: about 30–45 minutes in Lightroom Classic (most of it is waiting f
 ## 1. Import
 
 1. In **Lightroom Classic**, choose Develop → Presets panel → **+** → *Import Presets…*.
-   - Select every file in `presets/original/` and `presets/global/`.
-   - `.dng` presets: import them as photos instead. Then, from each, create a preset with *Develop → New Preset* (all settings ticked) and give it the same name as the file.
+   - Select every file in `presets/full/` and `presets/global/`. These are **complete** presets: every look-relevant setting is written explicitly. `presets/original/` holds the vendor files for reference only; **do not apply them**, because some omit settings and would inherit values from a previous Look.
 2. Choose *File → Import* and add `identity/hald_64_srgb16.tif` and all of `photos/`. Use **Add** (don't move or copy). **Make sure Import → "Apply During Import" has no develop preset selected.**
+
+## Rule for every render (do not skip)
+
+- **Every** render starts from a **fresh virtual copy of the untouched master** (the imported photo or HALD), created with *Photo → Create Virtual Copy* from the master, not from another copy.
+- Before applying a Look, click **Reset** (bottom right of the Develop module) on that copy.
+- **Never apply a Look to a copy that already has another Look**, and never use *Sync Settings* from a copy that had a different Look.
+- If in doubt, delete the copy and make a new one from the master.
 
 ## 2. Neutrality check (no preset)
 
@@ -30,14 +36,20 @@ Select the 22 photos and confirm none of them has any develop settings: *Reset* 
 For **each** Look id:
 
 1. Select `hald_64_srgb16.tif`, then choose *Photo → Create Virtual Copy*.
-2. Apply the preset `<look_id>` (from `presets/original`). Export with the **HALD export settings**, filename `<look_id>__full`.
-3. Make another virtual copy and apply `<look_id> [global]`. Export it with the same settings, filename `<look_id>__global`.
+2. Click **Reset**, then apply the preset `<look_id> [full]`. Export with the **HALD export settings**, filename `<look_id>__full`.
+3. Make another virtual copy **from the master**, click **Reset**, and apply `<look_id> [global]`. Export it with the same settings, filename `<look_id>__global`.
 
 Do not crop, straighten or touch any slider.
 
 ## 4. Photo renders
 
-For **each** Look id, select the 22 photos, apply the preset `<look_id>` (from `presets/original`), and export with the **Photo export settings**, filename `<look_id>__{original filename}`. Batch-apply with *Sync Settings* (all boxes ticked) after applying to one photo.
+For **each** Look id:
+1. Create a fresh virtual copy of each of the 22 **master** photos.
+2. Select the new copies and click **Reset**.
+3. Apply the preset `<look_id> [full]` to all of them: select them all and click the preset in the Develop module with Auto Sync on.
+4. Export with the **Photo export settings**, filename `<look_id>__{original filename}`.
+
+Never reuse copies across Looks.
 
 ## 5. Export settings
 
