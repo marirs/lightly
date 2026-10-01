@@ -29,7 +29,7 @@ import lrsettings  # noqa: E402
 
 HERE = Path(__file__).parent
 PRESETS = HERE.parent
-ROOT = Path(next((a for a in sys.argv[1:] if not a.startswith("--")), "")) if any(not a.startswith("--") for a in sys.argv[1:]) else Path.home() / "Downloads/Presets - for lightly"
+ROOT = Path.home() / "Downloads/Presets - for lightly"  # overridden by the first non-flag CLI argument
 KIT = HERE / "kit"
 HALD_LEVEL = 8  # cube size 64, image 512x512
 
@@ -79,6 +79,24 @@ def kit_preset_settings(settings: dict, variant: str) -> dict:
     elif variant != "full":
         raise ValueError(variant)
     return out
+
+
+# Small pilot to check the Lightroom workflow end to end before the full run (about 22 exports):
+#  - s1-vibes: a vendor original that omits many keys (checks the complete-preset XMPs import and apply)
+#  - c4-teals: grain + vignette (checks spatial operators and grain evidence)
+#  - Display P3 and Adobe RGB photos (colour management), a deep-skin portrait, and the smooth fixture card.
+PILOT = {"looks": ["natural.1.s1-vibes", "film.2.c4-teals"],
+         "photos": ["landscape_01", "wellexposed_02", "portrait_deep_01", "fixture_smooth"]}
+
+PILOT_BANNER = """> **PILOT KIT.** This is a small subset: 2 Looks and 4 inputs, about 22 exports and 10–15 minutes. Its purpose is to check that:
+> - Lightroom imports and applies the generated presets;
+> - the export settings and file naming are right;
+> - the neutral baseline passes;
+> - ingest runs end to end.
+>
+> Run it first and report anything that differs from these instructions, especially any preset that fails to import. Then run the full kit.
+
+"""
 
 
 class KitHasExportsError(RuntimeError):
@@ -200,17 +218,22 @@ def sha(p: Path):
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
-def main(new_version: bool = False):
+def main(new_version: bool = False, pilot: bool = False) -> Path:
     global KIT
+    if pilot and KIT.name == "kit":
+        KIT = KIT.parent / "kit-pilot"
     KIT = prepare_kit_dir(KIT, new_version)
     shortlist = json.load(open(PRESETS / "shortlist.json"))
     looks = [rec for cat in shortlist.values() for rec in cat["looks"]]
+    if pilot:
+        looks = [rec for rec in looks if look_id(rec) in PILOT["looks"]]
     for d in ("identity", "photos", "presets/original", "presets/full", "presets/global", "exports/hald", "exports/photos"):
         (KIT / d).mkdir(parents=True, exist_ok=True)
     write_hald(KIT / "identity/hald_64_srgb16.tif")
     for jpg in sorted((PRESETS.parent / "lut3d/photos").glob("*.jpg")):
-        shutil.copy2(jpg, KIT / "photos" / jpg.name)
-    write_fixtures(KIT / "photos")
+        if not pilot or jpg.stem in PILOT["photos"]:
+            shutil.copy2(jpg, KIT / "photos" / jpg.name)
+    write_fixtures(KIT / "photos", only=[p for p in PILOT["photos"] if p.startswith("fixture_")] if pilot else None)
     by_source = {}
     for p in lrsettings.walk(ROOT):
         by_source[p.source] = p
@@ -242,12 +265,17 @@ def main(new_version: bool = False):
                         "zeroed_for_global": sorted(k for k in LOCAL_KEYS if k in p.settings and str(p.settings[k]).strip("+") not in ("0", "0.00"))})
     json.dump(entries, open(KIT / "shortlist.json", "w"), indent=1)
     write_inputs(KIT)
-    (KIT / "README.md").write_text((HERE / "README_TEMPLATE.md").read_text().replace("{{LOOK_TABLE}}", "\n".join(
+    n_inputs = len(list((KIT / "photos").glob("*.jpg")))
+    (KIT / "README.md").write_text((PILOT_BANNER if pilot else "") + (HERE / "README_TEMPLATE.md").read_text().replace("{{N}}", str(n_inputs)).replace("{{LOOK_TABLE}}", "\n".join(
         f"| `{e['look_id']}` | {e['category']} | {e['stop']} | {e['name']} | `{e['original_file']}` |" for e in entries)))
     manifest = {str(f.relative_to(KIT)): sha(f) for f in sorted(KIT.rglob("*")) if f.is_file()}
     json.dump(manifest, open(KIT / "manifest.json", "w"), indent=1)
     print(f"kit: {len(entries)} looks, {len(manifest)} files -> {KIT}")
+    return KIT
 
 
 if __name__ == "__main__":
-    main(new_version="--new-version" in sys.argv)
+    positional = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if positional:
+        ROOT = Path(positional[0])
+    main(new_version="--new-version" in sys.argv, pilot="--pilot" in sys.argv)
