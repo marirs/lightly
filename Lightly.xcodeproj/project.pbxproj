@@ -21,6 +21,7 @@
 		149E951527C7FA06D09BBF1C /* CameraCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE9214BBAE723CD04BB2700 /* CameraCaptureView.swift */; };
 		14F8B1E081C211C05893A009 /* SourceSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC4813AABBF9A878E8880D4 /* SourceSelectionSheet.swift */; };
 		193BE69F23C8C5F0A826E7B3 /* LooksViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A4DEB1683970E200B2A26D5 /* LooksViewModel.swift */; };
+		2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */; };
 		272B9D9B0ED0D9FE44882263 /* presets_photo.json in Resources */ = {isa = PBXBuildFile; fileRef = 6ABD212B3077AB489EFD341F /* presets_photo.json */; };
 		276421B2331E6F443246C608 /* EditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB8EFE26F0E762E3E2EED0B /* EditorViewModel.swift */; };
 		28AB7BED7ADBFBD754A8B37A /* LightlySpacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5E951CDF0E1372C5B186635 /* LightlySpacing.swift */; };
@@ -34,6 +35,7 @@
 		3ECEA2214805D81D95984D0C /* ImageAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E2A8CE87D87EA973EB3F0F /* ImageAnalysisTests.swift */; };
 		43710550D6CB40A64E155B88 /* LaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7648DFE969409AB6F6AFC71 /* LaunchView.swift */; };
 		45FAD05F4E71AA9577515028 /* LockedDecisionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C873B5606C4AD11DB6FA1 /* LockedDecisionsTests.swift */; };
+		4C4B1B342F45110F5B45AEB0 /* ColorPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67235CB2F09149021FA6809B /* ColorPipeline.swift */; };
 		52026FBFCF45B8F0BEAD4DBF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = F427AD56DA4B59730A05777C /* Localizable.xcstrings */; };
 		571E7BBE6C188BD6502F11A5 /* LightlyError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B6949D79F191E031FD950B /* LightlyError.swift */; };
 		57FB8C9305F38D963BA3FAE6 /* presets_fixture.json in Resources */ = {isa = PBXBuildFile; fileRef = F26E5749A262A23F12C5B5F1 /* presets_fixture.json */; };
@@ -141,8 +143,10 @@
 		5CDD4CB25C6BB38FC0A5E9A1 /* DevelopCancellationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopCancellationTests.swift; sourceTree = "<group>"; };
 		60273B07655FC75C3E4C4360 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		6238855D071990606106390E /* PhotoDeveloping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDeveloping.swift; sourceTree = "<group>"; };
+		62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPipelineLoadTests.swift; sourceTree = "<group>"; };
 		62D50B6F71288983AD9DEE26 /* RecipeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeRenderer.swift; sourceTree = "<group>"; };
 		6536BE8AF09C1D3DCA5B58C2 /* ExportSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportSnapshotTests.swift; sourceTree = "<group>"; };
+		67235CB2F09149021FA6809B /* ColorPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPipeline.swift; sourceTree = "<group>"; };
 		683D9036EE1451AECD4DB7C0 /* LightlyColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyColor.swift; sourceTree = "<group>"; };
 		6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredWorkTests.swift; sourceTree = "<group>"; };
 		6ABD212B3077AB489EFD341F /* presets_photo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = presets_photo.json; sourceTree = "<group>"; };
@@ -306,6 +310,7 @@
 			children = (
 				17AA44A8E71ACB1C0703ADBD /* AnalysingDeveloperTests.swift */,
 				36C7D6A77D28F78630D1A2BD /* AppStateTests.swift */,
+				62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */,
 				6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */,
 				5CDD4CB25C6BB38FC0A5E9A1 /* DevelopCancellationTests.swift */,
 				FCCAFE13D807284DF5125AA1 /* EditHistoryTests.swift */,
@@ -538,6 +543,7 @@
 			isa = PBXGroup;
 			children = (
 				4BDA5C7473FA9B6F24EB4367 /* Analysis */,
+				F25E3A1C32AD571B47920206 /* Color */,
 				C336854B7726278241660F82 /* CoreImage */,
 				2282B31346FB6CDAD5807188 /* Export */,
 				7E63B6124329D5323CA39069 /* Preview */,
@@ -579,6 +585,14 @@
 				E800D7214C751E5E330D9D5E /* PickerDiagnostics.swift */,
 			);
 			path = LightlyUITests;
+			sourceTree = "<group>";
+		};
+		F25E3A1C32AD571B47920206 /* Color */ = {
+			isa = PBXGroup;
+			children = (
+				67235CB2F09149021FA6809B /* ColorPipeline.swift */,
+			);
+			path = Color;
 			sourceTree = "<group>";
 		};
 		F6E2F2D0A2AD4BD2FA422496 /* Tokens */ = {
@@ -713,6 +727,7 @@
 			files = (
 				0BCD469B52A4840C6921B37F /* AnalysingDeveloperTests.swift in Sources */,
 				813DB666DEFCE2FA88809868 /* AppStateTests.swift in Sources */,
+				2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */,
 				ABF41ACB403B2485A5C75CB9 /* DeferredWorkTests.swift in Sources */,
 				88529F11D1B33446617853F6 /* DevelopCancellationTests.swift in Sources */,
 				C1AD858A08E66B18572CCA72 /* EditHistoryTests.swift in Sources */,
@@ -756,6 +771,7 @@
 				F37CE96D13D287A43F79F421 /* BrandMark.swift in Sources */,
 				9E8E4C0FC69F71AC701C625C /* BuiltInPresetCatalog.swift in Sources */,
 				149E951527C7FA06D09BBF1C /* CameraCaptureView.swift in Sources */,
+				4C4B1B342F45110F5B45AEB0 /* ColorPipeline.swift in Sources */,
 				0515CC84E2377F443226B9D9 /* ContextualTool.swift in Sources */,
 				62962F950C63ED926A5A97DC /* DebugFixedRecipeDeveloper.swift in Sources */,
 				30399162E2667F76F1D4EC7A /* DebugProcessingNotice.swift in Sources */,

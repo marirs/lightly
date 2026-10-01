@@ -94,6 +94,57 @@ enum TestFixtures {
         return data as Data
     }
 
+    /// A single-colour image in an arbitrary named colour space.
+    static func makeSolidImage(
+        width: Int = 16, height: Int = 16,
+        colorSpaceName: CFString,
+        components: [CGFloat]
+    ) -> CGImage {
+        guard let space = CGColorSpace(name: colorSpaceName),
+              let context = CGContext(
+                data: nil, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width * 4, space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ),
+              let colour = CGColor(colorSpace: space, components: components + [1]) else {
+            fatalError("Test environment cannot create a \(colorSpaceName) bitmap")
+        }
+        context.setFillColor(colour)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        guard let image = context.makeImage() else { fatalError("Cannot render bitmap") }
+        return image
+    }
+
+    /// Encodes `image` losslessly (TIFF), optionally tagging an EXIF orientation.
+    static func makeTIFFData(for image: CGImage, exifOrientation: Int = 1) -> Data {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data, UTType.tiff.identifier as CFString, 1, nil
+        ) else { fatalError("Cannot create TIFF destination") }
+        CGImageDestinationAddImage(
+            destination, image,
+            [kCGImagePropertyOrientation: exifOrientation] as CFDictionary
+        )
+        guard CGImageDestinationFinalize(destination) else { fatalError("Cannot encode TIFF") }
+        return data as Data
+    }
+
+    /// Raw 8-bit RGBA bytes of `image`, drawn into sRGB.
+    static func rgbaBytes(of image: CGImage) -> [UInt8] {
+        let width = image.width, height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        pixels.withUnsafeMutableBytes { buffer in
+            let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+            context?.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        }
+        return pixels
+    }
+
     /// Mean RGB of an image in 0...1, measured in sRGB.
     ///
     /// Lets tests assert on what was rendered rather than on dimensions or
