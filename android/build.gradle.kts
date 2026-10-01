@@ -19,8 +19,22 @@ val lightlyModelsDir: String = providers.gradleProperty("lightlyModelsDir")
     .orElse(providers.environmentVariable("LIGHTLY_MODELS_DIR"))
     .getOrElse(repoRoot.resolve("experiments/lut3d/models").absolutePath)
 
+// Robolectric instruments JDK classes with ASM; on JDK 26 it fails with "Unsupported class file major
+// version 70", which surfaces as misleading test failures. Fail fast with the fix instead.
+val maxTestJdk = 25
+
 subprojects {
     tasks.withType<Test>().configureEach {
+        doFirst {
+            val running = JavaVersion.current().majorVersion.toInt()
+            if (running > maxTestJdk) {
+                throw GradleException(
+                    "Unit tests need JDK <= $maxTestJdk (running $running): Robolectric cannot instrument newer class files. " +
+                        "Set JAVA_HOME to Android Studio's bundled JDK, e.g. " +
+                        "JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ./gradlew test"
+                )
+            }
+        }
         systemProperty("lightly.goldenDir", lightlyGoldenDir)
         systemProperty("lightly.modelsDir", lightlyModelsDir)
         // The fixture folders are too large to hash as task inputs; record the paths so pointing at a
