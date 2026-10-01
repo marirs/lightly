@@ -158,7 +158,10 @@ Limitations:
 - **Kit tests:** `lr_kit/tests/` holds 17 tests, all passing. Each finding's regression test was confirmed to fail before its fix.
   - **Not yet verified:** that Lightroom accepts the generated XMPs.
   - **Grain and vignette** (10 of the 18 Looks use them) are now **experimental operators** (`lr_model.apply_vignette` / `apply_grain`, commit a8ea342). They work in normalised frame coordinates; grain is seeded deterministically.
-    - The full-recipe validation scores grain Looks *grain-insensitively*: ΔE after a blur matched to the grain size, plus a grain-strength ratio that must fall within 0.6–1.6.
+    - The full-recipe validation scores grain Looks *grain-insensitively*: ΔE after a blur matched to the grain size.
+    - Grain itself is measured as its **contribution in smooth regions** against a like-for-like grain-free reference. On the Lightroom side that is a `[nograin]` export (the full Look with only grain off); on the Lightly side it is the full recipe without grain.
+    - A grain Look needs at least one input with measurable Lightroom grain that Lightly matches (ratio 0.6–1.6). "Neither side has grain" is not evidence.
+    - The kit includes `fixture_smooth` and `fixture_textured` cards to make that measurement possible (commits 9e25cb7, a2eec42).
     - Their constants are first guesses, so these Looks are expected to fail full-recipe validation until the constants are fitted on the exports. That fitting is a planned step once the exports exist.
 - **Remaining input:** running the corrected kit in Lightroom (about 60–90 min; 1 HALD + 44 photos per Look, plus 22 neutral photos).
 
