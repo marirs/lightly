@@ -387,3 +387,15 @@ The descriptions below were confirmed by reading the code. Comments and docs cla
 | U8 | Launch categories/stops names | As in the prototype (illustrative) | Needs brand and curation input in M4 |
 | U9 | Deep Color comparison method | Capture 20–30 scenes with an Arsenal 2 rig and a phone at the same time, then score both outputs on the §1.1 criteria plus a blind preference test | Needs hardware (~$200) and photographer time; without it, "matches Deep Color" can't be verified |
 | U10 | Local exposure addition (one low-frequency gain-map pass before the LUT) | Include it in the retrained model's design: train the LUT with the gain map in the loop, and gate it on a dynamic-range measure | Adds one GPU pass (a per-pixel multiply by an upsampled gain map; not yet measured on device) and one more contract operator. Without it, backlit subjects can't be lifted by a global transform |
+
+---
+
+## M2 foundation status (branch `m2/foundation`)
+
+| §12 ref | Status | Where |
+|---|---|---|
+| h | Fixed: exact ID lookup after an explicit `PresetIDMigrations` table (shipped empty; no real renames exist). Unknown IDs resolve to `.unavailable`; unavailable favourites are hidden, logged, and kept in storage | `PresetIDMigrations.swift`, `BuiltInPresetCatalog.resolvePreset(id:)`, `LooksViewModel.resolveFavourites()` |
+| i | Fixed: catalogue loads only from a given bundle and throws `PresetCatalogLoadError`; the ingest script derives its output dir from its own location and requires the source dir | `BuiltInPresetCatalog.load(from:)`, `scripts/ingest_presets.py` |
+| d | Fixed: thumbnail cache keyed on photo fingerprint (SHA-256 of encoded bytes + upright size), edit base, look id + recipe, output size; preview base keyed on fingerprint | `PhotoFingerprint.swift`, `LookThumbnailRenderer.swift`, `PreviewRenderer.swift` |
+| f | Fixed: one in-flight + one pending render per photo, revisioned, published only if latest and the session is open; Reset/close/photo switch cancel | `PreviewRenderScheduler.swift`, `EditorViewModel` |
+| e | Still open: thumbnails render on the Original (edit base passed as `.unmodified`) | `AppState.makeLooksViewModel` |
