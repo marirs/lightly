@@ -19,11 +19,10 @@ struct RecipeRenderer: Sendable {
     private let context: CIContext
 
     init() {
-        // Working space is left at Core Image's default (linear sRGB) rather
-        // than forced to sRGB, so wide-gamut sources are not silently flattened
-        // during editing (spec §15.4). Full colour management — P3 output,
-        // embedded ICC handling — is Phase 2 work.
-        self.context = CIContext(options: [.useSoftwareRenderer: false])
+        // v3 differs: v1 left the context at its defaults and produced
+        // Device RGB-tagged output. V1 policy (spec §4.3) is sRGB in and out;
+        // see ColorPipeline.
+        self.context = ColorPipeline.makeContext()
     }
 
     /// Applies a recipe and returns a new image.
@@ -33,21 +32,10 @@ struct RecipeRenderer: Sendable {
     ///   - recipe: The adjustments to apply.
     /// - Returns: A newly rendered image.
     /// - Throws: `LightlyError.developFailed` if the graph cannot be rendered.
-    func render(_ image: CGImage, with recipe: DevelopRecipe) throws -> CGImage {
-        try render(image, with: recipe, outputColorSpace: nil)
-    }
-
-    /// Applies a recipe, producing output in the specified colour space.
     ///
-    /// When `outputColorSpace` is provided, the rendered image is created in
-    /// that space — preserving Display P3, embedded ICC profiles, or any other
-    /// gamut the source carried (spec §15.4). When `nil`, Core Image's default
-    /// working space is used.
-    func render(
-        _ image: CGImage,
-        with recipe: DevelopRecipe,
-        outputColorSpace: CGColorSpace?
-    ) throws -> CGImage {
+    /// Output is always 8-bit sRGB. A wide-gamut export path is deferred
+    /// (spec U4), so there is deliberately no colour-space parameter.
+    func render(_ image: CGImage, with recipe: DevelopRecipe) throws -> CGImage {
         // An identity recipe must not round-trip through Core Image: doing so
         // would re-encode pixels for no reason and could subtly shift colour.
         guard !recipe.isIdentity else { return image }
@@ -68,14 +56,7 @@ struct RecipeRenderer: Sendable {
         ciImage = applyVignette(recipe.vignette, to: ciImage)
         ciImage = applySharpening(recipe.sharpening, to: ciImage)
 
-        let output: CGImage?
-        if let colorSpace = outputColorSpace {
-            output = context.createCGImage(ciImage, from: ciImage.extent, format: .RGBA8, colorSpace: colorSpace)
-        } else {
-            output = context.createCGImage(ciImage, from: ciImage.extent)
-        }
-
-        guard let output else {
+        guard let output = ColorPipeline.renderSRGB(ciImage, in: context) else {
             throw LightlyError.developFailed
         }
         return output

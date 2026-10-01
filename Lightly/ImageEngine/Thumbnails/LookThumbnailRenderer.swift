@@ -65,7 +65,7 @@ actor CoreImageThumbnailRenderer: LookThumbnailRendering {
         let maximumDimension: Int
     }
 
-    private let context = CIContext(options: [.useSoftwareRenderer: false])
+    private let context = ColorPipeline.makeContext()
     private let renderer = RecipeRenderer()
 
     private var downsampledBases = BoundedCache<DownsampleKey, CGImage>(capacity: 2)
@@ -137,7 +137,7 @@ actor CoreImageThumbnailRenderer: LookThumbnailRendering {
             by: CGAffineTransform(scaleX: scale, y: scale)
         )
 
-        guard let output = context.createCGImage(scaled, from: scaled.extent) else {
+        guard let output = ColorPipeline.renderSRGB(scaled, in: context) else {
             throw LightlyError.developFailed
         }
 

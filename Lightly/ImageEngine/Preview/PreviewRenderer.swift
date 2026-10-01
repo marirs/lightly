@@ -15,7 +15,7 @@ import Foundation
 /// output file matches the source dimensions.
 actor PreviewRenderer {
     private let renderer = RecipeRenderer()
-    private let context = CIContext(options: [.useSoftwareRenderer: false])
+    private let context = ColorPipeline.makeContext()
     
     /// Maximum pixel dimension of the preview image.
     private let maximumPreviewDimension: Int
@@ -66,7 +66,7 @@ actor PreviewRenderer {
             by: CGAffineTransform(scaleX: scale, y: scale)
         )
         
-        guard let output = context.createCGImage(scaled, from: scaled.extent) else {
+        guard let output = ColorPipeline.renderSRGB(scaled, in: context) else {
             throw LightlyError.developFailed
         }
         
