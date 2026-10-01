@@ -16,7 +16,9 @@ _REAL_GRAIN = lm.apply_grain
 
 
 def _lightroom(seed):
-    def full(src, glob_img):
+    def full(src, glob_img, grain=True):
+        if not grain:
+            return glob_img
         with torch.no_grad():
             return _REAL_GRAIN(torch.from_numpy(glob_img.astype(np.float32)), SETTINGS, seed=seed).numpy()
     return full

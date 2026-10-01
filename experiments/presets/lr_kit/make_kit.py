@@ -69,6 +69,17 @@ DEVELOP_DEFAULTS = {
 }
 
 
+GRAIN_KEYS = ("GrainAmount", "GrainSize", "GrainFrequency", "GrainSeed")
+
+
+def needs_nograin(settings: dict) -> bool:
+    """Looks with grain need a matching grain-free render: the full Look with ONLY grain disabled."""
+    try:
+        return float(str(settings.get("GrainAmount", "0")).replace("+", "")) != 0
+    except ValueError:
+        return False
+
+
 def kit_preset_settings(settings: dict, variant: str) -> dict:
     """Complete preset for the kit: Lightroom neutral defaults, overlaid with the preset's own values, and for the
     'global' variant with the local/spatial keys forced neutral. Non-develop keys are passed through."""
@@ -76,19 +87,22 @@ def kit_preset_settings(settings: dict, variant: str) -> dict:
     out.update({k: v for k, v in settings.items() if isinstance(v, (str, list))})
     if variant == "global":
         out.update({k: DEVELOP_DEFAULTS.get(k, "0") for k in LOCAL_KEYS})
+    elif variant == "nograin":
+        # Same as full except grain: the like-for-like grain-free reference for grain measurement.
+        out.update({k: DEVELOP_DEFAULTS[k] for k in GRAIN_KEYS if k in DEVELOP_DEFAULTS})
     elif variant != "full":
         raise ValueError(variant)
     return out
 
 
-# Small pilot to check the Lightroom workflow end to end before the full run (about 22 exports):
+# Small pilot to check the Lightroom workflow end to end before the full run (26 exports):
 #  - s1-vibes: a vendor original that omits many keys (checks the complete-preset XMPs import and apply)
 #  - c4-teals: grain + vignette (checks spatial operators and grain evidence)
 #  - Display P3 and Adobe RGB photos (colour management), a deep-skin portrait, and the smooth fixture card.
 PILOT = {"looks": ["natural.1.s1-vibes", "film.2.c4-teals"],
          "photos": ["landscape_01", "wellexposed_02", "portrait_deep_01", "fixture_smooth"]}
 
-PILOT_BANNER = """> **PILOT KIT.** This is a small subset: 2 Looks and 4 inputs, about 22 exports and 10–15 minutes. Its purpose is to check that:
+PILOT_BANNER = """> **PILOT KIT.** This is a small subset: 2 Looks and 4 inputs, 26 exports (4 neutral; per Look 1 identity + 4 global + 4 full; plus 4 no-grain for the grain Look), about 15 minutes. Its purpose is to check that:
 > - Lightroom imports and applies the generated presets;
 > - the export settings and file naming are right;
 > - the neutral baseline passes;
@@ -181,7 +195,7 @@ def write_inputs(kit: Path):
     photos = {p.stem: sha(p) for p in sorted((kit / "photos").glob("*.jpg"))}
     hald = kit / "identity/hald_64_srgb16.tif"
     # Preset files are evidence too: what Lightroom rendered must be exactly what ingest models (re-review issue 3).
-    presets = {str(p.relative_to(kit)): sha(p) for v in ("full", "global") for p in sorted((kit / "presets" / v).glob("*.xmp"))}
+    presets = {str(p.relative_to(kit)): sha(p) for v in ("full", "global", "nograin") for p in sorted((kit / "presets" / v).glob("*.xmp"))}
     json.dump({"photos": photos, "hald_sha256": sha(hald) if hald.exists() else None, "presets": presets},
               open(kit / "inputs.json", "w"), indent=1)
 
@@ -227,7 +241,7 @@ def main(new_version: bool = False, pilot: bool = False) -> Path:
     looks = [rec for cat in shortlist.values() for rec in cat["looks"]]
     if pilot:
         looks = [rec for rec in looks if look_id(rec) in PILOT["looks"]]
-    for d in ("identity", "photos", "presets/original", "presets/full", "presets/global", "exports/hald", "exports/photos"):
+    for d in ("identity", "photos", "presets/original", "presets/full", "presets/global", "presets/nograin", "exports/hald", "exports/photos"):
         (KIT / d).mkdir(parents=True, exist_ok=True)
     write_hald(KIT / "identity/hald_64_srgb16.tif")
     for jpg in sorted((PRESETS.parent / "lut3d/photos").glob("*.jpg")):
@@ -251,7 +265,8 @@ def main(new_version: bool = False, pilot: bool = False) -> Path:
         else:
             shutil.copy2(ROOT / rec["source"], orig_path)
         identity_keys = {"Name", "UUID", "Group", "PresetType", "Cluster", "SupportsAmount", "SupportsColor", "SupportsMonochrome"}
-        for variant in ("full", "global"):
+        variants = ("full", "global") + (("nograin",) if needs_nograin(p.settings) else ())
+        for variant in variants:
             g = kit_preset_settings(p.settings, variant)
             path = KIT / "presets" / variant / f"{lid}__{variant}.xmp"
             path.write_text(settings_to_xmp(g, f"{lid} [{variant}]"))
@@ -262,6 +277,7 @@ def main(new_version: bool = False, pilot: bool = False) -> Path:
         entries.append({"look_id": lid, **{k: rec[k] for k in ("category", "stop", "name", "source")},
                         "original_file": str(orig_path.relative_to(KIT)), "full_xmp": f"presets/full/{lid}__full.xmp",
                         "global_xmp": f"presets/global/{lid}__global.xmp",
+                        **({"nograin_xmp": f"presets/nograin/{lid}__nograin.xmp"} if needs_nograin(p.settings) else {}),
                         "zeroed_for_global": sorted(k for k in LOCAL_KEYS if k in p.settings and str(p.settings[k]).strip("+") not in ("0", "0.00"))})
     json.dump(entries, open(KIT / "shortlist.json", "w"), indent=1)
     write_inputs(KIT)

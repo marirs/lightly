@@ -11,11 +11,14 @@ from test_f7_two_validations import _kit
 SETTINGS = {"ProcessVersion": "11.0", "GrainAmount": "35", "GrainSize": "25", "PostCropVignetteAmount": "-20"}
 
 
+_REAL_GRAIN = lm.apply_grain
+
+
 def _lightroom(seed, with_grain=True):
-    def full(src, glob_img):
+    def full(src, glob_img, grain=True):
         with torch.no_grad():
             x = lm.apply_vignette(torch.from_numpy(glob_img.astype(np.float32)), SETTINGS)
-            return (lm.apply_grain(x, SETTINGS, seed=seed) if with_grain else x).numpy()
+            return (_REAL_GRAIN(x, SETTINGS, seed=seed) if (with_grain and grain) else x).numpy()
     return full
 
 

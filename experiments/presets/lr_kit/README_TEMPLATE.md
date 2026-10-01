@@ -16,7 +16,7 @@ The two **fixture cards** are needed for grain:
 
 Treat them exactly like the photos. For Looks with grain, a Look can't be validated unless grain was measurable on at least one input.
 
-Exports per Look: 1 HALD + {{N}} global-only photos + {{N}} full photos. Plus {{N}} neutral photos once. Time needed: about 60–90 minutes in Lightroom Classic, mostly export time.
+Exports per Look: 1 HALD + {{N}} global-only photos + {{N}} full photos (+ {{N}} no-grain photos for Looks with grain). Plus {{N}} neutral photos once. Time needed: about 60–90 minutes in Lightroom Classic, mostly export time.
 
 ## Looks in this kit
 
@@ -27,7 +27,7 @@ Exports per Look: 1 HALD + {{N}} global-only photos + {{N}} full photos. Plus {{
 ## 1. Import
 
 1. In **Lightroom Classic**, choose Develop → Presets panel → **+** → *Import Presets…*.
-   - Select every file in `presets/full/` and `presets/global/`. These are **complete** presets: every look-relevant setting is written explicitly. `presets/original/` holds the vendor files for reference only; **do not apply them**, because some omit settings and would inherit values from a previous Look.
+   - Select every file in `presets/full/`, `presets/global/` and `presets/nograin/`. These are **complete** presets: every look-relevant setting is written explicitly. `presets/original/` holds the vendor files for reference only; **do not apply them**, because some omit settings and would inherit values from a previous Look.
 2. Choose *File → Import* and add `identity/hald_64_srgb16.tif` and all of `photos/`. Use **Add** (don't move or copy). **Make sure Import → "Apply During Import" has no develop preset selected.**
 
 ## Rule for every render (do not skip)
@@ -58,6 +58,9 @@ For **each** Look id, do both sets. Each set uses its own fresh copies of the {{
 |---|---|---|
 | Global-only | `<look_id> [global]` | `<look_id>__global__{original filename}` |
 | Full | `<look_id> [full]` | `<look_id>__full__{original filename}` |
+| No-grain (**only Looks with a `[nograin]` preset**) | `<look_id> [nograin]` | `<look_id>__nograin__{original filename}` |
+
+The no-grain set is the full Look with only grain switched off. It is the grain-free reference used to measure grain like-for-like. Looks without grain have no `[nograin]` preset and need no third set.
 
 Steps for one set:
 1. Create a fresh virtual copy of each of the {{N}} master photos.

@@ -72,12 +72,20 @@ def spatial_calibration():
 
 def preset_paths(look: dict):
     lid = look["look_id"]
-    return [look.get("full_xmp", f"presets/full/{lid}__full.xmp"), look.get("global_xmp", f"presets/global/{lid}__global.xmp")]
+    paths = [look.get("full_xmp", f"presets/full/{lid}__full.xmp"), look.get("global_xmp", f"presets/global/{lid}__global.xmp")]
+    if look.get("nograin_xmp"):
+        paths.append(look["nograin_xmp"])
+    return paths
 
 
 def verify_presets(kit: Path, look: dict, recorded: dict) -> list:
     """Every preset file the Look was rendered with must exist and match the hash recorded at kit creation."""
     problems = []
+    full = kit / preset_paths(look)[0]
+    if full.exists() and not look.get("nograin_xmp"):
+        import make_kit
+        if make_kit.needs_nograin(lrsettings.parse_xmp_text(full.read_text())):
+            problems.append("grain Look has no [nograin] preset (matching grain-free reference)")
     for rel in preset_paths(look):
         p = kit / rel
         if rel not in recorded:
@@ -220,8 +228,9 @@ def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutra
             else:
                 g_ours = grain_contribution(ours, ours_free, mask, sigma)
                 if g_lr < GRAIN_MIN_SIGNAL:
-                    # Lightroom shows no measurable grain here: Lightly must not add any either.
-                    verdict = "pass" if g_ours < GRAIN_MIN_SIGNAL else "fail"
+                    # Lightroom shows no measurable grain here. Lightly must not add any, but "neither has grain"
+                    # is not evidence that the Look's grain was reproduced (Codex review).
+                    verdict = "no-grain" if g_ours < GRAIN_MIN_SIGNAL else "fail"
                     ratio = None
                 else:
                     ratio = g_ours / g_lr
@@ -327,7 +336,7 @@ def main(kit: Path):
         recipe, unimplemented, approximated = full_recipe(lut, settings)
         full = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
                         f"{lid}__full", h if lut is None else None, recipe, grain_frac=grain_sigma_frac(settings),
-                        grain_free_prefix=f"{lid}__global", grain_free_render=full_recipe(lut, {k: v for k, v in settings.items() if not k.startswith("Grain")})[0])
+                        grain_free_prefix=f"{lid}__nograin", grain_free_render=full_recipe(lut, {k: v for k, v in settings.items() if not k.startswith("Grain")})[0])
         full["unimplemented"] = unimplemented
         full["approximated"] = approximated
         if unimplemented and full["status"] == "validated":
