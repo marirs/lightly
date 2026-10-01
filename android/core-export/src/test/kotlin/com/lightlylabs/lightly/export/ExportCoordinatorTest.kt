@@ -47,9 +47,9 @@ class ExportCoordinatorTest {
     }
 
     /** "Encodes" by writing the raw pixels, so the test can compare what was saved. */
-    private class CountingEncoder(private val onEncode: () -> Unit = {}) : JpegEncoder<Rgba8Image> {
+    private class CountingEncoder(private val onEncode: () -> Unit = {}) : JpegEncoder<Rgba8ExportFrame> {
         var calls = 0
-        override fun encode(image: Rgba8Image, quality: Int, sink: OutputStream) {
+        override fun encode(image: Rgba8ExportFrame, quality: Int, sink: OutputStream) {
             calls++
             onEncode()
             sink.write(image.pixels)
@@ -64,7 +64,7 @@ class ExportCoordinatorTest {
         val dispatcher = StandardTestDispatcher(test.testScheduler)
         val gateway = MemoryGateway()
         val encoder = encoder
-        val coordinator = ExportCoordinator(CpuLutPassRenderer, SaveCopyExporter(gateway, encoder), dispatcher, maxTileEdge = tileEdge)
+        val coordinator = ExportCoordinator(CpuLutPassRenderer, SaveCopyExporter(gateway, encoder), Rgba8ExportFrame.factory, dispatcher, maxTileEdge = tileEdge)
     }
 
     private fun job(decodeMillis: Long = 500) =
@@ -230,7 +230,7 @@ class ExportCoordinatorTest {
             override fun publish(handle: String) = true
             override fun delete(handle: String) { deleted += handle }
         }
-        val coordinator = ExportCoordinator(CpuLutPassRenderer, SaveCopyExporter(failing, CountingEncoder()), StandardTestDispatcher(testScheduler))
+        val coordinator = ExportCoordinator(CpuLutPassRenderer, SaveCopyExporter(failing, CountingEncoder()), Rgba8ExportFrame.factory, StandardTestDispatcher(testScheduler))
         coordinator.start(job(decodeMillis = 0))
         advanceUntilIdle()
 
@@ -245,7 +245,7 @@ class ExportCoordinatorTest {
         val counting = object : LutPassRenderer {
             override fun render(source: Rgba8Image, plan: LutPassPlan): Rgba8Image { renderCalls++; return CpuLutPassRenderer.render(source, plan) }
         }
-        val coordinator = ExportCoordinator(counting, SaveCopyExporter(MemoryGateway(), CountingEncoder()), StandardTestDispatcher(testScheduler), maxTileEdge = 32)
+        val coordinator = ExportCoordinator(counting, SaveCopyExporter(MemoryGateway(), CountingEncoder()), Rgba8ExportFrame.factory, StandardTestDispatcher(testScheduler), maxTileEdge = 32)
         coordinator.start(job(decodeMillis = 0))
         advanceUntilIdle()
 

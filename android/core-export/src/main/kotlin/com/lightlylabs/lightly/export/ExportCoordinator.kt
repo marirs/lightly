@@ -1,6 +1,5 @@
 package com.lightlylabs.lightly.export
 
-import com.lightlylabs.lightly.render.gpu.TileCopy
 import com.lightlylabs.lightly.render.gpu.TilePlan
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import com.lightlylabs.lightly.render.lut.LutPassPlan
@@ -18,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.yield
 import kotlin.coroutines.coroutineContext
 
 /** Full-resolution, oriented, sRGB decode of the Original (spec §5.4 step 2). */
@@ -69,12 +67,16 @@ sealed interface ExportStart {
  * @param renderDispatcher the thread that owns the GL context (the same one previews use), so GL
  *   calls stay on their owner thread. Exports and previews interleave on it between tiles.
  */
-class ExportCoordinator<H>(
-    private val renderer: LutPassRenderer,
-    private val saver: SaveCopyExporter<H, Rgba8Image>,
+class ExportCoordinator<H, F : ExportFrame>(
+    renderer: LutPassRenderer,
+    private val saver: SaveCopyExporter<H, F>,
+    private val frameFactory: ExportFrameFactory<F>,
     renderDispatcher: CoroutineDispatcher,
-    private val maxTileEdge: Int = TilePlan.SPEC_MAX_TILE_EDGE,
+    maxTileEdge: Int = TilePlan.SPEC_MAX_TILE_EDGE,
+    /** Exposed for tests of the documented buffer budget. */
+    val ledger: ExportBufferLedger = ExportBufferLedger(),
 ) {
+    private val tiledRenderer = TiledExportRenderer(renderer, maxTileEdge, ledger)
     private val scope = CoroutineScope(SupervisorJob() + renderDispatcher)
     private val lock = Any()
 
@@ -131,12 +133,7 @@ class ExportCoordinator<H>(
 
     private suspend fun runExport(exportId: Long, job: ExportJob<H>) {
         try {
-            val original = job.original.decode()
-            publish(exportId, ExportState.Running(exportId, ExportState.Phase.RENDERING))
-            val rendered = renderTiled(original, job.plan)
-            coroutineContext.ensureActive() // last cancellation point before anything is written
-            publish(exportId, ExportState.Running(exportId, ExportState.Phase.ENCODING_AND_WRITING))
-            val saved = withContext(NonCancellable) { saver.save(job.sourceHandle, job.spec, rendered) }
+            val saved = renderThenSave(exportId, job)
             // A cancel that arrived during the write does not undo it: the asset exists, so report it.
             publish(exportId, ExportState.Saved(exportId, saved))
         } catch (cancelled: CancellationException) {
@@ -146,15 +143,35 @@ class ExportCoordinator<H>(
         }
     }
 
-    /** Tile by tile so a 48 MP export never needs one huge GPU texture, with a cancel check per tile. */
-    private suspend fun renderTiled(original: Rgba8Image, plan: LutPassPlan): Rgba8Image {
-        val tiles = TilePlan.plan(original.width, original.height, maxTileEdge)
-        val output = ByteArray(original.pixels.size)
-        for (tile in tiles.tiles) {
-            coroutineContext.ensureActive()
-            TileCopy.insert(output, original.width, tile, renderer.render(TileCopy.extract(original, tile), plan))
-            yield() // let queued preview renders on the shared GL thread interleave between tiles
+    /**
+     * Holds at most two full-frame buffers (decoded source + encode target) and releases the source
+     * before encoding; see [ExportBufferLedger] for the budget.
+     */
+    private suspend fun renderThenSave(exportId: Long, job: ExportJob<H>): H {
+        var source: Rgba8Image? = job.original.decode()
+        val width = source!!.width
+        val height = source.height
+        val frameBytes = ExportBufferLedger.rgba8Bytes(width, height)
+        ledger.acquire(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
+        var sourceHeld = true
+        try {
+            publish(exportId, ExportState.Running(exportId, ExportState.Phase.RENDERING))
+            val target = frameFactory.allocate(width, height)
+            ledger.acquire(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
+            try {
+                tiledRenderer.render(source, job.plan, target)
+                // Drop the source before encoding so the encoder runs with one full frame live.
+                source = null
+                ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
+                sourceHeld = false
+                coroutineContext.ensureActive() // last cancellation point before anything is written
+                publish(exportId, ExportState.Running(exportId, ExportState.Phase.ENCODING_AND_WRITING))
+                return withContext(NonCancellable) { saver.save(job.sourceHandle, job.spec, target) }
+            } finally {
+                ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
+            }
+        } finally {
+            if (sourceHeld) ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
         }
-        return Rgba8Image(original.width, original.height, output)
     }
 }

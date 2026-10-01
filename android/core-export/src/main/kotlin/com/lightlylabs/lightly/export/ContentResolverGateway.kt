@@ -8,7 +8,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import java.io.IOException
-import java.nio.ByteBuffer
+import com.lightlylabs.lightly.render.gpu.Tile
 import java.io.OutputStream
 
 /** The real MediaStore gateway (API 29+). */
@@ -43,22 +43,41 @@ class ContentResolverGateway(
 }
 
 /**
- * Rendered RGBA8 → ARGB_8888 sRGB Bitmap → [BitmapJpegEncoder]. The export path's encoder.
- * PENDING (device): output verified only through the encoder interface in tests.
+ * Export target on Android: an ARGB_8888 sRGB Bitmap that tiles are written into and that
+ * [BitmapFrameJpegEncoder] compresses directly, so no extra full-frame copy exists between render
+ * and encode. Writing a tile converts RGBA bytes to ARGB ints in a tile-sized scratch array.
  */
-class Rgba8JpegEncoder(private val bitmapEncoder: BitmapJpegEncoder = BitmapJpegEncoder()) : JpegEncoder<Rgba8Image> {
-    override fun encode(image: Rgba8Image, quality: Int, sink: OutputStream) {
-        val bitmap = Bitmap.createBitmap(
-            image.width, image.height, Bitmap.Config.ARGB_8888, true,
-            ColorSpace.get(ColorSpace.Named.SRGB),
-        )
-        try {
-            bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(image.pixels))
-            bitmapEncoder.encode(bitmap, quality, sink)
-        } finally {
-            bitmap.recycle()
+class BitmapExportFrame(val bitmap: Bitmap) : ExportFrame {
+    init {
+        require(bitmap.config == Bitmap.Config.ARGB_8888 && bitmap.isMutable) { "Export frame must be a mutable ARGB_8888 bitmap" }
+    }
+
+    override val width: Int get() = bitmap.width
+    override val height: Int get() = bitmap.height
+
+    override fun writeTile(tile: Tile, pixels: Rgba8Image) {
+        val argb = IntArray(tile.pixelCount)
+        val bytes = pixels.pixels
+        for (i in argb.indices) {
+            val base = i * 4
+            argb[i] = ((bytes[base + 3].toInt() and 0xff) shl 24) or
+                ((bytes[base].toInt() and 0xff) shl 16) or
+                ((bytes[base + 1].toInt() and 0xff) shl 8) or
+                (bytes[base + 2].toInt() and 0xff)
+        }
+        bitmap.setPixels(argb, 0, tile.width, tile.x, tile.y, tile.width, tile.height)
+    }
+
+    companion object {
+        val factory = ExportFrameFactory { width, height ->
+            BitmapExportFrame(Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888, true, ColorSpace.get(ColorSpace.Named.SRGB)))
         }
     }
+}
+
+/** Compresses the export frame's Bitmap. PENDING (device): real JPEG output is not verified in M2. */
+class BitmapFrameJpegEncoder(private val bitmapEncoder: BitmapJpegEncoder = BitmapJpegEncoder()) : JpegEncoder<BitmapExportFrame> {
+    override fun encode(image: BitmapExportFrame, quality: Int, sink: OutputStream) = bitmapEncoder.encode(image.bitmap, quality, sink)
 }
 
 /**
