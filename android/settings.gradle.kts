@@ -20,3 +20,4 @@ rootProject.name = "Lightly"
 include(":core-session")
 include(":core-render")
 include(":core-model")
+include(":core-export")
