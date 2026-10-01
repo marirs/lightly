@@ -183,6 +183,11 @@ final class AppState {
 
         do {
             let photo = try await photoLoader.loadPhoto(from: data, source: source)
+            if let previous = selectedPhoto, previous.id != photo.id {
+                // Switching photos ends the previous session; its in-flight
+                // renders must not land after the new photo is shown.
+                closeEditor(for: previous.id)
+            }
             selectedPhoto = photo
             route = .editor(SelectedPhotoReference(id: photo.id))
         } catch let error as LightlyError {
@@ -209,10 +214,14 @@ final class AppState {
     /// writes to it (spec §2.6).
     func returnToLaunch() {
         if let photo = selectedPhoto {
-            editorViewModels.removeValue(forKey: photo.id)
+            closeEditor(for: photo.id)
         }
         selectedPhoto = nil
         route = .launch
+    }
+
+    private func closeEditor(for photoID: UUID) {
+        editorViewModels.removeValue(forKey: photoID)?.close()
     }
 
     // MARK: - Error handling

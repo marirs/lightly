@@ -54,6 +54,7 @@
 		7DBAA002EC3E65722310C20E /* ImageIOPhotoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256C5A8B851A2C8274F2D786 /* ImageIOPhotoExporter.swift */; };
 		813DB666DEFCE2FA88809868 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36C7D6A77D28F78630D1A2BD /* AppStateTests.swift */; };
 		826FE8DEE3AECCC13FB2DDCA /* PresetCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 555ECAAA9CEC0D7AF48ADE7E /* PresetCatalogTests.swift */; };
+		893F88F49177247C5B85B31F /* PreviewRenderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE53EB1E9EA9A6AAE8D08CD /* PreviewRenderScheduler.swift */; };
 		9499049C3AF3768592FA5D53 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107CDFD7F9169E403711A26D /* RootView.swift */; };
 		95D920BA636083E9E30E5E18 /* DevelopingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A449DEE0FE62A446070DBEC /* DevelopingOverlay.swift */; };
 		9BC4A72EFF69E4ABD3DB6E9E /* ImageAnalyser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0386C0B95ABECFC47053C72C /* ImageAnalyser.swift */; };
@@ -71,6 +72,7 @@
 		B6739D58E6179B180EBD12E7 /* DevelopRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB2867C5D49814A9B978C7E /* DevelopRecipe.swift */; };
 		B699A9D372FCF406B8691C47 /* DevelopStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127C9E7A1DEDE2FE50A1E961 /* DevelopStage.swift */; };
 		B78E9F37FD364C0E37C33380 /* FavouritesManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D2D37AF0B8F8C62A80BD28 /* FavouritesManaging.swift */; };
+		BBF12BA965DBD434F28F0EB4 /* RenderSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6DAB9C6D7730E8B0FD6DB61 /* RenderSchedulingTests.swift */; };
 		C04A4CCA0FEEE1F724F2AD9B /* Entitlements.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75AFA2AE4E25D4D088F4D701 /* Entitlements.swift */; };
 		C1A93CD389A42F5F63C6EEE9 /* LightlyPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9FE8BA8FCBFBB9BAC04F50A /* LightlyPreset.swift */; };
 		C1AD858A08E66B18572CCA72 /* EditHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCAFE13D807284DF5125AA1 /* EditHistoryTests.swift */; };
@@ -142,6 +144,7 @@
 		683D9036EE1451AECD4DB7C0 /* LightlyColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyColor.swift; sourceTree = "<group>"; };
 		6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredWorkTests.swift; sourceTree = "<group>"; };
 		6ABD212B3077AB489EFD341F /* presets_photo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = presets_photo.json; sourceTree = "<group>"; };
+		6DE53EB1E9EA9A6AAE8D08CD /* PreviewRenderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRenderScheduler.swift; sourceTree = "<group>"; };
 		75AFA2AE4E25D4D088F4D701 /* Entitlements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entitlements.swift; sourceTree = "<group>"; };
 		7772E8B98209919C954C1C84 /* ExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTests.swift; sourceTree = "<group>"; };
 		7A449DEE0FE62A446070DBEC /* DevelopingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopingOverlay.swift; sourceTree = "<group>"; };
@@ -161,6 +164,7 @@
 		A457853F665261A32FA677B7 /* HistogramAnalyser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistogramAnalyser.swift; sourceTree = "<group>"; };
 		A4A918B7FDA68D7D5694EB78 /* TestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFixtures.swift; sourceTree = "<group>"; };
 		A6CCC548E65CB9D717533968 /* LightlyTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyTypography.swift; sourceTree = "<group>"; };
+		A6DAB9C6D7730E8B0FD6DB61 /* RenderSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderSchedulingTests.swift; sourceTree = "<group>"; };
 		A6E26C45832103E4E20C0120 /* RecipeRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeRendererTests.swift; sourceTree = "<group>"; };
 		A9FE8BA8FCBFBB9BAC04F50A /* LightlyPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyPreset.swift; sourceTree = "<group>"; };
 		ADA7F3DD90E84FEC19D1DB17 /* AnalysingDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysingDeveloper.swift; sourceTree = "<group>"; };
@@ -318,6 +322,7 @@
 				7ED6748D67469348D11E4C57 /* PresetLookupTests.swift */,
 				A6E26C45832103E4E20C0120 /* RecipeRendererTests.swift */,
 				38A65CD47975A752738D3F1F /* RenderCacheIdentityTests.swift */,
+				A6DAB9C6D7730E8B0FD6DB61 /* RenderSchedulingTests.swift */,
 				4AEE30EB2606BD4FA51B643F /* Fixtures */,
 				120B09B716865717E09C62AE /* Support */,
 			);
@@ -357,6 +362,7 @@
 			isa = PBXGroup;
 			children = (
 				0AFE6A1F3861F5707487C317 /* PreviewRenderer.swift */,
+				6DE53EB1E9EA9A6AAE8D08CD /* PreviewRenderScheduler.swift */,
 			);
 			path = Preview;
 			sourceTree = "<group>";
@@ -722,6 +728,7 @@
 				6B5BA898B6123AB52CD10D5B /* PresetLookupTests.swift in Sources */,
 				D4D5F8D02100DB0B4682F7A4 /* RecipeRendererTests.swift in Sources */,
 				DC76441DB4FDD6CBF6462C40 /* RenderCacheIdentityTests.swift in Sources */,
+				BBF12BA965DBD434F28F0EB4 /* RenderSchedulingTests.swift in Sources */,
 				AAF610509B2E837FB28CA666 /* SnapshotAssertion.swift in Sources */,
 				F428117121D672174DE135FA /* TestFixtures.swift in Sources */,
 			);
@@ -784,6 +791,7 @@
 				67C7AAD1D84537B383F5A083 /* PhotoLoading.swift in Sources */,
 				30162224FFB813EFA1BC78D6 /* PhotoSource.swift in Sources */,
 				5C225DD6623E7D52231F0D6D /* PresetIDMigrations.swift in Sources */,
+				893F88F49177247C5B85B31F /* PreviewRenderScheduler.swift in Sources */,
 				DBD78B602DF450ADA6831CE6 /* PreviewRenderer.swift in Sources */,
 				A914D5B7FCCF1AE08F0DD187 /* RecipeRenderer.swift in Sources */,
 				9499049C3AF3768592FA5D53 /* RootView.swift in Sources */,
