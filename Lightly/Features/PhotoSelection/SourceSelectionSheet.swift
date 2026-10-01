@@ -111,6 +111,12 @@ struct SourceSelectionSheet: View {
                 RoundedRectangle(cornerRadius: LightlyRadius.row, style: .continuous)
                     .fill(LightlyColor.surfaceElevated(colorScheme))
             )
+            // The fill alone is 1.13:1 against the sheet; the outline gives
+            // the row a ≥ 3:1 boundary (WCAG 1.4.11).
+            .overlay(
+                RoundedRectangle(cornerRadius: LightlyRadius.row, style: .continuous)
+                    .strokeBorder(LightlyColor.controlBoundary(colorScheme), lineWidth: 1.5)
+            )
             .layoutAnchor("source.\(source).row")
         }
         .buttonStyle(.plain)

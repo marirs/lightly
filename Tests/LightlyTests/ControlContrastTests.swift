@@ -16,6 +16,26 @@ enum WCAG {
         (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
 
+    /// Highest contrast between any pixel in a thin band across a control's
+    /// left edge (at mid-height) and the background just outside it.
+    static func edgeContrast(
+        of frame: CGRect, in pixels: [UInt8], width: Int
+    ) -> (ratio: Double, outside: (UInt8, UInt8, UInt8)) {
+        func pixel(_ x: Int, _ y: Int) -> (UInt8, UInt8, UInt8) {
+            let index = (y * width + x) * 4
+            return (pixels[index], pixels[index + 1], pixels[index + 2])
+        }
+        let y = Int(frame.midY)
+        let outside = pixel(max(Int(frame.minX) - 4, 0), y)
+        let outsideLuminance = luminance(outside.0, outside.1, outside.2)
+        var best = 1.0
+        for x in (Int(frame.minX) - 1)...(Int(frame.minX) + 3) {
+            let edge = pixel(x, y)
+            best = max(best, contrast(luminance(edge.0, edge.1, edge.2), outsideLuminance))
+        }
+        return (best, outside)
+    }
+
     static func luminance(of color: Color) -> Double {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
@@ -40,24 +60,10 @@ final class ControlContrastTests: XCTestCase {
         return viewModel
     }
 
-    /// Highest contrast between any pixel in a thin band across the
-    /// control's left edge and the background just outside it.
     private func boundaryContrast(
         of frame: CGRect, in pixels: [UInt8], width: Int
     ) -> (ratio: Double, outside: (UInt8, UInt8, UInt8)) {
-        func pixel(_ x: Int, _ y: Int) -> (UInt8, UInt8, UInt8) {
-            let index = (y * width + x) * 4
-            return (pixels[index], pixels[index + 1], pixels[index + 2])
-        }
-        let y = Int(frame.midY)
-        let outside = pixel(max(Int(frame.minX) - 4, 0), y)
-        let outsideLuminance = WCAG.luminance(outside.0, outside.1, outside.2)
-        var best = 1.0
-        for x in (Int(frame.minX) - 1)...(Int(frame.minX) + 3) {
-            let edge = pixel(x, y)
-            best = max(best, WCAG.contrast(WCAG.luminance(edge.0, edge.1, edge.2), outsideLuminance))
-        }
-        return (best, outside)
+        WCAG.edgeContrast(of: frame, in: pixels, width: width)
     }
 
     private func assertControlBoundaries(

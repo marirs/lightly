@@ -261,6 +261,11 @@ struct ExportSheet: View {
         .foregroundStyle(LightlyColor.textPrimary(colorScheme))
         .frame(maxWidth: .infinity)
         .padding(.vertical, LightlySpacing.s + 2)
+        // Both actions carry a controlBoundary outline (≥ 3:1 against the
+        // sheet, WCAG 1.4.11). v1 relied on the fill alone for Save (1.13:1)
+        // and a 40 % tertiary hairline for Share (1.31:1), so neither read
+        // as a bounded button. Fill still distinguishes primary from
+        // secondary.
         .background(
             Capsule().fill(
                 isProminent
@@ -269,12 +274,7 @@ struct ExportSheet: View {
             )
         )
         .overlay {
-            if !isProminent {
-                Capsule().strokeBorder(
-                    LightlyColor.textTertiary(colorScheme).opacity(0.4),
-                    lineWidth: 1
-                )
-            }
+            Capsule().strokeBorder(LightlyColor.controlBoundary(colorScheme), lineWidth: 1.5)
         }
     }
 }
