@@ -20,6 +20,7 @@ rootProject.name = "Lightly"
 include(":core-session")
 include(":core-render")
 include(":core-render-gl")
+include(":core-decode")
 include(":core-model")
 include(":core-export")
 include(":app")
