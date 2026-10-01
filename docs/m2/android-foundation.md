@@ -9,8 +9,8 @@ This milestone builds the Android parts of spec §8 that can be verified **witho
 - the CPU reference and a GLES port of the LUT renderer;
 - model preprocessing, fusion and versioned basis resolution;
 - the image decoder;
-- the export path and MediaStore writer;
-- a thin Compose shell.
+- the tiled export path and MediaStore writer;
+- a Compose editor wired end to end (picker → Auto → Looks → preview → Save copy).
 
 Everything was verified with JVM unit tests and Robolectric only. **No physical device or emulator was used in M2.** Every hardware-dependent claim below is marked **PENDING**.
 
@@ -47,8 +47,8 @@ If either folder is missing, the golden tests **fail** with these instructions. 
 | `core-render-gl` | Android library | `GlLutPassRenderer`: the EGL/GLES 3.0 port of LUTBench `GlLut.kt` (`rgba32f_manual`). Pbuffer context owned by one thread; one program per pass count; LUT textures cached by identity; tiles uploaded from RGBA8 buffers and read back per tile. **Compiles; has never run on a GPU.** |
 | `core-model` | Kotlin/JVM | `CanonicalAnalysisInput` (§4.6 pinned antialiased resize); `BasisLuts.fuse`; `endpoint-v1` guardrail. **`BasisRegistry`**: basis files keyed by (modelId, modelVersion), each sha256-verified against its manifest before it is parsed. **`RegistryAutoLutResolver`**: AutoResult → `Ready(lut)` or `AutoUnavailable(modelId, modelVersion, reason)`, with no fallback to another version. `AutoEnhancer.develop` → `DevelopOutcome` (Developed or Unavailable). `AutoModel` is an interface with a fake only. |
 | `core-decode` | Android library | `DecodeTargets`: the analysis decode has a long edge of exactly 1024 (or the Original if smaller) and does not depend on the screen; the display proxy is capped at min(screen, 2732); headers above 100 MP are rejected. `ProxyDecoder`: ImageDecoder with target size, software allocation and `setTargetColorSpace(sRGB)`, plus a Canvas redraw for anything still not 8-bit sRGB. EXIF orientation comes from ImageDecoder. Gain maps are ignored (U5). |
-| `core-export` | Android library | `SaveCopyExporter` (insert `IS_PENDING=1` → encode **once** → `IS_PENDING=0`; the pending row is deleted on failure; the source is never opened). `ContentResolverGateway`, `BitmapJpegEncoder`, `Rgba8JpegEncoder`. **`ExportCoordinator`**: an export path separate from the preview scheduler (§2 below). |
-| `app` | Android app | `EditorViewModel` (session in a `StateFlow` and in `SavedStateHandle`; transient preview never persisted) with **`AutoStatus`** (Applied or Unavailable: Auto off plus a visible notice). `EditorScreen` is a thin Compose shell. The app ships an **empty basis registry**, because the research basis must not be bundled. The shell therefore shows "Auto enhancement unavailable" until the licensed model (U1) is packaged with its pinned sha256. |
+| `core-export` | Android library | `SaveCopyExporter` (insert `IS_PENDING=1` → encode **once** → `IS_PENDING=0`; the pending row is deleted on failure; the source is never opened). `ContentResolverGateway`. **`ExportCoordinator`**: export path separate from the preview scheduler, single flight, slot held until the write completes, state guarded by export ID. **`TiledExportRenderer`**: ≤ 4096² tiles, LUT passes per tile, written straight into the encode target (`ExportFrame`: `BitmapExportFrame` + `BitmapFrameJpegEncoder` on Android). **`ExportBufferLedger`**: documented buffer budget (§3.1). |
+| `app` | Android app | `EditorViewModel` wired end to end through an injected `EditorEnvironment` (§3.2). `EditorScreen`: Photo Picker, preview image, hold-to-compare, category chips, stepped slider, strength, undo/redo/reset, Save copy. `AndroidEditorEnvironment` is the production wiring. `PlaceholderLookBook`: procedural placeholder Looks (not vendor presets) until the curated look-book. The app ships **no inference engine and no basis**: develop reports DevelopFailed and the user continues with the Original. Tests inject a fake model and a test basis. |
 
 ### Decisions taken while implementing
 
@@ -56,11 +56,14 @@ If either folder is missing, the golden tests **fail** with these instructions. 
 - **Saved Auto results resolve only to their own model version** (Codex M2 finding 4). A missing or tampered basis gives `AutoUnavailable`. The stored `AutoResult` is never rewritten, so the edit renders correctly again once that version is installed.
 - **Two LUT passes in one fragment shader.** The value between O1 and O2 stays float. Two draws through an RGBA8 framebuffer would clip and quantise it, which the CPU oracle does not do. The shader does manual trilinear with `texelFetch` on RGBA32F and uses no hardware filtering.
 - **Export is not a scheduler request kind.** `ExportCoordinator` has its own job and its own single-flight slot. It is not a child of the preview scheduler or the session, so preview submits, `cancel(through)` and `close()` cannot drop it. Cancel works until encoding starts. Encode and write are NonCancellable. The MediaStore row is created only after rendering, so a cancelled export leaves nothing behind.
+- **Export slot (Codex M2 review).** The export slot is released only when the export's Job has *completed*, not when it is cancelled. `Job.isActive` turns false at cancel() while the NonCancellable write is still running, and the earlier code let a second save start then. An export cancelled before it ever ran is finalised as Cancelled by the completion handler; it previously stayed at DECODING. Every state write is guarded by the export ID.
+- **Export memory.** Tiles are written straight into the buffer the encoder reads, and the decoded source is released before encoding. The earlier code held three full frames during encode (source, rendered copy, Bitmap copy); it now holds one.
+- **Preview renderer in the shell.** The app previews with the CPU reference renderer on the display proxy. `GlLutPassRenderer` is not wired until it has been validated on a GPU. Swapping it in changes only `EditorEnvironment.previewRenderer` and the render thread.
 - **Analysis decode size.** Spec §4.6 says the analysis source needs a long edge ≥ 1024; the M2 brief said ≤ 1024. Decoding to exactly 1024 (or the Original if smaller) satisfies both. Note that spec §5.3 still says "Analysis and model input come from the Proxy", which contradicts §4.6 ("the display Proxy is never the model input"). Android follows §4.6. The §5.3 sentence should be corrected.
 
 ## 3. Test results (`./gradlew test`, JVM + Robolectric, JDK 25)
 
-**122 tests, 0 failures, 0 skipped.** Run with the golden set from the main checkout.
+**138 tests, 0 failures, 0 skipped.** Run with the golden set from the main checkout.
 
 | Module | Task | Tests | Notes |
 |---|---|---|---|
@@ -68,8 +71,8 @@ If either folder is missing, the golden tests **fail** with these instructions. 
 | core-render | `test` | 43 | RenderScheduler 13, LUT unit 10, golden 4, shader source 6, shader-math twin 2, tiling/packing/pass plan 8 |
 | core-model | `test` | 17 | preprocessing golden 3, fusion/guardrail 5, AutoEnhancer 5, basis versioning 4 |
 | core-decode | `testDebugUnitTest` | 12 | sizing 6 (JVM), ImageDecoder 6 (Robolectric API 34, native graphics) |
-| core-export | `testDebugUnitTest` | 19 | save flow 9 (JVM fake), ContentResolver 3 (Robolectric API 29), ExportCoordinator 7 |
-| app | `testDebugUnitTest` | 7 | SavedStateHandle restore 5, AutoStatus 2 |
+| core-export | `testDebugUnitTest` | 28 | save flow 9 (JVM fake), ContentResolver 3 (Robolectric API 29), ExportCoordinator 10 (incl. 3 cancellation/slot regressions), tiled export 4, BitmapExportFrame 2 (Robolectric native graphics) |
+| app | `testDebugUnitTest` | 14 | the full editor flow (§3.2) |
 
 Measured against the 23 golden cases:
 
@@ -84,7 +87,40 @@ Measured against the 23 golden cases:
 
 The shader-math twin checks the *algorithm* the GPU will run, in float32 on the JVM. It does not show that a real GPU executes it within tolerance.
 
-### Failing-before evidence and mutation checks
+### 3.1 Export buffer budget (JVM-accounted; real peaks PENDING)
+
+`ExportBufferLedger` counts the pipeline's own large buffers:
+- at most 2 full RGBA8 frames: the decoded source and the encode target;
+- at most 2 tile buffers: the input and the rendered tile, each ≤ 4096² × 4 B;
+- 1 full frame while encoding, because the source is released first.
+
+At 48 MP (8064×6048) that is 2 × 195,084,288 B + 2 × 67,108,864 B ≈ 524 MB. That is under the 600 MB spec target, but it **excludes** the GL driver's buffers, the readback buffer inside `GlLutPassRenderer`, ImageDecoder's working memory and the JPEG encoder's. Device measurement is required (PENDING).
+
+Tests check:
+- seams: the rows and columns on both sides of every tile boundary, and the whole frame, are identical to an untiled render;
+- the ledger peaks;
+- buffers are released after a cancel mid-render.
+
+### 3.2 Editor flow tests (`EditorViewModelTest`, virtual time)
+
+- Pick → develop uses the 1024 analysis decode, never the display proxy. The preview equals the CPU render of the two-pass Auto plan on the proxy.
+- With no basis for the model version, Auto shows unavailable and the preview is the Original; Looks still apply.
+- DevelopFailed offers [Retry] (one more model run) and [Use original] (Auto strength 0 plus a notice).
+- Stepped slider:
+  - moving previews and commits nothing;
+  - settling commits exactly one step;
+  - changing category is not a step;
+  - the stop index follows the displayed Look.
+- 31 rapid slider requests produce ≤ 2 renders, and the last state wins.
+- Strength previews while dragging and commits on release.
+- Compare shows the Original; Reset and Undo update the preview.
+- Save copy exports the committed state, never the transient preview, exactly once. A second Save while the first runs is refused.
+- Process death: the photo is decoded again, the model is not re-run, and the history, cursor, redo, compare and category are restored; the preview is re-rendered. The transient preview is not persisted.
+- A restored edit from an unavailable model version: Auto off with a notice, and the stored AutoResult is untouched.
+- An unknown Look: "Look unavailable", and it is not rendered.
+- An undecodable saved session: the photo is developed again.
+
+### 3.3 Failing-before evidence and mutation checks
 
 | Change | Evidence |
 |---|---|
@@ -93,6 +129,9 @@ The shader-math twin checks the *algorithm* the GPU will run, in float32 on the 
 | Two-pass shader | Clamping between passes in `main()` fails two shader tests: "single O4 clamp in main expected:<1> but was:<3>" and "intermediate must not be clamped/quantised". |
 | Decoder colour conversion | Removing `setTargetColorSpace` and the sRGB check fails the P3 test: got `[204, 77, 51]` (P3 values passed through), expected `[221, 64, 37]`. |
 | Export not cancellable during encode | Replacing `withContext(NonCancellable)` around save fails the "cancel once encoding has started" test: the state became Cancelled although the asset had been written. |
+| Codex M2 review: export slot and cancellation | Three tests failed before the fix. (1) Cancel during encode, then Save: "expected:<[AlreadyRunning]> but was:<[Started(exportId=2)]>". With the hook re-arming on every encode, the old code saved copies in a loop until OutOfMemoryError. (2) Cancel before start: "expected:<Cancelled(exportId=1)> but was:<Running(exportId=1, phase=DECODING)>". (3) A stale export wrote state over the next one: "... Running(exportId=2, phase=DECODING), Cancelled(exportId=1), Running(exportId=2, ...)". |
+| Export memory | Keeping the decoded source alive until after save fails the budget test: "the decoded source is released before encoding expected:<1> but was:<2>". |
+| Editor exports the committed state | Exporting the transient preview's plan instead of the committed state fails the Save test: "Array elements differ at index 0". |
 
 ## 4. Contract finding: baking (resolved in spec)
 
@@ -107,17 +146,19 @@ Baking O1+O2 into one 33³ LUT exceeds the 2/255 tolerance on 2 of the 23 golden
 | A faster RGBA16F + `GL_LINEAR` variant | **PENDING** (not implemented) | Enable per GPU only after it is measured within tolerance |
 | Decoder on device | **PENDING.** Robolectric runs host Skia codecs | HEIF, 10-bit / F16, Ultra HDR, vendor JPEG, P3 camera files; orientation on real files |
 | Timings and memory (proxy decode, preprocess, inference, preview, 48 MP export peak ≤ 600 MB) | **PENDING** | Release build on both phones |
-| MediaStore and JPEG on device | **PENDING.** Robolectric checks the ContentResolver contract only | Instrumented save test, original-unchanged hash test (§10), `Bitmap.compress` output (SOI/EOI, sRGB ICC, quality 92) |
+| MediaStore and JPEG on device | **PENDING.** Robolectric checks the ContentResolver contract only, and JPEG SOI/EOI from host Skia | Instrumented save test, original-unchanged hash test (§10), device `Bitmap.compress` output (sRGB ICC, quality 92) |
+| Editor on device | **PENDING.** The app builds (`assembleDebug`) but has never been launched | Picker flow, preview latency with the CPU renderer vs GL, rotation and process-death restore, TalkBack |
 
 ## 6. Deliberate deferrals (M3 unless noted)
 
-- **App wiring:**
-  - Photo Picker and develop-on-select;
-  - a GL thread dispatcher shared by `RenderScheduler` and `ExportCoordinator`;
-  - building `LutPassPlan` from the committed state (Auto from `autoLutForRendering`, Look from the look-book);
-  - the Save copy UI;
-  - writing the recovery snapshot on every commit;
-  - adaptive layout, haptics and full accessibility.
+- **App wiring still missing:**
+  - swapping `GlLutPassRenderer` in on the render thread (after device validation);
+  - an ONNX Runtime `AutoDeveloper` and a packaged licensed basis (U1);
+  - writing the recovery snapshot on every commit and the "Continue editing?" UX (M4);
+  - the "Discard edits?" dialog;
+  - thumbnails;
+  - adaptive layout, haptic detents, crossfade and full accessibility.
+- **Source orientation:** `SourceRef.orientation` is recorded as 1 because ImageDecoder returns upright frames. Recording the file's EXIF value is M3.
 - **Export metadata:** sRGB ICC embedding, EXIF orientation 1, safe-metadata copy and the location setting (U7).
 - **Spatial operators (O3):** grain, vignette and local contrast. `TilePlan` has no apron; O3 must extend it.
 - **Other modules and tooling:**
