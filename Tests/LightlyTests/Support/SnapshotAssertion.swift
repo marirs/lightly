@@ -11,6 +11,29 @@ import XCTest
 /// References live beside the tests in `__Snapshots__/`. A missing reference is
 /// recorded and the test fails once, which is the standard contract: a snapshot
 /// that silently creates its own baseline can never fail.
+///
+/// ## Pinned environment
+///
+/// The references match only under this environment, which is pinned in code
+/// where possible and checked where not:
+/// - Render size 402×874 pt (or the test's explicit size), scale 1, opaque.
+/// - Colour scheme: explicit per test (light by default), applied to SwiftUI
+///   and to the window's UIKit style.
+/// - Text size: `large` (the iOS default) for SwiftUI *and* the window's UIKit
+///   trait, so the simulator's own Settings → Text Size cannot leak in. A test
+///   that sets `.environment(\.dynamicTypeSize, .accessibility3)` on its view
+///   still gets AX3: the view's own environment is closer than this outer pin.
+///   UIKit-backed controls in those tests stay at `large`, which is how the
+///   accessibility references were recorded.
+/// - Locale: en_US.
+/// - Device and runtime: `__Snapshots__/ENVIRONMENT.json` (iPhone 17,
+///   iOS 26.5 / 23F77). Font rasterisation can differ across runtimes, so
+///   running elsewhere fails with a message naming both environments instead
+///   of reporting misleading pixel differences.
+///
+/// Why: before this pin the iPhone 17 simulator was set to
+/// extra-extra-extra-large text, and every default-size snapshot failed
+/// with no visible difference but larger text.
 enum SnapshotAssertion {
 
     /// Devices differ in scale and safe-area insets; snapshots pin an explicit
@@ -37,6 +60,11 @@ enum SnapshotAssertion {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        if let mismatch = SnapshotEnvironment.mismatch(referenceDirectory: referenceDirectory(for: file)) {
+            XCTFail("Snapshot '\(name)' not compared: \(mismatch)", file: file, line: line)
+            return
+        }
+
         guard let rendered = render(view, size: size, colorScheme: colorScheme) else {
             XCTFail("Could not render snapshot '\(name)'", file: file, line: line)
             return
@@ -95,18 +123,24 @@ enum SnapshotAssertion {
     /// same layout and rendering path the device uses, so what is captured is
     /// what a user would actually see.
     @MainActor
-    private static func render(
+    static func render(
         _ view: some View,
         size: CGSize,
         colorScheme: ColorScheme
     ) -> CGImage? {
         let controller = UIHostingController(
-            rootView: AnyView(view.environment(\.colorScheme, colorScheme))
+            rootView: AnyView(
+                view
+                    .environment(\.colorScheme, colorScheme)
+                    .environment(\.dynamicTypeSize, .large)
+                    .environment(\.locale, Locale(identifier: "en_US"))
+            )
         )
         controller.view.frame = CGRect(origin: .zero, size: size)
         controller.view.backgroundColor = .clear
 
         let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+        window.traitOverrides.preferredContentSizeCategory = .large
         window.rootViewController = controller
         // Applied to the window so UIKit-backed controls (Slider, materials)
         // resolve their own colours to the same scheme as the SwiftUI content.
