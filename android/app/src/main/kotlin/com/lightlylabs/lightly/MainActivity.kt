@@ -1,31 +1,45 @@
 package com.lightlylabs.lightly
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lightlylabs.lightly.editor.AndroidEditorEnvironment
+import com.lightlylabs.lightly.editor.EditorEnvironment
 import com.lightlylabs.lightly.editor.EditorScreen
 import com.lightlylabs.lightly.editor.EditorViewModel
-import com.lightlylabs.lightly.model.BasisRegistry
-import com.lightlylabs.lightly.model.RegistryAutoLutResolver
 
 class MainActivity : ComponentActivity() {
-    // No basis LUTs ship in M2: the only basis is the research (FiveK) one, which must not be bundled
-    // (docs/m1/licensing.md). With an empty registry every Auto result reports "unavailable", which
-    // is the honest state until the licensed model (U1) is packaged with its pinned sha256.
-    private val autoResolver = RegistryAutoLutResolver(BasisRegistry(installed = emptyList()))
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val environment = AppGraph.editorEnvironment(this)
         setContent {
             MaterialTheme {
                 Surface {
-                    val editor: EditorViewModel = viewModel(factory = EditorViewModel.factory(autoResolver))
+                    val editor: EditorViewModel = viewModel(factory = EditorViewModel.factory(environment))
                     EditorScreen(editor)
                 }
             }
+        }
+    }
+}
+
+/**
+ * Process-wide singletons (manual DI until Hilt). The environment, and with it the export
+ * coordinator and the render thread, outlives Activity recreation, so a Save in progress survives
+ * rotation along with the ViewModel.
+ */
+private object AppGraph {
+    @Volatile private var environment: EditorEnvironment? = null
+
+    fun editorEnvironment(context: Context): EditorEnvironment = environment ?: synchronized(this) {
+        environment ?: run {
+            val metrics = context.resources.displayMetrics
+            AndroidEditorEnvironment.create(context, screenLongestPx = maxOf(metrics.widthPixels, metrics.heightPixels))
+                .also { environment = it }
         }
     }
 }

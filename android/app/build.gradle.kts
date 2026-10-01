@@ -30,6 +30,9 @@ android {
 dependencies {
     implementation(project(":core-session"))
     implementation(project(":core-model"))
+    implementation(project(":core-render"))
+    implementation(project(":core-decode"))
+    implementation(project(":core-export"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
@@ -43,4 +46,5 @@ dependencies {
 
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
