@@ -48,6 +48,11 @@ def write_cube(lut: np.ndarray, path: Path, title: str):
                     f.write("%.6f %.6f %.6f\n" % tuple(lut[:, b, g, r]))
 
 
+def sha256_file(p: Path) -> str:
+    import hashlib
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
 def de_stats(a8, b8):
     de = color.deltaE_ciede2000(color.rgb2lab(a8), color.rgb2lab(b8))
     return float(de.mean()), float(np.percentile(de, 95))
@@ -76,14 +81,24 @@ def load(p):
 def main(kit: Path):
     looks = json.load(open(kit / "shortlist.json"))
     res = kit / "results"; (res / "luts").mkdir(parents=True, exist_ok=True); (res / "sheets").mkdir(exist_ok=True)
-    photos = sorted((kit / "photos").glob("*.jpg"))
-    report = {"neutrality": {}, "looks": {}}
-    # 1. neutrality: Lightroom with no preset must reproduce the input
-    for ph in photos:
-        e = kit / "exports/photos" / f"none__{ph.stem}.jpg"
-        if e.exists():
-            report["neutrality"][ph.stem] = dict(zip(("mean", "p95"), de_stats(load(ph), load(e))))
-    neutral_ok = bool(report["neutrality"]) and all(v["mean"] <= 1.0 for v in report["neutrality"].values())
+    # The expected inputs come from the kit's record, never from the folder contents (Codex finding 6).
+    inputs_path = kit / "inputs.json"
+    if not inputs_path.exists():
+        raise FileNotFoundError(f"{inputs_path} missing: not a kit produced by make_kit.py; refusing to validate")
+    inputs = json.load(open(inputs_path))["photos"]
+    missing_inputs = [s for s in inputs if not (kit / "photos" / f"{s}.jpg").exists()]
+    changed_inputs = [s for s in inputs if s not in missing_inputs and sha256_file(kit / "photos" / f"{s}.jpg") != inputs[s]]
+    photos = [kit / "photos" / f"{s}.jpg" for s in sorted(inputs) if s not in missing_inputs]
+    report = {"neutrality": {}, "looks": {}, "missing_inputs": missing_inputs, "changed_inputs": changed_inputs, "missing_neutral": []}
+    # 1. neutrality: Lightroom with no preset must reproduce EVERY input
+    for stem in sorted(inputs):
+        e = kit / "exports/photos" / f"none__{stem}.jpg"
+        if stem in missing_inputs or not e.exists():
+            report["missing_neutral"].append(e.name); continue
+        report["neutrality"][stem] = dict(zip(("mean", "p95"), de_stats(load(kit / "photos" / f"{stem}.jpg"), load(e))))
+    inputs_ok = not missing_inputs and not changed_inputs
+    neutral_ok = (inputs_ok and not report["missing_neutral"] and len(report["neutrality"]) == len(inputs)
+                  and all(v["mean"] <= 1.0 for v in report["neutrality"].values()))
     for L in looks:
         lid = L["look_id"]; entry = {"category": L["category"], "stop": L["stop"], "name": L["name"], "photos": {}, "missing": []}
         for variant in ("full", "global"):
@@ -96,6 +111,8 @@ def main(kit: Path):
         gpath = res / "luts" / f"{lid}__global.npy"
         if gpath.exists():
             lut = np.load(gpath)
+            for stem in missing_inputs:
+                entry["missing"].append(f"input photo {stem}.jpg")
             for ph in photos:
                 e = kit / "exports/photos" / f"{lid}__{ph.stem}.jpg"
                 if not e.exists():
@@ -112,8 +129,11 @@ def main(kit: Path):
                     for i, im in enumerate((src, ours, lr)):
                         sheet.paste(Image.fromarray(im).resize(sz), (i * (sz[0] + 10), 0))
                     sheet.save(res / "sheets" / f"{lid}__{ph.stem}.jpg", quality=85)
-        ok = entry["photos"] and not entry["missing"] and all(v.get("pass") for v in entry["photos"].values())
-        entry["status"] = "validated" if ok and neutral_ok else ("incomplete" if entry["missing"] else "failed")
+        complete = not entry["missing"] and len(entry["photos"]) == len(inputs)
+        passed = complete and all(v.get("pass") for v in entry["photos"].values())
+        # Validated only with complete, unchanged inputs, a complete passing neutral baseline and every export.
+        entry["status"] = ("incomplete" if not complete or not inputs_ok or report["missing_neutral"]
+                           else "validated" if passed and neutral_ok else "failed")
         report["looks"][lid] = entry
     report["neutral_baseline_ok"] = neutral_ok
     json.dump(report, open(res / "report.json", "w"), indent=1)

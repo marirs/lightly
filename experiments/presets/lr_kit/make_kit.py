@@ -123,6 +123,14 @@ def write_hald(path: Path):
     tifffile.imwrite(path, hald_identity(), photometric="rgb", extratags=[(34675, "B", len(icc), icc, True)])
 
 
+def write_inputs(kit: Path):
+    """Record the kit's complete input set (photo stems + sha256, HALD sha256). Ingest validates against THIS
+    list, not against whatever files happen to remain in the folder (Codex finding 6)."""
+    photos = {p.stem: sha(p) for p in sorted((kit / "photos").glob("*.jpg"))}
+    hald = kit / "identity/hald_64_srgb16.tif"
+    json.dump({"photos": photos, "hald_sha256": sha(hald) if hald.exists() else None}, open(kit / "inputs.json", "w"), indent=1)
+
+
 def settings_to_xmp(settings: dict, name: str) -> str:
     """Write a Lightroom develop preset XMP from parsed crs settings (scalars as attributes, curves as rdf:Seq)."""
     attrs, seqs = [], []
@@ -165,6 +173,7 @@ def main(new_version: bool = False):
     write_hald(KIT / "identity/hald_64_srgb16.tif")
     for jpg in sorted((PRESETS.parent / "lut3d/photos").glob("*.jpg")):
         shutil.copy2(jpg, KIT / "photos" / jpg.name)
+    write_inputs(KIT)
     by_source = {}
     for p in lrsettings.walk(ROOT):
         by_source[p.source] = p

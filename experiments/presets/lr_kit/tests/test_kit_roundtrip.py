@@ -39,6 +39,7 @@ def build(tmp: Path, corrupt=False):
         Image.fromarray(lr).save(kit / "exports/photos" / f"test.1.x__{stem}.jpg", quality=100)
         Image.fromarray(s).save(kit / "exports/photos" / f"none__{stem}.jpg", quality=100)
     json.dump([{"look_id": "test.1.x", "category": "test", "stop": 1, "name": "x"}], open(kit / "shortlist.json", "w"))
+    make_kit.write_inputs(kit)
     return kit, L
 
 
