@@ -36,6 +36,7 @@
 		3556EAEA8BC1C31E06D2729C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60273B07655FC75C3E4C4360 /* AppState.swift */; };
 		3773BC213EB986C10DB6E0E4 /* EditorActionBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E2D4380997799516B44832 /* EditorActionBars.swift */; };
 		38BF8F0314F53E76CD43CD5C /* LightlyError+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00A322BB6B4F2DE9741FDC26 /* LightlyError+Presentation.swift */; };
+		3AAA7B9ACF86F5BEA5DFE620 /* LUTEditSession+Export.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D28160B384E6D12A35A7FC7 /* LUTEditSession+Export.swift */; };
 		3C2CCE5AD79012C5E308B2EC /* EditHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389649D93331FEC5D49ED2BE /* EditHistory.swift */; };
 		3ECEA2214805D81D95984D0C /* ImageAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E2A8CE87D87EA973EB3F0F /* ImageAnalysisTests.swift */; };
 		41A0B6869C0268CEB2FA721D /* LUTKernelSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D966F6DE946474C26273E04A /* LUTKernelSource.swift */; };
@@ -56,6 +57,7 @@
 		61380932AF42B26948523FEF /* PickerDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E800D7214C751E5E330D9D5E /* PickerDiagnostics.swift */; };
 		61F86F15AD7E15D79F372F1E /* MountainArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E2794879F3B0875C4DF97C /* MountainArtwork.swift */; };
 		62962F950C63ED926A5A97DC /* DebugFixedRecipeDeveloper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3F3D3C685B0B45184C248B /* DebugFixedRecipeDeveloper.swift */; };
+		63309A765A794109669C116D /* LUTEditSessionExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D9AE2E92A486F7E498CB6E /* LUTEditSessionExportTests.swift */; };
 		67C7AAD1D84537B383F5A083 /* PhotoLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8A94F87126D1A33CEA46F7 /* PhotoLoading.swift */; };
 		6908D58686846907E067F55E /* PhotoDeveloping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6238855D071990606106390E /* PhotoDeveloping.swift */; };
 		69A3EE4B84611E234CB7E2D5 /* HistogramAnalyser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A457853F665261A32FA677B7 /* HistogramAnalyser.swift */; };
@@ -145,6 +147,7 @@
 		0A4DEB1683970E200B2A26D5 /* LooksViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LooksViewModel.swift; sourceTree = "<group>"; };
 		0AFE6A1F3861F5707487C317 /* PreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRenderer.swift; sourceTree = "<group>"; };
 		0BB2D8C1CB74D6269DBF7DEF /* ExportSheetLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportSheetLayoutTests.swift; sourceTree = "<group>"; };
+		0D28160B384E6D12A35A7FC7 /* LUTEditSession+Export.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LUTEditSession+Export.swift"; sourceTree = "<group>"; };
 		0FC4813AABBF9A878E8880D4 /* SourceSelectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSelectionSheet.swift; sourceTree = "<group>"; };
 		107CDFD7F9169E403711A26D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		127C9E7A1DEDE2FE50A1E961 /* DevelopStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopStage.swift; sourceTree = "<group>"; };
@@ -166,6 +169,7 @@
 		389649D93331FEC5D49ED2BE /* EditHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditHistory.swift; sourceTree = "<group>"; };
 		38A65CD47975A752738D3F1F /* RenderCacheIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderCacheIdentityTests.swift; sourceTree = "<group>"; };
 		3AB27B0075E46FA35005361C /* LightlyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyApp.swift; sourceTree = "<group>"; };
+		41D9AE2E92A486F7E498CB6E /* LUTEditSessionExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTEditSessionExportTests.swift; sourceTree = "<group>"; };
 		4573A01F6D80E9780EB8ADAC /* PhotoLibraryWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryWriter.swift; sourceTree = "<group>"; };
 		46A2557F630816ED676CA636 /* LUTGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTGoldenTests.swift; sourceTree = "<group>"; };
 		4719F7314D395629EE5B139C /* ExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportSheet.swift; sourceTree = "<group>"; };
@@ -379,6 +383,7 @@
 				15FA9481E2CC8A7B92CA7731 /* LooksLayoutTests.swift */,
 				2733A3F8F7C5C9460C60DBF8 /* LooksSnapshotTests.swift */,
 				00EEFEED2D681AA207C32DC3 /* LooksViewModelTests.swift */,
+				41D9AE2E92A486F7E498CB6E /* LUTEditSessionExportTests.swift */,
 				E00352288B6694831162BA6D /* LUTEditSessionTests.swift */,
 				46A2557F630816ED676CA636 /* LUTGoldenTests.swift */,
 				03D81EC476633A84CEB509F0 /* MetalLUTRendererTests.swift */,
@@ -484,6 +489,7 @@
 				A3B01EF39D0D11916BF45A88 /* EditorView.swift */,
 				7AB8EFE26F0E762E3E2EED0B /* EditorViewModel.swift */,
 				93BB2C16737BB39A173F8BE2 /* LUTEditSession.swift */,
+				0D28160B384E6D12A35A7FC7 /* LUTEditSession+Export.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";
@@ -816,6 +822,7 @@
 				2ECC75AADE07E1136A307E0C /* ExportTests.swift in Sources */,
 				5C1473B8BB2D846C776857C7 /* FavouritesManagerTests.swift in Sources */,
 				3ECEA2214805D81D95984D0C /* ImageAnalysisTests.swift in Sources */,
+				63309A765A794109669C116D /* LUTEditSessionExportTests.swift in Sources */,
 				8CBF6677E9E009CD477A10B4 /* LUTEditSessionTests.swift in Sources */,
 				87752B3B6F236666FE29F54A /* LUTGoldenTests.swift in Sources */,
 				316B4EBEE82918E23E722AF3 /* LaunchLayoutTests.swift in Sources */,
@@ -884,6 +891,7 @@
 				9BC4A72EFF69E4ABD3DB6E9E /* ImageAnalyser.swift in Sources */,
 				7DBAA002EC3E65722310C20E /* ImageIOPhotoExporter.swift in Sources */,
 				8F0D4B0A2E8E1661500E9ADE /* LUT3D.swift in Sources */,
+				3AAA7B9ACF86F5BEA5DFE620 /* LUTEditSession+Export.swift in Sources */,
 				05BB0F451EFCC2771A0EEC27 /* LUTEditSession.swift in Sources */,
 				41A0B6869C0268CEB2FA721D /* LUTKernelSource.swift in Sources */,
 				43710550D6CB40A64E155B88 /* LaunchView.swift in Sources */,
