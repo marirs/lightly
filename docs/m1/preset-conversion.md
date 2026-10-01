@@ -157,10 +157,9 @@ Limitations:
   Originals are ICC-converted to sRGB and EXIF-oriented before scoring. "Validated" requires every recorded input unchanged, every neutral and Look export present, and every photo within mean ΔE00 ≤ 2 and p95 ≤ 5.
 - **Kit tests:** `lr_kit/tests/` holds 17 tests, all passing. Each finding's regression test was confirmed to fail before its fix.
   - **Not yet verified:** that Lightroom accepts the generated XMPs.
-  - **Known gap:** 10 of the 18 shortlisted Looks use grain and/or vignette, which Lightly doesn't implement yet. Their **full-recipe status cannot reach "validated"** until those operators exist; their global status still can.
-    - Grain: Old Street-4, Black Paris Tone (11), Retro Wedding Tone (15), C4 - Teals, T2, Vintage Flim Tone (7), 11 Black and White 11.
-    - Vignette: Black Paris Tone (11), C4 - Teals, Rainy Tone (10), 03 Black and White 03, Golden Hour 9.
-    - Next step: grain needs both an operator *and* a grain-insensitive comparison (noise statistics plus a blurred ΔE), because random grain can't match pixel-for-pixel.
+  - **Grain and vignette** (10 of the 18 Looks use them) are now **experimental operators** (`lr_model.apply_vignette` / `apply_grain`, commit a8ea342). They work in normalised frame coordinates; grain is seeded deterministically.
+    - The full-recipe validation scores grain Looks *grain-insensitively*: ΔE after a blur matched to the grain size, plus a grain-strength ratio that must fall within 0.6–1.6.
+    - Their constants are first guesses, so these Looks are expected to fail full-recipe validation until the constants are fitted on the exports. That fitting is a planned step once the exports exist.
 - **Remaining input:** running the corrected kit in Lightroom (about 60–90 min; 1 HALD + 44 photos per Look, plus 22 neutral photos).
 
 ## 7. Reproduce

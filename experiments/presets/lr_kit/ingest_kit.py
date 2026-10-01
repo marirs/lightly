@@ -103,14 +103,42 @@ def full_recipe(lut, settings):
             with torch.no_grad():
                 x = lm.render(torch.from_numpy(x), tone, C).numpy()
         y = ia.apply_lut_reference(lut, np.clip(x, 0, 1).astype(np.float32), 1.0)
-        if S is not None:
-            with torch.no_grad():
-                y = lm.apply_local_contrast(torch.from_numpy(np.clip(y, 0, 1).astype(np.float32)), clarity, texture, S).numpy()
+        with torch.no_grad():
+            t = torch.from_numpy(np.clip(y, 0, 1).astype(np.float32))
+            if S is not None:
+                t = lm.apply_local_contrast(t, clarity, texture, S)
+            t = lm.apply_vignette(t, settings)
+            # Seed from image content so the recipe is deterministic per photo; any seed is equally valid.
+            t = lm.apply_grain(t, settings, seed=int(src8[::97, ::89].sum()) % (2 ** 31))
+            y = t.numpy()
         return ia.to_uint8(y)
     return recipe, unimplemented, approximated
 
 
-def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok, prefix, missing_hald, render):
+def grain_sigma_frac(settings):
+    """Blur scale (fraction of the long edge) that hides grain texture but keeps the image's tone and colour."""
+    import lr_model as lm
+    if not lm._f(settings, "GrainAmount"):
+        return None
+    size = lm._f(settings, "GrainSize", 25) / 100
+    grains_long = max(8, round(lm.GRAIN_REF_LONG / (1 + 4 * size)))
+    return 2.0 / grains_long
+
+
+def _blur(img8, sigma_px):
+    from PIL import ImageFilter
+    return np.asarray(Image.fromarray(img8).filter(ImageFilter.GaussianBlur(sigma_px)))
+
+
+def grain_strength(img8, sigma_px):
+    """Std of the high-pass luminance residual in midtones: a seed-independent grain statistic."""
+    y = img8.astype(np.float32) @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+    yb = _blur(img8, sigma_px).astype(np.float32) @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+    mid = (yb > 40) & (yb < 215)
+    return float((y - yb)[mid].std()) if mid.any() else 0.0
+
+
+def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok, prefix, missing_hald, render, grain_frac=None):
     """One validation (global or full) with the complete-evidence rules of Codex finding 6."""
     out = {"photos": {}, "missing": [f"input photo {s}.jpg" for s in missing_inputs]}
     if missing_hald is not None:
@@ -125,9 +153,18 @@ def validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutra
         if lr.shape != src.shape:
             out["photos"][ph.stem] = {"error": f"size mismatch {lr.shape} vs {src.shape}"}; continue
         ours = render(src)
-        mean, p95 = de_stats(ours[::2, ::2], lr[::2, ::2])
-        ok = mean <= MEAN_MAX and p95 <= P95_MAX
-        out["photos"][ph.stem] = {"mean": round(mean, 2), "p95": round(p95, 2), "pass": ok}
+        rec = {}
+        if grain_frac:
+            # Grain is random: compare tone/colour after hiding grain texture, and grain strength separately.
+            sigma = grain_frac * max(src.shape[:2])
+            mean, p95 = de_stats(_blur(ours, sigma)[::2, ::2], _blur(lr, sigma)[::2, ::2])
+            g_ours, g_lr = grain_strength(ours, sigma), grain_strength(lr, sigma)
+            ratio = g_ours / max(g_lr, 1e-6)
+            rec.update(grain_ratio=round(ratio, 2), grain_ok=bool(0.6 <= ratio <= 1.6))
+        else:
+            mean, p95 = de_stats(ours[::2, ::2], lr[::2, ::2])
+        ok = mean <= MEAN_MAX and p95 <= P95_MAX and rec.get("grain_ok", True)
+        out["photos"][ph.stem] = {"mean": round(mean, 2), "p95": round(p95, 2), "pass": ok, **rec}
         if not ok:
             s = 360 / max(src.shape[:2]); sz = (round(src.shape[1] * s), round(src.shape[0] * s))
             sheet = Image.new("RGB", (sz[0] * 3 + 20, sz[1]), (24, 24, 26))
@@ -204,7 +241,7 @@ def main(kit: Path):
         # 2. full-recipe validation: Lightly's complete recipe vs Lightroom's FULL photo exports
         recipe, unimplemented, approximated = full_recipe(lut, settings)
         full = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
-                        f"{lid}__full", h if lut is None else None, recipe)
+                        f"{lid}__full", h if lut is None else None, recipe, grain_frac=grain_sigma_frac(settings))
         full["unimplemented"] = unimplemented
         full["approximated"] = approximated
         if unimplemented and full["status"] == "validated":

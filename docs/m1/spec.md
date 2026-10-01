@@ -117,9 +117,12 @@ O3 Look spatial ops   (V1: local contrast [Clarity/Texture], vignette, grain; ra
 O4 clamp [0,1] → encode sRGB 8-bit → JPEG (export only)
 ```
 
-- **O1+O2 may be baked** into one 33³ LUT for preview and export: `B(g) = L_look(clamp(L_auto(g)))` sampled on the 33³ grid, applied as `B(clamp(x))`.
-  - Measured on 8 real Auto LUTs (which span −0.14…1.35) plus a strong Look LUT: baked vs two-stage max **1.64/255**, p99 0.17/255. Test: `experiments/lut3d/reference/test_lut_composition.py`.
-  - Contract tolerance for baking: max ≤ 2/255.
+- **O1 and O2 are applied as two LUT passes** (revised). Baking them into one 33³ LUT (`B(g) = L_look(clamp(L_auto(g)))`) is **not allowed by default**.
+  - The earlier figure of 1.64/255 came from random samples on 8 Auto LUTs and understated the error.
+  - An exhaustive check (64³ colours × all 23 golden Auto LUTs with a strong Look) gives baked vs two-stage up to **6/255** (`portrait_deep_03`, whose Auto output reaches 1.475) and 3/255 (`a1629`). That exceeds the 2/255 tolerance.
+  - Found by the Android foundation tests and reproduced in `experiments/lut3d/reference/test_lut_composition_exhaustive.py`.
+  - A second LUT pass is one extra texture lookup per pixel.
+  - An implementation may bake a specific Auto+Look pair only if that pair passes the exhaustive check.
 - **Decision (Codex M1 finding 4):** Clarity and Texture are **included** in the V1 Look format as one O3 operator, `localContrast {clarity, texture}`.
   - Why: 81% of the collection uses Clarity.
   - It stays *experimental*: a Look that uses it ships only if its Lightroom-export validation passes (§4.4). Otherwise the Look is excluded, not silently degraded.
@@ -134,7 +137,7 @@ O4 clamp [0,1] → encode sRGB 8-bit → JPEG (export only)
 - Interpolation is exact-grid trilinear: `pos = v·(N−1)`. The upstream `1.0001/(N−1)` bin-size quirk is **not** reproduced; its maximum effect was measured at 0.02/255.
 - **Boundary rule (single rule, baked or not):** every LUT stage clamps its *input* to [0,1] (clamp-to-edge, as GPU texture addressing does). LUT *entries* may be outside [0,1], so a stage's output may be out of range, and the next stage clamps it on input. The final output is clamped once at O4. No extrapolation beyond the cube is defined or allowed.
   - Consequence: Auto's out-of-range highlights (values > 1) are clipped before the Look sees them. This is an accepted V1 limitation.
-  - Tested with values < 0 and > 1 (`test_lut_composition.py`).
+  - Tested with values < 0 and > 1 (`test_lut_composition.py`, `test_lut_composition_exhaustive.py`).
 - Strength blend: `L_s = I + s·(L − I)`, where `I` is the exact identity LUT.
 
 ### 4.3 Colour management
@@ -199,8 +202,8 @@ Empty ─select─► Loading(asset) ─proxy ok─► Developing ─ok─► Re
 ### 5.2 Concurrency: bounded work, latest request wins
 
 - **One render scheduler per session**, on its own serial executor (iOS actor; Android single-thread dispatcher that owns the GL context).
-- Requests carry `(sessionId, revision, kind: preview|export)`. The scheduler has **one in-flight slot and one pending slot**. A new preview request replaces the pending one (coalescing), so the queue never grows during a slider drag.
-- A result is published only if `result.revision == viewModel.latestRequestedRevision` and `sessionId` matches. Otherwise it is dropped. This also covers Reset, Undo, closing Looks, and switching photo.
+- Requests carry `(sessionId, requestId, kind: preview|export)`. `requestId` is issued by the scheduler and increases on every request; it is **not** `EditState.revision`, which counts commits (after Undo, an older EditState can be the newest request). The scheduler has **one in-flight slot and one pending slot**. A new preview request replaces the pending one (coalescing), so the queue never grows during a slider drag.
+- A result is published only if `result.requestId == latestRequestId` and `sessionId` matches. Otherwise it is dropped. This also covers Reset, Undo, closing Looks, and switching photo.
 - Switching photo or leaving cancels the session's tasks cooperatively (Swift `Task` cancellation / coroutine `Job`). GPU work already submitted finishes, but its result is discarded.
 - The model runs at most once per Original and model version, and its result is memoised by source fingerprint.
 - **Thumbnails** (category and stop previews) are keyed by `(sourceFingerprint, editBase revision, lookId, lookVersion, size)`, never by dimensions alone. This fixes the cross-photo cache reuse (§12, d). They are rendered from a 256-px proxy of the current Auto result, so a stop thumbnail shows exactly what selecting it produces.
