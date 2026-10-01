@@ -11,9 +11,9 @@ import XCTest
 ///
 /// The golden set is git-ignored (large binaries). Lookup order:
 /// `LIGHTLY_GOLDEN_DIR` (set `TEST_RUNNER_LIGHTLY_GOLDEN_DIR` for
-/// xcodebuild), then this checkout's `experiments/lut3d/golden`, then the
-/// primary checkout on the development Mac — the last only because worktrees
-/// do not carry the ignored files.
+/// xcodebuild), then this checkout's `experiments/lut3d/golden`, then — when
+/// running from a `.claude/worktrees/<name>` worktree, which does not carry the
+/// ignored files — the main checkout that contains it.
 final class LUTGoldenTests: XCTestCase {
 
     private static let maximumAllowedDifference = 1
@@ -26,7 +26,12 @@ final class LUTGoldenTests: XCTestCase {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         candidates.append(repositoryRoot.appendingPathComponent("experiments/lut3d/golden"))
-        candidates.append(URL(fileURLWithPath: "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/golden"))
+        // Worktrees live at <main checkout>/.claude/worktrees/<name> and lack the ignored files; fall back to the
+        // main checkout derived from that layout (no machine-specific path).
+        let path = repositoryRoot.path
+        if let range = path.range(of: "/.claude/worktrees/") {
+            candidates.append(URL(fileURLWithPath: String(path[..<range.lowerBound])).appendingPathComponent("experiments/lut3d/golden"))
+        }
         return candidates
     }
 
