@@ -1,8 +1,10 @@
 import Foundation
+import os
 
 /// The first-party catalog of Looks (spec §6, §7).
 ///
-/// Loads the converted and curated preset collection from `presets_photo.json`.
+/// Built from the converted preset collection in `presets_photo.json`, which
+/// is loaded only from an app (or injected test) bundle — see `load(from:)`.
 /// Indexes presets by category for $O(1)$ lookup and rapid filtering.
 struct BuiltInPresetCatalog: PresetProviding {
 
@@ -14,13 +16,21 @@ struct BuiltInPresetCatalog: PresetProviding {
     private let byID: [String: LightlyPreset]
     private let migrations: PresetIDMigrations
 
-    init(presets: [LightlyPreset]? = nil, migrations: PresetIDMigrations = .shipped) {
+    /// Set only when `bundled(from:)` could not load the resource.
+    let loadFailure: PresetCatalogLoadError?
+
+    /// Builds a catalogue from already-decoded presets.
+    ///
+    /// Bundle loading lives in `load(from:)` so that failure is a thrown,
+    /// typed error rather than a hidden side effect of initialisation.
+    init(
+        presets: [LightlyPreset],
+        migrations: PresetIDMigrations = .shipped,
+        loadFailure: PresetCatalogLoadError? = nil
+    ) {
         self.migrations = migrations
-        if let presets {
-            self.all = presets
-        } else {
-            self.all = Self.loadBundledPresets()
-        }
+        self.loadFailure = loadFailure
+        self.all = presets
 
         var catMap: [PresetCategory: [LightlyPreset]] = [:]
         var idMap: [String: LightlyPreset] = [:]
@@ -70,40 +80,67 @@ struct BuiltInPresetCatalog: PresetProviding {
 
     // MARK: - Bundle Loading
 
-    private struct PresetPayload: Codable {
+    /// Name of the bundled preset database, without extension.
+    static let bundledResourceName = "presets_photo"
+
+    private struct PresetPayload: Decodable {
         let version: String
         let totalCount: Int
         let presets: [LightlyPreset]
     }
 
-    private static func loadBundledPresets() -> [LightlyPreset] {
-        // Try Bundle.main
-        if let url = Bundle.main.url(forResource: "presets_photo", withExtension: "json"),
-           let data = try? Data(contentsOf: url),
-           let payload = try? JSONDecoder().decode(PresetPayload.self, from: data) {
-            return payload.presets
+    /// Loads the catalogue from `bundle`, throwing a typed error on failure.
+    ///
+    /// v3 differs: v1 tried Bundle.main, two hand-built bundle paths and an
+    /// absolute path on the developer's machine, then returned an empty
+    /// catalogue on any failure. A missing or corrupt resource is a build
+    /// defect, so it is now reported rather than hidden behind an empty grid.
+    static func load(
+        from bundle: Bundle,
+        resourceName: String = bundledResourceName,
+        migrations: PresetIDMigrations = .shipped
+    ) throws -> BuiltInPresetCatalog {
+        guard let url = bundle.url(forResource: resourceName, withExtension: "json") else {
+            throw PresetCatalogLoadError.resourceMissing(resourceName: resourceName)
         }
-
-        // Fallback for tests or direct filesystem search
-        let candidatePaths = [
-            Bundle.main.bundlePath + "/presets_photo.json",
-            Bundle.main.bundlePath + "/Lightly_Lightly.bundle/presets_photo.json"
-        ]
-
-        for path in candidatePaths {
-            if let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-               let payload = try? JSONDecoder().decode(PresetPayload.self, from: data) {
-                return payload.presets
-            }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw PresetCatalogLoadError.unreadable(resourceName: resourceName, reason: "\(error)")
         }
-
-        // Direct path for unit test execution environment
-        let devPath = "/Users/sg/Documents/Dev/Projects/lightly/Lightly/Resources/Presets/presets_photo.json"
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: devPath)),
-           let payload = try? JSONDecoder().decode(PresetPayload.self, from: data) {
-            return payload.presets
+        do {
+            let payload = try JSONDecoder().decode(PresetPayload.self, from: data)
+            return BuiltInPresetCatalog(presets: payload.presets, migrations: migrations)
+        } catch {
+            throw PresetCatalogLoadError.decodingFailed(resourceName: resourceName, reason: "\(error)")
         }
-
-        return []
     }
+
+    /// The app's catalogue, for composition roots that cannot propagate errors.
+    ///
+    /// On failure this logs a fault, trips an assertion in debug builds, and
+    /// returns an empty catalogue carrying the error in `loadFailure` — so the
+    /// condition shows in logs, stops development builds, and stays
+    /// distinguishable from "no Looks" instead of silently presenting nothing.
+    static func bundled(from bundle: Bundle = .main) -> BuiltInPresetCatalog {
+        do {
+            return try load(from: bundle)
+        } catch {
+            let failure = error as? PresetCatalogLoadError
+                ?? .unreadable(resourceName: bundledResourceName, reason: "\(error)")
+            logger.fault("Preset catalogue failed to load: \(String(describing: failure), privacy: .public)")
+            assertionFailure("Preset catalogue failed to load: \(failure)")
+            return BuiltInPresetCatalog(presets: [], loadFailure: failure)
+        }
+    }
+
+    private static let logger = Logger(subsystem: "com.lightlylabs.lightly", category: "Presets")
+}
+
+/// Why the bundled preset catalogue could not be loaded.
+enum PresetCatalogLoadError: Error, Equatable, Sendable {
+    case resourceMissing(resourceName: String)
+    case unreadable(resourceName: String, reason: String)
+    case decodingFailed(resourceName: String, reason: String)
 }

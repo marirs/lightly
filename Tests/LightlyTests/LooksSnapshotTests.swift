@@ -33,7 +33,7 @@ final class LooksSnapshotTests: XCTestCase {
     ) -> LooksViewModel {
         LooksViewModel(
             sourceImage: TestFixtures.makeImage(),
-            catalog: BuiltInPresetCatalog(),
+            catalog: TestFixtures.bundledCatalog,
             thumbnailRenderer: renderer,
             entitlements: entitlements
         )

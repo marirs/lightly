@@ -7,6 +7,19 @@ import UniformTypeIdentifiers
 /// Shared fixtures for the test suite.
 enum TestFixtures {
 
+    /// The real catalogue from the app bundle (tests are hosted in the app).
+    ///
+    /// Loaded once: the resource is several megabytes and every test would
+    /// otherwise decode it again. Uses the throwing loader, not `bundled()`,
+    /// so a missing resource fails loudly here rather than as empty grids.
+    static let bundledCatalog: BuiltInPresetCatalog = {
+        do {
+            return try BuiltInPresetCatalog.load(from: .main)
+        } catch {
+            fatalError("App bundle has no usable preset catalogue: \(error)")
+        }
+    }()
+
     /// A deterministic gradient image.
     ///
     /// Snapshots need a stable, non-trivial photograph: a flat colour would

@@ -39,7 +39,7 @@ struct DependencyContainer {
             photoLoader: ImageIOPhotoLoader(),
             entitlements: FreeTierEntitlementResolver(),
             developer: developer,
-            presetCatalog: BuiltInPresetCatalog(),
+            presetCatalog: BuiltInPresetCatalog.bundled(),
             thumbnailRenderer: CoreImageThumbnailRenderer(),
             exporter: ImageIOPhotoExporter(),
             libraryWriter: PhotoKitLibraryWriter(),

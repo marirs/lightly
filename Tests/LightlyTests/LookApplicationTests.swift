@@ -17,7 +17,7 @@ final class LookApplicationTests: XCTestCase {
     }
 
     private var goldenMemory: LightlyPreset {
-        guard let preset = BuiltInPresetCatalog().recommended(for: .unclassified).first else {
+        guard let preset = TestFixtures.bundledCatalog.recommended(for: .unclassified).first else {
             fatalError("Starter catalogue is missing a known preset")
         }
         return preset
@@ -120,7 +120,7 @@ final class LookApplicationTests: XCTestCase {
         let viewModel = await makeDevelopedEditor()
         viewModel.applyLook(goldenMemory, intensity: 0.2)
 
-        guard let other = BuiltInPresetCatalog().presets(in: .cinematic).first else {
+        guard let other = TestFixtures.bundledCatalog.presets(in: .cinematic).first else {
             return XCTFail("Expected preset in cinematic category")
         }
         viewModel.applyLook(other, intensity: 1)

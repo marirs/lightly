@@ -85,7 +85,7 @@ final class AppState {
         photoLoader: any PhotoLoading,
         developer: any PhotoDeveloping = DebugFixedRecipeDeveloper(),
         entitlements: any EntitlementResolving = FreeTierEntitlementResolver(),
-        presetCatalog: any PresetProviding = BuiltInPresetCatalog(),
+        presetCatalog: any PresetProviding = BuiltInPresetCatalog.bundled(),
         thumbnailRenderer: any LookThumbnailRendering = CoreImageThumbnailRenderer(),
         exporter: any PhotoExporting = ImageIOPhotoExporter(),
         libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),

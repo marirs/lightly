@@ -60,7 +60,7 @@ final class LooksViewModelTests: XCTestCase {
     ) -> LooksViewModel {
         LooksViewModel(
             sourceImage: TestFixtures.makeImage(),
-            catalog: BuiltInPresetCatalog(),
+            catalog: TestFixtures.bundledCatalog,
             thumbnailRenderer: renderer,
             entitlements: entitlements
         )
@@ -120,7 +120,7 @@ final class LooksViewModelTests: XCTestCase {
 
     /// A single failing thumbnail must not blank the grid.
     func testOneFailingThumbnailDoesNotAffectTheOthers() async {
-        let sampleCatalog = BuiltInPresetCatalog()
+        let sampleCatalog = TestFixtures.bundledCatalog
         let targetID = sampleCatalog.recommended(for: .unclassified).first?.id ?? "cinematic.green-hawaii-f149aa"
 
         let viewModel = makeViewModel(
@@ -146,7 +146,7 @@ final class LooksViewModelTests: XCTestCase {
         let favouritesManager = UserDefaultsFavouritesManager(userDefaults: UserDefaults(suiteName: "test.looks.vm.favs")!)
         let viewModel = LooksViewModel(
             sourceImage: TestFixtures.makeImage(),
-            catalog: BuiltInPresetCatalog(),
+            catalog: TestFixtures.bundledCatalog,
             thumbnailRenderer: ScriptedThumbnailRenderer(behaviour: .succeed),
             entitlements: FreeTierEntitlementResolver(),
             favouritesManager: favouritesManager

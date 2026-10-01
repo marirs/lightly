@@ -438,7 +438,18 @@ def run_ingestion(source_dir: Path, output_dir: Path):
     print(f"\nSaved Photo Presets DB: {photo_db_path}")
     print(f"Saved Video LUTs DB:     {video_db_path}")
 
+# Derived from this file's location so the script works from any checkout.
+# The source packs live outside the repository (licensing, size), so there is
+# no portable default for them: the caller must name the directory.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "Lightly" / "Resources" / "Presets"
+
 if __name__ == "__main__":
-    src = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/Users/sg/Downloads/Presets - for lightly")
-    out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("/Users/sg/Documents/Dev/Projects/lightly/Lightly/Resources/Presets")
+    if len(sys.argv) < 2:
+        sys.exit(
+            "usage: ingest_presets.py <source-presets-dir> [output-dir]\n"
+            f"  output-dir defaults to {DEFAULT_OUTPUT_DIR.relative_to(REPO_ROOT)} in this repository"
+        )
+    src = Path(sys.argv[1])
+    out = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_OUTPUT_DIR
     run_ingestion(src, out)

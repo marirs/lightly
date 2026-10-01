@@ -1,0 +1,21 @@
+{
+  "version": "test",
+  "type": "photo_presets",
+  "totalCount": 2,
+  "presets": [
+    {
+      "id": "film.fixture-warm",
+      "name": "Fixture Warm",
+      "category": "film",
+      "isIncludedInFreeTier": true,
+      "recipe": { "exposure": 0.25, "temperature": 400, "tint": 0 }
+    },
+    {
+      "id": "bw.fixture-mono",
+      "name": "Fixture Mono",
+      "category": "bw",
+      "isIncludedInFreeTier": false,
+      "recipe": { "saturation": -1.0 }
+    }
+  ]
+}

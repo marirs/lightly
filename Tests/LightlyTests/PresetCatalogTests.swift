@@ -7,7 +7,7 @@ final class PresetCatalogTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        catalog = BuiltInPresetCatalog()
+        catalog = TestFixtures.bundledCatalog
     }
 
     func testCatalogLoadsAllIngestedPresets() {
