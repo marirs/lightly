@@ -11,11 +11,11 @@ otherwise the comparison baseline itself is off and every result is flagged.
 """
 from __future__ import annotations
 
-import json, sys
+import io, json, sys
 from pathlib import Path
 import numpy as np
 import tifffile
-from PIL import Image
+from PIL import Image, ImageCms, ImageOps
 from skimage import color
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -53,8 +53,24 @@ def de_stats(a8, b8):
     return float(de.mean()), float(np.percentile(de, 95))
 
 
+_SRGB = ImageCms.createProfile("sRGB")
+
+
 def load(p):
-    return np.asarray(Image.open(p).convert("RGB"))
+    """Decode as Lightroom exports are compared: EXIF-upright and converted to sRGB (Codex finding 4).
+
+    Lightroom colour-manages its input and exports sRGB, so an original tagged Display P3 / Adobe RGB must be
+    converted (relative colorimetric) before a LUT is applied or a difference is scored. Untagged images are
+    treated as sRGB, matching Lightroom's assumption for untagged JPEGs.
+    """
+    im = Image.open(p)
+    icc = im.info.get("icc_profile")
+    im = ImageOps.exif_transpose(im).convert("RGB")
+    if icc:
+        src = ImageCms.ImageCmsProfile(io.BytesIO(icc))
+        if "srgb" not in ImageCms.getProfileDescription(src).lower():
+            im = ImageCms.profileToProfile(im, src, _SRGB, renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC, outputMode="RGB")
+    return np.asarray(im)
 
 
 def main(kit: Path):
