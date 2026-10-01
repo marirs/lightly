@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Observation
+import os
 
 /// State of one Look's thumbnail.
 ///
@@ -47,6 +48,14 @@ final class LooksViewModel {
     /// Nil during preview, however long the user explores. This is the only
     /// point at which entitlement is consulted.
     private(set) var paywallPrompt: PaidCapability?
+
+    /// Favourited IDs that no longer resolve to a Look, sorted for stable display.
+    ///
+    /// Filtered out of the grid rather than shown as broken cells, because a
+    /// cell with no recipe cannot be previewed or applied. The IDs are *not*
+    /// removed from storage: if a future `PresetIDMigrations` entry maps them,
+    /// the favourite comes back without the user re-adding it.
+    private(set) var unavailableFavouriteIDs: [String] = []
 
     // MARK: - Dependencies
 
@@ -100,9 +109,12 @@ final class LooksViewModel {
     var recommendationsAreSceneAware: Bool { false }
 
     /// The Look currently previewed.
+    ///
+    /// Nil when the previewed ID no longer resolves, which makes Apply
+    /// unavailable rather than committing some other Look in its place.
     var previewedPreset: LightlyPreset? {
         guard let id = previewedLookID else { return nil }
-        return catalog.preset(withID: id)
+        return catalog.resolvePreset(id: id).preset
     }
 
     /// Whether the previewed Look can be applied under the current entitlement.
@@ -132,8 +144,7 @@ final class LooksViewModel {
         if category == .recommended {
             presets = catalog.recommended(for: .unclassified)
         } else if category == .favourites {
-            let favIDs = favouritesManager.allFavourites()
-            presets = favIDs.compactMap { catalog.preset(withID: $0) }
+            presets = resolveFavourites()
         } else {
             presets = catalog.presets(in: category)
         }
@@ -149,6 +160,32 @@ final class LooksViewModel {
             await self?.renderThumbnails()
         }
     }
+
+    /// Resolves stored favourites, recording the ones that no longer exist.
+    ///
+    /// Sorted by ID so the grid order is stable across launches; the stored
+    /// favourites are a `Set` and would otherwise reshuffle.
+    private func resolveFavourites() -> [LightlyPreset] {
+        var resolved: [LightlyPreset] = []
+        var unavailable: [String] = []
+        for id in favouritesManager.allFavourites().sorted() {
+            switch catalog.resolvePreset(id: id) {
+            case .found(let preset):
+                resolved.append(preset)
+            case .unavailable(let requestedID):
+                unavailable.append(requestedID)
+            }
+        }
+        if !unavailable.isEmpty {
+            Self.logger.notice(
+                "Hiding \(unavailable.count) favourite(s) with no matching Look: \(unavailable, privacy: .public)"
+            )
+        }
+        unavailableFavouriteIDs = unavailable
+        return resolved
+    }
+
+    private static let logger = Logger(subsystem: "com.lightlylabs.lightly", category: "Looks")
 
     /// Renders each thumbnail, isolating failures to their own cell.
     private func renderThumbnails() async {

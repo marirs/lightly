@@ -12,8 +12,10 @@ struct BuiltInPresetCatalog: PresetProviding {
     private let all: [LightlyPreset]
     private let byCategory: [PresetCategory: [LightlyPreset]]
     private let byID: [String: LightlyPreset]
+    private let migrations: PresetIDMigrations
 
-    init(presets: [LightlyPreset]? = nil) {
+    init(presets: [LightlyPreset]? = nil, migrations: PresetIDMigrations = .shipped) {
+        self.migrations = migrations
         if let presets {
             self.all = presets
         } else {
@@ -53,15 +55,17 @@ struct BuiltInPresetCatalog: PresetProviding {
         return result
     }
 
-    func preset(withID id: String) -> LightlyPreset? {
-        if let exact = byID[id] { return exact }
-        if let match = all.first(where: { $0.id.hasPrefix(id) || id.hasPrefix($0.id) }) {
-            return match
+    /// Exact lookup after applying explicit migrations.
+    ///
+    /// v1 differs: there is no prefix or "gold" substring fallback any more.
+    /// Those substituted an unrelated Look for a missing one; an unknown ID is
+    /// now reported as `.unavailable` and the caller decides what to show.
+    func resolvePreset(id requestedID: String) -> PresetLookupResult {
+        let currentID = migrations.currentID(for: requestedID)
+        guard let preset = byID[currentID] else {
+            return .unavailable(requestedID: requestedID)
         }
-        if id.contains("golden") || id.contains("gold") {
-            return all.first(where: { $0.category == .goldenHour || $0.category == .film })
-        }
-        return nil
+        return .found(preset)
     }
 
     // MARK: - Bundle Loading
