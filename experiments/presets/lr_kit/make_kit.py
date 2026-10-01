@@ -26,7 +26,7 @@ import lrsettings  # noqa: E402
 
 HERE = Path(__file__).parent
 PRESETS = HERE.parent
-ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.home() / "Downloads/Presets - for lightly"
+ROOT = Path(next((a for a in sys.argv[1:] if not a.startswith("--")), "")) if any(not a.startswith("--") for a in sys.argv[1:]) else Path.home() / "Downloads/Presets - for lightly"
 KIT = HERE / "kit"
 HALD_LEVEL = 8  # cube size 64, image 512x512
 
@@ -34,6 +34,35 @@ HALD_LEVEL = 8  # cube size 64, image 512x512
 # would not represent what they do to photographs. Their effect is measured separately on the photo exports.
 LOCAL_KEYS = {"Clarity2012": "0", "Texture": "0", "Dehaze": "0", "PostCropVignetteAmount": "0", "GrainAmount": "0",
               "Sharpness": "0", "LuminanceSmoothing": "0", "ColorNoiseReduction": "0", "VignetteAmount": "0"}
+
+
+class KitHasExportsError(RuntimeError):
+    """Raised instead of touching a kit that already holds Lightroom exports or ingest results."""
+
+
+# Only these folders are produced by the generator; anything else in a kit (exports/, results/) is user data.
+GENERATED_DIRS = ("identity", "photos", "presets")
+
+
+def prepare_kit_dir(kit: Path, new_version: bool = False) -> Path:
+    """Return the directory to generate into. Never deletes exports or results (Codex finding 3).
+
+    - kit without exports/results: generated folders are rebuilt in place.
+    - kit with exports/results: refuse, unless new_version=True, which returns a fresh kit-vN sibling.
+    """
+    has_user_data = any(p.is_file() for d in ("exports", "results") for p in (kit / d).rglob("*")) if kit.exists() else False
+    if has_user_data:
+        if not new_version:
+            raise KitHasExportsError(f"{kit} contains Lightroom exports or results; rerun with --new-version to write a fresh kit")
+        n = 2
+        while (kit.parent / f"{kit.name}-v{n}").exists():
+            n += 1
+        kit = kit.parent / f"{kit.name}-v{n}"
+    kit.mkdir(parents=True, exist_ok=True)
+    for d in GENERATED_DIRS:
+        if (kit / d).exists():
+            shutil.rmtree(kit / d)
+    return kit
 
 
 def look_id(rec):
@@ -88,11 +117,11 @@ def sha(p: Path):
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
-def main():
+def main(new_version: bool = False):
+    global KIT
+    KIT = prepare_kit_dir(KIT, new_version)
     shortlist = json.load(open(PRESETS / "shortlist.json"))
     looks = [rec for cat in shortlist.values() for rec in cat["looks"]]
-    if KIT.exists():
-        shutil.rmtree(KIT)
     for d in ("identity", "photos", "presets/original", "presets/global", "exports/hald", "exports/photos"):
         (KIT / d).mkdir(parents=True, exist_ok=True)
     write_hald(KIT / "identity/hald_64_srgb16.tif")
@@ -133,4 +162,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(new_version="--new-version" in sys.argv)

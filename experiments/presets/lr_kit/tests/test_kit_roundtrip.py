@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np, tifffile
 from PIL import Image
 
-HERE = Path(__file__).parent
+HERE = Path(__file__).resolve().parents[1]  # lr_kit/
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent)); sys.path.insert(0, str(HERE.parents[1] / "lut3d/reference"))
 import make_kit, ingest_kit, ia3dlut as ia
 
