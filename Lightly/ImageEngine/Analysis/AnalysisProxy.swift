@@ -46,11 +46,14 @@ enum AnalysisProxy {
     /// Fallback for photos with no encoded bytes (synthetic or rendered
     /// images): the decode already exists, so only the analysis working set
     /// is bounded here.
-    static func downscaled(_ image: CGImage) -> CGImage? {
+    ///
+    /// Also used for the LUT editor's display preview (with its own bound),
+    /// so preview and export start from the same decoded pixels.
+    static func downscaled(_ image: CGImage, maximumLongEdge bound: Int = maximumLongEdge) -> CGImage? {
         let longEdge = max(image.width, image.height)
-        guard longEdge > maximumLongEdge else { return image }
+        guard longEdge > bound else { return image }
 
-        let scale = Double(maximumLongEdge) / Double(longEdge)
+        let scale = Double(bound) / Double(longEdge)
         let width = max(1, Int((Double(image.width) * scale).rounded()))
         let height = max(1, Int((Double(image.height) * scale).rounded()))
         guard let context = CGContext(

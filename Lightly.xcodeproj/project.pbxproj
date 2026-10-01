@@ -11,6 +11,7 @@
 		02B121820536F70C983B69BC /* PhotoLibraryWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4573A01F6D80E9780EB8ADAC /* PhotoLibraryWriter.swift */; };
 		0515CC84E2377F443226B9D9 /* ContextualTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E5A9ABA4E3FE5FC40D8905 /* ContextualTool.swift */; };
 		0533D0659C30CF4838EFB408 /* DevelopRecipe+Composition.swift in Sources */ = {isa = PBXBuildFile; fileRef = F52854FEBE1CEB64F5C64744 /* DevelopRecipe+Composition.swift */; };
+		05BB0F451EFCC2771A0EEC27 /* LUTEditSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93BB2C16737BB39A173F8BE2 /* LUTEditSession.swift */; };
 		0606BB48C240886C11A81E52 /* LookApplicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964B21295E706AB4C0F737A7 /* LookApplicationTests.swift */; };
 		0782C503DF1FCF2BAF62F741 /* EditorLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F1A4D1445668375EF949618 /* EditorLayoutTests.swift */; };
 		08AB3A0B5A2977C2D4275E5B /* LooksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D4169E6F62ACF69B647DD5 /* LooksView.swift */; };
@@ -49,6 +50,7 @@
 		571E7BBE6C188BD6502F11A5 /* LightlyError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B6949D79F191E031FD950B /* LightlyError.swift */; };
 		57FB8C9305F38D963BA3FAE6 /* presets_fixture.json in Resources */ = {isa = PBXBuildFile; fileRef = F26E5749A262A23F12C5B5F1 /* presets_fixture.json */; };
 		592A3FBDAFB25097FA49C35F /* ExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8D8784526E4F1B3A1827C /* ExportViewModel.swift */; };
+		5B12738736814CCF3720CBC3 /* AutoEnhancer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35BE71B0D623CB01C0D3E079 /* AutoEnhancer.swift */; };
 		5C1473B8BB2D846C776857C7 /* FavouritesManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D591C7936D48BA0E573A772 /* FavouritesManagerTests.swift */; };
 		5C225DD6623E7D52231F0D6D /* PresetIDMigrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946E87F41D28B673539E8E10 /* PresetIDMigrations.swift */; };
 		61380932AF42B26948523FEF /* PickerDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E800D7214C751E5E330D9D5E /* PickerDiagnostics.swift */; };
@@ -70,6 +72,7 @@
 		87752B3B6F236666FE29F54A /* LUTGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46A2557F630816ED676CA636 /* LUTGoldenTests.swift */; };
 		88529F11D1B33446617853F6 /* DevelopCancellationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDD4CB25C6BB38FC0A5E9A1 /* DevelopCancellationTests.swift */; };
 		893F88F49177247C5B85B31F /* PreviewRenderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE53EB1E9EA9A6AAE8D08CD /* PreviewRenderScheduler.swift */; };
+		8CBF6677E9E009CD477A10B4 /* LUTEditSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00352288B6694831162BA6D /* LUTEditSessionTests.swift */; };
 		8F0D4B0A2E8E1661500E9ADE /* LUT3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A2C7B54376BC007C76E30E /* LUT3D.swift */; };
 		9499049C3AF3768592FA5D53 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107CDFD7F9169E403711A26D /* RootView.swift */; };
 		95D920BA636083E9E30E5E18 /* DevelopingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A449DEE0FE62A446070DBEC /* DevelopingOverlay.swift */; };
@@ -157,6 +160,7 @@
 		27BE1217B0CEBB0378E7EB3C /* Generated-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Generated-Info.plist"; sourceTree = "<group>"; };
 		2A8A94F87126D1A33CEA46F7 /* PhotoLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLoading.swift; sourceTree = "<group>"; };
 		2E914E9E5E062EE6588DA665 /* PresetCatalogLoadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetCatalogLoadingTests.swift; sourceTree = "<group>"; };
+		35BE71B0D623CB01C0D3E079 /* AutoEnhancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoEnhancer.swift; sourceTree = "<group>"; };
 		36C7D6A77D28F78630D1A2BD /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		36E3C386A1FA473C368713F4 /* LayoutProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutProbe.swift; sourceTree = "<group>"; };
 		389649D93331FEC5D49ED2BE /* EditHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditHistory.swift; sourceTree = "<group>"; };
@@ -192,6 +196,7 @@
 		85E2C7356941352ABD05F0F7 /* SourceSheetLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSheetLayoutTests.swift; sourceTree = "<group>"; };
 		87B8C011B45EA042A8B4D617 /* PhotoOrientationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoOrientationTests.swift; sourceTree = "<group>"; };
 		8F1A4D1445668375EF949618 /* EditorLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorLayoutTests.swift; sourceTree = "<group>"; };
+		93BB2C16737BB39A173F8BE2 /* LUTEditSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTEditSession.swift; sourceTree = "<group>"; };
 		946E87F41D28B673539E8E10 /* PresetIDMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetIDMigrations.swift; sourceTree = "<group>"; };
 		964B21295E706AB4C0F737A7 /* LookApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookApplicationTests.swift; sourceTree = "<group>"; };
 		98808A5F4DDED70E40233B3A /* SnapshotAssertion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotAssertion.swift; sourceTree = "<group>"; };
@@ -222,6 +227,7 @@
 		D76A7AAE94D2D487DA845CFD /* EditorFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFlowUITests.swift; sourceTree = "<group>"; };
 		D966F6DE946474C26273E04A /* LUTKernelSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTKernelSource.swift; sourceTree = "<group>"; };
 		DB6A5ADEBB04E7E46973DA42 /* Lightly.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Lightly.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E00352288B6694831162BA6D /* LUTEditSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTEditSessionTests.swift; sourceTree = "<group>"; };
 		E7D2D37AF0B8F8C62A80BD28 /* FavouritesManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavouritesManaging.swift; sourceTree = "<group>"; };
 		E800D7214C751E5E330D9D5E /* PickerDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerDiagnostics.swift; sourceTree = "<group>"; };
 		F0E2794879F3B0875C4DF97C /* MountainArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MountainArtwork.swift; sourceTree = "<group>"; };
@@ -373,6 +379,7 @@
 				15FA9481E2CC8A7B92CA7731 /* LooksLayoutTests.swift */,
 				2733A3F8F7C5C9460C60DBF8 /* LooksSnapshotTests.swift */,
 				00EEFEED2D681AA207C32DC3 /* LooksViewModelTests.swift */,
+				E00352288B6694831162BA6D /* LUTEditSessionTests.swift */,
 				46A2557F630816ED676CA636 /* LUTGoldenTests.swift */,
 				03D81EC476633A84CEB509F0 /* MetalLUTRendererTests.swift */,
 				87B8C011B45EA042A8B4D617 /* PhotoOrientationTests.swift */,
@@ -476,6 +483,7 @@
 				19E2D4380997799516B44832 /* EditorActionBars.swift */,
 				A3B01EF39D0D11916BF45A88 /* EditorView.swift */,
 				7AB8EFE26F0E762E3E2EED0B /* EditorViewModel.swift */,
+				93BB2C16737BB39A173F8BE2 /* LUTEditSession.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";
@@ -663,6 +671,7 @@
 		F74FD6B5B8C6740326FD6CDB /* LUT */ = {
 			isa = PBXGroup;
 			children = (
+				35BE71B0D623CB01C0D3E079 /* AutoEnhancer.swift */,
 				A8A2C7B54376BC007C76E30E /* LUT3D.swift */,
 				D966F6DE946474C26273E04A /* LUTKernelSource.swift */,
 				529B651D4F3A99C24DA64E71 /* MetalLUTRenderer.swift */,
@@ -807,6 +816,7 @@
 				2ECC75AADE07E1136A307E0C /* ExportTests.swift in Sources */,
 				5C1473B8BB2D846C776857C7 /* FavouritesManagerTests.swift in Sources */,
 				3ECEA2214805D81D95984D0C /* ImageAnalysisTests.swift in Sources */,
+				8CBF6677E9E009CD477A10B4 /* LUTEditSessionTests.swift in Sources */,
 				87752B3B6F236666FE29F54A /* LUTGoldenTests.swift in Sources */,
 				316B4EBEE82918E23E722AF3 /* LaunchLayoutTests.swift in Sources */,
 				85B97E1A9D88278E0D307BCF /* LayoutProbe.swift in Sources */,
@@ -848,6 +858,7 @@
 				0AC9C9F93BE9087BF5DE51A7 /* AnalysingDeveloper.swift in Sources */,
 				52B873198D4C1E58A3450479 /* AnalysisProxy.swift in Sources */,
 				3556EAEA8BC1C31E06D2729C /* AppState.swift in Sources */,
+				5B12738736814CCF3720CBC3 /* AutoEnhancer.swift in Sources */,
 				F37CE96D13D287A43F79F421 /* BrandMark.swift in Sources */,
 				9E8E4C0FC69F71AC701C625C /* BuiltInPresetCatalog.swift in Sources */,
 				149E951527C7FA06D09BBF1C /* CameraCaptureView.swift in Sources */,
@@ -873,6 +884,7 @@
 				9BC4A72EFF69E4ABD3DB6E9E /* ImageAnalyser.swift in Sources */,
 				7DBAA002EC3E65722310C20E /* ImageIOPhotoExporter.swift in Sources */,
 				8F0D4B0A2E8E1661500E9ADE /* LUT3D.swift in Sources */,
+				05BB0F451EFCC2771A0EEC27 /* LUTEditSession.swift in Sources */,
 				41A0B6869C0268CEB2FA721D /* LUTKernelSource.swift in Sources */,
 				43710550D6CB40A64E155B88 /* LaunchView.swift in Sources */,
 				FCAB59B193880B23145B9027 /* LayoutAnchor.swift in Sources */,
