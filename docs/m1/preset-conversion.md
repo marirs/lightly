@@ -140,10 +140,19 @@ Limitations:
    - Proposed acceptance: mean ΔE00 ≤ 2 and p95 ≤ 5 per image. Anything else is listed with its reason.
 4. **Parametric model (this experiment):** keep it as the fallback for presets without a HALD export, labelled with its measured error. Never present it as faithful.
 
-## 6. Blockers and inputs needed
+## 6. Shortlist and Lightroom export kit (prepared)
 
-- **B1, Lightroom exports.** Lightroom isn't installed on this machine. Needed: (a) HALD renders for the curated presets; (b) full-resolution exports of the test photos with those presets. A ready-to-run export kit (HALD image, folder layout, settings) can be prepared in a few minutes once the curated list exists.
-- **B2, curated list.** Which ~25 presets make up V1 (5 categories × 4–6 stops). Validation effort should go there, not into all 11k.
+- **Provisional shortlist:** 18 Looks across 5 categories, each with reasons and contact sheets. See `docs/m1/shortlist.md`; the code is `experiments/presets/shortlist.py`, and human decisions are in `shortlist_review.json`.
+- **Export kit:** `experiments/presets/lr_kit/` (generated `kit/` is git-ignored, 51 MB). It contains:
+  - a 16-bit sRGB identity HALD (64³)
+  - the 22 test photos
+  - the 18 original preset files, plus generated "global-only" XMPs with local/spatial sliders zeroed
+  - Lightroom Classic instructions with exact export settings and naming
+- **Ingest:** `ingest_kit.py` extracts 33³ LUTs from the HALD exports, applies them to the originals, and compares the result with Lightroom's photo exports.
+  - Acceptance: per photo, mean ΔE00 ≤ 2 and p95 ≤ 5. A Look is "validated" only if all photos pass and Lightroom's neutral (no-preset) export reproduces the input.
+  - Self-test without Lightroom (`test_kit_roundtrip.py`): a known LUT is recovered within 2/255, a correct export is reported validated, and a wrong export is reported failed.
+  - **Not yet verified:** that Lightroom accepts the generated global-only XMPs. The README asks for this to be reported if not.
+- **Remaining input:** running the kit in Lightroom (about 30–45 min). Nothing else blocks it.
 
 ## 7. Reproduce
 

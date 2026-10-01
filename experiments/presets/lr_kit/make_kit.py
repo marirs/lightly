@@ -1,0 +1,136 @@
+"""Build the Lightroom export kit for the provisional shortlist.
+
+Usage: python make_kit.py [preset_root] -> experiments/presets/lr_kit/kit/ (git-ignored; zip it to hand over)
+
+kit/
+  README.md                       step-by-step Lightroom Classic instructions (generated, see README_TEMPLATE)
+  identity/hald_64_srgb16.tif     identity HALD CLUT, level 8 (64^3 colours, 512x512), 16-bit, sRGB ICC embedded
+  photos/                         the 22 test photos (copied from experiments/lut3d/photos)
+  presets/original/<look_id>.<ext> the shortlisted presets exactly as found in the collection
+  presets/global/<look_id>__global.xmp  generated: same settings with local/spatial sliders zeroed (HALD render only)
+  shortlist.json, manifest.json   look ids, sources, sha256 of every kit file
+Export targets the user fills (see README):
+  exports/hald/<look_id>__full.tif, exports/hald/<look_id>__global.tif
+  exports/photos/<look_id>__<photo_stem>.jpg, exports/photos/none__<photo_stem>.jpg (no preset; neutrality check)
+"""
+from __future__ import annotations
+
+import hashlib, json, re, shutil, sys, uuid
+from pathlib import Path
+from xml.sax.saxutils import quoteattr
+import numpy as np
+import tifffile
+from PIL import ImageCms
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import lrsettings  # noqa: E402
+
+HERE = Path(__file__).parent
+PRESETS = HERE.parent
+ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.home() / "Downloads/Presets - for lightly"
+KIT = HERE / "kit"
+HALD_LEVEL = 8  # cube size 64, image 512x512
+
+# Zeroed for the "global" HALD variant: these act spatially or adaptively, so on a synthetic HALD image they
+# would not represent what they do to photographs. Their effect is measured separately on the photo exports.
+LOCAL_KEYS = {"Clarity2012": "0", "Texture": "0", "Dehaze": "0", "PostCropVignetteAmount": "0", "GrainAmount": "0",
+              "Sharpness": "0", "LuminanceSmoothing": "0", "ColorNoiseReduction": "0", "VignetteAmount": "0"}
+
+
+def look_id(rec):
+    slug = re.sub(r"[^a-z0-9]+", "-", rec["name"].lower()).strip("-")[:32]
+    return f"{rec['category']}.{rec['stop']}.{slug}"
+
+
+def hald_identity(level=HALD_LEVEL) -> np.ndarray:
+    """Standard HALD CLUT: cube N = level^2, image side level^3; pixel index = r + g*N + b*N^2 (row-major)."""
+    n = level * level
+    side = level ** 3
+    idx = np.arange(side * side)
+    r, g, b = idx % n, (idx // n) % n, idx // (n * n)
+    rgb = np.stack([r, g, b], -1).astype(np.float64) / (n - 1)
+    return np.round(rgb * 65535).astype(np.uint16).reshape(side, side, 3)
+
+
+def write_hald(path: Path):
+    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    tifffile.imwrite(path, hald_identity(), photometric="rgb", extratags=[(34675, "B", len(icc), icc, True)])
+
+
+def settings_to_xmp(settings: dict, name: str) -> str:
+    """Write a Lightroom develop preset XMP from parsed crs settings (scalars as attributes, curves as rdf:Seq)."""
+    attrs, seqs = [], []
+    for k, v in sorted(settings.items()):
+        if k in ("Name", "Group", "UUID", "PresetType", "Cluster", "SupportsAmount", "SupportsColor", "SupportsMonochrome",
+                 "SupportsHighDynamicRange", "SupportsNormalDynamicRange", "SupportsSceneReferred", "SupportsOutputReferred"):
+            continue
+        if isinstance(v, list) and all(isinstance(x, str) for x in v):
+            items = "".join(f"<rdf:li>{x}</rdf:li>" for x in v)
+            seqs.append(f"   <crs:{k}><rdf:Seq>{items}</rdf:Seq></crs:{k}>")
+        elif isinstance(v, (str, int, float)):
+            attrs.append(f"   crs:{k}={quoteattr(str(v))}")
+        # nested structs (masks, Look tables) are excluded by eligibility; nothing else to write
+    head = "\n".join([f'   crs:PresetType="Normal"', f'   crs:UUID="{uuid.uuid4().hex.upper()}"', '   crs:SupportsAmount="False"',
+                      '   crs:SupportsColor="True"', '   crs:SupportsMonochrome="True"'] + attrs)
+    return f"""<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+{head}>
+   <crs:Name><rdf:Alt><rdf:li xml:lang="x-default">{name}</rdf:li></rdf:Alt></crs:Name>
+   <crs:Group><rdf:Alt><rdf:li xml:lang="x-default">Lightly export kit</rdf:li></rdf:Alt></crs:Group>
+{chr(10).join(seqs)}
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+"""
+
+
+def sha(p: Path):
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def main():
+    shortlist = json.load(open(PRESETS / "shortlist.json"))
+    looks = [rec for cat in shortlist.values() for rec in cat["looks"]]
+    if KIT.exists():
+        shutil.rmtree(KIT)
+    for d in ("identity", "photos", "presets/original", "presets/global", "exports/hald", "exports/photos"):
+        (KIT / d).mkdir(parents=True, exist_ok=True)
+    write_hald(KIT / "identity/hald_64_srgb16.tif")
+    for jpg in sorted((PRESETS.parent / "lut3d/photos").glob("*.jpg")):
+        shutil.copy2(jpg, KIT / "photos" / jpg.name)
+    by_source = {}
+    for p in lrsettings.walk(ROOT):
+        by_source[p.source] = p
+    entries = []
+    for rec in looks:
+        lid = look_id(rec)
+        p = by_source[rec["source"]]
+        src_name = rec["source"].split(" -> ")[-1]
+        ext = Path(src_name).suffix.lower()
+        orig_path = KIT / "presets/original" / f"{lid}{ext}"
+        if " -> " in rec["source"]:
+            import zipfile
+            zpath, member = rec["source"].split(" -> ")
+            orig_path.write_bytes(zipfile.ZipFile(ROOT / zpath).read(member))
+        else:
+            shutil.copy2(ROOT / rec["source"], orig_path)
+        g = dict(p.settings); g.update({k: v for k, v in LOCAL_KEYS.items() if k in g})
+        (KIT / "presets/global" / f"{lid}__global.xmp").write_text(settings_to_xmp(g, f"{lid} [global]"))
+        # Round-trip check: the generated XMP must parse back to the same develop values.
+        back = lrsettings.parse_xmp_text((KIT / "presets/global" / f"{lid}__global.xmp").read_text())
+        identity_keys = {"Name", "UUID", "Group", "PresetType", "Cluster", "SupportsAmount", "SupportsColor", "SupportsMonochrome"}
+        mism = [k for k, v in g.items() if isinstance(v, (str, list)) and k not in identity_keys and not k.startswith("Supports") and back.get(k) != v]
+        assert not mism, (lid, mism[:5])
+        entries.append({"look_id": lid, **{k: rec[k] for k in ("category", "stop", "name", "source")},
+                        "original_file": str(orig_path.relative_to(KIT)), "global_xmp": f"presets/global/{lid}__global.xmp",
+                        "zeroed_for_global": sorted(k for k in LOCAL_KEYS if k in p.settings and str(p.settings[k]).strip("+") not in ("0", "0.00"))})
+    json.dump(entries, open(KIT / "shortlist.json", "w"), indent=1)
+    (KIT / "README.md").write_text((HERE / "README_TEMPLATE.md").read_text().replace("{{LOOK_TABLE}}", "\n".join(
+        f"| `{e['look_id']}` | {e['category']} | {e['stop']} | {e['name']} | `{e['original_file']}` |" for e in entries)))
+    manifest = {str(f.relative_to(KIT)): sha(f) for f in sorted(KIT.rglob("*")) if f.is_file()}
+    json.dump(manifest, open(KIT / "manifest.json", "w"), indent=1)
+    print(f"kit: {len(entries)} looks, {len(manifest)} files -> {KIT}")
+
+
+if __name__ == "__main__":
+    main()
