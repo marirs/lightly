@@ -62,8 +62,11 @@ class AutoDevelopment(val result: AutoResult, val lut: Lut3D)
 sealed interface DevelopOutcome {
     class Developed(val development: AutoDevelopment) : DevelopOutcome
 
-    /** The installed model's own basis is missing or fails verification: DevelopFailed (§5.1). */
-    data class Unavailable(val unavailable: AutoLutResolution.AutoUnavailable) : DevelopOutcome
+    /**
+     * The model ran, but the basis for its own version is missing or fails verification. [result]
+     * carries the weights so the session can still start with Auto shown as unavailable (Auto off).
+     */
+    data class Unavailable(val result: AutoResult, val unavailable: AutoLutResolution.AutoUnavailable) : DevelopOutcome
 }
 
 /**
@@ -109,7 +112,7 @@ class AutoEnhancer(
                 memo[key] = development
                 DevelopOutcome.Developed(development)
             }
-            is AutoLutResolution.AutoUnavailable -> DevelopOutcome.Unavailable(resolution)
+            is AutoLutResolution.AutoUnavailable -> DevelopOutcome.Unavailable(result, resolution)
         }
     }
 }
