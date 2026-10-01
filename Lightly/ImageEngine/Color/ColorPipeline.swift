@@ -43,6 +43,19 @@ enum ColorPipeline {
         context.createCGImage(image, from: image.extent, format: .RGBA8, colorSpace: sRGB)
     }
 
+    /// Converts any CGImage to 8-bit sRGB through ColorSync (a draw into an
+    /// sRGB bitmap), for callers that hold a CGImage rather than a CIImage.
+    static func convertToSRGB8(_ image: CGImage) -> CGImage? {
+        if isSRGB8(image) { return image }
+        guard let context = CGContext(
+            data: nil, width: image.width, height: image.height,
+            bitsPerComponent: 8, bytesPerRow: 0, space: sRGB,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
+    }
+
     /// Whether `image` is already 8-bit sRGB, so conversion would be a no-op.
     static func isSRGB8(_ image: CGImage) -> Bool {
         image.colorSpace?.name == CGColorSpace.sRGB && image.bitsPerComponent == 8

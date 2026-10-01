@@ -41,8 +41,6 @@ final class ExportViewModel {
     private let recipe: DevelopRecipe
     /// Bytes of the original, used as the metadata source.
     private let originalData: Data
-    /// The source photograph's colour space, embedded in the export (spec §15.4).
-    private let colorSpace: CGColorSpace?
     /// Renders at full resolution for export (spec §15.3).
     private let previewRenderer: PreviewRenderer
 
@@ -56,7 +54,6 @@ final class ExportViewModel {
         originalImage: CGImage,
         recipe: DevelopRecipe,
         originalData: Data,
-        colorSpace: CGColorSpace? = nil,
         previewRenderer: PreviewRenderer = PreviewRenderer(),
         exporter: any PhotoExporting,
         libraryWriter: any PhotoLibraryWriting,
@@ -65,7 +62,6 @@ final class ExportViewModel {
         self.originalImage = originalImage
         self.recipe = recipe
         self.originalData = originalData
-        self.colorSpace = colorSpace
         self.previewRenderer = previewRenderer
         self.exporter = exporter
         self.libraryWriter = libraryWriter
@@ -159,8 +155,7 @@ final class ExportViewModel {
             let data = try exporter.encode(
                 fullResImage,
                 originalData: originalData,
-                settings: settings,
-                colorSpace: colorSpace
+                settings: settings
             )
 
             try Task.checkCancellation()

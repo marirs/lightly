@@ -5,7 +5,7 @@ import XCTest
 @testable import Lightly
 
 /// Records what it was asked to save; never touches the real library.
-private actor SpyLibraryWriter: PhotoLibraryWriting {
+actor SpyLibraryWriter: PhotoLibraryWriting {
     enum Behaviour: Sendable {
         case succeed
         case fail(LightlyError)
@@ -29,7 +29,7 @@ private actor SpyLibraryWriter: PhotoLibraryWriting {
 }
 
 private struct FailingExporter: PhotoExporting {
-    func encode(_ image: CGImage, originalData: Data, settings: ExportSettings, colorSpace: CGColorSpace?) throws -> Data {
+    func encode(_ image: CGImage, originalData: Data, settings: ExportSettings) throws -> Data {
         throw LightlyError.exportFailed
     }
 }

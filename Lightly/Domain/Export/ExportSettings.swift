@@ -48,7 +48,8 @@ enum ExportQuality: String, CaseIterable, Identifiable, Sendable {
 
     var compressionQuality: Double {
         switch self {
-        case .high: 0.85
+        // Spec §5.4 fixes Save-copy JPEG quality at 0.92 (was 0.85).
+        case .high: 0.92
         case .maximum: 1.0
         }
     }
@@ -77,6 +78,8 @@ struct ExportSettings: Equatable, Sendable {
     var preservesLocation: Bool
 
     static let `default` = ExportSettings(
+        // Deferred (spec D8 wants JPEG): switching the default changes the
+        // recorded export-sheet snapshots, which needs an approved re-record.
         format: .heic,
         quality: .high,
         preservesMetadata: true,

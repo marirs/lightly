@@ -124,7 +124,6 @@ final class AppState {
             originalImage: photo.image,
             recipe: recipe,
             originalData: photo.originalData,
-            colorSpace: photo.colorSpace,
             previewRenderer: PreviewRenderer(),
             exporter: exporter,
             libraryWriter: libraryWriter,
