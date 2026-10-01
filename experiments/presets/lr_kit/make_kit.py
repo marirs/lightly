@@ -135,7 +135,10 @@ def write_inputs(kit: Path):
     list, not against whatever files happen to remain in the folder (Codex finding 6)."""
     photos = {p.stem: sha(p) for p in sorted((kit / "photos").glob("*.jpg"))}
     hald = kit / "identity/hald_64_srgb16.tif"
-    json.dump({"photos": photos, "hald_sha256": sha(hald) if hald.exists() else None}, open(kit / "inputs.json", "w"), indent=1)
+    # Preset files are evidence too: what Lightroom rendered must be exactly what ingest models (re-review issue 3).
+    presets = {str(p.relative_to(kit)): sha(p) for v in ("full", "global") for p in sorted((kit / "presets" / v).glob("*.xmp"))}
+    json.dump({"photos": photos, "hald_sha256": sha(hald) if hald.exists() else None, "presets": presets},
+              open(kit / "inputs.json", "w"), indent=1)
 
 
 def settings_to_xmp(settings: dict, name: str) -> str:
@@ -180,7 +183,6 @@ def main(new_version: bool = False):
     write_hald(KIT / "identity/hald_64_srgb16.tif")
     for jpg in sorted((PRESETS.parent / "lut3d/photos").glob("*.jpg")):
         shutil.copy2(jpg, KIT / "photos" / jpg.name)
-    write_inputs(KIT)
     by_source = {}
     for p in lrsettings.walk(ROOT):
         by_source[p.source] = p
@@ -211,6 +213,7 @@ def main(new_version: bool = False):
                         "global_xmp": f"presets/global/{lid}__global.xmp",
                         "zeroed_for_global": sorted(k for k in LOCAL_KEYS if k in p.settings and str(p.settings[k]).strip("+") not in ("0", "0.00"))})
     json.dump(entries, open(KIT / "shortlist.json", "w"), indent=1)
+    write_inputs(KIT)
     (KIT / "README.md").write_text((HERE / "README_TEMPLATE.md").read_text().replace("{{LOOK_TABLE}}", "\n".join(
         f"| `{e['look_id']}` | {e['category']} | {e['stop']} | {e['name']} | `{e['original_file']}` |" for e in entries)))
     manifest = {str(f.relative_to(KIT)): sha(f) for f in sorted(KIT.rglob("*")) if f.is_file()}

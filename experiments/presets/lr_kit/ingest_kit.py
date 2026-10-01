@@ -70,9 +70,35 @@ def spatial_calibration():
     return S
 
 
+def preset_paths(look: dict):
+    lid = look["look_id"]
+    return [look.get("full_xmp", f"presets/full/{lid}__full.xmp"), look.get("global_xmp", f"presets/global/{lid}__global.xmp")]
+
+
+def verify_presets(kit: Path, look: dict, recorded: dict) -> list:
+    """Every preset file the Look was rendered with must exist and match the hash recorded at kit creation."""
+    problems = []
+    for rel in preset_paths(look):
+        p = kit / rel
+        if rel not in recorded:
+            problems.append(f"{Path(rel).name} not recorded in inputs.json")
+        elif not p.exists():
+            problems.append(f"{Path(rel).name} missing")
+        elif sha256_file(p) != recorded[rel]:
+            problems.append(f"{Path(rel).name} changed since kit creation")
+    return problems
+
+
 def load_full_settings(kit: Path, look: dict) -> dict:
-    path = kit / look.get("full_xmp", f"presets/full/{look['look_id']}__full.xmp")
-    return lrsettings.parse_xmp_text(path.read_text()) if path.exists() else {}
+    """No silent fallback: callers verify presence and hash first (verify_presets)."""
+    return lrsettings.parse_xmp_text((kit / preset_paths(look)[0]).read_text())
+
+
+def blocked(missing_hald, preset_problems, missing_inputs):
+    missing = [f"input {s}" for s in missing_inputs] + list(preset_problems)
+    if missing_hald is not None:
+        missing.append(missing_hald.name)
+    return {"photos": {}, "missing": missing, "status": "incomplete", "unimplemented": [], "approximated": []}
 
 
 def apply_global(lut, src8):
@@ -210,9 +236,17 @@ def main(kit: Path):
     inputs_path = kit / "inputs.json"
     if not inputs_path.exists():
         raise FileNotFoundError(f"{inputs_path} missing: not a kit produced by make_kit.py; refusing to validate")
-    inputs = json.load(open(inputs_path))["photos"]
+    record = json.load(open(inputs_path))
+    inputs = record["photos"]
     missing_inputs = [s for s in inputs if not (kit / "photos" / f"{s}.jpg").exists()]
     changed_inputs = [s for s in inputs if s not in missing_inputs and sha256_file(kit / "photos" / f"{s}.jpg") != inputs[s]]
+    # Identity image and preset files must be present and unchanged (re-review issue 3).
+    hald_path = kit / "identity/hald_64_srgb16.tif"
+    if not record.get("hald_sha256") or not hald_path.exists():
+        missing_inputs.append("identity/hald_64_srgb16.tif")
+    elif sha256_file(hald_path) != record["hald_sha256"]:
+        changed_inputs.append("identity/hald_64_srgb16.tif")
+    preset_hashes = record.get("presets", {})
     photos = [kit / "photos" / f"{s}.jpg" for s in sorted(inputs) if s not in missing_inputs]
     report = {"neutrality": {}, "looks": {}, "missing_inputs": missing_inputs, "changed_inputs": changed_inputs, "missing_neutral": []}
     # 1. neutrality: Lightroom with no preset must reproduce EVERY input
@@ -233,8 +267,14 @@ def main(kit: Path):
             lut = hald_to_lut(h)
             np.save(res / "luts" / f"{lid}__global.npy", lut)
             write_cube(lut, res / "luts" / f"{lid}__global.cube", f"{lid} global")
-        settings = load_full_settings(kit, L)
+        preset_problems = verify_presets(kit, L, preset_hashes)
+        settings = load_full_settings(kit, L) if not preset_problems else None
         # 1. global-transform validation: LUT(original) vs Lightroom's GLOBAL-ONLY photo exports
+        if lut is None or settings is None:
+            entry["global"] = blocked(h if lut is None else None, preset_problems, missing_inputs)
+            entry["full"] = blocked(h if lut is None else None, preset_problems, missing_inputs)
+            report["looks"][lid] = entry
+            continue
         entry["global"] = validate(kit, res, inputs, photos, missing_inputs, inputs_ok, report, neutral_ok,
                                    f"{lid}__global", h if lut is None else None,
                                    lambda src: apply_global(lut, src))

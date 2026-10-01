@@ -38,7 +38,15 @@ def build(tmp: Path, corrupt=False):
         for variant in ("global", "full"):  # no separated operators in this preset, so both match the LUT
             Image.fromarray(lr).save(kit / "exports/photos" / f"test.1.x__{variant}__{stem}.jpg", quality=100)
         Image.fromarray(s).save(kit / "exports/photos" / f"none__{stem}.jpg", quality=100)
-    json.dump([{"look_id": "test.1.x", "category": "test", "stop": 1, "name": "x"}], open(kit / "shortlist.json", "w"))
+    # Real kits contain the identity image and both complete presets; ingest verifies them (issue 3).
+    (kit / "identity").mkdir(exist_ok=True); make_kit.write_hald(kit / "identity/hald_64_srgb16.tif")
+    for variant in ("full", "global"):
+        (kit / "presets" / variant).mkdir(parents=True, exist_ok=True)
+        (kit / "presets" / variant / f"test.1.x__{variant}.xmp").write_text(
+            make_kit.settings_to_xmp(make_kit.kit_preset_settings({"ProcessVersion": "11.0"}, variant), f"test.1.x [{variant}]"))
+    json.dump([{"look_id": "test.1.x", "category": "test", "stop": 1, "name": "x",
+                "full_xmp": "presets/full/test.1.x__full.xmp", "global_xmp": "presets/global/test.1.x__global.xmp"}],
+              open(kit / "shortlist.json", "w"))
     make_kit.write_inputs(kit)
     return kit, L
 

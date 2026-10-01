@@ -49,7 +49,9 @@ def test_neutral_baseline_uses_colour_managed_originals(tmp_path):
     srgb = _write_p3_photo(kit / "photos/p3.jpg")
     Image.fromarray(srgb).save(kit / "exports/photos/none__p3.jpg", quality=100, subsampling=0)  # what Lightroom exports in sRGB
     json.dump([], open(kit / "shortlist.json", "w"))
-    import make_kit; make_kit.write_inputs(kit)
+    import make_kit
+    (kit / "identity").mkdir(exist_ok=True); make_kit.write_hald(kit / "identity/hald_64_srgb16.tif")
+    make_kit.write_inputs(kit)
     ingest_kit.main(kit)
     rep = json.load(open(kit / "results/report.json"))
     assert rep["neutral_baseline_ok"], rep["neutrality"]

@@ -44,8 +44,13 @@ def _kit(tmp, full_settings, simulate_full):
         Image.fromarray(ia.to_uint8(glob_img)).save(kit / f"exports/photos/t.1.x__global__{stem}.jpg", quality=100, subsampling=0)
         Image.fromarray(ia.to_uint8(simulate_full(s, glob_img))).save(kit / f"exports/photos/t.1.x__full__{stem}.jpg", quality=100, subsampling=0)
         Image.fromarray(np.asarray(Image.open(kit / "photos" / f"{stem}.jpg"))).save(kit / f"exports/photos/none__{stem}.jpg", quality=100, subsampling=0)
-    (kit / "presets/full/t.1.x__full.xmp").write_text(make_kit.settings_to_xmp(make_kit.kit_preset_settings(full_settings, "full"), "t"))
-    json.dump([{"look_id": "t.1.x", "category": "t", "stop": 1, "name": "x", "full_xmp": "presets/full/t.1.x__full.xmp"}], open(kit / "shortlist.json", "w"))
+    (kit / "identity").mkdir(exist_ok=True); make_kit.write_hald(kit / "identity/hald_64_srgb16.tif")
+    for variant in ("full", "global"):
+        (kit / "presets" / variant).mkdir(parents=True, exist_ok=True)
+        (kit / "presets" / variant / f"t.1.x__{variant}.xmp").write_text(
+            make_kit.settings_to_xmp(make_kit.kit_preset_settings(full_settings, variant), f"t [{variant}]"))
+    json.dump([{"look_id": "t.1.x", "category": "t", "stop": 1, "name": "x", "full_xmp": "presets/full/t.1.x__full.xmp",
+                "global_xmp": "presets/global/t.1.x__global.xmp"}], open(kit / "shortlist.json", "w"))
     make_kit.write_inputs(kit)
     ingest_kit.main(kit)
     return json.load(open(kit / "results/report.json"))["looks"]["t.1.x"]
