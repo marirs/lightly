@@ -248,7 +248,8 @@ struct EditorView: View {
                 width: LightlySize.minimumTapTarget,
                 height: LightlySize.minimumTapTarget
             )
-            .background(.regularMaterial, in: Circle())
+            .controlChrome(Circle(), onPlainBackground: controlsReservePhotoSpace, colorScheme: colorScheme)
+            .layoutAnchor("editor.control.compare")
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in viewModel.beginCompare() }
@@ -275,7 +276,8 @@ struct EditorView: View {
                     width: LightlySize.minimumTapTarget,
                     height: LightlySize.minimumTapTarget
                 )
-                .background(.regularMaterial, in: Circle())
+                .controlChrome(Circle(), onPlainBackground: controlsReservePhotoSpace, colorScheme: colorScheme)
+                .layoutAnchor("editor.control.\(symbol)")
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(labelKey, bundle: .main))

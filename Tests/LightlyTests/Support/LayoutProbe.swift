@@ -25,6 +25,10 @@ final class LayoutProbe {
                     MainActor.assumeIsolated { collector.frames = frames }
                 }
         ))
+        // Same UIKit pin as SnapshotAssertion, so frames measured here line
+        // up with pixels rendered there (the simulator's own text size would
+        // otherwise leak into UIKit-backed metrics).
+        window.traitOverrides.preferredContentSizeCategory = .large
         window.rootViewController = controller
         window.makeKeyAndVisible()
         controller.view.frame = window.bounds

@@ -89,9 +89,12 @@ struct PreDevelopActionBar: View {
             .foregroundStyle(LightlyColor.textPrimary(colorScheme))
             .padding(.horizontal, LightlySpacing.l)
             .padding(.vertical, LightlySpacing.s + 2)
-            .background(
-                Capsule().fill(.regularMaterial)
+            // Same rule as EditorView.controlsReservePhotoSpace: at
+            // accessibility sizes this bar sits on the plain background.
+            .controlChrome(
+                Capsule(), onPlainBackground: dynamicTypeSize.isAccessibilitySize, colorScheme: colorScheme
             )
+            .layoutAnchor("editor.develop")
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("action.develop")

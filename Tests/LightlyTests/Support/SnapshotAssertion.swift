@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import XCTest
+@testable import Lightly
 
 /// A minimal, dependency-free snapshot harness.
 ///
@@ -128,12 +129,29 @@ enum SnapshotAssertion {
         size: CGSize,
         colorScheme: ColorScheme
     ) -> CGImage? {
+        renderWithAnchors(view, size: size, colorScheme: colorScheme, settle: false)?.image
+    }
+
+    /// Renders like `render` and also returns the frames published with
+    /// `.layoutAnchor`, from the same host, so pixel samples taken at those
+    /// frames line up exactly (a second host can differ in safe area).
+    @MainActor
+    static func renderWithAnchors(
+        _ view: some View,
+        size: CGSize,
+        colorScheme: ColorScheme,
+        settle: Bool = true
+    ) -> (image: CGImage, anchors: [String: CGRect])? {
+        let anchors = AnchorBox()
         let controller = UIHostingController(
             rootView: AnyView(
                 view
                     .environment(\.colorScheme, colorScheme)
                     .environment(\.dynamicTypeSize, .large)
                     .environment(\.locale, Locale(identifier: "en_US"))
+                    .onPreferenceChange(LayoutAnchorKey.self) { frames in
+                        MainActor.assumeIsolated { anchors.frames = frames }
+                    }
             )
         )
         controller.view.frame = CGRect(origin: .zero, size: size)
@@ -151,6 +169,13 @@ enum SnapshotAssertion {
         // materialise their content once laid out.
         controller.view.setNeedsLayout()
         controller.view.layoutIfNeeded()
+        if settle {
+            // Safe-area insets and the anchor preferences resolve over a
+            // further run-loop turn; measure and draw the settled layout.
+            // Off for plain snapshots so recorded references are unaffected.
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            controller.view.layoutIfNeeded()
+        }
 
         let format = UIGraphicsImageRendererFormat()
         // Scale 1 keeps references small and comparison fast; layout bugs are
@@ -170,7 +195,13 @@ enum SnapshotAssertion {
         }
 
         window.isHidden = true
-        return image.cgImage
+        guard let cgImage = image.cgImage else { return nil }
+        return (cgImage, anchors.frames)
+    }
+
+    @MainActor
+    private final class AnchorBox {
+        var frames: [String: CGRect] = [:]
     }
 
     // MARK: - Comparison
