@@ -143,7 +143,13 @@ final class LooksViewModelTests: XCTestCase {
     }
 
     func testFavouritesCategoryWorkflow() {
-        let favouritesManager = UserDefaultsFavouritesManager(userDefaults: UserDefaults(suiteName: "test.looks.vm.favs")!)
+        // A fresh suite per run, removed afterwards: a fixed suite persists
+        // across runs, so a run interrupted between the two toggles left
+        // the Look favourited and inverted every assertion next time.
+        let suiteName = "test.looks.vm.favs.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let favouritesManager = UserDefaultsFavouritesManager(userDefaults: defaults)
         let viewModel = LooksViewModel(
             thumbnailSource: TestFixtures.makeThumbnailSource(),
             catalog: TestFixtures.bundledCatalog,
