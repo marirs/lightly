@@ -262,6 +262,21 @@ final class SavedEditRestoreTests: XCTestCase {
         XCTAssertEqual(session.savedSession(source: try source, auto: .noModelInBuild).current.look, stale)
     }
 
+    /// A changed Look's own stop is not "the committed stop" (the slider shows stop 0 for it), so
+    /// settling there applies the pack's version at 100% as a new step rather than being a no-op.
+    func testSettlingOnAChangedLooksStopAppliesTheCurrentVersionAsAStep() async throws {
+        let stale = SavedLookRef(lookId: warmID, lookVersion: "000000000000", strength: 0.3)
+        let restored = await editor(restoring: try session(look: stale))
+        let warmStop = try XCTUnwrap(restored.stops.firstIndex { $0.lookID == warmID })
+
+        restored.settleStop(warmStop)
+
+        let session = try XCTUnwrap(restored.session)
+        XCTAssertEqual(session.history.count, 2)
+        XCTAssertEqual(restored.lookResolution, .available(lookID: warmID))
+        XCTAssertEqual(session.committedState.lookStrength, 1)
+    }
+
     /// Choosing another Look answers the notice the ordinary way: a new step replacing the stale ref.
     func testChoosingAnotherLookReplacesAStaleRef() async throws {
         let restored = await editor(restoring: try session(look: SavedLookRef(lookId: "gone-000000", lookVersion: "x", strength: 1)))

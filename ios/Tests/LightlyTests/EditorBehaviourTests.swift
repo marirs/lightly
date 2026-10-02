@@ -56,7 +56,7 @@ final class EditorBehaviourTests: XCTestCase {
         XCTAssertEqual(session.lastIssuedRevision, 0)
         XCTAssertFalse(viewModel.canUndo, "Undo cannot take Auto away: it is where the edit starts")
         let shown = try await pixels(viewModel)
-        XCTAssertNotEqual(shown, try originalPixels(viewModel), "The Auto pass renders")
+        XCTAssertFalse(shown == (try originalPixels(viewModel)), "The Auto pass renders")
     }
 
     /// Looks go on top of Auto, and Reset to Auto / Undo come back to the Auto baseline.
@@ -68,13 +68,13 @@ final class EditorBehaviourTests: XCTestCase {
         viewModel.resetToAuto()
         XCTAssertEqual(viewModel.session?.committedState.autoStrength, 1)
         let afterReset = try await pixels(viewModel)
-        XCTAssertEqual(afterReset, autoOnly)
+        XCTAssertTrue(afterReset == autoOnly)
         viewModel.undo()
         viewModel.undo()
         XCTAssertFalse(viewModel.canUndo)
         XCTAssertEqual(viewModel.noLookStopLabel, "Auto")
         let atStart = try await pixels(viewModel)
-        XCTAssertEqual(atStart, autoOnly)
+        XCTAssertTrue(atStart == autoOnly)
     }
 
     /// Retry semantics (decision): a successful Retry starts the session at the Auto baseline,
@@ -96,7 +96,7 @@ final class EditorBehaviourTests: XCTestCase {
         XCTAssertEqual(session.history.count, 1)
         XCTAssertFalse(viewModel.canUndo)
         let shown = try await pixels(viewModel)
-        XCTAssertNotEqual(shown, try originalPixels(viewModel))
+        XCTAssertFalse(shown == (try originalPixels(viewModel)), "The Auto pass renders")
     }
 
     /// The shipping "no model" enhancer and Continue-without-Auto never mark Auto applied.
@@ -106,14 +106,14 @@ final class EditorBehaviourTests: XCTestCase {
         XCTAssertFalse(noModel.isAutoApplied)
         XCTAssertEqual(noModel.stopLabel(at: 0), "Original")
         let noModelShown = try await pixels(noModel)
-        XCTAssertEqual(noModelShown, try originalPixels(noModel))
+        XCTAssertTrue(noModelShown == (try originalPixels(noModel)))
 
         let failed = await editor(auto: ScriptedAutoEnhancer(results: [.unavailable(.invalidBasis)]))
         failed.continueWithoutAuto()
         XCTAssertEqual(failed.session?.committedState.autoStrength, 0)
         XCTAssertEqual(failed.stopLabel(at: 0), "Original")
         let failedShown = try await pixels(failed)
-        XCTAssertEqual(failedShown, try originalPixels(failed))
+        XCTAssertTrue(failedShown == (try originalPixels(failed)))
     }
     // MARK: - Redo
 
@@ -225,13 +225,117 @@ final class EditorBehaviourTests: XCTestCase {
         XCTAssertTrue(viewModel.showsStrengthControl, "Still adjustable back up")
     }
 
-    func testChoosingAnotherPresetStartsAtFullStrength() async throws {
+    // Agreed Strength rule (both platforms): settling on the committed stop is a no-op; another
+    // preset is committed (and previewed) at 100% as one step; Undo/Redo restore Strength exactly;
+    // Reset is one undoable step; Strength commits on release only (see the drag test above).
+
+    func testChoosingAnotherPresetStartsAtFullStrengthAsOneStep() async throws {
+        let viewModel = await editor()
+        viewModel.settleStop(1)
+        viewModel.commitLookStrength(0.4)
+        let steps = try XCTUnwrap(viewModel.session).history.count
+        viewModel.settleStop(2)
+
+        XCTAssertEqual(viewModel.displayedLookStrength, 1)
+        XCTAssertEqual(try XCTUnwrap(viewModel.session).history.count, steps + 1)
+    }
+
+    /// Codex review d5690dd finding 3: A at 40% → preview B → settle back on A kept neither the
+    /// Strength (jumped to 100%) nor the history (3 → 4 entries).
+    func testSettlingBackOnTheCommittedStopKeepsStrengthAndHistory() async throws {
+        let viewModel = await editor()
+        viewModel.settleStop(1)
+        viewModel.commitLookStrength(0.4)
+        let committed = try await pixels(viewModel)
+        let session = try XCTUnwrap(viewModel.session)
+        let steps = session.history.count
+        let revision = session.lastIssuedRevision
+
+        viewModel.previewStop(2)
+        viewModel.settleStop(1)
+
+        XCTAssertEqual(viewModel.displayedLookStrength, 0.4, accuracy: 1e-6)
+        XCTAssertEqual(session.committedState.lookStrength, 0.4, accuracy: 1e-6)
+        XCTAssertEqual(session.history.count, steps, "No step")
+        XCTAssertEqual(session.lastIssuedRevision, revision, "No revision minted")
+        XCTAssertNil(viewModel.previewedStopIndex, "The preview ends")
+        let shown = try await pixels(viewModel)
+        XCTAssertTrue(shown == committed, "The committed state renders again")
+    }
+
+    /// Same rule without a preview in between (tap or VoiceOver on the current stop).
+    func testSettlingOnTheCommittedStopDirectlyIsANoOp() async throws {
+        let viewModel = await editor()
+        viewModel.settleStop(1)
+        viewModel.commitLookStrength(0.4)
+        let steps = try XCTUnwrap(viewModel.session).history.count
+
+        viewModel.settleStop(1)
+
+        XCTAssertEqual(viewModel.displayedLookStrength, 0.4, accuracy: 1e-6)
+        XCTAssertEqual(try XCTUnwrap(viewModel.session).history.count, steps)
+        XCTAssertFalse(viewModel.canRedo)
+    }
+
+    /// Dragging back over the committed stop shows the committed edit (its Strength), not a 100%
+    /// version of it that settling would then contradict.
+    func testPreviewingTheCommittedStopShowsTheCommittedStrength() async throws {
+        let viewModel = await editor()
+        viewModel.settleStop(1)
+        viewModel.commitLookStrength(0.4)
+        let committed = try await pixels(viewModel)
+
+        viewModel.previewStop(2)
+        viewModel.previewStop(1)
+
+        let shown = try await pixels(viewModel)
+        XCTAssertTrue(shown == committed, "Shows the committed 40%, not 100%")
+    }
+
+    func testPreviewingAnotherPresetShowsItAtFullStrength() async throws {
+        let reference = await editor()
+        reference.settleStop(2)
+        let fullB = try await pixels(reference)
+
+        let viewModel = await editor()
+        viewModel.settleStop(1)
+        viewModel.commitLookStrength(0.4)
+        viewModel.previewStop(2)
+
+        let shown = try await pixels(viewModel)
+        XCTAssertTrue(shown == fullB, "Another preset previews at 100%")
+        XCTAssertEqual(viewModel.session?.committedState.lookStrength ?? 0, 0.4, accuracy: 1e-6, "Preview commits nothing")
+    }
+
+    func testUndoAndRedoRestoreStrengthExactlyAsCommitted() async throws {
         let viewModel = await editor()
         viewModel.settleStop(1)
         viewModel.commitLookStrength(0.4)
         viewModel.settleStop(2)
+        viewModel.commitLookStrength(0.7)
 
+        viewModel.undo()
+        XCTAssertEqual(viewModel.committedLook?.id, "fixture-warm-000002")
         XCTAssertEqual(viewModel.displayedLookStrength, 1)
+        viewModel.undo()
+        XCTAssertEqual(viewModel.committedLook?.id, "fixture-lift-000001")
+        XCTAssertEqual(viewModel.displayedLookStrength, 0.4, accuracy: 1e-6)
+        viewModel.redo()
+        viewModel.redo()
+        XCTAssertEqual(viewModel.displayedLookStrength, 0.7, accuracy: 1e-6)
+    }
+
+    func testResetIsOneStepAndUndoBringsBackTheStrength() async throws {
+        let viewModel = await editor()
+        viewModel.settleStop(1)
+        viewModel.commitLookStrength(0.4)
+        let steps = try XCTUnwrap(viewModel.session).history.count
+
+        viewModel.resetToAuto()
+        XCTAssertEqual(try XCTUnwrap(viewModel.session).history.count, steps + 1)
+        viewModel.undo()
+        XCTAssertEqual(viewModel.committedLook?.id, "fixture-lift-000001")
+        XCTAssertEqual(viewModel.displayedLookStrength, 0.4, accuracy: 1e-6)
     }
 
     // MARK: - Name and position

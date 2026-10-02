@@ -370,20 +370,31 @@ final class LUTEditorViewModel {
     func previewStop(_ index: Int) {
         guard isReady, let session, let stop = stop(at: index), index != previewedStopIndex else { return }
         previewedStopIndex = index
-        if let lookID = stop.lookID {
+        if isCommittedStop(index) {
+            // Back over the committed stop: show the committed edit at its committed Strength, which
+            // is what settling here keeps; a 100% preview would be contradicted on release.
+            session.endLookPreview()
+        } else if let lookID = stop.lookID {
             session.previewLook(id: lookID)
         } else {
             session.previewAutoStop()
         }
     }
 
-    /// The slider settled on `index` (finger up, or an accessibility
-    /// increment): one undo step, replacing any previous Look. Settling on
-    /// the already committed stop adds no step but still clears the preview.
+    /// The slider settled on `index` (finger up, or an accessibility increment).
+    ///
+    /// Agreed Strength rule (both platforms): settling on the stop that is already committed is a
+    /// no-op — Strength and history unchanged; only the transient preview ends and the committed
+    /// state renders again. Settling on a different preset commits it at 100% (its designed look)
+    /// as one undo step, replacing any previous Look.
+    // v3 differs: settling on the committed stop re-applied its Look at 100%, so A at 40% →
+    // preview B → back on A jumped to 100% and added a step (Codex review d5690dd finding 3).
     func settleStop(_ index: Int) {
         guard isReady, let session, let stop = stop(at: index) else { return }
         previewedStopIndex = nil
-        if let lookID = stop.lookID {
+        if isCommittedStop(index) {
+            session.endLookPreview()
+        } else if let lookID = stop.lookID {
             session.applyLook(id: lookID)
         } else {
             // The Auto stop is "no Look": the same state change as Reset to
@@ -402,6 +413,18 @@ final class LUTEditorViewModel {
 
     private func stop(at index: Int) -> LookStop? {
         stops.indices.contains(index) ? stops[index] : nil
+    }
+
+    /// True for the stop the committed edit already sits on: its rendered Look, or stop 0 when the
+    /// edit has no Look at all. A Look that is unavailable or changed does not count — the slider
+    /// shows stop 0 for it, and settling on its stop must apply the pack's version as a new step;
+    /// likewise settling on stop 0 then is a real Reset that clears the stale reference.
+    private func isCommittedStop(_ index: Int) -> Bool {
+        guard let session, let stop = stop(at: index) else { return false }
+        if let lookID = stop.lookID {
+            return lookResolution == .available(lookID: lookID)
+        }
+        return session.committedState.lookID == nil
     }
 
     /// A drag on the slider turned out to be a scroll: drop the preview, change nothing.
