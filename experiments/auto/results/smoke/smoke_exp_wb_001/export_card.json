@@ -1,0 +1,45 @@
+{
+  "run_id": "smoke_exp_wb_001",
+  "kind": "smoke",
+  "arm_label": "Pipeline smoke model (procedural synthetic scenes) - plumbing only, NOT an AI Auto candidate",
+  "is_ai_auto_candidate": false,
+  "research_only": false,
+  "shippable": false,
+  "modelVersion": "smoke-a3298ecea00a5690",
+  "contract": {
+    "input": "[1,3,256,256] sRGB [0,1], pinned antialiased resize",
+    "basis_luts": 3,
+    "lut_dim": 33,
+    "precision": "fp32",
+    "classifier_params": 270083
+  },
+  "artifacts": {
+    "auto_classifier_fp32.mlpackage": {
+      "bytes": 1093012,
+      "sha256": "6336a9fd5743ba1e4e6db7d6b84746ab117b9d73d30cd3235ebf115041129954"
+    },
+    "auto_classifier.onnx": {
+      "bytes": 1083908,
+      "sha256": "387ffdd649d2706645ccc3ae5a89216bf92ab1df62459d5dcb3fba0c4c52cc72"
+    },
+    "auto_basis_luts_f32.bin": {
+      "bytes": 1724976,
+      "sha256": "98e2701b2887eaeacfb72a4895b9cc38207f9ca172bf676b2c86f156f7f85dd3"
+    }
+  },
+  "parity": {
+    "inputs": "8 procedural validation scenes, pinned 256 resize",
+    "onnx_vs_torch_weights_max_abs": 4.708766937255859e-06,
+    "coreml_fp32_cpu_vs_torch_weights_max_abs": 1.6689300537109375e-06,
+    "onnx_fused_lut_max_delta_8bit": 0.0013375282287597656,
+    "coreml_fused_lut_max_delta_8bit": 0.00012159347534179688,
+    "basis_lut_bin_round_trip_exact": true,
+    "contract_weight_tolerance": 0.001,
+    "passes": true
+  },
+  "toolchain": {
+    "torch": "2.5.1",
+    "coremltools": "8.3.0",
+    "onnxruntime": "1.30.0"
+  }
+}
