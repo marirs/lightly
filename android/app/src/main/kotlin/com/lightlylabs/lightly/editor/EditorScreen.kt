@@ -101,6 +101,7 @@ private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPho
     when (val status = ui.autoStatus) {
         is AutoStatus.Unavailable -> Text(status.notice, color = MaterialTheme.colorScheme.error)
         AutoStatus.UsingOriginal -> Text(AutoStatus.UsingOriginal.NOTICE, color = MaterialTheme.colorScheme.error)
+        AutoStatus.NoModelInThisBuild -> Text(AutoStatus.NoModelInThisBuild.NOTICE)
         else -> Unit
     }
     ui.lookNotice?.let { Text(it, color = MaterialTheme.colorScheme.error) }

@@ -42,9 +42,9 @@ object AndroidEditorEnvironment {
         return EditorEnvironment(
             photoLoader = ContentResolverPhotoLoader(resolver, decoder, screenLongestPx),
             photoAccess = ContentResolverPhotoAccessGrants(resolver),
-            autoDeveloper = AutoDeveloper { _, _ ->
-                DevelopResult.Failed("Auto enhancement isn't available in this build yet.")
-            },
+            // DEFERRED: no production Auto model or inference engine is bundled; research (FiveK)
+            // weights must never ship. Until one exists every photo opens with Auto off.
+            autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
             autoResolver = RegistryAutoLutResolver(BasisRegistry(installed = emptyList())),
             lookBook = BundledLookBook.create(),
             previewRenderer = CpuLutPassRenderer,

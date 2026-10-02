@@ -33,8 +33,14 @@ fun interface PhotoLoader {
 sealed interface DevelopResult {
     data class Developed(val auto: AutoResult) : DevelopResult
 
-    /** No Auto result at all (e.g. no inference engine in this build): DevelopFailed (spec §5.1). */
+    /** The model ran (or tried to) and produced no Auto result: DevelopFailed with Retry (spec §5.1). */
     data class Failed(val message: String) : DevelopResult
+
+    /**
+     * This build ships no Auto model. Nothing failed and Retry can never succeed, so the editor goes
+     * straight to Ready with Auto off and a notice, like iOS's "model not bundled" Auto.
+     */
+    data object NoModelInThisBuild : DevelopResult
 }
 
 fun interface AutoDeveloper {

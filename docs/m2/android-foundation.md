@@ -48,7 +48,7 @@ If either folder is missing, the golden tests **fail** with these instructions. 
 | `core-model` | Kotlin/JVM | `CanonicalAnalysisInput` (§4.6 pinned antialiased resize); `BasisLuts.fuse`; `endpoint-v1` guardrail. **`BasisRegistry`**: basis files keyed by (modelId, modelVersion), each sha256-verified against its manifest before it is parsed. **`RegistryAutoLutResolver`**: AutoResult → `Ready(lut)` or `AutoUnavailable(modelId, modelVersion, reason)`, with no fallback to another version. `AutoEnhancer.develop` → `DevelopOutcome` (Developed or Unavailable). `AutoModel` is an interface with a fake only. |
 | `core-decode` | Android library | `DecodeTargets`: the analysis decode has a long edge of exactly 1024 (or the Original if smaller) and does not depend on the screen; the display proxy is capped at min(screen, 2732); headers above 100 MP are rejected. `ProxyDecoder`: ImageDecoder with target size, software allocation and `setTargetColorSpace(sRGB)`, plus a Canvas redraw for anything still not 8-bit sRGB. EXIF orientation comes from ImageDecoder. Gain maps are ignored (U5). |
 | `core-export` | Android library | `SaveCopyExporter` (insert `IS_PENDING=1` → encode **once** → `IS_PENDING=0`; the pending row is deleted on failure; the source is never opened). `ContentResolverGateway`. **`ExportCoordinator`**: export path separate from the preview scheduler, single flight, slot held until the write completes, state guarded by export ID. **`TiledExportRenderer`**: ≤ 4096² tiles, LUT passes per tile, written straight into the encode target (`ExportFrame`: `BitmapExportFrame` + `BitmapFrameJpegEncoder` on Android). **`ExportBufferLedger`**: documented buffer budget (§3.1). |
-| `app` | Android app | `EditorViewModel` wired end to end through an injected `EditorEnvironment` (§3.2). `EditorScreen`: Photo Picker, preview image, hold-to-compare, category chips, stepped slider, strength, undo/redo/reset, Save copy. `AndroidEditorEnvironment` is the production wiring (`ContentResolverPhotoLoader`, `ContentResolverPhotoAccessGrants`). `BundledLookBook`: provisional procedural Looks in **debug builds only**, none in release (§8.3). The app ships **no inference engine and no basis**: develop reports DevelopFailed and the user continues with the Original. Tests inject a fake model and a test basis. |
+| `app` | Android app | `EditorViewModel` wired end to end through an injected `EditorEnvironment` (§3.2). `EditorScreen`: Photo Picker, preview image, hold-to-compare, category chips, stepped slider, strength, undo/redo/reset, Save copy. `AndroidEditorEnvironment` is the production wiring (`ContentResolverPhotoLoader`, `ContentResolverPhotoAccessGrants`). `BundledLookBook`: provisional procedural Looks in **debug builds only**, none in release (§8.3). The app ships **no inference engine and no basis**: develop reports `NoModelInThisBuild`, so the photo opens straight into editing with Auto off and the notice "Auto is unavailable: this build has no Auto model. Looks apply to your original photo." (same wording as iOS). DevelopFailed with [Retry] is kept for real model failures. Tests inject a fake model and a test basis. |
 
 ### Decisions taken while implementing
 
@@ -63,7 +63,7 @@ If either folder is missing, the golden tests **fail** with these instructions. 
 
 ## 3. Test results (`./gradlew test`, JVM + Robolectric, JDK 25)
 
-**160 tests, 0 failures, 0 skipped** (138 before §8). Run with the golden set from the main checkout.
+**162 tests, 0 failures, 0 skipped** (138 before §8). Run with the golden set from the main checkout.
 
 | Module | Task | Tests | Notes |
 |---|---|---|---|
@@ -219,7 +219,7 @@ Debug APK on the `Pixel_9_Pro` AVD (API 36, arm64, started `-read-only`, so noth
 |---|---|
 | Choose photo (Photo Picker) | Opens; read grant persisted (`dumpsys activity permissions`: `persistable=0x1 persisted=0x1`) |
 | Developing | Too fast to capture on the emulator; covered by unit tests |
-| Auto unavailable | DevelopFailed: "Couldn't enhance. Auto enhancement isn't available in this build yet." → [Continue with original] → notice "Auto enhancement unavailable. Looks are applied to the original." |
+| Auto unavailable | Emulator run used the earlier build: DevelopFailed → [Continue with original]. Since the follow-up commit, a build without a model opens straight into editing with the Auto-unavailable notice (unit-tested; not re-captured on the emulator). |
 | Category + stepped slider, two stops | Film → Fade (stop 1) → Punch (stop 2), each one undo step |
 | Compare | Shows the Original ("Photo, original") |
 | Undo / Reset | Undo returns to Fade; Reset returns to Auto |

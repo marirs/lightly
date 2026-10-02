@@ -189,6 +189,44 @@ class EditorViewModelTest {
         assertContentEquals(display.pixels, vm.previewPixels())
     }
 
+    @Test
+    fun `a build without an Auto model goes straight to editing with Auto unavailable, not a failure`() = runTest {
+        // Retry can never succeed when the build has no model, so offering it would be a dead end.
+        val fakes = Fakes(DevelopResult.NoModelInThisBuild)
+        val vm = readyViewModel(fakes)
+        assertEquals(EditorPhase.Ready, vm.uiState.value.phase)
+        assertEquals(AutoStatus.NoModelInThisBuild, vm.uiState.value.autoStatus)
+        assertEquals(0f, vm.uiState.value.session!!.current.auto.strength)
+        assertNull(vm.autoLutForRendering)
+        assertContentEquals(display.pixels, vm.previewPixels())
+
+        vm.retryDevelop()
+        advanceUntilIdle()
+        assertEquals(1, fakes.developedWith.size, "nothing to retry: the model was asked once")
+
+        vm.selectCategory("Film")
+        vm.onStopSettled(1)
+        advanceUntilIdle()
+        assertContentEquals(render(display, null, 0f, lookBook.stops("Film")[0].ref()), vm.previewPixels())
+    }
+
+    @Test
+    fun `a restored no-model session keeps reporting Auto unavailable without re-running the model`() = runTest {
+        val handle = SavedStateHandle()
+        val first = readyViewModel(Fakes(DevelopResult.NoModelInThisBuild), handle)
+        first.selectCategory("Film")
+        first.onStopSettled(1)
+        advanceUntilIdle()
+
+        val fakes = Fakes(DevelopResult.NoModelInThisBuild)
+        val restored = viewModel(handle, environment(fakes))
+        advanceUntilIdle()
+        assertEquals(EditorPhase.Ready, restored.uiState.value.phase)
+        assertEquals(AutoStatus.NoModelInThisBuild, restored.uiState.value.autoStatus)
+        assertEquals(lookBook.stops("Film")[0].ref(), restored.uiState.value.session!!.current.look)
+        assertEquals(0, fakes.developedWith.size)
+    }
+
     // --- Stepped slider and latest-wins ----------------------------------------------------------
 
     @Test

@@ -102,6 +102,11 @@ sealed interface AutoStatus {
     data object UsingOriginal : AutoStatus {
         const val NOTICE = "Auto enhancement unavailable. Looks are applied to the original."
     }
+
+    /** The build has no Auto model ([DevelopResult.NoModelInThisBuild]); wording matches iOS. */
+    data object NoModelInThisBuild : AutoStatus {
+        const val NOTICE = "Auto is unavailable: this build has no Auto model. Looks apply to your original photo."
+    }
 }
 
 /**
@@ -204,14 +209,23 @@ class EditorViewModel(
         // stale failures are dropped before they reach the phase.
         val loaded = photo?.takeIf { isCurrent(it.generation) }?.loaded ?: return
         if (state.value.phase !is EditorPhase.DevelopFailed) return
-        val original = AutoResult(
+        startWithAutoOff(loaded, USE_ORIGINAL_MODEL_VERSION)
+    }
+
+    /**
+     * Ready with Auto strength 0. [markerVersion] records why Auto is off in the saved session, so a
+     * restore reports the same notice without re-running the model (spec §4.6). It is never resolved
+     * against a basis.
+     */
+    private fun startWithAutoOff(loaded: LoadedPhoto, markerVersion: String) {
+        val autoOff = AutoResult(
             modelId = AutoResult.MODEL_ID_IA3DLUT,
-            modelVersion = USE_ORIGINAL_MODEL_VERSION,
+            modelVersion = markerVersion,
             weights = listOf(0f, 0f, 0f),
             guardrail = null,
             strength = 0f,
         )
-        commit(EditSession.start(loaded.source, original))
+        commit(EditSession.start(loaded.source, autoOff))
         state.update { it.copy(phase = EditorPhase.Ready) }
     }
 
@@ -279,6 +293,8 @@ class EditorViewModel(
                 state.update { it.copy(phase = EditorPhase.Ready) }
             }
             is DevelopResult.Failed -> state.update { it.copy(phase = EditorPhase.DevelopFailed(result.message)) }
+            // Not a failure: Retry could never succeed, so go straight to editing with Auto off.
+            DevelopResult.NoModelInThisBuild -> startWithAutoOff(loaded, NO_MODEL_IN_BUILD_MODEL_VERSION)
         }
     }
 
@@ -420,6 +436,10 @@ class EditorViewModel(
             resolvedAuto = null
             return AutoStatus.UsingOriginal
         }
+        if (auto.strength == 0f && auto.modelVersion == NO_MODEL_IN_BUILD_MODEL_VERSION) {
+            resolvedAuto = null
+            return AutoStatus.NoModelInThisBuild
+        }
         val resolution = resolvedAuto?.takeIf { it.first == auto }?.second
             ?: env.autoResolver.resolve(auto).also { resolvedAuto = auto to it }
         return when (resolution) {
@@ -436,6 +456,13 @@ class EditorViewModel(
 
         /** Marks the "Use original" Auto result; never resolved against a basis. */
         const val USE_ORIGINAL_MODEL_VERSION = "use-original"
+
+        /**
+         * Marks an edit made in a build with no Auto model; never resolved against a basis. A session
+         * restored into a later build that has a model keeps Auto off: the edit is replayed as the
+         * user made it, not re-developed (spec §4.6).
+         */
+        const val NO_MODEL_IN_BUILD_MODEL_VERSION = "no-model-in-build"
 
         fun factory(env: EditorEnvironment): ViewModelProvider.Factory = viewModelFactory {
             initializer {
