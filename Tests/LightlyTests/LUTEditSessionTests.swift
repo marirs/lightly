@@ -148,6 +148,35 @@ final class LUTEditSessionTests: XCTestCase {
                           "Looks must replace, not stack")
     }
 
+    /// Codex finding 2: re-committing the already committed Look while a
+    /// different Look is being previewed must settle the preview back to the
+    /// committed Look, without adding an undo step. Before the fix `commit`
+    /// returned early and the preview of B stayed on screen while export
+    /// rendered A.
+    func testReapplyingTheCommittedLookSettlesAPreviewOfAnotherLook() async throws {
+        let session = try makeSession()
+        session.applyLook(id: TestLookBook.warm.id)
+        await session.settleRendering()
+        let historyCountAfterFirstApply = session.history.count
+        let historyIndexAfterFirstApply = session.historyIndex
+
+        session.previewLook(id: TestLookBook.cool.id)
+        await session.settleRendering()
+        session.applyLook(id: TestLookBook.warm.id)
+        await session.settleRendering()
+
+        let warmPreview = try expectedPreview(session, passes: [TestLookBook.warm.lut])
+        let coolPreview = try expectedPreview(session, passes: [TestLookBook.cool.lut])
+        let shown = try pixels(session.displayedImage)
+        // Bool comparisons with a named outcome: an XCTAssertEqual on pixel
+        // arrays prints megabytes of numbers and hides which image is shown.
+        XCTAssertTrue(shown == warmPreview,
+                      "Settling on the committed Look must display it, not the abandoned preview; showing the cool preview: \(shown == coolPreview)")
+        XCTAssertEqual(session.history.count, historyCountAfterFirstApply, "Re-applying the same Look is not a new step")
+        XCTAssertEqual(session.historyIndex, historyIndexAfterFirstApply)
+        XCTAssertEqual(session.passes(for: session.committedState), [TestLookBook.warm.lut], "Export renders the committed Look")
+    }
+
     func testUnknownLookIsRefusedNotSubstituted() throws {
         let session = try makeSession()
         XCTAssertFalse(session.applyLook(id: "test.war"))

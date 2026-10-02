@@ -172,8 +172,17 @@ final class LUTEditSession {
     func beginCompare() { isShowingOriginal = true }
     func endCompare() { isShowingOriginal = false }
 
+    /// Records `state` as one undo step and renders it.
+    ///
+    /// Committing the state that is already committed adds no step, but it
+    /// still renders: a commit is also how a transient preview settles, and
+    /// returning early would leave e.g. a previewed Look B on screen while
+    /// history and export say Look A (Codex M2 finding 2).
     private func commit(_ state: LUTEditState) {
-        guard state != committedState else { return }
+        guard state != committedState else {
+            render(committedState)
+            return
+        }
         history.removeSubrange((historyIndex + 1)...)
         history.append(state)
         historyIndex += 1
