@@ -124,6 +124,13 @@ final class EditorSnapshotTests: XCTestCase {
         SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-pad-portrait", size: CGSize(width: 834, height: 1_210))
     }
 
+    /// A landscape photo on iPad portrait is shown larger full width, so the controls go below.
+    func testPadPortraitLandscapePhoto() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 2, photo: EditorFixtures.landscapePhoto())
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-pad-portrait-landscape-photo",
+                                 size: CGSize(width: 834, height: 1_210))
+    }
+
     func testPadLandscapeComparing() async throws {
         let viewModel = try await EditorFixtures.readyEditor(lookStop: 2)
         viewModel.toggleCompare()
