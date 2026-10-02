@@ -8,6 +8,7 @@ One repository, two native apps sharing one rendering contract, Look pack and te
 | `android/` | Android app: Gradle multi-module project (`app`, `core-*`) |
 | `docs/` | Product and technical spec (`docs/m1/spec.md`, including the shared rendering contract), milestone notes, mockups |
 | `experiments/` | Shared, platform-neutral tooling and data: `presets/look_pack/` (Look catalog, pack format and builder), `presets/lr_kit/` (Lightroom validation kit), `lut3d/` (golden set and reference implementation used by both apps' tests) |
+| `shared/` | Cross-platform definitions and fixtures both apps' tests read, e.g. `fixtures/edit-state/` (saved-edit schema 2 golden files and migration and resolution rules) |
 | `scripts/` | Build and maintenance scripts: `bundle_look_pack.sh` and `check_app_icon.sh` (iOS build phases), `generate-app-icon.swift`, `ingest_presets.py` |
 
 Shared definitions and fixtures stay outside the platform folders. Both apps' builds and tests read them from the repository root.
