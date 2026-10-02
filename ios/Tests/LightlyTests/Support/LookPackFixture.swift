@@ -13,7 +13,12 @@ struct LookPackFixture {
         let id: String
         let name: String
         var lutSource = "lr-model-approximation"
-        var validation = "unvalidated"
+        /// Pack format 2 status fields (experiments/presets/look_pack/README.md). The defaults are
+        /// today's real pack: model approximations, nothing validated.
+        var status = "approximate"
+        var conversion = "approximate"
+        var globalColourStatus = "not-run"
+        var fullRecipeStatus = "not-run"
         let transform: @Sendable (SIMD3<Float>) -> SIMD3<Float>
     }
 
@@ -53,16 +58,19 @@ struct LookPackFixture {
                     "lutSha256": digest,
                     "lutSource": look.lutSource,
                     "lightroomHald": NSNull(),
-                    "validation": look.validation,
                     "omittedOperators": [String](),
-                    "approximatedGlobally": [String]()
+                    "approximatedGlobally": [String](),
+                    "conversion": look.conversion,
+                    "globalColour": ["status": look.globalColourStatus, "evidence": NSNull()],
+                    "fullRecipe": ["status": look.fullRecipeStatus, "evidence": NSNull()],
+                    "status": look.status
                 ])
             }
             categoryEntries.append(["id": category.id, "label": category.label, "labelStatus": "provisional", "stops": stops])
         }
         var manifest: [String: Any] = [
             "format": "lightly-look-pack",
-            "formatVersion": 1,
+            "formatVersion": 2,
             "catalogVersion": 1,
             "lutDimension": 33,
             "lutEncoding": "rgba-float32-red-fastest",

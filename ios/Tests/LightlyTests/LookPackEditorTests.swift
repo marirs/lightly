@@ -143,7 +143,8 @@ final class LookPackEditorTests: XCTestCase {
         XCTAssertTrue(approximate.showsApproximateLooksNotice, "Today's pack: model approximations, unvalidated")
 
         let validatedBook = try book([.init(id: "c", label: "C", looks: [
-            .init(id: "v", name: "V", lutSource: "lightroom-hald", validation: "validated", transform: LookPackFixture.warm)
+            .init(id: "v", name: "V", lutSource: "lightroom-hald", status: "validated", conversion: "complete",
+                  globalColourStatus: "validated", fullRecipeStatus: "validated", transform: LookPackFixture.warm)
         ])])
         let validated = await editor(book: validatedBook)
         XCTAssertFalse(validated.showsApproximateLooksNotice)

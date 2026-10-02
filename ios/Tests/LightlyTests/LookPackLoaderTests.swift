@@ -23,8 +23,15 @@ final class LookPackLoaderTests: XCTestCase {
     }
 
     private static func look(_ id: String, _ name: String, lutSource: String = "lr-model-approximation",
-                             validation: String = "unvalidated") -> LookPackFixture.Look {
-        LookPackFixture.Look(id: id, name: name, lutSource: lutSource, validation: validation, transform: LookPackFixture.warm)
+                             status: String = "approximate", conversion: String = "approximate") -> LookPackFixture.Look {
+        LookPackFixture.Look(id: id, name: name, lutSource: lutSource, status: status, conversion: conversion,
+                             transform: LookPackFixture.warm)
+    }
+
+    /// A Lightroom-HALD Look whose global and full-recipe validations both passed.
+    private static func validatedLook(_ id: String, _ name: String) -> LookPackFixture.Look {
+        LookPackFixture.Look(id: id, name: name, lutSource: "lightroom-hald", status: "validated", conversion: "complete",
+                             globalColourStatus: "validated", fullRecipeStatus: "validated", transform: LookPackFixture.warm)
     }
 
     private static let twoCategories: [LookPackFixture.Category] = [
@@ -58,7 +65,7 @@ final class LookPackLoaderTests: XCTestCase {
     func testLooksCarryVersionLUTAndProvenance() throws {
         let result = try write([
             .init(id: "c", label: "C", looks: [
-                Self.look("hald", "From Lightroom", lutSource: "lightroom-hald", validation: "validated"),
+                Self.validatedLook("hald", "From Lightroom"),
                 Self.look("model", "From the model")
             ])
         ]).load()
@@ -70,6 +77,12 @@ final class LookPackLoaderTests: XCTestCase {
         XCTAssertFalse(hald.provenance.isApproximate)
         XCTAssertTrue(model.provenance.isApproximate)
         XCTAssertEqual(model.provenance.lutSource, "lr-model-approximation")
+        XCTAssertEqual(model.provenance.status, "approximate")
+        XCTAssertEqual(model.provenance.conversion, "approximate")
+        XCTAssertEqual(model.provenance.globalColourStatus, "not-run")
+        XCTAssertEqual(model.provenance.fullRecipeStatus, "not-run")
+        XCTAssertEqual(hald.provenance.globalColourStatus, "validated")
+        XCTAssertEqual(hald.provenance.fullRecipeStatus, "validated")
     }
 
     // MARK: - Refused Looks
@@ -128,9 +141,49 @@ final class LookPackLoaderTests: XCTestCase {
     }
 
     func testNewerFormatVersionIsRejected() throws {
-        let result = try write(Self.twoCategories, manifestEdits: { $0["formatVersion"] = 2 }).load()
+        let result = try write(Self.twoCategories, manifestEdits: { $0["formatVersion"] = 3 }).load()
 
-        XCTAssertEqual(result.problem, .unsupportedFormatVersion(2))
+        XCTAssertEqual(result.problem, .unsupportedFormatVersion(3))
+        XCTAssertTrue(result.book.looks.isEmpty)
+    }
+
+    /// A format 1 pack (single `validation` flag) is refused as a whole, by its version and with
+    /// a reason that says how to fix it, rather than failing on the first missing format 2 field.
+    func testFormat1PackIsRejectedWithAClearReason() throws {
+        let result = try write(Self.twoCategories, manifestEdits: { manifest in
+            manifest["formatVersion"] = 1
+            var categories = manifest["categories"] as! [[String: Any]]
+            for index in categories.indices {
+                categories[index]["stops"] = (categories[index]["stops"] as! [[String: Any]]).map { stop in
+                    var old = stop
+                    ["conversion", "globalColour", "fullRecipe", "status"].forEach { old[$0] = nil }
+                    old["validation"] = "unvalidated"
+                    return old
+                }
+            }
+            manifest["categories"] = categories
+        }).load()
+
+        XCTAssertEqual(result.problem, .unsupportedFormatVersion(1))
+        XCTAssertTrue(result.book.looks.isEmpty)
+        let reason = try XCTUnwrap(result.problem).explanation
+        XCTAssertTrue(reason.contains("format 1"), reason)
+        XCTAssertTrue(reason.contains("build_look_pack.py"), reason)
+    }
+
+    /// Format 2 requires the separate validation fields; a stop without them is a broken manifest.
+    func testFormat2StopWithoutStatusFieldsIsRejected() throws {
+        let result = try write(Self.twoCategories, manifestEdits: { manifest in
+            var categories = manifest["categories"] as! [[String: Any]]
+            var stops = categories[0]["stops"] as! [[String: Any]]
+            stops[0]["globalColour"] = nil
+            categories[0]["stops"] = stops
+            manifest["categories"] = categories
+        }).load()
+
+        guard case .unreadableManifest = result.problem else {
+            return XCTFail("expected unreadableManifest, got \(String(describing: result.problem))")
+        }
         XCTAssertTrue(result.book.looks.isEmpty)
     }
 
@@ -170,20 +223,25 @@ final class LookPackLoaderTests: XCTestCase {
 
     // MARK: - Honest status
 
-    func testApproximateNoticeLogic() throws {
-        let validated = try write([
-            .init(id: "c", label: "C", looks: [Self.look("v", "V", lutSource: "lightroom-hald", validation: "validated")])
-        ]).load().book
-        let unvalidatedHald = try write([
-            .init(id: "c", label: "C", looks: [Self.look("h", "H", lutSource: "lightroom-hald", validation: "unvalidated")])
-        ]).load().book
-        let validatedModel = try write([
-            .init(id: "c", label: "C", looks: [Self.look("m", "M", lutSource: "lr-model-approximation", validation: "validated")])
-        ]).load().book
+    /// The notice follows `status`: anything but "validated" is not a finished conversion.
+    func testApproximateNoticeFollowsStatus() throws {
+        func book(_ look: LookPackFixture.Look) throws -> LUTLookBook {
+            try write([.init(id: "c", label: "C", looks: [look])]).load().book
+        }
+        let validated = try book(Self.validatedLook("v", "V"))
+        let globalOnly = try book(LookPackFixture.Look(
+            id: "g", name: "G", lutSource: "lightroom-hald", status: "global-colour-validated", conversion: "approximate",
+            globalColourStatus: "validated", fullRecipeStatus: "not-run", transform: LookPackFixture.warm))
+        let approximate = try book(Self.look("a", "A"))
+        let unknownStatus = try book(Self.look("u", "U", lutSource: "lightroom-hald", status: "some-future-status",
+                                               conversion: "complete"))
+        let inconsistent = try book(Self.look("i", "I", status: "validated", conversion: "approximate"))
 
-        XCTAssertFalse(validated.offersApproximateLooks, "Only validated Lightroom LUTs need no notice")
-        XCTAssertTrue(unvalidatedHald.offersApproximateLooks)
-        XCTAssertTrue(validatedModel.offersApproximateLooks)
+        XCTAssertFalse(validated.offersApproximateLooks, "Only validated Looks need no notice")
+        XCTAssertTrue(globalOnly.offersApproximateLooks, "Global colour validated, effects may be missing")
+        XCTAssertTrue(approximate.offersApproximateLooks)
+        XCTAssertTrue(unknownStatus.offersApproximateLooks, "An unknown status is not a finished conversion")
+        XCTAssertTrue(inconsistent.offersApproximateLooks, "Validated with an approximate conversion is not trusted")
         XCTAssertFalse(LUTLookBook.empty.offersApproximateLooks, "No Looks, nothing to qualify")
     }
 }

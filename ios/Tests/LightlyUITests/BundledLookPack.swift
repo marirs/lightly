@@ -65,8 +65,9 @@ struct BundledLookPack {
             let categories = manifest.categories.map { category in
                 Category(id: category.id, label: category.label, names: category.stops.map(\.name))
             }
+            // Pack format 2: the notice follows `status` (anything but "validated").
             let approximate = manifest.categories.flatMap(\.stops).contains {
-                $0.lutSource == "lr-model-approximation" || $0.validation != "validated"
+                $0.status != "validated" || $0.conversion != "complete"
             }
             return BundledLookPack(categories: categories, hasApproximateLooks: approximate)
         }
@@ -76,8 +77,8 @@ struct BundledLookPack {
     private struct Manifest: Decodable {
         struct Stop: Decodable {
             let name: String
-            let lutSource: String
-            let validation: String
+            let conversion: String
+            let status: String
         }
         struct Category: Decodable {
             let id: String

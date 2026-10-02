@@ -58,6 +58,14 @@ if [ -z "$source_dir" ]; then
     exit 0
 fi
 
+# The app refuses any pack whose formatVersion is not the one it reads (LookPackLoader.supportedFormatVersion)
+# and then shows no Looks. Say so at build time too, so a stale local pack is not discovered only on device.
+expected_format_version=2
+format_version=$(sed -n 's/.*"formatVersion"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "${source_dir}/manifest.json" | head -n 1)
+if [ "${format_version:-}" != "${expected_format_version}" ]; then
+    echo "warning: Look pack at ${source_dir} is format ${format_version:-unknown}; this app reads format ${expected_format_version}. Rebuild it with experiments/presets/look_pack/build_look_pack.py. The app will show no Looks."
+fi
+
 mkdir -p "${destination}/luts"
 cp "${source_dir}/manifest.json" "${destination}/manifest.json"
 # Only the LUT files: anything else in out/ (notes, caches) is not part of the pack contract.

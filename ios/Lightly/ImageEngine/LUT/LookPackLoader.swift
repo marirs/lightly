@@ -11,6 +11,29 @@ enum LookPackProblem: Error, Equatable, Sendable {
     case unsupportedFormatVersion(Int)
     case unsupportedLUTDimension(Int)
     case unsupportedLUTEncoding(String)
+
+    /// One line for the log that says what is wrong and how to fix it.
+    var explanation: String {
+        switch self {
+        case .missing:
+            return "No Look pack in this build (no manifest.json)."
+        case .unreadableManifest(let detail):
+            return "The Look pack manifest could not be read: \(detail)"
+        case .unsupportedFormat(let format):
+            return "\"\(format)\" is not a Lightly Look pack."
+        case .unsupportedFormatVersion(let version) where version < LookPackLoader.supportedFormatVersion:
+            return "Look pack format \(version) is no longer supported: it has a single validation flag instead of "
+                + "separate global-colour and full-recipe status. Rebuild the pack with "
+                + "experiments/presets/look_pack/build_look_pack.py (format \(LookPackLoader.supportedFormatVersion))."
+        case .unsupportedFormatVersion(let version):
+            return "Look pack format \(version) is newer than this build understands "
+                + "(format \(LookPackLoader.supportedFormatVersion))."
+        case .unsupportedLUTDimension(let dimension):
+            return "Look pack LUTs are \(dimension)³; this build needs \(LUT3D.contractDimension)³."
+        case .unsupportedLUTEncoding(let encoding):
+            return "Look pack LUT encoding \"\(encoding)\" is not supported."
+        }
+    }
 }
 
 /// One Look the loader refused, and why. Reported, never silently skipped.
@@ -39,7 +62,7 @@ struct LookPackLoadResult: Sendable {
 }
 
 /// Reads the Look pack built by `experiments/presets/look_pack/build_look_pack.py`
-/// (format "lightly-look-pack", version 1; spec §4.5).
+/// (format "lightly-look-pack", version 2; spec §4.5).
 ///
 /// The pack is untrusted input as far as this loader is concerned: the
 /// manifest's format, version, LUT dimension and encoding must match exactly,
@@ -54,7 +77,10 @@ enum LookPackLoader {
     static let manifestFileName = "manifest.json"
 
     static let supportedFormat = "lightly-look-pack"
-    static let supportedFormatVersion = 1
+    /// 2: per-Look `globalColour`, `fullRecipe`, `conversion` and `status` replace format 1's
+    /// single `validation` flag. Format 1 is refused (with `LookPackProblem.explanation`), not
+    /// read leniently: its one flag cannot say which validation a Look passed.
+    static let supportedFormatVersion = 2
     static let supportedLUTEncoding = "rgba-float32-red-fastest"
 
     private static let logger = Logger(subsystem: "com.lightlylabs.lightly", category: "LookPack")
@@ -71,24 +97,25 @@ enum LookPackLoader {
     }
 
     static func load(from directory: URL) -> LookPackLoadResult {
-        let manifest: Manifest
         switch readManifest(in: directory) {
-        case .success(let decoded): manifest = decoded
-        case .failure(let problem): return LookPackLoadResult(book: .empty, problem: problem, droppedLooks: [])
-        }
-        if let problem = unsupportedFeature(of: manifest) {
+        case .success(let manifest):
+            return assemble(manifest, in: directory)
+        case .failure(let problem):
             return LookPackLoadResult(book: .empty, problem: problem, droppedLooks: [])
         }
-        return assemble(manifest, in: directory)
     }
 
     // MARK: - Manifest
 
+    /// Reads the header first and checks it, then the stops: a pack of another format version is
+    /// reported as that (with a fix), not as whichever format 2 field it happens to lack.
     private static func readManifest(in directory: URL) -> Result<Manifest, LookPackProblem> {
         let url = directory.appendingPathComponent(manifestFileName)
         guard FileManager.default.fileExists(atPath: url.path) else { return .failure(.missing) }
         do {
             let data = try Data(contentsOf: url)
+            let header = try JSONDecoder().decode(ManifestHeader.self, from: data)
+            if let problem = unsupportedFeature(of: header) { return .failure(problem) }
             return .success(try JSONDecoder().decode(Manifest.self, from: data))
         } catch {
             return .failure(.unreadableManifest(String(describing: error)))
@@ -97,7 +124,7 @@ enum LookPackLoader {
 
     /// Format checks come before any LUT is read: a pack this build does
     /// not understand must not be half-loaded.
-    private static func unsupportedFeature(of manifest: Manifest) -> LookPackProblem? {
+    private static func unsupportedFeature(of manifest: ManifestHeader) -> LookPackProblem? {
         if manifest.format != supportedFormat { return .unsupportedFormat(manifest.format) }
         if manifest.formatVersion != supportedFormatVersion { return .unsupportedFormatVersion(manifest.formatVersion) }
         if manifest.lutDimension != LUT3D.contractDimension { return .unsupportedLUTDimension(manifest.lutDimension) }
@@ -160,7 +187,9 @@ enum LookPackLoader {
             return .failure(.wrongLUTSize(expectedBytes: expectedBytes, actualBytes: data.count))
         }
         let provenance = LookProvenance(
-            lutSource: stop.lutSource, validation: stop.validation,
+            lutSource: stop.lutSource, conversion: stop.conversion,
+            globalColourStatus: stop.globalColour.status, fullRecipeStatus: stop.fullRecipe.status,
+            status: stop.status,
             omittedOperators: stop.omittedOperators, approximatedGlobally: stop.approximatedGlobally
         )
         return .success(LUTLook(id: stop.lookId, version: stop.lookVersion, name: stop.name, lut: lut, provenance: provenance))
@@ -183,7 +212,7 @@ enum LookPackLoader {
 
     private static func report(_ result: LookPackLoadResult) {
         if let problem = result.problem {
-            logger.error("Look pack not loaded: \(String(describing: problem), privacy: .public)")
+            logger.error("Look pack not loaded: \(problem.explanation, privacy: .public)")
         }
         for dropped in result.droppedLooks {
             logger.error("Look \(dropped.lookID, privacy: .public) dropped: \(String(describing: dropped.reason), privacy: .public)")
@@ -191,7 +220,14 @@ enum LookPackLoader {
         logger.info("Look pack: \(result.book.categories.count) categories, \(result.book.looks.count) Looks")
     }
 
-    // MARK: - Manifest schema (format 1)
+    // MARK: - Manifest schema (format 2)
+
+    private struct ManifestHeader: Decodable {
+        let format: String
+        let formatVersion: Int
+        let lutDimension: Int
+        let lutEncoding: String
+    }
 
     private struct Manifest: Decodable {
         let format: String
@@ -213,9 +249,18 @@ enum LookPackLoader {
             let lutFile: String
             let lutSha256: String
             let lutSource: String
-            let validation: String
             let omittedOperators: [String]
             let approximatedGlobally: [String]
+            let conversion: String
+            let globalColour: Validation
+            let fullRecipe: Validation
+            let status: String
+        }
+
+        /// `evidence` (a report reference or null) is for the build tooling; the app reads only
+        /// the status, so it is not decoded.
+        struct Validation: Decodable {
+            let status: String
         }
     }
 }

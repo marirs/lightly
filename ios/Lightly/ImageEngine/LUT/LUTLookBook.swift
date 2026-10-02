@@ -1,29 +1,39 @@
 import Foundation
 
-/// Where a Look's LUT came from and how far it has been checked (spec §4.5).
+/// Where a Look's LUT came from and how far it has been checked (spec §4.5, pack format 2).
 ///
-/// Values are kept as the manifest's strings rather than closed enums: a newer
-/// pack may introduce a source or status this build does not know, and the
-/// honest reading of an unknown status is "not validated", which
+/// Global-colour and full-recipe validation are separate and never merged (a LUT can match
+/// Lightroom's global colour while the recipe's local effects are still missing). Values are kept
+/// as the manifest's strings rather than closed enums: a newer pack may introduce a status this
+/// build does not know, and the honest reading of an unknown status is "not finished", which
 /// `isApproximate` already gives.
 struct LookProvenance: Equatable, Sendable {
     /// The calibrated Lightroom approximation (held-out median ΔE00 4.8).
     static let modelApproximationSource = "lr-model-approximation"
     static let validatedStatus = "validated"
+    static let completeConversion = "complete"
 
-    /// "lightroom-hald" or "lr-model-approximation" in pack format 1.
+    /// "lightroom-hald" or "lr-model-approximation".
     let lutSource: String
-    /// "unvalidated" until the desktop kit checks the Look against Lightroom.
-    let validation: String
+    /// "complete" only for a Lightroom-HALD LUT with no omitted operator; else "approximate".
+    let conversion: String
+    /// Lightroom's global-only render vs this LUT: not-run, incomplete, failed or validated.
+    let globalColourStatus: String
+    /// Lightroom's full Look vs Lightly's complete recipe: same values.
+    let fullRecipeStatus: String
+    /// approximate, global-colour-validated or validated; promoted only by evidence about the
+    /// shipped LUT (experiments/presets/look_pack/README.md).
+    let status: String
     /// Operators the LUT cannot carry (clarity, texture, vignette, grain, …).
     let omittedOperators: [String]
     /// Operators the LUT only approximates globally (adaptive tone sliders).
     let approximatedGlobally: [String]
 
-    /// True when the screen must not present this Look as a faithful
-    /// Lightroom rendering.
+    /// True when the screen must not present this Look as a finished conversion: anything but
+    /// `status == "validated"`. A "validated" status with a conversion that is not "complete"
+    /// contradicts the pack contract, so it is not trusted either.
     var isApproximate: Bool {
-        lutSource == Self.modelApproximationSource || validation != Self.validatedStatus
+        status != Self.validatedStatus || conversion != Self.completeConversion
     }
 }
 

@@ -6,7 +6,8 @@ import XCTest
 /// Test fixtures only: formula Looks never ship as app content.
 enum TestLookBook {
     static let fixtureProvenance = LookProvenance(
-        lutSource: "lr-model-approximation", validation: "unvalidated", omittedOperators: [], approximatedGlobally: []
+        lutSource: "lr-model-approximation", conversion: "approximate", globalColourStatus: "not-run",
+        fullRecipeStatus: "not-run", status: "approximate", omittedOperators: [], approximatedGlobally: []
     )
     static let warm = LUTLook(id: "test.warm", version: "test-v1", name: "Warm",
                               lut: .lut(dimension: 33) { SIMD3(min($0.x * 1.15, 1.2), $0.y, $0.z * 0.85) },
