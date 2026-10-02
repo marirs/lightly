@@ -104,6 +104,14 @@ fun mainCheckoutOfWorktree(checkout: File): File? {
     return if (markerIndex > 0) File(path.substring(0, markerIndex)) else null
 }
 
+// The loader test that checks the real pack (format 2, 18 Looks, names verbatim) reads it in place.
+tasks.withType<Test>().configureEach {
+    lookPackDirectory?.let { pack ->
+        systemProperty("lightly.lookPackDir", pack.absolutePath)
+        inputs.file(pack.resolve("manifest.json")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("lookPackManifest")
+    }
+}
+
 if (lookPackDirectory == null) {
     logger.warn("Lightly: no Look pack found ($lookPackRelativePath or -PlightlyLookPackDir); this build has no Looks.")
 } else {

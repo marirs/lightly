@@ -374,7 +374,7 @@ class EditorViewModelTest {
         val approximate = viewModel(SavedStateHandle(), environment(Fakes(DevelopResult.Developed(auto))))
         assertEquals(LookBook.APPROXIMATE_NOTICE, approximate.lookApproximationNotice)
 
-        val validatedOnly = FixtureLookPack.book(listOf(FixtureLookPack.Category("c", "C", listOf(FixtureLookPack.Stop("v-1", "Checked", 1, lutSource = "lightroom-hald", validation = "validated")))))
+        val validatedOnly = FixtureLookPack.book(listOf(FixtureLookPack.Category("c", "C", listOf(FixtureLookPack.validatedStop("v-1", "Checked", 1)))))
         val validated = viewModel(SavedStateHandle(), environment(Fakes(DevelopResult.Developed(auto)), lookBook = validatedOnly))
         assertNull(validated.lookApproximationNotice)
     }
@@ -623,6 +623,61 @@ class EditorViewModelTest {
             assertContentEquals(render(fullResolution, expectedAutoLut, 0.8f, null), fakes.written.getValue(savedAsset).toByteArray(), saved.lookId)
             assertNotNull(vm.uiState.value.lookIssue, "the notice stays visible after saving")
         }
+    }
+
+    @Test
+    fun `an unavailable or changed Look is never dropped - re-saving writes the original LookRef back unchanged`() = runTest {
+        listOf(
+            LookRef("film.discontinued", "0123456789ab", 0.7f),
+            lookBook.stops("cat-warm")[1].ref(0.6f).copy(lookVersion = "legacy-v1-2"),
+        ).forEach { saved ->
+            val fakes = Fakes(DevelopResult.Developed(auto))
+            val edit = EditSession.start(source, auto).selectLook(saved)
+            val handle = handleWith(edit)
+            val vm = viewModel(handle, environment(fakes))
+            advanceUntilIdle()
+
+            // Everything that re-writes the saved session or touches the edit without changing it.
+            vm.setCompare(true); vm.setCompare(false)
+            vm.selectCategory("cat-mono")
+            assertTrue(vm.saveCopy())
+            advanceUntilIdle()
+            assertEquals(edit, SavedEdits.decodeEditSession(handle.get<String>(EditorViewModel.KEY_SESSION)!!), "${saved.lookId}: saved JSON keeps the LookRef")
+
+            // A new Look over it, then Undo: the original LookRef comes back, still reported.
+            vm.selectCategory("cat-film")
+            vm.onStopSettled(1)
+            vm.undo()
+            advanceUntilIdle()
+            assertEquals(saved, vm.uiState.value.session!!.current.look)
+            assertNotNull(vm.uiState.value.lookIssue)
+
+            // Process death and restore: still there, still not applied, still reported.
+            val restored = viewModel(afterProcessDeath(handle), environment(fakes))
+            advanceUntilIdle()
+            assertEquals(saved, restored.uiState.value.session!!.current.look, "${saved.lookId}: survives process death")
+            assertEquals(edit.history.entries, restored.uiState.value.session!!.history.entries.take(edit.history.entries.size), "history unchanged")
+            assertEquals(saved, restored.uiState.value.lookIssue?.saved)
+        }
+    }
+
+    @Test
+    fun `undo after Use current version returns to the changed, unrendered state with the original version recorded`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val older = lookBook.stops("cat-film")[1].ref(0.9f).copy(lookVersion = "legacy-v1-4")
+        val handle = handleWith(EditSession.start(source, auto).selectLook(older))
+        val vm = viewModel(handle, environment(fakes))
+        advanceUntilIdle()
+
+        vm.useCurrentLookVersion()
+        vm.undo()
+        advanceUntilIdle()
+
+        assertEquals(older, vm.uiState.value.session!!.current.look)
+        assertEquals("legacy-v1-4", SavedEdits.decodeEditSession(handle.get<String>(EditorViewModel.KEY_SESSION)!!).current.look!!.lookVersion)
+        assertEquals(LookIssue.Changed(older, lookBook.stops("cat-film")[1].lookVersion), vm.uiState.value.lookIssue)
+        assertContentEquals(render(display, expectedAutoLut, 0.8f, null), vm.previewPixels())
+        assertTrue(vm.uiState.value.session!!.canRedo, "Redo re-applies the accepted version")
     }
 
     @Test

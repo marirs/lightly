@@ -26,7 +26,11 @@ object FixtureLookPack {
         /** Seeds the formula so each fixture Look renders differently. */
         val tint: Int,
         val lutSource: String = "lr-model-approximation",
-        val validation: String = "unvalidated",
+        /** Pack format 2 `status`: approximate | global-colour-validated | validated. */
+        val status: String = "approximate",
+        val globalColour: String = "not-run",
+        val fullRecipe: String = "not-run",
+        val omittedOperators: List<String> = listOf("grain"),
     )
 
     class Category(val id: String, val label: String, val stops: List<Stop>)
@@ -35,7 +39,12 @@ object FixtureLookPack {
     val standardCategories: List<Category> = listOf(
         Category("cat-film", "Film", listOf(Stop("retro-a1", "Retro Wedding Tone (15)", 1), Stop("rainy-b2", "Rainy Tone (10)", 2), Stop("t2-c3", "T2", 3))),
         Category("cat-warm", "Warm", listOf(Stop("earthy-d4", "Earthy Wedding Tone (6)", 4), Stop("nordic-e5", "Nordic Tone (10)", 5))),
-        Category("cat-mono", "Mono", listOf(Stop("vintage-f6", "Vintage Flim Tone (7)", 6, lutSource = "lightroom-hald", validation = "validated"))),
+        Category("cat-mono", "Mono", listOf(validatedStop("vintage-f6", "Vintage Flim Tone (7)", 6))),
+    )
+
+    /** A Lightroom-HALD Look with nothing omitted and both validations passed: the only `validated` kind. */
+    fun validatedStop(lookId: String, name: String, tint: Int) = Stop(
+        lookId, name, tint, lutSource = "lightroom-hald", status = "validated", globalColour = "validated", fullRecipe = "validated", omittedOperators = emptyList(),
     )
 
     fun standardBook(): LookBook = LookPackLoader.load(source(files(standardCategories)))
@@ -89,6 +98,11 @@ object FixtureLookPack {
 
     fun sha256Hex(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
+    private fun validationJson(status: String) = buildJsonObject {
+        put("status", status)
+        put("evidence", if (status == "not-run") null else "report.json")
+    }
+
     private fun stopJson(stop: Stop, files: MutableMap<String, ByteArray>): JsonObject {
         val bytes = lutBytes(stop.tint)
         val digest = sha256Hex(bytes)
@@ -101,9 +115,12 @@ object FixtureLookPack {
             put("lutSha256", digest)
             put("lutSource", stop.lutSource)
             put("lightroomHald", null as String?)
-            put("validation", stop.validation)
-            put("omittedOperators", buildJsonArray { add("grain") })
+            put("omittedOperators", buildJsonArray { stop.omittedOperators.forEach { add(it) } })
             put("approximatedGlobally", JsonArray(emptyList()))
+            put("conversion", if (stop.lutSource == "lightroom-hald" && stop.omittedOperators.isEmpty()) "complete" else "approximate")
+            put("globalColour", validationJson(stop.globalColour))
+            put("fullRecipe", validationJson(stop.fullRecipe))
+            put("status", stop.status)
         }
     }
 }

@@ -4,6 +4,7 @@ import com.lightlylabs.lightly.render.lut.Lut3D
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
@@ -19,8 +20,13 @@ fun interface LookPackSource {
 }
 
 /**
- * Reads a Look pack (format `lightly-look-pack` v1, built by
+ * Reads a Look pack (format `lightly-look-pack` v2, built by
  * experiments/presets/look_pack/build_look_pack.py) into a [LookBook].
+ *
+ * Format 2 replaced the single `validation` flag with `globalColour`, `fullRecipe`, `conversion`
+ * and `status`. A format 1 pack is refused as a whole ([FORMAT_1_REASON]) rather than read with
+ * guessed statuses. A Look's `status` is re-checked against its own evidence with the builder's
+ * rule (`promoted_status`): a claim the evidence does not back is demoted and reported.
  *
  * Failure policy, so a bad pack never crashes the editor and never shows a wrong Look:
  * - Missing or unusable manifest (bad JSON, other format, version, dimension or encoding): an
@@ -34,9 +40,10 @@ fun interface LookPackSource {
  */
 object LookPackLoader {
     const val FORMAT = "lightly-look-pack"
-    const val FORMAT_VERSION = 1
+    const val FORMAT_VERSION = 2
     const val LUT_ENCODING = "rgba-float32-red-fastest"
     const val MANIFEST = "manifest.json"
+    const val FORMAT_1_REASON = "This Look pack is format 1, which this build no longer reads (it needs format 2). Rebuild it with build_look_pack.py."
     const val NO_PACK_REASON = "This build has no Look pack."
 
     private val lutByteSize = Lut3D.floatCount(Lut3D.CONTRACT_DIMENSION) * Float.SIZE_BYTES
@@ -62,6 +69,7 @@ object LookPackLoader {
         val encoding = manifest.string("lutEncoding")
         return when {
             format != FORMAT -> "Unsupported Look pack format \"$format\" (expected \"$FORMAT\")."
+            version == 1 -> FORMAT_1_REASON
             version != FORMAT_VERSION -> "Unsupported Look pack version $version (expected $FORMAT_VERSION)."
             dimension != Lut3D.CONTRACT_DIMENSION -> "Unsupported LUT size $dimension (expected ${Lut3D.CONTRACT_DIMENSION})."
             encoding != LUT_ENCODING -> "Unsupported LUT encoding \"$encoding\" (expected \"$LUT_ENCODING\")."
@@ -133,10 +141,22 @@ object LookPackLoader {
                 name = fields.name!!,
                 lut = lut,
                 lutSource = fields.lutSource!!,
-                validation = fields.validation!!,
                 omittedOperators = fields.omittedOperators!!,
                 approximatedGlobally = fields.approximatedGlobally!!,
+                conversion = fields.conversion!!,
+                globalColour = fields.globalColour!!,
+                fullRecipe = fields.fullRecipe!!,
+                status = checkedStatus(lookId, fields),
             ).also { loadedById[lookId] = LoadedLook(it, fields.lutSha256) }
+        }
+
+        /** The declared status, demoted (and reported) when its own evidence does not support it. */
+        private fun checkedStatus(lookId: String, fields: LookFields): LookStatus {
+            val declared = LookStatus.fromPack(fields.status!!)
+            val supported = supportedStatus(fields.lutSource!!, fields.omittedOperators!!, fields.globalColour!!, fields.fullRecipe!!)
+            if (declared.ordinal <= supported.ordinal) return declared
+            problems += "$lookId: status \"${fields.status}\" is not backed by its evidence; treated as \"${supported.packValue}\"."
+            return supported
         }
 
         private fun readLut(lookId: String, lutFile: String, expectedSha256: String): Lut3D? {
@@ -162,6 +182,16 @@ object LookPackLoader {
 
     private class LoadedLook(val look: LookDefinition, val declaredSha256: String)
 
+    /**
+     * Mirrors `promoted_status` in build_look_pack.py: only Lightroom's own LUT can be promoted,
+     * because a report measures Lightroom's HALD, not a model-derived LUT.
+     */
+    private fun supportedStatus(lutSource: String, omitted: List<String>, globalColour: ValidationRecord, fullRecipe: ValidationRecord): LookStatus = when {
+        lutSource != LookDefinition.LUT_SOURCE_LIGHTROOM_HALD || !globalColour.passed -> LookStatus.APPROXIMATE
+        fullRecipe.passed && omitted.isEmpty() -> LookStatus.VALIDATED
+        else -> LookStatus.GLOBAL_COLOUR_VALIDATED
+    }
+
     /** Required stop fields; anything absent or of the wrong JSON type reads as null. */
     private class LookFields(json: JsonObject) {
         val lookId = json.string("lookId")?.takeIf { it.isNotBlank() }
@@ -170,9 +200,12 @@ object LookPackLoader {
         val lutFile = json.string("lutFile")
         val lutSha256 = json.string("lutSha256")
         val lutSource = json.string("lutSource")
-        val validation = json.string("validation")
         val omittedOperators = json.stringList("omittedOperators")
         val approximatedGlobally = json.stringList("approximatedGlobally")
+        val conversion = json.string("conversion")
+        val globalColour = json.validation("globalColour")
+        val fullRecipe = json.validation("fullRecipe")
+        val status = json.string("status")
 
         fun missing(): List<String> = listOfNotNull(
             "lookId".takeIf { lookId == null },
@@ -181,9 +214,12 @@ object LookPackLoader {
             "lutFile".takeIf { lutFile == null },
             "lutSha256".takeIf { lutSha256 == null },
             "lutSource".takeIf { lutSource == null },
-            "validation".takeIf { validation == null },
             "omittedOperators".takeIf { omittedOperators == null },
             "approximatedGlobally".takeIf { approximatedGlobally == null },
+            "conversion".takeIf { conversion == null },
+            "globalColour".takeIf { globalColour == null },
+            "fullRecipe".takeIf { fullRecipe == null },
+            "status".takeIf { status == null },
         )
     }
 
@@ -195,6 +231,15 @@ object LookPackLoader {
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    /** `{status, evidence}`; evidence is a report name or JSON null. */
+    private fun JsonObject.validation(key: String): ValidationRecord? {
+        val record = this[key] as? JsonObject ?: return null
+        val status = record.string("status") ?: return null
+        val evidence = record["evidence"]
+        if (evidence != null && evidence !is JsonNull && (evidence as? JsonPrimitive)?.isString != true) return null
+        return ValidationRecord(status, (evidence as? JsonPrimitive)?.takeIf { it.isString }?.content)
+    }
 
     private fun JsonObject.stringList(key: String): List<String>? {
         val array = this[key] as? JsonArray ?: return null

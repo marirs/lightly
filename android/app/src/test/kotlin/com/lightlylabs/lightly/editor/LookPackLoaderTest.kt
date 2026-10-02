@@ -101,7 +101,7 @@ class LookPackLoaderTest {
     fun `a manifest of another format, version, LUT size or encoding gives an empty book with a reason`() {
         val cases = mapOf(
             "format" to JsonPrimitive("lightroom-presets"),
-            "formatVersion" to JsonPrimitive(2),
+            "formatVersion" to JsonPrimitive(3),
             "lutDimension" to JsonPrimitive(17),
             "lutEncoding" to JsonPrimitive("rgb-float16"),
         )
@@ -113,6 +113,30 @@ class LookPackLoaderTest {
     }
 
     @Test
+    fun `a format 1 pack is rejected with a reason that says so`() {
+        // Format 1 had a single `validation` flag that conflated global colour and the full recipe.
+        val book = LookPackLoader.load(FixtureLookPack.source(FixtureLookPack.files(alphaBeta) { it.with("formatVersion", JsonPrimitive(1)) }))
+
+        assertTrue(book.isEmpty)
+        assertEquals(LookPackLoader.FORMAT_1_REASON, book.unavailableReason)
+    }
+
+    @Test
+    fun `a stop without the format 2 status fields is dropped and reported`() {
+        val files = FixtureLookPack.files(alphaBeta)
+        val manifest = files.getValue(LookPackLoader.MANIFEST).decodeToString()
+        // Remove only-4's status, as a format 1 manifest relabelled as 2 would lack it.
+        val onlyFour = manifest.indexOf("\"lookId\":\"only-4\"")
+        val statusAt = manifest.indexOf(",\"status\":\"approximate\"", onlyFour)
+        files[LookPackLoader.MANIFEST] = (manifest.substring(0, statusAt) + manifest.substring(statusAt + ",\"status\":\"approximate\"".length)).encodeToByteArray()
+
+        val book = LookPackLoader.load(FixtureLookPack.source(files))
+
+        assertNull(book.category("c-1"))
+        assertTrue(book.problems.any { it.startsWith("only-4: missing status") }, book.problems.toString())
+    }
+
+    @Test
     fun `a manifest that is not JSON gives an empty book with a reason`() {
         val book = LookPackLoader.load(FixtureLookPack.source(mapOf(LookPackLoader.MANIFEST to "{ not json".encodeToByteArray())))
 
@@ -121,15 +145,60 @@ class LookPackLoaderTest {
     }
 
     @Test
-    fun `the approximation flag follows lutSource and validation`() {
-        val validated = Stop("hald-1", "Checked", 1, lutSource = "lightroom-hald", validation = "validated")
-        assertEquals(false, FixtureLookPack.book(listOf(Category("c", "C", listOf(validated)))).hasApproximateLooks)
+    fun `the status fields are read verbatim`() {
+        val stop = Stop("g-1", "Global", 1, lutSource = "lightroom-hald", status = "global-colour-validated", globalColour = "validated", fullRecipe = "failed")
+        val look = FixtureLookPack.book(listOf(Category("c", "C", listOf(stop)))).stops("c").single()
 
-        val haldUnvalidated = Stop("hald-2", "Unchecked", 2, lutSource = "lightroom-hald", validation = "unvalidated")
-        assertEquals(true, FixtureLookPack.book(listOf(Category("c", "C", listOf(validated, haldUnvalidated)))).hasApproximateLooks)
+        assertEquals(LookStatus.GLOBAL_COLOUR_VALIDATED, look.status)
+        assertEquals(ValidationRecord("validated", "report.json"), look.globalColour)
+        assertEquals(ValidationRecord("failed", "report.json"), look.fullRecipe)
+        assertEquals("approximate", look.conversion)
+    }
 
-        val model = Stop("model-3", "Model", 3, lutSource = "lr-model-approximation", validation = "validated")
-        assertEquals(true, FixtureLookPack.book(listOf(Category("c", "C", listOf(validated, model)))).hasApproximateLooks)
+    @Test
+    fun `the approximate notice follows status, and only fully validated Looks drop it`() {
+        val validated = FixtureLookPack.validatedStop("hald-1", "Checked", 1)
+        val validatedBook = FixtureLookPack.book(listOf(Category("c", "C", listOf(validated))))
+        assertNull(validatedBook.approximationNotice)
+
+        val approximate = Stop("model-2", "Model", 2)
+        assertEquals(LookBook.APPROXIMATE_NOTICE, FixtureLookPack.book(listOf(Category("c", "C", listOf(validated, approximate)))).approximationNotice)
+
+        val globalOnly = Stop("hald-3", "Colour only", 3, lutSource = "lightroom-hald", status = "global-colour-validated", globalColour = "validated")
+        assertEquals(LookBook.GLOBAL_COLOUR_ONLY_NOTICE, FixtureLookPack.book(listOf(Category("c", "C", listOf(validated, globalOnly)))).approximationNotice)
+    }
+
+    @Test
+    fun `an unknown status reads as approximate`() {
+        val future = Stop("f-1", "Future", 1, status = "checked-by-hand")
+        val look = FixtureLookPack.book(listOf(Category("c", "C", listOf(future)))).stops("c").single()
+
+        assertEquals(LookStatus.APPROXIMATE, look.status)
+    }
+
+    @Test
+    fun `a validated status without the evidence behind it is demoted and reported`() {
+        // A model-derived LUT can never be validated (README "LUT source and status").
+        val claimed = Stop("m-1", "Claimed", 1, lutSource = "lr-model-approximation", status = "validated", globalColour = "validated", fullRecipe = "validated", omittedOperators = emptyList())
+        val book = FixtureLookPack.book(listOf(Category("c", "C", listOf(claimed))))
+
+        assertEquals(LookStatus.APPROXIMATE, book.stops("c").single().status)
+        assertTrue(book.problems.any { it.startsWith("m-1: status") }, book.problems.toString())
+        assertEquals(LookBook.APPROXIMATE_NOTICE, book.approximationNotice)
+    }
+
+    @Test
+    fun `the bundled pack, when present, is format 2 with 18 Looks and keeps every name`() {
+        val packDirectory = System.getProperty("lightly.lookPackDir")?.let { java.io.File(it) }?.takeIf { it.resolve("manifest.json").isFile }
+            ?: return // no pack in this checkout: the APK check covers the shipped pack
+        val book = LookPackLoader.load { path -> packDirectory.resolve(path).takeIf { it.isFile }?.readBytes() }
+
+        assertNull(book.unavailableReason)
+        assertTrue(book.problems.isEmpty(), book.problems.toString())
+        assertEquals(18, book.categories.sumOf { it.stops.size })
+        val names = book.categories.flatMap { category -> category.stops.map { it.name } }
+        assertTrue("03 Black and White 03" in names && "11 Black and White 11" in names, "both Mono presets ship")
+        assertTrue("Nordic Tone (10)" in names)
     }
 
     @Test

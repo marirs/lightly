@@ -4,8 +4,9 @@ import com.lightlylabs.lightly.render.lut.Lut3D
 import com.lightlylabs.lightly.session.LookRef
 
 /**
- * One curated preset from the Look pack (spec §4.5). Every field except [lut] is copied verbatim
- * from the pack manifest; nothing here is computed from the preset's name or category.
+ * One curated preset from the Look pack (spec §4.5). Every field except [lut] and [status] is copied
+ * verbatim from the pack manifest; [status] is the manifest's, demoted by the loader only if its own
+ * evidence does not back it. Nothing here is computed from the preset's name or category.
  */
 class LookDefinition(
     val lookId: String,
@@ -14,24 +15,29 @@ class LookDefinition(
     /** The preset's own name, shown on the slider as is (spec U8 decides product names later). */
     val name: String,
     val lut: Lut3D,
-    /** `lightroom-hald` or `lr-model-approximation` today; unknown values are treated as approximate. */
+    /** `lightroom-hald` or `lr-model-approximation` today. */
     val lutSource: String,
-    /** `validated` only once the LUT has been checked against Lightroom's own render. */
-    val validation: String,
     /** Spatial (and, for HALD LUTs, adaptive) settings the LUT cannot carry. Informational in M2. */
     val omittedOperators: List<String>,
     /** Adaptive settings the model folded into the LUT as a global approximation. */
     val approximatedGlobally: List<String>,
+    /** `approximate` or `complete`, verbatim from the pack. */
+    val conversion: String,
+    /** Lightroom's global-only render vs this LUT. Never merged with [fullRecipe]. */
+    val globalColour: ValidationRecord,
+    /** Lightroom's full Look vs Lightly's complete recipe. */
+    val fullRecipe: ValidationRecord,
+    /** Already checked against the evidence by [LookPackLoader]; drives the approximate notice. */
+    val status: LookStatus,
 ) {
     fun ref(strength: Float = 1f) = LookRef(lookId, lookVersion, strength)
 
-    /** Anything short of a validated Lightroom render is labelled approximate in the UI. */
-    val isApproximate: Boolean
-        get() = lutSource == LUT_SOURCE_MODEL_APPROXIMATION || validation != VALIDATION_VALIDATED
+    /** Anything short of `validated` is never presented as a finished conversion. */
+    val isApproximate: Boolean get() = status != LookStatus.VALIDATED
 
     companion object {
+        const val LUT_SOURCE_LIGHTROOM_HALD = "lightroom-hald"
         const val LUT_SOURCE_MODEL_APPROXIMATION = "lr-model-approximation"
-        const val VALIDATION_VALIDATED = "validated"
     }
 }
 
@@ -110,14 +116,51 @@ class LookBook(
         return index + 1 // -1 (not found) becomes 0, Auto
     }
 
-    /** True when any Look on offer is not a validated Lightroom render (all of them, today). */
+    /** True when any Look on offer is not fully `validated` (all 18 of them, today). */
     val hasApproximateLooks: Boolean get() = byKey.values.any { it.isApproximate }
+
+    /**
+     * The notice beside the Look controls, driven by each Look's pack `status`: any `approximate`
+     * Look gives the approximate wording; Looks whose global colour was validated but whose
+     * effects may be missing get their own wording; only an all-`validated` pack shows none.
+     */
+    val approximationNotice: String?
+        get() = when {
+            byKey.values.any { it.status == LookStatus.APPROXIMATE } -> APPROXIMATE_NOTICE
+            byKey.values.any { it.status == LookStatus.GLOBAL_COLOUR_VALIDATED } -> GLOBAL_COLOUR_ONLY_NOTICE
+            else -> null
+        }
 
     companion object {
         /** Same wording as iOS. */
         const val APPROXIMATE_NOTICE = "Looks are approximate conversions, not yet checked against Lightroom."
+        const val GLOBAL_COLOUR_ONLY_NOTICE = "Look colours match Lightroom, but some effects such as grain or vignette are not applied yet."
         const val NO_LOOKS_NOTICE = "No Looks are available in this build."
 
         fun unavailable(reason: String) = LookBook(categories = emptyList(), unavailableReason = reason)
+    }
+}
+
+/**
+ * Pack format 2 `status` of one Look. Promoted only by evidence about the LUT that ships
+ * (experiments/presets/look_pack/README.md); an unknown value reads as [APPROXIMATE], the honest
+ * reading of a status this build does not understand.
+ */
+enum class LookStatus(val packValue: String) {
+    APPROXIMATE("approximate"),
+    GLOBAL_COLOUR_VALIDATED("global-colour-validated"),
+    VALIDATED("validated");
+
+    companion object {
+        fun fromPack(value: String): LookStatus = entries.firstOrNull { it.packValue == value } ?: APPROXIMATE
+    }
+}
+
+/** One validation (`globalColour` or `fullRecipe`): not-run | incomplete | failed | validated, plus its report. */
+data class ValidationRecord(val status: String, val evidence: String?) {
+    val passed: Boolean get() = status == VALIDATED
+
+    companion object {
+        const val VALIDATED = "validated"
     }
 }

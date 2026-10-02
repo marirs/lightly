@@ -162,7 +162,7 @@ class EditorViewModel(
     val categories: List<LookCategory> get() = env.lookBook.categories
 
     /** Shown beside the Look controls while any Look on offer is not a validated Lightroom render. */
-    val lookApproximationNotice: String? get() = LookBook.APPROXIMATE_NOTICE.takeIf { env.lookBook.hasApproximateLooks }
+    val lookApproximationNotice: String? get() = env.lookBook.approximationNotice
 
     /** Stop labels 1..n of [categoryId]: each preset's name from the pack, verbatim. */
     fun stopNames(categoryId: String): List<String> = env.lookBook.stops(categoryId).map { it.name }
