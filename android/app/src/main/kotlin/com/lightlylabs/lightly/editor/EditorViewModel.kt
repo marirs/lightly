@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /** Session state machine (spec §5.1). */
 sealed interface EditorPhase {
@@ -67,7 +68,11 @@ data class EditorUiState(
     /** Transient preview while a slider moves (spec §3). Never in history, never persisted. */
     val transientPreview: EditState? = null,
     val compareOn: Boolean = false,
-    val selectedCategory: String = DEFAULT_CATEGORY,
+    /**
+     * The selected category's opaque pack id (never its label, which may change between packs);
+     * `null` only when the build has no Looks.
+     */
+    val selectedCategory: String? = null,
     val autoStatus: AutoStatus = AutoStatus.NoSession,
     /** Latest preview the scheduler published for the current photo (latest-wins). */
     val preview: Rgba8Image? = null,
@@ -77,10 +82,6 @@ data class EditorUiState(
 ) {
     /** What the photo area shows: the transient preview if any, else the committed state. */
     val displayed: EditState? get() = transientPreview ?: session?.current
-
-    companion object {
-        const val DEFAULT_CATEGORY = "Natural"
-    }
 }
 
 /** Whether the O1 Auto stage can render for the current session (Codex M2 finding 4). */
@@ -145,7 +146,7 @@ class EditorViewModel(
     private val state = MutableStateFlow(
         EditorUiState(
             compareOn = savedState.get<Boolean>(KEY_COMPARE) ?: false,
-            selectedCategory = savedState.get<String>(KEY_CATEGORY) ?: env.lookBook.categories.firstOrNull() ?: EditorUiState.DEFAULT_CATEGORY,
+            selectedCategory = initialCategory(savedState.get<String>(KEY_CATEGORY), env.lookBook),
         ),
     )
     val uiState: StateFlow<EditorUiState> = state.asStateFlow()
@@ -154,15 +155,26 @@ class EditorViewModel(
     val autoLutForRendering: Lut3D?
         get() = (resolvedAuto?.second as? AutoLutResolution.Ready)?.lut
 
-    val categories: List<String> get() = env.lookBook.categories
+    /** In pack order; labels are display text only. Empty when the build has no Looks. */
+    val categories: List<LookCategory> get() = env.lookBook.categories
 
-    /** Non-null when this build's Looks are provisional placeholders (debug builds). */
-    val lookProvisionalNotice: String? get() = env.lookBook.provisionalNotice
+    /** Shown beside the Look controls while any Look on offer is not a validated Lightroom render. */
+    val lookApproximationNotice: String? get() = LookBook.APPROXIMATE_NOTICE.takeIf { env.lookBook.hasApproximateLooks }
 
-    fun stopNames(category: String): List<String> = env.lookBook.stops(category).map { it.displayName }
+    /** Stop labels 1..n of [categoryId]: each preset's name from the pack, verbatim. */
+    fun stopNames(categoryId: String): List<String> = env.lookBook.stops(categoryId).map { it.name }
 
     /** Slider position (0 = Auto) of the displayed Look within the selected category. */
-    val stopIndex: Int get() = env.lookBook.stopIndexOf(state.value.selectedCategory, state.value.displayed?.look)
+    val stopIndex: Int
+        get() = state.value.selectedCategory?.let { env.lookBook.stopIndexOf(it, state.value.displayed?.look) } ?: 0
+
+    /** "Film look Portra at 80 percent", for the photo's accessibility label (spec §6). */
+    fun describeLook(look: LookRef): String {
+        val definition = env.lookBook.find(look) ?: return "unavailable look"
+        val category = env.lookBook.categoryOf(look)?.label
+        val percent = (look.strength * 100).roundToInt()
+        return listOfNotNull(category, "look", definition.name, "at $percent percent").joinToString(" ")
+    }
 
     init {
         scope.launch { env.exporter.state.collect { exportState -> state.update { it.copy(save = saveStatusOf(exportState)) } } }
@@ -321,9 +333,10 @@ class EditorViewModel(
     // --- Looks: stepped slider, strength ---------------------------------------------------------
 
     /** Changing category alone does not change the Look (spec §2.4), so it is not an undo step. */
-    fun selectCategory(category: String) {
-        savedState[KEY_CATEGORY] = category
-        state.update { it.copy(selectedCategory = category) }
+    fun selectCategory(categoryId: String) {
+        if (env.lookBook.category(categoryId) == null) return
+        savedState[KEY_CATEGORY] = categoryId
+        state.update { it.copy(selectedCategory = categoryId) }
     }
 
     /** Slider moving over stop [index] (0 = Auto): transient preview only. */
@@ -359,10 +372,17 @@ class EditorViewModel(
         requestPreview()
     }
 
+    /**
+     * The Look at slider stop [index] (0 = Auto). The slider picks a preset; it is not an intensity
+     * control (spec D6), so the committed Look's strength carries over to the new preset unchanged.
+     * Strength starts at 100% only when there was no Look before (Auto, or a fresh session).
+     */
     private fun lookAtStop(index: Int): LookRef? {
         if (index == 0) return null
-        val stops = env.lookBook.stops(state.value.selectedCategory)
-        return stops.getOrNull(index - 1)?.ref() ?: error("Stop $index out of range for ${state.value.selectedCategory}")
+        val categoryId = state.value.selectedCategory ?: return null
+        val stop = env.lookBook.stops(categoryId).getOrNull(index - 1) ?: error("Stop $index out of range for $categoryId")
+        val carriedStrength = state.value.session?.current?.look?.strength ?: 1f
+        return stop.ref(carriedStrength)
     }
 
     // --- Save copy -------------------------------------------------------------------------------
@@ -463,6 +483,10 @@ class EditorViewModel(
          * user made it, not re-developed (spec §4.6).
          */
         const val NO_MODEL_IN_BUILD_MODEL_VERSION = "no-model-in-build"
+
+        /** The saved category if this build's pack still has it, else the pack's first category. */
+        internal fun initialCategory(saved: String?, lookBook: LookBook): String? =
+            saved?.takeIf { lookBook.category(it) != null } ?: lookBook.categories.firstOrNull()?.id
 
         fun factory(env: EditorEnvironment): ViewModelProvider.Factory = viewModelFactory {
             initializer {

@@ -63,7 +63,7 @@ class EditorViewModelTest {
     private val analysis = image(64, 48, seed = 1)
     private val display = image(40, 30, seed = 2)
     private val fullResolution = image(80, 60, seed = 3)
-    private val lookBook = PlaceholderLookBook.create()
+    private val lookBook = FixtureLookPack.standardBook()
 
     // Test basis for model version "test-1": injected, never bundled (the research basis must not ship).
     private val basis = BasisLuts(List(3) { index -> scaledIdentity(1f + 0.15f * index, -0.05f * index) })
@@ -91,6 +91,7 @@ class EditorViewModelTest {
         withBasis: Boolean = true,
         photoLoader: PhotoLoader? = null,
         autoDeveloper: AutoDeveloper? = null,
+        lookBook: LookBook = this@EditorViewModelTest.lookBook,
     ): EditorEnvironment {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val bytes = bytesOf(basis)
@@ -139,8 +140,8 @@ class EditorViewModelTest {
             advanceUntilIdle()
         }
 
-    private fun render(image: Rgba8Image, autoLut: Lut3D?, autoStrength: Float, look: LookRef?) =
-        CpuLutPassRenderer.render(image, LutPassPlan.of(autoLut, autoStrength, look?.let { lookBook.find(it)!!.lut }, look?.strength ?: 0f)).pixels
+    private fun render(image: Rgba8Image, autoLut: Lut3D?, autoStrength: Float, look: LookRef?, book: LookBook = lookBook) =
+        CpuLutPassRenderer.render(image, LutPassPlan.of(autoLut, autoStrength, look?.let { book.find(it)!!.lut }, look?.strength ?: 0f)).pixels
 
     private fun EditorViewModel.previewPixels() = assertNotNull(uiState.value.preview).pixels
 
@@ -165,10 +166,10 @@ class EditorViewModelTest {
         assertNull(vm.autoLutForRendering)
         assertContentEquals(display.pixels, vm.previewPixels())
 
-        vm.selectCategory("Film")
+        vm.selectCategory("cat-film")
         vm.onStopSettled(1)
         advanceUntilIdle()
-        assertContentEquals(render(display, null, 0f, lookBook.stops("Film")[0].ref()), vm.previewPixels())
+        assertContentEquals(render(display, null, 0f, lookBook.stops("cat-film")[0].ref()), vm.previewPixels())
     }
 
     @Test
@@ -204,17 +205,17 @@ class EditorViewModelTest {
         advanceUntilIdle()
         assertEquals(1, fakes.developedWith.size, "nothing to retry: the model was asked once")
 
-        vm.selectCategory("Film")
+        vm.selectCategory("cat-film")
         vm.onStopSettled(1)
         advanceUntilIdle()
-        assertContentEquals(render(display, null, 0f, lookBook.stops("Film")[0].ref()), vm.previewPixels())
+        assertContentEquals(render(display, null, 0f, lookBook.stops("cat-film")[0].ref()), vm.previewPixels())
     }
 
     @Test
     fun `a restored no-model session keeps reporting Auto unavailable without re-running the model`() = runTest {
         val handle = SavedStateHandle()
         val first = readyViewModel(Fakes(DevelopResult.NoModelInThisBuild), handle)
-        first.selectCategory("Film")
+        first.selectCategory("cat-film")
         first.onStopSettled(1)
         advanceUntilIdle()
 
@@ -223,7 +224,7 @@ class EditorViewModelTest {
         advanceUntilIdle()
         assertEquals(EditorPhase.Ready, restored.uiState.value.phase)
         assertEquals(AutoStatus.NoModelInThisBuild, restored.uiState.value.autoStatus)
-        assertEquals(lookBook.stops("Film")[0].ref(), restored.uiState.value.session!!.current.look)
+        assertEquals(lookBook.stops("cat-film")[0].ref(), restored.uiState.value.session!!.current.look)
         assertEquals(0, fakes.developedWith.size)
     }
 
@@ -232,8 +233,8 @@ class EditorViewModelTest {
     @Test
     fun `moving the stepped slider previews, settling commits once, and category alone is not a step`() = runTest {
         val vm = readyViewModel()
-        val film = lookBook.stops("Film")
-        vm.selectCategory("Film")
+        val film = lookBook.stops("cat-film")
+        vm.selectCategory("cat-film")
 
         vm.onStopChanged(1); vm.onStopChanged(2); vm.onStopChanged(3)
         assertEquals(1, vm.uiState.value.session!!.history.entries.size, "dragging commits nothing")
@@ -247,7 +248,7 @@ class EditorViewModelTest {
         assertNull(vm.uiState.value.transientPreview)
         assertEquals(2, vm.stopIndex)
 
-        vm.selectCategory("Warm")
+        vm.selectCategory("cat-warm")
         assertEquals(2, vm.uiState.value.session!!.history.entries.size, "changing category does not change the Look")
         assertEquals(0, vm.stopIndex, "the Film Look is not a Warm stop")
         assertContentEquals(render(display, expectedAutoLut, 0.8f, film[1].ref()), vm.previewPixels())
@@ -257,7 +258,7 @@ class EditorViewModelTest {
     fun `rapid slider changes render at most twice and the last state wins`() = runTest {
         val fakes = Fakes(DevelopResult.Developed(auto))
         val vm = readyViewModel(fakes)
-        vm.selectCategory("Film")
+        vm.selectCategory("cat-film")
         val rendersBefore = fakes.previewRenders
 
         repeat(30) { step -> vm.onStopChanged(step % 4) }
@@ -265,13 +266,13 @@ class EditorViewModelTest {
         advanceUntilIdle()
 
         assertTrue(fakes.previewRenders - rendersBefore <= 2, "rendered ${fakes.previewRenders - rendersBefore} times for 31 requests")
-        assertContentEquals(render(display, expectedAutoLut, 0.8f, lookBook.stops("Film")[2].ref()), vm.previewPixels())
+        assertContentEquals(render(display, expectedAutoLut, 0.8f, lookBook.stops("cat-film")[2].ref()), vm.previewPixels())
     }
 
     @Test
     fun `strength previews while dragging and commits on release`() = runTest {
         val vm = readyViewModel()
-        val warm = lookBook.stops("Warm")[0].ref()
+        val warm = lookBook.stops("cat-warm")[0].ref()
         vm.commitLook(warm)
         vm.previewLookStrength(0.2f)
         advanceUntilIdle()
@@ -282,12 +283,114 @@ class EditorViewModelTest {
         assertEquals(0.2f, vm.uiState.value.session!!.current.look!!.strength)
     }
 
+    @Test
+    fun `the category slider picks a preset and never changes strength`() = runTest {
+        val vm = readyViewModel()
+        vm.selectCategory("cat-film")
+        vm.onStopSettled(1)
+        vm.commitLookStrength(0.4f)
+
+        vm.onStopChanged(2)
+        assertEquals(0.4f, vm.uiState.value.displayed!!.look!!.strength, "previewing another preset keeps the strength")
+        vm.onStopSettled(3)
+        assertEquals(lookBook.stops("cat-film")[2].ref(0.4f), vm.uiState.value.session!!.current.look)
+    }
+
+    @Test
+    fun `a saved category that no longer exists falls back to the first category`() = runTest {
+        val vm = viewModel(SavedStateHandle(mapOf(EditorViewModel.KEY_CATEGORY to "Removed")), environment(Fakes(DevelopResult.Developed(auto))))
+        assertEquals(lookBook.categories.first().id, vm.uiState.value.selectedCategory)
+    }
+
+    // --- Categories and stops come from the Look pack --------------------------------------------
+
+    private val alphaBetaPack = listOf(
+        FixtureLookPack.Category("c-beta", "Beta", listOf(FixtureLookPack.Stop("z-1", "Zeta Tone (11)", 1), FixtureLookPack.Stop("a-2", "Alpha (3)", 2))),
+        FixtureLookPack.Category("c-alpha", "Alpha", listOf(FixtureLookPack.Stop("m-3", "Mid", 3))),
+    )
+
+    @Test
+    fun `categories, their order and stop names are the pack's, and the first category is the default`() = runTest {
+        val vm = viewModel(SavedStateHandle(), environment(Fakes(DevelopResult.Developed(auto)), lookBook = FixtureLookPack.book(alphaBetaPack)))
+
+        assertEquals(listOf("Beta", "Alpha"), vm.categories.map { it.label })
+        assertEquals("c-beta", vm.uiState.value.selectedCategory)
+        assertEquals(listOf("Zeta Tone (11)", "Alpha (3)"), vm.stopNames("c-beta"))
+        assertEquals(listOf("Mid"), vm.stopNames("c-alpha"))
+    }
+
+    @Test
+    fun `an unknown category is ignored rather than selected`() = runTest {
+        val vm = readyViewModel()
+        vm.selectCategory("Natural")
+        assertEquals("cat-film", vm.uiState.value.selectedCategory)
+    }
+
+    @Test
+    fun `approximate Looks are labelled, validated Lightroom renders are not`() = runTest {
+        val approximate = viewModel(SavedStateHandle(), environment(Fakes(DevelopResult.Developed(auto))))
+        assertEquals(LookBook.APPROXIMATE_NOTICE, approximate.lookApproximationNotice)
+
+        val validatedOnly = FixtureLookPack.book(listOf(FixtureLookPack.Category("c", "C", listOf(FixtureLookPack.Stop("v-1", "Checked", 1, lutSource = "lightroom-hald", validation = "validated")))))
+        val validated = viewModel(SavedStateHandle(), environment(Fakes(DevelopResult.Developed(auto)), lookBook = validatedOnly))
+        assertNull(validated.lookApproximationNotice)
+    }
+
+    @Test
+    fun `a build without a Look pack edits with Auto only`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val vm = viewModel(SavedStateHandle(), environment(fakes, lookBook = LookBook.unavailable(LookPackLoader.NO_PACK_REASON)))
+        vm.openPhoto(assetId)
+        advanceUntilIdle()
+
+        assertEquals(EditorPhase.Ready, vm.uiState.value.phase)
+        assertTrue(vm.categories.isEmpty())
+        assertNull(vm.uiState.value.selectedCategory)
+        assertNull(vm.lookApproximationNotice)
+        assertEquals(0, vm.stopIndex)
+        assertContentEquals(render(display, expectedAutoLut, 0.8f, null), vm.previewPixels())
+    }
+
+    @Test
+    fun `a saved edit survives a pack that relabels, reorders and regroups its categories`() = runTest {
+        val before = listOf(
+            FixtureLookPack.Category("cat-warm", "Warm", listOf(FixtureLookPack.Stop("earthy-1", "Earthy", 1), FixtureLookPack.Stop("nordic-2", "Nordic", 2))),
+            FixtureLookPack.Category("cat-film", "Film", listOf(FixtureLookPack.Stop("rainy-3", "Rainy", 3))),
+        )
+        // Same presets (same IDs and LUTs): categories renamed and swapped, Nordic moved to another
+        // category and to the front, Warm's id gone.
+        val after = listOf(
+            FixtureLookPack.Category("cat-film", "Cinema", listOf(FixtureLookPack.Stop("nordic-2", "Nordic", 2), FixtureLookPack.Stop("rainy-3", "Rainy", 3))),
+            FixtureLookPack.Category("cat-earth", "Earth", listOf(FixtureLookPack.Stop("earthy-1", "Earthy", 1))),
+        )
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val handle = SavedStateHandle()
+        val first = viewModel(handle, environment(fakes, lookBook = FixtureLookPack.book(before)))
+        first.openPhoto(assetId)
+        advanceUntilIdle()
+        first.selectCategory("cat-warm")
+        first.onStopSettled(2)
+        first.commitLookStrength(0.6f)
+        advanceUntilIdle()
+        val savedLook = assertNotNull(first.uiState.value.session!!.current.look)
+
+        val afterBook = FixtureLookPack.book(after)
+        val restored = viewModel(afterProcessDeath(handle), environment(fakes, lookBook = afterBook))
+        advanceUntilIdle()
+
+        assertEquals(savedLook, restored.uiState.value.session!!.current.look, "the edit names the preset, not its category or stop")
+        assertNull(restored.uiState.value.lookNotice)
+        assertEquals("cat-film", restored.uiState.value.selectedCategory, "the saved category 'cat-warm' is gone: first category")
+        assertEquals(1, restored.stopIndex, "Nordic is now stop 1 of the first category")
+        assertContentEquals(render(display, expectedAutoLut, 0.8f, savedLook, afterBook), restored.previewPixels())
+    }
+
     // --- Compare, Undo, Reset --------------------------------------------------------------------
 
     @Test
     fun `compare shows the original, and undo and reset update the preview`() = runTest {
         val vm = readyViewModel()
-        val mono = lookBook.stops("Mono")[0].ref()
+        val mono = lookBook.stops("cat-mono")[0].ref()
         vm.commitLook(mono)
         advanceUntilIdle()
         assertContentEquals(render(display, expectedAutoLut, 0.8f, mono), vm.previewPixels())
@@ -312,9 +415,9 @@ class EditorViewModelTest {
     fun `save copy exports the committed state once, never the transient preview`() = runTest {
         val fakes = Fakes(DevelopResult.Developed(auto))
         val vm = readyViewModel(fakes)
-        val committed = lookBook.stops("Warm")[1].ref()
+        val committed = lookBook.stops("cat-warm")[1].ref()
         vm.commitLook(committed)
-        vm.previewLook(lookBook.stops("Mono")[0].ref()) // finger still on the slider
+        vm.previewLook(lookBook.stops("cat-mono")[0].ref()) // finger still on the slider
 
         assertTrue(vm.saveCopy())
         assertFalse(vm.saveCopy(), "one export at a time")
@@ -338,9 +441,9 @@ class EditorViewModelTest {
     fun `recreated ViewModel restores the session and reloads the photo without re-running the model`() = runTest {
         val fakes = Fakes(DevelopResult.Developed(auto))
         val handle = SavedStateHandle()
-        val film = lookBook.stops("Film")
+        val film = lookBook.stops("cat-film")
         val original = readyViewModel(fakes, handle).apply {
-            selectCategory("Film")
+            selectCategory("cat-film")
             onStopSettled(1)
             onStopSettled(3)
             undo()
@@ -357,7 +460,7 @@ class EditorViewModelTest {
         assertEquals(film[0].ref(), restored.uiState.value.session!!.current.look)
         assertTrue(restored.uiState.value.session!!.canRedo)
         assertTrue(restored.uiState.value.compareOn)
-        assertEquals("Film", restored.uiState.value.selectedCategory)
+        assertEquals("cat-film", restored.uiState.value.selectedCategory)
         assertEquals(EditorPhase.Ready, restored.uiState.value.phase)
         assertContentEquals(display.pixels, restored.previewPixels(), "compare state restored")
 
@@ -373,8 +476,8 @@ class EditorViewModelTest {
         val fakes = Fakes(DevelopResult.Developed(auto))
         val handle = SavedStateHandle()
         val vm = readyViewModel(fakes, handle)
-        val portra = lookBook.stops("Film")[0].ref()
-        val mono = lookBook.stops("Mono")[0].ref()
+        val portra = lookBook.stops("cat-film")[0].ref()
+        val mono = lookBook.stops("cat-mono")[0].ref()
         vm.commitLook(portra)
         vm.previewLook(mono)
 
@@ -390,7 +493,7 @@ class EditorViewModelTest {
     @Test
     fun `restoring an edit from an unavailable model version turns Auto off with a notice`() = runTest {
         val fakes = Fakes(DevelopResult.Developed(auto))
-        val oldEdit = EditSession.start(source, auto.copy(modelVersion = "test-0")).selectLook(lookBook.stops("Mono")[0].ref())
+        val oldEdit = EditSession.start(source, auto.copy(modelVersion = "test-0")).selectLook(lookBook.stops("cat-mono")[0].ref())
         val handle = SavedStateHandle(
             mapOf(EditorViewModel.KEY_ASSET to assetId, EditorViewModel.KEY_SESSION to SessionJson.encodeToString(EditSession.serializer(), oldEdit)),
         )
@@ -404,7 +507,7 @@ class EditorViewModelTest {
         assertNull(vm.autoLutForRendering, "never the installed test-1 basis")
         assertEquals(oldEdit, vm.uiState.value.session, "the stored AutoResult is kept untouched")
         assertTrue(fakes.developedWith.isEmpty())
-        assertContentEquals(render(display, null, 0f, lookBook.stops("Mono")[0].ref()), vm.previewPixels(), "Looks still work on the Original")
+        assertContentEquals(render(display, null, 0f, lookBook.stops("cat-mono")[0].ref()), vm.previewPixels(), "Looks still work on the Original")
     }
 
     @Test
@@ -590,7 +693,7 @@ class EditorViewModelTest {
 
     private fun savedEdit(): Map<String, Any> = mapOf(
         EditorViewModel.KEY_ASSET to assetId,
-        EditorViewModel.KEY_SESSION to SessionJson.encodeToString(EditSession.serializer(), EditSession.start(source, auto).selectLook(lookBook.stops("Film")[0].ref())),
+        EditorViewModel.KEY_SESSION to SessionJson.encodeToString(EditSession.serializer(), EditSession.start(source, auto).selectLook(lookBook.stops("cat-film")[0].ref())),
     )
 
     @Test
@@ -632,7 +735,7 @@ class EditorViewModelTest {
         advanceUntilIdle()
 
         assertEquals(EditorPhase.Ready, vm.uiState.value.phase)
-        assertEquals(lookBook.stops("Film")[0].ref(), vm.uiState.value.session!!.current.look)
+        assertEquals(lookBook.stops("cat-film")[0].ref(), vm.uiState.value.session!!.current.look)
         assertTrue(fakes.grants.events.isEmpty(), "restore uses the grant persisted at pick time; it takes or drops nothing")
     }
 

@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lightlylabs.lightly.render.image.Rgba8Image
+import com.lightlylabs.lightly.session.LookRef
 import java.nio.ByteBuffer
 import kotlin.math.roundToInt
 
@@ -68,7 +69,7 @@ fun EditorScreen(viewModel: EditorViewModel) {
         Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PhotoArea(ui, Modifier.fillMaxWidth().weight(1f), onHold = { held -> viewModel.setCompare(held) })
+        PhotoArea(ui, Modifier.fillMaxWidth().weight(1f), describeLook = viewModel::describeLook, onHold = { held -> viewModel.setCompare(held) })
 
         when (val phase = ui.phase) {
             EditorPhase.Empty -> Button(onClick = pickPhoto) { Text("Choose a photo") }
@@ -106,11 +107,12 @@ private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPho
     }
     ui.lookNotice?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-    if (viewModel.categories.isEmpty()) {
-        // Release builds ship no Looks until the curated look-book exists (BundledLookBook).
-        Text("No Looks in this build yet.")
+    val selectedCategory = viewModel.categories.firstOrNull { it.id == ui.selectedCategory }
+    if (selectedCategory == null) {
+        // The build was made without a Look pack, or its manifest was unusable (LookPackLoader).
+        Text(LookBook.NO_LOOKS_NOTICE)
     } else {
-        LookControls(ui, viewModel)
+        LookControls(ui, viewModel, selectedCategory)
     }
 
     // Wraps instead of scrolling: in one scrolling row "Save copy" was off screen on a phone.
@@ -131,19 +133,22 @@ private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPho
 }
 
 @Composable
-private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel) {
-    viewModel.lookProvisionalNotice?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel, selectedCategory: LookCategory) {
+    viewModel.lookApproximationNotice?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
 
+    // Labels come from the pack and are provisional; the chip is keyed by the opaque category id.
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         viewModel.categories.forEach { category ->
-            FilterChip(selected = category == ui.selectedCategory, onClick = { viewModel.selectCategory(category) }, label = { Text(category) })
+            FilterChip(selected = category.id == selectedCategory.id, onClick = { viewModel.selectCategory(category.id) }, label = { Text(category.label) })
         }
     }
 
+    // One stop per preset, in the pack's browse order; the slider never sets strength (spec D6).
     SteppedLookSlider(
-        stopNames = listOf("Auto") + viewModel.stopNames(ui.selectedCategory),
+        stopNames = listOf(AUTO_STOP_NAME) + viewModel.stopNames(selectedCategory.id),
         settledStop = viewModel.stopIndex,
-        category = ui.selectedCategory,
+        categoryId = selectedCategory.id,
+        categoryLabel = selectedCategory.label,
         onMove = viewModel::onStopChanged,
         onSettle = viewModel::onStopSettled,
     )
@@ -154,7 +159,7 @@ private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel) {
 }
 
 @Composable
-private fun PhotoArea(ui: EditorUiState, modifier: Modifier, onHold: (Boolean) -> Unit) {
+private fun PhotoArea(ui: EditorUiState, modifier: Modifier, describeLook: (LookRef) -> String, onHold: (Boolean) -> Unit) {
     val description = when {
         // Before a session exists (Loading / DevelopFailed) the preview already shows the Original.
         ui.displayed == null && ui.preview != null -> "Photo, original"
@@ -162,7 +167,7 @@ private fun PhotoArea(ui: EditorUiState, modifier: Modifier, onHold: (Boolean) -
         ui.compareOn -> "Photo, original"
         else -> {
             val base = if (ui.autoStatus is AutoStatus.Applied) "Photo, enhanced automatically" else "Photo, auto enhancement unavailable"
-            ui.displayed?.look?.let { "$base, ${it.lookId} at ${(it.strength * 100).roundToInt()} percent" } ?: base
+            ui.displayed?.look?.let { "$base, ${describeLook(it)}" } ?: base
         }
     }
     val bitmap = remember(ui.preview) { ui.preview?.toBitmap()?.asImageBitmap() }
@@ -180,11 +185,20 @@ private fun PhotoArea(ui: EditorUiState, modifier: Modifier, onHold: (Boolean) -
 }
 
 @Composable
-private fun SteppedLookSlider(stopNames: List<String>, settledStop: Int, category: String, onMove: (Int) -> Unit, onSettle: (Int) -> Unit) {
-    var position by remember(settledStop, category) { mutableFloatStateOf(settledStop.toFloat()) }
+private fun SteppedLookSlider(
+    stopNames: List<String>,
+    settledStop: Int,
+    categoryId: String,
+    categoryLabel: String,
+    onMove: (Int) -> Unit,
+    onSettle: (Int) -> Unit,
+) {
+    var position by remember(settledStop, categoryId) { mutableFloatStateOf(settledStop.toFloat()) }
     val current = position.roundToInt().coerceIn(0, stopNames.lastIndex)
     Column {
-        Text(stopNames[current])
+        // Only the current stop's name is shown: preset names are long ("Cinematic Light Tone (11)")
+        // and must stay readable at large font scales (spec §6), so the label wraps instead of clipping.
+        Text(stopNames[current], style = MaterialTheme.typography.titleMedium)
         Slider(
             value = position,
             onValueChange = { value ->
@@ -197,7 +211,7 @@ private fun SteppedLookSlider(stopNames: List<String>, settledStop: Int, categor
             steps = (stopNames.size - 2).coerceAtLeast(0),
             // Stop 0 (Auto) sits in the left back-gesture zone; without the exclusion a drag that starts
             // on the thumb there is taken by the system (seen on the API 36 emulator).
-            modifier = Modifier.systemGestureExclusion().semantics { stateDescription = "$category, ${stopNames[current]}, ${current + 1} of ${stopNames.size}" },
+            modifier = Modifier.systemGestureExclusion().semantics { stateDescription = "$categoryLabel, ${stopNames[current]}, ${current + 1} of ${stopNames.size}" },
         )
     }
 }
@@ -215,6 +229,8 @@ private fun StrengthSlider(committed: Float, onPreview: (Float) -> Unit, onCommi
         )
     }
 }
+
+private const val AUTO_STOP_NAME = "Auto"
 
 private fun Rgba8Image.toBitmap(): Bitmap =
     Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { it.copyPixelsFromBuffer(ByteBuffer.wrap(pixels)) }

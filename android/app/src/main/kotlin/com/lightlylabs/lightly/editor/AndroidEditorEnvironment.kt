@@ -1,7 +1,9 @@
 package com.lightlylabs.lightly.editor
 
 import android.content.Context
+import android.content.res.AssetManager
 import android.net.Uri
+import android.util.Log
 import com.lightlylabs.lightly.decode.ProxyDecoder
 import com.lightlylabs.lightly.export.BitmapExportFrame
 import com.lightlylabs.lightly.export.BitmapFrameJpegEncoder
@@ -14,6 +16,7 @@ import com.lightlylabs.lightly.model.BasisRegistry
 import com.lightlylabs.lightly.model.RegistryAutoLutResolver
 import com.lightlylabs.lightly.render.lut.CpuLutPassRenderer
 import kotlinx.coroutines.asCoroutineDispatcher
+import java.io.FileNotFoundException
 import java.io.OutputStream
 import java.util.concurrent.Executors
 
@@ -27,8 +30,9 @@ import java.util.concurrent.Executors
  * - **Preview renderer:** the CPU reference ([CpuLutPassRenderer]) on the display proxy. The GLES
  *   renderer (:core-render-gl) is not wired until it has been validated on Adreno/Mali (PENDING);
  *   swapping it in only changes [EditorEnvironment.previewRenderer] and the render thread.
- * - **Looks:** [BundledLookBook]: provisional procedural placeholders in debug builds only, none in
- *   release builds, until the curated look-book (M3/M4).
+ * - **Looks:** the Look pack bundled under `assets/lookpack/` (see app/build.gradle.kts), loaded by
+ *   [LookPackLoader]. Its LUTs are unvalidated approximations of the curated presets and omit
+ *   spatial operators by design; the editor says so. A build made without the pack has no Looks.
  */
 object AndroidEditorEnvironment {
 
@@ -46,7 +50,7 @@ object AndroidEditorEnvironment {
             // weights must never ship. Until one exists every photo opens with Auto off.
             autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
             autoResolver = RegistryAutoLutResolver(BasisRegistry(installed = emptyList())),
-            lookBook = BundledLookBook.create(),
+            lookBook = loadBundledLookPack(context.applicationContext.assets),
             previewRenderer = CpuLutPassRenderer,
             renderDispatcher = renderDispatcher,
             exporter = ExportCoordinator(
@@ -58,6 +62,30 @@ object AndroidEditorEnvironment {
             newImageSpec = { source -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg") },
         )
     }
+
+    /**
+     * Loads the whole pack eagerly (18 LUTs, about 10 MB of floats, sha256-checked) when the editor
+     * environment is first created. DEFERRED (M3): load off the main thread and decode LUTs lazily.
+     */
+    private fun loadBundledLookPack(assets: AssetManager): LookBook {
+        val book = LookPackLoader.load(AssetLookPackSource(assets))
+        book.unavailableReason?.let { Log.w(LOG_TAG, "Look pack unavailable: $it") }
+        book.problems.forEach { Log.w(LOG_TAG, "Look pack: $it") }
+        return book
+    }
+
+    private const val LOG_TAG = "LightlyLooks"
+
+    /** Pack files live under `assets/lookpack/`, put there by the app's Gradle build. */
+    private class AssetLookPackSource(private val assets: AssetManager) : LookPackSource {
+        override fun read(relativePath: String): ByteArray? = try {
+            assets.open("$ASSET_ROOT/$relativePath").use { it.readBytes() }
+        } catch (missing: FileNotFoundException) {
+            null
+        }
+    }
+
+    private const val ASSET_ROOT = "lookpack"
 
     /** The editor keys assets by string; MediaStore by Uri. */
     private class UriStringGateway(private val delegate: ContentResolverGateway) : MediaStoreGateway<String> {
