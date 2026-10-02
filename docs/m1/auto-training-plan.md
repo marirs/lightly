@@ -263,3 +263,11 @@ If the unpaired candidate passes all ship gates, T4 is **not needed** for V1. Th
 | any, ≥ 3 | Device parity (Metal kernel; Android phones) | **G-D** | S4 on iOS + ≥ 2 Android phones |
 | after G3 | **Gate P: paired data go/no-go** (decision only) | **P** | §6.4 conditions all met **and** counsel-cleared contract terms **and** explicit budget approval by the product owner. Otherwise no-go: ship the unpaired candidate or iterate on T1/T3 |
 | after G3 + G-D | Ship decision | **Ship** | S1–S5 all pass. Model card signed off |
+
+## Status note (2026-10-02)
+
+Progress against this plan is tracked in `docs/m3/auto-progress.md`.
+- **G0 rules are frozen** as evaluation protocol 1.0.0 (`experiments/auto/PROTOCOL.json`, locked).
+- **The G0 data part is blocked.** No T1 photos exist yet, so there is no frozen held-out set and no evaluation result.
+- **The training and export pipeline is validated on procedural data only.** Stage (a) exit criteria are not met at smoke budget.
+- **Next dependency:** T1 photos with documented rights, plus owner decisions D1–D3 in that note.

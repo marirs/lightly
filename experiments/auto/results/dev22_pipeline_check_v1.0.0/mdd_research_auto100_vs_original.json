@@ -1,0 +1,111 @@
+{
+  "arm": "research_auto100",
+  "baseline": "original",
+  "source": "results/dev22_pipeline_check_v1.0.0",
+  "note": [
+    "The spread is estimated from DEV-22 (tiny, development data), so the output is a PLANNING number for sizing",
+    "the frozen T1 set, not an evaluation result. Seed-to-seed variance is not included: no real training run",
+    "exists yet."
+  ],
+  "rows": [
+    {
+      "class": "portrait",
+      "metric": "skin_abs_dh_deg",
+      "n_dev": 7,
+      "arm_mean": 5.39,
+      "target": 4.0,
+      "sigma_d": 1.77,
+      "mdd_at_n_dev": 1.88,
+      "mdd_at_n40": 0.79,
+      "n_for_mdd_half_gap": 52
+    },
+    {
+      "class": "portrait",
+      "metric": "skin_chroma_ratio",
+      "n_dev": 7,
+      "arm_mean": 1.38,
+      "target": 1.12,
+      "sigma_d": 0.2,
+      "mdd_at_n_dev": 0.21,
+      "mdd_at_n40": 0.09,
+      "n_for_mdd_half_gap": 18
+    },
+    {
+      "class": "sunset",
+      "metric": "warm_chroma_ratio",
+      "n_dev": 3,
+      "arm_mean": 1.05,
+      "target": 1.1,
+      "sigma_d": 0.01,
+      "mdd_at_n_dev": 0.02,
+      "mdd_at_n40": 0.0,
+      "n_for_mdd_half_gap": 2
+    },
+    {
+      "class": "sunset",
+      "metric": "warm_abs_dh_deg",
+      "n_dev": 3,
+      "arm_mean": 5.98,
+      "target": 4.0,
+      "sigma_d": 1.6,
+      "mdd_at_n_dev": 2.59,
+      "mdd_at_n40": 0.71,
+      "n_for_mdd_half_gap": 21
+    },
+    {
+      "class": "night",
+      "metric": "night_p50_dL",
+      "n_dev": 3,
+      "arm_mean": 6.22,
+      "target": 3.0,
+      "sigma_d": 3.39,
+      "mdd_at_n_dev": 5.49,
+      "mdd_at_n40": 1.5,
+      "n_for_mdd_half_gap": 35
+    },
+    {
+      "class": "night",
+      "metric": "clipLo_pp",
+      "n_dev": 3,
+      "arm_mean": 8.6,
+      "target": 0.5,
+      "sigma_d": 3.89,
+      "mdd_at_n_dev": 6.29,
+      "mdd_at_n40": 1.72,
+      "n_for_mdd_half_gap": 8
+    },
+    {
+      "class": "backlit",
+      "metric": "subject_dL",
+      "n_dev": 3,
+      "arm_mean": -5.38,
+      "target": 0.0,
+      "sigma_d": 1.21,
+      "mdd_at_n_dev": 1.95,
+      "mdd_at_n40": 0.53,
+      "n_for_mdd_half_gap": 2
+    },
+    {
+      "class": "backlit",
+      "metric": "clipHi_pp",
+      "n_dev": 3,
+      "arm_mean": -2.91,
+      "target": 0.5,
+      "sigma_d": 5.03,
+      "mdd_at_n_dev": 8.13,
+      "mdd_at_n40": 2.23,
+      "n_for_mdd_half_gap": 69
+    },
+    {
+      "class": "already_good",
+      "metric": "dE00_mean",
+      "n_dev": 3,
+      "arm_mean": 8.31,
+      "target": 3.0,
+      "sigma_d": 2.34,
+      "mdd_at_n_dev": 3.79,
+      "mdd_at_n40": 1.04,
+      "n_for_mdd_half_gap": 7
+    }
+  ]
+}
