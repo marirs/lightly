@@ -155,15 +155,17 @@ final class EditorFlowUITests: XCTestCase {
             capture(named: "a\(index + 1)-\(category.id)-first-preset")
         }
 
-        // The category with the most presets, stepped through every stop with
-        // the accessibility increment (one stop per step), then back.
+        // The category with the most presets, stepped through every stop one
+        // drag at a time. The Look slider is a custom adjustable control, not a
+        // UISlider, so XCUIElement.adjust(toNormalizedSliderPosition:) throws on
+        // it; dragging between adjacent detents is what a user does.
         let longest = try XCTUnwrap(pack.categories.max { $0.names.count < $1.names.count })
         app.buttons["editor.category.\(longest.id)"].tap()
         dragSlider(slider, from: 1, to: 0, stopCount: longest.stopCount)
         XCTAssertTrue(waitForValue(of: slider, toEqual: longest.value(atStop: 0)), "\(slider.value ?? "nil")")
         capture(named: "b0-\(longest.id)-stop-0")
         for stop in 1..<longest.stopCount {
-            slider.adjust(toNormalizedSliderPosition: CGFloat(stop) / CGFloat(longest.stopCount - 1))
+            dragSlider(slider, from: stop - 1, to: stop, stopCount: longest.stopCount)
             XCTAssertTrue(waitForValue(of: slider, toEqual: longest.value(atStop: stop)), "\(slider.value ?? "nil")")
             capture(named: "b\(stop)-\(longest.id)-stop-\(stop)")
         }
