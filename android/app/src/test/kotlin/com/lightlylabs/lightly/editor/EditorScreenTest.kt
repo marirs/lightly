@@ -328,6 +328,26 @@ class EditorScreenTest {
     }
 
     @Test
+    fun `while another preset is previewed the Strength label shows the previewed 100 percent`() {
+        // The photo shows the previewed preset at 100% (spec Strength rule); the label must not keep
+        // claiming the committed preset's 40% while that happens.
+        val vm = showReadyEditor()
+        vm.selectCategory("cat-warm")
+        vm.onStopSettled(1)
+        vm.commitLookStrength(0.4f)
+        settle()
+        compose.onNodeWithText("Strength 40%").assertExists()
+
+        vm.onStopChanged(2)
+        settle()
+        compose.onNodeWithText("Strength 100%").assertExists()
+
+        vm.onStopSettled(1) // back on the committed stop: nothing changes
+        settle()
+        compose.onNodeWithText("Strength 40%").assertExists()
+    }
+
+    @Test
     fun `compare puts an Original label on the photo`() {
         val vm = showReadyEditor()
         vm.selectCategory("cat-film")

@@ -304,7 +304,11 @@ private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel, selected
     // Secondary: only for a committed Look that renders.
     val activeLook = ui.session?.current?.look
     if (activeLook != null && viewModel.showsStrength) {
-        StrengthSlider(committed = activeLook.strength, onPreview = viewModel::previewLookStrength, onCommit = viewModel::commitLookStrength)
+        // While another preset is previewed, the photo shows it at 100% (spec Strength rule), so the
+        // label follows the displayed preset. A Strength drag previews the SAME preset and keeps the
+        // committed value as the slider's anchor; its live value comes from the slider itself.
+        val previewedOther = ui.displayed?.look?.takeIf { it.lookId != activeLook.lookId }
+        StrengthSlider(committed = (previewedOther ?: activeLook).strength, onPreview = viewModel::previewLookStrength, onCommit = viewModel::commitLookStrength)
     }
 }
 
