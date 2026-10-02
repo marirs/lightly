@@ -1,0 +1,192 @@
+{
+ "catalogVersion": 1,
+ "description": "Lightly Look catalog. Categories are provisional groupings of the curated presets; labels and membership are data, not code. Within a category the slider shows Auto, then each preset as a discrete stop in browse order: the shortest visual path from Auto through every preset (mean CIEDE2000 on the reference photos), not an intensity ramp.",
+ "referencePhotos": [
+  "portrait_deep_01",
+  "portrait_light_01",
+  "portrait_medium_01",
+  "sunset_02",
+  "landscape_03",
+  "night_01",
+  "wellexposed_02"
+ ],
+ "nearDuplicateStepDE": 2.0,
+ "categories": [
+  {
+   "id": "cat-natural",
+   "label": "Natural",
+   "labelStatus": "provisional",
+   "orderMethod": "shortest-visual-path-from-auto",
+   "orderOverride": null,
+   "totalPathDE": 14.03,
+   "stops": [
+    {
+     "lookId": "s1-vibes-6de3bf",
+     "name": "S1 - Vibes",
+     "source": "WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Legacy Collection/#WL - 5 - Split Toning/S1 - Vibes.xmp",
+     "stepFromPreviousDE": 2.11,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "s7-retro-mood-155d3d",
+     "name": "S7 - Retro Mood",
+     "source": "WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Legacy Collection/#WL - 5 - Split Toning/S7 - Retro Mood.xmp",
+     "stepFromPreviousDE": 4.69,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "portrait-1-2e3940",
+     "name": "Portrait-1",
+     "source": "SolutionPresets/Presets for iPhone(1).zip -> DNG/Portrait-1.dng",
+     "stepFromPreviousDE": 4.72,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "08-f77c4a",
+     "name": "08",
+     "source": "SolutionPresets/Presets for Windows and Mac.zip -> XMP/Portrait 08.xmp",
+     "stepFromPreviousDE": 2.51,
+     "nearDuplicateOfPrevious": false
+    }
+   ]
+  },
+  {
+   "id": "cat-warm",
+   "label": "Warm",
+   "labelStatus": "provisional",
+   "orderMethod": "shortest-visual-path-from-auto",
+   "orderOverride": null,
+   "totalPathDE": 16.78,
+   "stops": [
+    {
+     "lookId": "earthy-wedding-tone-6-8813aa",
+     "name": "Earthy Wedding Tone (6)",
+     "source": "The Ultimate Preset Bundle - Huliluts/The Ultimate Preset Bundle - Huliluts.zip -> The Ultimate Preset Bundle - Huliluts/Wedding/Earthy Wedding/Mobile Presets/Earthy Wedding Tone (6).dng",
+     "stepFromPreviousDE": 4.9,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "nordic-tone-10-7b6a3a",
+     "name": "Nordic Tone (10)",
+     "source": "The Ultimate Preset Bundle - Huliluts/The Ultimate Preset Bundle - Huliluts.zip -> The Ultimate Preset Bundle - Huliluts/Trending/Nordic/Mobile Presets/Nordic Tone  (10).dng",
+     "stepFromPreviousDE": 4.48,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "adventure-tone-3-afb354",
+     "name": "Adventure Tone (3)",
+     "source": "The Ultimate Preset Bundle - Huliluts/The Ultimate Preset Bundle - Huliluts.zip -> The Ultimate Preset Bundle - Huliluts/Trending/Adventure/Mobile Presets/Adventure Tone (3).dng",
+     "stepFromPreviousDE": 3.91,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "golden-hour-9-26b448",
+     "name": "Golden Hour 9",
+     "source": "The Ultimate Preset Bundle - Huliluts/The Ultimate Preset Bundle - Huliluts.zip -> The Ultimate Preset Bundle - Huliluts/Trending/Golden Hour/Mobile Presets/Golden Hour 9.dng",
+     "stepFromPreviousDE": 3.49,
+     "nearDuplicateOfPrevious": false
+    }
+   ]
+  },
+  {
+   "id": "cat-cool",
+   "label": "Cool",
+   "labelStatus": "provisional",
+   "orderMethod": "shortest-visual-path-from-auto",
+   "orderOverride": null,
+   "totalPathDE": 18.26,
+   "stops": [
+    {
+     "lookId": "cinematic-light-tone-11-a047f9",
+     "name": "Cinematic Light Tone (11)",
+     "source": "The Ultimate Preset Bundle - Huliluts/New Update The Utimate Presets - Huliluts.zip -> New Update The Utimate Presets - Huliluts/Cinematic Light/Mobile Presets/Cinematic Light Tone (11).dng",
+     "stepFromPreviousDE": 5.51,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "old-street-4-3070c8",
+     "name": "Old Street-4",
+     "source": "SolutionPresets/Presets for iPhone(1).zip -> DNG/Old Street-4.dng",
+     "stepFromPreviousDE": 6.54,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "black-paris-tone-11-a01dc1",
+     "name": "Black Paris Tone (11)",
+     "source": "The Ultimate Preset Bundle - Huliluts/New Update The Utimate Presets - Huliluts.zip -> New Update The Utimate Presets - Huliluts/Black Paris/Mobile Presets/Black Paris Tone (11).dng",
+     "stepFromPreviousDE": 6.21,
+     "nearDuplicateOfPrevious": false
+    }
+   ]
+  },
+  {
+   "id": "cat-film",
+   "label": "Film",
+   "labelStatus": "provisional",
+   "orderMethod": "shortest-visual-path-from-auto",
+   "orderOverride": null,
+   "totalPathDE": 18.1,
+   "stops": [
+    {
+     "lookId": "retro-wedding-tone-15-aa27b2",
+     "name": "Retro Wedding Tone (15)",
+     "source": "The Ultimate Preset Bundle - Huliluts/The Ultimate Preset Bundle - Huliluts.zip -> The Ultimate Preset Bundle - Huliluts/Wedding/Retro Wedding/Mobile Presets/Retro Wedding Tone (15).dng",
+     "stepFromPreviousDE": 4.25,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "rainy-tone-10-faf297",
+     "name": "Rainy Tone (10)",
+     "source": "The Ultimate Preset Bundle - Huliluts/The Ultimate Preset Bundle - Huliluts.zip -> The Ultimate Preset Bundle - Huliluts/Trending/Rainy/Mobile Presets/Rainy Tone (10).dng",
+     "stepFromPreviousDE": 5.15,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "t2-8d51bb",
+     "name": "T2",
+     "source": "WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - New Portrait Presets (Added 31.08.21)/WithLuke Bonus Portrait Collection - MOBILE Presets (DNG)/T2.dng",
+     "stepFromPreviousDE": 3.74,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "c4-teals-004c94",
+     "name": "C4 - Teals",
+     "source": "WithLuke - Master Collection/WithLuke - Desktop Presets/WithLuke - Legacy Collection/#WL - 3 - Commercial/C4 - Teals.xmp",
+     "stepFromPreviousDE": 4.96,
+     "nearDuplicateOfPrevious": false
+    }
+   ]
+  },
+  {
+   "id": "cat-mono",
+   "label": "Mono",
+   "labelStatus": "provisional",
+   "orderMethod": "shortest-visual-path-from-auto",
+   "orderOverride": null,
+   "totalPathDE": 15.0,
+   "stops": [
+    {
+     "lookId": "vintage-flim-tone-7-e96e54",
+     "name": "Vintage Flim Tone (7)",
+     "source": "The Ultimate Preset Bundle - Huliluts/The Ultimate Preset Bundle - Huliluts.zip -> The Ultimate Preset Bundle - Huliluts/Trending/Vintage Flim/Mobile Presets/Vintage Flim Tone (7).dng",
+     "stepFromPreviousDE": 11.02,
+     "nearDuplicateOfPrevious": false
+    },
+    {
+     "lookId": "03-black-and-white-03-d5341f",
+     "name": "03 Black and White 03",
+     "source": "WithLuke studios/Master Lightroom Presets Collection/1 Desktop/Desktop (XMP)/Black and White Lightroom Desktop Mobile Presets/03 Black and White 03.xmp",
+     "stepFromPreviousDE": 1.62,
+     "nearDuplicateOfPrevious": true
+    },
+    {
+     "lookId": "11-black-and-white-11-f6f246",
+     "name": "11 Black and White 11",
+     "source": "WithLuke studios/Master Lightroom Presets Collection/1 Desktop/Desktop (XMP)/Black and White Lightroom Desktop Mobile Presets/11 Black and White 11.xmp",
+     "stepFromPreviousDE": 2.36,
+     "nearDuplicateOfPrevious": false
+    }
+   ]
+  }
+ ]
+}

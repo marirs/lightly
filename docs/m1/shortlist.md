@@ -2,7 +2,9 @@
 
 Status: **provisional, for review.** Chosen by Claude from the user's collection. Nothing here is validated against Lightroom yet. The Lightroom export kit (`experiments/presets/lr_kit/`) exists to validate exactly this list.
 
-**Shape:** 18 Looks in 5 categories. Each category's stepped slider is *Auto* followed by its Looks, ordered by increasing strength.
+**Shape:** 18 Looks in 5 categories. Each category's stepped slider is *Auto* followed by its Looks as discrete stops. The category labels are provisional.
+
+**Order (superseded):** the tables below list the Looks by increasing strength, which is how they were *picked*. The slider does not use that order: it is not an intensity control. The browse order is in `experiments/presets/look_pack/catalog.json`: the shortest visual path from Auto through the category's presets, so each step is the smallest change still available.
 
 | Category | Looks | Stops incl. Auto |
 |---|---|---|
