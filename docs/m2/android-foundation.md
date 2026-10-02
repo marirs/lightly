@@ -457,3 +457,29 @@ Failing before (old rule behind the new API): 4 policy tests (`failing-before/la
 | Same, book posture (`adb emu posture 2`) | Photo 0–1038 px, panel 1038–2076 px: photo stays left of the hinge | `07-…png` |
 
 While a different preset is previewed during a drag, the Strength label still shows the committed value (40%) rather than the preview's 100%. The photo shows the preview correctly; the label follows the committed Look by design (Strength belongs to it), noted for the design review.
+
+
+## 9.10 First run on the physical dev phones (2026-10-02, after 9b1fcd8)
+
+| Phone | SoC / GPU | Android | Result |
+|---|---|---|---|
+| Nothing A069 (002843623001047) | Qualcomm SM7635 / Adreno | 16 | Pass |
+| motorola edge 60 (ZY22MQNLBJ) | MediaTek MT6878 / Mali | 15 | Pass |
+
+The same steps ran on both phones:
+- Before install, the launcher-icon check and the Look-pack check passed. The launcher shows the Lightly icon.
+- The real system photo picker opened, and the editor started on "Original · 1 of 5" with the Auto-unavailable notice.
+- Warm > Nordic Tone (10) applied.
+- Strength went to 44% while Save copy stayed visible.
+- Compare, Undo, Redo, Reset and an Undo of the Reset all gave the expected states.
+- Save copy wrote a new 3000×2000 JPEG. The original's sha256 was unchanged.
+- logcat showed no crashes and no ANRs.
+
+Evidence: `~/.codex/artifacts/lightly/review-d5690dd-fixes/devices/`.
+
+**Still pending on hardware:**
+- the GLES renderer, because the app still renders on the CPU;
+- on-device Auto inference, because no model ships;
+- picker access across a reboot or force-stop;
+- timing and memory measurements. The roughly 11 s Save copy time is wall-clock time with the CPU renderer, not a benchmark;
+- foldable hinge behaviour.
