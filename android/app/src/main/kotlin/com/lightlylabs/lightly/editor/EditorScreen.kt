@@ -119,7 +119,9 @@ fun EditorContent(ui: EditorUiState, viewModel: EditorViewModel, hinges: List<Wi
             .semantics { testTagsAsResourceId = true },
     ) {
         val hinge = hinges.firstOrNull()?.toEditorHinge(originInWindow, density)
-        val layout = EditorLayoutPolicy.decide(maxWidth.value, maxHeight.value, density.fontScale, hinge)
+        // The preview is decoded upright (EXIF applied), so its shape is the photo's displayed shape.
+        val photoAspectRatio = ui.preview?.let { it.width.toFloat() / it.height }
+        val layout = EditorLayoutPolicy.decide(maxWidth.value, maxHeight.value, density.fontScale, hinge, photoAspectRatio)
         val availableHeight = maxHeight
         val panelScroll = rememberScrollState()
         val photo: @Composable (Modifier) -> Unit = { modifier -> PhotoArea(ui, modifier, viewModel::describeLook, viewModel::holdCompare) }

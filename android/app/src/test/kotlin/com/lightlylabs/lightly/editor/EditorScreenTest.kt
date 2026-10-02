@@ -143,7 +143,19 @@ class EditorScreenTest {
 
     @Test
     @Config(qualifiers = "w800dp-h1280dp")
-    fun `tablet portrait - side panel`() {
+    fun `tablet portrait with a landscape photo - controls below, the photo uses the full width`() {
+        showReadyEditor() // the test photo is 60 x 40, landscape
+        val photo = bounds(EditorTags.PHOTO)
+        val panel = bounds(EditorTags.PANEL)
+        val root = compose.onRoot().getBoundsInRoot()
+
+        assertTrue(photo.bottom <= panel.top, "panel $panel is below photo $photo")
+        assertEquals(root.width.value, photo.width.value, 0.5f)
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp")
+    fun `tablet landscape with a landscape photo - side panel`() {
         showReadyEditor()
         val photo = bounds(EditorTags.PHOTO)
         val panel = bounds(EditorTags.PANEL)
@@ -171,9 +183,12 @@ class EditorScreenTest {
     fun `foldable lying flat - a non-separating fold does not split the layout`() {
         val density = RuntimeEnvironment.getApplication().resources.displayMetrics.density
         showReadyEditor(listOf(WindowHinge(Rect(420f * density, 0f, 420f * density, 880f * density), isVertical = true, separatesContent = false)))
+        val photo = bounds(EditorTags.PHOTO)
         val panel = bounds(EditorTags.PANEL)
 
-        assertTrue(panel.width.value in 320f..380f, "panel width ${panel.width}")
+        // A landscape photo is shown larger with the controls below; the photo may span the flat fold.
+        assertTrue(photo.bottom <= panel.top, "panel $panel is below photo $photo")
+        assertTrue(photo.left.value < 420f && photo.right.value > 420f, "photo $photo spans the flat fold")
     }
 
     @Test

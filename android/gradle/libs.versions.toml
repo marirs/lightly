@@ -14,7 +14,7 @@ lifecycle = "2.10.0"
 junit = "4.13.2"
 robolectric = "4.16.1"
 androidxTestCore = "1.7.0"
-# WindowManager: FoldingFeature (hinge / posture) and WindowSizeClass breakpoints for the editor layout.
+# WindowManager: FoldingFeature (hinge / posture) for the editor layout.
 window = "1.5.0"
 
 [libraries]
@@ -28,7 +28,6 @@ compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 window = { module = "androidx.window:window", version.ref = "window" }
-window-core = { module = "androidx.window:window-core", version.ref = "window" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
 lifecycle-viewmodel-savedstate = { module = "androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "lifecycle" }

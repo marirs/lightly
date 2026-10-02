@@ -58,7 +58,6 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.window)
-    implementation(libs.window.core) // WindowSizeClass; window only exposes it at runtime
 
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.junit)
