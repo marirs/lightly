@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Existing Lightly BrandMark; kept within the adaptive icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M 63.00000,54.00000 L 84.00000,54.00000 M 60.36396,60.36396 L 72.24335,72.24335 M 54.00000,63.00000 L 54.00000,84.00000 M 47.63604,60.36396 L 35.75665,72.24335 M 45.00000,54.00000 L 24.00000,54.00000 M 47.63604,47.63604 L 35.75665,35.75665 M 54.00000,45.00000 L 54.00000,24.00000 M 60.36396,47.63604 L 72.24335,35.75665"
+        android:strokeColor="#FAFAF7" android:strokeWidth="2.1"
+        android:strokeLineCap="round" />
+</vector>
