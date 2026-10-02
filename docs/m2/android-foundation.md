@@ -158,7 +158,7 @@ Baking O1+O2 into one 33³ LUT exceeds the 2/255 tolerance on 2 of the 23 golden
   - writing the recovery snapshot on every commit and the "Continue editing?" UX (M4);
   - the "Discard edits?" dialog;
   - thumbnails;
-  - adaptive layout, haptic detents, crossfade and full accessibility.
+  - crossfade and full accessibility (adaptive layout and haptic detents landed in §9).
 - **Source orientation:** `SourceRef.orientation` is recorded as 1 because ImageDecoder returns upright frames. Recording the file's EXIF value is M3.
 - **Export metadata:** sRGB ICC embedding, EXIF orientation 1, safe-metadata copy and the location setting (U7).
 - **Spatial operators (O3):** grain, vignette and local contrast. `TilePlan` has no apron; O3 must extend it.
@@ -167,7 +167,7 @@ Baking O1+O2 into one 33³ LUT exceeds the 2/255 tolerance on 2 of the 23 golden
   - the `feature-editor` module;
   - Hilt;
   - the `contracts/` directory (M2.1, shared with iOS).
-- **Compose UI tests and instrumented tests.** None yet. The §8.4 emulator run is a manual, scripted check, not a test in the build.
+- **Instrumented tests.** None yet. (Robolectric Compose UI tests exist since §9: `EditorScreenTest`.) The §8.4 emulator run is a manual, scripted check, not a test in the build.
 
 ## 7. Notes
 
@@ -208,12 +208,12 @@ Failing before the fix (against the API skeleton): grant on pick `expected:<[ret
 
 Looks come from the **Look pack** built from the curated preset collection (`experiments/presets/look_pack/`, spec D5, D6, §4.5). The procedural `PlaceholderLookBook` and the debug/release `BundledLookBook` split are gone; formula LUTs survive only as a test fixture (`app/src/test/.../FixtureLookPack.kt`) that writes tiny packs in the real format.
 
-- **Loader** (`LookPackLoader`): reads `lookpack/manifest.json` from app assets. Format `lightly-look-pack` v1, `lutDimension` 33 and `lutEncoding` `rgba-float32-red-fastest` are required; anything else, a missing manifest or bad JSON gives an empty `LookBook` with `unavailableReason`. Each Look's LUT must exist, be 574,992 bytes and match its `lutSha256`; a failing Look is dropped and listed in `LookBook.problems` (logged under `LightlyLooks`), and a category left empty is dropped too. Unsafe `lutFile` paths (absolute, `..`) are refused.
+- **Loader** (`LookPackLoader`): reads `lookpack/manifest.json` from app assets. Format `lightly-look-pack` v1 at the time (v2 since §9.2), `lutDimension` 33 and `lutEncoding` `rgba-float32-red-fastest` are required; anything else, a missing manifest or bad JSON gives an empty `LookBook` with `unavailableReason`. Each Look's LUT must exist, be 574,992 bytes and match its `lutSha256`; a failing Look is dropped and listed in `LookBook.problems` (logged under `LightlyLooks`), and a category left empty is dropped too. Unsafe `lutFile` paths (absolute, `..`) are refused.
 - **Order and labels**: categories and stops keep manifest order (the catalog's browse order). Labels are pack data; the editor keys categories by the opaque `id` and has no category names of its own. The default category is the pack's first; a saved `editor.category` the pack no longer has falls back to it.
 - **Slider**: stop 0, then one stop per preset, labelled with the preset's `name` verbatim. It picks a preset and is never an intensity control: moving between presets keeps the committed Look's strength (100% only when coming from no Look). The separate Strength slider is unchanged. TalkBack: "Warm, Nordic Tone (10), 3 of 5".
 - **Stop 0 name**: "Auto" only while an Auto correction is applied (`AutoStatus.Applied` and Auto strength > 0); otherwise "Original" (no model in the build, model unavailable, Use original, Auto strength 0). Visible label and TalkBack use the same name ("Warm, Original, 1 of 5").
-- **Honest status**: while any Look is `lr-model-approximation` or not `validated` (all 18 today), the editor shows "Looks are approximate conversions, not yet checked against Lightroom." (iOS wording). Pack LUTs omit spatial operators (clarity, texture, vignette, grain) by design; nothing here claims Lightroom fidelity.
-- **Persistence**: `LookRef(lookId, lookVersion: String, strength)`. `lookVersion` is the pack's version string (changes with the LUT), so `EditState.CURRENT_SCHEMA` is now **2**; a schema 1 edit is dropped and the photo develops again. Pack IDs depend only on the preset, so relabelling, reordering or regrouping categories does not affect a restored edit (tested with two fixture manifests). An unknown (id, version) still shows "Look unavailable; showing Auto." iOS must make the same `lookVersion` change.
+- **Honest status** (format 1 wording; §9.2 drives it from the format 2 `status`): while any Look is `lr-model-approximation` or not `validated` (all 18 today), the editor shows "Looks are approximate conversions, not yet checked against Lightroom." (iOS wording). Pack LUTs omit spatial operators (clarity, texture, vignette, grain) by design; nothing here claims Lightroom fidelity.
+- **Persistence**: `LookRef(lookId, lookVersion: String, strength)`. `lookVersion` is the pack's version string (changes with the LUT), so `EditState.CURRENT_SCHEMA` is now **2**. (Superseded in §9.1: a schema 1 edit is now migrated, not dropped.) Pack IDs depend only on the preset, so relabelling, reordering or regrouping categories does not affect a restored edit (tested with two fixture manifests). An unknown (id, version) showed "Look unavailable; showing Auto." (superseded by the unavailable / changed rules in §9.1).
 - **No pack**: the build succeeds and the editor shows "No Looks are available in this build."
 - DEFERRED: loading the pack off the main thread with lazy LUT decode (today ~10 MB of floats are read and hashed when the editor environment is created); the `{oldId → newId}` migration table.
 
@@ -259,3 +259,155 @@ Not shown by the emulator run, and still **PENDING** or unverified:
 - GPU rendering (the app previews with the CPU renderer), device performance and memory;
 - spatial operators (grain, vignette, local contrast) and their export fidelity;
 - Auto: unavailable in the app, because no production basis and no inference engine are bundled. Research (FiveK-derived) weights are never bundled.
+
+## 9. Editor milestone (2026-10-02): saved-edit contract, pack format 2, agreed UX
+
+Worked directly on `master`. Commits are listed in the milestone report. Evidence (screenshots, screen recordings, logs, APK checks, failing-before logs) is outside the repo in `~/.codex/artifacts/lightly/editor-milestone-20261002/android/`.
+
+### 9.1 Saved-edit compatibility (`shared/fixtures/edit-state/`, spec §4.5)
+
+- **Shared fixtures, no private copies.** `core-session` and `app` tests read `shared/fixtures/edit-state/*.json` through the `lightly.editStateFixturesDir` test system property, which `android/build.gradle.kts` sets for every module. The directory is a hashed task input, so editing a fixture re-runs the tests. `v2-*` encodes are byte-exact against the files.
+- **Schema 1 is migrated, not dropped** (v3 differs from M2). `SavedEdits` is the only decode path, for SavedStateHandle, recovery snapshots and the fixtures. It turns a schema 1 `look.lookVersion` integer `n` into `"legacy-v1-<n>"`, migrates every history entry of a session, and leaves everything else unchanged. Decoding stays strict otherwise: unknown keys, schema 3, an out-of-range strength and a non-integer schema 1 version are rejected. The old test "a schema 1 edit … is rejected" was replaced.
+- **Resolution** (`LookBook.resolve`, `LookIssue`):
+  - an unknown `lookId` makes the Look *unavailable*;
+  - a known id with another version (every `legacy-v1-*`) makes it *changed*;
+  - in both cases the photo renders without the Look, the `LookRef` and the history are kept, and a notice is shown. Strength is hidden;
+  - "Use current version" (changed only) is an explicit, undoable step that keeps the Look and its strength;
+  - nothing is substituted, and Save copy writes what is shown, so the notice stays after saving.
+  Tests cover re-saving (compare, category change, Save copy, a new Look then Undo, process death), which writes the original `LookRef` back unchanged, and Undo after "Use current version", which returns to the unrendered changed state with the old version recorded.
+
+### 9.2 Look pack format 2
+
+`LookPackLoader` reads `formatVersion` 2 only. A format 1 pack is refused as a whole, with a reason that names the format. Each Look keeps `conversion`, `globalColour {status, evidence}`, `fullRecipe {status, evidence}` and `status` verbatim. A stop that lacks any of them is dropped and reported.
+
+The status is re-checked with the builder's `promoted_status` rule. A claim that its own evidence does not back (for example a model-derived LUT marked `validated`) is demoted and reported, and an unknown status reads as `approximate`. The notice follows status:
+- any `approximate` Look → "Looks are approximate conversions, not yet checked against Lightroom.";
+- only `global-colour-validated` → a separate notice that effects may be missing;
+- all `validated` → none.
+
+A test loads the real bundled pack when present: format 2, 18 Looks, no problems, names verbatim, both Mono black-and-white presets.
+
+### 9.3 UX audit (before this milestone's UX work, at `e8ddfd9`)
+
+Status: **implemented**, **partial** or **missing**. File references are under `android/app/src/main/kotlin/com/lightlylabs/lightly/editor/` unless noted.
+
+| # | Agreed behaviour | Before | Where / why | After (this milestone) |
+|---|---|---|---|---|
+| 1 | Photo-first: controls below the photo on compact width | partial | `EditorScreen.kt`: one `Column`, photo `weight(1f)`, but the controls were not capped or scrolled and could squeeze the photo | `EditorLayoutPolicy` `Stacked`: panel ≤ 40% (58% from 1.3× font scale), always scrolls |
+| 2 | Side panel 320–380 dp on expanded width / landscape / tablet / unfolded foldable | missing | single vertical layout; `// DEFERRED (M3/M4): adaptive layout` | `SideBySide` from WindowSizeClass (`BREAKPOINTS_V1`, medium+) or landscape; panel `clamp(0.32·w, 320, 380)` |
+| 3 | Foldable book / tabletop: never place the photo across the hinge | missing | no WindowManager dependency | `WindowInfoTracker` → `FoldingFeature` in `MainActivity`; separating or half-opened vertical hinge: photo pane ends at the hinge; horizontal: photo above it |
+| 4 | Categories from the pack | implemented | `LookBook`, `LookPackLoader`, chips keyed by opaque id | unchanged |
+| 5 | Discrete stops select named presets; stop 0 "Original" unless Auto applied | implemented | `SteppedLookSlider` (Material `Slider` with `steps`), `EditorViewModel.baseStopName` | custom `SteppedLookSlider.kt` (same contract) |
+| 6 | Visible stop markers | partial | Material step ticks only, faint and version-dependent | one marker node per stop, thumb snaps to markers, haptic tick per detent |
+| 7 | Selected name **and position** ("Nordic Tone (10) · 3 of 5") | partial | name only; position only in TalkBack `stateDescription` | `EditorViewModel.stopCaption`, shown above the slider |
+| 8 | Strength secondary, only with a Look; drag previews, release commits one step | partial | behaviour implemented; shown for any committed Look, including unrendered ones | shown only for a Look that renders; smaller label |
+| 9 | Undo / Redo | implemented | `EditActions` row | unchanged |
+| 10 | Compare: hold and toggle | partial | both called `setCompare`, so releasing a hold switched the toggle off | `holdCompare` (transient) separate from the persisted toggle |
+| 11 | Compare: clear "Original" indicator on the photo | missing | only the TalkBack label changed | "Original" pill on the photo area whenever it shows the Original |
+| 12 | Reset undoable | implemented | `EditSession.resetToAuto` | unchanged; disabled when there is no Look |
+| 13 | Prominent Save copy | partial | one filled button among six in a `FlowRow` | full-width filled button; "Choose another photo" demoted to a text button |
+| 14 | Compact status notices | partial | up to four full-width texts in error colour | one compact notice block (Look issue + action, Auto status, pack status, save result with Cancel) |
+| 15 | Retry / Continue only for genuine Auto failures | implemented | `DevelopFailed` only; the no-model path goes straight to Ready | unchanged |
+| 16 | Large text: panel scrolls, photo stays visible, names wrap | partial | names wrapped; the panel did not scroll | panel always scrolls; the photo keeps > 40% |
+| 17 | Real 18-preset pack, names verbatim, both Mono presets | partial | names verbatim, but the loader read format 1 only, so the format 2 pack loaded **no Looks** | format 2 loader; real-pack test |
+| 18 | Unavailable / changed Look notices and "Use current version" | missing | one "Look unavailable; showing Auto." for both cases | §9.1 |
+
+Not closed (deferred): stop names under every marker when they fit (only the current name is shown), the "Discard edits?" dialog, crossfade, thumbnails. The "Original" pill sits at the photo area's corner, which on a letterboxed photo is outside the image.
+
+v3 differs from the spec's 35% compact-panel cap. On the Pixel 9 Pro AVD the Ready panel is ~1050 px of 2628 px (40%): notices, chips, caption, slider, actions and Save copy. At 35% (920 px), Save copy would need scrolling. The panel scrolls in any case.
+
+### 9.4 Tests
+
+- `EditorViewModelTest`: added tests for resolution, preservation, compare hold vs toggle, the caption, and Reset / Redo.
+- `EditorLayoutPolicyTest` (JVM, 9 tests).
+- `EditorScreenTest` (Robolectric Compose, 10 tests) with a catalog-shaped pack: the real 5 categories, 18 names and lookIds, with fixture LUTs. It covers portrait, landscape, tablet, book posture, a flat fold, 2× font, markers and the caption, Strength, the Compare label, and the no-model notices.
+- `LookPackLoaderTest`: format 2 and the real pack.
+- Core-session tests read the shared fixtures.
+
+Failing-before logs are in `failing-before/`:
+- core-session migration: 5 failed;
+- app resolution: 4 failed;
+- format 2: 39 failed;
+- compare, caption and reset: 4 failed;
+- a mutation that forces the stacked layout: 11 failed.
+
+Full run: see §9.5.
+
+### 9.5 Installed app on emulators (emulator-only; evidence in `~/.codex/artifacts/lightly/editor-milestone-20261002/android/`)
+
+**Before installing** (`apk-checks/`):
+- `verify{Debug,Release}LauncherIcon` passed (debug `res/mipmap-anydpi-v26/ic_launcher.xml`, release `res/BW.xml`);
+- both APKs contain `assets/lookpack/manifest.json` with `formatVersion` 2 and 18 LUTs, all `status: approximate`;
+- no model, basis or ONNX file is in either APK.
+
+**Pixel_9_Pro AVD** (API 36, arm64, `-read-only`, debug APK):
+
+| Step | Result | Evidence |
+|---|---|---|
+| Launcher | Lightly icon in the app drawer (not the default robot) | `screens/00-launcher-app-drawer.png` |
+| Empty → Photo Picker | "Choose a photo" opens the system picker; `landscape_03.jpg` (3000×2000) picked | `01-empty.png`, `02-photo-picker.png`, `recordings/flow1-launch-pick.mp4` |
+| Ready, no model | Straight to editing, no Retry. One compact notice block (Auto unavailable + approximate Looks), 5 pack categories, "Original · 1 of 5", 5 visible markers, prominent Save copy. Panel 1051 of 2628 px (40%) | `03-ready-portrait.png` |
+| Preset, category 1 | Warm → tap marker 3: "Nordic Tone (10) · 3 of 5", Strength appears | `04-warm-nordic-stop3.png` |
+| Preset, category 2, by drag | Mono: a real drag from stop 1 to stop 3 gives "03 Black and White 03 · 3 of 4" | `05-mono-03bw-stop3-dragged.png`, `recordings/flow2-…mp4` |
+| Strength | Drag to 46%: partial desaturation | `06-strength-46.png` |
+| Compare | Toggle shows the Original with an "Original" label on the photo area | `07-compare-original-label.png` |
+| Undo / Redo | Undo → Strength 100% (full B&W), Redo enabled; Redo → 46% | `08-…png`, `09-…png`, `recordings/flow3-…mp4` |
+| Reset | "Original · 1 of 4", Strength hidden, Reset disabled, Undo enabled | `10-reset-original.png` |
+| Save copy | Film → Retro Wedding Tone (15), Save copy → "Saved as a new photo. Original unchanged." New MediaStore row `Lightly_1790931317083.jpg`, 3000×2000, `is_pending=0`, `Pictures/Lightly/`, owner `com.lightlylabs.lightly`, JPEG SOI `ff d8`. The original's sha256 on the device is `f424094c…be52` before and after, equal to the host file | `11-…png`, `12-saved-notice.png`, `13-saved-copy-….jpg`, `logs/save-copy-mediastore.txt`, `recordings/flow4-…mp4` |
+| Phone landscape | Rotation keeps the session. Side panel 1896–2856 px = 320 dp, photo 156–1896 px | `20-layout-phone-landscape.png` |
+| Font scale 2.0 | Photo ≈ 42% of the height. The panel scrolls (it keeps its scroll position). "Retro Wedding Tone (15) · 2 of 5" wraps | `21-layout-phone-portrait-font-2.0.png` |
+
+**Lightly_Pixel_Tablet AVD** (`pixel_tablet` profile, created from the installed `android-36.1` image, 2560×1600 at 320 dpi):
+
+| Layout | Result | Evidence |
+|---|---|---|
+| Tablet landscape | Panel 1800–2560 px = 380 dp beside the photo; "Adventure Tone (3) · 4 of 5" | `22-layout-tablet-landscape.png` |
+| Tablet portrait | Panel 960–1600 px = 320 dp beside the photo (800 dp is medium width). A landscape photo leaves empty space above and below it; acceptable under the agreed rule, worth a design review | `23-layout-tablet-portrait.png` |
+
+**Lightly_Pixel_9_Pro_Fold AVD** (`pixel_9_pro_fold` profile, inner display 2076×2152 at 390 dpi; screenshots need `screencap -d <display id>`):
+
+| Posture | Result | Evidence |
+|---|---|---|
+| Unfolded, flat | The fold does not separate, so the normal rule applies: a 320 dp side panel (1296–2076 px) | `24-layout-foldable-unfolded-flat.png` |
+| Book posture (`adb emu posture 2`, `HALF_OPENED`) | FoldingFeature is a vertical hinge at x = 1038 px. Photo 0–1038 px, panel 1038–2076 px: the photo stays wholly in the left pane. The edit survived the posture change | `25-layout-foldable-book-posture.png` |
+
+Not captured on an emulator: tabletop posture (covered by `EditorLayoutPolicyTest` only) and press-and-hold Compare (unit-tested; `adb input` cannot hold while taking a screenshot reliably on this host). The `FATAL EXCEPTION` lines in `logs/foldable-logcat-app.txt` come from the `uiautomator dump` tool timing out under host load, not from the app. A "System UI isn't responding" dialog appeared once on the foldable for the same reason.
+
+Findings on the emulator:
+- **Pack defect (outside `android/`, reported, not fixed):** `nordic-tone-10-7b6a3a.f32` maps the r = g = 0 axis (inputs (0, 0, b), b = 1…8 of 32) to bright blue (0.017, 0.158, 0.877). On `landscape_03.jpg` this shows as blue blotches in the darkest foliage. A scan of all 18 LUTs (`logs/lut-dark-blue-defect-scan.txt`) finds it only in Nordic Tone (10). The large shifts in the Mono LUTs are expected desaturation. The fix belongs in `experiments/presets/look_pack/` (the model-approximation LUT for that preset).
+- **CPU preview latency:** the app still previews with `CpuLutPassRenderer` (debug build, full display proxy). On this heavily loaded host (load average ~38), a Look change took 10–25 s to appear. Saving 3000×2000 took about 1 minute. This is not a device measurement; GL rendering is still PENDING (§5).
+
+### 9.6 Test totals
+
+`./gradlew test assembleDebug assembleRelease` with JDK 25: **225 tests, 0 failures**. Before this milestone there were 185.
+
+| Module | Tests |
+|---|---|
+| app | 94 |
+| core-render | 43 |
+| core-session | 31 |
+| core-export | 28 |
+| core-model | 17 |
+| core-decode | 12 |
+
+Both APKs built, and both launcher-icon checks passed. Log: `logs/final-gradle-run.txt`.
+
+### 9.7 Hardware-only limitations (still PENDING, phones disconnected)
+
+- **GPU renderer on Adreno / Mali:** `GlLutPassRenderer` is still not wired or validated. The app previews and exports with the CPU reference renderer, which is what made the emulator preview slow (§9.5).
+- **ONNX Runtime:** no inference engine and no licensed basis ship, so Auto stays unavailable. No research weights are bundled (APK checked). Nothing in the UI calls an unchanged original or a fixed filter "Auto".
+- **Real Photo Picker and restart:** the persisted grant across a force-stop or a reboot, and the API 29 fallback, need the real phones.
+- **Performance and memory:** preview latency with the GL path, 48 MP export peak (≤ 600 MB target), and haptic detent feel. Emulator timings on a loaded host are not evidence.
+- **Physical foldables:** hinge occlusion (`OcclusionType.FULL`) and the real posture sensors. The emulator hinge has zero width.
+
+### 9.8 Deferred and blockers
+
+- **Blocker (outside `android/`):** the `nordic-tone-10` LUT maps near-black blue-axis inputs to bright blue (§9.5). It needs a fix in the pack builder or that preset's conversion, then a pack rebuild. The app renders the LUT as shipped.
+- **DEFERRED:**
+  - stop names under the markers when they fit;
+  - an "Original" label anchored to the image bounds rather than the photo area;
+  - the "Discard edits?" dialog;
+  - crossfade and thumbnails;
+  - the recovery snapshot written on every commit, with its "Continue editing?" UX (M4);
+  - loading the pack off the main thread.
+- The created AVDs `Lightly_Pixel_Tablet` and `Lightly_Pixel_9_Pro_Fold` are kept for re-runs. Delete them with `avdmanager delete avd -n <name>`.
