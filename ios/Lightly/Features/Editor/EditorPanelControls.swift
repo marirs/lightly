@@ -82,8 +82,9 @@ struct LookControls: View {
 /// It selects a preset; it is never an intensity control (spec D6), so there is no value between
 /// two stops, and every stop has a visible marker.
 ///
-/// Dragging previews each stop as it is reached; lifting the finger commits; a tap commits the
-/// nearest stop. VoiceOver/Switch Control increments commit directly, one stop per step (spec §2
+/// Dragging moves the selection by the distance dragged (like a thumb: a drag to the right never
+/// selects a stop further left), previewing each stop as it is reached; lifting the finger commits;
+/// a tap commits the stop under the finger. VoiceOver/Switch Control increments commit directly, one stop per step (spec §2
 /// step 4: "a keyboard/accessibility increment").
 struct SteppedLookSlider: View {
     let viewModel: LUTEditorViewModel
@@ -189,6 +190,8 @@ struct SteppedTrack: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var dragAxis: Axis?
+    /// The selected stop when the press began; a drag moves relative to it.
+    @State private var dragStartIndex = 0
     @GestureState private var isPressing = false
 
     var body: some View {
@@ -222,7 +225,12 @@ struct SteppedTrack: View {
             .onChange(of: isPressing) { _, pressing in
                 // A new press starts unclassified. An ended press commits any preview left behind;
                 // after a normal release `onEnded` has already settled it and this does nothing.
-                if pressing { dragAxis = nil } else { onInterrupted() }
+                if pressing {
+                    dragAxis = nil
+                    dragStartIndex = selectedIndex
+                } else {
+                    onInterrupted()
+                }
             }
         }
         .frame(height: Self.height)
@@ -238,15 +246,18 @@ struct SteppedTrack: View {
                     if dy >= Self.axisDecisionDistance, dy >= dx { dragAxis = .vertical }
                 }
                 if dragAxis == .horizontal {
-                    onPreview(Self.nearestStop(to: value.location.x, positions: positions))
+                    onPreview(Self.stop(from: dragStartIndex, dragged: value.translation.width, positions: positions))
                 }
             }
             .onEnded { value in
                 defer { dragAxis = nil }
-                if dragAxis == .vertical {
+                switch dragAxis {
+                case .vertical:
                     onCancel()
-                } else {
-                    // A horizontal drag, or a tap that never moved far enough to decide.
+                case .horizontal:
+                    onSettle(Self.stop(from: dragStartIndex, dragged: value.translation.width, positions: positions))
+                case nil:
+                    // A tap that never moved far enough to decide: the stop under the finger.
                     onSettle(Self.nearestStop(to: value.location.x, positions: positions))
                 }
             }
@@ -258,6 +269,15 @@ struct SteppedTrack: View {
         guard count > 1 else { return [inset] }
         let usable = max(width - 2 * inset, 0)
         return (0..<count).map { inset + usable * CGFloat($0) / CGFloat(count - 1) }
+    }
+
+    /// `start` moved by `distance` points, one stop per stop spacing, clamped to the ends.
+    static func stop(from start: Int, dragged distance: CGFloat, positions: [CGFloat]) -> Int {
+        guard positions.count > 1 else { return 0 }
+        let spacing = positions[1] - positions[0]
+        guard spacing > 0 else { return start }
+        let moved = start + Int((distance / spacing).rounded())
+        return min(max(moved, 0), positions.count - 1)
     }
 
     static func nearestStop(to x: CGFloat, positions: [CGFloat]) -> Int {
@@ -627,15 +647,43 @@ struct EqualWidthRows<Item: Identifiable, Cell: View>: View {
     var body: some View {
         VStack(spacing: LightlySpacing.xs) {
             ForEach(rows.indices, id: \.self) { rowIndex in
-                HStack(spacing: LightlySpacing.xs) {
+                EqualWidthRowLayout(columns: perRow, spacing: LightlySpacing.xs) {
                     ForEach(rows[rowIndex]) { item in cell(item) }
-                    // Keeps a short last row's cells the same width as the
-                    // rows above.
-                    ForEach(0..<(perRow - rows[rowIndex].count), id: \.self) { _ in
-                        Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
-                    }
                 }
             }
+        }
+    }
+}
+
+/// One row of `columns` equal cells (a short row keeps the full rows' cell width).
+///
+/// Its ideal width is the widest cell's ideal width times the column count, so `ViewThatFits`
+/// only accepts an arrangement in which *every* label fits its equal share. v3 differs: an
+/// `HStack` reported the sum of the cells' widths, so five chips "fitted" a 320 pt side panel
+/// while "Natural" was truncated to "Nat…".
+struct EqualWidthRowLayout: Layout {
+    let columns: Int
+    let spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let columns = max(columns, 1)
+        let gaps = spacing * CGFloat(columns - 1)
+        let cellWidth: CGFloat
+        if let width = proposal.width {
+            cellWidth = max((width - gaps) / CGFloat(columns), 0)
+        } else {
+            cellWidth = subviews.map { $0.sizeThatFits(.unspecified).width }.max() ?? 0
+        }
+        let height = subviews.map { $0.sizeThatFits(ProposedViewSize(width: cellWidth, height: nil)).height }.max() ?? 0
+        return CGSize(width: proposal.width ?? cellWidth * CGFloat(columns) + gaps, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let columns = max(columns, 1)
+        let cellWidth = max((bounds.width - spacing * CGFloat(columns - 1)) / CGFloat(columns), 0)
+        for (index, subview) in subviews.enumerated() {
+            let x = bounds.minX + CGFloat(index) * (cellWidth + spacing)
+            subview.place(at: CGPoint(x: x, y: bounds.minY), proposal: ProposedViewSize(width: cellWidth, height: bounds.height))
         }
     }
 }

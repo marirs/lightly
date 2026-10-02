@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import XCTest
 @testable import Lightly
 
@@ -158,6 +159,28 @@ final class EditorLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(photo.height, canvas.height * 0.6)
     }
 
+    /// In a 320 pt side panel, five pack categories must not truncate: the chips wrap to more
+    /// rows instead (a regression seen on iPad, "Nat…").
+    func testCategoryChipsWrapRatherThanTruncateInTheSidePanel() async throws {
+        let labels = ["Natural", "Warm", "Cool", "Film", "Mono"]
+        let fixture = try LookPackFixture.write(labels.enumerated().map { index, label in
+            LookPackFixture.Category(id: "cat-\(index)", label: label, looks: [
+                LookPackFixture.Look(id: "look-\(index)", name: "Look \(index)", transform: LookPackFixture.warm)
+            ])
+        })
+        defer { fixture.remove() }
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1, lookBook: fixture.load().book)
+        let probe = layout(viewModel, size: .large, canvas: CGSize(width: 834, height: 1_210))
+        defer { probe.tearDown() }
+
+        let font = UIFont.preferredFont(forTextStyle: .caption1, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large))
+        for (index, label) in labels.enumerated() {
+            let chip = try XCTUnwrap(probe.frame("editor.category.cat-\(index)"))
+            let needed = (label as NSString).size(withAttributes: [.font: font]).width + 2 * LightlySpacing.xs
+            XCTAssertGreaterThanOrEqual(chip.width, needed, "\(label) would be truncated in a \(chip.width) pt chip")
+        }
+    }
+
     // MARK: - Policy
 
     func testLayoutPolicy() {
@@ -225,5 +248,11 @@ final class EditorLayoutTests: XCTestCase {
         XCTAssertEqual(SteppedTrack.nearestStop(to: positions[3] + 10, positions: positions), 3)
         XCTAssertEqual(SteppedTrack.nearestStop(to: -50, positions: positions), 0)
         XCTAssertEqual(SteppedTrack.nearestStop(to: 999, positions: positions), 4)
+        // Drags are relative to the stop where they began and clamp at the ends.
+        let spacing = positions[1] - positions[0]
+        XCTAssertEqual(SteppedTrack.stop(from: 1, dragged: 2 * spacing + 5, positions: positions), 3)
+        XCTAssertEqual(SteppedTrack.stop(from: 4, dragged: 40, positions: positions), 4, "Right from the last stays last")
+        XCTAssertEqual(SteppedTrack.stop(from: 2, dragged: -10 * spacing, positions: positions), 0)
+        XCTAssertEqual(SteppedTrack.stop(from: 2, dragged: 0.4 * spacing, positions: positions), 2)
     }
 }

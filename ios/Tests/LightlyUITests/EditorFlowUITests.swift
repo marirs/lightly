@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// End-to-end verification against a running app on a simulator.
@@ -228,6 +229,53 @@ final class EditorFlowUITests: XCTestCase {
         capture(named: "c-large-text-long-name")
     }
 
+    /// Photo first in every orientation: on a phone in portrait the controls sit below the
+    /// photo; in landscape (and on iPad in either orientation) they move beside it. Screenshots
+    /// of each orientation go to `LIGHTLY_UI_TEST_OUTPUT`.
+    func testLayoutFollowsOrientation() throws {
+        XCUIDevice.shared.orientation = .portrait
+        try openFirstLibraryPhoto()
+        XCTAssertTrue(app.descendants(matching: .any)["editor.autoUnavailableNotice"].waitForExistence(timeout: timeout))
+        let pack = try requireBundledPack()
+        let category = try XCTUnwrap(pack.categories.first { !$0.names.isEmpty })
+        app.buttons["editor.category.\(category.id)"].tap()
+        let slider = app.descendants(matching: .any)["editor.lookSlider"]
+        dragSlider(slider, from: 0, to: 1, stopCount: category.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
+        let isPad = UIDevice.current.userInterfaceIdiom == .pad
+        let device = isPad ? "ipad" : "iphone"
+
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
+            if orientation.isLandscape && !isPad {
+                // An iPhone simulator with rotation lock on keeps every app in portrait (Safari
+                // too), which says nothing about the app; the screenshot shows which happened.
+                XCUIDevice.shared.orientation = orientation
+                let rotated = NSPredicate { _, _ in self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height }
+                if waitForRotation(rotated) == false {
+                    capture(named: "layout-\(device)-landscape-not-rotated")
+                    throw XCTSkip("The simulator did not rotate (rotation lock?); landscape is covered by EditorLayoutTests.")
+                }
+            }
+            XCUIDevice.shared.orientation = orientation
+            let photo = app.descendants(matching: .any)["editor.photo"]
+            // Rotation animates; wait until the layout settles on the expected arrangement.
+            let besidePhoto = isPad || orientation.isLandscape
+            let predicate = NSPredicate { _, _ in
+                besidePhoto ? slider.frame.minX >= photo.frame.maxX : slider.frame.minY >= photo.frame.maxY
+            }
+            let settled = XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 10) == .completed
+            XCTAssertTrue(settled, "\(device) \(orientation.rawValue): photo \(photo.frame), slider \(slider.frame)")
+            XCTAssertTrue(photo.isHittable, "The photo stays visible")
+            XCTAssertTrue(app.buttons["action.saveCopy"].isHittable, "Save copy stays reachable")
+            capture(named: "layout-\(device)-\(orientation.isLandscape ? "landscape" : "portrait")")
+        }
+    }
+
+    private func waitForRotation(_ predicate: NSPredicate) -> Bool {
+        XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 5) == .completed
+    }
+
     private var springboard: XCUIApplication {
         XCUIApplication(bundleIdentifier: "com.apple.springboard")
     }
@@ -296,9 +344,12 @@ final class EditorFlowUITests: XCTestCase {
         return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
     }
 
+    /// Scrolls the panel until `element` is hittable and clear of the bottom edge (the home
+    /// indicator's gesture area would otherwise take a drag that starts there).
     private func scrollPanelUntilHittable(_ element: XCUIElement, attempts: Int = 6) {
         var remaining = attempts
-        while !element.isHittable && remaining > 0 {
+        let safeBottom = app.windows.firstMatch.frame.maxY - 60
+        while (!element.isHittable || element.frame.maxY > safeBottom) && remaining > 0 {
             app.scrollViews.firstMatch.swipeUp(velocity: .slow)
             remaining -= 1
         }
@@ -366,12 +417,19 @@ final class EditorFlowUITests: XCTestCase {
 
         capture(named: "02b-system-photo-picker")
 
-        // First thumbnail: left column, just below the navigation bar.
-        grid.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.12)).tap()
-
+        // First thumbnail: left column, just below the navigation bar. On iPad the picker is a
+        // sheet with a sidebar on the left of the same scroll view, so its first thumbnail sits
+        // further right; that position is tried if the phone one selected nothing.
+        let photo = app.descendants(matching: .any)["editor.photo"]
+        var editorAppeared = false
+        for offset in [CGVector(dx: 0.17, dy: 0.12), CGVector(dx: 0.43, dy: 0.2)] where !editorAppeared {
+            guard grid.exists else { break }
+            grid.coordinate(withNormalizedOffset: offset).tap()
+            editorAppeared = photo.waitForExistence(timeout: 8)
+        }
         // The picker dismisses itself on selection; if it is still up, no photo
         // was hit and the library is probably empty.
-        let editorAppeared = app.descendants(matching: .any)["editor.photo"].waitForExistence(timeout: timeout)
+        editorAppeared = editorAppeared || photo.waitForExistence(timeout: timeout)
         guard editorAppeared else {
             throw XCTSkip(
                 """
