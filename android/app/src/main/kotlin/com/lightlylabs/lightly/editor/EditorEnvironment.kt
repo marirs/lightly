@@ -23,7 +23,10 @@ class LoadedPhoto(
 )
 
 fun interface PhotoLoader {
-    /** @throws Exception with a user-presentable message when the photo cannot be opened (LoadFailed). */
+    /**
+     * @throws PhotoAccessLostException when the photo can no longer be read (grant gone, item deleted).
+     * @throws Exception with a user-presentable message for any other failure (LoadFailed).
+     */
     suspend fun load(assetId: String): LoadedPhoto
 }
 
@@ -44,6 +47,8 @@ fun interface AutoDeveloper {
  */
 class EditorEnvironment(
     val photoLoader: PhotoLoader,
+    /** Persists read access to picked photos so a restore after process death can reopen them. */
+    val photoAccess: PhotoAccessGrants,
     val autoDeveloper: AutoDeveloper,
     val autoResolver: AutoLutResolver,
     val lookBook: LookBook,

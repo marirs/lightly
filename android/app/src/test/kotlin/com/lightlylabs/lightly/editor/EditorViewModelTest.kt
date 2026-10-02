@@ -76,6 +76,14 @@ class EditorViewModelTest {
         var previewRenders = 0
         val published = mutableListOf<String>()
         val written = mutableMapOf<String, ByteArrayOutputStream>()
+        val grants = RecordingGrants()
+    }
+
+    /** Records grant calls in order; [persistable] = false models a non-persistable picker URI. */
+    private class RecordingGrants(var persistable: Boolean = true) : PhotoAccessGrants {
+        val events = mutableListOf<String>()
+        override fun retain(assetId: String): Boolean { events += "retain $assetId"; return persistable }
+        override fun release(assetId: String) { events += "release $assetId" }
     }
 
     private fun TestScope.environment(
@@ -107,6 +115,7 @@ class EditorViewModelTest {
                 check(id == assetId)
                 LoadedPhoto(source, analysis, display, FullResolutionSource { fullResolution })
             },
+            photoAccess = fakes.grants,
             autoDeveloper = autoDeveloper ?: AutoDeveloper { _, analysisImage -> fakes.developedWith += analysisImage; fakes.developResult },
             autoResolver = RegistryAutoLutResolver(registry),
             lookBook = lookBook,
@@ -537,6 +546,92 @@ class EditorViewModelTest {
         advanceUntilIdle()
 
         assertEquals(photoBReady, observe(vm, handle))
+    }
+
+    // --- Read access to the picked photo across restarts (Codex finding 4) ------------------------
+
+    private fun savedEdit(): Map<String, Any> = mapOf(
+        EditorViewModel.KEY_ASSET to assetId,
+        EditorViewModel.KEY_SESSION to SessionJson.encodeToString(EditSession.serializer(), EditSession.start(source, auto).selectLook(lookBook.stops("Film")[0].ref())),
+    )
+
+    @Test
+    fun `picking a photo persists read access to it`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        readyViewModel(fakes)
+
+        assertEquals(listOf("retain $assetId"), fakes.grants.events)
+    }
+
+    @Test
+    fun `a photo whose grant cannot be persisted still opens for this process`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto)).apply { grants.persistable = false }
+        val vm = readyViewModel(fakes)
+
+        assertEquals(EditorPhase.Ready, vm.uiState.value.phase)
+    }
+
+    @Test
+    fun `switching photos releases the previous photo's grant, re-picking the same photo keeps it`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val vm = viewModel(SavedStateHandle(), environment(fakes, photoLoader = twoPhotoLoader(), autoDeveloper = twoPhotoDeveloper { DevelopResult.Developed(auto) }))
+
+        vm.openPhoto(assetId)
+        vm.openPhoto(assetId)
+        vm.openPhoto(assetB)
+        advanceUntilIdle()
+
+        // The new grant is taken before the old one is given back, so B is never unreadable.
+        assertEquals(listOf("retain $assetId", "retain $assetId", "retain $assetB", "release $assetId"), fakes.grants.events)
+    }
+
+    @Test
+    fun `restore with retained access reopens the photo and restores the session`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val handle = SavedStateHandle(savedEdit())
+
+        val vm = viewModel(handle, environment(fakes))
+        advanceUntilIdle()
+
+        assertEquals(EditorPhase.Ready, vm.uiState.value.phase)
+        assertEquals(lookBook.stops("Film")[0].ref(), vm.uiState.value.session!!.current.look)
+        assertTrue(fakes.grants.events.isEmpty(), "restore uses the grant persisted at pick time; it takes or drops nothing")
+    }
+
+    @Test
+    fun `restore after the grant was lost offers to choose the photo again`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val handle = SavedStateHandle(savedEdit())
+        val revoked = PhotoLoader { id ->
+            when (id) {
+                assetId -> throw PhotoAccessLostException(SecurityException("Permission Denial: reading $id requires a grant"))
+                else -> twoPhotoLoader().load(id)
+            }
+        }
+
+        val vm = viewModel(handle, environment(fakes, photoLoader = revoked, autoDeveloper = twoPhotoDeveloper { DevelopResult.Developed(auto) }))
+        advanceUntilIdle()
+
+        assertEquals(EditorPhase.PhotoAccessLost, vm.uiState.value.phase)
+        assertNull(vm.uiState.value.session, "the edit of an unreadable photo is not shown")
+        assertNull(handle[EditorViewModel.KEY_ASSET], "a later restart must not retry the dead URI")
+        assertNull(handle.get<String>(EditorViewModel.KEY_SESSION))
+        assertEquals(listOf("release $assetId"), fakes.grants.events, "the dead grant is given back")
+
+        // "Choose the photo again" → picker → openPhoto.
+        vm.openPhoto(assetB)
+        advanceUntilIdle()
+        assertEquals(EditorPhase.Ready, vm.uiState.value.phase)
+        assertEquals(sourceB, vm.uiState.value.session!!.current.source)
+    }
+
+    @Test
+    fun `any other load failure is still LoadFailed`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val vm = viewModel(SavedStateHandle(savedEdit()), environment(fakes, photoLoader = PhotoLoader { throw java.io.IOException("Unsupported image format") }))
+        advanceUntilIdle()
+
+        assertEquals(EditorPhase.LoadFailed("Unsupported image format"), vm.uiState.value.phase)
     }
 
     // --- fixtures --------------------------------------------------------------------------------

@@ -39,6 +39,13 @@ sealed interface EditorPhase {
     data object Empty : EditorPhase
     data object Loading : EditorPhase
     data class LoadFailed(val message: String) : EditorPhase
+
+    /**
+     * The saved photo can no longer be read, typically after a restart without a persisted grant or
+     * after the grant was revoked (Codex finding 4). Recoverable: the screen offers "Choose the
+     * photo again", which goes through the picker and [EditorViewModel.openPhoto].
+     */
+    data object PhotoAccessLost : EditorPhase
     data object Developing : EditorPhase
     data class DevelopFailed(val message: String) : EditorPhase
     data object Ready : EditorPhase
@@ -165,8 +172,17 @@ class EditorViewModel(
 
     // --- Photo lifecycle -------------------------------------------------------------------------
 
-    /** Photo Picker result. Leaving a dirty session must be confirmed by the UI first (spec §5.5). */
+    /**
+     * Photo Picker result. Leaving a dirty session must be confirmed by the UI first (spec §5.5).
+     *
+     * Persists read access to the new photo while the picker's temporary grant is still valid, so a
+     * restore after process death can reopen it, then gives back the previous photo's grant so
+     * grants do not pile up against the per-app cap (Codex finding 4). The new grant is taken first.
+     */
     fun openPhoto(assetId: String) {
+        val previousAsset = savedState.get<String>(KEY_ASSET)
+        env.photoAccess.retain(assetId)
+        if (previousAsset != null && previousAsset != assetId) env.photoAccess.release(previousAsset)
         savedState[KEY_ASSET] = assetId
         savedState.remove<String>(KEY_SESSION)
         loadPhoto(assetId, restoredSession = null)
@@ -209,6 +225,9 @@ class EditorViewModel(
                 env.photoLoader.load(assetId)
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (accessLost: PhotoAccessLostException) {
+                if (isCurrent(generation)) enterPhotoAccessLost(assetId)
+                return@launch
             } catch (failure: Exception) {
                 // A failure for a photo the user has already left must not replace the current phase.
                 if (isCurrent(generation)) state.update { it.copy(phase = EditorPhase.LoadFailed(failure.message ?: "Couldn't open this photo")) }
@@ -228,6 +247,21 @@ class EditorViewModel(
     }
 
     private fun isCurrent(generation: Long): Boolean = generation == photoGeneration
+
+    /**
+     * The saved photo cannot be read any more. Its URI and session are dropped from the saved state
+     * so a later restart does not retry a dead URI, and its grant (if any) is given back. The screen
+     * offers "Choose the photo again", which is a normal [openPhoto].
+     *
+     * DEFERRED (M3): re-attaching the dropped edit when the user picks the same photo again (match by
+     * SourceFingerprint and rebase the session onto the new URI). Until then the photo develops anew.
+     */
+    private fun enterPhotoAccessLost(lostAsset: String) {
+        savedState.remove<String>(KEY_ASSET)
+        savedState.remove<String>(KEY_SESSION)
+        env.photoAccess.release(lostAsset)
+        state.update { it.copy(phase = EditorPhase.PhotoAccessLost, session = null, transientPreview = null, preview = null, autoStatus = AutoStatus.NoSession) }
+    }
 
     /** Runs Auto for [loaded]; every state change is dropped once [generation] is no longer current. */
     private suspend fun develop(loaded: LoadedPhoto, generation: Long) {

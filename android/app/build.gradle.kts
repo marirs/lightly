@@ -25,6 +25,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric: persistable URI grants (ContentResolverPhotoAccessGrantsTest).
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -47,4 +54,6 @@ dependencies {
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }

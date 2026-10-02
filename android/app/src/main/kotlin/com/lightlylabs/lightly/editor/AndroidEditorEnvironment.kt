@@ -1,29 +1,19 @@
 package com.lightlylabs.lightly.editor
 
-import android.content.ContentResolver
 import android.content.Context
-import android.graphics.ImageDecoder
 import android.net.Uri
-import android.provider.OpenableColumns
-import com.lightlylabs.lightly.decode.DecodeTargets
 import com.lightlylabs.lightly.decode.ProxyDecoder
 import com.lightlylabs.lightly.export.BitmapExportFrame
 import com.lightlylabs.lightly.export.BitmapFrameJpegEncoder
 import com.lightlylabs.lightly.export.ContentResolverGateway
 import com.lightlylabs.lightly.export.ExportCoordinator
-import com.lightlylabs.lightly.export.FullResolutionSource
 import com.lightlylabs.lightly.export.MediaStoreGateway
 import com.lightlylabs.lightly.export.NewImageSpec
 import com.lightlylabs.lightly.export.SaveCopyExporter
 import com.lightlylabs.lightly.model.BasisRegistry
 import com.lightlylabs.lightly.model.RegistryAutoLutResolver
 import com.lightlylabs.lightly.render.lut.CpuLutPassRenderer
-import com.lightlylabs.lightly.session.SourceFingerprints
-import com.lightlylabs.lightly.session.SourceRef
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.withContext
-import java.io.IOException
 import java.io.OutputStream
 import java.util.concurrent.Executors
 
@@ -49,7 +39,8 @@ object AndroidEditorEnvironment {
         val decoder = ProxyDecoder()
         val gateway = UriStringGateway(ContentResolverGateway(resolver))
         return EditorEnvironment(
-            photoLoader = PhotoLoader { assetId -> load(resolver, decoder, Uri.parse(assetId), screenLongestPx) },
+            photoLoader = ContentResolverPhotoLoader(resolver, decoder, screenLongestPx),
+            photoAccess = ContentResolverPhotoAccessGrants(resolver),
             autoDeveloper = AutoDeveloper { _, _ ->
                 DevelopResult.Failed("Auto enhancement isn't available in this build yet.")
             },
@@ -66,29 +57,6 @@ object AndroidEditorEnvironment {
             newImageSpec = { source -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg") },
         )
     }
-
-    private suspend fun load(resolver: ContentResolver, decoder: ProxyDecoder, uri: Uri, screenLongestPx: Int): LoadedPhoto =
-        withContext(Dispatchers.IO) {
-            val analysis = decoder.decodeForAnalysis(ImageDecoder.createSource(resolver, uri))
-            val display = decoder.decodeForDisplay(ImageDecoder.createSource(resolver, uri), screenLongestPx)
-            val byteSize = resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
-            } ?: throw IOException("Couldn't open this photo")
-            val fingerprint = resolver.openInputStream(uri)?.use { stream ->
-                SourceFingerprints.compute(stream, byteSize, analysis.originalSize.width, analysis.originalSize.height)
-            } ?: throw IOException("Couldn't open this photo")
-            LoadedPhoto(
-                // ImageDecoder already applied EXIF orientation, so the decoded frames are upright (1).
-                source = SourceRef(assetId = uri.toString(), fingerprint = fingerprint, orientation = 1),
-                analysis = analysis.image,
-                display = display.image,
-                fullResolution = FullResolutionSource {
-                    withContext(Dispatchers.IO) {
-                        decoder.decode(ImageDecoder.createSource(resolver, uri)) { original -> original.also(DecodeTargets::requireDecodable) }.image
-                    }
-                },
-            )
-        }
 
     /** The editor keys assets by string; MediaStore by Uri. */
     private class UriStringGateway(private val delegate: ContentResolverGateway) : MediaStoreGateway<String> {

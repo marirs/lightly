@@ -51,6 +51,7 @@ import kotlin.math.roundToInt
 fun EditorScreen(viewModel: EditorViewModel) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        // openPhoto persists the read grant synchronously, while the picker's temporary grant is valid.
         if (uri != null) viewModel.openPhoto(uri.toString())
     }
     val pickPhoto = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
@@ -65,6 +66,10 @@ fun EditorScreen(viewModel: EditorViewModel) {
             is EditorPhase.LoadFailed -> {
                 Text(phase.message, color = MaterialTheme.colorScheme.error)
                 Button(onClick = pickPhoto) { Text("Choose another") }
+            }
+            EditorPhase.PhotoAccessLost -> {
+                Text("Lightly can no longer open this photo. Choose it again to keep editing.", color = MaterialTheme.colorScheme.error)
+                Button(onClick = pickPhoto) { Text("Choose the photo again") }
             }
             is EditorPhase.DevelopFailed -> {
                 Text("Couldn't enhance. ${phase.message}", color = MaterialTheme.colorScheme.error)
