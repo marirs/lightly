@@ -47,7 +47,9 @@ struct BundledLookPack {
             candidates.append(override)
         }
         let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().path
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()  // ios/
+            .deletingLastPathComponent()  // repository root: experiments/ is shared with android/
+            .path
         candidates.append(repositoryRoot + "/experiments/presets/look_pack/out")
         if let range = repositoryRoot.range(of: "/.claude/worktrees/") {
             candidates.append(String(repositoryRoot[..<range.lowerBound]) + "/experiments/presets/look_pack/out")

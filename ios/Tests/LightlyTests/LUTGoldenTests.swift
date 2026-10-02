@@ -24,7 +24,8 @@ final class LUTGoldenTests: XCTestCase {
             candidates.append(URL(fileURLWithPath: override))
         }
         let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()  // ios/
+            .deletingLastPathComponent()  // repository root: experiments/ is shared with android/
         candidates.append(repositoryRoot.appendingPathComponent("experiments/lut3d/golden"))
         // Worktrees live at <main checkout>/.claude/worktrees/<name> and lack the ignored files; fall back to the
         // main checkout derived from that layout (no machine-specific path).

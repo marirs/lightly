@@ -1,6 +1,6 @@
 # Image-Adaptive 3D LUT — Feasibility Report (M1)
 
-Status: **for Codex review**. Experiment code: `experiments/lut3d/` (isolated from `Lightly/`).
+Status: **for Codex review**. Experiment code: `experiments/lut3d/` (isolated from `ios/Lightly/`).
 Reproduce: `experiments/lut3d/README.md`.
 
 ## Validated vs experimental (read first; added after Codex M1 review)

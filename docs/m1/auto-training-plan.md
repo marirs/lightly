@@ -215,7 +215,7 @@ If the unpaired candidate passes all ship gates, T4 is **not needed** for V1. Th
   - Total: tens to low hundreds of GPU-hours, roughly $100–1,000, or Apple-silicon MPS for experiments.
   - The dominant costs are data collection and rater time.
 - **Tooling:**
-  - a training repo outside `Lightly/` that reuses `ia3dlut.py` and the deployment resize;
+  - a training repo outside `ios/Lightly/` that reuses `ia3dlut.py` and the deployment resize;
   - an evaluation library (rubric plus sheets);
   - a pairwise rating web tool;
   - an export script (Core ML, ONNX, basis LUT, golden tensors).

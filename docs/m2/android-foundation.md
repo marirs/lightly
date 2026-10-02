@@ -1,7 +1,7 @@
 # M2 — Android foundation
 
 Branch: `m2/android-foundation` (from `m1/spec-ux-lut-feasibility` @ `c6b1f98`, merged again with m1 @ `d293406`)
-Project: `android/` (new Gradle multi-module project; `Lightly/`, `experiments/` and other `docs/` are untouched)
+Project: `android/` (new Gradle multi-module project; `ios/Lightly/`, `experiments/` and other `docs/` are untouched)
 
 This milestone builds the Android parts of spec §8 that can be verified **without a phone**:
 - the edit model;

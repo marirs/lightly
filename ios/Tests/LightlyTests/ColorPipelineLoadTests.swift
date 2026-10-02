@@ -105,7 +105,7 @@ final class ColorPipelineLoadTests: XCTestCase {
         let appSources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // LightlyTests
             .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // repository root
+            .deletingLastPathComponent()   // ios/ (the iOS project root)
             .appendingPathComponent("Lightly")
         let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: appSources, includingPropertiesForKeys: nil))
 

@@ -378,7 +378,7 @@ The descriptions below were confirmed by reading the code. Comments and docs cla
 | + | Undo and Reset exist in the view model but no UI calls them | grep: no `.undo()` caller in Views |
 | + | Develop is a manual button. The Looks sheet (0.62 detent) hides the photo | `EditorView.swift:168`; `LooksView` |
 | + | 702 presets have the curve `["{"]`, garbage from lrtemplate parsing. Bare `except: pass` silently drops data | `ingest_presets.py:254-390` |
-| + | No test asserts filter pixel values. 36 UI snapshot baselines exist; a previous session's allow-list shows the baselines being deleted and regenerated | `Tests/LightlyTests/*`; `.claude/settings.local.json` |
+| + | No test asserts filter pixel values. 36 UI snapshot baselines exist; a previous session's allow-list shows the baselines being deleted and regenerated | `ios/Tests/LightlyTests/*`; `.claude/settings.local.json` |
 | + | Preset provenance is third-party commercial packs ("WithLuke - Master Collection" etc.). Distribution terms are tracked in licensing.md, separately from engineering | `presets_photo.json` `originPath` |
 | + | The export default is HEIC, which conflicts with D8 (JPEG) | `ExportSettings.swift:79-84` |
 

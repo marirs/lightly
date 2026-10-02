@@ -1,6 +1,6 @@
 # experiments/lut3d — Image-Adaptive 3D LUT feasibility (M1)
 
-This experiment is isolated from the production app (`Lightly/`, `Tests/`, `project.yml`), and nothing here is linked into it. The pretrained weights are **research-only** (MIT-Adobe FiveK), so they and every artefact converted from them are git-ignored and must not be bundled in any app build (see `docs/m1/licensing.md`).
+This experiment is isolated from the production app (`ios/Lightly/`, `ios/Tests/`, `ios/project.yml`), and nothing here is linked into it. The pretrained weights are **research-only** (MIT-Adobe FiveK), so they and every artefact converted from them are git-ignored and must not be bundled in any app build (see `docs/m1/licensing.md`).
 
 Findings are in `docs/m1/lut-feasibility.md`.
 

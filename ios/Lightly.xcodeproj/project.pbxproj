@@ -872,7 +872,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/scripts/bundle_look_pack.sh\"";
+			shellScript = "\"${LIGHTLY_REPO_ROOT}/scripts/bundle_look_pack.sh\"";
 		};
 		EC88E40E60C9E30B937176BF /* Check app icon */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -883,7 +883,7 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/scripts/check_app_icon.sh",
+				"$(LIGHTLY_REPO_ROOT)/scripts/check_app_icon.sh",
 				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Assets.car",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AppIcon60x60@2x.png",
@@ -895,7 +895,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/scripts/check_app_icon.sh\"";
+			shellScript = "\"${LIGHTLY_REPO_ROOT}/scripts/check_app_icon.sh\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -1227,6 +1227,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LIGHTLY_REPO_ROOT = "$(SRCROOT)/..";
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -1302,6 +1303,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LIGHTLY_REPO_ROOT = "$(SRCROOT)/..";
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;

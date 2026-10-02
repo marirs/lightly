@@ -1,6 +1,6 @@
 # Preset Conversion & Validation (M1)
 
-Status: **for Codex review.** Code: `experiments/presets/` (isolated from `Lightly/`). Source collection: `~/Downloads/Presets - for lightly` (local only; not in git).
+Status: **for Codex review.** Code: `experiments/presets/` (isolated from `ios/Lightly/`). Source collection: `~/Downloads/Presets - for lightly` (local only; not in git).
 
 Distribution terms for these presets are tracked separately in `docs/m1/licensing.md` and are **not** part of the engineering acceptance below.
 

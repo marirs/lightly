@@ -17,7 +17,7 @@ Upstream: `HuiZeng/Image-Adaptive-3DLUT` @ `b491f6df64a588864739a157db271e5c848e
 | `local_tone_mapping/wlsFilter.m`, `wlsTonemap.m` | No licence header; appears to be a third-party reference implementation of Farbman et al. 2008. | Unknown. Not used and not shipped. | Low | file header |
 | MIT-Adobe FiveK images (inputs **and** expert A–E retouches) | Adobe "Research License" (2,690 files) and Adobe+MIT "Research License" (2,310 files). Research only, with no commercial advantage. | **No** (for using the data) | High | [LicenseAdobe.txt](https://data.csail.mit.edu/graphics/fivek/legal/LicenseAdobe.txt), [LicenseAdobeMIT.txt](https://data.csail.mit.edu/graphics/fivek/legal/LicenseAdobeMIT.txt) |
 | Shipped weights `pretrained_models/{sRGB,XYZ}/*.pth` (paired and unpaired) | Apache-2.0 applies to the repo, and nothing carves the weights out. They were trained on FiveK expert C (inferred: author never confirmed, [issue #65](https://github.com/HuiZeng/Image-Adaptive-3DLUT/issues/65) unanswered). | **Unresolved. Treat as no.** | Low (legal question is unsettled) | §2–3 |
-| Our converted artefacts `experiments/lut3d/models/*` (Core ML, ONNX, LUT .bin) | Derived from the sRGB paired FiveK weights (see `MODEL_CARD.json`). | Same as the weights: **do not bundle.** They are currently git-ignored and not in `Lightly/`. | High (factual) | `experiments/lut3d/models/MODEL_CARD.json` |
+| Our converted artefacts `experiments/lut3d/models/*` (Core ML, ONNX, LUT .bin) | Derived from the sRGB paired FiveK weights (see `MODEL_CARD.json`). | Same as the weights: **do not bundle.** They are currently git-ignored and not in `ios/Lightly/`. | High (factual) | `experiments/lut3d/models/MODEL_CARD.json` |
 | Google HDR+ burst dataset | CC BY-SA 4.0, with a stated intention of "scientific purposes". | Possible in principle (BY-SA allows commercial use), but ShareAlike's effect on trained weights is unclear and the domain is different. Not used by the shipped weights. | Medium | [hdrplusdata.org](https://hdrplusdata.org/dataset.html) |
 | PPR10K | Non-commercial research only, **including "derived data"**. | **No** | High | [PPR10K README](https://github.com/csjliang/PPR10K) |
 | Unsplash photos (standard licence, our 22 test photos) | Unsplash License plus Terms §8, which **prohibits ML dataset/training use**. | Not for training. Evaluation use is a grey area (§4a). | High (training) / Medium (eval) | [unsplash.com/terms](https://unsplash.com/terms) |
@@ -259,7 +259,7 @@ I found no genuinely commercial-licensed expert-retouch paired dataset. Treat 4a
 
 ## 5. Bundled preset library (second, more urgent issue)
 
-**Facts from `Lightly/Resources/Presets/presets_photo.json`** (`version 1.0`, `totalCount 3157`, `freeTierCount 10`). Each entry holds the full numeric recipe (sliders, tone curves, HSL, colour grading), a display name, and an `originPath` naming the source pack.
+**Facts from `ios/Lightly/Resources/Presets/presets_photo.json`** (`version 1.0`, `totalCount 3157`, `freeTierCount 10`). Each entry holds the full numeric recipe (sliders, tone curves, HSL, colour grading), a display name, and an `originPath` naming the source pack.
 
 Distinct top-level packs (first path component of `originPath`):
 | Pack (vendor) | Presets | Sub-archives (examples) |
@@ -271,7 +271,7 @@ Distinct top-level packs (first path component of `originPath`):
 | **Total** | **3,157** | WithLuke combined 1,540 (48.8%) |
 
 - **All 10 free-tier presets are WithLuke presets** (9 from Master Collection, 1 from WithLuke studios).
-- `luts_video.json` (1,742 entries) has the same origin problem: Huliluts 1,386 and WithLuke studios 356. For now it contains metadata only (hash, size, `originPath`), and no `.cube` files are bundled in `Lightly/`.
+- `luts_video.json` (1,742 entries) has the same origin problem: Huliluts 1,386 and WithLuke studios 356. For now it contains metadata only (hash, size, `originPath`), and no `.cube` files are bundled in `ios/Lightly/`.
 - Some preset names are third-party trademarks or titles (e.g. "Batman", "Euphoria"). That is a separate trademark and naming concern.
 - The vendor names themselves ship inside the app bundle via `originPath`.
 

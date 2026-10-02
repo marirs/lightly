@@ -14,6 +14,9 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_STRICT_CONCURRENCY: complete
     GENERATE_INFOPLIST_FILE: YES
+    # The Xcode project lives in ios/; shared scripts, docs and experiments (Look pack, golden set)
+    # sit at the repository root next to android/.
+    LIGHTLY_REPO_ROOT: $(SRCROOT)/..
 
 targets:
   Lightly:
@@ -43,11 +46,11 @@ targets:
       # Last phase: fail the build (so nothing gets installed) unless the built product carries the
       # app icon. Sandboxed: it reads only the declared product files below.
       - name: Check app icon
-        script: '"${SRCROOT}/scripts/check_app_icon.sh"'
+        script: '"${LIGHTLY_REPO_ROOT}/scripts/check_app_icon.sh"'
         # Every build, not only when an input changed: the check is cheap and must never be skipped.
         basedOnDependencyAnalysis: false
         inputFiles:
-          - $(SRCROOT)/scripts/check_app_icon.sh
+          - $(LIGHTLY_REPO_ROOT)/scripts/check_app_icon.sh
           - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
           - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Assets.car
           - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AppIcon60x60@2x.png
@@ -103,7 +106,7 @@ aggregateTargets:
   LookPack:
     buildScripts:
       - name: Bundle Look pack
-        script: '"${SRCROOT}/scripts/bundle_look_pack.sh"'
+        script: '"${LIGHTLY_REPO_ROOT}/scripts/bundle_look_pack.sh"'
         # Always run: the pack can change without any build input changing.
         basedOnDependencyAnalysis: false
     settings:

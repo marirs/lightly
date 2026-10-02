@@ -1,6 +1,6 @@
 import AppKit
 
-// Reproduce DesignSystem/Components/BrandMark.swift on an opaque background.
+// Reproduce ios/Lightly/DesignSystem/Components/BrandMark.swift on an opaque background.
 // Run from the repository root: swift scripts/generate-app-icon.swift
 // Keep the square canvas: the operating system supplies its own icon mask.
 let size = 1024
@@ -25,7 +25,7 @@ for index in 0..<8 {
 }
 context.strokePath()
 
-let output = URL(fileURLWithPath: "Lightly/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png")
+let output = URL(fileURLWithPath: "ios/Lightly/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png")
 try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
 let bitmap = NSBitmapImageRep(cgImage: context.makeImage()!)
 try bitmap.representation(using: .png, properties: [:])!.write(to: output)

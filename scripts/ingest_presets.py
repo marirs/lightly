@@ -5,8 +5,8 @@ Lightly Preset Ingestion & Deduplication Pipeline
 Ingests Lightroom .xmp, .lrtemplate, .dng (embedded XMP), and .cube 3D LUT files,
 normalizes adjustments into Lightly recipe format, deduplicates identical recipes,
 cleans preset titles, assigns categories, and outputs two structured databases:
-  1. Lightly/Resources/Presets/presets_photo.json (Photo recipes)
-  2. Lightly/Resources/Presets/luts_video.json (Video 3D LUT catalog)
+  1. ios/Lightly/Resources/Presets/presets_photo.json (Photo recipes)
+  2. ios/Lightly/Resources/Presets/luts_video.json (Video 3D LUT catalog)
 """
 
 import os
@@ -442,7 +442,7 @@ def run_ingestion(source_dir: Path, output_dir: Path):
 # The source packs live outside the repository (licensing, size), so there is
 # no portable default for them: the caller must name the directory.
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "Lightly" / "Resources" / "Presets"
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "ios" / "Lightly" / "Resources" / "Presets"
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

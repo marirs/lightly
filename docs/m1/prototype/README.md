@@ -128,7 +128,7 @@ in `#shot` mode.
   visible. Tap targets are at least 44 px.
 - `prefers-reduced-motion` (or the Reduce motion toggle) removes the shimmer,
   the cross-fade, the spinners' motion and the thumb transitions.
-- Light and dark themes use tokens from `Lightly/DesignSystem/Tokens/LightlyColor.swift`.
+- Light and dark themes use tokens from `ios/Lightly/DesignSystem/Tokens/LightlyColor.swift`.
   The device bezel and status bar follow the theme.
 
 ## What is illustrative

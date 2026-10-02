@@ -3,7 +3,7 @@
 Behaviour that is knowingly incomplete after Phase 1 milestone 2. Nothing here
 is acceptable as a shipping state.
 
-Each item is pinned by an assertion in `Tests/LightlyTests/DeferredWorkTests.swift`
+Each item is pinned by an assertion in `ios/Tests/LightlyTests/DeferredWorkTests.swift`
 that asserts the capability is **still missing**. Implementing the work breaks
 that test on purpose, which forces the corresponding acceptance criterion to be
 revisited deliberately rather than assumed.
@@ -40,7 +40,7 @@ screenshots) return unchanged rather than being pointlessly re-rendered.
 
 **Verified two ways.**
 
-1. `Tests/LightlyTests/PhotoOrientationTests.swift` encodes real JPEG data
+1. `ios/Tests/LightlyTests/PhotoOrientationTests.swift` encodes real JPEG data
    carrying orientation tags and asserts the decoded pixels come back upright:
    180° (the reported case, checked by sampling opposite corners), both 90°
    rotations (checked by dimension swap), and the missing-tag case.
@@ -59,7 +59,7 @@ loader — but item 2 below remains outstanding.
 
 ## 2. Lossless camera ingest — RESOLVED
 
-**Where:** `Lightly/Infrastructure/Camera/CameraCaptureView.swift`
+**Where:** `ios/Lightly/Infrastructure/Camera/CameraCaptureView.swift`
 
 Capture previously went through `UIImagePickerController` and was re-encoded via
 `jpegData(compressionQuality: 1.0)`. Even at quality 1.0 this was a lossy
@@ -77,7 +77,7 @@ preservation requires `AVCapturePhotoOutput` and is Phase 5+.
 
 ## 3. Real Develop engine — RESOLVED
 
-**Where:** `Lightly/Domain/Services/AnalysingDeveloper.swift`
+**Where:** `ios/Lightly/Domain/Services/AnalysingDeveloper.swift`
 
 The Phase 1 engine (`DebugFixedRecipeDeveloper`) applied a fixed recipe with no
 analysis. The rendering was real but the judgement was not.
@@ -110,7 +110,7 @@ toolbar — that is item 4 below.
 
 ## 4. Scene classification — Phase 4
 
-**Where:** `Lightly/Domain/Models/ContextualTool.swift`
+**Where:** `ios/Lightly/Domain/Models/ContextualTool.swift`
 
 All five scene toolbars from spec §4.5 are implemented and unit-tested, but
 nothing produces a `SceneKind` other than `.unclassified`, so the toolbar is
@@ -153,13 +153,13 @@ change was weaker than it appeared at the time.
 ## Running the suites
 
 ```bash
-xcodebuild test -project Lightly.xcodeproj -scheme Lightly -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+xcodebuild test -project ios/Lightly.xcodeproj -scheme Lightly -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 Unit, history, entitlement, and snapshot tests. Fast; run this constantly.
 
 ```bash
-xcodebuild test -project Lightly.xcodeproj -scheme LightlyUITests -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+xcodebuild test -project ios/Lightly.xcodeproj -scheme LightlyUITests -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 End-to-end on a simulator: launch → picker → editor → Develop → Looks.
