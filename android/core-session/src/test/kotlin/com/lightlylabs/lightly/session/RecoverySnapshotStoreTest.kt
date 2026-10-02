@@ -70,6 +70,22 @@ class RecoverySnapshotStoreTest {
     }
 
     @Test
+    fun `a snapshot written by a schema 1 build is migrated, not discarded`() {
+        val (store, file) = store()
+        val v1Entry = SharedEditStateFixtures.read(SharedEditStateFixtures.V1_NUMERIC_LOOK_VERSION)
+        val sourceJson = """{"assetId":"content://media/picker/0/42","fingerprint":{"headSha256":"${"ab".repeat(32)}","byteSize":1048576,"pixelWidth":4032,"pixelHeight":3024}"""
+        file.parentFile.mkdirs()
+        file.writeText(
+            """{"schema":1,${sourceJson.removePrefix("{")},"session":{"history":{"entries":[$v1Entry],"cursor":0,"capacity":50},"lastIssuedRevision":7}}""",
+        )
+
+        val restored = store.read()
+
+        val expected = SavedEdits.decodeEditState(SharedEditStateFixtures.read(SharedEditStateFixtures.V1_MIGRATED_TO_V2))
+        assertEquals(expected, restored?.session?.current)
+    }
+
+    @Test
     fun `fingerprint hashes only the first 64 KiB`() {
         val head = ByteArray(SourceFingerprints.HEAD_BYTES) { (it % 251).toByte() }
         val fileA = head + ByteArray(1000) { 1 }

@@ -21,7 +21,7 @@ import com.lightlylabs.lightly.session.AutoResult
 import com.lightlylabs.lightly.session.EditSession
 import com.lightlylabs.lightly.session.EditState
 import com.lightlylabs.lightly.session.LookRef
-import com.lightlylabs.lightly.session.SessionJson
+import com.lightlylabs.lightly.session.SavedEdits
 import com.lightlylabs.lightly.session.SourceRef
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -76,8 +76,11 @@ data class EditorUiState(
     val autoStatus: AutoStatus = AutoStatus.NoSession,
     /** Latest preview the scheduler published for the current photo (latest-wins). */
     val preview: Rgba8Image? = null,
-    /** Shown when the displayed Look is not in this build's look-book (spec §4.5). */
-    val lookNotice: String? = null,
+    /**
+     * Set while the COMMITTED Look is unavailable or changed (spec §4.5): the photo renders without
+     * it and the notice stays until the edit no longer holds that Look.
+     */
+    val lookIssue: LookIssue? = null,
     val save: SaveStatus = SaveStatus.Idle,
 ) {
     /** What the photo area shows: the transient preview if any, else the committed state. */
@@ -198,7 +201,8 @@ class EditorViewModel(
             val restored = savedState.get<String>(KEY_SESSION)?.let { json ->
                 // A snapshot that no longer decodes (schema change across an update) is dropped
                 // rather than crashing; the photo is then developed again.
-                runCatching { SessionJson.decodeFromString(EditSession.serializer(), json) }.getOrNull()
+                // SavedEdits migrates schema 1 entries (spec §4.5) instead of dropping the edit.
+                runCatching { SavedEdits.decodeEditSession(json) }.getOrNull()
             }?.takeIf { it.current.source.assetId == assetId }
             loadPhoto(assetId, restored)
         }
@@ -377,6 +381,20 @@ class EditorViewModel(
 
     fun resetToAuto() = updateSession { it.resetToAuto() }
 
+    /**
+     * "Use current version" on a changed Look: one new, undoable step that keeps the Look and its
+     * strength and takes the pack's current version. Does nothing for an unavailable Look.
+     */
+    fun useCurrentLookVersion() {
+        val saved = state.value.session?.current?.look ?: return
+        val changed = env.lookBook.resolve(saved) as? LookResolution.Changed ?: return
+        updateSession { it.selectLook(saved.copy(lookVersion = changed.current.lookVersion)) }
+    }
+
+    /** Strength is secondary and exists only for a committed Look that actually renders. */
+    val showsStrength: Boolean
+        get() = state.value.session?.current?.look?.let { env.lookBook.resolve(it) is LookResolution.Available } ?: false
+
     fun undo() = updateSession { it.undo() }
 
     fun redo() = updateSession { it.redo() }
@@ -437,8 +455,9 @@ class EditorViewModel(
     }
 
     private fun commit(session: EditSession) {
-        savedState[KEY_SESSION] = SessionJson.encodeToString(EditSession.serializer(), session)
-        state.update { it.copy(session = session, transientPreview = null, autoStatus = autoStatusFor(session)) }
+        savedState[KEY_SESSION] = SavedEdits.encodeEditSession(session)
+        val lookIssue = LookIssue.of(session.current.look?.let(env.lookBook::resolve))
+        state.update { it.copy(session = session, transientPreview = null, autoStatus = autoStatusFor(session), lookIssue = lookIssue) }
         requestPreview()
     }
 
@@ -454,9 +473,9 @@ class EditorViewModel(
     private fun planFor(editState: EditState, compare: Boolean): LutPassPlan {
         // Compare always shows the Original, not the Auto result (spec §2.6).
         if (compare) return LutPassPlan.of(null, 0f, null, 0f)
-        val lookDefinition = editState.look?.let { env.lookBook.find(it) }
-        val lookNotice = if (editState.look != null && lookDefinition == null) "Look unavailable; showing Auto." else null
-        if (state.value.lookNotice != lookNotice) state.update { it.copy(lookNotice = lookNotice) }
+        // Exact (id, version) only: an unavailable or changed Look is left out, never replaced, so
+        // preview and Save copy both show the photo without it (P=E holds for these edits too).
+        val lookDefinition = (editState.look?.let(env.lookBook::resolve) as? LookResolution.Available)?.definition
         return LutPassPlan.of(
             autoLut = autoLutForRendering,
             autoStrength = editState.auto.strength,

@@ -21,6 +21,7 @@ import com.lightlylabs.lightly.render.lut.LutPassRenderer
 import com.lightlylabs.lightly.session.AutoResult
 import com.lightlylabs.lightly.session.EditSession
 import com.lightlylabs.lightly.session.LookRef
+import com.lightlylabs.lightly.session.SavedEdits
 import com.lightlylabs.lightly.session.SessionJson
 import com.lightlylabs.lightly.session.SourceFingerprint
 import com.lightlylabs.lightly.session.SourceRef
@@ -421,7 +422,7 @@ class EditorViewModelTest {
         advanceUntilIdle()
 
         assertEquals(savedLook, restored.uiState.value.session!!.current.look, "the edit names the preset, not its category or stop")
-        assertNull(restored.uiState.value.lookNotice)
+        assertNull(restored.uiState.value.lookIssue)
         assertEquals("cat-film", restored.uiState.value.selectedCategory, "the saved category 'cat-warm' is gone: first category")
         assertEquals(1, restored.stopIndex, "Nordic is now stop 1 of the first category")
         assertContentEquals(render(display, expectedAutoLut, 0.8f, savedLook, afterBook), restored.previewPixels())
@@ -552,19 +553,101 @@ class EditorViewModelTest {
         assertContentEquals(render(display, null, 0f, lookBook.stops("cat-mono")[0].ref()), vm.previewPixels(), "Looks still work on the Original")
     }
 
-    @Test
-    fun `a Look missing from this build's look-book is reported and not rendered`() = runTest {
-        val fakes = Fakes(DevelopResult.Developed(auto))
-        val edit = EditSession.start(source, auto).selectLook(LookRef("film.discontinued", "7", 1f))
-        val handle = SavedStateHandle(
-            mapOf(EditorViewModel.KEY_ASSET to assetId, EditorViewModel.KEY_SESSION to SessionJson.encodeToString(EditSession.serializer(), edit)),
-        )
+    // --- Resolving a saved Look against this build's pack (shared/fixtures/edit-state/README.md) --
 
-        val vm = viewModel(handle, environment(fakes))
+    private fun handleWith(session: EditSession) = SavedStateHandle(
+        mapOf(EditorViewModel.KEY_ASSET to assetId, EditorViewModel.KEY_SESSION to SavedEdits.encodeEditSession(session)),
+    )
+
+    @Test
+    fun `a Look missing from the pack is unavailable - kept in the edit, not rendered, never substituted`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val missing = LookRef("film.discontinued", "0123456789ab", 0.7f)
+        val edit = EditSession.start(source, auto).selectLook(missing)
+
+        val vm = viewModel(handleWith(edit), environment(fakes))
         advanceUntilIdle()
 
-        assertNotNull(vm.uiState.value.lookNotice)
+        assertEquals(LookIssue.Unavailable(missing), vm.uiState.value.lookIssue)
+        assertEquals(edit, vm.uiState.value.session, "LookRef and history are kept unchanged")
+        assertContentEquals(render(display, expectedAutoLut, 0.8f, null), vm.previewPixels(), "rendered with Auto only")
+        assertFalse(vm.showsStrength, "no Strength for a Look that is not rendered")
+        assertFalse(vm.uiState.value.lookIssue!!.offersCurrentVersion)
+    }
+
+    @Test
+    fun `a Look whose version differs is changed - not rendered until the user accepts the current version`() = runTest {
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val current = lookBook.stops("cat-warm")[1]
+        val older = current.ref(0.6f).copy(lookVersion = "000000000000")
+        val edit = EditSession.start(source, auto).selectLook(older)
+
+        val vm = viewModel(handleWith(edit), environment(fakes))
+        advanceUntilIdle()
+
+        val issue = assertIs<LookIssue.Changed>(vm.uiState.value.lookIssue)
+        assertEquals(older, issue.saved)
+        assertTrue(issue.offersCurrentVersion)
+        assertEquals(edit, vm.uiState.value.session, "nothing is applied until the user accepts")
+        assertContentEquals(render(display, expectedAutoLut, 0.8f, null), vm.previewPixels(), "rendered without the Look")
+        assertEquals(0, vm.stopIndex, "the slider shows what the photo shows")
+
+        vm.useCurrentLookVersion()
+        advanceUntilIdle()
+        assertEquals(current.ref(0.6f), vm.uiState.value.session!!.current.look, "same Look and strength, current version")
+        assertEquals(edit.history.entries.size + 1, vm.uiState.value.session!!.history.entries.size, "accepting is one new step")
+        assertNull(vm.uiState.value.lookIssue)
+        assertContentEquals(render(display, expectedAutoLut, 0.8f, current.ref(0.6f)), vm.previewPixels())
+
+        vm.undo()
+        advanceUntilIdle()
+        assertEquals(older, vm.uiState.value.session!!.current.look, "undo returns to the saved version")
+        assertIs<LookIssue.Changed>(vm.uiState.value.lookIssue)
         assertContentEquals(render(display, expectedAutoLut, 0.8f, null), vm.previewPixels())
+    }
+
+    @Test
+    fun `save copy of an edit with a changed or unavailable Look writes what is displayed and keeps the notice`() = runTest {
+        listOf(
+            LookRef("film.discontinued", "0123456789ab", 1f),
+            lookBook.stops("cat-film")[0].ref().copy(lookVersion = "legacy-v1-3"),
+        ).forEach { saved ->
+            val fakes = Fakes(DevelopResult.Developed(auto))
+            val vm = viewModel(handleWith(EditSession.start(source, auto).selectLook(saved)), environment(fakes))
+            advanceUntilIdle()
+
+            assertTrue(vm.saveCopy())
+            advanceUntilIdle()
+
+            val savedAsset = assertIs<SaveStatus.Saved>(vm.uiState.value.save).newAssetId
+            assertContentEquals(render(fullResolution, expectedAutoLut, 0.8f, null), fakes.written.getValue(savedAsset).toByteArray(), saved.lookId)
+            assertNotNull(vm.uiState.value.lookIssue, "the notice stays visible after saving")
+        }
+    }
+
+    @Test
+    fun `a schema 1 saved session is restored through migration and its Look shows as changed`() = runTest {
+        // The shared v1 fixture as SavedStateHandle would hold it after updating from a schema 1 build.
+        val v1State = SharedEditStateFixtureFiles.read(SharedEditStateFixtureFiles.V1_NUMERIC_LOOK_VERSION)
+        val v1Session = """{"history":{"entries":[$v1State],"cursor":0,"capacity":50},"lastIssuedRevision":7}"""
+        val fixtureSource = SourceRef("content://media/picker/0/42", SourceFingerprint("ab".repeat(32), 1_048_576, 4032, 3024), orientation = 6)
+        val portraPack = FixtureLookPack.book(listOf(FixtureLookPack.Category("cat-film", "Film", listOf(FixtureLookPack.Stop("film.portra", "Portra", 7)))))
+        val fakes = Fakes(DevelopResult.Developed(auto))
+        val loader = PhotoLoader { LoadedPhoto(fixtureSource, analysis, display, FullResolutionSource { fullResolution }) }
+        val handle = SavedStateHandle(mapOf(EditorViewModel.KEY_ASSET to fixtureSource.assetId, EditorViewModel.KEY_SESSION to v1Session))
+
+        val vm = viewModel(handle, environment(fakes, photoLoader = loader, lookBook = portraPack))
+        advanceUntilIdle()
+
+        assertEquals(EditorPhase.Ready, vm.uiState.value.phase)
+        assertTrue(fakes.developedWith.isEmpty(), "the migrated edit is restored, not re-developed")
+        val look = assertNotNull(vm.uiState.value.session!!.current.look)
+        assertEquals(LookRef("film.portra", "legacy-v1-2", 0.8f), look)
+        assertIs<LookIssue.Changed>(vm.uiState.value.lookIssue)
+
+        vm.useCurrentLookVersion()
+        advanceUntilIdle()
+        assertEquals(portraPack.stops("cat-film")[0].ref(0.8f), vm.uiState.value.session!!.current.look)
     }
 
     @Test

@@ -69,6 +69,7 @@ class LookBook(
     val unavailableReason: String? = null,
 ) {
     private val byKey: Map<Pair<String, String>, LookDefinition>
+    private val byId: Map<String, LookDefinition>
 
     init {
         require(categories.map { it.id }.distinct().size == categories.size) { "Duplicate category id" }
@@ -77,6 +78,7 @@ class LookBook(
         // A Look may sit in more than one category, but one lookId must always mean one LUT version.
         require(looks.keys.map { it.first }.distinct().size == looks.size) { "A lookId appears with two versions" }
         byKey = looks
+        byId = looks.values.associateBy { it.lookId }
     }
 
     val isEmpty: Boolean get() = categories.isEmpty()
@@ -87,6 +89,15 @@ class LookBook(
     fun stops(categoryId: String): List<LookDefinition> = category(categoryId)?.stops.orEmpty()
 
     fun find(look: LookRef): LookDefinition? = byKey[look.lookId to look.lookVersion]
+
+    /**
+     * Exact ID first, then exact version. A different version is reported as [LookResolution.Changed]
+     * (with the pack's current Look, for "Use current version"), never rendered in its place.
+     */
+    fun resolve(look: LookRef): LookResolution {
+        val current = byId[look.lookId] ?: return LookResolution.Unavailable(look)
+        return if (current.lookVersion == look.lookVersion) LookResolution.Available(current) else LookResolution.Changed(look, current)
+    }
 
     /** The first category listing [look], for labels; null when this build does not have it. */
     fun categoryOf(look: LookRef): LookCategory? =

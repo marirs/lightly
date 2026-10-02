@@ -105,7 +105,10 @@ private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPho
         AutoStatus.NoModelInThisBuild -> Text(AutoStatus.NoModelInThisBuild.NOTICE)
         else -> Unit
     }
-    ui.lookNotice?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    ui.lookIssue?.let { issue ->
+        Text(issue.notice, color = MaterialTheme.colorScheme.error)
+        if (issue.offersCurrentVersion) OutlinedButton(onClick = viewModel::useCurrentLookVersion) { Text(LookIssue.USE_CURRENT_VERSION) }
+    }
 
     val selectedCategory = viewModel.categories.firstOrNull { it.id == ui.selectedCategory }
     if (selectedCategory == null) {
@@ -153,7 +156,7 @@ private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel, selected
         onSettle = viewModel::onStopSettled,
     )
 
-    ui.session?.current?.look?.let { activeLook ->
+    ui.session?.current?.look?.takeIf { viewModel.showsStrength }?.let { activeLook ->
         StrengthSlider(committed = activeLook.strength, onPreview = viewModel::previewLookStrength, onCommit = viewModel::commitLookStrength)
     }
 }

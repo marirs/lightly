@@ -50,7 +50,7 @@ class RecoverySnapshotStore(private val file: File) {
         val directory = file.absoluteFile.parentFile
         directory.mkdirs()
         val temp = File(directory, "${file.name}.tmp")
-        temp.writeText(SessionJson.encodeToString(RecoverySnapshot.serializer(), snapshot), Charsets.UTF_8)
+        temp.writeText(SavedEdits.encodeRecoverySnapshot(snapshot), Charsets.UTF_8)
         try {
             Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         } catch (notAtomic: AtomicMoveNotSupportedException) {
@@ -66,7 +66,8 @@ class RecoverySnapshotStore(private val file: File) {
     fun read(): RecoverySnapshot? {
         if (!file.exists()) return null
         return try {
-            SessionJson.decodeFromString(RecoverySnapshot.serializer(), file.readText(Charsets.UTF_8))
+            // Through SavedEdits so a snapshot written by a schema 1 build is migrated, not discarded.
+            SavedEdits.decodeRecoverySnapshot(file.readText(Charsets.UTF_8))
         } catch (corrupt: SerializationException) {
             clear(); null
         } catch (invalid: IllegalArgumentException) {

@@ -19,6 +19,11 @@ val lightlyModelsDir: String = providers.gradleProperty("lightlyModelsDir")
     .orElse(providers.environmentVariable("LIGHTLY_MODELS_DIR"))
     .getOrElse(repoRoot.resolve("experiments/lut3d/models").absolutePath)
 
+// Saved-edit fixtures shared with iOS (shared/fixtures/edit-state, committed). Both platforms must
+// read these exact files; no module keeps a private copy, so a contract change on one side fails
+// the other side's tests instead of drifting silently.
+val sharedEditStateFixturesDir: File = repoRoot.resolve("shared/fixtures/edit-state")
+
 // Robolectric instruments JDK classes with ASM; on JDK 26 it fails with "Unsupported class file major
 // version 70", which surfaces as misleading test failures. Fail fast with the fix instead.
 val maxTestJdk = 25
@@ -37,6 +42,9 @@ subprojects {
         }
         systemProperty("lightly.goldenDir", lightlyGoldenDir)
         systemProperty("lightly.modelsDir", lightlyModelsDir)
+        systemProperty("lightly.editStateFixturesDir", sharedEditStateFixturesDir.absolutePath)
+        // Small and committed, unlike the golden set: hash it so editing a fixture re-runs the tests.
+        inputs.dir(sharedEditStateFixturesDir).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("sharedEditStateFixtures")
         // The fixture folders are too large to hash as task inputs; record the paths so pointing at a
         // different folder re-runs the tests instead of reusing a cached result.
         inputs.property("lightlyGoldenDir", lightlyGoldenDir)

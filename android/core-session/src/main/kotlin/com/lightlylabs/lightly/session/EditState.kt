@@ -32,9 +32,11 @@ data class EditState(
 
     companion object {
         /**
-         * 2: `look.lookVersion` became the Look pack's version string (was an Int in schema 1). A
-         * schema 1 edit fails to decode and is dropped, which is safe because no schema 1 Look ID
-         * exists in any Look pack (they were procedural debug placeholders).
+         * 2: `look.lookVersion` became the Look pack's version string (was an Int in schema 1).
+         * v3 differs: a schema 1 edit is no longer dropped. [SavedEdits] migrates it to schema 2
+         * with `lookVersion = "legacy-v1-<n>"`, which never matches a pack version, so the Look
+         * resolves as "changed" and is not rendered until the user accepts the current version.
+         * Constructing an EditState directly still requires schema 2.
          */
         const val CURRENT_SCHEMA = 2
     }
