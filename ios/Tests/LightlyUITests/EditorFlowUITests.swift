@@ -56,8 +56,9 @@ final class EditorFlowUITests: XCTestCase {
 
     /// The whole primary flow on the real app with the real Look pack (spec
     /// §2): choose a photo → it develops by itself → Auto is reported
-    /// unavailable → a category's first two presets → Compare → Undo →
-    /// Reset to Auto → Save copy adds a new photo.
+    /// unavailable → presets from two categories → Strength → Compare (the
+    /// photo says "Original") → Undo → Redo → Reset (undoable) → Save copy
+    /// adds a new photo.
     ///
     /// Categories and preset names are read from the same pack the build
     /// bundled (`BundledLookPack`), never hard-coded: the catalog is data.
@@ -76,40 +77,61 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].exists, "The photo stays visible while developing.")
         capture(named: "03-developing")
 
-        // Auto: explicitly unavailable, and nothing is blocked by it.
+        // Auto: explicitly unavailable, straight to editing (no futile Retry), nothing blocked.
         let autoNotice = app.descendants(matching: .any)["editor.autoUnavailableNotice"]
         XCTAssertTrue(autoNotice.waitForExistence(timeout: timeout), "Auto must say it is unavailable.")
         XCTAssertTrue(autoNotice.label.contains("Auto is unavailable"), autoNotice.label)
+        XCTAssertFalse(app.buttons["action.retryAuto"].exists, "No Retry when no model exists.")
         let pack = try requireBundledPack()
         if pack.hasApproximateLooks {
             let approximate = app.descendants(matching: .any)["editor.approximateLooksNotice"]
-            XCTAssertTrue(approximate.exists, "Approximate, unvalidated Looks must be labelled as such.")
+            XCTAssertTrue(approximate.exists, "Looks that are not validated must be labelled as such.")
             XCTAssertTrue(approximate.label.contains("approximate"), approximate.label)
         }
         capture(named: "04-auto-unavailable")
 
-        // The pack's first category with at least two presets; each stop is
-        // a real thumb drag: previews while moving, commits on lift.
-        let category = try XCTUnwrap(pack.categories.first { $0.names.count >= 2 }, "Pack has no category with two presets")
-        app.buttons["editor.category.\(category.id)"].tap()
+        // First category: its first two presets, each a real thumb drag
+        // (previews while moving, commits on lift). The name and position show.
+        let categories = pack.categories.filter { !$0.names.isEmpty }
+        let first = try XCTUnwrap(categories.first { $0.names.count >= 2 }, "Pack has no category with two presets")
+        let second = try XCTUnwrap(categories.first { $0.id != first.id }, "Pack has only one category")
+        app.buttons["editor.category.\(first.id)"].tap()
         let slider = app.descendants(matching: .any)["editor.lookSlider"]
         XCTAssertTrue(slider.waitForExistence(timeout: timeout))
-        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 0)), "\(slider.value ?? "nil")")
-        dragSlider(slider, from: 0, to: 1, stopCount: category.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
+        XCTAssertTrue(waitForValue(of: slider, toEqual: first.value(atStop: 0)), "\(slider.value ?? "nil")")
+        XCTAssertFalse(app.descendants(matching: .any)["editor.strengthSlider"].exists, "No Look, no Strength")
+        dragSlider(slider, from: 0, to: 1, stopCount: first.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: first.value(atStop: 1)), "\(slider.value ?? "nil")")
         capture(named: "05-look-first-preset")
-        dragSlider(slider, from: 1, to: 2, stopCount: category.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 2)), "\(slider.value ?? "nil")")
-        XCTAssertEqual(photoValue(), category.names[1], "Looks replace each other; the photo reports the one applied.")
+        dragSlider(slider, from: 1, to: 2, stopCount: first.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: first.value(atStop: 2)), "\(slider.value ?? "nil")")
+        XCTAssertEqual(photoValue(), first.names[1], "Looks replace each other; the photo reports the one applied.")
         capture(named: "06-look-second-preset")
+
+        // Strength: secondary, only with a Look; a drag then release is one step.
+        let strength = app.descendants(matching: .any)["editor.strengthSlider"]
+        XCTAssertTrue(strength.waitForExistence(timeout: timeout))
+        XCTAssertEqual(strength.value as? String, "100%")
+        dragStrength(strength, toFraction: 0.4)
+        XCTAssertTrue(waitForValue(of: strength, toMatch: "^[3-4][0-9]%$"), "\(strength.value ?? "nil")")
+        let reducedStrength = strength.value as? String
+        capture(named: "07-strength")
+
+        // Second category: a preset there replaces the first category's Look.
+        app.buttons["editor.category.\(second.id)"].tap()
+        XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 0)), "\(slider.value ?? "nil")")
+        dragSlider(slider, from: 0, to: 1, stopCount: second.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 1)), "\(slider.value ?? "nil")")
+        XCTAssertEqual(photoValue(), second.names[0])
+        capture(named: "08-second-category-preset")
 
         // Compare, by the toggle (the accessible alternative to holding).
         let compare = app.buttons["action.compare"]
         compare.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].label == "Your original photograph",
-                      "Compare must show the original.")
+        XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your original photograph",
+                       "Compare must show the original.")
         XCTAssertTrue(compare.isSelected, "The toggle reports its state.")
-        capture(named: "07-compare-original")
+        capture(named: "09-compare-original")
         compare.tap()
         XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your photograph")
 
@@ -117,20 +139,26 @@ final class EditorFlowUITests: XCTestCase {
         app.descendants(matching: .any)["editor.photo"].press(forDuration: 0.8)
         XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your photograph")
 
-        // Undo returns to the first preset.
+        // Undo returns to the first category's preset at the reduced Strength; Redo comes back.
         app.buttons["action.undo"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
-        capture(named: "08-after-undo")
+        XCTAssertTrue(waitForPhotoValue(first.names[1]), "\(photoValue() ?? "nil")")
+        XCTAssertEqual(app.descendants(matching: .any)["editor.strengthSlider"].value as? String, reducedStrength)
+        capture(named: "10-after-undo")
+        XCTAssertTrue(app.buttons["action.redo"].isEnabled)
+        app.buttons["action.redo"].tap()
+        XCTAssertTrue(waitForPhotoValue(second.names[0]), "\(photoValue() ?? "nil")")
+        XCTAssertFalse(app.buttons["action.redo"].isEnabled, "Nothing left to redo.")
+        capture(named: "11-after-redo")
 
         // Reset to Auto clears the Look; Undo brings it back (Reset is a step).
         app.buttons["action.reset"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 0)), "\(slider.value ?? "nil")")
+        XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 0)), "\(slider.value ?? "nil")")
         XCTAssertFalse(app.buttons["action.reset"].isEnabled, "Nothing left to reset.")
-        capture(named: "09-after-reset")
+        capture(named: "12-after-reset")
         app.buttons["action.undo"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
+        XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 1)), "\(slider.value ?? "nil")")
 
-        try saveCopyAndConfirm(captureAs: "10-save-copy-confirmed")
+        try saveCopyAndConfirm(captureAs: "13-save-copy-confirmed")
     }
 
     /// Every category of the real pack, in pack order, shows its presets as
@@ -248,6 +276,24 @@ final class EditorFlowUITests: XCTestCase {
             return slider.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: frame.height / 2))
         }
         point(forStop: startStop).press(forDuration: 0.3, thenDragTo: point(forStop: endStop))
+    }
+
+    /// Drags the Strength slider's thumb from 100% to `fraction` of the track, like a finger.
+    private func dragStrength(_ slider: XCUIElement, toFraction fraction: CGFloat) {
+        let frame = slider.frame
+        let start = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5))
+        let end = slider.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.width * fraction, dy: frame.height / 2))
+        start.press(forDuration: 0.3, thenDragTo: end)
+    }
+
+    private func waitForPhotoValue(_ value: String) -> Bool {
+        waitForValue(of: app.descendants(matching: .any)["editor.photo"], toEqual: value)
+    }
+
+    private func waitForValue(of element: XCUIElement, toMatch pattern: String, timeout: TimeInterval = 10) -> Bool {
+        let predicate = NSPredicate(format: "value MATCHES %@", pattern)
+        return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
     }
 
     private func scrollPanelUntilHittable(_ element: XCUIElement, attempts: Int = 6) {

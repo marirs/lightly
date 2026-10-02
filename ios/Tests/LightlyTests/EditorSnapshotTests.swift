@@ -78,6 +78,59 @@ final class EditorSnapshotTests: XCTestCase {
         SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-saved")
     }
 
+    // MARK: - Strength, Redo, notices
+
+    /// Strength at 40% after an undo: Strength shown (secondary), Redo enabled.
+    func testStrengthAndRedo() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 2)
+        viewModel.commitLookStrength(0.4)
+        viewModel.commitLookStrength(0.6)
+        viewModel.undo()
+        await viewModel.settleRendering()
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-strength-redo")
+    }
+
+    /// A restored edit whose Look changed: not applied, compact notice with "Use current version".
+    func testLookChangedNotice() async throws {
+        let viewModel = try await EditorFixtures.restoredEditor(
+            look: SavedLookRef(lookId: "fixture-warm-000002", lookVersion: "legacy-v1-2", strength: 1)
+        )
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-look-changed")
+    }
+
+    /// A restored edit whose Look is not in this pack: not applied, notice, nothing substituted.
+    func testLookUnavailableNotice() async throws {
+        let viewModel = try await EditorFixtures.restoredEditor(
+            look: SavedLookRef(lookId: "no-such-look-000000", lookVersion: "000000000000", strength: 1)
+        )
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-look-unavailable")
+    }
+
+    /// A genuine Auto failure: Retry and Continue, the photo still visible.
+    func testAutoFailed() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(auto: ScriptedAutoEnhancer(results: [.unavailable(.invalidBasis)]))
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-auto-failed")
+    }
+
+    // MARK: - Wide screens
+
+    func testPhoneLandscape() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 2)
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-phone-landscape", size: CGSize(width: 874, height: 402))
+    }
+
+    func testPadPortrait() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 2)
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-pad-portrait", size: CGSize(width: 834, height: 1_210))
+    }
+
+    func testPadLandscapeComparing() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 2)
+        viewModel.toggleCompare()
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-pad-landscape-comparing",
+                                 size: CGSize(width: 1_210, height: 834))
+    }
+
     // MARK: - Failure
 
     /// No renderer: the editor says so and offers a way out, with the

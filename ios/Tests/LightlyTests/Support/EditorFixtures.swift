@@ -14,14 +14,29 @@ enum EditorFixtures {
     static func readyEditor(
         lookStop: Int? = nil,
         lookBook: LUTLookBook = LookPackFixture.editorBook,
-        writer: any PhotoLibraryWriting = SpyLibraryWriter()
+        writer: any PhotoLibraryWriting = SpyLibraryWriter(),
+        auto: any AutoEnhancing = ModelNotBundledAutoEnhancer()
     ) async throws -> LUTEditorViewModel {
         let viewModel = LUTEditorViewModel(
-            photo: TestFixtures.makePhoto(), autoEnhancer: ModelNotBundledAutoEnhancer(),
+            photo: TestFixtures.makePhoto(), autoEnhancer: auto,
             lookBook: lookBook, renderer: try MetalLUTRenderer(), libraryWriter: writer
         )
         await viewModel.developTask?.value
         if let lookStop { viewModel.settleStop(lookStop) }
+        await viewModel.settleRendering()
+        return viewModel
+    }
+
+    /// An editor restored from a one-entry saved session whose Look is `look`.
+    static func restoredEditor(look: SavedLookRef) async throws -> LUTEditorViewModel {
+        let source = try SavedEditCodec.decodeState(try SavedEditFormatTests.fixture("v2-no-look.json")).source
+        let entry = SavedEditState(source: source, auto: .noModelInBuild, look: look, revision: 0)
+        let viewModel = LUTEditorViewModel(
+            photo: TestFixtures.makePhoto(), autoEnhancer: ModelNotBundledAutoEnhancer(),
+            lookBook: LookPackFixture.editorBook, renderer: try MetalLUTRenderer(), libraryWriter: SpyLibraryWriter(),
+            restoringSession: SavedEditSession(entries: [entry], cursor: 0, capacity: 50, lastIssuedRevision: 0)
+        )
+        await viewModel.developTask?.value
         await viewModel.settleRendering()
         return viewModel
     }

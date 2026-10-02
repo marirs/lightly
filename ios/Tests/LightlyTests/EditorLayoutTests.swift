@@ -8,8 +8,10 @@ import XCTest
 @MainActor
 final class EditorLayoutTests: XCTestCase {
 
-    private func layout(_ viewModel: LUTEditorViewModel, size: DynamicTypeSize) -> LayoutProbe {
-        LayoutProbe(EditorView(viewModel: viewModel, onBack: {}), size: SnapshotAssertion.defaultSize, dynamicTypeSize: size)
+    private func layout(
+        _ viewModel: LUTEditorViewModel, size: DynamicTypeSize, canvas: CGSize = SnapshotAssertion.defaultSize
+    ) -> LayoutProbe {
+        LayoutProbe(EditorView(viewModel: viewModel, onBack: {}), size: canvas, dynamicTypeSize: size)
     }
 
     private func assertPhotoUncoveredAndVisible(
@@ -35,18 +37,32 @@ final class EditorLayoutTests: XCTestCase {
         try assertPhotoUncoveredAndVisible(try await EditorFixtures.readyEditor(lookStop: 1), size: .large, minimumPhotoShare: 0.4)
     }
 
+    /// Agreed UX: at accessibility sizes the photo keeps ≥ 40% of the height on a phone in
+    /// portrait; the panel scrolls instead. (Was 20%: the panel could take half the screen.)
     func testReadyEditorAtAccessibility3() async throws {
-        try assertPhotoUncoveredAndVisible(try await EditorFixtures.readyEditor(lookStop: 1), size: .accessibility3, minimumPhotoShare: 0.2)
+        try assertPhotoUncoveredAndVisible(try await EditorFixtures.readyEditor(lookStop: 1), size: .accessibility3, minimumPhotoShare: 0.4)
     }
 
     func testReadyEditorAtAccessibility5() async throws {
-        try assertPhotoUncoveredAndVisible(try await EditorFixtures.readyEditor(lookStop: 1), size: .accessibility5, minimumPhotoShare: 0.2)
+        try assertPhotoUncoveredAndVisible(try await EditorFixtures.readyEditor(lookStop: 1), size: .accessibility5, minimumPhotoShare: 0.4)
     }
 
     func testDevelopingEditorAtAccessibility5() throws {
         let viewModel = try EditorFixtures.developingEditor()
         defer { viewModel.close() }
-        try assertPhotoUncoveredAndVisible(viewModel, size: .accessibility5, minimumPhotoShare: 0.2)
+        try assertPhotoUncoveredAndVisible(viewModel, size: .accessibility5, minimumPhotoShare: 0.4)
+    }
+
+    /// The photo's area (not only a portrait photo) keeps 40% at AX5 with every notice showing.
+    func testPhotoAreaKeepsFortyPercentAtAccessibility5WithNotices() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+        viewModel.commitLookStrength(0.5)
+        viewModel.saveCopy()
+        await viewModel.saveTask?.value
+        let probe = layout(viewModel, size: .accessibility5)
+        defer { probe.tearDown() }
+        let area = try XCTUnwrap(probe.frame("editor.photoArea"))
+        XCTAssertGreaterThanOrEqual(area.height / SnapshotAssertion.defaultSize.height, 0.4)
     }
 
     /// Spec D4: the bottom panel takes at most 35% of the height on a
@@ -63,8 +79,8 @@ final class EditorLayoutTests: XCTestCase {
     func testEveryActionIsLaidOutAtAccessibility5() async throws {
         let probe = layout(try await EditorFixtures.readyEditor(lookStop: 1), size: .accessibility5)
         defer { probe.tearDown() }
-        for anchor in ["editor.lookSlider", "editor.control.action.undo", "editor.control.action.reset",
-                       "editor.control.action.compare", "editor.control.action.saveCopy"] {
+        for anchor in ["editor.lookSlider", "editor.strength", "editor.control.action.undo", "editor.control.action.redo",
+                       "editor.control.action.reset", "editor.control.action.compare", "editor.control.action.saveCopy"] {
             XCTAssertNotNil(probe.frame(anchor), "\(anchor) missing at AX5; have \(probe.frames.keys.sorted())")
         }
     }
@@ -86,5 +102,128 @@ final class EditorLayoutTests: XCTestCase {
         XCTAssertGreaterThan(long.height, short.height * 1.5, "The long name should wrap, not truncate")
         XCTAssertLessThanOrEqual(long.maxX, SnapshotAssertion.defaultSize.width)
         XCTAssertGreaterThanOrEqual(long.minX, 0)
+    }
+
+    // MARK: - Wide screens: controls beside the photo
+
+    /// iPhone 17 landscape, iPad Pro 11-inch portrait and landscape (points, safe area ignored).
+    static let wideCanvases: [(name: String, size: CGSize)] = [
+        ("iPhone landscape", CGSize(width: 874, height: 402)),
+        ("iPad portrait", CGSize(width: 834, height: 1_210)),
+        ("iPad landscape", CGSize(width: 1_210, height: 834))
+    ]
+
+    func testWideScreensPutTheControlsBesideThePhoto() async throws {
+        for (name, canvas) in Self.wideCanvases {
+            let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+            let probe = layout(viewModel, size: .large, canvas: canvas)
+            defer { probe.tearDown() }
+            let panel = try XCTUnwrap(probe.frame("editor.sidePanel"), "\(name): no side panel; have \(probe.frames.keys.sorted())")
+            let photo = try XCTUnwrap(probe.frame("editor.photo"), name)
+            let area = try XCTUnwrap(probe.frame("editor.photoArea"), name)
+
+            XCTAssertNil(probe.frame("editor.bottomControls"), "\(name): controls are not below the photo")
+            XCTAssertTrue(EditorLayoutPolicy.sidePanelWidthRange.contains(panel.width.rounded()), "\(name): panel \(panel.width) pt")
+            XCTAssertLessThanOrEqual(photo.maxX, panel.minX + 0.5, "\(name): the panel covers the photo")
+            // The host window has safe-area insets, so "full height" is measured with some slack.
+            XCTAssertGreaterThanOrEqual(panel.height, canvas.height * 0.85, "\(name): the panel runs the full height")
+            XCTAssertGreaterThanOrEqual(area.height, canvas.height * 0.65, "\(name): the photo keeps most of the height")
+            for anchor in ["editor.lookSlider", "editor.strength", "editor.control.action.undo", "editor.control.action.redo",
+                           "editor.control.action.reset", "editor.control.action.compare", "editor.control.action.saveCopy"] {
+                XCTAssertNotNil(probe.frame(anchor), "\(name): \(anchor) missing")
+            }
+        }
+    }
+
+    /// A narrow window on a large screen (iPad split view) stacks like a phone.
+    func testNarrowSplitViewStacks() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+        let probe = layout(viewModel, size: .large, canvas: CGSize(width: 375, height: 1_210))
+        defer { probe.tearDown() }
+
+        XCTAssertNotNil(probe.frame("editor.bottomControls"))
+        XCTAssertNil(probe.frame("editor.sidePanel"))
+    }
+
+    func testLandscapePhoneAtAccessibility5KeepsThePhotoAndScrollsThePanel() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+        let canvas = CGSize(width: 874, height: 402)
+        let probe = layout(viewModel, size: .accessibility5, canvas: canvas)
+        defer { probe.tearDown() }
+        let panel = try XCTUnwrap(probe.frame("editor.sidePanel"))
+        let photo = try XCTUnwrap(probe.frame("editor.photo"))
+
+        XCTAssertLessThanOrEqual(photo.maxX, panel.minX + 0.5)
+        XCTAssertLessThanOrEqual(panel.height, canvas.height + 0.5, "The panel scrolls rather than growing")
+        XCTAssertGreaterThanOrEqual(photo.height, canvas.height * 0.6)
+    }
+
+    // MARK: - Policy
+
+    func testLayoutPolicy() {
+        typealias Policy = EditorLayoutPolicy
+        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 402, height: 874), isAccessibilitySize: false),
+                       .stacked(panelMaximumHeight: 874 * 0.35, photoMinimumHeight: 874 * 0.4))
+        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 402, height: 874), isAccessibilitySize: true),
+                       .stacked(panelMaximumHeight: 874 * 0.45, photoMinimumHeight: 874 * 0.4))
+        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 874, height: 402), isAccessibilitySize: false), .sidePanel(panelWidth: 320))
+        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 834, height: 1_210), isAccessibilitySize: false), .sidePanel(panelWidth: 320))
+        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 1_210, height: 834), isAccessibilitySize: false), .sidePanel(panelWidth: 380))
+        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 1_000, height: 1_366), isAccessibilitySize: false),
+                       .sidePanel(panelWidth: 360), "Between the bounds the panel is 36% of the width")
+        // Too narrow beside a 320 pt panel: stacked even though wider than tall.
+        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 600, height: 400), isAccessibilitySize: false),
+                       .stacked(panelMaximumHeight: 400 * 0.35, photoMinimumHeight: 400 * 0.4))
+        if case .sidePanel = Policy.arrangement(for: CGSize(width: 375, height: 1_210), isAccessibilitySize: false) {
+            XCTFail("A narrow split view stacks")
+        }
+    }
+
+    // MARK: - Indicators
+
+    func testStrengthIsLaidOutOnlyWhileALookIsApplied() async throws {
+        let without = layout(try await EditorFixtures.readyEditor(), size: .large)
+        XCTAssertNil(without.frame("editor.strength"))
+        without.tearDown()
+
+        let with = layout(try await EditorFixtures.readyEditor(lookStop: 1), size: .large)
+        defer { with.tearDown() }
+        let strength = try XCTUnwrap(with.frame("editor.strength"))
+        let slider = try XCTUnwrap(with.frame("editor.lookSlider"))
+        XCTAssertGreaterThan(strength.minY, slider.maxY, "Secondary: below the preset slider")
+    }
+
+    func testOriginalBadgeShowsOnThePhotoOnlyWhileComparing() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+        let editing = layout(viewModel, size: .large)
+        XCTAssertNil(editing.frame("editor.originalBadge"))
+        editing.tearDown()
+
+        viewModel.toggleCompare()
+        let comparing = layout(viewModel, size: .large)
+        defer { comparing.tearDown() }
+        let badge = try XCTUnwrap(comparing.frame("editor.originalBadge"))
+        let photo = try XCTUnwrap(comparing.frame("editor.photo"))
+        XCTAssertTrue(photo.insetBy(dx: -0.5, dy: -0.5).contains(badge), "The badge is on the photo: \(badge) in \(photo)")
+    }
+
+    func testSaveCopyIsInTheTopBarAboveThePhoto() async throws {
+        let probe = layout(try await EditorFixtures.readyEditor(), size: .large)
+        defer { probe.tearDown() }
+        let save = try XCTUnwrap(probe.frame("editor.control.action.saveCopy"))
+        let photo = try XCTUnwrap(probe.frame("editor.photo"))
+        XCTAssertLessThanOrEqual(save.maxY, photo.minY)
+    }
+
+    func testStepMarkersSitOnePerStopAndSpanTheTrack() {
+        let positions = SteppedTrack.stopPositions(count: 5, width: 300)
+        XCTAssertEqual(positions.count, 5)
+        XCTAssertEqual(positions.first, SteppedTrack.thumbDiameter / 2)
+        XCTAssertEqual(positions.last, 300 - SteppedTrack.thumbDiameter / 2)
+        let gaps = zip(positions.dropFirst(), positions).map { $0 - $1 }
+        XCTAssertTrue(gaps.allSatisfy { abs($0 - gaps[0]) < 0.001 }, "Evenly spaced")
+        XCTAssertEqual(SteppedTrack.nearestStop(to: positions[3] + 10, positions: positions), 3)
+        XCTAssertEqual(SteppedTrack.nearestStop(to: -50, positions: positions), 0)
+        XCTAssertEqual(SteppedTrack.nearestStop(to: 999, positions: positions), 4)
     }
 }

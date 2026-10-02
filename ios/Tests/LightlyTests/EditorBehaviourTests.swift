@@ -91,7 +91,10 @@ final class EditorBehaviourTests: XCTestCase {
         XCTAssertEqual(viewModel.displayedLookStrength, 1)
 
         viewModel.previewStop(2)
-        XCTAssertFalse(viewModel.showsStrengthControl, "Hidden while another preset is being dragged in")
+        XCTAssertTrue(viewModel.showsStrengthControl, "Stays laid out while another preset is dragged in")
+        XCTAssertFalse(viewModel.canAdjustStrength, "but cannot be used for the wrong Look")
+        viewModel.commitLookStrength(0.2)
+        XCTAssertEqual(viewModel.displayedLookStrength, 1)
         viewModel.settleStop(0)
         XCTAssertFalse(viewModel.showsStrengthControl)
     }

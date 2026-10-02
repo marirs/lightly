@@ -309,7 +309,12 @@ final class LUTEditorViewModel {
     // MARK: - Strength
 
     /// Strength belongs to a rendered Look; with none there is no control (Android parity).
-    var showsStrengthControl: Bool { isReady && committedLook != nil && previewedStopIndex == nil }
+    /// It stays laid out while another preset is dragged in (disabled, see `canAdjustStrength`), so
+    /// the panel does not jump under the finger.
+    var showsStrengthControl: Bool { isReady && committedLook != nil }
+
+    /// While another preset is previewed the Strength shown would belong to the wrong Look.
+    var canAdjustStrength: Bool { showsStrengthControl && previewedStopIndex == nil }
 
     /// The Strength shown: the dragged value while moving, else the committed one.
     var displayedLookStrength: Float {
@@ -318,7 +323,7 @@ final class LUTEditorViewModel {
 
     /// The Strength control moved: transient preview, not a step.
     func previewLookStrength(_ strength: Float) {
-        guard showsStrengthControl, let session else { return }
+        guard canAdjustStrength, let session else { return }
         let clamped = min(max(strength, 0), 1)
         previewedLookStrength = clamped
         session.previewLookStrength(clamped)
@@ -326,7 +331,7 @@ final class LUTEditorViewModel {
 
     /// The Strength control was released (or adjusted by VoiceOver): one undo step.
     func commitLookStrength(_ strength: Float) {
-        guard showsStrengthControl, let session else { return }
+        guard canAdjustStrength, let session else { return }
         previewedLookStrength = nil
         session.setLookStrength(min(max(strength, 0), 1))
         editDidChange()
@@ -379,6 +384,18 @@ final class LUTEditorViewModel {
 
     private func stop(at index: Int) -> LookStop? {
         stops.indices.contains(index) ? stops[index] : nil
+    }
+
+    /// A drag on the slider turned out to be a scroll: drop the preview, change nothing.
+    func cancelStopPreview() {
+        abandonStopPreview()
+    }
+
+    /// The slider's gesture ended without a release (the system cancelled it): commit the stop
+    /// that is on screen rather than leave a preview that history and Save copy do not know.
+    func settleStopPreviewIfAny() {
+        guard let previewedStopIndex else { return }
+        settleStop(previewedStopIndex)
     }
 
     private func abandonStopPreview() {

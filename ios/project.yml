@@ -34,7 +34,12 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
+        # Photo-first in every orientation: the editor moves its controls beside the photo when the
+        # screen is wide (EditorLayoutPolicy). iPhone excludes upside down (HIG); iPad allows all.
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        # iPhone and iPad (XcodeGen's default too, stated so it cannot silently change).
+        TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleDefault
         INFOPLIST_KEY_NSCameraUsageDescription: "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter."
         # Add-only: Lightly writes exports but never reads the library. Selection

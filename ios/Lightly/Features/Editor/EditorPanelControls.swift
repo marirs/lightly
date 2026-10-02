@@ -1,12 +1,11 @@
 import SwiftUI
 
-// Controls in the editor's bottom panel. They always sit on the plain
-// background (never over the photo), so every control boundary uses
-// `controlChrome(onPlainBackground: true)`: a solid fill plus a ≥ 3:1
-// outline (WCAG 1.4.11), with labels ≥ 4.5:1 on that fill.
+// Controls in the editor's panel. They always sit on the plain background (never over the photo),
+// so every control boundary uses `controlChrome(onPlainBackground: true)`: a solid fill plus a
+// ≥ 3:1 outline (WCAG 1.4.11), with labels ≥ 4.5:1 on that fill.
 
-/// Look categories and the stepped slider (spec D5/D6). Both come from the
-/// Look pack: no category name, count or order is known to this view.
+/// Look categories, the selected preset's name and position, and the stepped slider (spec D5/D6).
+/// All of it comes from the Look pack: no category name, count or order is known to this view.
 struct LookControls: View {
     let viewModel: LUTEditorViewModel
 
@@ -78,51 +77,30 @@ struct LookControls: View {
     }
 }
 
-/// The stepped Look slider: stop 0 is "no Look" (labelled "Original", or
-/// "Auto" while an Auto correction is applied), then one stop per preset of the
-/// category in the pack's browse order. It selects a preset; it is never an
-/// intensity control (spec D6), so there is no value between two stops.
+/// The stepped Look slider: stop 0 is "no Look" (labelled "Original", or "Auto" while an Auto
+/// correction is applied), then one stop per preset of the category in the pack's browse order.
+/// It selects a preset; it is never an intensity control (spec D6), so there is no value between
+/// two stops, and every stop has a visible marker.
 ///
-/// Dragging previews each stop as it is reached; lifting the finger
-/// commits. VoiceOver/Switch Control increments commit directly, one stop
-/// per step (spec §2 step 4: "a keyboard/accessibility increment").
+/// Dragging previews each stop as it is reached; lifting the finger commits; a tap commits the
+/// nearest stop. VoiceOver/Switch Control increments commit directly, one stop per step (spec §2
+/// step 4: "a keyboard/accessibility increment").
 struct SteppedLookSlider: View {
     let viewModel: LUTEditorViewModel
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private var stops: [LookStop] { viewModel.stops }
-    private var lastIndex: Int { max(stops.count - 1, 1) }
-
     var body: some View {
         VStack(alignment: .leading, spacing: LightlySpacing.xxs) {
-            // Preset names are pack data, shown verbatim. They wrap rather
-            // than truncate: at large text "Cinematic Light Tone (11)" needs
-            // two lines, and a clipped name would hide which preset it is.
-            // DEFERRED: product-facing Look names (spec U8) and their
-            // localisation; until then the preset's own name is shown.
-            Text(verbatim: viewModel.stopLabel(at: viewModel.displayedStopIndex))
-                .font(LightlyTypography.rowTitle)
-                .foregroundStyle(LightlyColor.textPrimary(colorScheme))
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutAnchor("editor.lookStopName")
-                .accessibilityIdentifier("editor.lookStopName")
-                // The slider's own accessibility value carries the name.
-                .accessibilityHidden(true)
-
-            Slider(
-                value: Binding(
-                    get: { Double(viewModel.displayedStopIndex) },
-                    set: { viewModel.previewStop(Int($0.rounded())) }
-                ),
-                in: 0...Double(lastIndex),
-                step: 1,
-                onEditingChanged: { isEditing in
-                    if !isEditing { viewModel.settleStop(viewModel.displayedStopIndex) }
-                }
+            nameAndPosition
+            SteppedTrack(
+                stopCount: viewModel.stops.count,
+                selectedIndex: viewModel.displayedStopIndex,
+                onPreview: { viewModel.previewStop($0) },
+                onSettle: { viewModel.settleStop($0) },
+                onCancel: { viewModel.cancelStopPreview() },
+                onInterrupted: { viewModel.settleStopPreviewIfAny() }
             )
-            .tint(LightlyColor.textPrimary(colorScheme))
             .layoutAnchor("editor.lookSlider")
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("editor.lookSlider.accessibility", bundle: .main))
@@ -137,9 +115,212 @@ struct SteppedLookSlider: View {
             .accessibilityIdentifier("editor.lookSlider")
         }
     }
+
+    /// "Nordic Tone (10) · 3 of 5". Preset names are pack data, shown verbatim. They wrap rather
+    /// than truncate: at large text "Cinematic Light Tone (11)" needs two lines, and a clipped
+    /// name would hide which preset it is. The position moves to its own line when the two do not
+    /// fit side by side.
+    // DEFERRED: product-facing Look names (spec U8) and their localisation; until then the
+    // preset's own name is shown.
+    private var nameAndPosition: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: LightlySpacing.xs) {
+                stopName.fixedSize()
+                positionSeparator
+                stopPosition
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: LightlySpacing.xxs) {
+                stopName
+                stopPosition
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // The slider's own accessibility value carries the name and position.
+        .accessibilityHidden(true)
+    }
+
+    private var stopName: some View {
+        Text(verbatim: viewModel.stopLabel(at: viewModel.displayedStopIndex))
+            .font(LightlyTypography.rowTitle)
+            .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutAnchor("editor.lookStopName")
+            .accessibilityIdentifier("editor.lookStopName")
+    }
+
+    private var positionSeparator: some View {
+        Text(verbatim: "·")
+            .font(LightlyTypography.rowSubtitle)
+            .foregroundStyle(LightlyColor.textSecondary(colorScheme))
+    }
+
+    private var stopPosition: some View {
+        Text(verbatim: viewModel.stopPositionText)
+            .font(LightlyTypography.rowSubtitle.monospacedDigit())
+            .foregroundStyle(LightlyColor.textSecondary(colorScheme))
+            .fixedSize()
+            .layoutAnchor("editor.lookStopPosition")
+            .accessibilityIdentifier("editor.lookStopPosition")
+    }
 }
 
-/// Undo, Reset to Auto, Compare (toggle) and Save copy.
+/// A track with one detent per stop and a thumb on the selected one.
+///
+/// Custom rather than `Slider(step:)`: the system slider draws no detents, and the agreed UX needs
+/// a visible marker per stop. Geometry matches UISlider's (thumb centre inset by its radius), so
+/// stop `i` of `n` sits at `i/(n-1)` of the inset width.
+struct SteppedTrack: View {
+    let stopCount: Int
+    let selectedIndex: Int
+    let onPreview: (Int) -> Void
+    let onSettle: (Int) -> Void
+    /// A drag that turned out to be vertical (scrolling the panel) changes nothing.
+    let onCancel: () -> Void
+    /// The gesture ended without `onEnded` (cancelled by the system, e.g. when the panel's layout
+    /// changes under the finger). Without this a preview could stay on screen uncommitted.
+    let onInterrupted: () -> Void
+
+    static let thumbDiameter: CGFloat = 28
+    static let height: CGFloat = 44
+    private static let detentDiameter: CGFloat = 8
+    /// Movement before a drag is classified as horizontal (select) or vertical (scroll).
+    private static let axisDecisionDistance: CGFloat = 6
+
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var dragAxis: Axis?
+    @GestureState private var isPressing = false
+
+    var body: some View {
+        GeometryReader { proxy in
+            let positions = Self.stopPositions(count: stopCount, width: proxy.size.width)
+            ZStack(alignment: .topLeading) {
+                Capsule()
+                    .fill(LightlyColor.controlBoundary(colorScheme))
+                    .frame(width: max(proxy.size.width - Self.thumbDiameter, 0), height: 3)
+                    .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                ForEach(positions.indices, id: \.self) { index in
+                    Circle()
+                        .fill(index <= selectedIndex ? LightlyColor.textPrimary(colorScheme) : LightlyColor.surfaceElevated(colorScheme))
+                        .overlay(Circle().strokeBorder(LightlyColor.controlBoundary(colorScheme), lineWidth: 1.5))
+                        .frame(width: Self.detentDiameter, height: Self.detentDiameter)
+                        .position(x: positions[index], y: proxy.size.height / 2)
+                }
+                if positions.indices.contains(selectedIndex) {
+                    Circle()
+                        .fill(LightlyColor.textPrimary(colorScheme))
+                        .overlay(Circle().strokeBorder(LightlyColor.background(colorScheme), lineWidth: 2))
+                        .frame(width: Self.thumbDiameter, height: Self.thumbDiameter)
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                        .position(x: positions[selectedIndex], y: proxy.size.height / 2)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .contentShape(Rectangle())
+            // Simultaneous, so the panel can still scroll when a vertical swipe starts on the track.
+            .simultaneousGesture(dragGesture(positions: positions))
+            .onChange(of: isPressing) { _, pressing in
+                // A new press starts unclassified. An ended press commits any preview left behind;
+                // after a normal release `onEnded` has already settled it and this does nothing.
+                if pressing { dragAxis = nil } else { onInterrupted() }
+            }
+        }
+        .frame(height: Self.height)
+    }
+
+    private func dragGesture(positions: [CGFloat]) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .updating($isPressing) { _, pressing, _ in pressing = true }
+            .onChanged { value in
+                if dragAxis == nil {
+                    let dx = abs(value.translation.width), dy = abs(value.translation.height)
+                    if dx >= Self.axisDecisionDistance, dx > dy { dragAxis = .horizontal }
+                    if dy >= Self.axisDecisionDistance, dy >= dx { dragAxis = .vertical }
+                }
+                if dragAxis == .horizontal {
+                    onPreview(Self.nearestStop(to: value.location.x, positions: positions))
+                }
+            }
+            .onEnded { value in
+                defer { dragAxis = nil }
+                if dragAxis == .vertical {
+                    onCancel()
+                } else {
+                    // A horizontal drag, or a tap that never moved far enough to decide.
+                    onSettle(Self.nearestStop(to: value.location.x, positions: positions))
+                }
+            }
+    }
+
+    static func stopPositions(count: Int, width: CGFloat) -> [CGFloat] {
+        guard count > 0 else { return [] }
+        let inset = thumbDiameter / 2
+        guard count > 1 else { return [inset] }
+        let usable = max(width - 2 * inset, 0)
+        return (0..<count).map { inset + usable * CGFloat($0) / CGFloat(count - 1) }
+    }
+
+    static func nearestStop(to x: CGFloat, positions: [CGFloat]) -> Int {
+        positions.indices.min { abs(positions[$0] - x) < abs(positions[$1] - x) } ?? 0
+    }
+}
+
+/// The optional Strength of the applied Look: visually secondary (small type, secondary colour,
+/// small control) and shown only while a Look is applied. Dragging previews; releasing commits one
+/// undo step. VoiceOver adjusts in 10% steps, each one a step.
+struct StrengthControl: View {
+    let viewModel: LUTEditorViewModel
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private static let accessibilityStep: Float = 0.1
+
+    private var percentText: String {
+        String(format: String(localized: "editor.strength.value"), Int((viewModel.displayedLookStrength * 100).rounded()))
+    }
+
+    var body: some View {
+        HStack(spacing: LightlySpacing.xs) {
+            Text("editor.strength.label", bundle: .main)
+                .font(LightlyTypography.caption)
+                .foregroundStyle(LightlyColor.textSecondary(colorScheme))
+                .fixedSize()
+            Slider(
+                value: Binding(
+                    get: { Double(viewModel.displayedLookStrength) },
+                    set: { viewModel.previewLookStrength(Float($0)) }
+                ),
+                in: 0...1,
+                onEditingChanged: { isEditing in
+                    if !isEditing { viewModel.commitLookStrength(viewModel.displayedLookStrength) }
+                }
+            )
+            .tint(LightlyColor.textSecondary(colorScheme))
+            .controlSize(.small)
+            .layoutAnchor("editor.strengthSlider")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("editor.strength.label", bundle: .main))
+            .accessibilityValue(Text(verbatim: percentText))
+            .accessibilityAdjustableAction { direction in
+                let step: Float = direction == .increment ? Self.accessibilityStep : -Self.accessibilityStep
+                viewModel.commitLookStrength(viewModel.displayedLookStrength + step)
+            }
+            .accessibilityIdentifier("editor.strengthSlider")
+            Text(verbatim: percentText)
+                .font(LightlyTypography.caption.monospacedDigit())
+                .foregroundStyle(LightlyColor.textSecondary(colorScheme))
+                .frame(minWidth: 36, alignment: .trailing)
+                .fixedSize()
+                .accessibilityHidden(true)
+        }
+        .frame(minHeight: LightlySize.minimumTapTarget)
+        .disabled(!viewModel.canAdjustStrength)
+        .opacity(viewModel.canAdjustStrength ? 1 : 0.4)
+        .layoutAnchor("editor.strength")
+    }
+}
+
+/// Undo, Redo, Reset to Auto and Compare (toggle). Save copy is in the top bar.
 struct EditActions: View {
     let viewModel: LUTEditorViewModel
 
@@ -152,36 +333,36 @@ struct EditActions: View {
         VStack(spacing: LightlySpacing.xs) {
             HStack(spacing: LightlySpacing.xs) {
                 undoAction
-                resetAction
-                if !dynamicTypeSize.isAccessibilitySize { compareAction; saveCopyAction }
+                redoAction
+                if !dynamicTypeSize.isAccessibilitySize { resetAction; compareAction }
             }
             if dynamicTypeSize.isAccessibilitySize {
-                HStack(spacing: LightlySpacing.xs) { compareAction; saveCopyAction }
+                HStack(spacing: LightlySpacing.xs) { resetAction; compareAction }
             }
         }
     }
 
     private var undoAction: some View {
         action(symbol: "arrow.uturn.backward", labelKey: "action.undo", identifier: "action.undo",
-                   isEnabled: viewModel.canUndo) { viewModel.undo() }
+               isEnabled: viewModel.canUndo) { viewModel.undo() }
+    }
+
+    private var redoAction: some View {
+        action(symbol: "arrow.uturn.forward", labelKey: "action.redo", identifier: "action.redo",
+               isEnabled: viewModel.canRedo) { viewModel.redo() }
     }
 
     private var resetAction: some View {
         action(symbol: "arrow.counterclockwise", labelKey: "action.reset", identifier: "action.reset",
-                   isEnabled: viewModel.canResetToAuto) { viewModel.resetToAuto() }
-                .accessibilityLabel(Text("action.reset.accessibility", bundle: .main))
+               isEnabled: viewModel.canResetToAuto) { viewModel.resetToAuto() }
+            .accessibilityLabel(Text("action.reset.accessibility", bundle: .main))
     }
 
     private var compareAction: some View {
         action(symbol: "rectangle.righthalf.inset.filled", labelKey: "action.compare", identifier: "action.compare",
-                   isEnabled: viewModel.isReady, isSelected: viewModel.isCompareToggledOn) { viewModel.toggleCompare() }
-                .accessibilityLabel(Text("action.compare.accessibility", bundle: .main))
-                .accessibilityHint(Text("action.compare.hint", bundle: .main))
-    }
-
-    private var saveCopyAction: some View {
-        action(symbol: "square.and.arrow.down", labelKey: "action.saveCopy", identifier: "action.saveCopy",
-                   isEnabled: viewModel.canSaveCopy) { viewModel.saveCopy() }
+               isEnabled: viewModel.isReady, isSelected: viewModel.isCompareToggledOn) { viewModel.toggleCompare() }
+            .accessibilityLabel(Text("action.compare.accessibility", bundle: .main))
+            .accessibilityHint(Text("action.compare.hint", bundle: .main))
     }
 
     private func action(
@@ -202,7 +383,7 @@ struct EditActions: View {
                     .minimumScaleFactor(0.8)
             }
             .foregroundStyle(isSelected ? LightlyColor.background(colorScheme) : LightlyColor.textPrimary(colorScheme))
-            .frame(maxWidth: .infinity, minHeight: LightlySize.minimumTapTarget + LightlySpacing.s)
+            .frame(maxWidth: .infinity, minHeight: LightlySize.minimumTapTarget + LightlySpacing.xxs)
             .background(
                 RoundedRectangle(cornerRadius: LightlyRadius.row, style: .continuous)
                     .fill(isSelected ? LightlyColor.textPrimary(colorScheme) : LightlyColor.surfaceElevated(colorScheme))
@@ -219,6 +400,168 @@ struct EditActions: View {
         // still read as unavailable rather than as broken.
         .opacity(isEnabled ? 1 : 0.4)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// The primary action, always in the top bar: a filled capsule, the one solid control on screen.
+struct SaveCopyButton: View {
+    let viewModel: LUTEditorViewModel
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Button { viewModel.saveCopy() } label: {
+            HStack(spacing: LightlySpacing.xxs) {
+                if viewModel.saveStatus == .saving {
+                    ProgressView().tint(LightlyColor.background(colorScheme))
+                } else {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                Text("action.saveCopy", bundle: .main)
+                    .font(LightlyTypography.actionPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(LightlyColor.background(colorScheme))
+            .padding(.horizontal, LightlySpacing.m)
+            .frame(minHeight: LightlySize.minimumTapTarget)
+            .background(Capsule().fill(LightlyColor.textPrimary(colorScheme)))
+            .overlay(Capsule().strokeBorder(LightlyColor.controlBoundary(colorScheme), lineWidth: 1.5))
+            .layoutAnchor("editor.control.action.saveCopy")
+        }
+        .buttonStyle(.plain)
+        .disabled(!viewModel.canSaveCopy)
+        .opacity(viewModel.canSaveCopy ? 1 : 0.4)
+        .accessibilityIdentifier("action.saveCopy")
+    }
+}
+
+/// Shown instead of the Look controls when Auto genuinely failed: Retry, or Continue without
+/// Auto. Never shown for "no model in this build", where a retry could not help.
+struct AutoFailureRow: View {
+    let viewModel: LUTEditorViewModel
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: LightlySpacing.s) {
+            Text("editor.auto.failed.title", bundle: .main)
+                .font(LightlyTypography.rowSubtitle)
+                .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: LightlySpacing.xs) {
+                button("action.retry", identifier: "action.retryAuto") { viewModel.retryAuto() }
+                button("action.continueWithoutAuto", identifier: "action.continueWithoutAuto") { viewModel.continueWithoutAuto() }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("editor.autoFailed")
+    }
+
+    private func button(_ key: LocalizedStringKey, identifier: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            Text(key, bundle: .main)
+                .font(LightlyTypography.rowSubtitle.weight(.semibold))
+                .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, LightlySpacing.s)
+                .frame(maxWidth: .infinity, minHeight: LightlySize.minimumTapTarget)
+                .controlChrome(Capsule(), onPlainBackground: true, colorScheme: colorScheme)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// Compact notices. They state limits plainly — a missing Auto model must never look like an
+/// enhanced photo, approximate Looks must never look like finished conversions, and a saved Look
+/// that is unavailable or changed must never be silently replaced — in one short line each, so
+/// they do not push the photo off screen. The Save copy outcome is shown here too.
+struct EditorNotices: View {
+    let viewModel: LUTEditorViewModel
+    /// Inside the panel the panel already provides the margins.
+    var isInsidePanel = false
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: LightlySpacing.xxs) {
+            SaveCopyStatusLine(status: viewModel.saveStatus)
+            switch viewModel.autoNotice {
+            case .notInBuild:
+                notice(symbol: "wand.and.stars.inverse", identifier: "editor.autoUnavailableNotice") {
+                    Text("editor.auto.unavailable.notice", bundle: .main)
+                }
+            case .failed:
+                notice(symbol: "wand.and.stars.inverse", identifier: "editor.autoFailedNotice") {
+                    Text("editor.auto.failed.notice", bundle: .main)
+                }
+            case nil:
+                EmptyView()
+            }
+            switch viewModel.lookNotice {
+            case .unavailable:
+                notice(symbol: "exclamationmark.triangle", identifier: "editor.lookUnavailableNotice") {
+                    Text("editor.looks.unavailable.notice", bundle: .main)
+                }
+            case .changed(let lookName):
+                lookChangedNotice(lookName)
+            case nil:
+                EmptyView()
+            }
+            if viewModel.showsApproximateLooksNotice {
+                notice(symbol: "info.circle", identifier: "editor.approximateLooksNotice") {
+                    Text("editor.looks.approximate.notice", bundle: .main)
+                }
+            }
+        }
+        .padding(.horizontal, isInsidePanel ? 0 : LightlySpacing.m)
+        .padding(.top, isInsidePanel ? 0 : LightlySpacing.xxs)
+    }
+
+    /// The one notice with an action: "Use current version" is a new, undoable step.
+    private func lookChangedNotice(_ lookName: String) -> some View {
+        HStack(alignment: .center, spacing: LightlySpacing.xs) {
+            notice(symbol: "arrow.triangle.2.circlepath", identifier: "editor.lookChangedNotice") {
+                Text(verbatim: String(format: String(localized: "editor.looks.changed.notice"), lookName))
+            }
+            Button { viewModel.useCurrentLookVersion() } label: {
+                Text("action.useCurrentVersion", bundle: .main)
+                    .font(LightlyTypography.caption.weight(.semibold))
+                    .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, LightlySpacing.xs)
+                    .frame(minHeight: LightlySize.minimumTapTarget)
+                    .controlChrome(Capsule(), onPlainBackground: true, colorScheme: colorScheme)
+            }
+            .buttonStyle(.plain)
+            .disabled(!viewModel.canUseCurrentLookVersion)
+            .accessibilityIdentifier("action.useCurrentVersion")
+        }
+    }
+
+    private func notice(symbol: String, identifier: String, @ViewBuilder message: () -> Text) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: LightlySpacing.xs) {
+            Image(systemName: symbol)
+                .accessibilityHidden(true)
+            message()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(LightlyTypography.caption)
+        .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+        .padding(.horizontal, LightlySpacing.s)
+        .padding(.vertical, LightlySpacing.xxs + 2)
+        .background(
+            RoundedRectangle(cornerRadius: LightlyRadius.row, style: .continuous)
+                .fill(LightlyColor.surfaceElevated(colorScheme))
+        )
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
     }
 }
@@ -260,57 +603,6 @@ struct SaveCopyStatusLine: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("editor.saveStatus")
-    }
-}
-
-/// Notices shown above the photo. They state limits of this build plainly:
-/// a missing Auto model must never look like an enhanced photo, approximate
-/// Look conversions must never look like Lightroom-exact ones, and a saved
-/// Look that is missing must never be silently replaced.
-struct EditorNotices: View {
-    let viewModel: LUTEditorViewModel
-    /// Inside the bottom panel the panel already provides the margins.
-    var isInsideBottomPanel = false
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        VStack(spacing: LightlySpacing.xs) {
-            if viewModel.isAutoUnavailable {
-                notice(symbol: "wand.and.stars.inverse", messageKey: "editor.auto.unavailable.notice",
-                       identifier: "editor.autoUnavailableNotice")
-            }
-            if viewModel.lookNotice == .unavailable {
-                notice(symbol: "exclamationmark.triangle", messageKey: "editor.looks.unavailable.notice",
-                       identifier: "editor.lookUnavailableNotice")
-            }
-            if viewModel.showsApproximateLooksNotice {
-                notice(symbol: "info.circle", messageKey: "editor.looks.approximate.notice",
-                       identifier: "editor.approximateLooksNotice")
-            }
-        }
-        .padding(.horizontal, isInsideBottomPanel ? 0 : LightlySpacing.m)
-        .padding(.top, isInsideBottomPanel ? 0 : LightlySpacing.xs)
-    }
-
-    private func notice(symbol: String, messageKey: LocalizedStringKey, identifier: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: LightlySpacing.xs) {
-            Image(systemName: symbol)
-                .accessibilityHidden(true)
-            Text(messageKey, bundle: .main)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .font(LightlyTypography.caption)
-        .foregroundStyle(LightlyColor.textPrimary(colorScheme))
-        .padding(.horizontal, LightlySpacing.s)
-        .padding(.vertical, LightlySpacing.xs)
-        .background(
-            RoundedRectangle(cornerRadius: LightlyRadius.row, style: .continuous)
-                .fill(LightlyColor.surfaceElevated(colorScheme))
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier(identifier)
     }
 }
 

@@ -305,13 +305,13 @@
       }
     },
     "editor.auto.unavailable.notice": {
-      "comment": "Shown while no Auto model is bundled. Must not imply the photo was enhanced.",
+      "comment": "Compact notice: this build ships no Auto model. Must never imply the photo was enhanced.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auto is unavailable: this build has no Auto model. Looks apply to your original photo."
+            "value": "Auto is unavailable: no Auto model in this build."
           }
         }
       }
@@ -377,13 +377,13 @@
       }
     },
     "editor.looks.approximate.notice": {
-      "comment": "Shown while any Look offered is a model approximation or not validated against Lightroom (spec 4.5). Must not imply the Looks match Lightroom.",
+      "comment": "Compact notice: at least one Look's status is not 'validated' (pack format 2).",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looks are approximate conversions, not yet checked against Lightroom."
+            "value": "Looks are approximate, not finished conversions."
           }
         }
       }
@@ -413,13 +413,13 @@
       }
     },
     "editor.looks.unavailable.notice": {
-      "comment": "Shown when a saved edit names a Look this build does not have (spec 4.5): the Look is not applied and Auto is shown instead.",
+      "comment": "Notice: a restored edit names a Look the pack does not have (spec 4.5). The photo is shown without it.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Look unavailable. Showing Auto instead."
+            "value": "This edit's Look isn't in this build, so it isn't applied."
           }
         }
       }
