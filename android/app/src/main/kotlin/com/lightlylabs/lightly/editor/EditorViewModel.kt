@@ -151,6 +151,9 @@ class EditorViewModel(
 
     val categories: List<String> get() = env.lookBook.categories
 
+    /** Non-null when this build's Looks are provisional placeholders (debug builds). */
+    val lookProvisionalNotice: String? get() = env.lookBook.provisionalNotice
+
     fun stopNames(category: String): List<String> = env.lookBook.stops(category).map { it.displayName }
 
     /** Slider position (0 = Auto) of the displayed Look within the selected category. */

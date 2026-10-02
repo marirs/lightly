@@ -27,7 +27,8 @@ import java.util.concurrent.Executors
  * - **Preview renderer:** the CPU reference ([CpuLutPassRenderer]) on the display proxy. The GLES
  *   renderer (:core-render-gl) is not wired until it has been validated on Adreno/Mali (PENDING);
  *   swapping it in only changes [EditorEnvironment.previewRenderer] and the render thread.
- * - **Looks:** procedural placeholders ([PlaceholderLookBook]), not the curated look-book (M3).
+ * - **Looks:** [BundledLookBook]: provisional procedural placeholders in debug builds only, none in
+ *   release builds, until the curated look-book (M3/M4).
  */
 object AndroidEditorEnvironment {
 
@@ -45,7 +46,7 @@ object AndroidEditorEnvironment {
                 DevelopResult.Failed("Auto enhancement isn't available in this build yet.")
             },
             autoResolver = RegistryAutoLutResolver(BasisRegistry(installed = emptyList())),
-            lookBook = PlaceholderLookBook.create(),
+            lookBook = BundledLookBook.create(),
             previewRenderer = CpuLutPassRenderer,
             renderDispatcher = renderDispatcher,
             exporter = ExportCoordinator(

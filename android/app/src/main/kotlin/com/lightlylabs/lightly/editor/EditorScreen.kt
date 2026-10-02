@@ -93,22 +93,11 @@ private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPho
     }
     ui.lookNotice?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        viewModel.categories.forEach { category ->
-            FilterChip(selected = category == ui.selectedCategory, onClick = { viewModel.selectCategory(category) }, label = { Text(category) })
-        }
-    }
-
-    SteppedLookSlider(
-        stopNames = listOf("Auto") + viewModel.stopNames(ui.selectedCategory),
-        settledStop = viewModel.stopIndex,
-        category = ui.selectedCategory,
-        onMove = viewModel::onStopChanged,
-        onSettle = viewModel::onStopSettled,
-    )
-
-    session.current.look?.let { activeLook ->
-        StrengthSlider(committed = activeLook.strength, onPreview = viewModel::previewLookStrength, onCommit = viewModel::commitLookStrength)
+    if (viewModel.categories.isEmpty()) {
+        // Release builds ship no Looks until the curated look-book exists (BundledLookBook).
+        Text("No Looks in this build yet.")
+    } else {
+        LookControls(ui, viewModel)
     }
 
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -124,6 +113,29 @@ private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPho
         is SaveStatus.Saved -> Text("Saved as a new photo. Original unchanged.")
         is SaveStatus.Failed -> Text("Couldn't save: ${save.message}", color = MaterialTheme.colorScheme.error)
         else -> Unit
+    }
+}
+
+@Composable
+private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel) {
+    viewModel.lookProvisionalNotice?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        viewModel.categories.forEach { category ->
+            FilterChip(selected = category == ui.selectedCategory, onClick = { viewModel.selectCategory(category) }, label = { Text(category) })
+        }
+    }
+
+    SteppedLookSlider(
+        stopNames = listOf("Auto") + viewModel.stopNames(ui.selectedCategory),
+        settledStop = viewModel.stopIndex,
+        category = ui.selectedCategory,
+        onMove = viewModel::onStopChanged,
+        onSettle = viewModel::onStopSettled,
+    )
+
+    ui.session?.current?.look?.let { activeLook ->
+        StrengthSlider(committed = activeLook.strength, onPreview = viewModel::previewLookStrength, onCommit = viewModel::commitLookStrength)
     }
 }
 
