@@ -118,6 +118,13 @@ final class EditorFlowUITests: XCTestCase {
         let reducedStrength = strength.value as? String
         capture(named: "07-strength")
 
+        // Agreed Strength rule: settling on the stop that is already committed changes nothing —
+        // the Strength stays reduced (and no step is added: the Undo below lands on this state).
+        tapStop(slider, 2, stopCount: first.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: first.value(atStop: 2)), "\(slider.value ?? "nil")")
+        XCTAssertEqual(strength.value as? String, reducedStrength, "Same stop keeps the Strength")
+        capture(named: "07b-same-stop-keeps-strength")
+
         // Second category: a preset there replaces the first category's Look.
         app.buttons["editor.category.\(second.id)"].tap()
         XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 0)), "\(slider.value ?? "nil")")
@@ -259,10 +266,17 @@ final class EditorFlowUITests: XCTestCase {
             }
             XCUIDevice.shared.orientation = orientation
             let photo = app.descendants(matching: .any)["editor.photo"]
-            // Rotation animates; wait until the layout settles on the expected arrangement.
-            let besidePhoto = isPad || orientation.isLandscape
+            // Rotation animates; wait until the layout settles on the expected arrangement. The
+            // editor picks the arrangement that shows the photo larger (EditorLayoutPolicy):
+            // landscape → side panel; phone portrait → below; iPad portrait → below for a
+            // landscape photo. A portrait photo on iPad portrait is close to a tie, so either
+            // arrangement is accepted there as long as the controls do not overlap the photo.
             let predicate = NSPredicate { _, _ in
-                besidePhoto ? slider.frame.minX >= photo.frame.maxX : slider.frame.minY >= photo.frame.maxY
+                let beside = slider.frame.minX >= photo.frame.maxX
+                let below = slider.frame.minY >= photo.frame.maxY
+                if orientation.isLandscape { return beside }
+                if !isPad { return below }
+                return photo.frame.width > photo.frame.height ? below : (beside || below)
             }
             let settled = XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 10) == .completed
             XCTAssertTrue(settled, "\(device) \(orientation.rawValue): photo \(photo.frame), slider \(slider.frame)")
@@ -324,6 +338,14 @@ final class EditorFlowUITests: XCTestCase {
             return slider.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: frame.height / 2))
         }
         point(forStop: startStop).press(forDuration: 0.3, thenDragTo: point(forStop: endStop))
+    }
+
+    /// Taps stop `stop` of the slider (a tap settles the stop under the finger).
+    private func tapStop(_ slider: XCUIElement, _ stop: Int, stopCount: Int) {
+        let thumbRadius: CGFloat = 14
+        let frame = slider.frame
+        let x = thumbRadius + CGFloat(stop) / CGFloat(stopCount - 1) * (frame.width - 2 * thumbRadius)
+        slider.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: frame.height / 2)).tap()
     }
 
     /// Drags the Strength slider's thumb from 100% to `fraction` of the track, like a finger.
