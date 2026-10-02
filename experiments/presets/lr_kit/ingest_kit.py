@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lut3d/reference"))
 import ia3dlut as ia  # noqa: E402
 import lrsettings  # noqa: E402
+import evidence  # noqa: E402  (experiments/presets/evidence.py: digests the pack builder checks)
 
 PRESETS = Path(__file__).resolve().parents[1]
 
@@ -95,6 +96,30 @@ def verify_presets(kit: Path, look: dict, recorded: dict) -> list:
         elif sha256_file(p) != recorded[rel]:
             problems.append(f"{Path(rel).name} changed since kit creation")
     return problems
+
+
+def original_settings(kit: Path, look: dict) -> dict | None:
+    """The vendor preset as found in the collection: what the pack builder reads to make the Look.
+
+    No fallback to the generated kit presets: they carry filled-in defaults, so their digest would
+    never match the shipped Look's recipe and would silently make every pass unusable.
+    """
+    rel = look.get("original_file")
+    if not rel or not (kit / rel).exists():
+        return None
+    path = kit / rel
+    parsed = lrsettings.parse_bytes(path.read_bytes(), rel, path.suffix.lower())
+    return None if parsed.error else parsed.settings
+
+
+def evidence_for(kit: Path, look: dict, lut) -> dict:
+    """Digests of exactly what this run measured (see evidence.py); null where it measured nothing."""
+    original = original_settings(kit, look)
+    return {
+        "lutSha256": evidence.lut_digest(ia.export_lut_rgba_float32(lut)) if lut is not None else None,
+        "recipeSha256": evidence.recipe_digest(original) if original is not None else None,
+        "rendererSha256": evidence.renderer_digest(),
+    }
 
 
 def load_full_settings(kit: Path, look: dict) -> dict:
@@ -323,6 +348,7 @@ def main(kit: Path):
             write_cube(lut, res / "luts" / f"{lid}__global.cube", f"{lid} global")
         preset_problems = verify_presets(kit, L, preset_hashes)
         settings = load_full_settings(kit, L) if not preset_problems else None
+        entry["evidence"] = evidence_for(kit, L, lut)
         # 1. global-transform validation: LUT(original) vs Lightroom's GLOBAL-ONLY photo exports
         if lut is None or settings is None:
             entry["global"] = blocked(h if lut is None else None, preset_problems, missing_inputs)

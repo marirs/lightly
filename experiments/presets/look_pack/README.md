@@ -54,7 +54,7 @@ Status fields (pack format 2). Global-colour and full-recipe validation are sepa
 
 | Field | Values | Meaning |
 |---|---|---|
-| `globalColour.status` | not-run · incomplete · failed · validated | Lightroom's global-only render vs the Look's LUT (`ingest_kit` "global") |
+| `globalColour.status` | not-run · incomplete · failed · validated · stale | Lightroom's global-only render vs the Look's LUT (`ingest_kit` "global") |
 | `fullRecipe.status` | same | Lightroom's full Look vs Lightly's complete recipe (`ingest_kit` "full") |
 | `conversion` | approximate · complete | `complete` only for a Lightroom-HALD LUT with no omitted operator |
 | `status` | approximate · global-colour-validated · validated | promoted only by evidence about the LUT that ships |
@@ -63,6 +63,7 @@ Status fields (pack format 2). Global-colour and full-recipe validation are sepa
 - `global-colour-validated` means a HALD LUT whose global comparison passed; effects may still be missing.
 - Everything else is `approximate`, including every model-derived LUT, whatever a report says.
 - Pass `--validation-report <kit>/results/report.json` to read the results; without it, every validation is `not-run`.
+- **Evidence is bound to what ships.** `ingest_kit` records digests of the LUT it measured, the original preset's recipe and (for the full recipe) Lightly's renderer (`experiments/presets/evidence.py`). The builder recomputes them for the LUT and preset it ships. Any difference, or a report without digests, makes that validation `stale`, with a `reason`, and it cannot promote the Look.
 - Today all 18 Looks are `approximate`, with both validations `not-run`, because no Lightroom exports exist yet.
 - `omittedOperators` lists what the LUT path does not render: clarity, texture, vignette and grain. For a HALD-derived LUT it also lists the adaptive tone sliders.
 - `approximatedGlobally` lists what the model folds into the LUT as a global approximation.

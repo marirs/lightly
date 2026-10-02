@@ -187,14 +187,33 @@ def _report(path: Path, looks: dict) -> Path:
     return path
 
 
-def _one_look_pack(tmp_path, collection, settings, report=None, hald=False):
+def _measured_evidence(hald: Path, settings: dict) -> dict:
+    """What ingest_kit records for a Look: digests of the LUT it measured and the recipe it read."""
+    import evidence
+    import ingest_kit
+    return evidence.evidence_block(pc.lut_bytes(ingest_kit.hald_to_lut(hald)), settings)
+
+
+def _one_look_pack(tmp_path, collection, settings, statuses=None, hald=False, bind=True, edit_evidence=None, report=None):
+    """Build a one-Look pack. statuses = (global, full) writes a report; bind=False omits its evidence.
+
+    report= passes a ready-made report file through unchanged (kept so the reviewer's reproduction
+    script in ~/.codex/artifacts/lightly/review-d5690dd/ still runs against this helper).
+    """
     source = _write_preset(collection, "Look", settings)
     catalog = _catalog(tmp_path / "catalog.json", [("cat", "Label", [("Look", source)])])
     hald_dir = None
     if hald:
         hald_dir = tmp_path / "hald"
-        hald_dir.mkdir()
+        hald_dir.mkdir(exist_ok=True)
         make_kit.write_hald(hald_dir / "kit.1.look__global.tif")
+    if statuses:
+        entry = {"global": {"status": statuses[0]}, "full": {"status": statuses[1]}}
+        if bind and hald:
+            entry["evidence"] = _measured_evidence(hald_dir / "kit.1.look__global.tif", pc.read_preset(collection, source).settings)
+            if edit_evidence:
+                edit_evidence(entry["evidence"])
+        report = _report(tmp_path / "report.json", {"kit.1.look": entry})
     manifest = build_look_pack.build(collection, tmp_path / "pack", hald_dir=hald_dir, catalog_path=catalog,
                                      kit_ids={source: "kit.1.look"}, validation_report=report)
     return manifest["categories"][0]["stops"][0], manifest
@@ -211,8 +230,7 @@ def test_format_2_has_no_single_validation_flag(tmp_path, collection):
 
 
 def test_global_colour_pass_alone_never_promotes_to_validated(tmp_path, collection):
-    report = _report(tmp_path / "report.json", {"kit.1.look": {"global": {"status": "validated"}, "full": {"status": "failed"}}})
-    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, report=report, hald=True)
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, statuses=("validated", "failed"), hald=True)
     assert stop["globalColour"]["status"] == "validated"
     assert stop["fullRecipe"]["status"] == "failed"
     assert stop["status"] == "global-colour-validated"
@@ -220,30 +238,73 @@ def test_global_colour_pass_alone_never_promotes_to_validated(tmp_path, collecti
 
 def test_global_colour_from_the_model_is_not_evidence(tmp_path, collection):
     # A report can only vouch for the LUT it measured: Lightroom's HALD. A model LUT stays approximate.
-    report = _report(tmp_path / "report.json", {"kit.1.look": {"global": {"status": "validated"}, "full": {"status": "validated"}}})
-    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, report=report, hald=False)
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, statuses=("validated", "validated"), hald=False)
     assert stop["lutSource"] == "lr-model-approximation"
     assert stop["status"] == "approximate"
 
 
 def test_missing_effects_keep_conversion_unfinished_even_if_numbers_pass(tmp_path, collection):
-    report = _report(tmp_path / "report.json", {"kit.1.look": {"global": {"status": "validated"}, "full": {"status": "validated"}}})
-    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20", "GrainAmount": "20"}, report=report, hald=True)
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20", "GrainAmount": "20"},
+                             statuses=("validated", "validated"), hald=True)
     assert stop["omittedOperators"] == ["grain"]
     assert stop["conversion"] == "approximate"
     assert stop["status"] == "global-colour-validated", "full recipe cannot be validated while an effect is missing"
 
 
 def test_everything_passing_with_nothing_missing_is_validated(tmp_path, collection):
-    report = _report(tmp_path / "report.json", {"kit.1.look": {"global": {"status": "validated"}, "full": {"status": "validated"}}})
-    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, report=report, hald=True)
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, statuses=("validated", "validated"), hald=True)
     assert stop["conversion"] == "complete"
     assert stop["status"] == "validated"
     assert stop["globalColour"]["evidence"] == "report.json"
 
 
+# --- Evidence must be about exactly what ships (Codex review of d5690dd, finding 1) -------------
+
+def test_a_changed_lut_does_not_keep_a_stale_validation(tmp_path, collection):
+    # Codex's reproduction: validate the identity HALD, then replace it with black and rebuild with the same report.
+    import tifffile
+    first, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, statuses=("validated", "validated"), hald=True)
+    assert first["status"] == "validated"
+    hald = tmp_path / "hald/kit.1.look__global.tif"
+    tifffile.imwrite(hald, np.zeros_like(tifffile.imread(hald)))
+    catalog = tmp_path / "catalog.json"
+    changed = build_look_pack.build(collection, tmp_path / "changed", hald_dir=tmp_path / "hald", catalog_path=catalog,
+                                    kit_ids={"Look.xmp": "kit.1.look"}, validation_report=tmp_path / "report.json")
+    stop = changed["categories"][0]["stops"][0]
+    assert stop["lutSha256"] != first["lutSha256"]
+    assert stop["globalColour"]["status"] == "stale" and stop["fullRecipe"]["status"] == "stale"
+    assert stop["status"] == "approximate"
+
+
+def test_a_report_without_evidence_cannot_promote(tmp_path, collection):
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, statuses=("validated", "validated"), hald=True, bind=False)
+    assert stop["globalColour"]["status"] == "stale"
+    assert "not bound" in stop["globalColour"]["reason"]
+    assert stop["status"] == "approximate"
+
+
+def test_an_edited_preset_makes_the_evidence_stale(tmp_path, collection):
+    def measured_a_different_recipe(evidence):
+        evidence["recipeSha256"] = "0" * 64
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, statuses=("validated", "validated"), hald=True,
+                             edit_evidence=measured_a_different_recipe)
+    assert stop["globalColour"]["status"] == "stale" and stop["fullRecipe"]["status"] == "stale"
+    assert stop["status"] == "approximate"
+
+
+def test_a_changed_renderer_stales_only_the_full_recipe(tmp_path, collection):
+    # Global colour compares the LUT alone; the full recipe also depends on Lightly's renderer.
+    def measured_with_an_older_renderer(evidence):
+        evidence["rendererSha256"] = "0" * 64
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, statuses=("validated", "validated"), hald=True,
+                             edit_evidence=measured_with_an_older_renderer)
+    assert stop["globalColour"]["status"] == "validated"
+    assert stop["fullRecipe"]["status"] == "stale"
+    assert stop["status"] == "global-colour-validated"
+
+
 def test_build_scripts_import_cleanly():
     # build_catalog.py once shipped with a syntax error that no test imported it to catch.
     import importlib
-    for module in ("build_catalog", "build_look_pack", "ordering", "pack_common"):
+    for module in ("build_catalog", "build_look_pack", "ordering", "pack_common", "evidence", "ingest_kit"):
         importlib.import_module(module)

@@ -17,7 +17,9 @@ LUT source per Look, best first:
 Status (format 2). Two validations are tracked separately and never merged into one flag:
 - `globalColour`: Lightroom's global-only render vs the Look's LUT (ingest_kit "global").
 - `fullRecipe`:   Lightroom's full Look vs Lightly's complete recipe (ingest_kit "full").
-Each is {status: not-run | incomplete | failed | validated, evidence: report file name or null},
+Each is {status: not-run | incomplete | failed | validated | stale, evidence: report file name or null},
+where `stale` means the report measured a different LUT, preset recipe or (full recipe) renderer
+than the one shipped: evidence digests (experiments/presets/evidence.py) must match exactly.
 read from `--validation-report <kit>/results/report.json`; this script never runs the comparison.
 `conversion` is "complete" only when the LUT is Lightroom's own and no operator is omitted;
 approximate colour, or colour with missing effects, is "approximate". The Look's `status` is
@@ -32,7 +34,8 @@ import re
 import shutil
 from pathlib import Path
 
-import pack_common as pc
+import pack_common as pc  # first: puts experiments/presets (evidence, lr_model) on sys.path
+import evidence  # noqa: E402
 
 CATALOG = pc.HERE / "catalog.json"
 DEFAULT_OUT = pc.HERE / "out"
@@ -70,11 +73,36 @@ def _coverage_fields(settings: dict, lut_source: str) -> dict:
 NOT_RUN = {"status": "not-run", "evidence": None}
 
 
-def _validation(report: dict | None, report_name: str | None, kit_id: str | None, kind: str) -> dict:
-    entry = (report or {}).get("looks", {}).get(kit_id or "", {}).get(kind)
+def _validation(report: dict | None, report_name: str | None, kit_id: str | None, kind: str,
+                shipped: dict) -> dict:
+    """One validation's status for the LUT being shipped.
+
+    A passing result counts only when the report's evidence block names exactly what ships: the same
+    LUT bytes and the same original preset recipe, and for the full recipe also the same renderer.
+    Anything else is "stale" with the reason, so an edited preset, a re-exported HALD or a changed
+    renderer can never inherit an old pass (Codex review of d5690dd, finding 1).
+    """
+    look = (report or {}).get("looks", {}).get(kit_id or "", {})
+    entry = look.get(kind)
     if not entry:
         return dict(NOT_RUN)
-    return {"status": entry["status"], "evidence": report_name}
+    result = {"status": entry["status"], "evidence": report_name}
+    mismatch = _evidence_mismatch(look.get("evidence"), shipped, kind)
+    if mismatch:
+        result["status"] = "stale"
+        result["reason"] = mismatch
+        result["reportedStatus"] = entry["status"]
+    return result
+
+
+def _evidence_mismatch(recorded: dict | None, shipped: dict, kind: str) -> str | None:
+    if not recorded:
+        return "report not bound to a LUT or recipe (no evidence digests); re-run ingest_kit"
+    keys = ("lutSha256", "recipeSha256") + (("rendererSha256",) if kind == "full" else ())
+    differing = [k for k in keys if recorded.get(k) != shipped[k]]
+    if differing:
+        return "measured a different " + ", ".join(k.removesuffix("Sha256") for k in differing) + " than the one shipped"
+    return None
 
 
 def promoted_status(lut_source: str, omitted: list[str], global_colour: str, full_recipe: str) -> str:
@@ -93,9 +121,10 @@ def promoted_status(lut_source: str, omitted: list[str], global_colour: str, ful
     return "global-colour-validated"
 
 
-def _status_fields(kit_id, lut_source: str, settings: dict, report, report_name) -> dict:
-    global_colour = _validation(report, report_name, kit_id, "global")
-    full_recipe = _validation(report, report_name, kit_id, "full")
+def _status_fields(kit_id, lut_source: str, settings: dict, report, report_name, lut_bytes: bytes) -> dict:
+    shipped = evidence.evidence_block(lut_bytes, settings)
+    global_colour = _validation(report, report_name, kit_id, "global", shipped)
+    full_recipe = _validation(report, report_name, kit_id, "full", shipped)
     omitted = pc.operator_coverage(settings, lut_source)["omitted"]
     return {
         "conversion": "complete" if lut_source == "lightroom-hald" and not omitted else "approximate",
@@ -136,7 +165,7 @@ def build(collection: Path, out: Path, hald_dir: Path | None = None, catalog_pat
                 "lutSource": lut_source,
                 "lightroomHald": hald_name,
                 **_coverage_fields(parsed.settings, lut_source),
-                **_status_fields(kit_ids.get(stop["source"]), lut_source, parsed.settings, report, report_name),
+                **_status_fields(kit_ids.get(stop["source"]), lut_source, parsed.settings, report, report_name, data),
             })
         categories.append({
             "id": category["id"],

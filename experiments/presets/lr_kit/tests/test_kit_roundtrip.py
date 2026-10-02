@@ -66,3 +66,30 @@ def test_wrong_export_fails(tmp_path):
     ingest_kit.main(kit)
     look = json.load(open(kit / "results/report.json"))["looks"]["test.1.x"]
     assert look["global"]["status"] == "failed" and look["full"]["status"] == "failed"
+
+
+def test_report_records_evidence_that_binds_it_to_the_measured_lut_and_recipe(tmp_path):
+    # Codex review of d5690dd, finding 1: a pass must name exactly what was measured, so the pack
+    # builder can refuse to promote any other LUT or recipe.
+    import evidence, lrsettings
+    kit, _ = build(tmp_path)
+    original = kit / "presets/original/test.1.x.xmp"
+    original.parent.mkdir(parents=True, exist_ok=True)
+    original.write_text(make_kit.settings_to_xmp({"ProcessVersion": "11.0", "Saturation": "-20"}, "x"))
+    shortlist = json.load(open(kit / "shortlist.json"))
+    shortlist[0]["original_file"] = "presets/original/test.1.x.xmp"
+    json.dump(shortlist, open(kit / "shortlist.json", "w"))
+    make_kit.write_inputs(kit)
+    ingest_kit.main(kit)
+    look = json.load(open(kit / "results/report.json"))["looks"]["test.1.x"]
+    measured = np.load(kit / "results/luts/test.1.x__global.npy")
+    assert look["evidence"]["lutSha256"] == evidence.lut_digest(ia.export_lut_rgba_float32(measured))
+    assert look["evidence"]["recipeSha256"] == evidence.recipe_digest(lrsettings.parse_xmp_text(original.read_text()))
+    assert look["evidence"]["rendererSha256"] == evidence.renderer_digest()
+
+
+def test_a_kit_without_the_original_preset_records_no_recipe_evidence(tmp_path):
+    kit, _ = build(tmp_path)
+    ingest_kit.main(kit)
+    look = json.load(open(kit / "results/report.json"))["looks"]["test.1.x"]
+    assert look["evidence"]["recipeSha256"] is None, "no silent fallback to the generated kit preset"
