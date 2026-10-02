@@ -52,6 +52,10 @@ final class LUTEditSession {
     private(set) var autoAvailability: AutoAvailability = .pending
     private(set) var renderedImage: CGImage
     private(set) var isShowingOriginal = false
+    /// Spec §3 undo cap; same value and semantics as Android
+    /// `UndoStack.DEFAULT_CAPACITY` (the starting entry counts).
+    static let historyCapacity = 50
+
     private(set) var history: [LUTEditState] = [.original]
     private(set) var historyIndex = 0
     /// Renders that reached the screen (diagnostic for latest-wins tests).
@@ -163,10 +167,21 @@ final class LUTEditSession {
         render(committedState)
     }
 
-    func reset() {
-        history = [.original]
-        historyIndex = 0
-        render(.original)
+    /// "Reset to Auto" (spec §2 and §3): drops the Look and keeps Auto.
+    ///
+    /// Goes through `commit`, so it is one undoable step and a Reset that
+    /// changes nothing adds no step. Parity with Android
+    /// `EditSession.resetToAuto()`.
+    // v3 differs: the earlier `reset()` replaced history with `[.original]`,
+    // which also turned Auto off and made the edit impossible to undo
+    // (Codex M2 finding 3).
+    func resetToAuto() {
+        var next = committedState
+        next.lookID = nil
+        // Strength belongs to the Look; restore the default so "no Look"
+        // has one representation and a later Look starts at 100%.
+        next.lookStrength = LUTEditState.original.lookStrength
+        commit(next)
     }
 
     func beginCompare() { isShowingOriginal = true }
@@ -185,8 +200,19 @@ final class LUTEditSession {
         }
         history.removeSubrange((historyIndex + 1)...)
         history.append(state)
-        historyIndex += 1
+        dropEntriesBeyondCapacity()
+        historyIndex = history.count - 1
         render(state)
+    }
+
+    /// Spec §3: at most `historyCapacity` entries, dropping the oldest.
+    /// Mirrors Android `UndoStack.commit`: the capacity counts the starting
+    /// entry, so after the cap is reached the original can no longer be
+    /// reached by Undo (the spec accepts that for 50 steps).
+    private func dropEntriesBeyondCapacity() {
+        let overflow = history.count - Self.historyCapacity
+        guard overflow > 0 else { return }
+        history.removeFirst(overflow)
     }
 
     // MARK: - Passes

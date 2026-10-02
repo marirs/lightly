@@ -219,10 +219,86 @@ final class LUTEditSessionTests: XCTestCase {
         XCTAssertEqual(session.committedState.lookID, TestLookBook.warm.id)
         XCTAssertEqual(try pixels(session.displayedImage), try expectedPreview(session, passes: [TestLookBook.warm.lut]))
 
-        session.reset()
+        // Reset to Auto clears the Look as an undoable step (spec §3, D10);
+        // it no longer wipes history back to `.original`.
+        session.resetToAuto()
         await session.settleRendering()
-        XCTAssertEqual(session.committedState, .original)
-        XCTAssertFalse(session.canUndo)
+        XCTAssertEqual(session.committedState, .original, "No Auto here, so dropping the Look leaves the original")
+        XCTAssertTrue(session.canUndo, "Reset is an undoable step, not a history wipe")
         XCTAssertEqual(try pixels(session.displayedImage), session.previewBase.pixels)
+    }
+
+    // MARK: - Reset to Auto (Codex finding 3)
+
+    func testResetToAutoKeepsAutoAndClearsTheLook() async throws {
+        let session = try makeSession(auto: BasisAutoEnhancer(basis: Self.autoBasis) { _ in [0, 1] })
+        await session.prepareAuto()
+        session.setAutoStrength(1)
+        session.applyLook(id: TestLookBook.warm.id)
+
+        session.resetToAuto()
+        await session.settleRendering()
+
+        XCTAssertEqual(session.committedState.autoStrength, 1, "Reset to Auto must keep Auto")
+        XCTAssertNil(session.committedState.lookID, "Reset to Auto must clear the Look")
+        let auto = try XCTUnwrap(session.autoLUT)
+        XCTAssertTrue(try pixels(session.displayedImage) == expectedPreview(session, passes: [auto]),
+                      "After Reset the screen shows Auto alone")
+    }
+
+    func testUndoAfterResetRestoresTheLook() async throws {
+        let session = try makeSession(auto: BasisAutoEnhancer(basis: Self.autoBasis) { _ in [0, 1] })
+        await session.prepareAuto()
+        session.setAutoStrength(1)
+        session.applyLook(id: TestLookBook.warm.id)
+        let withLook = session.committedState
+
+        session.resetToAuto()
+        session.undo()
+        await session.settleRendering()
+
+        XCTAssertEqual(session.committedState, withLook, "Undo after Reset must bring the Look back")
+        let auto = try XCTUnwrap(session.autoLUT)
+        XCTAssertTrue(try pixels(session.displayedImage) == expectedPreview(session, passes: [auto, TestLookBook.warm.lut]))
+    }
+
+    func testResetTwiceAddsOneStep() throws {
+        let session = try makeSession()
+        session.applyLook(id: TestLookBook.mono.id)
+        let countBeforeReset = session.history.count
+
+        session.resetToAuto()
+        session.resetToAuto()
+
+        XCTAssertEqual(session.history.count, countBeforeReset + 1, "A Reset that changes nothing is not a step")
+        XCTAssertEqual(session.historyIndex, session.history.count - 1)
+    }
+
+    /// Spec §3: the stack is capped at 50 entries, dropping the oldest.
+    /// Mirrors Android `UndoStack`: the capacity counts the starting entry.
+    func testHistoryIsCappedAtFiftyEntriesAndUndoReachesTheOldestRetained() throws {
+        let session = try makeSession()
+        let specCapacity = 50   // spec §3; literal so the test does not just mirror the implementation
+        let commitCount = 60
+        var committed: [LUTEditState] = [session.committedState]
+        for step in 1...commitCount {
+            // Distinct strengths so every commit is a real change.
+            session.applyLook(id: TestLookBook.warm.id, strength: Float(step) / Float(commitCount))
+            committed.append(session.committedState)
+        }
+
+        XCTAssertEqual(session.history.count, specCapacity)
+        XCTAssertEqual(session.historyIndex, specCapacity - 1)
+        XCTAssertEqual(session.committedState, committed.last)
+
+        var undoCount = 0
+        while session.canUndo {
+            session.undo()
+            undoCount += 1
+        }
+        XCTAssertEqual(undoCount, specCapacity - 1)
+        XCTAssertEqual(session.committedState, committed[committed.count - specCapacity],
+                       "Undo stops at the oldest retained entry")
+        XCTAssertNotEqual(session.committedState, .original, "The oldest entries were dropped")
     }
 }
