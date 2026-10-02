@@ -12,7 +12,7 @@ This milestone builds the Android parts of spec §8 that can be verified **witho
 - the tiled export path and MediaStore writer;
 - a Compose editor wired end to end (picker → Auto → Looks → preview → Save copy).
 
-Everything was verified with JVM unit tests and Robolectric only. **No physical device or emulator was used in M2.** Every hardware-dependent claim below is marked **PENDING**.
+Everything in sections 1–7 was verified with JVM unit tests and Robolectric only. The follow-up in §8 (Codex findings 1 and 4, Looks, user-flow demo) also ran the debug APK on an **Android emulator** (Pixel 9 Pro AVD, API 36, arm64). **No physical device was used.** Every hardware-dependent claim below is marked **PENDING**, and emulator results are labelled emulator-only.
 
 ## 1. Build and test
 
@@ -48,7 +48,7 @@ If either folder is missing, the golden tests **fail** with these instructions. 
 | `core-model` | Kotlin/JVM | `CanonicalAnalysisInput` (§4.6 pinned antialiased resize); `BasisLuts.fuse`; `endpoint-v1` guardrail. **`BasisRegistry`**: basis files keyed by (modelId, modelVersion), each sha256-verified against its manifest before it is parsed. **`RegistryAutoLutResolver`**: AutoResult → `Ready(lut)` or `AutoUnavailable(modelId, modelVersion, reason)`, with no fallback to another version. `AutoEnhancer.develop` → `DevelopOutcome` (Developed or Unavailable). `AutoModel` is an interface with a fake only. |
 | `core-decode` | Android library | `DecodeTargets`: the analysis decode has a long edge of exactly 1024 (or the Original if smaller) and does not depend on the screen; the display proxy is capped at min(screen, 2732); headers above 100 MP are rejected. `ProxyDecoder`: ImageDecoder with target size, software allocation and `setTargetColorSpace(sRGB)`, plus a Canvas redraw for anything still not 8-bit sRGB. EXIF orientation comes from ImageDecoder. Gain maps are ignored (U5). |
 | `core-export` | Android library | `SaveCopyExporter` (insert `IS_PENDING=1` → encode **once** → `IS_PENDING=0`; the pending row is deleted on failure; the source is never opened). `ContentResolverGateway`. **`ExportCoordinator`**: export path separate from the preview scheduler, single flight, slot held until the write completes, state guarded by export ID. **`TiledExportRenderer`**: ≤ 4096² tiles, LUT passes per tile, written straight into the encode target (`ExportFrame`: `BitmapExportFrame` + `BitmapFrameJpegEncoder` on Android). **`ExportBufferLedger`**: documented buffer budget (§3.1). |
-| `app` | Android app | `EditorViewModel` wired end to end through an injected `EditorEnvironment` (§3.2). `EditorScreen`: Photo Picker, preview image, hold-to-compare, category chips, stepped slider, strength, undo/redo/reset, Save copy. `AndroidEditorEnvironment` is the production wiring. `PlaceholderLookBook`: procedural placeholder Looks (not vendor presets) until the curated look-book. The app ships **no inference engine and no basis**: develop reports DevelopFailed and the user continues with the Original. Tests inject a fake model and a test basis. |
+| `app` | Android app | `EditorViewModel` wired end to end through an injected `EditorEnvironment` (§3.2). `EditorScreen`: Photo Picker, preview image, hold-to-compare, category chips, stepped slider, strength, undo/redo/reset, Save copy. `AndroidEditorEnvironment` is the production wiring (`ContentResolverPhotoLoader`, `ContentResolverPhotoAccessGrants`). `BundledLookBook`: provisional procedural Looks in **debug builds only**, none in release (§8.3). The app ships **no inference engine and no basis**: develop reports DevelopFailed and the user continues with the Original. Tests inject a fake model and a test basis. |
 
 ### Decisions taken while implementing
 
@@ -63,7 +63,7 @@ If either folder is missing, the golden tests **fail** with these instructions. 
 
 ## 3. Test results (`./gradlew test`, JVM + Robolectric, JDK 25)
 
-**138 tests, 0 failures, 0 skipped.** Run with the golden set from the main checkout.
+**160 tests, 0 failures, 0 skipped** (138 before §8). Run with the golden set from the main checkout.
 
 | Module | Task | Tests | Notes |
 |---|---|---|---|
@@ -72,7 +72,7 @@ If either folder is missing, the golden tests **fail** with these instructions. 
 | core-model | `test` | 17 | preprocessing golden 3, fusion/guardrail 5, AutoEnhancer 5, basis versioning 4 |
 | core-decode | `testDebugUnitTest` | 12 | sizing 6 (JVM), ImageDecoder 6 (Robolectric API 34, native graphics) |
 | core-export | `testDebugUnitTest` | 28 | save flow 9 (JVM fake), ContentResolver 3 (Robolectric API 29), ExportCoordinator 10 (incl. 3 cancellation/slot regressions), tiled export 4, BitmapExportFrame 2 (Robolectric native graphics) |
-| app | `testDebugUnitTest` | 14 | the full editor flow (§3.2) |
+| app | `testDebugUnitTest` | 36 | the full editor flow (§3.2) 14; stale photo work 4 (§8.1); photo access 6 VM + 8 grants (Robolectric API 29 and 34) + 2 loader (§8.2); look-book 2 (§8.3) |
 
 Measured against the 23 golden cases:
 
@@ -147,7 +147,8 @@ Baking O1+O2 into one 33³ LUT exceeds the 2/255 tolerance on 2 of the 23 golden
 | Decoder on device | **PENDING.** Robolectric runs host Skia codecs | HEIF, 10-bit / F16, Ultra HDR, vendor JPEG, P3 camera files; orientation on real files |
 | Timings and memory (proxy decode, preprocess, inference, preview, 48 MP export peak ≤ 600 MB) | **PENDING** | Release build on both phones |
 | MediaStore and JPEG on device | **PENDING.** Robolectric checks the ContentResolver contract only, and JPEG SOI/EOI from host Skia | Instrumented save test, original-unchanged hash test (§10), device `Bitmap.compress` output (sRGB ICC, quality 92) |
-| Editor on device | **PENDING.** The app builds (`assembleDebug`) but has never been launched | Picker flow, preview latency with the CPU renderer vs GL, rotation and process-death restore, TalkBack |
+| Editor on device | **PENDING.** Ran on an API 36 emulator only (§8.4) | Picker flow, preview latency with the CPU renderer vs GL, rotation and process-death restore, TalkBack |
+| Persisted picker grant across a real restart | **PENDING.** Emulator showed `persisted=0x1` and a process-death restore (§8.4) | Real Photo Picker on both phones: pick, reboot / force-stop, relaunch, photo reopens; API 29 fallback (non-persistable URI) reaches PhotoAccessLost, not a crash |
 
 ## 6. Deliberate deferrals (M3 unless noted)
 
@@ -166,10 +167,74 @@ Baking O1+O2 into one 33³ LUT exceeds the 2/255 tolerance on 2 of the 23 golden
   - the `feature-editor` module;
   - Hilt;
   - the `contracts/` directory (M2.1, shared with iOS).
-- **Compose UI tests and instrumented tests.** None in M2, because no device or emulator was used.
+- **Compose UI tests and instrumented tests.** None yet. The §8.4 emulator run is a manual, scripted check, not a test in the build.
 
 ## 7. Notes
 
 - Compose BOM is pinned to `2026.06.01` and lifecycle to `2.10.0`. The newer releases require `compileSdk 37`.
 - `org.gradle.vfs.watch=false`: file-system watching missed edits in this git worktree and reported stale `UP-TO-DATE` results.
 - Reused from the M1 harness: the antialiased resize (`ImageUtil.kt`) and the GLES structure and shader (`GlLut.kt`). The CPU trilinear weights were changed to float64 to match NumPy exactly.
+
+## 8. Follow-up: Codex findings 1 and 4, Looks, user-flow demo
+
+### 8.1 Finding 1 — stale Auto completion replaced the current photo's session
+
+Opening photo B cancelled A's job, but a model runtime or decoder that ignores cancellation could still return. A's Auto result then replaced B's session and the saved session JSON, and A's LoadFailed / DevelopFailed replaced B's Ready phase.
+
+Fix: the photo generation is carried through load, develop and retry, and re-checked after every suspension point (success, Developing, Developed, Failed, LoadFailed). The loaded photo is stored with its generation, so Retry, "Use original" and Save copy only act on the photo on screen.
+
+Regression tests use a non-cancellable suspension (`suspendCoroutine`) for A, open B, wait for Ready, then let A finish. They assert that B's phase, session, Auto status, preview and SavedStateHandle (`KEY_ASSET`, `KEY_SESSION`) are unchanged. Failing before the fix:
+
+| Case | Before (expected B, got) |
+|---|---|
+| stale Auto success | session asset `…/42` (A), weights `0.1, 0.2, 0.7` (A), preview hash changed |
+| stale Auto failure | phase `DevelopFailed(model crashed on A)` |
+| stale load failure | phase `LoadFailed(A was deleted)` |
+| stale retry | session asset `…/42` (A), weights `0.1, 0.2, 0.7`, preview hash changed |
+
+### 8.2 Finding 4 — the picked URI lost read access across restart
+
+The picker result was stored as a URI string only. Picker URIs are readable until the process ends, so a restore after process death reopened a URI the app could no longer read.
+
+Fix:
+- `PhotoAccessGrants` (production: `ContentResolverPhotoAccessGrants`). `openPhoto` takes a persistable READ grant while the picker's temporary grant is still valid, then releases the previous photo's grant so grants do not build up against the per-app cap. The new grant is taken first. A grant that cannot be persisted (seen with some API 29 fallbacks) returns false and the photo still opens for this process.
+- `ContentResolverPhotoLoader` reports `SecurityException` / `FileNotFoundException` anywhere in the cause chain as `PhotoAccessLostException`.
+- New phase **PhotoAccessLost**: the saved asset and session are dropped (a later restart does not retry the dead URI), the dead grant is released, and the screen offers **"Choose the photo again"**, which relaunches the picker. It never crashes and is never a dead end.
+- DEFERRED: re-attaching the dropped edit when the same photo is picked again (match by fingerprint, rebase onto the new URI). For now the photo develops anew.
+
+Failing before the fix (against the API skeleton): grant on pick `expected:<[retain …/42]> but was:<[]>`; release on switch `but was:<[]>`; revoked restore `expected:<PhotoAccessLost> but was:<LoadFailed(…)>`; Robolectric `retain` did not persist a grant; the loader threw a raw `SecurityException` / `FileNotFoundException` instead of `PhotoAccessLostException`. Restore with retained access, a non-persistable grant and a non-access LoadFailed are covered too.
+
+### 8.3 Looks: where they come from
+
+`LookBook` receives its Looks from `BundledLookBook.create()` (the counterpart of iOS `LUTLookBook.bundled`):
+- **Debug builds** (`src/debug`): `PlaceholderLookBook`, 9 procedural Looks in 5 categories. Each 33³ LUT is generated in code from a simple per-channel formula. No LUT file exists in the repo or the APK, and nothing is derived from any preset collection. The UI labels them: "Provisional Looks (debug build): procedural placeholders, not validated."
+- **Release builds** (`src/release`): an empty book, the same as iOS today. The Look controls are replaced by "No Looks in this build yet." Checked: the release APK's dex does not contain `PlaceholderLookBook`.
+- DEFERRED (core-looks, M3/M4): curated Look LUTs, converted and validated against Lightroom.
+
+### 8.4 User flow on the emulator (emulator-only)
+
+Debug APK on the `Pixel_9_Pro` AVD (API 36, arm64, started `-read-only`, so nothing persists on the AVD). The test photo is an Unsplash image from `experiments/lut3d/photos` (`landscape_03.jpg`, 3000×2000) pushed to MediaStore. Screenshots, a screen recording (first 180 s) and logs are in the session scratchpad (`demo/android/`), not in the repo.
+
+| Step | Result on the emulator |
+|---|---|
+| Choose photo (Photo Picker) | Opens; read grant persisted (`dumpsys activity permissions`: `persistable=0x1 persisted=0x1`) |
+| Developing | Too fast to capture on the emulator; covered by unit tests |
+| Auto unavailable | DevelopFailed: "Couldn't enhance. Auto enhancement isn't available in this build yet." → [Continue with original] → notice "Auto enhancement unavailable. Looks are applied to the original." |
+| Category + stepped slider, two stops | Film → Fade (stop 1) → Punch (stop 2), each one undo step |
+| Compare | Shows the Original ("Photo, original") |
+| Undo / Reset | Undo returns to Fade; Reset returns to Auto |
+| Save copy | New MediaStore item `Lightly_….jpg`, 3000×2000, `is_pending=0`; the original's sha256 on the device equals the host file |
+| Process death (`am kill` in background) + relaunch | Session restored (Film / Fade, Undo available) through SavedStateHandle and the persisted grant |
+| Source item deleted, then kill + relaunch | PhotoAccessLost with "Choose the photo again"; the dead grant was released (`persisted=0x0`); picking again opens the photo |
+
+Gaps found on the emulator and fixed:
+- edge-to-edge (targetSdk 36): the photo drew under the status bar and the buttons under the gesture handle → `WindowInsets.safeDrawing` padding;
+- "Save copy" was off screen in the horizontally scrolling action row → the row wraps;
+- a drag starting on the slider thumb at stop 0 lands in the back-gesture zone → `systemGestureExclusion()` on both sliders;
+- the photo area announced "No photo" while it showed the Original before a session existed → "Photo, original".
+
+Not shown by the emulator run, and still **PENDING** or unverified:
+- a force-stop or reboot restore: SavedStateHandle survives only system process death; the recovery snapshot and "Continue editing?" UX are M4;
+- GPU rendering (the app previews with the CPU renderer), device performance and memory;
+- spatial operators (grain, vignette, local contrast) and their export fidelity;
+- Auto: unavailable in the app, because no production basis and no inference engine are bundled. Research (FiveK-derived) weights are never bundled.
