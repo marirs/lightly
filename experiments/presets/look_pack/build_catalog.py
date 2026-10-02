@@ -127,7 +127,7 @@ def main() -> None:
         "catalogVersion": 1,
         "description": (
             "Lightly Look catalog. Categories are provisional groupings of the curated presets; labels and "
-            "membership are data, not code. Within a category the slider shows Auto, then each preset as a "
+            "membership are data, not code. Within a category the slider shows the base stop ("Auto" when an Auto correction is applied, "Original" otherwise), then each preset as a "
             "discrete stop in browse order: the shortest visual path from Auto through every preset "
             "(mean CIEDE2000 on the reference photos), not an intensity ramp."
         ),

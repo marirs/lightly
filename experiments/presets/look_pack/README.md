@@ -29,6 +29,8 @@ The slider selects a preset; it is **not** an intensity control, so stops are no
 
 The numbers in brackets are the step from the previous stop, in mean ΔE00 measured with the calibrated approximation:
 
+Stop 0 is the base with no Look. It reads **Auto** when an Auto correction is applied and **Original** when none is (today: always Original, since no Auto model ships). The order is measured from that base.
+
 | Category (provisional) | Browse order |
 |---|---|
 | Natural | Auto → S1 - Vibes (2.11) → S7 - Retro Mood (4.69) → Portrait-1 (4.72) → 08 (2.51) |
