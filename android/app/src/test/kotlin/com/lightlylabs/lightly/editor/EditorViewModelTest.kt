@@ -284,17 +284,125 @@ class EditorViewModelTest {
         assertEquals(0.2f, vm.uiState.value.session!!.current.look!!.strength)
     }
 
+    // --- Agreed Strength rule (both platforms) ---------------------------------------------------
+
     @Test
-    fun `the category slider picks a preset and never changes strength`() = runTest {
+    fun `review repro - preset A at 40 percent, preview B, settle back on A keeps 40 percent and adds no step`() = runTest {
         val vm = readyViewModel()
+        val film = lookBook.stops("cat-film")
         vm.selectCategory("cat-film")
         vm.onStopSettled(1)
         vm.commitLookStrength(0.4f)
+        advanceUntilIdle()
+        val before = vm.uiState.value.session!!
 
         vm.onStopChanged(2)
-        assertEquals(0.4f, vm.uiState.value.displayed!!.look!!.strength, "previewing another preset keeps the strength")
+        assertEquals(film[1].ref(1f), vm.uiState.value.displayed!!.look, "previewing a different preset shows it at 100%")
+        vm.onStopChanged(1)
+        assertEquals(film[0].ref(0.4f), vm.uiState.value.displayed!!.look, "dragging back over the committed stop previews it as committed")
+        vm.onStopSettled(1)
+        advanceUntilIdle()
+
+        assertEquals(film[0].ref(0.4f), vm.uiState.value.session!!.current.look, "Strength unchanged")
+        assertEquals(before, vm.uiState.value.session, "history unchanged: same entries, same cursor, same revision")
+        assertNull(vm.uiState.value.transientPreview, "only the transient preview ends")
+        assertContentEquals(render(display, expectedAutoLut, 0.8f, film[0].ref(0.4f)), vm.previewPixels())
+    }
+
+    @Test
+    fun `tapping the committed stop again is a no-op that keeps redo`() = runTest {
+        val vm = readyViewModel()
+        val film = lookBook.stops("cat-film")
+        vm.selectCategory("cat-film")
+        vm.onStopSettled(1)
+        vm.commitLookStrength(0.4f)
+        vm.commitLookStrength(0.7f)
+        vm.undo()
+        val before = vm.uiState.value.session!!
+        assertTrue(before.canRedo)
+
+        vm.onStopSettled(1)
+
+        assertEquals(before, vm.uiState.value.session, "a no-op does not clear redo")
+        assertEquals(film[0].ref(0.4f), vm.uiState.value.session!!.current.look)
+    }
+
+    @Test
+    fun `committing a different preset applies it at 100 percent as one undo step, and undo restores the old strength`() = runTest {
+        val vm = readyViewModel()
+        val film = lookBook.stops("cat-film")
+        vm.selectCategory("cat-film")
+        vm.onStopSettled(1)
+        vm.commitLookStrength(0.4f)
+        val entriesBefore = vm.uiState.value.session!!.history.entries.size
+
+        vm.onStopChanged(2)
+        vm.onStopChanged(3)
         vm.onStopSettled(3)
-        assertEquals(lookBook.stops("cat-film")[2].ref(0.4f), vm.uiState.value.session!!.current.look)
+        assertEquals(film[2].ref(1f), vm.uiState.value.session!!.current.look, "the designed look, not the carried 40%")
+        assertEquals(entriesBefore + 1, vm.uiState.value.session!!.history.entries.size, "one step for the drag")
+
+        vm.undo()
+        assertEquals(film[0].ref(0.4f), vm.uiState.value.session!!.current.look, "undo restores Strength exactly as committed")
+        vm.redo()
+        assertEquals(film[2].ref(1f), vm.uiState.value.session!!.current.look)
+    }
+
+    @Test
+    fun `a preset from another category also starts at 100 percent`() = runTest {
+        val vm = readyViewModel()
+        vm.selectCategory("cat-film")
+        vm.onStopSettled(1)
+        vm.commitLookStrength(0.25f)
+        vm.selectCategory("cat-warm")
+        vm.onStopSettled(1)
+        assertEquals(lookBook.stops("cat-warm")[0].ref(1f), vm.uiState.value.session!!.current.look)
+    }
+
+    @Test
+    fun `reset is one undoable step and undo brings back the committed strength`() = runTest {
+        val vm = readyViewModel()
+        val film = lookBook.stops("cat-film")
+        vm.selectCategory("cat-film")
+        vm.onStopSettled(2)
+        vm.commitLookStrength(0.4f)
+        val entriesBefore = vm.uiState.value.session!!.history.entries.size
+
+        vm.resetToAuto()
+        assertNull(vm.uiState.value.session!!.current.look)
+        assertEquals(entriesBefore + 1, vm.uiState.value.session!!.history.entries.size)
+
+        vm.undo()
+        assertEquals(film[1].ref(0.4f), vm.uiState.value.session!!.current.look)
+    }
+
+    @Test
+    fun `strength previews do not commit, only the release does`() = runTest {
+        val vm = readyViewModel()
+        vm.selectCategory("cat-film")
+        vm.onStopSettled(1)
+        val entries = vm.uiState.value.session!!.history.entries.size
+        repeat(10) { vm.previewLookStrength(it / 10f) }
+        assertEquals(entries, vm.uiState.value.session!!.history.entries.size)
+        vm.commitLookStrength(0.9f)
+        assertEquals(entries + 1, vm.uiState.value.session!!.history.entries.size)
+    }
+
+    @Test
+    fun `settling on the stop of a changed Look applies the pack's current version at 100 percent`() = runTest {
+        // The committed Look is an older version of this stop's preset: it is not the stop that is
+        // committed (the photo renders without it and the slider shows stop 0), so picking the stop
+        // is an explicit choice of the current preset, not a no-op.
+        val current = lookBook.stops("cat-warm")[1]
+        val older = current.ref(0.6f).copy(lookVersion = "000000000000")
+        val vm = viewModel(handleWith(EditSession.start(source, auto).selectLook(older)), environment(Fakes(DevelopResult.Developed(auto))))
+        advanceUntilIdle()
+        vm.selectCategory("cat-warm")
+
+        vm.onStopSettled(2)
+
+        assertEquals(current.ref(1f), vm.uiState.value.session!!.current.look)
+        assertNull(vm.uiState.value.lookIssue)
     }
 
     @Test

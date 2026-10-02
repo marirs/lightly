@@ -437,16 +437,25 @@ class EditorViewModel(
     }
 
     /**
-     * The Look at slider stop [index] (0 = Auto). The slider picks a preset; it is not an intensity
-     * control (spec D6), so the committed Look's strength carries over to the new preset unchanged.
-     * Strength starts at 100% only when there was no Look before (Auto, or a fresh session).
+     * The Look at slider stop [index] (0 = Auto), per the agreed Strength rule (both platforms):
+     * - the stop that is already committed returns the committed LookRef unchanged, so settling on it
+     *   is a no-op in [EditSession] (Strength and history kept; only the transient preview ends);
+     * - any other preset is its designed look at 100%. Strength is never carried between presets,
+     *   because a strength tuned for one preset says nothing about another.
+     *
+     * "Already committed" means the same lookId AND lookVersion. A changed Look (older version of
+     * this preset) does not render and the slider does not show it on this stop, so picking the
+     * stop is an explicit choice of the pack's current preset and applies it at 100%.
+     *
+     * v3 differs: before the d5690dd review, the committed strength carried over to the new preset.
      */
     private fun lookAtStop(index: Int): LookRef? {
         if (index == 0) return null
         val categoryId = state.value.selectedCategory ?: return null
         val stop = env.lookBook.stops(categoryId).getOrNull(index - 1) ?: error("Stop $index out of range for $categoryId")
-        val carriedStrength = state.value.session?.current?.look?.strength ?: 1f
-        return stop.ref(carriedStrength)
+        val committed = state.value.session?.current?.look
+        val isCommittedStop = committed != null && committed.lookId == stop.lookId && committed.lookVersion == stop.lookVersion
+        return if (isCommittedStop) committed else stop.ref(FULL_STRENGTH)
     }
 
     // --- Save copy -------------------------------------------------------------------------------
@@ -536,6 +545,9 @@ class EditorViewModel(
     companion object {
         const val AUTO_STOP_NAME = "Auto"
         const val ORIGINAL_STOP_NAME = "Original"
+
+        /** A newly chosen preset shows its designed look (agreed Strength rule). */
+        private const val FULL_STRENGTH = 1f
 
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
