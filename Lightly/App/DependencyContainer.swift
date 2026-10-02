@@ -8,46 +8,21 @@ import Foundation
 @MainActor
 struct DependencyContainer {
     let photoLoader: any PhotoLoading
-    let entitlements: any EntitlementResolving
-    let developer: any PhotoDeveloping
-    let presetCatalog: any PresetProviding
-    let thumbnailRenderer: any LookThumbnailRendering
-    let exporter: any PhotoExporting
     let libraryWriter: any PhotoLibraryWriting
-    let favouritesManager: any FavouritesManaging
     let autoEnhancer: any AutoEnhancing
     let lookBook: LUTLookBook
     /// nil when Metal is unavailable; the editor then reports a failure.
     let lutRenderer: (any LUTRendering)?
 
-    /// The current composition.
+    /// The current composition: the M2 LUT editor (`LUTEditSession`).
     ///
-    /// Phase 2 introduces the production Develop engine backed by histogram
-    /// analysis. The `#error` that blocked release builds in Phase 1 has been
-    /// removed — `AnalysingDeveloper` reports `.production`, so the debug
-    /// disclosure banner no longer appears.
-    ///
-    /// In DEBUG builds, the `DebugFixedRecipeDeveloper` can be activated via
-    /// the launch argument `--fixed-recipe` for deterministic snapshot testing.
+    /// v3 differs: the recipe Develop engine (`AnalysingDeveloper`, or
+    /// `DebugFixedRecipeDeveloper` behind `--fixed-recipe`) is no longer
+    /// composed; the editor screen no longer has a recipe path.
     static func live() -> DependencyContainer {
-        let developer: any PhotoDeveloping = {
-            #if DEBUG
-            if CommandLine.arguments.contains("--fixed-recipe") {
-                return DebugFixedRecipeDeveloper()
-            }
-            #endif
-            return AnalysingDeveloper(analyser: HistogramAnalyser())
-        }()
-
-        return DependencyContainer(
+        DependencyContainer(
             photoLoader: ImageIOPhotoLoader(),
-            entitlements: FreeTierEntitlementResolver(),
-            developer: developer,
-            presetCatalog: BuiltInPresetCatalog.bundled(),
-            thumbnailRenderer: CoreImageThumbnailRenderer(),
-            exporter: ImageIOPhotoExporter(),
             libraryWriter: PhotoKitLibraryWriter(),
-            favouritesManager: UserDefaultsFavouritesManager(),
             autoEnhancer: makeAutoEnhancer(),
             lookBook: makeLookBook(),
             lutRenderer: try? MetalLUTRenderer()
@@ -83,13 +58,7 @@ struct DependencyContainer {
     func makeAppState() -> AppState {
         AppState(
             photoLoader: photoLoader,
-            developer: developer,
-            entitlements: entitlements,
-            presetCatalog: presetCatalog,
-            thumbnailRenderer: thumbnailRenderer,
-            exporter: exporter,
             libraryWriter: libraryWriter,
-            favouritesManager: favouritesManager,
             autoEnhancer: autoEnhancer,
             lookBook: lookBook,
             lutRenderer: lutRenderer

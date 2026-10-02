@@ -64,7 +64,6 @@ final class AppState {
     // MARK: - Dependencies
 
     private let photoLoader: any PhotoLoading
-    private let developer: any PhotoDeveloping
 
     /// Editor view models, retained per photograph.
     ///
@@ -74,37 +73,23 @@ final class AppState {
     /// loaded, which is what spec §27 requires.
     private var editorViewModels: [UUID: LUTEditorViewModel] = [:]
 
-    private let entitlements: any EntitlementResolving
-    private let presetCatalog: any PresetProviding
-    private let thumbnailRenderer: any LookThumbnailRendering
-    private let exporter: any PhotoExporting
     private let libraryWriter: any PhotoLibraryWriting
-    private let favouritesManager: any FavouritesManaging
     private let autoEnhancer: any AutoEnhancing
     private let lookBook: LUTLookBook
     private let lutRenderer: (any LUTRendering)?
 
     init(
         photoLoader: any PhotoLoading,
-        developer: any PhotoDeveloping = DebugFixedRecipeDeveloper(),
-        entitlements: any EntitlementResolving = FreeTierEntitlementResolver(),
-        presetCatalog: any PresetProviding = BuiltInPresetCatalog.bundled(),
-        thumbnailRenderer: any LookThumbnailRendering = CoreImageThumbnailRenderer(),
-        exporter: any PhotoExporting = ImageIOPhotoExporter(),
         libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
-        favouritesManager: any FavouritesManaging = UserDefaultsFavouritesManager(),
         autoEnhancer: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
         lookBook: LUTLookBook = .bundled,
-        lutRenderer: (any LUTRendering)? = try? MetalLUTRenderer()
+        // nil makes the editor report a failure. The composition root passes
+        // the Metal renderer; the default keeps previews and launch-screen
+        // tests from compiling a GPU kernel they never use.
+        lutRenderer: (any LUTRendering)? = nil
     ) {
         self.photoLoader = photoLoader
-        self.developer = developer
-        self.entitlements = entitlements
-        self.presetCatalog = presetCatalog
-        self.thumbnailRenderer = thumbnailRenderer
-        self.exporter = exporter
         self.libraryWriter = libraryWriter
-        self.favouritesManager = favouritesManager
         self.autoEnhancer = autoEnhancer
         self.lookBook = lookBook
         self.lutRenderer = lutRenderer
@@ -127,44 +112,6 @@ final class AppState {
         )
         editorViewModels[photo.id] = viewModel
         return viewModel
-    }
-
-    /// Builds the export view model for the current state of a photograph.
-    ///
-    /// Export renders at full resolution from the original image using the
-    /// composed recipe (spec §15.3), so the output file matches the source
-    /// dimensions regardless of what preview resolution was used during editing.
-    func makeExportViewModel(
-        for photo: SelectedPhoto,
-        recipe: DevelopRecipe
-    ) -> ExportViewModel {
-        ExportViewModel(
-            originalImage: photo.image,
-            recipe: recipe,
-            originalData: photo.originalData,
-            previewRenderer: PreviewRenderer(),
-            exporter: exporter,
-            libraryWriter: libraryWriter,
-            entitlements: entitlements
-        )
-    }
-
-    /// Builds the Looks view model for a photograph.
-    ///
-    /// Thumbnails are generated from the *original* rather than the developed
-    /// result so that a Look's preview shows the Look itself, composed onto the
-    /// current edit at render time rather than baked into the thumbnail.
-    func makeLooksViewModel(for photo: SelectedPhoto) -> LooksViewModel {
-        LooksViewModel(
-            // Deferred (spec §12 e): thumbnails still render on the Original
-            // rather than the committed edit. The base is passed explicitly so
-            // the cache key already distinguishes edits once that is fixed.
-            thumbnailSource: LookThumbnailSource(photo: photo, editBase: .unmodified),
-            catalog: presetCatalog,
-            thumbnailRenderer: thumbnailRenderer,
-            entitlements: entitlements,
-            favouritesManager: favouritesManager
-        )
     }
 
     // MARK: - Intents

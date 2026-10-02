@@ -59,130 +59,9 @@ actor SlowEncodingRenderer: PreviewRendering {
 @MainActor
 final class RenderSchedulingTests: XCTestCase {
 
-    private static let requestCount = 20
-
-    /// Exposure 1 at full strength, so preview intensity maps to the red value.
-    private let unitLook = LightlyPreset(
-        id: "test.unit-exposure", name: "Unit", category: .film,
-        isIncludedInFreeTier: true,
-        recipe: { var recipe = DevelopRecipe.unmodified; recipe.exposure = 1; return recipe }()
-    )
-
-    private func makeEditor(renderer: SlowEncodingRenderer) -> EditorViewModel {
-        EditorViewModel(
-            original: TestFixtures.makePhoto(),
-            developer: StubProductionDeveloper(),
-            previewRenderer: renderer
-        )
-    }
-
-    private func firePreviews(on editor: EditorViewModel) {
-        for step in 1...Self.requestCount {
-            editor.previewLook(unitLook, intensity: Double(step) / Double(Self.requestCount))
-        }
-    }
-
-    private func meanRed(_ image: CGImage) -> Double {
-        TestFixtures.meanColour(of: image).red
-    }
-
-    // MARK: - Latest request wins
-
-    func testRapidPreviewsRunAtMostTwoRendersAndShowOnlyTheLast() async {
-        let renderer = SlowEncodingRenderer()
-        let editor = makeEditor(renderer: renderer)
-
-        firePreviews(on: editor)
-        await editor.settleRendering()
-
-        let calls = await renderer.callCount
-        let concurrent = await renderer.peakConcurrentRenders
-        let stats = await editor.renderSchedulerStatistics()
-        XCTAssertLessThanOrEqual(calls, 2, "Only the running and the newest request should render")
-        XCTAssertEqual(stats.started, calls)
-        XCTAssertEqual(concurrent, 1)
-        XCTAssertLessThanOrEqual(stats.peakOutstanding, 2)
-
-        XCTAssertEqual(editor.publishedRenderCount, 1, "The superseded first render must not be shown")
-        XCTAssertEqual(meanRed(editor.renderedImage), 1.0, accuracy: 0.01, "The last intensity (1.0) must win")
-    }
-
-    func testResetAfterRapidPreviewsShowsTheOriginalAndNothingLater() async {
-        let renderer = SlowEncodingRenderer()
-        let editor = makeEditor(renderer: renderer)
-        editor.develop()
-        await editor.developTask?.value
-        XCTAssertEqual(editor.phase, .developed)
-
-        firePreviews(on: editor)
-        editor.reset()
-        let publishedAtReset = editor.publishedRenderCount
-        let revisionAtReset = editor.lastPublishedRenderRevision
-        await editor.settleRendering()
-
-        XCTAssertTrue(editor.renderedImage === editor.original.image)
-        XCTAssertEqual(editor.publishedRenderCount, publishedAtReset, "No preview may land after Reset")
-        XCTAssertEqual(editor.lastPublishedRenderRevision, revisionAtReset)
-        let concurrent = await renderer.peakConcurrentRenders
-        let stats = await editor.renderSchedulerStatistics()
-        XCTAssertEqual(concurrent, 1)
-        XCTAssertLessThanOrEqual(stats.peakOutstanding, 2)
-    }
-
-    func testNothingPublishesAfterClose() async {
-        let renderer = SlowEncodingRenderer()
-        let editor = makeEditor(renderer: renderer)
-
-        firePreviews(on: editor)
-        editor.close()
-        await editor.settleRendering()
-
-        XCTAssertTrue(editor.renderedImage === editor.original.image)
-        XCTAssertEqual(editor.publishedRenderCount, 0)
-    }
-
-    func testRequestsAfterCloseAreNotRendered() async {
-        let renderer = SlowEncodingRenderer()
-        let editor = makeEditor(renderer: renderer)
-        editor.close()
-        await editor.settleRendering()
-
-        firePreviews(on: editor)
-        await editor.settleRendering()
-
-        let calls = await renderer.callCount
-        XCTAssertEqual(calls, 0)
-        XCTAssertEqual(editor.publishedRenderCount, 0)
-    }
-
-    /// v1: a preview still rendering when the user tapped Apply could land
-    /// afterwards and replace the committed result on screen.
-    func testStalePreviewCannotOverwriteAnAppliedLook() async {
-        let renderer = SlowEncodingRenderer()
-        let editor = makeEditor(renderer: renderer)
-
-        editor.previewLook(unitLook, intensity: 1)
-        editor.applyLook(unitLook, intensity: 0.5)
-        await editor.settleRendering()
-
-        XCTAssertEqual(editor.history.currentLookID, unitLook.id)
-        XCTAssertEqual(meanRed(editor.renderedImage), 0.5, accuracy: 0.01)
-        XCTAssertEqual(editor.publishedRenderCount, 1)
-    }
-
-    func testDevelopFinishingAfterCloseIsNotShownOrRecorded() async {
-        let renderer = SlowEncodingRenderer()
-        let editor = makeEditor(renderer: renderer)
-
-        editor.develop()
-        editor.close()
-        await editor.developTask?.value
-        await editor.settleRendering()
-
-        XCTAssertTrue(editor.renderedImage === editor.original.image)
-        XCTAssertTrue(editor.history.operations.isEmpty)
-        XCTAssertEqual(editor.publishedRenderCount, 0)
-    }
+    // The editor-level latest-wins tests moved with the editor: see
+    // LUTEditSessionTests (rapid Look changes, settling a stale preview)
+    // and LUTEditorViewModelTests. These cover the shared scheduler.
 
     // MARK: - Scheduler in isolation
 
@@ -213,33 +92,6 @@ final class RenderSchedulingTests: XCTestCase {
         }
         let peak = await scheduler.peakOutstandingRequests
         XCTAssertEqual(peak, 2)
-    }
-
-    /// Spec §5.2: supersession compares scheduler request IDs, not edit
-    /// state. After Undo the *older* edit is the *newest* request and must
-    /// publish rather than be refused as stale.
-    func testUndoToAnOlderEditPublishesThatEdit() async {
-        let renderer = SlowEncodingRenderer()
-        let editor = makeEditor(renderer: renderer)
-        func look(_ id: String, exposure: Double) -> LightlyPreset {
-            var recipe = DevelopRecipe.unmodified
-            recipe.exposure = exposure
-            return LightlyPreset(id: id, name: id, category: .film, isIncludedInFreeTier: true, recipe: recipe)
-        }
-
-        editor.applyLook(look("a", exposure: 0.3), intensity: 1)   // commit A
-        await editor.settleRendering()
-        editor.applyLook(look("b", exposure: 0.7), intensity: 1)   // commit B
-        await editor.settleRendering()
-        XCTAssertEqual(meanRed(editor.renderedImage), 0.7, accuracy: 0.01)
-        let publishedBeforeUndo = editor.publishedRenderCount
-
-        editor.undo()                                               // back to A
-        await editor.settleRendering()
-
-        XCTAssertEqual(editor.history.currentLookID, "a")
-        XCTAssertEqual(editor.publishedRenderCount, publishedBeforeUndo + 1, "Undo's render must publish")
-        XCTAssertEqual(meanRed(editor.renderedImage), 0.3, accuracy: 0.01, "A's pixels must be shown after Undo")
     }
 
     // MARK: - Cancellation is bounded by revision

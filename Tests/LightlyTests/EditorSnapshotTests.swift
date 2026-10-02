@@ -79,38 +79,6 @@ final class EditorSnapshotTests: XCTestCase {
     }
 }
 
-/// The recipe-path Develop overlay, snapshot directly.
-// DEFERRED: removed with the recipe editor in the following commit.
-@MainActor
-final class DevelopingOverlaySnapshotTests: XCTestCase {
-
-    /// The overlay is snapshot directly so partial stage completion can be
-    /// rendered deterministically, without racing an in-flight develop.
-    func testDevelopingOverlayPartialProgress() {
-        let view = ZStack {
-            Color.gray
-            DevelopingOverlay(
-                stages: DebugFixedRecipeDeveloper().performedStages,
-                completedStages: [.whiteBalance, .exposure]
-            )
-        }
-        SnapshotAssertion.assert(of: view, named: "developing-overlay-partial")
-    }
-
-    func testDevelopingOverlayAccessibilityTextSize() {
-        let view = ZStack {
-            Color.gray
-            DevelopingOverlay(
-                stages: DebugFixedRecipeDeveloper().performedStages,
-                completedStages: [.whiteBalance]
-            )
-        }
-        .environment(\.dynamicTypeSize, .accessibility3)
-
-        SnapshotAssertion.assert(of: view, named: "developing-overlay-accessibility3")
-    }
-}
-
 /// Snapshot coverage for the launch and source-selection screens from
 /// milestone 1, so that editor work cannot silently regress them.
 @MainActor

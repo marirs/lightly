@@ -38,42 +38,6 @@
         }
       }
     },
-    "action.compare.unavailable": {
-      "comment": "VoiceOver hint when Compare is shown disabled before development.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Available after you develop this photo"
-          }
-        }
-      }
-    },
-    "action.crop": {
-      "comment": "Crop action label.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crop"
-          }
-        }
-      }
-    },
-    "action.develop": {
-      "comment": "Primary action on the photo-selected screen.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Develop"
-          }
-        }
-      }
-    },
     "action.reset": {
       "comment": "Reset to Auto: removes the Look, keeps Auto. Short visible label.",
       "extractionState": "manual",
@@ -106,18 +70,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Save copy"
-          }
-        }
-      }
-    },
-    "action.share": {
-      "comment": "Share action label.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share"
           }
         }
       }
@@ -156,30 +108,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "LABS"
-          }
-        }
-      }
-    },
-    "debug.processing.notice": {
-      "comment": "Non-production disclosure required by spec section 24.8. States precisely what is and is not real: pixels genuinely change, but no scene or quality analysis occurs.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Debug engine — real rendering, no analysis"
-          }
-        }
-      }
-    },
-    "develop.progress.subtitle": {
-      "comment": "Canonical developing copy, locked by spec section 0.11. Do not change to 'intelligent enhancements'.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Applying thoughtful enhancements"
           }
         }
       }
@@ -444,18 +372,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Provisional test Looks: not curated or validated."
-          }
-        }
-      }
-    },
-    "editor.more.accessibility": {
-      "comment": "VoiceOver label for the editor More control.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "More options"
           }
         }
       }
