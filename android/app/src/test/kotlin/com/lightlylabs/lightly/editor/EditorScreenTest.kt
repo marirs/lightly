@@ -190,8 +190,88 @@ class EditorScreenTest {
         compose.onNodeWithTag(EditorTags.STOP_CAPTION).assertTextEquals("Cinematic Light Tone (11) · 2 of 4")
         val caption = bounds(EditorTags.STOP_CAPTION)
         assertTrue(caption.right <= bounds(EditorTags.PANEL).right, "the caption wraps inside the panel")
-        compose.onNodeWithTag(EditorTags.SAVE_COPY).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(EditorTags.SAVE_COPY).assertIsDisplayed()
         assertTrue(bounds(EditorTags.PHOTO).height.value >= root.height.value * 0.4f, "scrolling the panel never covers the photo")
+    }
+
+    // --- Save copy is visible without scrolling ---------------------------------------------------
+
+    /**
+     * The fullest Ready panel: a Look with Strength open and every notice (Auto unavailable,
+     * approximate Looks, the save result).
+     */
+    private fun showFullestReadyPanel(): EditorViewModel {
+        val vm = showReadyEditor()
+        vm.selectCategory("cat-cool")
+        vm.onStopSettled(1) // "Cinematic Light Tone (11)", the longest name
+        vm.commitLookStrength(0.4f)
+        settle()
+        assertTrue(vm.saveCopy())
+        settle()
+        compose.onNodeWithTag(EditorTags.STRENGTH).assertExists()
+        compose.onNodeWithText("Saved as a new photo. Original unchanged.").assertExists()
+        return vm
+    }
+
+    /** No performScrollTo: the button must already be wholly inside the panel and the window. */
+    private fun assertSaveCopyVisibleWithoutScrolling() {
+        val root = compose.onRoot().getBoundsInRoot()
+        val panel = bounds(EditorTags.PANEL)
+        val save = bounds(EditorTags.SAVE_COPY)
+        compose.onNodeWithTag(EditorTags.SAVE_COPY).assertIsDisplayed()
+        assertTrue(save.top >= panel.top && save.bottom <= panel.bottom, "Save copy $save inside panel $panel")
+        assertTrue(save.top >= root.top && save.bottom <= root.bottom && save.left >= root.left && save.right <= root.right, "Save copy $save inside window $root")
+        assertTrue(save.height.value >= 40f, "Save copy keeps a full button height, was ${save.height}")
+    }
+
+    @Test
+    fun `compact portrait - Save copy is visible without scrolling with Strength and notices open`() {
+        showFullestReadyPanel()
+        assertSaveCopyVisibleWithoutScrolling()
+    }
+
+    @Test
+    fun `compact portrait at font scale 2 - Save copy is visible without scrolling with Strength open`() {
+        RuntimeEnvironment.setFontScale(2f)
+        showFullestReadyPanel()
+        assertSaveCopyVisibleWithoutScrolling()
+        val root = compose.onRoot().getBoundsInRoot()
+        assertTrue(bounds(EditorTags.PHOTO).height.value >= root.height.value * 0.4f, "the photo keeps 40% at large text")
+    }
+
+    @Test
+    @Config(qualifiers = "w891dp-h411dp")
+    fun `phone landscape at font scale 2 - Save copy is visible without scrolling`() {
+        RuntimeEnvironment.setFontScale(2f)
+        showFullestReadyPanel()
+        assertSaveCopyVisibleWithoutScrolling()
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h1280dp")
+    fun `tablet portrait at font scale 2 - Save copy is visible without scrolling`() {
+        RuntimeEnvironment.setFontScale(2f)
+        showFullestReadyPanel()
+        assertSaveCopyVisibleWithoutScrolling()
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp")
+    fun `tablet landscape - Save copy is visible without scrolling`() {
+        showFullestReadyPanel()
+        assertSaveCopyVisibleWithoutScrolling()
+    }
+
+    @Test
+    @Config(qualifiers = "w840dp-h880dp")
+    fun `foldable in book posture at font scale 2 - Save copy is visible without scrolling`() {
+        RuntimeEnvironment.setFontScale(2f)
+        val density = RuntimeEnvironment.getApplication().resources.displayMetrics.density
+        val vm = showReadyEditor(listOf(WindowHinge(Rect(418f * density, 0f, 422f * density, 880f * density), isVertical = true, separatesContent = true)))
+        vm.selectCategory("cat-cool")
+        vm.onStopSettled(1)
+        settle()
+        assertSaveCopyVisibleWithoutScrolling()
     }
 
     // --- Stops, Strength, Compare, Reset, notices ---------------------------------------------
@@ -258,7 +338,7 @@ class EditorScreenTest {
         compose.onNodeWithText(AutoStatus.NoModelInThisBuild.NOTICE).assertExists()
         compose.onNodeWithText(LookBook.APPROXIMATE_NOTICE).assertExists()
         compose.onNodeWithText("Retry").assertDoesNotExist()
-        compose.onNodeWithTag(EditorTags.SAVE_COPY).performScrollTo().assertIsDisplayed().assertIsEnabled()
+        compose.onNodeWithTag(EditorTags.SAVE_COPY).assertIsDisplayed().assertIsEnabled()
         assertEquals(bounds(EditorTags.PANEL).width.value, bounds(EditorTags.SAVE_COPY).width.value + 32f, 1f)
     }
 }

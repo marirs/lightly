@@ -155,11 +155,34 @@ private fun WindowHinge.toEditorHinge(originInWindow: Offset, density: Density):
     )
 }
 
-/** The controls. Always scrollable, so large text or a short window never pushes anything off screen. */
+/**
+ * The controls: a scrolling area, then Save copy pinned below it. Save copy sits outside the scroll
+ * so it is visible without scrolling in every layout and state; in the scrolling panel a Strength
+ * slider or an extra notice pushed it below the visible panel (d5690dd review screenshot). The
+ * scrolling part takes only what is left (weight, fill = false), so a short panel still wraps.
+ */
 @Composable
 private fun EditorPanel(ui: EditorUiState, viewModel: EditorViewModel, pickPhoto: () -> Unit, modifier: Modifier, scroll: ScrollState) {
+    Column(modifier.testTag(EditorTags.PANEL)) {
+        ScrollingControls(ui, viewModel, pickPhoto, Modifier.weight(1f, fill = false), scroll)
+        if (ui.phase == EditorPhase.Ready && ui.session != null) SaveCopyButton(ui, viewModel)
+    }
+}
+
+/** The one prominent action: full width, filled, never scrolled away. */
+@Composable
+private fun SaveCopyButton(ui: EditorUiState, viewModel: EditorViewModel) {
+    Button(
+        onClick = { viewModel.saveCopy() },
+        enabled = ui.save != SaveStatus.Saving,
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp).testTag(EditorTags.SAVE_COPY),
+    ) { Text("Save copy") }
+}
+
+@Composable
+private fun ScrollingControls(ui: EditorUiState, viewModel: EditorViewModel, pickPhoto: () -> Unit, modifier: Modifier, scroll: ScrollState) {
     Column(
-        modifier.testTag(EditorTags.PANEL).verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier.verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         when (val phase = ui.phase) {
@@ -205,12 +228,7 @@ private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPho
 
     EditActions(ui, viewModel, canUndo = session.canUndo, canRedo = session.canRedo)
 
-    // The one prominent action: full width, filled.
-    Button(
-        onClick = { viewModel.saveCopy() },
-        enabled = ui.save != SaveStatus.Saving,
-        modifier = Modifier.fillMaxWidth().testTag(EditorTags.SAVE_COPY),
-    ) { Text("Save copy") }
+    // Save copy is pinned below this scrolling area (EditorPanel); the secondary action scrolls.
     TextButton(onClick = pickPhoto) { Text("Choose another photo") }
 }
 
