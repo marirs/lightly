@@ -133,8 +133,14 @@ final class LUTEditorViewModel {
             return
         }
         self.session = session
-        self.phase = .developing
-        startAuto(on: session)
+        if restored != nil {
+            // A saved edit is replayed as made, never re-developed (spec §4.6): no model run, and
+            // its Auto strength and Auto block stay as saved (`LUTEditSession.restore`).
+            self.phase = .ready
+        } else {
+            self.phase = .developing
+            startAuto(on: session)
+        }
     }
 
     private func startAuto(on session: LUTEditSession) {
@@ -144,10 +150,22 @@ final class LUTEditorViewModel {
         }
     }
 
-    /// "No model in this build" goes straight to editing with a notice: retrying cannot help.
-    /// A genuine failure stops on Retry / Continue so it is never mistaken for an edited photo.
+    /// A successful Auto becomes the applied starting point (Auto at full strength, rendered, stop 0
+    /// reads "Auto"). "No model in this build" goes straight to editing with a notice: retrying
+    /// cannot help. A genuine failure stops on Retry / Continue so it is never mistaken for an
+    /// edited photo.
+    ///
+    /// Retry semantics: a successful Retry also *starts* the session at the Auto baseline rather
+    /// than adding an undoable "apply Auto" step, matching Android, whose Retry re-runs `develop`
+    /// and calls `EditSession.start` on success. Nothing can be edited while the failure row is
+    /// up, so there is no earlier edit for Undo to return to.
+    // v3 differs: success only stored the Auto LUT; Auto strength stayed 0, so Auto never rendered
+    // and stop 0 kept reading "Original" (Codex review d5690dd finding 2).
     private func finishDeveloping() {
         guard !isClosed else { return }
+        if autoAvailability == .available {
+            session?.startAtAutoBaseline()
+        }
         if case .unavailable(let reason) = autoAvailability, reason.isRetryableFailure, !hasContinuedWithoutAuto {
             phase = .autoFailed(reason)
         } else {

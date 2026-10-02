@@ -25,9 +25,11 @@ final class SavedEditRestoreTests: XCTestCase {
         get throws { try SavedEditCodec.decodeState(try SavedEditFormatTests.fixture("v2-no-look.json")).source }
     }
 
-    private func editor(restoring session: SavedEditSession? = nil) async -> LUTEditorViewModel {
+    private func editor(
+        restoring session: SavedEditSession? = nil, auto: any AutoEnhancing = ModelNotBundledAutoEnhancer()
+    ) async -> LUTEditorViewModel {
         let viewModel = LUTEditorViewModel(
-            photo: LUTEditSessionTests.makePhoto(), autoEnhancer: ModelNotBundledAutoEnhancer(),
+            photo: LUTEditSessionTests.makePhoto(), autoEnhancer: auto,
             lookBook: book, renderer: metal, libraryWriter: SpyLibraryWriter(),
             previewLongEdge: 400, restoringSession: session
         )
@@ -37,8 +39,8 @@ final class SavedEditRestoreTests: XCTestCase {
     }
 
     /// A one-entry session whose Look is `look`.
-    private func session(look: SavedLookRef?) throws -> SavedEditSession {
-        let state = SavedEditState(source: try source, auto: .noModelInBuild, look: look, revision: 0)
+    private func session(look: SavedLookRef?, auto: SavedAutoResult = .noModelInBuild) throws -> SavedEditSession {
+        let state = SavedEditState(source: try source, auto: auto, look: look, revision: 0)
         return SavedEditSession(entries: [state], cursor: 0, capacity: LUTEditSession.historyCapacity, lastIssuedRevision: 0)
     }
 
@@ -154,6 +156,51 @@ final class SavedEditRestoreTests: XCTestCase {
         XCTAssertEqual(id, coolID)
         XCTAssertEqual(saved, "legacy-v1-2")
         XCTAssertEqual(try pixels(restored), try originalPixels(restored))
+    }
+
+    // MARK: - Auto is never re-developed (Codex review d5690dd finding 2)
+
+    /// Restoring replays the saved edit: the model is not run (even when this build could run
+    /// one), and a "no model" edit keeps Auto off and reads "Original".
+    func testRestoringNeverRunsAutoAndKeepsANoModelEditOff() async throws {
+        let enhancer = ScriptedAutoEnhancer(results: [.lut(try XCTUnwrap(book.look(id: warmID)).lut)])
+        let saved = try session(look: nil)
+        let restored = await editor(restoring: saved, auto: enhancer)
+        let restoredSession = try XCTUnwrap(restored.session)
+
+        let calls = await enhancer.callCount
+        XCTAssertEqual(calls, 0, "A saved edit is not re-developed")
+        XCTAssertEqual(restored.phase, .ready)
+        XCTAssertEqual(restoredSession.committedState.autoStrength, 0)
+        XCTAssertEqual(restored.noLookStopLabel, "Original")
+        XCTAssertEqual(try pixels(restored), try originalPixels(restored))
+        XCTAssertEqual(restoredSession.restoredAuto, .noModelInBuild)
+        XCTAssertEqual(restoredSession.savedSession(source: try source, auto: try XCTUnwrap(restoredSession.restoredAuto)), saved)
+    }
+
+    /// A saved Auto block from a model is kept exactly (model, version, weights, strength), and the
+    /// session is not overwritten with a fresh Auto baseline. iOS cannot replay it yet (no basis
+    /// ships), so it is reported unavailable rather than claimed as applied.
+    func testRestoringKeepsASavedAutoBlockAndStrengthUntouched() async throws {
+        let modelAuto = SavedAutoResult(
+            modelId: SavedAutoResult.ia3dlutModelID, modelVersion: "2026.09.1",
+            weights: [0.25, -0.5, 1.25], guardrail: nil, strength: 0.7
+        )
+        let saved = try session(look: SavedLookRef(lookId: warmID, lookVersion: try XCTUnwrap(book.look(id: warmID)).version, strength: 0.5),
+                                auto: modelAuto)
+        let enhancer = ScriptedAutoEnhancer(results: [.lut(try XCTUnwrap(book.look(id: coolID)).lut)])
+        let restored = await editor(restoring: saved, auto: enhancer)
+        let restoredSession = try XCTUnwrap(restored.session)
+
+        let calls = await enhancer.callCount
+        XCTAssertEqual(calls, 0)
+        XCTAssertEqual(restoredSession.history.count, 1)
+        XCTAssertEqual(restoredSession.committedState.autoStrength, 0.7, accuracy: 1e-6, "Saved strength, not 1")
+        XCTAssertEqual(restoredSession.committedState.lookStrength, 0.5, accuracy: 1e-6)
+        XCTAssertFalse(restored.isAutoApplied, "Not rendered, so not claimed")
+        XCTAssertEqual(restoredSession.restoredAuto, modelAuto)
+        let resaved = restoredSession.savedSession(source: try source, auto: try XCTUnwrap(restoredSession.restoredAuto))
+        XCTAssertEqual(SavedEditCodec.encode(resaved), SavedEditCodec.encode(saved), "Written back byte for byte")
     }
 
     // MARK: - The edit is preserved

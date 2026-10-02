@@ -28,6 +28,10 @@ struct RestoredEditHistory: Equatable, Sendable {
     let revisions: [Int64]
     let cursor: Int
     let lastIssuedRevision: Int64
+    /// The saved Auto block (model, version, weights, guardrail) as read, kept so a re-save
+    /// writes it back unchanged. nil for a bare `LUTEditState`, which carries no Auto block.
+    /// Each entry's own Auto strength lives in `states`.
+    let savedAuto: SavedAutoResult?
 
     /// A single committed edit (no undo history), at revision 0.
     init(single state: LUTEditState) {
@@ -35,6 +39,7 @@ struct RestoredEditHistory: Equatable, Sendable {
         revisions = [0]
         cursor = 0
         lastIssuedRevision = 0
+        savedAuto = nil
     }
 
     /// A saved schema 2 session. The decoder has already enforced its invariants (non-empty,
@@ -61,6 +66,9 @@ struct RestoredEditHistory: Equatable, Sendable {
         self.revisions = revisions
         self.cursor = cursor
         self.lastIssuedRevision = saved.lastIssuedRevision
+        // Every entry of a session shares one Auto result (Android `EditSession.start` seeds it and
+        // commits only copy it); the cursor entry is as good as any.
+        self.savedAuto = saved.entries[saved.cursor].auto
     }
 }
 
@@ -177,20 +185,35 @@ final class LUTEditSession {
     /// editor can say so and nothing is substituted (shared/fixtures/edit-state/README.md).
     /// v3 differs: the earlier restore dropped an unknown Look ID and silently replayed the
     /// current LUT for a changed version.
-    // DEFERRED: Auto strength is restored as saved, but Auto is only applied
-    // once `prepareAuto()` makes it available; no model ships in this build.
+    ///
+    /// Auto is never re-run for a restored edit (spec §4.6, Android `loadPhoto` restore path): the
+    /// edit is replayed as the user made it. Each entry's Auto strength and the saved Auto block
+    /// (`restoredAuto`) are kept exactly, so a re-save writes them back unchanged.
+    // DEFERRED: replaying a saved Auto result needs its weights resolved against a bundled basis.
+    // No basis ships on iOS, so a restored Auto is reported unavailable and renders without the
+    // Auto pass; its strength stays recorded rather than being zeroed.
     private func restore(_ saved: RestoredEditHistory) {
         history = saved.states
         historyRevisions = saved.revisions
         lastIssuedRevision = saved.lastIssuedRevision
         historyIndex = saved.cursor
+        restoredAuto = saved.savedAuto
+        isRestored = true
+        autoAvailability = .unavailable(.modelNotBundled)
         render(committedState)
     }
+
+    /// True when this session started from a saved edit; Auto must then not be developed.
+    private(set) var isRestored = false
+    /// The Auto block of the restored session as read, for writing it back unchanged.
+    private(set) var restoredAuto: SavedAutoResult?
 
     // MARK: - Auto
 
     /// Computes the Auto LUT from the analysis proxy (never the preview).
+    /// Does nothing for a restored session: a saved edit is never re-developed.
     func prepareAuto() async {
+        guard !isRestored else { return }
         guard let proxy = try? AnalysisProxy.make(from: photo) else {
             autoAvailability = .unavailable(.analysisFailed)
             return
@@ -203,6 +226,24 @@ final class LUTEditSession {
             autoLUT = nil
             autoAvailability = .unavailable(reason)
         }
+    }
+
+    /// Makes the developed Auto the session's starting point: one entry, Auto at full strength, no
+    /// Look, revision 0 — the same as Android `EditSession.start(source, auto)` after a successful
+    /// develop. It replaces the history instead of committing, so the first Undo does not take Auto
+    /// away (Auto is the initial committed state, not an edit the user made).
+    ///
+    /// Only for a fresh session whose history is still untouched: the editor offers no edit until
+    /// Auto has resolved, so this is always true on a first run and on Retry after a failure. A
+    /// restored session, or one that somehow has edits, is left alone rather than overwritten.
+    func startAtAutoBaseline() {
+        guard autoAvailability == .available, !isRestored,
+              history == [.original], historyIndex == 0 else { return }
+        let baseline = LUTEditState(autoStrength: 1)
+        history = [baseline]
+        historyRevisions = [0]
+        lastIssuedRevision = 0
+        render(baseline)
     }
 
     /// Commits an Auto strength. Ignored while Auto is unavailable, so an

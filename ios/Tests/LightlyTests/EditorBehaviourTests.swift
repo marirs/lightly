@@ -28,6 +28,93 @@ final class EditorBehaviourTests: XCTestCase {
         return try MetalLUTRenderer.rgba8Bytes(of: viewModel.displayedImage)
     }
 
+    private func originalPixels(_ viewModel: LUTEditorViewModel) throws -> [UInt8] {
+        try XCTUnwrap(viewModel.session).previewBase.pixels
+    }
+
+    /// A non-identity Auto result (the fixture's lift LUT stands in for a model's output).
+    private var nonIdentityAutoLUT: LUT3D {
+        LookPackFixture.editorBook.look(id: "fixture-lift-000001")!.lut
+    }
+
+    // MARK: - Auto applied (Codex review d5690dd finding 2)
+
+    /// Successful Auto is the initial committed state: applied at full strength, rendered, stop 0
+    /// reads "Auto", and it is not an undo step (Android `EditSession.start`).
+    func testSuccessfulAutoIsAppliedAsTheStartingPoint() async throws {
+        let viewModel = await editor(auto: ScriptedAutoEnhancer(results: [.lut(nonIdentityAutoLUT)]))
+        let session = try XCTUnwrap(viewModel.session)
+
+        XCTAssertEqual(viewModel.phase, .ready)
+        XCTAssertEqual(session.committedState.autoStrength, 1)
+        XCTAssertTrue(viewModel.isAutoApplied)
+        XCTAssertEqual(viewModel.noLookStopLabel, "Auto")
+        XCTAssertEqual(viewModel.stopLabel(at: 0), "Auto")
+        XCTAssertNil(viewModel.autoNotice)
+        XCTAssertEqual(session.history.count, 1, "The baseline, not an extra step")
+        XCTAssertEqual(session.historyRevisions, [0])
+        XCTAssertEqual(session.lastIssuedRevision, 0)
+        XCTAssertFalse(viewModel.canUndo, "Undo cannot take Auto away: it is where the edit starts")
+        let shown = try await pixels(viewModel)
+        XCTAssertNotEqual(shown, try originalPixels(viewModel), "The Auto pass renders")
+    }
+
+    /// Looks go on top of Auto, and Reset to Auto / Undo come back to the Auto baseline.
+    func testLooksStackOnTheAppliedAutoAndResetKeepsIt() async throws {
+        let viewModel = await editor(auto: ScriptedAutoEnhancer(results: [.lut(nonIdentityAutoLUT)]))
+        let autoOnly = try await pixels(viewModel)
+        viewModel.settleStop(2)
+        XCTAssertEqual(viewModel.session?.committedState.autoStrength, 1)
+        viewModel.resetToAuto()
+        XCTAssertEqual(viewModel.session?.committedState.autoStrength, 1)
+        let afterReset = try await pixels(viewModel)
+        XCTAssertEqual(afterReset, autoOnly)
+        viewModel.undo()
+        viewModel.undo()
+        XCTAssertFalse(viewModel.canUndo)
+        XCTAssertEqual(viewModel.noLookStopLabel, "Auto")
+        let atStart = try await pixels(viewModel)
+        XCTAssertEqual(atStart, autoOnly)
+    }
+
+    /// Retry semantics (decision): a successful Retry starts the session at the Auto baseline,
+    /// exactly like a first-time success, not as an undoable step — Android's Retry re-runs
+    /// `develop`, which calls `EditSession.start`. No edit can exist behind the failure row.
+    func testASuccessfulRetryAppliesAutoAsTheStartingPoint() async throws {
+        let auto = ScriptedAutoEnhancer(results: [.unavailable(.analysisFailed), .lut(nonIdentityAutoLUT)])
+        let viewModel = await editor(auto: auto)
+        XCTAssertEqual(viewModel.session?.committedState.autoStrength, 0)
+        XCTAssertEqual(viewModel.noLookStopLabel, "Original")
+
+        viewModel.retryAuto()
+        await viewModel.developTask?.value
+        let session = try XCTUnwrap(viewModel.session)
+
+        XCTAssertEqual(viewModel.phase, .ready)
+        XCTAssertEqual(session.committedState.autoStrength, 1)
+        XCTAssertEqual(viewModel.noLookStopLabel, "Auto")
+        XCTAssertEqual(session.history.count, 1)
+        XCTAssertFalse(viewModel.canUndo)
+        let shown = try await pixels(viewModel)
+        XCTAssertNotEqual(shown, try originalPixels(viewModel))
+    }
+
+    /// The shipping "no model" enhancer and Continue-without-Auto never mark Auto applied.
+    func testNoModelOrContinuingWithoutAutoStaysOriginal() async throws {
+        let noModel = await editor()
+        XCTAssertEqual(noModel.session?.committedState.autoStrength, 0)
+        XCTAssertFalse(noModel.isAutoApplied)
+        XCTAssertEqual(noModel.stopLabel(at: 0), "Original")
+        let noModelShown = try await pixels(noModel)
+        XCTAssertEqual(noModelShown, try originalPixels(noModel))
+
+        let failed = await editor(auto: ScriptedAutoEnhancer(results: [.unavailable(.invalidBasis)]))
+        failed.continueWithoutAuto()
+        XCTAssertEqual(failed.session?.committedState.autoStrength, 0)
+        XCTAssertEqual(failed.stopLabel(at: 0), "Original")
+        let failedShown = try await pixels(failed)
+        XCTAssertEqual(failedShown, try originalPixels(failed))
+    }
     // MARK: - Redo
 
     func testRedoReappliesWhatUndoTookBack() async throws {

@@ -76,14 +76,19 @@ final class LookPackEditorTests: XCTestCase {
         XCTAssertEqual(viewModel.sliderAccessibilityValue, "Alpha, Original, 1 of 3")
     }
 
-    /// Auto available but at strength 0 is still the original; only an
-    /// applied Auto correction makes stop 0 "Auto".
+    /// A developed Auto starts applied (stop 0 "Auto"); at strength 0 it is the original again, so
+    /// only an applied Auto correction makes stop 0 "Auto".
+    // v3 differs: this test used to expect "Original" right after a successful develop, which
+    // encoded the bug that Auto was never applied (Codex review d5690dd finding 2).
     func testStopZeroReadsAutoOnlyWhileAnAutoCorrectionIsApplied() async throws {
         let basis: [LUT3D] = [.identity(), .lut(dimension: 33) { 1.2 * $0 - SIMD3(repeating: 0.05) }]
         let viewModel = await editor(auto: BasisAutoEnhancer(basis: basis) { _ in [0, 1] })
         let session = try XCTUnwrap(viewModel.session)
         XCTAssertEqual(viewModel.autoAvailability, .available)
 
+        XCTAssertEqual(viewModel.stopLabel(at: 0), "Auto", "A developed Auto is applied")
+
+        session.setAutoStrength(0)
         XCTAssertEqual(viewModel.stopLabel(at: 0), "Original", "Auto available but not applied (strength 0)")
 
         session.setAutoStrength(0.8)
