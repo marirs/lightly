@@ -98,7 +98,8 @@ EditState {
 ```
 
 **Strength rule (both platforms):**
-- Settling the Look slider on the stop that is already committed (same `lookId`) is a no-op. Strength and history stay unchanged; only the transient preview ends.
+- Settling the Look slider on the stop that is already committed (same `lookId` and `lookVersion`, and the Look is rendering) is a no-op. Strength and history stay unchanged; only the transient preview ends.
+- A saved Look that is *unavailable* or *changed* does not count as committed. The slider sits on the base stop for it. Selecting that preset's stop applies the pack's current version at 100% as a new undoable step, and the saved reference stays in the history.
 - Committing a **different** preset applies it at 100%, its designed look, as one undo step. Previewing a different preset while dragging also shows it at 100%. Strength is never carried from one preset to another.
 - Strength commits on release only.
 - Undo and Redo restore Strength exactly as committed. Reset to the base stop is one undoable step.
