@@ -2,9 +2,15 @@ import SwiftUI
 
 /// How the editor arranges the photo and its controls for the space it has.
 ///
-/// Photo first, always: on a narrow screen the controls sit below the photo; when the screen is
-/// wide enough (iPhone landscape, iPad, wide split view) they move into a side panel so the photo
-/// keeps the full height. Pure geometry, so it is unit-tested without a window.
+/// Photo first, always, and decided by the photo's *displayed area*, not by device class or width:
+/// for the container size and the photo's aspect ratio it compares (a) controls below the photo
+/// with (b) controls in a side panel (320–380 pt) and picks whichever shows the larger photo. So a
+/// landscape photo on an iPad in portrait gets the controls below (the full width is worth more than
+/// the height a side panel would leave), while a portrait photo on an iPad in landscape, or any
+/// photo on a phone in landscape, gets the side panel. Pure geometry, so it is unit-tested without
+/// a window.
+// v3 differs: the side panel was chosen whenever the window was wider than tall or ≥ 700 pt wide,
+// which on iPad portrait squeezed a landscape photo into a 514 pt column (Codex design pass).
 struct EditorLayoutPolicy: Equatable {
     enum Arrangement: Equatable {
         /// Controls below the photo; `panelMaximumHeight` caps the (scrolling) panel.
@@ -15,25 +21,58 @@ struct EditorLayoutPolicy: Equatable {
 
     /// Side panel width range (agreed UX: 320–380 pt).
     static let sidePanelWidthRange: ClosedRange<CGFloat> = 320...380
-    /// The photo column must keep at least this width beside the panel, or the panel is not used.
+    /// The side panel's share of the width, clamped to `sidePanelWidthRange`.
+    static let sidePanelWidthShare: CGFloat = 0.36
+    /// The photo column must keep at least this width beside the panel, or the panel is not used:
+    /// the panel never covers or crowds the photo.
     static let minimumPhotoWidthBesidePanel: CGFloat = 320
-    /// Wide enough for a side panel even in portrait (iPad portrait, wide split view).
-    static let sidePanelMinimumWidth: CGFloat = 700
     /// Spec D4: the stacked panel takes ≤ 35% of the height at standard text sizes.
     static let standardPanelShare: CGFloat = 0.35
     /// At accessibility sizes the panel scrolls within 45%, so with the top bar the photo keeps
     /// ≥ 40% of the height on a phone in portrait (agreed UX).
     static let accessibilityPanelShare: CGFloat = 0.45
     static let photoMinimumShare: CGFloat = 0.40
+    /// Height the top bar (Back, Save copy) takes above the photo in both arrangements. An estimate
+    /// for comparing the two; it is the same in both, so it only matters for very short windows.
+    static let estimatedTopBarHeight: CGFloat = 56
 
-    static func arrangement(for size: CGSize, isAccessibilitySize: Bool) -> Arrangement {
-        let panelWidth = min(max(size.width * 0.36, sidePanelWidthRange.lowerBound), sidePanelWidthRange.upperBound)
-        let isWide = size.width > size.height || size.width >= sidePanelMinimumWidth
-        if isWide, size.width - panelWidth >= minimumPhotoWidthBesidePanel {
-            return .sidePanel(panelWidth: panelWidth)
-        }
+    /// - Parameter photoAspectRatio: width / height of the photo as displayed (oriented).
+    static func arrangement(for size: CGSize, photoAspectRatio: CGFloat, isAccessibilitySize: Bool) -> Arrangement {
         let share = isAccessibilitySize ? accessibilityPanelShare : standardPanelShare
-        return .stacked(panelMaximumHeight: size.height * share, photoMinimumHeight: size.height * photoMinimumShare)
+        let stacked = Arrangement.stacked(panelMaximumHeight: size.height * share, photoMinimumHeight: size.height * photoMinimumShare)
+        let panelWidth = sidePanelWidth(forContainerWidth: size.width)
+        guard size.width - panelWidth >= minimumPhotoWidthBesidePanel else { return stacked }
+        let side = Arrangement.sidePanel(panelWidth: panelWidth)
+        // Ties go to stacked: it keeps the photo full width and is the phone-familiar layout.
+        return displayedPhotoArea(for: side, in: size, photoAspectRatio: photoAspectRatio)
+            > displayedPhotoArea(for: stacked, in: size, photoAspectRatio: photoAspectRatio) ? side : stacked
+    }
+
+    static func sidePanelWidth(forContainerWidth width: CGFloat) -> CGFloat {
+        min(max(width * sidePanelWidthShare, sidePanelWidthRange.lowerBound), sidePanelWidthRange.upperBound)
+    }
+
+    /// The area (pt²) of the photo fitted into the space `arrangement` leaves for it. The stacked
+    /// panel is assumed to use its whole cap: its real height depends on content and text size, and
+    /// assuming the worst keeps the choice stable while the panel's content changes.
+    static func displayedPhotoArea(for arrangement: Arrangement, in size: CGSize, photoAspectRatio: CGFloat) -> CGFloat {
+        let box: CGSize
+        switch arrangement {
+        case .stacked(let panelMaximumHeight, _):
+            box = CGSize(width: size.width, height: size.height - estimatedTopBarHeight - panelMaximumHeight)
+        case .sidePanel(let panelWidth):
+            box = CGSize(width: size.width - panelWidth, height: size.height - estimatedTopBarHeight)
+        }
+        return fittedArea(aspectRatio: photoAspectRatio, in: box)
+    }
+
+    /// Area of a rectangle with `aspectRatio` scaled to fit `box` (scaledToFit).
+    static func fittedArea(aspectRatio: CGFloat, in box: CGSize) -> CGFloat {
+        guard box.width > 0, box.height > 0 else { return 0 }
+        // A degenerate ratio (no photo yet) is treated as square rather than dividing by zero.
+        let ratio = aspectRatio.isFinite && aspectRatio > 0 ? aspectRatio : 1
+        let width = min(box.width, box.height * ratio)
+        return width * (width / ratio)
     }
 }
 
@@ -44,7 +83,7 @@ struct EditorLayoutPolicy: Equatable {
 /// notices say what this build cannot do (Auto unavailable, approximate Looks, a saved Look that is
 /// unavailable or changed). The controls panel holds the Look categories, the stepped preset
 /// slider, the optional Strength and Undo / Redo / Reset / Compare; it sits below the photo on a
-/// narrow screen and beside it when there is room (`EditorLayoutPolicy`). When its content is
+/// narrow screen and beside it when that shows the photo larger (`EditorLayoutPolicy`). When its content is
 /// taller than its share (large text), the panel scrolls instead of growing over the photo.
 struct EditorView: View {
     @State private var viewModel: LUTEditorViewModel
@@ -64,7 +103,9 @@ struct EditorView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            switch EditorLayoutPolicy.arrangement(for: geometry.size, isAccessibilitySize: dynamicTypeSize.isAccessibilitySize) {
+            switch EditorLayoutPolicy.arrangement(
+                for: geometry.size, photoAspectRatio: photoAspectRatio, isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+            ) {
             case .stacked(let panelMaximumHeight, let photoMinimumHeight):
                 stacked(size: geometry.size, panelMaximumHeight: panelMaximumHeight, photoMinimumHeight: photoMinimumHeight)
             case .sidePanel(let panelWidth):
@@ -75,6 +116,12 @@ struct EditorView: View {
         .onChange(of: viewModel.saveStatus) { _, status in
             announce(status)
         }
+    }
+
+    /// The displayed photo's shape (the preview is already oriented), for `EditorLayoutPolicy`.
+    private var photoAspectRatio: CGFloat {
+        let image = viewModel.displayedImage
+        return image.height > 0 ? CGFloat(image.width) / CGFloat(image.height) : 1
     }
 
     // MARK: - Arrangements

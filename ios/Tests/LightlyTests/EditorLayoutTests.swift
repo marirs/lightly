@@ -105,35 +105,78 @@ final class EditorLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(long.minX, 0)
     }
 
-    // MARK: - Wide screens: controls beside the photo
+    // MARK: - Arrangement chosen by displayed photo area
 
-    /// iPhone 17 landscape, iPad Pro 11-inch portrait and landscape (points, safe area ignored).
-    static let wideCanvases: [(name: String, size: CGSize)] = [
-        ("iPhone landscape", CGSize(width: 874, height: 402)),
-        ("iPad portrait", CGSize(width: 834, height: 1_210)),
-        ("iPad landscape", CGSize(width: 1_210, height: 834))
+    static let phonePortrait = CGSize(width: 402, height: 874)
+    static let phoneLandscape = CGSize(width: 874, height: 402)
+    /// iPad Pro 11-inch (points, safe area ignored).
+    static let padPortrait = CGSize(width: 834, height: 1_210)
+    static let padLandscape = CGSize(width: 1_210, height: 834)
+
+    /// (canvas, photo, expects the side panel). Portrait photo 3:4, landscape photo 4:3.
+    static let arrangementCases: [(name: String, canvas: CGSize, landscapePhoto: Bool, sidePanel: Bool)] = [
+        ("iPhone portrait, portrait photo", phonePortrait, false, false),
+        ("iPhone portrait, landscape photo", phonePortrait, true, false),
+        ("iPhone landscape, portrait photo", phoneLandscape, false, true),
+        ("iPhone landscape, landscape photo", phoneLandscape, true, true),
+        ("iPad portrait, landscape photo", padPortrait, true, false),
+        // Not listed: a 3:4 photo on iPad portrait is within a few percent either way, so the
+        // outcome depends on the host window's safe-area insets; `testLayoutPolicy` pins it for
+        // an exact size instead.
+        ("iPad landscape, landscape photo", padLandscape, true, true),
+        ("iPad landscape, portrait photo", padLandscape, false, true)
     ]
 
-    func testWideScreensPutTheControlsBesideThePhoto() async throws {
-        for (name, canvas) in Self.wideCanvases {
-            let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
-            let probe = layout(viewModel, size: .large, canvas: canvas)
+    /// Laid out for real: the arrangement the policy picks is the one on screen, the panel never
+    /// covers the photo, every action is reachable and Save copy is visible without scrolling.
+    func testArrangementFollowsThePhotoAreaOnPhoneAndPad() async throws {
+        for testCase in Self.arrangementCases {
+            let photo = testCase.landscapePhoto ? EditorFixtures.landscapePhoto() : TestFixtures.makePhoto()
+            let viewModel = try await EditorFixtures.readyEditor(lookStop: 1, photo: photo)
+            let probe = layout(viewModel, size: .large, canvas: testCase.canvas)
             defer { probe.tearDown() }
-            let panel = try XCTUnwrap(probe.frame("editor.sidePanel"), "\(name): no side panel; have \(probe.frames.keys.sorted())")
-            let photo = try XCTUnwrap(probe.frame("editor.photo"), name)
+            let name = testCase.name
+            let photoFrame = try XCTUnwrap(probe.frame("editor.photo"), name)
             let area = try XCTUnwrap(probe.frame("editor.photoArea"), name)
+            let save = try XCTUnwrap(probe.frame("editor.control.action.saveCopy"), "\(name): Save copy missing")
 
-            XCTAssertNil(probe.frame("editor.bottomControls"), "\(name): controls are not below the photo")
-            XCTAssertTrue(EditorLayoutPolicy.sidePanelWidthRange.contains(panel.width.rounded()), "\(name): panel \(panel.width) pt")
-            XCTAssertLessThanOrEqual(photo.maxX, panel.minX + 0.5, "\(name): the panel covers the photo")
-            // The host window has safe-area insets, so "full height" is measured with some slack.
-            XCTAssertGreaterThanOrEqual(panel.height, canvas.height * 0.85, "\(name): the panel runs the full height")
-            XCTAssertGreaterThanOrEqual(area.height, canvas.height * 0.65, "\(name): the photo keeps most of the height")
+            if testCase.sidePanel {
+                let panel = try XCTUnwrap(probe.frame("editor.sidePanel"), "\(name): no side panel; have \(probe.frames.keys.sorted())")
+                XCTAssertNil(probe.frame("editor.bottomControls"), "\(name): controls are not below the photo")
+                XCTAssertTrue(EditorLayoutPolicy.sidePanelWidthRange.contains(panel.width.rounded()), "\(name): panel \(panel.width) pt")
+                XCTAssertLessThanOrEqual(photoFrame.maxX, panel.minX + 0.5, "\(name): the panel covers the photo")
+                // The host window has safe-area insets, so "full height" is measured with some slack.
+                XCTAssertGreaterThanOrEqual(panel.height, testCase.canvas.height * 0.85, "\(name): the panel runs the full height")
+                XCTAssertGreaterThanOrEqual(area.height, testCase.canvas.height * 0.65, "\(name): the photo keeps most of the height")
+            } else {
+                let controls = try XCTUnwrap(probe.frame("editor.bottomControls"), "\(name): controls not below; have \(probe.frames.keys.sorted())")
+                XCTAssertNil(probe.frame("editor.sidePanel"), name)
+                XCTAssertLessThanOrEqual(photoFrame.maxY, controls.minY + 0.5, "\(name): the panel covers the photo")
+                XCTAssertGreaterThanOrEqual(area.height, testCase.canvas.height * 0.4, "\(name): photo area ≥ 40%")
+            }
+            // Save copy sits in the top bar, inside the window, above the photo: never scrolled away.
+            XCTAssertGreaterThanOrEqual(save.minY, 0, name)
+            XCTAssertLessThanOrEqual(save.maxY, photoFrame.minY + 0.5, name)
+            XCTAssertLessThanOrEqual(save.maxX, testCase.canvas.width + 0.5, name)
             for anchor in ["editor.lookSlider", "editor.strength", "editor.control.action.undo", "editor.control.action.redo",
-                           "editor.control.action.reset", "editor.control.action.compare", "editor.control.action.saveCopy"] {
+                           "editor.control.action.reset", "editor.control.action.compare"] {
                 XCTAssertNotNil(probe.frame(anchor), "\(name): \(anchor) missing")
             }
         }
+    }
+
+    /// The prime case of the design pass: on iPad portrait a landscape photo is shown larger with
+    /// the controls below than squeezed beside a side panel.
+    func testLandscapePhotoOnPadPortraitIsShownLargerWithControlsBelow() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1, photo: EditorFixtures.landscapePhoto())
+        let probe = layout(viewModel, size: .large, canvas: Self.padPortrait)
+        defer { probe.tearDown() }
+        let photo = try XCTUnwrap(probe.frame("editor.photo"))
+
+        XCTAssertNotNil(probe.frame("editor.bottomControls"))
+        // Beside a 320 pt panel the photo column would be 514 pt wide at most.
+        XCTAssertGreaterThan(photo.width, Self.padPortrait.width - EditorLayoutPolicy.sidePanelWidthRange.lowerBound + 100,
+                             "The photo uses the full width: \(photo.width) pt")
     }
 
     /// A narrow window on a large screen (iPad split view) stacks like a phone.
@@ -170,7 +213,8 @@ final class EditorLayoutTests: XCTestCase {
         })
         defer { fixture.remove() }
         let viewModel = try await EditorFixtures.readyEditor(lookStop: 1, lookBook: fixture.load().book)
-        let probe = layout(viewModel, size: .large, canvas: CGSize(width: 834, height: 1_210))
+        // iPhone landscape: the narrowest (320 pt) side panel, whatever the photo's shape.
+        let probe = layout(viewModel, size: .large, canvas: Self.phoneLandscape)
         defer { probe.tearDown() }
 
         let font = UIFont.preferredFont(forTextStyle: .caption1, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large))
@@ -185,21 +229,69 @@ final class EditorLayoutTests: XCTestCase {
 
     func testLayoutPolicy() {
         typealias Policy = EditorLayoutPolicy
-        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 402, height: 874), isAccessibilitySize: false),
-                       .stacked(panelMaximumHeight: 874 * 0.35, photoMinimumHeight: 874 * 0.4))
-        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 402, height: 874), isAccessibilitySize: true),
-                       .stacked(panelMaximumHeight: 874 * 0.45, photoMinimumHeight: 874 * 0.4))
-        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 874, height: 402), isAccessibilitySize: false), .sidePanel(panelWidth: 320))
-        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 834, height: 1_210), isAccessibilitySize: false), .sidePanel(panelWidth: 320))
-        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 1_210, height: 834), isAccessibilitySize: false), .sidePanel(panelWidth: 380))
-        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 1_000, height: 1_366), isAccessibilitySize: false),
-                       .sidePanel(panelWidth: 360), "Between the bounds the panel is 36% of the width")
-        // Too narrow beside a 320 pt panel: stacked even though wider than tall.
-        XCTAssertEqual(Policy.arrangement(for: CGSize(width: 600, height: 400), isAccessibilitySize: false),
-                       .stacked(panelMaximumHeight: 400 * 0.35, photoMinimumHeight: 400 * 0.4))
-        if case .sidePanel = Policy.arrangement(for: CGSize(width: 375, height: 1_210), isAccessibilitySize: false) {
-            XCTFail("A narrow split view stacks")
+        let portrait: CGFloat = 3.0 / 4.0
+        let landscape: CGFloat = 4.0 / 3.0
+        func arrangement(_ size: CGSize, _ ratio: CGFloat, ax: Bool = false) -> Policy.Arrangement {
+            Policy.arrangement(for: size, photoAspectRatio: ratio, isAccessibilitySize: ax)
         }
+        let phone = Self.phonePortrait
+        // Phone portrait: a side panel would leave 82 pt for the photo, so never; AX keeps 40%.
+        XCTAssertEqual(arrangement(phone, portrait), .stacked(panelMaximumHeight: 874 * 0.35, photoMinimumHeight: 874 * 0.4))
+        XCTAssertEqual(arrangement(phone, landscape), .stacked(panelMaximumHeight: 874 * 0.35, photoMinimumHeight: 874 * 0.4))
+        XCTAssertEqual(arrangement(phone, portrait, ax: true), .stacked(panelMaximumHeight: 874 * 0.45, photoMinimumHeight: 874 * 0.4))
+        // Phone landscape: either photo is larger beside a 320 pt panel.
+        XCTAssertEqual(arrangement(Self.phoneLandscape, portrait), .sidePanel(panelWidth: 320))
+        XCTAssertEqual(arrangement(Self.phoneLandscape, landscape), .sidePanel(panelWidth: 320))
+        XCTAssertEqual(arrangement(Self.phoneLandscape, landscape, ax: true), .sidePanel(panelWidth: 320))
+        // iPad portrait: controls below for a landscape photo (and, by area, a 3:4 one too).
+        XCTAssertEqual(arrangement(Self.padPortrait, landscape), .stacked(panelMaximumHeight: 1_210 * 0.35, photoMinimumHeight: 1_210 * 0.4))
+        XCTAssertEqual(arrangement(Self.padPortrait, portrait), .stacked(panelMaximumHeight: 1_210 * 0.35, photoMinimumHeight: 1_210 * 0.4))
+        // A tall (9:16) photo on iPad portrait is larger beside the panel: area decides, not the device.
+        XCTAssertEqual(arrangement(Self.padPortrait, 9.0 / 16.0), .sidePanel(panelWidth: 320))
+        // iPad landscape: side panel (380 pt, the upper bound) for both shapes.
+        XCTAssertEqual(arrangement(Self.padLandscape, landscape), .sidePanel(panelWidth: 380))
+        XCTAssertEqual(arrangement(Self.padLandscape, portrait), .sidePanel(panelWidth: 380))
+        // A very wide panorama on iPad landscape is larger full width.
+        XCTAssertEqual(arrangement(Self.padLandscape, 3), .stacked(panelMaximumHeight: 834 * 0.35, photoMinimumHeight: 834 * 0.4))
+        // Between the bounds the panel is 36% of the width.
+        XCTAssertEqual(arrangement(CGSize(width: 1_000, height: 700), portrait), .sidePanel(panelWidth: 360))
+        // Too narrow beside a 320 pt panel: stacked even though wider than tall.
+        XCTAssertEqual(arrangement(CGSize(width: 600, height: 400), portrait), .stacked(panelMaximumHeight: 400 * 0.35, photoMinimumHeight: 400 * 0.4))
+        // A narrow split view stacks whatever the photo.
+        if case .sidePanel = arrangement(CGSize(width: 375, height: 1_210), 9.0 / 16.0) { XCTFail("A narrow split view stacks") }
+        // A degenerate ratio does not crash or divide by zero.
+        _ = arrangement(Self.padPortrait, 0)
+    }
+
+    /// Whatever it picks, the policy picks the arrangement with the larger displayed photo.
+    func testThePolicyPicksTheLargerDisplayedPhoto() {
+        typealias Policy = EditorLayoutPolicy
+        let sizes = [Self.phonePortrait, Self.phoneLandscape, Self.padPortrait, Self.padLandscape,
+                     CGSize(width: 1_000, height: 700), CGSize(width: 700, height: 1_000), CGSize(width: 1_366, height: 1_024)]
+        for size in sizes {
+            for ratio: CGFloat in [9.0 / 16.0, 3.0 / 4.0, 1, 4.0 / 3.0, 16.0 / 9.0, 3] {
+                for ax in [false, true] {
+                    let chosen = Policy.arrangement(for: size, photoAspectRatio: ratio, isAccessibilitySize: ax)
+                    let share = ax ? Policy.accessibilityPanelShare : Policy.standardPanelShare
+                    let stacked = Policy.Arrangement.stacked(panelMaximumHeight: size.height * share, photoMinimumHeight: size.height * Policy.photoMinimumShare)
+                    let panelWidth = Policy.sidePanelWidth(forContainerWidth: size.width)
+                    let chosenArea = Policy.displayedPhotoArea(for: chosen, in: size, photoAspectRatio: ratio)
+                    XCTAssertGreaterThanOrEqual(chosenArea, Policy.displayedPhotoArea(for: stacked, in: size, photoAspectRatio: ratio), "\(size) \(ratio)")
+                    if size.width - panelWidth >= Policy.minimumPhotoWidthBesidePanel {
+                        let side = Policy.displayedPhotoArea(for: .sidePanel(panelWidth: panelWidth), in: size, photoAspectRatio: ratio)
+                        XCTAssertGreaterThanOrEqual(chosenArea, side, "\(size) \(ratio)")
+                    } else {
+                        XCTAssertEqual(chosen, stacked, "\(size): no room for a panel beside the photo")
+                    }
+                }
+            }
+        }
+    }
+
+    func testFittedArea() {
+        XCTAssertEqual(EditorLayoutPolicy.fittedArea(aspectRatio: 4.0 / 3.0, in: CGSize(width: 400, height: 600)), 400 * 300, accuracy: 0.01)
+        XCTAssertEqual(EditorLayoutPolicy.fittedArea(aspectRatio: 3.0 / 4.0, in: CGSize(width: 400, height: 400)), 300 * 400, accuracy: 0.01)
+        XCTAssertEqual(EditorLayoutPolicy.fittedArea(aspectRatio: 1, in: CGSize(width: 0, height: 400)), 0)
     }
 
     // MARK: - Indicators

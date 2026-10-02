@@ -15,16 +15,24 @@ enum EditorFixtures {
         lookStop: Int? = nil,
         lookBook: LUTLookBook = LookPackFixture.editorBook,
         writer: any PhotoLibraryWriting = SpyLibraryWriter(),
-        auto: any AutoEnhancing = ModelNotBundledAutoEnhancer()
+        auto: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
+        photo: SelectedPhoto = TestFixtures.makePhoto()
     ) async throws -> LUTEditorViewModel {
         let viewModel = LUTEditorViewModel(
-            photo: TestFixtures.makePhoto(), autoEnhancer: auto,
+            photo: photo, autoEnhancer: auto,
             lookBook: lookBook, renderer: try MetalLUTRenderer(), libraryWriter: writer
         )
         await viewModel.developTask?.value
         if let lookStop { viewModel.settleStop(lookStop) }
         await viewModel.settleRendering()
         return viewModel
+    }
+
+    /// A landscape (4:3) counterpart of `TestFixtures.makePhoto()` (3:4), for layout decisions that
+    /// depend on the photo's shape.
+    static func landscapePhoto() -> SelectedPhoto {
+        let image = TestFixtures.makeImage(width: 400, height: 300)
+        return SelectedPhoto(image: image, source: .photoLibrary, originalData: TestFixtures.makeJPEGData(for: image))
     }
 
     /// An editor restored from a one-entry saved session whose Look is `look`.
