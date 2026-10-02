@@ -173,6 +173,18 @@ struct LooksView: View {
         }
     }
 
+    /// A Look's name under its thumbnail. One line at standard sizes, where
+    /// the grid is dense and a truncated brand name is still recognisable;
+    /// wrapping at accessibility sizes, where one line of a 2-column grid
+    /// cut most names to a few letters ("Green Haw…").
+    static func nameLabel(_ name: String, colorScheme: ColorScheme) -> some View {
+        Text(name)
+            .font(LightlyTypography.caption)
+            .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     private func lookCell(_ preset: LightlyPreset) -> some View {
         let isSelected = viewModel.previewedLookID == preset.id
 
@@ -216,10 +228,9 @@ struct LooksView: View {
                 // No lock badge for Pro Looks (spec §0.3). The grid gives no
                 // hint of the entitlement boundary; the user explores freely
                 // and meets it only when applying.
-                Text(preset.name)
-                    .font(LightlyTypography.caption)
-                    .foregroundStyle(LightlyColor.textPrimary(colorScheme))
-                    .lineLimit(1)
+                Self.nameLabel(preset.name, colorScheme: colorScheme)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .layoutAnchor("look.name.\(preset.id)")
             }
         }
         .buttonStyle(.plain)

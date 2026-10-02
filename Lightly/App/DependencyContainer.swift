@@ -8,56 +8,57 @@ import Foundation
 @MainActor
 struct DependencyContainer {
     let photoLoader: any PhotoLoading
-    let entitlements: any EntitlementResolving
-    let developer: any PhotoDeveloping
-    let presetCatalog: any PresetProviding
-    let thumbnailRenderer: any LookThumbnailRendering
-    let exporter: any PhotoExporting
     let libraryWriter: any PhotoLibraryWriting
-    let favouritesManager: any FavouritesManaging
+    let autoEnhancer: any AutoEnhancing
+    let lookBook: LUTLookBook
+    /// nil when Metal is unavailable; the editor then reports a failure.
+    let lutRenderer: (any LUTRendering)?
 
-    /// The current composition.
+    /// The current composition: the M2 LUT editor (`LUTEditSession`).
     ///
-    /// Phase 2 introduces the production Develop engine backed by histogram
-    /// analysis. The `#error` that blocked release builds in Phase 1 has been
-    /// removed — `AnalysingDeveloper` reports `.production`, so the debug
-    /// disclosure banner no longer appears.
-    ///
-    /// In DEBUG builds, the `DebugFixedRecipeDeveloper` can be activated via
-    /// the launch argument `--fixed-recipe` for deterministic snapshot testing.
+    /// v3 differs: the recipe Develop engine (`AnalysingDeveloper`, or
+    /// `DebugFixedRecipeDeveloper` behind `--fixed-recipe`) is no longer
+    /// composed; the editor screen no longer has a recipe path.
     static func live() -> DependencyContainer {
-        let developer: any PhotoDeveloping = {
-            #if DEBUG
-            if CommandLine.arguments.contains("--fixed-recipe") {
-                return DebugFixedRecipeDeveloper()
-            }
-            #endif
-            return AnalysingDeveloper(analyser: HistogramAnalyser())
-        }()
-
-        return DependencyContainer(
+        DependencyContainer(
             photoLoader: ImageIOPhotoLoader(),
-            entitlements: FreeTierEntitlementResolver(),
-            developer: developer,
-            presetCatalog: BuiltInPresetCatalog(),
-            thumbnailRenderer: CoreImageThumbnailRenderer(),
-            exporter: ImageIOPhotoExporter(),
             libraryWriter: PhotoKitLibraryWriter(),
-            favouritesManager: UserDefaultsFavouritesManager()
+            autoEnhancer: makeAutoEnhancer(),
+            lookBook: makeLookBook(),
+            lutRenderer: try? MetalLUTRenderer()
         )
+    }
+
+    /// No production Auto model exists, so Auto is explicitly unavailable.
+    /// The research (FiveK-derived) weights must never be bundled.
+    private static func makeAutoEnhancer() -> any AutoEnhancing {
+        let enhancer = ModelNotBundledAutoEnhancer()
+        #if DEBUG
+        let arguments = CommandLine.arguments
+        if let flag = arguments.firstIndex(of: "--auto-delay-seconds"),
+           arguments.indices.contains(flag + 1), let seconds = Double(arguments[flag + 1]) {
+            return DelayedAutoEnhancer(wrapped: enhancer, delay: .seconds(seconds))
+        }
+        #endif
+        return enhancer
+    }
+
+    /// The Looks come from the Look pack bundled at build time
+    /// (`scripts/bundle_look_pack.sh`), in DEBUG and release alike: there are
+    /// no code-defined Looks. Without a pack the book is empty and the editor
+    /// says "No Looks are available in this build."
+    private static func makeLookBook() -> LUTLookBook {
+        LookPackLoader.loadBundled().book
     }
 
     /// Builds the root state from this container.
     func makeAppState() -> AppState {
         AppState(
             photoLoader: photoLoader,
-            developer: developer,
-            entitlements: entitlements,
-            presetCatalog: presetCatalog,
-            thumbnailRenderer: thumbnailRenderer,
-            exporter: exporter,
             libraryWriter: libraryWriter,
-            favouritesManager: favouritesManager
+            autoEnhancer: autoEnhancer,
+            lookBook: lookBook,
+            lutRenderer: lutRenderer
         )
     }
 }

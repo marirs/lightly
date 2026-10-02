@@ -35,6 +35,10 @@ struct SelectedPhoto: Identifiable, Sendable {
     /// support arrives and sizes grow.
     let originalData: Data
 
+    /// Content identity for render caches. See `PhotoFingerprint` for why this
+    /// hashes the encoded bytes rather than using `id` or the dimensions.
+    let fingerprint: PhotoFingerprint
+
     init(id: UUID = UUID(), image: CGImage, source: PhotoSource, originalData: Data) {
         self.id = id
         self.image = image
@@ -42,5 +46,6 @@ struct SelectedPhoto: Identifiable, Sendable {
         self.pixelSize = CGSize(width: image.width, height: image.height)
         self.colorSpace = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
         self.originalData = originalData
+        self.fingerprint = PhotoFingerprint(encodedData: originalData, image: image)
     }
 }

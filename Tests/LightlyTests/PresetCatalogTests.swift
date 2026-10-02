@@ -7,7 +7,7 @@ final class PresetCatalogTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        catalog = BuiltInPresetCatalog()
+        catalog = TestFixtures.bundledCatalog
     }
 
     func testCatalogLoadsAllIngestedPresets() {
@@ -40,9 +40,7 @@ final class PresetCatalogTests: XCTestCase {
             return
         }
 
-        let found = catalog.preset(withID: first.id)
-        XCTAssertNotNil(found)
-        XCTAssertEqual(found?.id, first.id)
+        XCTAssertEqual(catalog.resolvePreset(id: first.id), .found(first))
     }
 
     func testRecommendedIsStable() {

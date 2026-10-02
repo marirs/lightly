@@ -69,6 +69,8 @@ protocol PresetProviding: Sendable {
     ///   describe honestly rather than as a personalised recommendation.
     func recommended(for scene: SceneKind) -> [LightlyPreset]
 
-    /// Looks up a Look by identifier.
-    func preset(withID id: String) -> LightlyPreset?
+    /// Resolves a persisted Look identifier exactly, after explicit migrations.
+    ///
+    /// Never substitutes a different Look for a missing one.
+    func resolvePreset(id: String) -> PresetLookupResult
 }

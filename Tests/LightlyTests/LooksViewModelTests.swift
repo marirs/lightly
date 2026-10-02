@@ -22,7 +22,7 @@ private actor ScriptedThumbnailRenderer: LookThumbnailRendering {
 
     func thumbnail(
         for preset: LightlyPreset,
-        from image: CGImage,
+        from source: LookThumbnailSource,
         maximumDimension: Int
     ) async throws -> CGImage {
         renderCount += 1
@@ -59,8 +59,8 @@ final class LooksViewModelTests: XCTestCase {
         entitlements: any EntitlementResolving = FreeTierEntitlementResolver()
     ) -> LooksViewModel {
         LooksViewModel(
-            sourceImage: TestFixtures.makeImage(),
-            catalog: BuiltInPresetCatalog(),
+            thumbnailSource: TestFixtures.makeThumbnailSource(),
+            catalog: TestFixtures.bundledCatalog,
             thumbnailRenderer: renderer,
             entitlements: entitlements
         )
@@ -120,7 +120,7 @@ final class LooksViewModelTests: XCTestCase {
 
     /// A single failing thumbnail must not blank the grid.
     func testOneFailingThumbnailDoesNotAffectTheOthers() async {
-        let sampleCatalog = BuiltInPresetCatalog()
+        let sampleCatalog = TestFixtures.bundledCatalog
         let targetID = sampleCatalog.recommended(for: .unclassified).first?.id ?? "cinematic.green-hawaii-f149aa"
 
         let viewModel = makeViewModel(
@@ -143,10 +143,16 @@ final class LooksViewModelTests: XCTestCase {
     }
 
     func testFavouritesCategoryWorkflow() {
-        let favouritesManager = UserDefaultsFavouritesManager(userDefaults: UserDefaults(suiteName: "test.looks.vm.favs")!)
+        // A fresh suite per run, removed afterwards: a fixed suite persists
+        // across runs, so a run interrupted between the two toggles left
+        // the Look favourited and inverted every assertion next time.
+        let suiteName = "test.looks.vm.favs.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let favouritesManager = UserDefaultsFavouritesManager(userDefaults: defaults)
         let viewModel = LooksViewModel(
-            sourceImage: TestFixtures.makeImage(),
-            catalog: BuiltInPresetCatalog(),
+            thumbnailSource: TestFixtures.makeThumbnailSource(),
+            catalog: TestFixtures.bundledCatalog,
             thumbnailRenderer: ScriptedThumbnailRenderer(behaviour: .succeed),
             entitlements: FreeTierEntitlementResolver(),
             favouritesManager: favouritesManager
@@ -166,6 +172,39 @@ final class LooksViewModelTests: XCTestCase {
 
         viewModel.toggleFavourite(firstLook)
         XCTAssertFalse(viewModel.isFavourite(firstLook))
+    }
+
+    /// A favourite whose Look no longer exists is hidden and reported, never
+    /// replaced by a similarly named Look (v1 substituted via prefix/"gold").
+    func testUnavailableFavouriteIsReportedNotSubstituted() {
+        let suiteName = "test.looks.vm.unavailable-favs.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let favouritesManager = UserDefaultsFavouritesManager(userDefaults: defaults)
+
+        let kept = LightlyPreset(
+            id: "film.kodak-gold-200", name: "Gold", category: .film,
+            isIncludedInFreeTier: true, recipe: .unmodified
+        )
+        let catalog = BuiltInPresetCatalog(presets: [kept])
+        favouritesManager.toggleFavourite(presetID: kept.id)
+        favouritesManager.toggleFavourite(presetID: "film.kodak-gold")
+        favouritesManager.toggleFavourite(presetID: "film.golden-memory")
+
+        let viewModel = LooksViewModel(
+            thumbnailSource: TestFixtures.makeThumbnailSource(),
+            catalog: catalog,
+            thumbnailRenderer: ScriptedThumbnailRenderer(behaviour: .succeed),
+            entitlements: FreeTierEntitlementResolver(),
+            favouritesManager: favouritesManager
+        )
+        viewModel.load(category: .favourites)
+        viewModel.cancelThumbnailWork()
+
+        XCTAssertEqual(viewModel.presets.map(\.id), [kept.id])
+        XCTAssertEqual(viewModel.unavailableFavouriteIDs, ["film.golden-memory", "film.kodak-gold"])
+        // Kept in storage so a future migration entry can restore it.
+        XCTAssertTrue(favouritesManager.isFavourite(presetID: "film.golden-memory"))
     }
 
     func testAllThumbnailsFailingLeavesEveryCellInFailedState() async {

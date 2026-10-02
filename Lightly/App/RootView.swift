@@ -10,6 +10,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Selection binding for Apple's system photo picker.
     @State private var pickerSelection: PhotosPickerItem?
@@ -28,11 +29,7 @@ struct RootView: View {
                     // previous one's history.
                     EditorView(
                         viewModel: appState.makeEditorViewModel(for: photo),
-                        onBack: { appState.returnToLaunch() },
-                        makeLooksViewModel: { appState.makeLooksViewModel(for: photo) },
-                        makeExportViewModel: { recipe in
-                            appState.makeExportViewModel(for: photo, recipe: recipe)
-                        }
+                        onBack: { appState.returnToLaunch() }
                     )
                     .id(photo.id)
                 }
@@ -40,7 +37,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $appState.isSourceSheetPresented) {
             SourceSelectionSheet()
-                .presentationDetents([.height(280)])
+                .presentationDetents(SourceSelectionSheet.detents(for: dynamicTypeSize))
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(LightlyRadius.sheet)
         }

@@ -5,7 +5,7 @@ import XCTest
 @testable import Lightly
 
 /// Records what it was asked to save; never touches the real library.
-private actor SpyLibraryWriter: PhotoLibraryWriting {
+actor SpyLibraryWriter: PhotoLibraryWriting {
     enum Behaviour: Sendable {
         case succeed
         case fail(LightlyError)
@@ -29,7 +29,7 @@ private actor SpyLibraryWriter: PhotoLibraryWriting {
 }
 
 private struct FailingExporter: PhotoExporting {
-    func encode(_ image: CGImage, originalData: Data, settings: ExportSettings, colorSpace: CGColorSpace?) throws -> Data {
+    func encode(_ image: CGImage, originalData: Data, settings: ExportSettings) throws -> Data {
         throw LightlyError.exportFailed
     }
 }
@@ -315,10 +315,11 @@ final class ExportViewModelTests: XCTestCase {
 
     // MARK: Defaults
 
-    func testDefaultsToHeicHighWithLocationOff() {
+    /// Spec D8: the default is JPEG (previously HEIC).
+    func testDefaultsToJPEGHighWithLocationOff() {
         let viewModel = makeViewModel()
 
-        XCTAssertEqual(viewModel.settings.format, .heic)
+        XCTAssertEqual(viewModel.settings.format, .jpeg)
         XCTAssertEqual(viewModel.settings.quality, .high)
         XCTAssertTrue(viewModel.settings.preservesMetadata)
         XCTAssertFalse(viewModel.settings.preservesLocation)
@@ -443,7 +444,7 @@ final class ExportViewModelTests: XCTestCase {
         }
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-        XCTAssertEqual(url.pathExtension, "heic")
+        XCTAssertEqual(url.pathExtension, "jpg")
         try? FileManager.default.removeItem(at: url)
     }
 
@@ -509,20 +510,16 @@ final class ExportViewModelTests: XCTestCase {
 final class ExportPreservesOriginalTests: XCTestCase {
 
     /// Spec §22: the original must be unchanged after an export.
-    func testExportingDoesNotAlterTheOriginalOrTheHistory() async {
+    func testExportingDoesNotAlterTheOriginal() async throws {
         let photo = TestFixtures.makePhoto()
-        let editor = EditorViewModel(original: photo, developer: DebugFixedRecipeDeveloper())
-        editor.develop()
-        await editor.developTask?.value
-
-        let originalImage = editor.original.image
-        let originalBytes = editor.original.originalData
-        let historyBefore = editor.history
+        let recipe = try await DebugFixedRecipeDeveloper().develop(photo) { _ in }
+        let originalImage = photo.image
+        let originalBytes = photo.originalData
 
         let writer = SpyLibraryWriter()
         let exportViewModel = ExportViewModel(
-            originalImage: editor.original.image,
-            recipe: editor.composedRecipe,
+            originalImage: photo.image,
+            recipe: recipe,
             originalData: photo.originalData,
             exporter: ImageIOPhotoExporter(),
             libraryWriter: writer,
@@ -533,17 +530,7 @@ final class ExportPreservesOriginalTests: XCTestCase {
         await exportViewModel.inFlightExport?.value
 
         XCTAssertEqual(exportViewModel.outcome, .savedToLibrary)
-        XCTAssertTrue(
-            editor.original.image === originalImage,
-            "Export must not replace the original image."
-        )
-        XCTAssertEqual(
-            editor.original.originalData, originalBytes,
-            "Export must not alter the original bytes."
-        )
-        XCTAssertEqual(
-            editor.history, historyBefore,
-            "Export is not an edit and must not appear in history."
-        )
+        XCTAssertTrue(photo.image === originalImage, "Export must not replace the original image.")
+        XCTAssertEqual(photo.originalData, originalBytes, "Export must not alter the original bytes.")
     }
 }

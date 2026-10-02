@@ -69,6 +69,21 @@ enum LightlyColor {
             : Color(red: 0.678, green: 0.529, blue: 0.353)
     }
 
+    // MARK: - Control boundaries
+
+    /// Outline of a control that sits on `background` rather than over the
+    /// photograph (accessibility text sizes in the editor).
+    ///
+    /// Chosen for WCAG 1.4.11 non-text contrast: ≥ 3:1 against `background`
+    /// in both appearances (≈5.2:1 light, ≈7.5:1 dark), so the control's
+    /// bounded shape is visible without the photo behind it. `line` is too
+    /// faint for this (≈1.4:1) by design — it is decoration, not a boundary.
+    static func controlBoundary(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.635, green: 0.631, blue: 0.624)
+            : Color(red: 0.400, green: 0.396, blue: 0.388)
+    }
+
     // MARK: - Lines
 
     /// Hairline separators and the mountain line artwork.

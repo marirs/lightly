@@ -12,14 +12,11 @@ protocol PhotoExporting: Sendable {
     ///   - image: The rendered photograph.
     ///   - originalData: Source bytes for metadata extraction.
     ///   - settings: Export configuration.
-    ///   - colorSpace: The colour space to embed in the output file. When
-    ///     `nil`, the image's own colour space is used (spec §15.4).
     /// - Throws: `LightlyError.exportFailed` when encoding fails.
     func encode(
         _ image: CGImage,
         originalData: Data,
-        settings: ExportSettings,
-        colorSpace: CGColorSpace?
+        settings: ExportSettings
     ) throws -> Data
 }
 
@@ -29,8 +26,7 @@ struct ImageIOPhotoExporter: PhotoExporting {
     func encode(
         _ image: CGImage,
         originalData: Data,
-        settings: ExportSettings,
-        colorSpace: CGColorSpace? = nil
+        settings: ExportSettings
     ) throws -> Data {
         let output = NSMutableData()
 
@@ -61,13 +57,17 @@ struct ImageIOPhotoExporter: PhotoExporting {
         // would rotate the photograph a second time on every viewer.
         properties[kCGImagePropertyOrientation] = 1
 
-        // Colour space preservation (spec §15.4): the CGImage produced by
-        // RecipeRenderer already carries the source's colour space (P3, sRGB,
-        // etc.) via the outputColorSpace parameter. ImageIO automatically
-        // embeds that colour profile when encoding, so no explicit embedding
-        // step is needed here.
+        // v3 differs: v1 embedded whatever profile the image carried (old
+        // §15.4, "P3 stays P3"). Spec §4.3 makes export sRGB, so a non-sRGB
+        // image is converted here; ImageIO then embeds the sRGB ICC profile
+        // taken from the image's colour space.
+        guard let sRGBImage = ColorPipeline.convertToSRGB8(image) else {
+            throw LightlyError.exportFailed
+        }
 
-        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+        // Exactly one image, added once: the file is encoded a single time
+        // (spec §5.4), never re-encoded from an earlier lossy pass.
+        CGImageDestinationAddImage(destination, sRGBImage, properties as CFDictionary)
 
         guard CGImageDestinationFinalize(destination) else {
             throw LightlyError.exportFailed

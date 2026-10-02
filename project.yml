@@ -20,6 +20,9 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
+    dependencies:
+      # Copies the Look pack into Lightly.app/LookPack before the app is assembled.
+      - target: LookPack
     sources:
       - path: Lightly
         excludes:
@@ -36,6 +39,18 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
+    postBuildScripts:
+      # Last phase: fail the build (so nothing gets installed) unless the built product carries the
+      # app icon. Sandboxed: it reads only the declared product files below.
+      - name: Check app icon
+        script: '"${SRCROOT}/scripts/check_app_icon.sh"'
+        # Every build, not only when an input changed: the check is cheap and must never be skipped.
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/scripts/check_app_icon.sh
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Assets.car
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AppIcon60x60@2x.png
     info:
       path: Lightly/Generated-Info.plist
       properties:
@@ -74,6 +89,27 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Lightly
+
+aggregateTargets:
+  # Copies the git-ignored Look pack into the app bundle (scripts/bundle_look_pack.sh).
+  #
+  # A separate target only so that this one script runs without user-script sandboxing; the
+  # app target and every other script keep ENABLE_USER_SCRIPT_SANDBOXING: YES. Why it cannot be
+  # sandboxed: the pack's location is resolved at build time ($LIGHTLY_LOOK_PACK_DIR, this
+  # checkout, or the main checkout of a .claude/worktrees/<name> worktree) and its LUT file
+  # names come from the manifest, while the sandbox only grants access to input and output paths
+  # declared statically, file by file (a declared directory covers the directory entry only, not
+  # its contents). Xcode has no per-phase sandbox switch, hence the one-script target.
+  LookPack:
+    buildScripts:
+      - name: Bundle Look pack
+        script: '"${SRCROOT}/scripts/bundle_look_pack.sh"'
+        # Always run: the pack can change without any build input changing.
+        basedOnDependencyAnalysis: false
+    settings:
+      base:
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        LIGHTLY_APP_WRAPPER_NAME: Lightly.app
 
 schemes:
   Lightly:

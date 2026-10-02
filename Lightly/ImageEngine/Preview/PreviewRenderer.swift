@@ -15,13 +15,16 @@ import Foundation
 /// output file matches the source dimensions.
 actor PreviewRenderer {
     private let renderer = RecipeRenderer()
-    private let context = CIContext(options: [.useSoftwareRenderer: false])
+    private let context = ColorPipeline.makeContext()
     
     /// Maximum pixel dimension of the preview image.
     private let maximumPreviewDimension: Int
     
-    /// Cached downsampled base image, keyed by source dimensions.
-    private var previewBase: (sourceWidth: Int, sourceHeight: Int, image: CGImage)?
+    /// Cached downsampled base image, keyed by source content identity.
+    ///
+    /// v3 differs: v1 keyed on width×height, so a second photo with the same
+    /// dimensions was rendered from the first photo's pixels.
+    private var previewBase: (source: PhotoFingerprint, image: CGImage)?
     
     init(maximumPreviewDimension: Int = 1290) {
         self.maximumPreviewDimension = maximumPreviewDimension
@@ -30,9 +33,10 @@ actor PreviewRenderer {
     /// Renders a recipe at preview resolution for display during editing.
     func renderPreview(
         _ source: CGImage,
+        identity: PhotoFingerprint,
         with recipe: DevelopRecipe
     ) throws -> CGImage {
-        let base = try downsample(source)
+        let base = try downsample(source, identity: identity)
         return try renderer.render(base, with: recipe)
     }
     
@@ -46,17 +50,14 @@ actor PreviewRenderer {
     
     /// Produces a reduced-resolution copy, preserving aspect ratio.
     /// Returns the source untouched when already small enough.
-    private func downsample(_ source: CGImage) throws -> CGImage {
-        // Cache check: return cached if same source dimensions
-        if let cached = previewBase,
-           cached.sourceWidth == source.width,
-           cached.sourceHeight == source.height {
+    private func downsample(_ source: CGImage, identity: PhotoFingerprint) throws -> CGImage {
+        if let cached = previewBase, cached.source == identity {
             return cached.image
         }
-        
+
         let longestSide = max(source.width, source.height)
         guard longestSide > maximumPreviewDimension else {
-            previewBase = (source.width, source.height, source)
+            previewBase = (identity, source)
             return source
         }
         
@@ -65,11 +66,11 @@ actor PreviewRenderer {
             by: CGAffineTransform(scaleX: scale, y: scale)
         )
         
-        guard let output = context.createCGImage(scaled, from: scaled.extent) else {
+        guard let output = ColorPipeline.renderSRGB(scaled, in: context) else {
             throw LightlyError.developFailed
         }
         
-        previewBase = (source.width, source.height, output)
+        previewBase = (identity, output)
         return output
     }
     

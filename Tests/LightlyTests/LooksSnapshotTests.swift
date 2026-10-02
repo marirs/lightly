@@ -8,13 +8,13 @@ private struct DeterministicThumbnailRenderer: LookThumbnailRendering {
 
     func thumbnail(
         for preset: LightlyPreset,
-        from image: CGImage,
+        from source: LookThumbnailSource,
         maximumDimension: Int
     ) async throws -> CGImage {
         if preset.id == failsForPresetID { throw LightlyError.developFailed }
         // Falls back to the source rather than propagating, so a rendering
         // hiccup cannot fail a layout snapshot for the wrong reason.
-        return (try? RecipeRenderer().render(image, with: preset.recipe)) ?? image
+        return (try? RecipeRenderer().render(source.image, with: preset.recipe)) ?? source.image
     }
 }
 
@@ -32,8 +32,8 @@ final class LooksSnapshotTests: XCTestCase {
         entitlements: any EntitlementResolving = FreeTierEntitlementResolver()
     ) -> LooksViewModel {
         LooksViewModel(
-            sourceImage: TestFixtures.makeImage(),
-            catalog: BuiltInPresetCatalog(),
+            thumbnailSource: TestFixtures.makeThumbnailSource(),
+            catalog: TestFixtures.bundledCatalog,
             thumbnailRenderer: renderer,
             entitlements: entitlements
         )

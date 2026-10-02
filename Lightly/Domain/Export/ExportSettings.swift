@@ -48,7 +48,8 @@ enum ExportQuality: String, CaseIterable, Identifiable, Sendable {
 
     var compressionQuality: Double {
         switch self {
-        case .high: 0.85
+        // Spec §5.4 fixes Save-copy JPEG quality at 0.92 (was 0.85).
+        case .high: 0.92
         case .maximum: 1.0
         }
     }
@@ -77,7 +78,9 @@ struct ExportSettings: Equatable, Sendable {
     var preservesLocation: Bool
 
     static let `default` = ExportSettings(
-        format: .heic,
+        // Spec D8: Save creates a new JPEG. HEIC/PNG remain selectable but
+        // are no longer the default (the v1 default was HEIC).
+        format: .jpeg,
         quality: .high,
         preservesMetadata: true,
         preservesLocation: false

@@ -64,7 +64,6 @@ final class AppState {
     // MARK: - Dependencies
 
     private let photoLoader: any PhotoLoading
-    private let developer: any PhotoDeveloping
 
     /// Editor view models, retained per photograph.
     ///
@@ -72,79 +71,47 @@ final class AppState {
     /// would discard the edit history on every re-render. Caching by photo
     /// identity means the history survives for as long as the photograph is
     /// loaded, which is what spec §27 requires.
-    private var editorViewModels: [UUID: EditorViewModel] = [:]
+    private var editorViewModels: [UUID: LUTEditorViewModel] = [:]
 
-    private let entitlements: any EntitlementResolving
-    private let presetCatalog: any PresetProviding
-    private let thumbnailRenderer: any LookThumbnailRendering
-    private let exporter: any PhotoExporting
     private let libraryWriter: any PhotoLibraryWriting
-    private let favouritesManager: any FavouritesManaging
+    private let autoEnhancer: any AutoEnhancing
+    private let lookBook: LUTLookBook
+    private let lutRenderer: (any LUTRendering)?
 
     init(
         photoLoader: any PhotoLoading,
-        developer: any PhotoDeveloping = DebugFixedRecipeDeveloper(),
-        entitlements: any EntitlementResolving = FreeTierEntitlementResolver(),
-        presetCatalog: any PresetProviding = BuiltInPresetCatalog(),
-        thumbnailRenderer: any LookThumbnailRendering = CoreImageThumbnailRenderer(),
-        exporter: any PhotoExporting = ImageIOPhotoExporter(),
         libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
-        favouritesManager: any FavouritesManaging = UserDefaultsFavouritesManager()
+        autoEnhancer: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
+        lookBook: LUTLookBook = .empty,
+        // nil makes the editor report a failure. The composition root passes
+        // the Metal renderer; the default keeps previews and launch-screen
+        // tests from compiling a GPU kernel they never use.
+        lutRenderer: (any LUTRendering)? = nil
     ) {
         self.photoLoader = photoLoader
-        self.developer = developer
-        self.entitlements = entitlements
-        self.presetCatalog = presetCatalog
-        self.thumbnailRenderer = thumbnailRenderer
-        self.exporter = exporter
         self.libraryWriter = libraryWriter
-        self.favouritesManager = favouritesManager
+        self.autoEnhancer = autoEnhancer
+        self.lookBook = lookBook
+        self.lutRenderer = lutRenderer
     }
 
     /// Returns the editor for a photograph, creating it on first request.
-    func makeEditorViewModel(for photo: SelectedPhoto) -> EditorViewModel {
+    ///
+    /// Creating it starts Auto at once: selecting a photo develops it
+    /// (spec D2).
+    func makeEditorViewModel(for photo: SelectedPhoto) -> LUTEditorViewModel {
         if let existing = editorViewModels[photo.id] {
             return existing
         }
-        let viewModel = EditorViewModel(original: photo, developer: developer)
+        let viewModel = LUTEditorViewModel(
+            photo: photo,
+            autoEnhancer: autoEnhancer,
+            lookBook: lookBook,
+            renderer: lutRenderer,
+            libraryWriter: libraryWriter
+        )
         editorViewModels[photo.id] = viewModel
         return viewModel
-    }
-
-    /// Builds the export view model for the current state of a photograph.
-    ///
-    /// Export renders at full resolution from the original image using the
-    /// composed recipe (spec §15.3), so the output file matches the source
-    /// dimensions regardless of what preview resolution was used during editing.
-    func makeExportViewModel(
-        for photo: SelectedPhoto,
-        recipe: DevelopRecipe
-    ) -> ExportViewModel {
-        ExportViewModel(
-            originalImage: photo.image,
-            recipe: recipe,
-            originalData: photo.originalData,
-            colorSpace: photo.colorSpace,
-            previewRenderer: PreviewRenderer(),
-            exporter: exporter,
-            libraryWriter: libraryWriter,
-            entitlements: entitlements
-        )
-    }
-
-    /// Builds the Looks view model for a photograph.
-    ///
-    /// Thumbnails are generated from the *original* rather than the developed
-    /// result so that a Look's preview shows the Look itself, composed onto the
-    /// current edit at render time rather than baked into the thumbnail.
-    func makeLooksViewModel(for photo: SelectedPhoto) -> LooksViewModel {
-        LooksViewModel(
-            sourceImage: photo.image,
-            catalog: presetCatalog,
-            thumbnailRenderer: thumbnailRenderer,
-            entitlements: entitlements,
-            favouritesManager: favouritesManager
-        )
     }
 
     // MARK: - Intents
@@ -180,6 +147,11 @@ final class AppState {
 
         do {
             let photo = try await photoLoader.loadPhoto(from: data, source: source)
+            if let previous = selectedPhoto, previous.id != photo.id {
+                // Switching photos ends the previous session; its in-flight
+                // renders must not land after the new photo is shown.
+                closeEditor(for: previous.id)
+            }
             selectedPhoto = photo
             route = .editor(SelectedPhotoReference(id: photo.id))
         } catch let error as LightlyError {
@@ -206,10 +178,14 @@ final class AppState {
     /// writes to it (spec §2.6).
     func returnToLaunch() {
         if let photo = selectedPhoto {
-            editorViewModels.removeValue(forKey: photo.id)
+            closeEditor(for: photo.id)
         }
         selectedPhoto = nil
         route = .launch
+    }
+
+    private func closeEditor(for photoID: UUID) {
+        editorViewModels.removeValue(forKey: photoID)?.close()
     }
 
     // MARK: - Error handling

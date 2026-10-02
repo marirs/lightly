@@ -28,7 +28,9 @@ struct AnalysingDeveloper: PhotoDeveloping {
         onStageCompleted: @escaping @Sendable (DevelopStage) -> Void
     ) async throws -> DevelopRecipe {
         // Spec §5: Analyse the photograph's technical characteristics
-        let analysis = try await analyser.analyse(photo.image)
+        // v3 differs: v1 analysed photo.image at full resolution (≈2.2 GB
+        // working set at 48 MP). The proxy bounds it to a 1024 px long edge.
+        let analysis = try await analyser.analyse(AnalysisProxy.make(from: photo))
         try Task.checkCancellation()
 
         var recipe = DevelopRecipe.unmodified

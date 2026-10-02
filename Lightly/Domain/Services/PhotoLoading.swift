@@ -48,7 +48,10 @@ protocol PhotoLoading: Sendable {
 /// produce a rotated result. Normalising once means the domain layer only ever
 /// holds upright pixels.
 ///
-/// Colour management and RAW handling remain Phase 2 decisions.
+/// The same single pass converts to 8-bit sRGB (spec §4.1 O0, §4.3), so a
+/// Display P3 or Adobe RGB original is converted exactly once, here, and no
+/// later stage has to know what the source space was. RAW handling remains
+/// deferred.
 struct ImageIOPhotoLoader: PhotoLoading {
 
     /// EXIF orientation is applied during `loadPhoto`.
@@ -60,8 +63,8 @@ struct ImageIOPhotoLoader: PhotoLoading {
     /// the raw sensor data — requires `AVCapturePhotoOutput` and is Phase 5+.
     let preservesOriginalEncoding = true
 
-    /// Shared context for the orientation transform.
-    private let context = CIContext(options: [.useSoftwareRenderer: false])
+    /// Shared context for the orientation and colour conversion.
+    private let context = ColorPipeline.makeContext()
 
     func loadPhoto(from data: Data, source: PhotoSource) async throws -> SelectedPhoto {
         guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
@@ -92,17 +95,22 @@ struct ImageIOPhotoLoader: PhotoLoading {
         return value ?? 1
     }
 
-    /// Applies the orientation transform, returning upright pixels.
+    /// Returns upright, 8-bit sRGB pixels.
     ///
-    /// - Returns: The source unchanged when it is already upright, avoiding a
-    ///   pointless re-render of every screenshot and rendered image.
+    /// - Returns: The source unchanged when it is already upright 8-bit sRGB,
+    ///   avoiding a pointless re-render of every screenshot and sRGB capture.
+    ///
+    /// v3 differs: v1 only re-rendered rotated images, and then through a
+    /// default context that tagged the result Device RGB; upright wide-gamut
+    /// images kept their P3/Adobe RGB tag and were treated as sRGB downstream.
     private func upright(_ image: CGImage, exifOrientation: Int32) throws -> CGImage {
         // 1 is "upright, no transform required".
-        guard exifOrientation != 1 else { return image }
+        if exifOrientation == 1, ColorPipeline.isSRGB8(image) {
+            return image
+        }
 
         let oriented = CIImage(cgImage: image).oriented(forExifOrientation: exifOrientation)
-
-        guard let output = context.createCGImage(oriented, from: oriented.extent) else {
+        guard let output = ColorPipeline.renderSRGB(oriented, in: context) else {
             throw LightlyError.photoLoadingFailed
         }
         return output

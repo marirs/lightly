@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import XCTest
+@testable import Lightly
 
 /// A minimal, dependency-free snapshot harness.
 ///
@@ -11,6 +12,29 @@ import XCTest
 /// References live beside the tests in `__Snapshots__/`. A missing reference is
 /// recorded and the test fails once, which is the standard contract: a snapshot
 /// that silently creates its own baseline can never fail.
+///
+/// ## Pinned environment
+///
+/// The references match only under this environment, which is pinned in code
+/// where possible and checked where not:
+/// - Render size 402×874 pt (or the test's explicit size), scale 1, opaque.
+/// - Colour scheme: explicit per test (light by default), applied to SwiftUI
+///   and to the window's UIKit style.
+/// - Text size: `large` (the iOS default) for SwiftUI *and* the window's UIKit
+///   trait, so the simulator's own Settings → Text Size cannot leak in. A test
+///   that sets `.environment(\.dynamicTypeSize, .accessibility3)` on its view
+///   still gets AX3: the view's own environment is closer than this outer pin.
+///   UIKit-backed controls in those tests stay at `large`, which is how the
+///   accessibility references were recorded.
+/// - Locale: en_US.
+/// - Device and runtime: `__Snapshots__/ENVIRONMENT.json` (iPhone 17,
+///   iOS 26.5 / 23F77). Font rasterisation can differ across runtimes, so
+///   running elsewhere fails with a message naming both environments instead
+///   of reporting misleading pixel differences.
+///
+/// Why: before this pin the iPhone 17 simulator was set to
+/// extra-extra-extra-large text, and every default-size snapshot failed
+/// with no visible difference but larger text.
 enum SnapshotAssertion {
 
     /// Devices differ in scale and safe-area insets; snapshots pin an explicit
@@ -37,6 +61,11 @@ enum SnapshotAssertion {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        if let mismatch = SnapshotEnvironment.mismatch(referenceDirectory: referenceDirectory(for: file)) {
+            XCTFail("Snapshot '\(name)' not compared: \(mismatch)", file: file, line: line)
+            return
+        }
+
         guard let rendered = render(view, size: size, colorScheme: colorScheme) else {
             XCTFail("Could not render snapshot '\(name)'", file: file, line: line)
             return
@@ -95,18 +124,41 @@ enum SnapshotAssertion {
     /// same layout and rendering path the device uses, so what is captured is
     /// what a user would actually see.
     @MainActor
-    private static func render(
+    static func render(
         _ view: some View,
         size: CGSize,
         colorScheme: ColorScheme
     ) -> CGImage? {
+        renderWithAnchors(view, size: size, colorScheme: colorScheme, settle: false)?.image
+    }
+
+    /// Renders like `render` and also returns the frames published with
+    /// `.layoutAnchor`, from the same host, so pixel samples taken at those
+    /// frames line up exactly (a second host can differ in safe area).
+    @MainActor
+    static func renderWithAnchors(
+        _ view: some View,
+        size: CGSize,
+        colorScheme: ColorScheme,
+        settle: Bool = true
+    ) -> (image: CGImage, anchors: [String: CGRect])? {
+        let anchors = AnchorBox()
         let controller = UIHostingController(
-            rootView: AnyView(view.environment(\.colorScheme, colorScheme))
+            rootView: AnyView(
+                view
+                    .environment(\.colorScheme, colorScheme)
+                    .environment(\.dynamicTypeSize, .large)
+                    .environment(\.locale, Locale(identifier: "en_US"))
+                    .onPreferenceChange(LayoutAnchorKey.self) { frames in
+                        MainActor.assumeIsolated { anchors.frames = frames }
+                    }
+            )
         )
         controller.view.frame = CGRect(origin: .zero, size: size)
         controller.view.backgroundColor = .clear
 
         let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+        window.traitOverrides.preferredContentSizeCategory = .large
         window.rootViewController = controller
         // Applied to the window so UIKit-backed controls (Slider, materials)
         // resolve their own colours to the same scheme as the SwiftUI content.
@@ -117,6 +169,13 @@ enum SnapshotAssertion {
         // materialise their content once laid out.
         controller.view.setNeedsLayout()
         controller.view.layoutIfNeeded()
+        if settle {
+            // Safe-area insets and the anchor preferences resolve over a
+            // further run-loop turn; measure and draw the settled layout.
+            // Off for plain snapshots so recorded references are unaffected.
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            controller.view.layoutIfNeeded()
+        }
 
         let format = UIGraphicsImageRendererFormat()
         // Scale 1 keeps references small and comparison fast; layout bugs are
@@ -136,7 +195,13 @@ enum SnapshotAssertion {
         }
 
         window.isHidden = true
-        return image.cgImage
+        guard let cgImage = image.cgImage else { return nil }
+        return (cgImage, anchors.frames)
+    }
+
+    @MainActor
+    private final class AnchorBox {
+        var frames: [String: CGRect] = [:]
     }
 
     // MARK: - Comparison

@@ -53,16 +53,17 @@ final class RecipeRendererTests: XCTestCase {
         XCTAssertEqual(result.height, image.height)
     }
 
-    func testColorSpacePreservation() throws {
+    /// Spec §4.3 supersedes the old "P3 stays P3" rule: V1 renders and
+    /// exports sRGB, so even a P3-tagged input comes out sRGB.
+    func testOutputIsSRGBEvenForAWideGamutInput() throws {
         let renderer = RecipeRenderer()
-        let colorSpace = CGColorSpace(name: CGColorSpace.displayP3)!
-        let image = TestFixtures.makeImage()
+        let image = TestFixtures.makeSolidImage(colorSpaceName: CGColorSpace.displayP3, components: [0.6, 0.4, 0.3])
         var recipe = DevelopRecipe.unmodified
         recipe.exposure = 0.1 // Ensure it's not identity
 
-        let result = try renderer.render(image, with: recipe, outputColorSpace: colorSpace)
+        let result = try renderer.render(image, with: recipe)
 
-        XCTAssertEqual(result.colorSpace?.name, CGColorSpace.displayP3)
+        XCTAssertEqual(result.colorSpace?.name, CGColorSpace.sRGB)
     }
 
     func testToneCurvesFilterApplied() throws {

@@ -26,50 +26,62 @@
         }
       }
     },
-    "action.compare.unavailable": {
-      "comment": "VoiceOver hint when Compare is shown disabled before development.",
+    "action.compare.hint": {
+      "comment": "VoiceOver hint of the Compare toggle.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Available after you develop this photo"
+            "value": "Shows the original photo until you turn Compare off. You can also press and hold the photo."
           }
         }
       }
     },
-    "action.crop": {
-      "comment": "Crop action label.",
+    "action.reset": {
+      "comment": "Reset to Auto: removes the Look, keeps Auto. Short visible label.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Crop"
+            "value": "Reset"
           }
         }
       }
     },
-    "action.develop": {
-      "comment": "Primary action on the photo-selected screen.",
+    "action.reset.accessibility": {
+      "comment": "VoiceOver label of Reset.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Develop"
+            "value": "Reset to Auto"
           }
         }
       }
     },
-    "action.share": {
-      "comment": "Share action label.",
+    "action.saveCopy": {
+      "comment": "Saves the edit as a new photo; the original is never changed.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Share"
+            "value": "Save copy"
+          }
+        }
+      }
+    },
+    "action.undo": {
+      "comment": "Undo the last committed edit.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo"
           }
         }
       }
@@ -96,30 +108,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "LABS"
-          }
-        }
-      }
-    },
-    "debug.processing.notice": {
-      "comment": "Non-production disclosure required by spec section 24.8. States precisely what is and is not real: pixels genuinely change, but no scene or quality analysis occurs.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Debug engine — real rendering, no analysis"
-          }
-        }
-      }
-    },
-    "develop.progress.subtitle": {
-      "comment": "Canonical developing copy, locked by spec section 0.11. Do not change to 'intelligent enhancements'.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Applying thoughtful enhancements"
           }
         }
       }
@@ -244,6 +232,18 @@
         }
       }
     },
+    "editor.auto.unavailable.notice": {
+      "comment": "Shown while no Auto model is bundled. Must not imply the photo was enhanced.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto is unavailable: this build has no Auto model. Looks apply to your original photo."
+          }
+        }
+      }
+    },
     "editor.back.accessibility": {
       "comment": "VoiceOver label for the editor back button.",
       "extractionState": "manual",
@@ -256,14 +256,74 @@
         }
       }
     },
-    "editor.more.accessibility": {
-      "comment": "VoiceOver label for the editor More control.",
+    "editor.chooseAnother": {
+      "comment": "Button after the editor could not open a photo.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "More options"
+            "value": "Choose another photo"
+          }
+        }
+      }
+    },
+    "editor.lookSlider.accessibility": {
+      "comment": "VoiceOver label of the stepped Look slider.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Look"
+          }
+        }
+      }
+    },
+    "editor.lookSlider.value": {
+      "comment": "VoiceOver value of the Look slider: category label, stop name, stop number, stop count. E.g. \"Warm, Nordic Tone (10), 3 of 5\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$@, %3$lld of %4$lld"
+          }
+        }
+      }
+    },
+    "editor.looks.approximate.notice": {
+      "comment": "Shown while any Look offered is a model approximation or not validated against Lightroom (spec 4.5). Must not imply the Looks match Lightroom.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looks are approximate conversions, not yet checked against Lightroom."
+          }
+        }
+      }
+    },
+    "editor.looks.noneInBuild": {
+      "comment": "Shown when the build contains no Looks.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Looks are available in this build."
+          }
+        }
+      }
+    },
+    "editor.looks.unavailable.notice": {
+      "comment": "Shown when a saved edit names a Look this build does not have (spec 4.5): the Look is not applied and Auto is shown instead.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Look unavailable. Showing Auto instead."
           }
         }
       }
@@ -280,6 +340,18 @@
         }
       }
     },
+    "editor.photo.autoUnavailable.accessibility": {
+      "comment": "VoiceOver value of the photo when Auto is unavailable and no Look is applied.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto unavailable, no Look"
+          }
+        }
+      }
+    },
     "editor.photo.original.accessibility": {
       "comment": "VoiceOver label while Compare is showing the original.",
       "extractionState": "manual",
@@ -288,6 +360,66 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your original photograph"
+          }
+        }
+      }
+    },
+    "editor.save.failed": {
+      "comment": "VoiceOver announcement when Save copy fails; the reason is shown on screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The copy was not saved."
+          }
+        }
+      }
+    },
+    "editor.save.saved": {
+      "comment": "Save copy succeeded. Wording fixed by spec section 2 step 7.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved as a new photo. Original unchanged."
+          }
+        }
+      }
+    },
+    "editor.save.saving": {
+      "comment": "Save copy in progress.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saving…"
+          }
+        }
+      }
+    },
+    "editor.stop.auto": {
+      "comment": "Label of stop 0 of every Look slider while an Auto correction is applied: no creative Look, Auto only.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto"
+          }
+        }
+      }
+    },
+    "editor.stop.original": {
+      "comment": "Label of stop 0 of every Look slider while no Auto correction is applied (no Auto model, Auto unavailable, or Auto at strength 0): no creative Look, the original photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original"
           }
         }
       }

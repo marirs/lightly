@@ -29,7 +29,7 @@ actor HistogramAnalyser: ImageAnalysing {
         let totalBytes = bytesPerRow * height
         var pixelData = [UInt8](repeating: 0, count: totalBytes)
 
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let colorSpace = ColorPipeline.sRGB
         guard let context = CGContext(
             data: &pixelData,
             width: width,
@@ -159,7 +159,7 @@ actor HistogramAnalyser: ImageAnalysing {
             height: smallHeight,
             bitsPerComponent: 8,
             bytesPerRow: bytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
+            space: ColorPipeline.sRGB,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else {
             throw LightlyError.developFailed

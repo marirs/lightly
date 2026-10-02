@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Observation
+import os
 
 /// State of one Look's thumbnail.
 ///
@@ -48,13 +49,21 @@ final class LooksViewModel {
     /// point at which entitlement is consulted.
     private(set) var paywallPrompt: PaidCapability?
 
+    /// Favourited IDs that no longer resolve to a Look, sorted for stable display.
+    ///
+    /// Filtered out of the grid rather than shown as broken cells, because a
+    /// cell with no recipe cannot be previewed or applied. The IDs are *not*
+    /// removed from storage: if a future `PresetIDMigrations` entry maps them,
+    /// the favourite comes back without the user re-adding it.
+    private(set) var unavailableFavouriteIDs: [String] = []
+
     // MARK: - Dependencies
 
     private let catalog: any PresetProviding
     private let thumbnailRenderer: any LookThumbnailRendering
     private let entitlements: any EntitlementResolving
     private let favouritesManager: any FavouritesManaging
-    private let sourceImage: CGImage
+    private let thumbnailSource: LookThumbnailSource
 
     /// In-flight thumbnail work, retained so it can be cancelled when the
     /// category changes or the screen closes.
@@ -64,13 +73,13 @@ final class LooksViewModel {
     private let thumbnailDimension = 360
 
     init(
-        sourceImage: CGImage,
+        thumbnailSource: LookThumbnailSource,
         catalog: any PresetProviding,
         thumbnailRenderer: any LookThumbnailRendering,
         entitlements: any EntitlementResolving,
         favouritesManager: any FavouritesManaging = UserDefaultsFavouritesManager()
     ) {
-        self.sourceImage = sourceImage
+        self.thumbnailSource = thumbnailSource
         self.catalog = catalog
         self.thumbnailRenderer = thumbnailRenderer
         self.entitlements = entitlements
@@ -100,9 +109,12 @@ final class LooksViewModel {
     var recommendationsAreSceneAware: Bool { false }
 
     /// The Look currently previewed.
+    ///
+    /// Nil when the previewed ID no longer resolves, which makes Apply
+    /// unavailable rather than committing some other Look in its place.
     var previewedPreset: LightlyPreset? {
         guard let id = previewedLookID else { return nil }
-        return catalog.preset(withID: id)
+        return catalog.resolvePreset(id: id).preset
     }
 
     /// Whether the previewed Look can be applied under the current entitlement.
@@ -132,8 +144,7 @@ final class LooksViewModel {
         if category == .recommended {
             presets = catalog.recommended(for: .unclassified)
         } else if category == .favourites {
-            let favIDs = favouritesManager.allFavourites()
-            presets = favIDs.compactMap { catalog.preset(withID: $0) }
+            presets = resolveFavourites()
         } else {
             presets = catalog.presets(in: category)
         }
@@ -150,6 +161,32 @@ final class LooksViewModel {
         }
     }
 
+    /// Resolves stored favourites, recording the ones that no longer exist.
+    ///
+    /// Sorted by ID so the grid order is stable across launches; the stored
+    /// favourites are a `Set` and would otherwise reshuffle.
+    private func resolveFavourites() -> [LightlyPreset] {
+        var resolved: [LightlyPreset] = []
+        var unavailable: [String] = []
+        for id in favouritesManager.allFavourites().sorted() {
+            switch catalog.resolvePreset(id: id) {
+            case .found(let preset):
+                resolved.append(preset)
+            case .unavailable(let requestedID):
+                unavailable.append(requestedID)
+            }
+        }
+        if !unavailable.isEmpty {
+            Self.logger.notice(
+                "Hiding \(unavailable.count) favourite(s) with no matching Look: \(unavailable, privacy: .public)"
+            )
+        }
+        unavailableFavouriteIDs = unavailable
+        return resolved
+    }
+
+    private static let logger = Logger(subsystem: "com.lightlylabs.lightly", category: "Looks")
+
     /// Renders each thumbnail, isolating failures to their own cell.
     private func renderThumbnails() async {
         for preset in presets {
@@ -158,7 +195,7 @@ final class LooksViewModel {
             do {
                 let image = try await thumbnailRenderer.thumbnail(
                     for: preset,
-                    from: sourceImage,
+                    from: thumbnailSource,
                     maximumDimension: thumbnailDimension
                 )
                 guard !Task.isCancelled else { return }
