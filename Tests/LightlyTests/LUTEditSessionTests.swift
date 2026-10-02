@@ -3,13 +3,20 @@ import XCTest
 @testable import Lightly
 
 /// A small first-party look-book of synthetic LUTs (no vendor presets).
+/// Test fixtures only: formula Looks never ship as app content.
 enum TestLookBook {
-    static let warm = LUTLook(id: "test.warm", version: 1, name: "Warm",
-                              lut: .lut(dimension: 33) { SIMD3(min($0.x * 1.15, 1.2), $0.y, $0.z * 0.85) })
-    static let cool = LUTLook(id: "test.cool", version: 1, name: "Cool",
-                              lut: .lut(dimension: 33) { SIMD3($0.x * 0.85, $0.y, min($0.z * 1.15, 1.2)) })
-    static let mono = LUTLook(id: "test.mono", version: 1, name: "Mono",
-                              lut: .lut(dimension: 33) { SIMD3(repeating: ($0.x + $0.y + $0.z) / 3) })
+    static let fixtureProvenance = LookProvenance(
+        lutSource: "lr-model-approximation", validation: "unvalidated", omittedOperators: [], approximatedGlobally: []
+    )
+    static let warm = LUTLook(id: "test.warm", version: "test-v1", name: "Warm",
+                              lut: .lut(dimension: 33) { SIMD3(min($0.x * 1.15, 1.2), $0.y, $0.z * 0.85) },
+                              provenance: fixtureProvenance)
+    static let cool = LUTLook(id: "test.cool", version: "test-v1", name: "Cool",
+                              lut: .lut(dimension: 33) { SIMD3($0.x * 0.85, $0.y, min($0.z * 1.15, 1.2)) },
+                              provenance: fixtureProvenance)
+    static let mono = LUTLook(id: "test.mono", version: "test-v1", name: "Mono",
+                              lut: .lut(dimension: 33) { SIMD3(repeating: ($0.x + $0.y + $0.z) / 3) },
+                              provenance: fixtureProvenance)
     static let book = LUTLookBook(looks: [warm, cool, mono])
 }
 

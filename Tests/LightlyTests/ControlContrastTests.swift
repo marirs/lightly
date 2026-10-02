@@ -54,13 +54,14 @@ final class ControlContrastTests: XCTestCase {
     /// Back, every category chip (one of them selected) and every edit
     /// action. A Look is applied first so Undo and Reset are enabled —
     /// disabled controls are exempt from 1.4.11 and drawn faded on purpose.
-    private let editorControls = [
-        "editor.control.back",
-        "editor.category.Natural", "editor.category.Warm", "editor.category.Cool",
-        "editor.category.Film", "editor.category.Mono",
-        "editor.control.action.undo", "editor.control.action.reset",
-        "editor.control.action.compare", "editor.control.action.saveCopy"
-    ]
+    /// Category chips come from the fixture pack, not a fixed list: the app
+    /// has no built-in categories.
+    private var editorControls: [String] {
+        ["editor.control.back"]
+            + LookPackFixture.editorCategories.map { "editor.category.\($0.id)" }
+            + ["editor.control.action.undo", "editor.control.action.reset",
+               "editor.control.action.compare", "editor.control.action.saveCopy"]
+    }
 
     /// At accessibility sizes the bottom panel scrolls on a phone-sized
     /// canvas, so some controls are below the fold. A control's chrome does

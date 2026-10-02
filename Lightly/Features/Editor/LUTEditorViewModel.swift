@@ -63,6 +63,10 @@ final class LUTEditorViewModel {
     /// nil only when the photo could not be prepared (`phase == .failed`).
     private(set) var session: LUTEditSession?
 
+    /// A restored edit named a Look this pack does not have (spec §4.5,
+    /// "Look unavailable"); cleared once the user changes the edit.
+    private(set) var showsLookUnavailableNotice = false
+
     /// Readable so tests can await completion instead of polling.
     private(set) var developTask: Task<Void, Never>?
     private(set) var saveTask: Task<Void, Never>?
@@ -84,22 +88,31 @@ final class LUTEditorViewModel {
         lookBook: LUTLookBook,
         renderer: (any LUTRendering)?,
         libraryWriter: any PhotoLibraryWriting,
-        previewLongEdge: Int = 1_290
+        previewLongEdge: Int = 1_290,
+        // DEFERRED: nothing passes a saved edit yet; the recovery snapshot
+        // that would supply one is spec §5.5 (M4).
+        restoring savedEdit: LUTEditState? = nil
     ) {
         self.photo = photo
         self.lookBook = lookBook
         self.libraryWriter = libraryWriter
-        self.selectedCategoryID = lookBook.categories.first?.id
+        // The pack's first category, unless a restored Look lives elsewhere.
+        // Never a named default: categories are pack data.
+        let restoredLookCategory = savedEdit?.lookID.flatMap { lookID in
+            lookBook.categories.first { $0.lookIDs.contains(lookID) }?.id
+        }
+        self.selectedCategoryID = restoredLookCategory ?? lookBook.categories.first?.id
 
         guard let renderer,
               let session = try? LUTEditSession(
                 photo: photo, autoEnhancer: autoEnhancer, lookBook: lookBook,
-                renderer: renderer, previewLongEdge: previewLongEdge
+                renderer: renderer, previewLongEdge: previewLongEdge, restoring: savedEdit
               ) else {
             self.phase = .failed(.developFailed)
             return
         }
         self.session = session
+        self.showsLookUnavailableNotice = session.unavailableRestoredLookID != nil
         self.phase = .developing
         developTask = Task { [weak self] in
             await session.prepareAuto()
@@ -154,6 +167,31 @@ final class LUTEditorViewModel {
         session?.committedState.lookID.flatMap(lookBook.look(id:))
     }
 
+    /// The visible name of a stop: the preset's name verbatim from the pack,
+    /// or the localised Auto label for stop 0.
+    func stopLabel(at index: Int) -> String {
+        guard stops.indices.contains(index) else { return "" }
+        return stops[index].lookName ?? String(localized: "editor.stop.auto")
+    }
+
+    /// The selected category's label from the pack (never a built-in name).
+    var selectedCategoryLabel: String {
+        categories.first { $0.id == selectedCategoryID }?.label ?? ""
+    }
+
+    /// VoiceOver value of the slider, e.g. "Warm, Nordic Tone (10), 3 of 5".
+    var sliderAccessibilityValue: String {
+        let index = displayedStopIndex
+        return String(
+            format: String(localized: "editor.lookSlider.value"),
+            selectedCategoryLabel, stopLabel(at: index), index + 1, stops.count
+        )
+    }
+
+    /// Spec §4.5: Looks that are model approximations or not yet checked
+    /// against Lightroom must be labelled as such on screen.
+    var showsApproximateLooksNotice: Bool { lookBook.offersApproximateLooks }
+
     var canUndo: Bool { isReady && (session?.canUndo ?? false) }
 
     /// Reset to Auto only has something to do while a Look is committed.
@@ -197,6 +235,13 @@ final class LUTEditorViewModel {
         editDidChange()
     }
 
+    /// Accessibility increment/decrement: settle the next or previous stop,
+    /// clamped to the ends. One preset per step; nothing in between.
+    func adjustStop(by offset: Int) {
+        guard !stops.isEmpty else { return }
+        settleStop(min(max(displayedStopIndex + offset, 0), stops.count - 1))
+    }
+
     private func stop(at index: Int) -> LookStop? {
         stops.indices.contains(index) ? stops[index] : nil
     }
@@ -227,6 +272,7 @@ final class LUTEditorViewModel {
     /// changes, so it is cleared rather than left to mislead.
     private func editDidChange() {
         if saveStatus == .saved { saveStatus = .idle }
+        showsLookUnavailableNotice = false
     }
 
     // MARK: - Compare (spec D10: hold and toggle)

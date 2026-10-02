@@ -54,9 +54,13 @@ final class EditorFlowUITests: XCTestCase {
 
     // MARK: - Full flow
 
-    /// The whole primary flow on the real app (spec §2): choose a photo →
-    /// it develops by itself → Auto is reported unavailable → a Look at two
-    /// stops → Compare → Undo → Reset to Auto → Save copy adds a new photo.
+    /// The whole primary flow on the real app with the real Look pack (spec
+    /// §2): choose a photo → it develops by itself → Auto is reported
+    /// unavailable → a category's first two presets → Compare → Undo →
+    /// Reset to Auto → Save copy adds a new photo.
+    ///
+    /// Categories and preset names are read from the same pack the build
+    /// bundled (`BundledLookPack`), never hard-coded: the catalog is data.
     ///
     /// `--auto-delay-seconds` (DEBUG only) holds Auto back briefly so the
     /// developing state is observable; without a bundled model it would
@@ -76,23 +80,28 @@ final class EditorFlowUITests: XCTestCase {
         let autoNotice = app.descendants(matching: .any)["editor.autoUnavailableNotice"]
         XCTAssertTrue(autoNotice.waitForExistence(timeout: timeout), "Auto must say it is unavailable.")
         XCTAssertTrue(autoNotice.label.contains("Auto is unavailable"), autoNotice.label)
-        XCTAssertTrue(app.descendants(matching: .any)["editor.provisionalLooksNotice"].exists,
-                      "Placeholder Looks must be labelled provisional.")
+        let pack = try requireBundledPack()
+        if pack.hasApproximateLooks {
+            let approximate = app.descendants(matching: .any)["editor.approximateLooksNotice"]
+            XCTAssertTrue(approximate.exists, "Approximate, unvalidated Looks must be labelled as such.")
+            XCTAssertTrue(approximate.label.contains("approximate"), approximate.label)
+        }
         capture(named: "04-auto-unavailable")
 
-        // Looks: Warm category, two stops. Each is a real thumb drag:
-        // previews while moving, commits when the finger lifts.
-        app.buttons["editor.category.Warm"].tap()
+        // The pack's first category with at least two presets; each stop is
+        // a real thumb drag: previews while moving, commits on lift.
+        let category = try XCTUnwrap(pack.categories.first { $0.names.count >= 2 }, "Pack has no category with two presets")
+        app.buttons["editor.category.\(category.id)"].tap()
         let slider = app.descendants(matching: .any)["editor.lookSlider"]
         XCTAssertTrue(slider.waitForExistence(timeout: timeout))
-        XCTAssertTrue((slider.value as? String ?? "").hasPrefix("Warm, Auto"), "\(slider.value ?? "nil")")
-        dragSlider(slider, from: 0, to: 1, stopCount: 3)
-        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Golden"), "\(slider.value ?? "nil")")
-        capture(named: "05-look-warm-golden")
-        dragSlider(slider, from: 1, to: 2, stopCount: 3)
-        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Amber"), "\(slider.value ?? "nil")")
-        XCTAssertEqual(photoValue(), "Amber", "Looks replace each other; the photo reports the one applied.")
-        capture(named: "06-look-warm-amber")
+        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 0)), "\(slider.value ?? "nil")")
+        dragSlider(slider, from: 0, to: 1, stopCount: category.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
+        capture(named: "05-look-first-preset")
+        dragSlider(slider, from: 1, to: 2, stopCount: category.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 2)), "\(slider.value ?? "nil")")
+        XCTAssertEqual(photoValue(), category.names[1], "Looks replace each other; the photo reports the one applied.")
+        capture(named: "06-look-second-preset")
 
         // Compare, by the toggle (the accessible alternative to holding).
         let compare = app.buttons["action.compare"]
@@ -108,51 +117,85 @@ final class EditorFlowUITests: XCTestCase {
         app.descendants(matching: .any)["editor.photo"].press(forDuration: 0.8)
         XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your photograph")
 
-        // Undo returns to the first stop.
+        // Undo returns to the first preset.
         app.buttons["action.undo"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Golden"), "\(slider.value ?? "nil")")
+        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
         capture(named: "08-after-undo")
 
         // Reset to Auto clears the Look; Undo brings it back (Reset is a step).
         app.buttons["action.reset"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Auto"), "\(slider.value ?? "nil")")
+        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 0)), "\(slider.value ?? "nil")")
         XCTAssertFalse(app.buttons["action.reset"].isEnabled, "Nothing left to reset.")
         capture(named: "09-after-reset")
         app.buttons["action.undo"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Golden"), "\(slider.value ?? "nil")")
+        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
 
-        // Save copy: a new JPEG through the tiled full-resolution export.
-        app.buttons["action.saveCopy"].tap()
-        allowAddOnlyPhotosAccessIfAsked()
-        if app.staticTexts["Lightly needs permission to add photos to your library. You can grant it in Settings."]
-            .waitForExistence(timeout: 3) {
-            throw XCTSkip("Simulator declined add-only Photos access; the write could not be exercised.")
-        }
-        let saved = app.descendants(matching: .any)["editor.saveStatus"]
-        XCTAssertTrue(saved.waitForExistence(timeout: 30))
-        XCTAssertTrue(waitForLabel(of: saved, toContain: "Saved as a new photo. Original unchanged.", timeout: 60),
-                      "Save copy should confirm; got '\(saved.label)'.")
-        capture(named: "10-save-copy-confirmed")
+        try saveCopyAndConfirm(captureAs: "10-save-copy-confirmed")
     }
 
-    /// The wired editor at an accessibility text size: everything reachable,
-    /// the photo still visible.
+    /// Every category of the real pack, in pack order, shows its presets as
+    /// discrete stops named verbatim from the manifest; the VoiceOver
+    /// increment moves exactly one stop. Screenshots go to
+    /// `LIGHTLY_UI_TEST_OUTPUT` (the demo).
+    func testEveryCategoryOffersItsPresetsAsStops() throws {
+        try openFirstLibraryPhoto()
+        XCTAssertTrue(app.descendants(matching: .any)["editor.autoUnavailableNotice"].waitForExistence(timeout: timeout))
+        let pack = try requireBundledPack()
+        let slider = app.descendants(matching: .any)["editor.lookSlider"]
+
+        let chips = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'editor.category.'"))
+        XCTAssertEqual(chips.count, pack.categories.count, "One chip per pack category, no built-in ones")
+        for (index, category) in pack.categories.enumerated() {
+            let chip = app.buttons["editor.category.\(category.id)"]
+            XCTAssertEqual(chip.label, category.label, "Labels come from the pack")
+            chip.tap()
+            XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 0)), "\(slider.value ?? "nil")")
+            dragSlider(slider, from: 0, to: 1, stopCount: category.stopCount)
+            XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
+            capture(named: "a\(index + 1)-\(category.id)-first-preset")
+        }
+
+        // The category with the most presets, stepped through every stop with
+        // the accessibility increment (one stop per step), then back.
+        let longest = try XCTUnwrap(pack.categories.max { $0.names.count < $1.names.count })
+        app.buttons["editor.category.\(longest.id)"].tap()
+        dragSlider(slider, from: 1, to: 0, stopCount: longest.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: longest.value(atStop: 0)), "\(slider.value ?? "nil")")
+        capture(named: "b0-\(longest.id)-stop-0")
+        for stop in 1..<longest.stopCount {
+            slider.adjust(toNormalizedSliderPosition: CGFloat(stop) / CGFloat(longest.stopCount - 1))
+            XCTAssertTrue(waitForValue(of: slider, toEqual: longest.value(atStop: stop)), "\(slider.value ?? "nil")")
+            capture(named: "b\(stop)-\(longest.id)-stop-\(stop)")
+        }
+        slider.swipeRight()
+        XCTAssertTrue(waitForValue(of: slider, toEqual: longest.value(atStop: longest.stopCount - 1)),
+                      "Clamped at the last preset; \(slider.value ?? "nil")")
+
+        try saveCopyAndConfirm(captureAs: "d-save-copy-confirmed")
+    }
+
+    /// The wired editor at an accessibility text size with the pack's
+    /// longest preset name: everything reachable, the name readable, the
+    /// photo still visible.
     func testEditorAtAccessibilityTextSize() throws {
         relaunch(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
         try openFirstLibraryPhoto()
         XCTAssertTrue(app.descendants(matching: .any)["editor.autoUnavailableNotice"].waitForExistence(timeout: timeout))
+        let pack = try requireBundledPack()
+        let (category, stop) = try XCTUnwrap(pack.longestName, "Pack has no presets")
+
         // At this size the bottom panel scrolls; bring each control into
         // view the way a user would before using it.
-        let film = app.buttons["editor.category.Film"]
-        scrollPanelUntilHittable(film)
-        film.tap()
+        let chip = app.buttons["editor.category.\(category.id)"]
+        scrollPanelUntilHittable(chip)
+        chip.tap()
         let slider = app.descendants(matching: .any)["editor.lookSlider"]
         scrollPanelUntilHittable(slider)
         capture(named: "11a-large-text-controls")
-        dragSlider(slider, from: 0, to: 1, stopCount: 4)
-        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Film, Fade"), "\(slider.value ?? "nil")")
+        dragSlider(slider, from: 0, to: stop, stopCount: category.stopCount)
+        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: stop)), "\(slider.value ?? "nil")")
         XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].isHittable, "The photo stays visible at large text.")
-        capture(named: "11-large-text-editor")
+        capture(named: "c-large-text-long-name")
     }
 
     private var springboard: XCUIApplication {
@@ -217,9 +260,34 @@ final class EditorFlowUITests: XCTestCase {
         app.descendants(matching: .any)["editor.photo"].value as? String
     }
 
-    private func waitForValue(of element: XCUIElement, toStartWith prefix: String, timeout: TimeInterval = 10) -> Bool {
-        let predicate = NSPredicate(format: "value BEGINSWITH %@", prefix)
+    private func waitForValue(of element: XCUIElement, toEqual value: String, timeout: TimeInterval = 10) -> Bool {
+        let predicate = NSPredicate(format: "value == %@", value)
         return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
+    }
+
+    /// The pack this build bundled, or a skip when the build has none: the
+    /// pack is git-ignored, so a checkout without it still has a passing suite.
+    private func requireBundledPack() throws -> BundledLookPack {
+        if app.descendants(matching: .any)["editor.looks.none"].exists {
+            throw XCTSkip("This build has no Look pack (the app shows \"No Looks are available in this build.\"). "
+                          + "Build experiments/presets/look_pack/out or set LIGHTLY_LOOK_PACK_DIR, then rebuild.")
+        }
+        return try XCTUnwrap(BundledLookPack.locate(),
+                             "The app shows Looks but the test cannot find the pack; searched \(BundledLookPack.searchedPaths)")
+    }
+
+    private func saveCopyAndConfirm(captureAs name: String) throws {
+        app.buttons["action.saveCopy"].tap()
+        allowAddOnlyPhotosAccessIfAsked()
+        if app.staticTexts["Lightly needs permission to add photos to your library. You can grant it in Settings."]
+            .waitForExistence(timeout: 3) {
+            throw XCTSkip("Simulator declined add-only Photos access; the write could not be exercised.")
+        }
+        let saved = app.descendants(matching: .any)["editor.saveStatus"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 30))
+        XCTAssertTrue(waitForLabel(of: saved, toContain: "Saved as a new photo. Original unchanged.", timeout: 60),
+                      "Save copy should confirm; got '\(saved.label)'.")
+        capture(named: name)
     }
 
     private func waitForLabel(of element: XCUIElement, toContain text: String, timeout: TimeInterval) -> Bool {

@@ -6,10 +6,17 @@ import Observation
 ///
 /// One Look slot, not a list: applying a Look *replaces* the previous one
 /// (spec §4.1 — Auto then Look, two passes), so Looks can never stack.
+/// The Look is referenced by its pack `lookId` and `lookVersion` (spec
+/// `LookRef`), never by category or stop, so relabelling or reordering the
+/// catalog cannot change what a saved edit replays.
 struct LUTEditState: Equatable, Sendable {
     /// 0 is Auto off; 1 is the model's full output (strength blend, §4.2).
     var autoStrength: Float = 0
     var lookID: String?
+    /// The pack's version of `lookID` when the edit was committed.
+    var lookVersion: String?
+    /// Kept for the edit-state contract; the stepped slider never changes it
+    /// (it picks a preset, it is not an intensity control, spec D6).
     var lookStrength: Float = 1
 
     static let original = LUTEditState()
@@ -42,7 +49,7 @@ extension MetalLUTRenderer: LUTRendering {}
 ///
 /// The editor screen drives this session through `LUTEditorViewModel`.
 /// In this build Auto is explicitly unavailable (no production model) and
-/// the Looks are provisional placeholders in DEBUG builds only (see
+/// the Looks come from the bundled Look pack (see
 /// `DependencyContainer.live()`).
 @MainActor
 @Observable
@@ -58,6 +65,10 @@ final class LUTEditSession {
     static let historyCapacity = 50
 
     private(set) var history: [LUTEditState] = [.original]
+    /// The Look a restored edit referred to that this pack does not have.
+    /// Spec §4.5: shown as "Look unavailable", replaced by Auto, never by a
+    /// similar-looking substitute.
+    private(set) var unavailableRestoredLookID: String?
     private(set) var historyIndex = 0
     /// Renders that reached the screen (diagnostic for latest-wins tests).
     private(set) var publishedRenderCount = 0
@@ -82,7 +93,8 @@ final class LUTEditSession {
         autoEnhancer: any AutoEnhancing,
         lookBook: LUTLookBook,
         renderer: any LUTRendering,
-        previewLongEdge: Int = 1_290
+        previewLongEdge: Int = 1_290,
+        restoring savedEdit: LUTEditState? = nil
     ) throws {
         guard let preview = AnalysisProxy.downscaled(photo.image, maximumLongEdge: previewLongEdge) else {
             throw LightlyError.developFailed
@@ -102,6 +114,34 @@ final class LUTEditSession {
             )
             return try MetalLUTRenderer.makeImage(rgba8: output, width: base.1, height: base.2)
         }
+        if let savedEdit { restore(savedEdit) }
+    }
+
+    /// Starts from a saved edit instead of the original.
+    ///
+    /// The Look is resolved by ID only; an unknown ID falls back to "no
+    /// Look" (Auto) and is remembered so the editor can say so.
+    // DEFERRED: a known ID whose `lookVersion` differs (the pack rebuilt that
+    // Look's LUT) replays the current LUT and records the current version.
+    // Telling the user the Look changed is a product decision for the
+    // recovery-snapshot work (spec §5.5, M4).
+    // DEFERRED: Auto strength is restored as saved, but Auto is only applied
+    // once `prepareAuto()` makes it available; no model ships in this build.
+    private func restore(_ savedEdit: LUTEditState) {
+        var state = savedEdit
+        if let lookID = savedEdit.lookID {
+            if let look = lookBook.look(id: lookID) {
+                state.lookVersion = look.version
+            } else {
+                unavailableRestoredLookID = lookID
+                state.lookID = nil
+                state.lookVersion = nil
+                state.lookStrength = LUTEditState.original.lookStrength
+            }
+        }
+        history = [state]
+        historyIndex = 0
+        render(state)
     }
 
     // MARK: - Auto
@@ -136,9 +176,10 @@ final class LUTEditSession {
     /// Shows a Look without committing it. Returns false for an unknown ID.
     @discardableResult
     func previewLook(id: String, strength: Float = 1) -> Bool {
-        guard lookBook.look(id: id) != nil else { return false }
+        guard let look = lookBook.look(id: id) else { return false }
         var candidate = committedState
         candidate.lookID = id
+        candidate.lookVersion = look.version
         candidate.lookStrength = strength
         render(candidate)
         return true
@@ -147,9 +188,10 @@ final class LUTEditSession {
     /// Commits a Look, replacing any previous one. False for an unknown ID.
     @discardableResult
     func applyLook(id: String, strength: Float = 1) -> Bool {
-        guard lookBook.look(id: id) != nil else { return false }
+        guard let look = lookBook.look(id: id) else { return false }
         var next = committedState
         next.lookID = id
+        next.lookVersion = look.version
         next.lookStrength = min(max(strength, 0), 1)
         commit(next)
         return true
@@ -161,6 +203,7 @@ final class LUTEditSession {
     func previewAutoStop() {
         var candidate = committedState
         candidate.lookID = nil
+        candidate.lookVersion = nil
         candidate.lookStrength = LUTEditState.original.lookStrength
         render(candidate)
     }
@@ -189,6 +232,7 @@ final class LUTEditSession {
     func resetToAuto() {
         var next = committedState
         next.lookID = nil
+        next.lookVersion = nil
         // Strength belongs to the Look; restore the default so "no Look"
         // has one representation and a later Look starts at 100%.
         next.lookStrength = LUTEditState.original.lookStrength

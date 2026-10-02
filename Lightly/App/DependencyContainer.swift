@@ -43,15 +43,12 @@ struct DependencyContainer {
         return enhancer
     }
 
-    /// Internal builds get provisional placeholder Looks (labelled as such
-    /// on screen); release builds get the shipped book, which stays empty
-    /// until curated, validated Look LUTs exist (M3/M4).
+    /// The Looks come from the Look pack bundled at build time
+    /// (`scripts/bundle_look_pack.sh`), in DEBUG and release alike: there are
+    /// no code-defined Looks. Without a pack the book is empty and the editor
+    /// says "No Looks are available in this build."
     private static func makeLookBook() -> LUTLookBook {
-        #if DEBUG
-        return PlaceholderLookBook.make()
-        #else
-        return .bundled
-        #endif
+        LookPackLoader.loadBundled().book
     }
 
     /// Builds the root state from this container.

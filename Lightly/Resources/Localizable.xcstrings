@@ -268,66 +268,6 @@
         }
       }
     },
-    "editor.lookCategory.Cool": {
-      "comment": "Look category (spec D5).",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cool"
-          }
-        }
-      }
-    },
-    "editor.lookCategory.Film": {
-      "comment": "Look category (spec D5).",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Film"
-          }
-        }
-      }
-    },
-    "editor.lookCategory.Mono": {
-      "comment": "Look category (spec D5).",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mono"
-          }
-        }
-      }
-    },
-    "editor.lookCategory.Natural": {
-      "comment": "Look category (spec D5).",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Natural"
-          }
-        }
-      }
-    },
-    "editor.lookCategory.Warm": {
-      "comment": "Look category (spec D5).",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Warm"
-          }
-        }
-      }
-    },
     "editor.lookSlider.accessibility": {
       "comment": "VoiceOver label of the stepped Look slider.",
       "extractionState": "manual",
@@ -341,13 +281,25 @@
       }
     },
     "editor.lookSlider.value": {
-      "comment": "VoiceOver value of the Look slider: category, stop name, stop number, stop count.",
+      "comment": "VoiceOver value of the Look slider: category label, stop name, stop number, stop count. E.g. \"Warm, Nordic Tone (10), 3 of 5\".",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@, %2$@, stop %3$lld of %4$lld"
+            "value": "%1$@, %2$@, %3$lld of %4$lld"
+          }
+        }
+      }
+    },
+    "editor.looks.approximate.notice": {
+      "comment": "Shown while any Look offered is a model approximation or not validated against Lightroom (spec 4.5). Must not imply the Looks match Lightroom.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looks are approximate conversions, not yet checked against Lightroom."
           }
         }
       }
@@ -364,14 +316,14 @@
         }
       }
     },
-    "editor.looks.provisional.notice": {
-      "comment": "Debug builds only: the Looks are procedural placeholders, not curated presets.",
+    "editor.looks.unavailable.notice": {
+      "comment": "Shown when a saved edit names a Look this build does not have (spec 4.5): the Look is not applied and Auto is shown instead.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Provisional test Looks: not curated or validated."
+            "value": "Look unavailable. Showing Auto instead."
           }
         }
       }

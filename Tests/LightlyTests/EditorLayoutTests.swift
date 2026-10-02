@@ -68,4 +68,23 @@ final class EditorLayoutTests: XCTestCase {
             XCTAssertNotNil(probe.frame(anchor), "\(anchor) missing at AX5; have \(probe.frames.keys.sorted())")
         }
     }
+
+    /// A long preset name wraps onto more lines at large text instead of
+    /// being truncated, and stays inside the panel.
+    func testLongPresetNameWrapsAtAccessibility3() async throws {
+        func stopNameFrame(category: String, stop: Int) async throws -> CGRect {
+            let viewModel = try await EditorFixtures.readyEditor()
+            viewModel.selectCategory(category)
+            viewModel.settleStop(stop)
+            let probe = layout(viewModel, size: .accessibility3)
+            defer { probe.tearDown() }
+            return try XCTUnwrap(probe.frame("editor.lookStopName"), "have \(probe.frames.keys.sorted())")
+        }
+        let short = try await stopNameFrame(category: "cat-gamma", stop: 1)          // "Fixture Fade"
+        let long = try await stopNameFrame(category: "cat-beta", stop: 2)            // "Fixture Long Preset Name Tone (11)"
+
+        XCTAssertGreaterThan(long.height, short.height * 1.5, "The long name should wrap, not truncate")
+        XCTAssertLessThanOrEqual(long.maxX, SnapshotAssertion.defaultSize.width)
+        XCTAssertGreaterThanOrEqual(long.minX, 0)
+    }
 }

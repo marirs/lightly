@@ -82,7 +82,7 @@ final class AppState {
         photoLoader: any PhotoLoading,
         libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
         autoEnhancer: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
-        lookBook: LUTLookBook = .bundled,
+        lookBook: LUTLookBook = .empty,
         // nil makes the editor report a failure. The composition root passes
         // the Metal renderer; the default keeps previews and launch-screen
         // tests from compiling a GPU kernel they never use.

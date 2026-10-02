@@ -16,10 +16,9 @@ final class LUTEditorViewModelTests: XCTestCase {
     static let book = LUTLookBook(
         looks: TestLookBook.book.looks,
         categories: [
-            LUTLookCategory(id: "Test", lookIDs: [TestLookBook.warm.id, TestLookBook.cool.id, TestLookBook.mono.id]),
-            LUTLookCategory(id: "Other", lookIDs: [TestLookBook.mono.id])
-        ],
-        isProvisional: true
+            LUTLookCategory(id: "Test", label: "Test", lookIDs: [TestLookBook.warm.id, TestLookBook.cool.id, TestLookBook.mono.id]),
+            LUTLookCategory(id: "Other", label: "Other", lookIDs: [TestLookBook.mono.id])
+        ]
     )
 
     override func setUpWithError() throws {
@@ -272,43 +271,5 @@ final class LUTEditorViewModelTests: XCTestCase {
         viewModel.settleStop(2)
 
         XCTAssertEqual(viewModel.saveStatus, .idle, "'Saved' must not describe a newer, unsaved edit")
-    }
-}
-
-/// The DEBUG placeholder book mirrors Android's `PlaceholderLookBook`.
-final class PlaceholderLookBookTests: XCTestCase {
-
-    func testSameCategoriesStopsAndIDsAsAndroid() {
-        let book = PlaceholderLookBook.make()
-
-        XCTAssertTrue(book.isProvisional, "Placeholder Looks must be labelled provisional")
-        XCTAssertEqual(book.categories.map(\.id), ["Natural", "Warm", "Cool", "Film", "Mono"])
-        XCTAssertEqual(book.categories.map(\.lookIDs), [
-            ["natural.soft", "natural.crisp"],
-            ["warm.golden", "warm.amber"],
-            ["cool.nordic"],
-            ["film.fade", "film.punch", "film.teal"],
-            ["mono.silver"]
-        ])
-        XCTAssertTrue(book.looks.allSatisfy { $0.lut.dimension == LUT3D.contractDimension })
-    }
-
-    /// Spot-checks the transform at the white corner of the grid, where
-    /// Android's `r * 1.06f + 0.02f, g * 1.02f, b * 0.9f` gives these values.
-    func testWarmGoldenMatchesTheAndroidTransform() throws {
-        let golden = try XCTUnwrap(PlaceholderLookBook.make().look(id: "warm.golden"))
-        let white = (LUT3D.contractDimension * LUT3D.contractDimension * LUT3D.contractDimension - 1) * 4
-
-        XCTAssertEqual(golden.lut.values[white], 1.08, accuracy: 1e-6)
-        XCTAssertEqual(golden.lut.values[white + 1], 1.02, accuracy: 1e-6)
-        XCTAssertEqual(golden.lut.values[white + 2], 0.9, accuracy: 1e-6)
-    }
-
-    func testStopIndexIsAutoForALookFromAnotherCategory() {
-        let book = PlaceholderLookBook.make()
-
-        XCTAssertEqual(book.stopIndex(of: "warm.amber", inCategory: "Warm"), 2)
-        XCTAssertEqual(book.stopIndex(of: "warm.amber", inCategory: "Film"), 0)
-        XCTAssertEqual(book.stopIndex(of: nil, inCategory: "Warm"), 0)
     }
 }

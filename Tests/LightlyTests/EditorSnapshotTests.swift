@@ -41,11 +41,27 @@ final class EditorSnapshotTests: XCTestCase {
         SnapshotAssertion.assert(of: view, named: "editor-lut-look-applied-accessibility3")
     }
 
+    /// The fixture's long preset name at AX3: it wraps, it is not clipped.
+    func testLongPresetNameAtAccessibilityTextSize() async throws {
+        let viewModel = try await EditorFixtures.readyEditor()
+        viewModel.selectCategory("cat-beta")
+        viewModel.settleStop(2)
+        await viewModel.settleRendering()
+        let view = editor(viewModel).environment(\.dynamicTypeSize, .accessibility3)
+        SnapshotAssertion.assert(of: view, named: "editor-lut-long-name-accessibility3")
+    }
+
+    /// A build without a Look pack says so instead of showing an empty slider.
+    func testNoLooksInBuild() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookBook: .empty)
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-no-looks")
+    }
+
     // MARK: - Looks, Compare, Save copy
 
     func testLookApplied() async throws {
         let viewModel = try await EditorFixtures.readyEditor()
-        viewModel.selectCategory("Warm")
+        viewModel.selectCategory("cat-beta")
         viewModel.settleStop(2)
         await viewModel.settleRendering()
         SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-look-applied")
@@ -73,7 +89,7 @@ final class EditorSnapshotTests: XCTestCase {
     func testFailureState() {
         let viewModel = LUTEditorViewModel(
             photo: TestFixtures.makePhoto(), autoEnhancer: ModelNotBundledAutoEnhancer(),
-            lookBook: PlaceholderLookBook.make(), renderer: nil, libraryWriter: SpyLibraryWriter()
+            lookBook: LookPackFixture.editorBook, renderer: nil, libraryWriter: SpyLibraryWriter()
         )
         SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-failed")
     }

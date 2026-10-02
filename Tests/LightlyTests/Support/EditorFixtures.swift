@@ -3,19 +3,22 @@ import XCTest
 
 /// Editors in fixed states for snapshot, layout and contrast tests.
 ///
-/// Uses the real DEBUG placeholder look-book and the shipping
-/// "model not bundled" Auto, so these tests see the screen users see.
+/// Uses the deterministic fixture Look pack (`LookPackFixture.editorPack`),
+/// loaded through the real `LookPackLoader`, and the shipping "model not
+/// bundled" Auto. Never the real pack: it is private, git-ignored and changes
+/// whenever the catalog does, which would make every snapshot unstable.
 @MainActor
 enum EditorFixtures {
 
     /// A developed editor (Auto resolved as unavailable), renders settled.
     static func readyEditor(
         lookStop: Int? = nil,
+        lookBook: LUTLookBook = LookPackFixture.editorBook,
         writer: any PhotoLibraryWriting = SpyLibraryWriter()
     ) async throws -> LUTEditorViewModel {
         let viewModel = LUTEditorViewModel(
             photo: TestFixtures.makePhoto(), autoEnhancer: ModelNotBundledAutoEnhancer(),
-            lookBook: PlaceholderLookBook.make(), renderer: try MetalLUTRenderer(), libraryWriter: writer
+            lookBook: lookBook, renderer: try MetalLUTRenderer(), libraryWriter: writer
         )
         await viewModel.developTask?.value
         if let lookStop { viewModel.settleStop(lookStop) }
@@ -28,7 +31,7 @@ enum EditorFixtures {
         LUTEditorViewModel(
             photo: TestFixtures.makePhoto(),
             autoEnhancer: DelayedAutoEnhancer(wrapped: ModelNotBundledAutoEnhancer(), delay: .seconds(60)),
-            lookBook: PlaceholderLookBook.make(), renderer: try MetalLUTRenderer(), libraryWriter: SpyLibraryWriter()
+            lookBook: LookPackFixture.editorBook, renderer: try MetalLUTRenderer(), libraryWriter: SpyLibraryWriter()
         )
     }
 }

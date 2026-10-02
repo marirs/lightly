@@ -5,7 +5,8 @@ import SwiftUI
 // `controlChrome(onPlainBackground: true)`: a solid fill plus a ≥ 3:1
 // outline (WCAG 1.4.11), with labels ≥ 4.5:1 on that fill.
 
-/// Look categories and the stepped slider (spec D5/D6).
+/// Look categories and the stepped slider (spec D5/D6). Both come from the
+/// Look pack: no category name, count or order is known to this view.
 struct LookControls: View {
     let viewModel: LUTEditorViewModel
 
@@ -29,15 +30,26 @@ struct LookControls: View {
         }
     }
 
-    /// One row at standard sizes; wraps at accessibility sizes so every
-    /// category stays visible and legible (no off-screen scrolling).
+    /// The widest arrangement whose labels fit whole: one row when they
+    /// fit, otherwise wrapped rows, so every category stays visible and
+    /// legible (no off-screen scrolling) whatever the pack's labels are.
     private var categoryChips: some View {
-        EqualWidthRows(
-            viewModel.categories,
-            perRow: dynamicTypeSize.isAccessibilitySize ? 2 : max(viewModel.categories.count, 1)
-        ) { category in
-            categoryChip(category)
+        ViewThatFits(in: .horizontal) {
+            ForEach(chipsPerRowCandidates, id: \.self) { perRow in
+                EqualWidthRows(viewModel.categories, perRow: perRow) { category in
+                    categoryChip(category)
+                }
+            }
         }
+    }
+
+    /// Candidate chips-per-row, widest first. Accessibility sizes start at
+    /// two per row (spec §6: the category row becomes a list at AX sizes).
+    /// The last candidate is one per row, which always fits.
+    private var chipsPerRowCandidates: [Int] {
+        let count = max(viewModel.categories.count, 1)
+        let widest = dynamicTypeSize.isAccessibilitySize ? min(count, 2) : count
+        return Array(Set([widest, min(widest, 3), min(widest, 2), 1])).sorted(by: >)
     }
 
     private func categoryChip(_ category: LUTLookCategory) -> some View {
@@ -45,10 +57,11 @@ struct LookControls: View {
         return Button {
             viewModel.selectCategory(category.id)
         } label: {
-            Text(LookCategoryName.key(for: category.id), bundle: .main)
+            // The label is pack data, shown verbatim (not a localisation key).
+            Text(verbatim: category.label)
                 .font(LightlyTypography.caption.weight(isSelected ? .semibold : .regular))
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .padding(.horizontal, LightlySpacing.xs)
                 // Selected inverts the colours, so the state reads without
                 // relying on the accent hue.
                 .foregroundStyle(isSelected ? LightlyColor.background(colorScheme) : LightlyColor.textPrimary(colorScheme))
@@ -65,7 +78,9 @@ struct LookControls: View {
     }
 }
 
-/// The stepped Look slider: stop 0 is Auto, then the category's Looks.
+/// The stepped Look slider: stop 0 is Auto, then one stop per preset of the
+/// category in the pack's browse order. It selects a preset; it is never an
+/// intensity control (spec D6), so there is no value between two stops.
 ///
 /// Dragging previews each stop as it is reached; lifting the finger
 /// commits. VoiceOver/Switch Control increments commit directly, one stop
@@ -80,10 +95,18 @@ struct SteppedLookSlider: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: LightlySpacing.xxs) {
-            stopName(viewModel.displayedStopIndex)
+            // Preset names are pack data, shown verbatim. They wrap rather
+            // than truncate: at large text "Cinematic Light Tone (11)" needs
+            // two lines, and a clipped name would hide which preset it is.
+            // DEFERRED: product-facing Look names (spec U8) and their
+            // localisation; until then the preset's own name is shown.
+            Text(verbatim: viewModel.stopLabel(at: viewModel.displayedStopIndex))
                 .font(LightlyTypography.rowTitle)
                 .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutAnchor("editor.lookStopName")
+                .accessibilityIdentifier("editor.lookStopName")
                 // The slider's own accessibility value carries the name.
                 .accessibilityHidden(true)
 
@@ -102,34 +125,16 @@ struct SteppedLookSlider: View {
             .layoutAnchor("editor.lookSlider")
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("editor.lookSlider.accessibility", bundle: .main))
-            .accessibilityValue(accessibilityValue)
+            .accessibilityValue(viewModel.sliderAccessibilityValue)
             .accessibilityAdjustableAction { direction in
-                let current = viewModel.displayedStopIndex
                 switch direction {
-                case .increment: viewModel.settleStop(min(current + 1, stops.count - 1))
-                case .decrement: viewModel.settleStop(max(current - 1, 0))
+                case .increment: viewModel.adjustStop(by: 1)
+                case .decrement: viewModel.adjustStop(by: -1)
                 @unknown default: break
                 }
             }
             .accessibilityIdentifier("editor.lookSlider")
         }
-    }
-
-    private func stopName(_ index: Int) -> Text {
-        guard stops.indices.contains(index), let name = stops[index].lookName else {
-            return Text("editor.stop.auto", bundle: .main)
-        }
-        // Placeholder Look names are provisional data, not product copy.
-        // DEFERRED: localised Look names arrive with the curated look-book.
-        return Text(verbatim: name)
-    }
-
-    /// e.g. "Warm, Golden, stop 2 of 3".
-    private var accessibilityValue: String {
-        let index = viewModel.displayedStopIndex
-        let category = viewModel.selectedCategoryID.map(LookCategoryName.localized(for:)) ?? ""
-        let name = stops.indices.contains(index) ? (stops[index].lookName ?? String(localized: "editor.stop.auto")) : ""
-        return String(format: String(localized: "editor.lookSlider.value"), category, name, index + 1, stops.count)
     }
 }
 
@@ -258,8 +263,9 @@ struct SaveCopyStatusLine: View {
 }
 
 /// Notices shown above the photo. They state limits of this build plainly:
-/// a missing Auto model must never look like an enhanced photo, and
-/// placeholder Looks must never look like the product's curated Looks.
+/// a missing Auto model must never look like an enhanced photo, approximate
+/// Look conversions must never look like Lightroom-exact ones, and a saved
+/// Look that is missing must never be silently replaced.
 struct EditorNotices: View {
     let viewModel: LUTEditorViewModel
     /// Inside the bottom panel the panel already provides the margins.
@@ -273,9 +279,13 @@ struct EditorNotices: View {
                 notice(symbol: "wand.and.stars.inverse", messageKey: "editor.auto.unavailable.notice",
                        identifier: "editor.autoUnavailableNotice")
             }
-            if viewModel.lookBook.isProvisional {
-                notice(symbol: "flask", messageKey: "editor.looks.provisional.notice",
-                       identifier: "editor.provisionalLooksNotice")
+            if viewModel.showsLookUnavailableNotice {
+                notice(symbol: "exclamationmark.triangle", messageKey: "editor.looks.unavailable.notice",
+                       identifier: "editor.lookUnavailableNotice")
+            }
+            if viewModel.showsApproximateLooksNotice {
+                notice(symbol: "info.circle", messageKey: "editor.looks.approximate.notice",
+                       identifier: "editor.approximateLooksNotice")
             }
         }
         .padding(.horizontal, isInsideBottomPanel ? 0 : LightlySpacing.m)
@@ -334,21 +344,5 @@ struct EqualWidthRows<Item: Identifiable, Cell: View>: View {
                 }
             }
         }
-    }
-}
-
-/// Localised category names (`editor.lookCategory.<id>`).
-///
-/// Keys are built as plain strings on purpose: an interpolated literal
-/// passed to `LocalizedStringKey` becomes a *format* key
-/// ("editor.lookCategory.%@") and never matches the catalogue.
-enum LookCategoryName {
-    static func key(for categoryID: String) -> LocalizedStringKey {
-        let key = "editor.lookCategory." + categoryID
-        return LocalizedStringKey(key)
-    }
-
-    static func localized(for categoryID: String) -> String {
-        Bundle.main.localizedString(forKey: "editor.lookCategory." + categoryID, value: categoryID, table: nil)
     }
 }

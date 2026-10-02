@@ -3,7 +3,7 @@ import SwiftUI
 /// The editor screen (spec §2 primary flow, D4).
 ///
 /// Top: Back and the notices the user must not miss (Auto unavailable,
-/// provisional Looks). Middle: the photograph, which is never covered by a
+/// approximate Looks, a saved Look that is unavailable). Middle: the photograph, which is never covered by a
 /// control or sheet — press and hold it to see the original. Bottom: one
 /// panel with the Look categories, the stepped slider and the edit actions,
 /// capped to a fraction of the height so the photo stays the subject; when
