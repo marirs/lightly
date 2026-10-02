@@ -78,7 +78,8 @@ struct LookControls: View {
     }
 }
 
-/// The stepped Look slider: stop 0 is Auto, then one stop per preset of the
+/// The stepped Look slider: stop 0 is "no Look" (labelled "Original", or
+/// "Auto" while an Auto correction is applied), then one stop per preset of the
 /// category in the pack's browse order. It selects a preset; it is never an
 /// intensity control (spec D6), so there is no value between two stops.
 ///

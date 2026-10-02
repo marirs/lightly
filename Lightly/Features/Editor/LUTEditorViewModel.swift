@@ -23,12 +23,13 @@ enum SaveCopyStatus: Equatable, Sendable {
     case failed(LightlyError)
 }
 
-/// One stop of a category's stepped slider. Stop 0 is Auto (no Look).
+/// One stop of a category's stepped slider. Stop 0 is "no Look": the edit
+/// without a creative Look ("Original", or "Auto" while Auto is applied).
 struct LookStop: Equatable, Sendable {
     /// nil for the Auto stop.
     let lookID: String?
-    /// The Look's name; nil for the Auto stop, whose label is localised by
-    /// the view.
+    /// The Look's name; nil for the Auto stop, whose label depends on
+    /// whether Auto is applied (`LUTEditorViewModel.noLookStopLabel`).
     let lookName: String?
 
     var isAutoStop: Bool { lookID == nil }
@@ -167,11 +168,25 @@ final class LUTEditorViewModel {
         session?.committedState.lookID.flatMap(lookBook.look(id:))
     }
 
+    /// True only while an Auto correction is actually applied: Auto is
+    /// available and the committed edit uses it at a strength above 0.
+    var isAutoApplied: Bool {
+        autoAvailability == .available && (session?.committedState.autoStrength ?? 0) > 0
+    }
+
+    /// Stop 0 ("no Look") names what it shows: "Auto" only while an Auto
+    /// correction is applied, otherwise "Original" — with no Auto model,
+    /// Auto unavailable or at strength 0, calling it "Auto" would claim an
+    /// enhancement that is not there.
+    var noLookStopLabel: String {
+        isAutoApplied ? String(localized: "editor.stop.auto") : String(localized: "editor.stop.original")
+    }
+
     /// The visible name of a stop: the preset's name verbatim from the pack,
-    /// or the localised Auto label for stop 0.
+    /// or `noLookStopLabel` for stop 0.
     func stopLabel(at index: Int) -> String {
         guard stops.indices.contains(index) else { return "" }
-        return stops[index].lookName ?? String(localized: "editor.stop.auto")
+        return stops[index].lookName ?? noLookStopLabel
     }
 
     /// The selected category's label from the pack (never a built-in name).

@@ -401,13 +401,25 @@
       }
     },
     "editor.stop.auto": {
-      "comment": "Label of stop 0 of every Look slider: no creative Look, Auto only.",
+      "comment": "Label of stop 0 of every Look slider while an Auto correction is applied: no creative Look, Auto only.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Auto"
+          }
+        }
+      }
+    },
+    "editor.stop.original": {
+      "comment": "Label of stop 0 of every Look slider while no Auto correction is applied (no Auto model, Auto unavailable, or Auto at strength 0): no creative Look, the original photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original"
           }
         }
       }

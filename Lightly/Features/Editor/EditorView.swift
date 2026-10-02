@@ -107,7 +107,7 @@ struct EditorView: View {
         if let look = viewModel.committedLook { return Text(verbatim: look.name) }
         return viewModel.isAutoUnavailable
             ? Text("editor.photo.autoUnavailable.accessibility", bundle: .main)
-            : Text("editor.stop.auto", bundle: .main)
+            : Text(verbatim: viewModel.noLookStopLabel)
     }
 
     // MARK: - Bottom panel

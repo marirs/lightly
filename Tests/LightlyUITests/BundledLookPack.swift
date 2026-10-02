@@ -25,8 +25,9 @@ struct BundledLookPack {
         }
     }
 
-    /// Stop 0's label in a build without an Auto model.
-    static let stopZeroLabel = "Auto"
+    /// Stop 0's label in a build without an Auto model: no correction is
+    /// applied, so it reads "Original", not "Auto".
+    static let stopZeroLabel = "Original"
 
     let categories: [Category]
     let hasApproximateLooks: Bool

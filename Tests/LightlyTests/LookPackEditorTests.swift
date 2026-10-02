@@ -21,10 +21,11 @@ final class LookPackEditorTests: XCTestCase {
     }
 
     private func editor(
-        book: LUTLookBook = LookPackFixture.editorBook, restoring savedEdit: LUTEditState? = nil
+        book: LUTLookBook = LookPackFixture.editorBook, restoring savedEdit: LUTEditState? = nil,
+        auto: any AutoEnhancing = ModelNotBundledAutoEnhancer()
     ) async -> LUTEditorViewModel {
         let viewModel = LUTEditorViewModel(
-            photo: LUTEditSessionTests.makePhoto(), autoEnhancer: ModelNotBundledAutoEnhancer(),
+            photo: LUTEditSessionTests.makePhoto(), autoEnhancer: auto,
             lookBook: book, renderer: metal, libraryWriter: SpyLibraryWriter(),
             previewLongEdge: 400, restoring: savedEdit
         )
@@ -52,23 +53,52 @@ final class LookPackEditorTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedCategoryID, "cat-alpha", "Default category is the pack's first")
     }
 
-    func testStopZeroIsAutoAndTheRestAreTheManifestNamesInOrder() async {
+    func testStopZeroIsNoLookAndTheRestAreTheManifestNamesInOrder() async {
         let viewModel = await editor()
         viewModel.selectCategory("cat-beta")
 
         XCTAssertTrue(viewModel.stops[0].isAutoStop)
-        XCTAssertEqual(viewModel.stopLabel(at: 0), "Auto")
         XCTAssertEqual(viewModel.stops.dropFirst().map(\.lookName),
                        ["Fixture Cool", "Fixture Long Preset Name Tone (11)", "Fixture Mono"])
         XCTAssertEqual((0..<viewModel.stops.count).map(viewModel.stopLabel(at:)),
-                       ["Auto", "Fixture Cool", "Fixture Long Preset Name Tone (11)", "Fixture Mono"])
+                       ["Original", "Fixture Cool", "Fixture Long Preset Name Tone (11)", "Fixture Mono"])
+    }
+
+    // MARK: - Stop 0: "Original" unless Auto is actually applied
+
+    /// No Auto model: stop 0 shows the untouched photo, so it must not claim
+    /// to be Auto.
+    func testStopZeroReadsOriginalWhenAutoIsUnavailable() async {
+        let viewModel = await editor()
+
+        XCTAssertTrue(viewModel.isAutoUnavailable)
+        XCTAssertEqual(viewModel.stopLabel(at: 0), "Original")
+        XCTAssertEqual(viewModel.sliderAccessibilityValue, "Alpha, Original, 1 of 3")
+    }
+
+    /// Auto available but at strength 0 is still the original; only an
+    /// applied Auto correction makes stop 0 "Auto".
+    func testStopZeroReadsAutoOnlyWhileAnAutoCorrectionIsApplied() async throws {
+        let basis: [LUT3D] = [.identity(), .lut(dimension: 33) { 1.2 * $0 - SIMD3(repeating: 0.05) }]
+        let viewModel = await editor(auto: BasisAutoEnhancer(basis: basis) { _ in [0, 1] })
+        let session = try XCTUnwrap(viewModel.session)
+        XCTAssertEqual(viewModel.autoAvailability, .available)
+
+        XCTAssertEqual(viewModel.stopLabel(at: 0), "Original", "Auto available but not applied (strength 0)")
+
+        session.setAutoStrength(0.8)
+        XCTAssertEqual(viewModel.stopLabel(at: 0), "Auto")
+        XCTAssertEqual(viewModel.sliderAccessibilityValue, "Alpha, Auto, 1 of 3")
+
+        session.setAutoStrength(0)
+        XCTAssertEqual(viewModel.stopLabel(at: 0), "Original")
     }
 
     func testAccessibilityValueNamesCategoryPresetAndPosition() async {
         let viewModel = await editor()
         viewModel.selectCategory("cat-beta")
 
-        XCTAssertEqual(viewModel.sliderAccessibilityValue, "Beta, Auto, 1 of 4")
+        XCTAssertEqual(viewModel.sliderAccessibilityValue, "Beta, Original, 1 of 4")
         viewModel.settleStop(2)
         XCTAssertEqual(viewModel.sliderAccessibilityValue, "Beta, Fixture Long Preset Name Tone (11), 3 of 4")
     }
