@@ -11,11 +11,17 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +62,12 @@ fun EditorScreen(viewModel: EditorViewModel) {
     }
     val pickPhoto = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
 
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // targetSdk 36 is edge-to-edge: without the safe-drawing insets the photo sits under the status
+    // bar and the bottom row under the gesture handle (seen on the API 36 emulator).
+    Column(
+        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         PhotoArea(ui, Modifier.fillMaxWidth().weight(1f), onHold = { held -> viewModel.setCompare(held) })
 
         when (val phase = ui.phase) {
@@ -83,6 +94,7 @@ fun EditorScreen(viewModel: EditorViewModel) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPhoto: () -> Unit) {
     val session = ui.session ?: return
@@ -100,7 +112,8 @@ private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPho
         LookControls(ui, viewModel)
     }
 
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Wraps instead of scrolling: in one scrolling row "Save copy" was off screen on a phone.
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = viewModel::undo, enabled = session.canUndo) { Text("Undo") }
         OutlinedButton(onClick = viewModel::redo, enabled = session.canRedo) { Text("Redo") }
         OutlinedButton(onClick = viewModel::resetToAuto, enabled = session.current.look != null) { Text("Reset") }
@@ -142,6 +155,8 @@ private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel) {
 @Composable
 private fun PhotoArea(ui: EditorUiState, modifier: Modifier, onHold: (Boolean) -> Unit) {
     val description = when {
+        // Before a session exists (Loading / DevelopFailed) the preview already shows the Original.
+        ui.displayed == null && ui.preview != null -> "Photo, original"
         ui.displayed == null -> "No photo"
         ui.compareOn -> "Photo, original"
         else -> {
@@ -179,7 +194,9 @@ private fun SteppedLookSlider(stopNames: List<String>, settledStop: Int, categor
             onValueChangeFinished = { onSettle(position.roundToInt()) },
             valueRange = 0f..stopNames.lastIndex.toFloat(),
             steps = (stopNames.size - 2).coerceAtLeast(0),
-            modifier = Modifier.semantics { stateDescription = "$category, ${stopNames[current]}, ${current + 1} of ${stopNames.size}" },
+            // Stop 0 (Auto) sits in the left back-gesture zone; without the exclusion a drag that starts
+            // on the thumb there is taken by the system (seen on the API 36 emulator).
+            modifier = Modifier.systemGestureExclusion().semantics { stateDescription = "$category, ${stopNames[current]}, ${current + 1} of ${stopNames.size}" },
         )
     }
 }
@@ -193,6 +210,7 @@ private fun StrengthSlider(committed: Float, onPreview: (Float) -> Unit, onCommi
             value = dragging,
             onValueChange = { value -> dragging = value; onPreview(value) },
             onValueChangeFinished = { onCommit(dragging) },
+            modifier = Modifier.systemGestureExclusion(),
         )
     }
 }
