@@ -60,6 +60,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -112,7 +113,10 @@ fun EditorContent(ui: EditorUiState, viewModel: EditorViewModel, hinges: List<Wi
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .onGloballyPositioned { originInWindow = it.positionInWindow() },
+            .onGloballyPositioned { originInWindow = it.positionInWindow() }
+            // Test tags double as resource IDs so the scripted emulator run (uiautomator) can find
+            // the photo, the slider markers and Save copy without pixel coordinates.
+            .semantics { testTagsAsResourceId = true },
     ) {
         val hinge = hinges.firstOrNull()?.toEditorHinge(originInWindow, density)
         val layout = EditorLayoutPolicy.decide(maxWidth.value, maxHeight.value, density.fontScale, hinge)
