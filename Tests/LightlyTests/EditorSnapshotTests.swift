@@ -2,66 +2,87 @@ import SwiftUI
 import XCTest
 @testable import Lightly
 
-/// Snapshot coverage for the editor phases, both appearances, Dynamic Type, and
-/// the error states reachable in this milestone.
+/// Snapshot coverage for the editor wired to `LUTEditSession`: developing,
+/// ready with Auto unavailable, a Look applied, Compare, Save copy
+/// confirmation, the failure state, both appearances and large text.
 ///
 /// References are recorded on first run and committed; a later layout or copy
 /// change that alters any of these screens will fail here.
 @MainActor
 final class EditorSnapshotTests: XCTestCase {
 
-    // MARK: - Helpers
-
-    private func makeViewModel(
-        developer: any PhotoDeveloping = DebugFixedRecipeDeveloper()
-    ) -> EditorViewModel {
-        EditorViewModel(original: TestFixtures.makePhoto(), developer: developer)
-    }
-
-    private func editor(_ viewModel: EditorViewModel) -> some View {
+    private func editor(_ viewModel: LUTEditorViewModel) -> some View {
         EditorView(viewModel: viewModel, onBack: {})
     }
 
-    // MARK: - Phase: ready to develop
+    // MARK: - Developing
 
-    func testPreDevelopLight() {
-        let view = editor(makeViewModel())
-        SnapshotAssertion.assert(of: view, named: "editor-predevelop-light")
+    func testDevelopingLight() throws {
+        let viewModel = try EditorFixtures.developingEditor()
+        defer { viewModel.close() }
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-developing-light")
     }
 
-    func testPreDevelopDark() {
-        let view = editor(makeViewModel())
-        SnapshotAssertion.assert(of: view, named: "editor-predevelop-dark", colorScheme: .dark)
+    // MARK: - Ready (Auto unavailable)
+
+    func testReadyLight() async throws {
+        let viewModel = try await EditorFixtures.readyEditor()
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-ready-light")
     }
 
-    /// Verifies the largest accessibility text size does not break the layout.
-    func testPreDevelopAccessibilityTextSize() {
-        let view = editor(makeViewModel())
-            .environment(\.dynamicTypeSize, .accessibility3)
-        SnapshotAssertion.assert(of: view, named: "editor-predevelop-accessibility3")
+    func testReadyDark() async throws {
+        let viewModel = try await EditorFixtures.readyEditor()
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-ready-dark", colorScheme: .dark)
     }
 
-    // MARK: - Phase: developing
-
-    func testDevelopingLight() {
-        let viewModel = makeViewModel(developer: NeverCompletingDeveloper())
-        viewModel.develop()
-
-        let view = editor(viewModel)
-        SnapshotAssertion.assert(of: view, named: "editor-developing-light")
-
-        viewModel.cancelDevelop()
+    func testReadyAccessibilityTextSize() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+        let view = editor(viewModel).environment(\.dynamicTypeSize, .accessibility3)
+        SnapshotAssertion.assert(of: view, named: "editor-lut-look-applied-accessibility3")
     }
 
-    func testDevelopingDark() {
-        let viewModel = makeViewModel(developer: NeverCompletingDeveloper())
-        viewModel.develop()
+    // MARK: - Looks, Compare, Save copy
 
-        let view = editor(viewModel)
-        SnapshotAssertion.assert(of: view, named: "editor-developing-dark", colorScheme: .dark)
-
-        viewModel.cancelDevelop()
+    func testLookApplied() async throws {
+        let viewModel = try await EditorFixtures.readyEditor()
+        viewModel.selectCategory("Warm")
+        viewModel.settleStop(2)
+        await viewModel.settleRendering()
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-look-applied")
     }
+
+    /// Compare engaged: the original must be on screen and the toggle shown
+    /// as selected.
+    func testComparing() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+        viewModel.toggleCompare()
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-comparing")
+    }
+
+    func testSavedConfirmation() async throws {
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+        viewModel.saveCopy()
+        await viewModel.saveTask?.value
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-saved")
+    }
+
+    // MARK: - Failure
+
+    /// No renderer: the editor says so and offers a way out, with the
+    /// original still visible.
+    func testFailureState() {
+        let viewModel = LUTEditorViewModel(
+            photo: TestFixtures.makePhoto(), autoEnhancer: ModelNotBundledAutoEnhancer(),
+            lookBook: PlaceholderLookBook.make(), renderer: nil, libraryWriter: SpyLibraryWriter()
+        )
+        SnapshotAssertion.assert(of: editor(viewModel), named: "editor-lut-failed")
+    }
+}
+
+/// The recipe-path Develop overlay, snapshot directly.
+// DEFERRED: removed with the recipe editor in the following commit.
+@MainActor
+final class DevelopingOverlaySnapshotTests: XCTestCase {
 
     /// The overlay is snapshot directly so partial stage completion can be
     /// rendered deterministically, without racing an in-flight develop.
@@ -87,74 +108,6 @@ final class EditorSnapshotTests: XCTestCase {
         .environment(\.dynamicTypeSize, .accessibility3)
 
         SnapshotAssertion.assert(of: view, named: "developing-overlay-accessibility3")
-    }
-
-    // MARK: - Phase: developed
-
-    func testDevelopedLight() async {
-        let viewModel = makeViewModel()
-        viewModel.develop()
-        await viewModel.developTask?.value
-
-        let view = editor(viewModel)
-        SnapshotAssertion.assert(of: view, named: "editor-developed-light")
-    }
-
-    func testDevelopedDark() async {
-        let viewModel = makeViewModel()
-        viewModel.develop()
-        await viewModel.developTask?.value
-
-        let view = editor(viewModel)
-        SnapshotAssertion.assert(of: view, named: "editor-developed-dark", colorScheme: .dark)
-    }
-
-    func testDevelopedAccessibilityTextSize() async {
-        let viewModel = makeViewModel()
-        viewModel.develop()
-        await viewModel.developTask?.value
-
-        let view = editor(viewModel).environment(\.dynamicTypeSize, .accessibility3)
-        SnapshotAssertion.assert(of: view, named: "editor-developed-accessibility3")
-    }
-
-    /// Compare engaged: the original must be on screen.
-    func testDevelopedShowingOriginal() async {
-        let viewModel = makeViewModel()
-        viewModel.develop()
-        await viewModel.developTask?.value
-        viewModel.beginCompare()
-
-        let view = editor(viewModel)
-        SnapshotAssertion.assert(of: view, named: "editor-developed-comparing")
-    }
-
-    // MARK: - Error states
-
-    /// Spec §28: a failed Develop returns to the pre-develop screen with the
-    /// original intact and a defined message presented.
-    func testDevelopFailureState() async {
-        let viewModel = makeViewModel(developer: FailingDeveloper())
-        viewModel.develop()
-        await viewModel.developTask?.value
-
-        let view = editor(viewModel)
-        SnapshotAssertion.assert(of: view, named: "editor-develop-failed")
-    }
-
-    // MARK: - Non-production disclosure
-
-    /// The debug notice must be visible whenever a non-production engine is in
-    /// use (spec §24.8).
-    func testDebugDisclosureIsVisibleWithDebugEngine() {
-        let view = editor(makeViewModel(developer: DebugFixedRecipeDeveloper()))
-        SnapshotAssertion.assert(of: view, named: "editor-debug-disclosure-visible")
-    }
-
-    /// ...and absent for a production engine, proving it is engine-driven.
-    func testDebugDisclosureIsAbsentWithProductionEngine() {
-        let view = editor(makeViewModel(developer: StubProductionDeveloper()))
-        SnapshotAssertion.assert(of: view, named: "editor-debug-disclosure-absent")
     }
 }
 

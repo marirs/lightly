@@ -66,16 +66,73 @@ struct LUTLook: Identifiable, Equatable, Sendable {
     let lut: LUT3D
 }
 
+/// One category of the stepped Look slider (spec D5/D6).
+///
+/// Stop 0 of every category is the implicit Auto stop (no Look); `lookIDs`
+/// are stops 1…n in slider order. Parity with Android `LookBook`.
+struct LUTLookCategory: Identifiable, Equatable, Sendable {
+    /// Stable identifier, also used for the localised display name
+    /// (`editor.lookCategory.<id>`). Same IDs as Android.
+    let id: String
+    let lookIDs: [String]
+}
+
 /// The Looks available to the LUT editor. Lookup is exact (spec §4.5): an
 /// unknown ID is unavailable, never substituted.
 struct LUTLookBook: Sendable {
     let looks: [LUTLook]
+    /// Slider categories, in display order. Empty when only lookup matters
+    /// (e.g. session tests).
+    let categories: [LUTLookCategory]
+    /// True for placeholder Looks that are neither curated nor validated;
+    /// the editor must say so on screen rather than present them as the
+    /// product's Looks.
+    let isProvisional: Bool
+
+    init(looks: [LUTLook], categories: [LUTLookCategory] = [], isProvisional: Bool = false) {
+        self.looks = looks
+        self.categories = categories
+        self.isProvisional = isProvisional
+    }
 
     /// No converted Look LUTs ship yet (desktop conversion and Lightroom
-    /// validation are M4); the app's book is empty until then.
+    /// validation are M4); the release book is empty until then.
     static let bundled = LUTLookBook(looks: [])
 
     func look(id: String) -> LUTLook? {
         looks.first { $0.id == id }
     }
+
+    /// Stops 1…n of a category, in slider order. Unknown IDs are skipped
+    /// (exact lookup; never substituted).
+    func stops(inCategory categoryID: String) -> [LUTLook] {
+        guard let category = categories.first(where: { $0.id == categoryID }) else { return [] }
+        return category.lookIDs.compactMap(look(id:))
+    }
+
+    /// Slider position of `lookID` in a category: 0 (Auto) when there is
+    /// no Look or it belongs to another category (Android `stopIndexOf`).
+    func stopIndex(of lookID: String?, inCategory categoryID: String) -> Int {
+        guard let lookID, let index = stops(inCategory: categoryID).firstIndex(where: { $0.id == lookID }) else {
+            return 0
+        }
+        return index + 1
+    }
 }
+
+#if DEBUG
+/// Delays another enhancer's result. DEBUG only, enabled by the launch
+/// argument `--auto-delay-seconds <n>`.
+///
+/// Why: with no model bundled, Auto resolves instantly, so the "developing"
+/// state cannot otherwise be observed in UI tests or demo recordings.
+struct DelayedAutoEnhancer: AutoEnhancing {
+    let wrapped: any AutoEnhancing
+    let delay: Duration
+
+    func autoLUT(forAnalysisProxy proxy: CGImage) async -> AutoResult {
+        try? await Task.sleep(for: delay)
+        return await wrapped.autoLUT(forAnalysisProxy: proxy)
+    }
+}
+#endif

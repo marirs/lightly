@@ -72,7 +72,7 @@ final class AppState {
     /// would discard the edit history on every re-render. Caching by photo
     /// identity means the history survives for as long as the photograph is
     /// loaded, which is what spec §27 requires.
-    private var editorViewModels: [UUID: EditorViewModel] = [:]
+    private var editorViewModels: [UUID: LUTEditorViewModel] = [:]
 
     private let entitlements: any EntitlementResolving
     private let presetCatalog: any PresetProviding
@@ -80,6 +80,9 @@ final class AppState {
     private let exporter: any PhotoExporting
     private let libraryWriter: any PhotoLibraryWriting
     private let favouritesManager: any FavouritesManaging
+    private let autoEnhancer: any AutoEnhancing
+    private let lookBook: LUTLookBook
+    private let lutRenderer: (any LUTRendering)?
 
     init(
         photoLoader: any PhotoLoading,
@@ -89,7 +92,10 @@ final class AppState {
         thumbnailRenderer: any LookThumbnailRendering = CoreImageThumbnailRenderer(),
         exporter: any PhotoExporting = ImageIOPhotoExporter(),
         libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
-        favouritesManager: any FavouritesManaging = UserDefaultsFavouritesManager()
+        favouritesManager: any FavouritesManaging = UserDefaultsFavouritesManager(),
+        autoEnhancer: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
+        lookBook: LUTLookBook = .bundled,
+        lutRenderer: (any LUTRendering)? = try? MetalLUTRenderer()
     ) {
         self.photoLoader = photoLoader
         self.developer = developer
@@ -99,14 +105,26 @@ final class AppState {
         self.exporter = exporter
         self.libraryWriter = libraryWriter
         self.favouritesManager = favouritesManager
+        self.autoEnhancer = autoEnhancer
+        self.lookBook = lookBook
+        self.lutRenderer = lutRenderer
     }
 
     /// Returns the editor for a photograph, creating it on first request.
-    func makeEditorViewModel(for photo: SelectedPhoto) -> EditorViewModel {
+    ///
+    /// Creating it starts Auto at once: selecting a photo develops it
+    /// (spec D2).
+    func makeEditorViewModel(for photo: SelectedPhoto) -> LUTEditorViewModel {
         if let existing = editorViewModels[photo.id] {
             return existing
         }
-        let viewModel = EditorViewModel(original: photo, developer: developer)
+        let viewModel = LUTEditorViewModel(
+            photo: photo,
+            autoEnhancer: autoEnhancer,
+            lookBook: lookBook,
+            renderer: lutRenderer,
+            libraryWriter: libraryWriter
+        )
         editorViewModels[photo.id] = viewModel
         return viewModel
     }

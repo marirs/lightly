@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00BFB3D0700159CED07F318B /* PhotoFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0C8F9918CC281BA758EA6C /* PhotoFingerprint.swift */; };
 		02B121820536F70C983B69BC /* PhotoLibraryWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4573A01F6D80E9780EB8ADAC /* PhotoLibraryWriter.swift */; };
+		04776C39F61EA5A2DD93D2BB /* LUTEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5368CDE4D9EE7D967508AB70 /* LUTEditorViewModel.swift */; };
 		0515CC84E2377F443226B9D9 /* ContextualTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E5A9ABA4E3FE5FC40D8905 /* ContextualTool.swift */; };
 		0533D0659C30CF4838EFB408 /* DevelopRecipe+Composition.swift in Sources */ = {isa = PBXBuildFile; fileRef = F52854FEBE1CEB64F5C64744 /* DevelopRecipe+Composition.swift */; };
 		05BB0F451EFCC2771A0EEC27 /* LUTEditSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93BB2C16737BB39A173F8BE2 /* LUTEditSession.swift */; };
@@ -23,6 +24,7 @@
 		149E951527C7FA06D09BBF1C /* CameraCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE9214BBAE723CD04BB2700 /* CameraCaptureView.swift */; };
 		14F8B1E081C211C05893A009 /* SourceSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC4813AABBF9A878E8880D4 /* SourceSelectionSheet.swift */; };
 		193BE69F23C8C5F0A826E7B3 /* LooksViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A4DEB1683970E200B2A26D5 /* LooksViewModel.swift */; };
+		1CD13DACEEF728B0299C99B4 /* EditorFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F06B60ADDC5BA3C755A99F /* EditorFixtures.swift */; };
 		2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */; };
 		228FFCD1BC0744D1F47D9682 /* SnapshotEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99944887E73D0A1E77E396D /* SnapshotEnvironment.swift */; };
 		272B9D9B0ED0D9FE44882263 /* presets_photo.json in Resources */ = {isa = PBXBuildFile; fileRef = 6ABD212B3077AB489EFD341F /* presets_photo.json */; };
@@ -70,6 +72,7 @@
 		7C8D59164812604247507053 /* LightlyColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683D9036EE1451AECD4DB7C0 /* LightlyColor.swift */; };
 		7DA2E8314D2D7431C80F4A5C /* PhotoOrientationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B8C011B45EA042A8B4D617 /* PhotoOrientationTests.swift */; };
 		7DBAA002EC3E65722310C20E /* ImageIOPhotoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256C5A8B851A2C8274F2D786 /* ImageIOPhotoExporter.swift */; };
+		80DC3585B808E95BDE8C4CCF /* PlaceholderLookBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732F6C98FDD0A3A88D900DD3 /* PlaceholderLookBook.swift */; };
 		813DB666DEFCE2FA88809868 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36C7D6A77D28F78630D1A2BD /* AppStateTests.swift */; };
 		826FE8DEE3AECCC13FB2DDCA /* PresetCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 555ECAAA9CEC0D7AF48ADE7E /* PresetCatalogTests.swift */; };
 		85B97E1A9D88278E0D307BCF /* LayoutProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36E3C386A1FA473C368713F4 /* LayoutProbe.swift */; };
@@ -87,6 +90,7 @@
 		9C4FC2B1099AF58E7B2E48DF /* SnapshotEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D217669F870E951BD92C014A /* SnapshotEnvironmentTests.swift */; };
 		9CDF5D9AC254EEEB958747EA /* EditorSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16CDBE2FA72A1F834B4F6E3B /* EditorSnapshotTests.swift */; };
 		9E8E4C0FC69F71AC701C625C /* BuiltInPresetCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47BE3CDEEB453B99C08BD00 /* BuiltInPresetCatalog.swift */; };
+		9ED3B58CBA7A42BD26058A07 /* EditorPanelControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = B115D05D2FDF3DE96E0F6D3C /* EditorPanelControls.swift */; };
 		9FD464189E7C58BDA5087272 /* TiledLUTRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C7EC8B30C0EAE43B7FAF21 /* TiledLUTRenderTests.swift */; };
 		A757CFC23EE7514AD6E03676 /* LightlyTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6CCC548E65CB9D717533968 /* LightlyTypography.swift */; };
 		A805C2A832C73ABBC0C10769 /* MetalLUTRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D81EC476633A84CEB509F0 /* MetalLUTRendererTests.swift */; };
@@ -95,6 +99,7 @@
 		ABF41ACB403B2485A5C75CB9 /* DeferredWorkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */; };
 		ACC6EFBD0B793C8385EF36EA /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B01EF39D0D11916BF45A88 /* EditorView.swift */; };
 		AEC0A17586E7CD2A92D0BE05 /* ExportSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7553992B4FF0E80A7AD06E1 /* ExportSettings.swift */; };
+		B2C02BC1D5DE5819C356406E /* LUTEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8828DEFB3213DB0E5D4E601C /* LUTEditorViewModelTests.swift */; };
 		B4EB867E80655134C201B76C /* LookThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0649541002DE319818590B79 /* LookThumbnailRenderer.swift */; };
 		B6739D58E6179B180EBD12E7 /* DevelopRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB2867C5D49814A9B978C7E /* DevelopRecipe.swift */; };
 		B699A9D372FCF406B8691C47 /* DevelopStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127C9E7A1DEDE2FE50A1E961 /* DevelopStage.swift */; };
@@ -167,6 +172,7 @@
 		27BE1217B0CEBB0378E7EB3C /* Generated-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Generated-Info.plist"; sourceTree = "<group>"; };
 		2A8A94F87126D1A33CEA46F7 /* PhotoLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLoading.swift; sourceTree = "<group>"; };
 		2E914E9E5E062EE6588DA665 /* PresetCatalogLoadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetCatalogLoadingTests.swift; sourceTree = "<group>"; };
+		33F06B60ADDC5BA3C755A99F /* EditorFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFixtures.swift; sourceTree = "<group>"; };
 		35BE71B0D623CB01C0D3E079 /* AutoEnhancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoEnhancer.swift; sourceTree = "<group>"; };
 		36C7D6A77D28F78630D1A2BD /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		36E3C386A1FA473C368713F4 /* LayoutProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutProbe.swift; sourceTree = "<group>"; };
@@ -179,6 +185,7 @@
 		4719F7314D395629EE5B139C /* ExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportSheet.swift; sourceTree = "<group>"; };
 		4765D240C1C6B67BBBF6D211 /* ExportColorPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportColorPipelineTests.swift; sourceTree = "<group>"; };
 		529B651D4F3A99C24DA64E71 /* MetalLUTRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalLUTRenderer.swift; sourceTree = "<group>"; };
+		5368CDE4D9EE7D967508AB70 /* LUTEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTEditorViewModel.swift; sourceTree = "<group>"; };
 		555ECAAA9CEC0D7AF48ADE7E /* PresetCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetCatalogTests.swift; sourceTree = "<group>"; };
 		5BB2867C5D49814A9B978C7E /* DevelopRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopRecipe.swift; sourceTree = "<group>"; };
 		5C17F7CF1DFFF03C6C73C2CE /* AnalysisProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisProxy.swift; sourceTree = "<group>"; };
@@ -194,6 +201,7 @@
 		6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredWorkTests.swift; sourceTree = "<group>"; };
 		6ABD212B3077AB489EFD341F /* presets_photo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = presets_photo.json; sourceTree = "<group>"; };
 		6DE53EB1E9EA9A6AAE8D08CD /* PreviewRenderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRenderScheduler.swift; sourceTree = "<group>"; };
+		732F6C98FDD0A3A88D900DD3 /* PlaceholderLookBook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderLookBook.swift; sourceTree = "<group>"; };
 		75AFA2AE4E25D4D088F4D701 /* Entitlements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entitlements.swift; sourceTree = "<group>"; };
 		7772E8B98209919C954C1C84 /* ExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTests.swift; sourceTree = "<group>"; };
 		7A449DEE0FE62A446070DBEC /* DevelopingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopingOverlay.swift; sourceTree = "<group>"; };
@@ -204,6 +212,7 @@
 		80E2FC6144CED7C87AECBD10 /* ControlChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlChrome.swift; sourceTree = "<group>"; };
 		85E2C7356941352ABD05F0F7 /* SourceSheetLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSheetLayoutTests.swift; sourceTree = "<group>"; };
 		87B8C011B45EA042A8B4D617 /* PhotoOrientationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoOrientationTests.swift; sourceTree = "<group>"; };
+		8828DEFB3213DB0E5D4E601C /* LUTEditorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTEditorViewModelTests.swift; sourceTree = "<group>"; };
 		8F1A4D1445668375EF949618 /* EditorLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorLayoutTests.swift; sourceTree = "<group>"; };
 		93BB2C16737BB39A173F8BE2 /* LUTEditSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTEditSession.swift; sourceTree = "<group>"; };
 		946E87F41D28B673539E8E10 /* PresetIDMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetIDMigrations.swift; sourceTree = "<group>"; };
@@ -223,6 +232,7 @@
 		A9F8E94ACEB56F48AC8352A1 /* LayoutAnchor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutAnchor.swift; sourceTree = "<group>"; };
 		A9FE8BA8FCBFBB9BAC04F50A /* LightlyPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyPreset.swift; sourceTree = "<group>"; };
 		ADA7F3DD90E84FEC19D1DB17 /* AnalysingDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysingDeveloper.swift; sourceTree = "<group>"; };
+		B115D05D2FDF3DE96E0F6D3C /* EditorPanelControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPanelControls.swift; sourceTree = "<group>"; };
 		B701BCDE146455B7448BDFA1 /* ControlContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlContrastTests.swift; sourceTree = "<group>"; };
 		BAE9214BBAE723CD04BB2700 /* CameraCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCaptureView.swift; sourceTree = "<group>"; };
 		C1FC5B0784F57C993811BC60 /* PhotoSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSource.swift; sourceTree = "<group>"; };
@@ -280,6 +290,7 @@
 		120B09B716865717E09C62AE /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				33F06B60ADDC5BA3C755A99F /* EditorFixtures.swift */,
 				36E3C386A1FA473C368713F4 /* LayoutProbe.swift */,
 				98808A5F4DDED70E40233B3A /* SnapshotAssertion.swift */,
 				C99944887E73D0A1E77E396D /* SnapshotEnvironment.swift */,
@@ -391,6 +402,7 @@
 				15FA9481E2CC8A7B92CA7731 /* LooksLayoutTests.swift */,
 				2733A3F8F7C5C9460C60DBF8 /* LooksSnapshotTests.swift */,
 				00EEFEED2D681AA207C32DC3 /* LooksViewModelTests.swift */,
+				8828DEFB3213DB0E5D4E601C /* LUTEditorViewModelTests.swift */,
 				41D9AE2E92A486F7E498CB6E /* LUTEditSessionExportTests.swift */,
 				E00352288B6694831162BA6D /* LUTEditSessionTests.swift */,
 				46A2557F630816ED676CA636 /* LUTGoldenTests.swift */,
@@ -495,8 +507,10 @@
 				A19F9B9759B7F8707E682E2F /* DebugProcessingNotice.swift */,
 				7A449DEE0FE62A446070DBEC /* DevelopingOverlay.swift */,
 				19E2D4380997799516B44832 /* EditorActionBars.swift */,
+				B115D05D2FDF3DE96E0F6D3C /* EditorPanelControls.swift */,
 				A3B01EF39D0D11916BF45A88 /* EditorView.swift */,
 				7AB8EFE26F0E762E3E2EED0B /* EditorViewModel.swift */,
+				5368CDE4D9EE7D967508AB70 /* LUTEditorViewModel.swift */,
 				93BB2C16737BB39A173F8BE2 /* LUTEditSession.swift */,
 				0D28160B384E6D12A35A7FC7 /* LUTEditSession+Export.swift */,
 			);
@@ -690,6 +704,7 @@
 				A8A2C7B54376BC007C76E30E /* LUT3D.swift */,
 				D966F6DE946474C26273E04A /* LUTKernelSource.swift */,
 				529B651D4F3A99C24DA64E71 /* MetalLUTRenderer.swift */,
+				732F6C98FDD0A3A88D900DD3 /* PlaceholderLookBook.swift */,
 			);
 			path = LUT;
 			sourceTree = "<group>";
@@ -823,6 +838,7 @@
 				ABF41ACB403B2485A5C75CB9 /* DeferredWorkTests.swift in Sources */,
 				88529F11D1B33446617853F6 /* DevelopCancellationTests.swift in Sources */,
 				C1AD858A08E66B18572CCA72 /* EditHistoryTests.swift in Sources */,
+				1CD13DACEEF728B0299C99B4 /* EditorFixtures.swift in Sources */,
 				0782C503DF1FCF2BAF62F741 /* EditorLayoutTests.swift in Sources */,
 				9CDF5D9AC254EEEB958747EA /* EditorSnapshotTests.swift in Sources */,
 				0CA54922E73617AB766D7E11 /* EditorViewModelTests.swift in Sources */,
@@ -834,6 +850,7 @@
 				3ECEA2214805D81D95984D0C /* ImageAnalysisTests.swift in Sources */,
 				63309A765A794109669C116D /* LUTEditSessionExportTests.swift in Sources */,
 				8CBF6677E9E009CD477A10B4 /* LUTEditSessionTests.swift in Sources */,
+				B2C02BC1D5DE5819C356406E /* LUTEditorViewModelTests.swift in Sources */,
 				87752B3B6F236666FE29F54A /* LUTGoldenTests.swift in Sources */,
 				316B4EBEE82918E23E722AF3 /* LaunchLayoutTests.swift in Sources */,
 				85B97E1A9D88278E0D307BCF /* LayoutProbe.swift in Sources */,
@@ -892,6 +909,7 @@
 				95D920BA636083E9E30E5E18 /* DevelopingOverlay.swift in Sources */,
 				3C2CCE5AD79012C5E308B2EC /* EditHistory.swift in Sources */,
 				3773BC213EB986C10DB6E0E4 /* EditorActionBars.swift in Sources */,
+				9ED3B58CBA7A42BD26058A07 /* EditorPanelControls.swift in Sources */,
 				ACC6EFBD0B793C8385EF36EA /* EditorView.swift in Sources */,
 				276421B2331E6F443246C608 /* EditorViewModel.swift in Sources */,
 				C04A4CCA0FEEE1F724F2AD9B /* Entitlements.swift in Sources */,
@@ -905,6 +923,7 @@
 				8F0D4B0A2E8E1661500E9ADE /* LUT3D.swift in Sources */,
 				3AAA7B9ACF86F5BEA5DFE620 /* LUTEditSession+Export.swift in Sources */,
 				05BB0F451EFCC2771A0EEC27 /* LUTEditSession.swift in Sources */,
+				04776C39F61EA5A2DD93D2BB /* LUTEditorViewModel.swift in Sources */,
 				41A0B6869C0268CEB2FA721D /* LUTKernelSource.swift in Sources */,
 				43710550D6CB40A64E155B88 /* LaunchView.swift in Sources */,
 				FCAB59B193880B23145B9027 /* LayoutAnchor.swift in Sources */,
@@ -926,6 +945,7 @@
 				02B121820536F70C983B69BC /* PhotoLibraryWriter.swift in Sources */,
 				67C7AAD1D84537B383F5A083 /* PhotoLoading.swift in Sources */,
 				30162224FFB813EFA1BC78D6 /* PhotoSource.swift in Sources */,
+				80DC3585B808E95BDE8C4CCF /* PlaceholderLookBook.swift in Sources */,
 				5C225DD6623E7D52231F0D6D /* PresetIDMigrations.swift in Sources */,
 				893F88F49177247C5B85B31F /* PreviewRenderScheduler.swift in Sources */,
 				DBD78B602DF450ADA6831CE6 /* PreviewRenderer.swift in Sources */,

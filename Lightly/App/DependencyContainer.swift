@@ -15,6 +15,10 @@ struct DependencyContainer {
     let exporter: any PhotoExporting
     let libraryWriter: any PhotoLibraryWriting
     let favouritesManager: any FavouritesManaging
+    let autoEnhancer: any AutoEnhancing
+    let lookBook: LUTLookBook
+    /// nil when Metal is unavailable; the editor then reports a failure.
+    let lutRenderer: (any LUTRendering)?
 
     /// The current composition.
     ///
@@ -43,8 +47,36 @@ struct DependencyContainer {
             thumbnailRenderer: CoreImageThumbnailRenderer(),
             exporter: ImageIOPhotoExporter(),
             libraryWriter: PhotoKitLibraryWriter(),
-            favouritesManager: UserDefaultsFavouritesManager()
+            favouritesManager: UserDefaultsFavouritesManager(),
+            autoEnhancer: makeAutoEnhancer(),
+            lookBook: makeLookBook(),
+            lutRenderer: try? MetalLUTRenderer()
         )
+    }
+
+    /// No production Auto model exists, so Auto is explicitly unavailable.
+    /// The research (FiveK-derived) weights must never be bundled.
+    private static func makeAutoEnhancer() -> any AutoEnhancing {
+        let enhancer = ModelNotBundledAutoEnhancer()
+        #if DEBUG
+        let arguments = CommandLine.arguments
+        if let flag = arguments.firstIndex(of: "--auto-delay-seconds"),
+           arguments.indices.contains(flag + 1), let seconds = Double(arguments[flag + 1]) {
+            return DelayedAutoEnhancer(wrapped: enhancer, delay: .seconds(seconds))
+        }
+        #endif
+        return enhancer
+    }
+
+    /// Internal builds get provisional placeholder Looks (labelled as such
+    /// on screen); release builds get the shipped book, which stays empty
+    /// until curated, validated Look LUTs exist (M3/M4).
+    private static func makeLookBook() -> LUTLookBook {
+        #if DEBUG
+        return PlaceholderLookBook.make()
+        #else
+        return .bundled
+        #endif
     }
 
     /// Builds the root state from this container.
@@ -57,7 +89,10 @@ struct DependencyContainer {
             thumbnailRenderer: thumbnailRenderer,
             exporter: exporter,
             libraryWriter: libraryWriter,
-            favouritesManager: favouritesManager
+            favouritesManager: favouritesManager,
+            autoEnhancer: autoEnhancer,
+            lookBook: lookBook,
+            lutRenderer: lutRenderer
         )
     }
 }

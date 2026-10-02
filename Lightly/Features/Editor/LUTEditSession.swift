@@ -40,9 +40,10 @@ extension MetalLUTRenderer: LUTRendering {}
 /// the original preview. Export re-renders the full-resolution original
 /// with the same passes (see `LUTEditSession+Export`).
 ///
-/// Deferred: the editor screen still drives the recipe (`EditorViewModel`)
-/// path. This session is wired to the UI once the Auto model and Look LUTs
-/// ship; until then there is nothing for the LUT controls to offer.
+/// The editor screen drives this session through `LUTEditorViewModel`.
+/// In this build Auto is explicitly unavailable (no production model) and
+/// the Looks are provisional placeholders in DEBUG builds only (see
+/// `DependencyContainer.live()`).
 @MainActor
 @Observable
 final class LUTEditSession {
@@ -152,6 +153,16 @@ final class LUTEditSession {
         next.lookStrength = min(max(strength, 0), 1)
         commit(next)
         return true
+    }
+
+    /// Shows the committed edit without its Look (the slider's Auto stop)
+    /// without committing it. Settling there commits via `resetToAuto()`,
+    /// which is the same state change (Android `selectLook(null)`).
+    func previewAutoStop() {
+        var candidate = committedState
+        candidate.lookID = nil
+        candidate.lookStrength = LUTEditState.original.lookStrength
+        render(candidate)
     }
 
     /// Abandons a transient preview and shows the committed edit again.

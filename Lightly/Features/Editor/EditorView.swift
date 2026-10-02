@@ -1,285 +1,197 @@
 import SwiftUI
 
-/// The editor shell (spec §4.3–§4.5).
+/// The editor screen (spec §2 primary flow, D4).
 ///
-/// One view renders all three phases, because they are the same screen with
-/// different affordances — the photograph never moves or resizes between them,
-/// which is what makes the transition feel calm rather than navigational.
+/// Top: Back and the notices the user must not miss (Auto unavailable,
+/// provisional Looks). Middle: the photograph, which is never covered by a
+/// control or sheet — press and hold it to see the original. Bottom: one
+/// panel with the Look categories, the stepped slider and the edit actions,
+/// capped to a fraction of the height so the photo stays the subject; when
+/// the content is taller (large text), the panel scrolls instead of growing
+/// over the photo.
 struct EditorView: View {
-    @State private var viewModel: EditorViewModel
+    @State private var viewModel: LUTEditorViewModel
     /// Called when the user leaves the editor.
     let onBack: () -> Void
-    /// Builds the Looks view model on demand.
-    ///
-    /// A closure rather than an instance so thumbnail work starts when the
-    /// screen opens, not when the editor appears.
-    var makeLooksViewModel: (() -> LooksViewModel)?
-
-    /// Builds the export view model using the current edit recipe.
-    var makeExportViewModel: ((DevelopRecipe) -> ExportViewModel)?
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var isShowingLooks = false
 
-    /// Whether the controls get their own bands above and below the photo.
-    ///
-    /// At standard sizes the photo is full-bleed and the compact controls
-    /// float over it (spec §4.3). At accessibility sizes the action bar
-    /// grows to two rows of large labels and covered up to ~100 pt of the
-    /// photo, so there the photo is fitted between the controls instead.
-    private var controlsReservePhotoSpace: Bool { dynamicTypeSize.isAccessibilitySize }
-    @State private var isShowingExport = false
-
-    init(
-        viewModel: EditorViewModel,
-        onBack: @escaping () -> Void,
-        makeLooksViewModel: (() -> LooksViewModel)? = nil,
-        makeExportViewModel: ((DevelopRecipe) -> ExportViewModel)? = nil
-    ) {
+    init(viewModel: LUTEditorViewModel, onBack: @escaping () -> Void) {
         _viewModel = State(initialValue: viewModel)
         self.onBack = onBack
-        self.makeLooksViewModel = makeLooksViewModel
-        self.makeExportViewModel = makeExportViewModel
     }
+
+    /// Spec D4: the bottom panel takes ≤ 35% of the height on compact
+    /// screens. At accessibility sizes the same content needs far more room;
+    /// half the height keeps the photo visible while the panel scrolls.
+    private var panelHeightFraction: CGFloat { dynamicTypeSize.isAccessibilitySize ? 0.5 : 0.35 }
+
+    /// Notices sit above the photo at standard sizes, capped so they cannot
+    /// squeeze it. At accessibility sizes they wrap to many lines, so they
+    /// move to the top of the scrolling bottom panel instead of being
+    /// clipped in a second, separate scroll area.
+    private var noticesHeightFraction: CGFloat { 0.14 }
 
     var body: some View {
-        ZStack {
-            LightlyColor.background(colorScheme)
-                .ignoresSafeArea()
-
-            photograph
-
-            if viewModel.phase == .developing {
-                DevelopingOverlay(
-                    stages: viewModel.displayedStages,
-                    completedStages: viewModel.completedStages
-                )
-                .transition(.opacity)
-            }
-
-            if !controlsReservePhotoSpace {
-                VStack(spacing: 0) {
-                    topControls
-                    Spacer()
-                    bottomControls
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                topBar
+                if !dynamicTypeSize.isAccessibilitySize {
+                    EditorNotices(viewModel: viewModel)
+                        .cappedScrollable(maxHeight: geometry.size.height * noticesHeightFraction)
                 }
+                photograph
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.vertical, LightlySpacing.xs)
+                bottomPanel
+                    .cappedScrollable(maxHeight: geometry.size.height * panelHeightFraction)
+                    .layoutAnchor("editor.bottomControls")
             }
         }
-        // At accessibility sizes the controls take their own space and the
-        // photo fits between them (see `controlsReservePhotoSpace`).
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if controlsReservePhotoSpace { topControls }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if controlsReservePhotoSpace { bottomControls }
-        }
-        .animation(LightlyMotion.surface, value: viewModel.phase)
-        .sheet(isPresented: $isShowingLooks) {
-            if let makeLooksViewModel {
-                LooksView(
-                    viewModel: makeLooksViewModel(),
-                    onPreviewChanged: { preset, intensity in
-                        viewModel.previewLook(preset, intensity: intensity)
-                    },
-                    onApply: { preset, intensity in
-                        viewModel.applyLook(preset, intensity: intensity)
-                        isShowingLooks = false
-                    },
-                    onClose: { isShowingLooks = false }
-                )
-                // A detent keeps the photograph visible behind the sheet, so a
-                // Look is judged against the picture it is being applied to.
-                .presentationDetents([.fraction(0.62), .large])
-                .presentationCornerRadius(LightlyRadius.sheet)
-                .presentationBackgroundInteraction(.enabled)
-            }
-        }
-        .sheet(isPresented: $isShowingExport) {
-            if let makeExportViewModel {
-                // Built from the current composed recipe so export renders at
-                // full resolution from the original photograph (spec §15.3).
-                ExportSheet(
-                    viewModel: makeExportViewModel(viewModel.composedRecipe),
-                    onClose: { isShowingExport = false }
-                )
-                .presentationDetents([.medium, .large])
-                .presentationCornerRadius(LightlyRadius.sheet)
-            }
-        }
-        .onChange(of: isShowingLooks) { _, isPresented in
-            // Abandoning the sheet must discard the transient preview and
-            // restore exactly what history says — previewing has no lasting
-            // consequence.
-            if !isPresented { viewModel.previewLook(nil, intensity: 1) }
-        }
-        .alert(
-            Text("error.title", bundle: .main),
-            isPresented: .init(
-                get: { viewModel.activeError != nil },
-                set: { if !$0 { viewModel.dismissError() } }
-            )
-        ) {
-            Button(String(localized: "error.action.dismiss")) { viewModel.dismissError() }
-        } message: {
-            if let error = viewModel.activeError {
-                Text(error.localizedMessageKey, bundle: .main)
-            }
+        .background(LightlyColor.background(colorScheme).ignoresSafeArea())
+        .onChange(of: viewModel.saveStatus) { _, status in
+            announce(status)
         }
     }
 
-    // MARK: - Photograph
+    // MARK: - Top bar
 
-    /// The photograph fills almost the entire screen (spec §4.3).
-    private var photograph: some View {
-        Image(decorative: viewModel.displayedImage, scale: 1)
-            .resizable()
-            .scaledToFit()
-            .layoutAnchor("editor.photo")
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Full-bleed only when the controls float over it; otherwise it
-            // must respect the insets the controls occupy.
-            .ignoresSafeArea(edges: controlsReservePhotoSpace ? [] : .all)
-            .accessibilityLabel(
-                viewModel.isShowingOriginal
-                    ? Text("editor.photo.original.accessibility", bundle: .main)
-                    : Text("editor.photo.accessibility", bundle: .main)
-            )
-    }
-
-    // MARK: - Top controls
-
-    private var topControls: some View {
+    private var topBar: some View {
         HStack {
-            circularControl(symbol: "chevron.left", labelKey: "editor.back.accessibility") {
-                onBack()
+            Button(action: onBack) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                    .frame(width: LightlySize.minimumTapTarget, height: LightlySize.minimumTapTarget)
+                    .controlChrome(Circle(), onPlainBackground: true, colorScheme: colorScheme)
+                    .layoutAnchor("editor.control.back")
             }
-
-            // Belt and braces. The real guarantee is at the composition root,
-            // which refuses to compile a release build while the engine is a
-            // placeholder; this makes the notice's absence from release
-            // builds structural as well.
-            #if DEBUG
-            if viewModel.requiresDebugDisclosure {
-                DebugProcessingNotice()
-                    .padding(.leading, LightlySpacing.xs)
-            }
-            #endif
-
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("editor.back.accessibility", bundle: .main))
+            .accessibilityIdentifier("editor.back")
             Spacer()
-
-            circularControl(symbol: "ellipsis", labelKey: "editor.more.accessibility") {
-                // The More screen (spec §12) is a later milestone. No action is
-                // wired rather than presenting an empty destination.
-            }
         }
         .padding(.horizontal, LightlySpacing.m)
         .padding(.top, LightlySpacing.xs)
     }
 
-    // MARK: - Bottom controls
+    // MARK: - Photograph
 
-    @ViewBuilder
-    private var bottomControls: some View {
-        switch viewModel.phase {
-        case .readyToDevelop:
-            PreDevelopActionBar(
-                onCrop: {
-                    // Crop is a later milestone in Phase 1.
-                },
-                onDevelop: { viewModel.develop() }
+    /// Press and hold shows the original (spec §2 step 6). The Compare
+    /// toggle in the panel is the alternative for people who cannot hold.
+    private var photograph: some View {
+        Image(decorative: viewModel.displayedImage, scale: 1)
+            .resizable()
+            .scaledToFit()
+            .layoutAnchor("editor.photo")
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in viewModel.beginCompareHold() }
+                    .onEnded { _ in viewModel.endCompareHold() }
             )
-            .padding(.bottom, LightlySpacing.l)
-            .layoutAnchor("editor.bottomControls")
-
-        case .developing:
-            // The overlay owns this state; no actions are offered while work is
-            // in flight.
-            EmptyView()
-
-        case .developed:
-            VStack(spacing: LightlySpacing.m) {
-                developedSecondaryRow
-                ContextualActionBar(
-                    tools: SceneKind.unclassified.toolbar,
-                    onSelect: { tool in
-                        // Only Looks exists so far; the rest are later
-                        // milestones and deliberately do nothing rather than
-                        // opening an empty screen.
-                        if tool == .looks { isShowingLooks = true }
-                    }
-                )
-            }
-            .padding(.bottom, LightlySpacing.s)
-            .layoutAnchor("editor.bottomControls")
-        }
+            .accessibilityElement()
+            .accessibilityLabel(
+                viewModel.isShowingOriginal
+                    ? Text("editor.photo.original.accessibility", bundle: .main)
+                    : Text("editor.photo.accessibility", bundle: .main)
+            )
+            .accessibilityValue(photoAccessibilityValue)
+            .accessibilityAddTraits(.isImage)
+            .accessibilityIdentifier("editor.photo")
     }
 
-    /// Crop on the left; Compare and Share on the right (spec §4.5).
-    private var developedSecondaryRow: some View {
-        HStack {
-            circularControl(symbol: "crop", labelKey: "action.crop") {}
+    private var photoAccessibilityValue: Text {
+        if viewModel.isShowingOriginal { return Text(verbatim: "") }
+        if let look = viewModel.committedLook { return Text(verbatim: look.name) }
+        return viewModel.isAutoUnavailable
+            ? Text("editor.photo.autoUnavailable.accessibility", bundle: .main)
+            : Text("editor.stop.auto", bundle: .main)
+    }
 
-            Spacer()
+    // MARK: - Bottom panel
 
-            if viewModel.isCompareAvailable {
-                compareControl
+    @ViewBuilder
+    private var bottomPanel: some View {
+        VStack(spacing: LightlySpacing.s) {
+            if dynamicTypeSize.isAccessibilitySize {
+                EditorNotices(viewModel: viewModel, isInsideBottomPanel: true)
             }
-
-            if viewModel.isShareAvailable {
-                circularControl(symbol: "square.and.arrow.up", labelKey: "action.share") {
-                    isShowingExport = true
-                }
-                .accessibilityIdentifier("action.share")
+            switch viewModel.phase {
+            case .developing:
+                developingRow
+            case .ready:
+                LookControls(viewModel: viewModel)
+                EditActions(viewModel: viewModel)
+                SaveCopyStatusLine(status: viewModel.saveStatus)
+            case .failed(let error):
+                failureRow(error)
             }
         }
         .padding(.horizontal, LightlySpacing.m)
+        .padding(.vertical, LightlySpacing.s)
     }
 
-    /// Press and hold to reveal the original; release to return (spec §4.5).
-    ///
-    /// A long-press gesture drives the hold behaviour, while `accessibilityAction`
-    /// exposes the tap-to-toggle alternative for users who cannot hold.
-    private var compareControl: some View {
-        Image(systemName: "rectangle.righthalf.inset.filled")
-            .font(.system(size: 17, weight: .medium))
-            .foregroundStyle(LightlyColor.textPrimary(colorScheme))
-            .frame(
-                width: LightlySize.minimumTapTarget,
-                height: LightlySize.minimumTapTarget
-            )
-            .controlChrome(Circle(), onPlainBackground: controlsReservePhotoSpace, colorScheme: colorScheme)
-            .layoutAnchor("editor.control.compare")
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in viewModel.beginCompare() }
-                    .onEnded { _ in viewModel.endCompare() }
-            )
-            .accessibilityIdentifier("action.compare")
-            .accessibilityLabel(Text("action.compare.accessibility", bundle: .main))
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { viewModel.toggleCompare() }
-    }
-
-    // MARK: - Shared control
-
-    private func circularControl(
-        symbol: String,
-        labelKey: LocalizedStringKey,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .medium))
+    /// Subtle progress while Auto is prepared; the photo stays visible.
+    // DEFERRED: the spec's Cancel action while developing. Auto is
+    // unavailable in this build, so developing finishes immediately.
+    private var developingRow: some View {
+        HStack(spacing: LightlySpacing.xs) {
+            ProgressView()
+            Text("develop.progress.title", bundle: .main)
+                .font(LightlyTypography.rowSubtitle)
                 .foregroundStyle(LightlyColor.textPrimary(colorScheme))
-                .frame(
-                    width: LightlySize.minimumTapTarget,
-                    height: LightlySize.minimumTapTarget
-                )
-                .controlChrome(Circle(), onPlainBackground: controlsReservePhotoSpace, colorScheme: colorScheme)
-                .layoutAnchor("editor.control.\(symbol)")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(labelKey, bundle: .main))
+        .frame(maxWidth: .infinity, minHeight: LightlySize.minimumTapTarget)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("editor.developing")
+    }
+
+    private func failureRow(_ error: LightlyError) -> some View {
+        VStack(spacing: LightlySpacing.s) {
+            Text(error.localizedMessageKey, bundle: .main)
+                .font(LightlyTypography.rowSubtitle)
+                .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                .multilineTextAlignment(.center)
+            Button(action: onBack) {
+                Text("editor.chooseAnother", bundle: .main)
+                    .font(LightlyTypography.actionPrimary)
+                    .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                    .padding(.horizontal, LightlySpacing.l)
+                    .frame(minHeight: LightlySize.minimumTapTarget)
+                    .controlChrome(Capsule(), onPlainBackground: true, colorScheme: colorScheme)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("editor.failed")
+    }
+
+    /// VoiceOver users get Save copy's outcome without hunting for it.
+    private func announce(_ status: SaveCopyStatus) {
+        let key: String.LocalizationValue
+        switch status {
+        case .idle: return
+        case .saving: key = "editor.save.saving"
+        case .saved: key = "editor.save.saved"
+        // The specific reason is on screen in the status line; the
+        // announcement only has to say that saving did not happen.
+        case .failed: key = "editor.save.failed"
+        }
+        AccessibilityNotification.Announcement(String(localized: key)).post()
+    }
+}
+
+extension View {
+    /// Shows the content at its natural height up to `maxHeight`, and
+    /// scrolls it beyond that instead of letting it push other content off
+    /// screen or overlap it.
+    func cappedScrollable(maxHeight: CGFloat) -> some View {
+        ViewThatFits(in: .vertical) {
+            self
+            ScrollView(.vertical) { self }
+        }
+        .frame(maxHeight: maxHeight)
     }
 }

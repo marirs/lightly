@@ -29,11 +29,7 @@ struct RootView: View {
                     // previous one's history.
                     EditorView(
                         viewModel: appState.makeEditorViewModel(for: photo),
-                        onBack: { appState.returnToLaunch() },
-                        makeLooksViewModel: { appState.makeLooksViewModel(for: photo) },
-                        makeExportViewModel: { recipe in
-                            appState.makeExportViewModel(for: photo, recipe: recipe)
-                        }
+                        onBack: { appState.returnToLaunch() }
                     )
                     .id(photo.id)
                 }

@@ -54,149 +54,105 @@ final class EditorFlowUITests: XCTestCase {
 
     // MARK: - Full flow
 
-    /// Selects a photo, develops it, and opens Looks.
+    /// The whole primary flow on the real app (spec §2): choose a photo →
+    /// it develops by itself → Auto is reported unavailable → a Look at two
+    /// stops → Compare → Undo → Reset to Auto → Save copy adds a new photo.
     ///
-    /// The photo library of a fresh simulator contains Apple's sample images,
-    /// several of which carry EXIF orientation — which is what makes this a real
-    /// check of the orientation fix rather than a synthetic one.
-    func testSelectDevelopAndOpenLooks() throws {
-        XCTAssertTrue(app.staticTexts["Lightly"].waitForExistence(timeout: timeout))
-        app.swipeUp()
-        XCTAssertTrue(app.staticTexts["Photo Library"].waitForExistence(timeout: timeout))
-        app.staticTexts["Photo Library"].tap()
+    /// `--auto-delay-seconds` (DEBUG only) holds Auto back briefly so the
+    /// developing state is observable; without a bundled model it would
+    /// otherwise resolve instantly.
+    func testEditAndSaveCopyEndToEnd() throws {
+        relaunch(arguments: ["--auto-delay-seconds", "2"])
+        try openFirstLibraryPhoto()
 
-        try selectFirstPhotoFromSystemPicker()
+        // Developing: the photo is visible, a progress row, no edit controls.
+        XCTAssertTrue(app.descendants(matching: .any)["editor.developing"].waitForExistence(timeout: timeout),
+                      "Selecting a photo should start developing by itself (no Develop button).")
+        XCTAssertFalse(app.buttons["action.develop"].exists, "There is no Develop button (spec D2).")
+        XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].exists, "The photo stays visible while developing.")
+        capture(named: "03-developing")
 
-        // Pre-develop state.
-        let develop = app.buttons["action.develop"]
-        XCTAssertTrue(
-            develop.waitForExistence(timeout: timeout),
-            "Editor should show the Develop action after selection."
-        )
-        XCTAssertFalse(
-            app.buttons["action.compare"].exists,
-            "Compare must be absent before a developed version exists (spec §0.11)."
-        )
-        capture(named: "03-photo-selected")
+        // Auto: explicitly unavailable, and nothing is blocked by it.
+        let autoNotice = app.descendants(matching: .any)["editor.autoUnavailableNotice"]
+        XCTAssertTrue(autoNotice.waitForExistence(timeout: timeout), "Auto must say it is unavailable.")
+        XCTAssertTrue(autoNotice.label.contains("Auto is unavailable"), autoNotice.label)
+        XCTAssertTrue(app.descendants(matching: .any)["editor.provisionalLooksNotice"].exists,
+                      "Placeholder Looks must be labelled provisional.")
+        capture(named: "04-auto-unavailable")
 
-        // Develop.
-        develop.tap()
+        // Looks: Warm category, two stops. Each is a real thumb drag:
+        // previews while moving, commits when the finger lifts.
+        app.buttons["editor.category.Warm"].tap()
+        let slider = app.descendants(matching: .any)["editor.lookSlider"]
+        XCTAssertTrue(slider.waitForExistence(timeout: timeout))
+        XCTAssertTrue((slider.value as? String ?? "").hasPrefix("Warm, Auto"), "\(slider.value ?? "nil")")
+        dragSlider(slider, from: 0, to: 1, stopCount: 3)
+        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Golden"), "\(slider.value ?? "nil")")
+        capture(named: "05-look-warm-golden")
+        dragSlider(slider, from: 1, to: 2, stopCount: 3)
+        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Amber"), "\(slider.value ?? "nil")")
+        XCTAssertEqual(photoValue(), "Amber", "Looks replace each other; the photo reports the one applied.")
+        capture(named: "06-look-warm-amber")
 
-        let looks = app.buttons["tool.looks"]
-        XCTAssertTrue(
-            looks.waitForExistence(timeout: timeout),
-            "Contextual bar should appear once developed."
-        )
-        XCTAssertTrue(
-            app.buttons["action.compare"].exists,
-            "Compare must be available after development."
-        )
-        XCTAssertFalse(
-            app.buttons["action.develop"].exists,
-            "The Develop action should be gone once developed."
-        )
-        capture(named: "04-developed")
+        // Compare, by the toggle (the accessible alternative to holding).
+        let compare = app.buttons["action.compare"]
+        compare.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].label == "Your original photograph",
+                      "Compare must show the original.")
+        XCTAssertTrue(compare.isSelected, "The toggle reports its state.")
+        capture(named: "07-compare-original")
+        compare.tap()
+        XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your photograph")
 
-        // Looks.
-        looks.tap()
-        XCTAssertTrue(
-            app.staticTexts["Looks"].waitForExistence(timeout: timeout),
-            "Looks screen should open from the contextual bar."
-        )
-        XCTAssertTrue(
-            app.staticTexts["A general starting set — not yet tailored to this photo."]
-                .waitForExistence(timeout: timeout),
-            "The non-personalised disclaimer must be shown while scene analysis is missing."
-        )
-        capture(named: "05-looks")
+        // Compare, by press and hold on the photo: back to the edit on release.
+        app.descendants(matching: .any)["editor.photo"].press(forDuration: 0.8)
+        XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your photograph")
 
-        // Preview a Look; the Apply action appears only once one is selected.
-        let firstLook = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'look.'")
-        ).firstMatch
-        XCTAssertTrue(firstLook.waitForExistence(timeout: timeout), "Expected Look cells.")
-        firstLook.tap()
+        // Undo returns to the first stop.
+        app.buttons["action.undo"].tap()
+        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Golden"), "\(slider.value ?? "nil")")
+        capture(named: "08-after-undo")
 
-        XCTAssertTrue(
-            app.buttons["looks.apply"].waitForExistence(timeout: timeout),
-            "Selecting a Look should reveal Apply."
-        )
-        capture(named: "06-looks-previewing")
-    }
+        // Reset to Auto clears the Look; Undo brings it back (Reset is a step).
+        app.buttons["action.reset"].tap()
+        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Auto"), "\(slider.value ?? "nil")")
+        XCTAssertFalse(app.buttons["action.reset"].isEnabled, "Nothing left to reset.")
+        capture(named: "09-after-reset")
+        app.buttons["action.undo"].tap()
+        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Warm, Golden"), "\(slider.value ?? "nil")")
 
-    /// Develops a photograph and exports it to the library.
-    ///
-    /// Covers the part the unit tests deliberately stub: the real PhotoKit
-    /// write, including the add-only permission prompt.
-    func testExportSavesToPhotoLibrary() throws {
-        XCTAssertTrue(app.staticTexts["Lightly"].waitForExistence(timeout: timeout))
-        app.swipeUp()
-        XCTAssertTrue(app.staticTexts["Photo Library"].waitForExistence(timeout: timeout))
-        app.staticTexts["Photo Library"].tap()
-
-        try selectFirstPhotoFromSystemPicker()
-
-        app.buttons["action.develop"].tap()
-
-        let share = app.buttons["action.share"]
-        XCTAssertTrue(
-            share.waitForExistence(timeout: timeout),
-            "Share should be available once developed."
-        )
-        share.tap()
-
-        XCTAssertTrue(
-            app.staticTexts["Export"].waitForExistence(timeout: timeout),
-            "Share should open the export sheet."
-        )
-        capture(named: "07-export-sheet")
-
-        // Location must be off by default (spec §13, §19).
-        let location = app.switches["export.preserveLocation"]
-        if location.waitForExistence(timeout: 5) {
-            XCTAssertEqual(
-                location.value as? String, "0",
-                "Location must default to off."
-            )
-        }
-
-        app.buttons["export.save"].tap()
-
-        // The add-only permission prompt is a system alert. Tapping it from a
-        // UI test is unreliable, so the runner is expected to have granted
-        // `photos-add` beforehand (see docs/phase-2-deferred.md). This tap
-        // remains as a fallback for a run against an ungranted simulator.
-        //
-        // `BEGINSWITH` rather than `CONTAINS`: the prompt's other button is
-        // "Don't Allow", which a contains-match also selects — silently
-        // declining and failing the export for a reason unrelated to the app.
-        //
-        // This test therefore covers the *write*, not the permission dialog.
-        // The denial path is covered by `ExportViewModelTests`.
-        let allow = springboard.buttons
-            .matching(NSPredicate(format: "label BEGINSWITH[c] 'Allow' OR label ==[c] 'OK'"))
-            .firstMatch
-        if allow.waitForExistence(timeout: 5) {
-            allow.tap()
-        }
-
-        // A permission failure here means the simulator was not granted
-        // add-only access; say so rather than reporting an export defect.
+        // Save copy: a new JPEG through the tiled full-resolution export.
+        app.buttons["action.saveCopy"].tap()
+        allowAddOnlyPhotosAccessIfAsked()
         if app.staticTexts["Lightly needs permission to add photos to your library. You can grant it in Settings."]
             .waitForExistence(timeout: 3) {
-            throw XCTSkip(
-                """
-                Simulator has not granted add-only Photos access. Run: \
-                xcrun simctl privacy booted grant photos-add com.lightlylabs.lightly
-                """
-            )
+            throw XCTSkip("Simulator declined add-only Photos access; the write could not be exercised.")
         }
+        let saved = app.descendants(matching: .any)["editor.saveStatus"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 30))
+        XCTAssertTrue(waitForLabel(of: saved, toContain: "Saved as a new photo. Original unchanged.", timeout: 60),
+                      "Save copy should confirm; got '\(saved.label)'.")
+        capture(named: "10-save-copy-confirmed")
+    }
 
-        XCTAssertTrue(
-            app.staticTexts["Saved"].waitForExistence(timeout: 30),
-            "Export should confirm once the photo is written to the library."
-        )
-        capture(named: "08-export-saved")
+    /// The wired editor at an accessibility text size: everything reachable,
+    /// the photo still visible.
+    func testEditorAtAccessibilityTextSize() throws {
+        relaunch(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
+        try openFirstLibraryPhoto()
+        XCTAssertTrue(app.descendants(matching: .any)["editor.autoUnavailableNotice"].waitForExistence(timeout: timeout))
+        // At this size the bottom panel scrolls; bring each control into
+        // view the way a user would before using it.
+        let film = app.buttons["editor.category.Film"]
+        scrollPanelUntilHittable(film)
+        film.tap()
+        let slider = app.descendants(matching: .any)["editor.lookSlider"]
+        scrollPanelUntilHittable(slider)
+        capture(named: "11a-large-text-controls")
+        dragSlider(slider, from: 0, to: 1, stopCount: 4)
+        XCTAssertTrue(waitForValue(of: slider, toStartWith: "Film, Fade"), "\(slider.value ?? "nil")")
+        XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].isHittable, "The photo stays visible at large text.")
+        capture(named: "11-large-text-editor")
     }
 
     private var springboard: XCUIApplication {
@@ -204,6 +160,72 @@ final class EditorFlowUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    private func relaunch(arguments: [String]) {
+        app.terminate()
+        app.launchArguments = arguments
+        app.launch()
+    }
+
+    private func openFirstLibraryPhoto() throws {
+        XCTAssertTrue(app.staticTexts["Lightly"].waitForExistence(timeout: timeout))
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["Photo Library"].waitForExistence(timeout: timeout))
+        app.staticTexts["Photo Library"].tap()
+        try selectFirstPhotoFromSystemPicker()
+    }
+
+    /// The add-only prompt is a system alert. Tapping it from a UI test is
+    /// the fallback for a simulator that has not been granted `photos-add`.
+    ///
+    /// `BEGINSWITH` rather than `CONTAINS`: the prompt's other button is
+    /// "Don't Allow", which a contains-match also selects.
+    private func allowAddOnlyPhotosAccessIfAsked() {
+        let allow = springboard.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH[c] 'Allow' OR label ==[c] 'OK'"))
+            .firstMatch
+        if allow.waitForExistence(timeout: 5) {
+            allow.tap()
+        }
+    }
+
+    /// Drags the slider thumb from one stop to another, like a finger.
+    ///
+    /// The thumb's centre travels inset by its radius from the track ends
+    /// (UISlider geometry), so stop `i` of `n` sits at that fraction of the
+    /// inset width.
+    private func dragSlider(_ slider: XCUIElement, from startStop: Int, to endStop: Int, stopCount: Int) {
+        let thumbRadius: CGFloat = 14
+        let frame = slider.frame
+        func point(forStop stop: Int) -> XCUICoordinate {
+            let fraction = CGFloat(stop) / CGFloat(stopCount - 1)
+            let x = thumbRadius + fraction * (frame.width - 2 * thumbRadius)
+            return slider.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: frame.height / 2))
+        }
+        point(forStop: startStop).press(forDuration: 0.3, thenDragTo: point(forStop: endStop))
+    }
+
+    private func scrollPanelUntilHittable(_ element: XCUIElement, attempts: Int = 6) {
+        var remaining = attempts
+        while !element.isHittable && remaining > 0 {
+            app.scrollViews.firstMatch.swipeUp(velocity: .slow)
+            remaining -= 1
+        }
+    }
+
+    private func photoValue() -> String? {
+        app.descendants(matching: .any)["editor.photo"].value as? String
+    }
+
+    private func waitForValue(of element: XCUIElement, toStartWith prefix: String, timeout: TimeInterval = 10) -> Bool {
+        let predicate = NSPredicate(format: "value BEGINSWITH %@", prefix)
+        return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
+    }
+
+    private func waitForLabel(of element: XCUIElement, toContain text: String, timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "label CONTAINS %@", text)
+        return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
+    }
 
     /// Taps the first photo in Apple's system photo picker.
     ///
@@ -226,12 +248,14 @@ final class EditorFlowUITests: XCTestCase {
             dismissExplainer.tap()
         }
 
+        capture(named: "02b-system-photo-picker")
+
         // First thumbnail: left column, just below the navigation bar.
         grid.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.12)).tap()
 
         // The picker dismisses itself on selection; if it is still up, no photo
         // was hit and the library is probably empty.
-        let editorAppeared = app.buttons["action.develop"].waitForExistence(timeout: timeout)
+        let editorAppeared = app.descendants(matching: .any)["editor.photo"].waitForExistence(timeout: timeout)
         guard editorAppeared else {
             throw XCTSkip(
                 """

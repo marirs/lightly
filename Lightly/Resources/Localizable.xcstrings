@@ -26,6 +26,18 @@
         }
       }
     },
+    "action.compare.hint": {
+      "comment": "VoiceOver hint of the Compare toggle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the original photo until you turn Compare off. You can also press and hold the photo."
+          }
+        }
+      }
+    },
     "action.compare.unavailable": {
       "comment": "VoiceOver hint when Compare is shown disabled before development.",
       "extractionState": "manual",
@@ -62,6 +74,42 @@
         }
       }
     },
+    "action.reset": {
+      "comment": "Reset to Auto: removes the Look, keeps Auto. Short visible label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset"
+          }
+        }
+      }
+    },
+    "action.reset.accessibility": {
+      "comment": "VoiceOver label of Reset.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset to Auto"
+          }
+        }
+      }
+    },
+    "action.saveCopy": {
+      "comment": "Saves the edit as a new photo; the original is never changed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save copy"
+          }
+        }
+      }
+    },
     "action.share": {
       "comment": "Share action label.",
       "extractionState": "manual",
@@ -70,6 +118,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Share"
+          }
+        }
+      }
+    },
+    "action.undo": {
+      "comment": "Undo the last committed edit.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo"
           }
         }
       }
@@ -244,6 +304,18 @@
         }
       }
     },
+    "editor.auto.unavailable.notice": {
+      "comment": "Shown while no Auto model is bundled. Must not imply the photo was enhanced.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto is unavailable: this build has no Auto model. Looks apply to your original photo."
+          }
+        }
+      }
+    },
     "editor.back.accessibility": {
       "comment": "VoiceOver label for the editor back button.",
       "extractionState": "manual",
@@ -252,6 +324,126 @@
           "stringUnit": {
             "state": "translated",
             "value": "Back to start"
+          }
+        }
+      }
+    },
+    "editor.chooseAnother": {
+      "comment": "Button after the editor could not open a photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose another photo"
+          }
+        }
+      }
+    },
+    "editor.lookCategory.Cool": {
+      "comment": "Look category (spec D5).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cool"
+          }
+        }
+      }
+    },
+    "editor.lookCategory.Film": {
+      "comment": "Look category (spec D5).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film"
+          }
+        }
+      }
+    },
+    "editor.lookCategory.Mono": {
+      "comment": "Look category (spec D5).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mono"
+          }
+        }
+      }
+    },
+    "editor.lookCategory.Natural": {
+      "comment": "Look category (spec D5).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Natural"
+          }
+        }
+      }
+    },
+    "editor.lookCategory.Warm": {
+      "comment": "Look category (spec D5).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warm"
+          }
+        }
+      }
+    },
+    "editor.lookSlider.accessibility": {
+      "comment": "VoiceOver label of the stepped Look slider.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Look"
+          }
+        }
+      }
+    },
+    "editor.lookSlider.value": {
+      "comment": "VoiceOver value of the Look slider: category, stop name, stop number, stop count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$@, stop %3$lld of %4$lld"
+          }
+        }
+      }
+    },
+    "editor.looks.noneInBuild": {
+      "comment": "Shown when the build contains no Looks.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Looks are available in this build."
+          }
+        }
+      }
+    },
+    "editor.looks.provisional.notice": {
+      "comment": "Debug builds only: the Looks are procedural placeholders, not curated presets.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provisional test Looks: not curated or validated."
           }
         }
       }
@@ -280,6 +472,18 @@
         }
       }
     },
+    "editor.photo.autoUnavailable.accessibility": {
+      "comment": "VoiceOver value of the photo when Auto is unavailable and no Look is applied.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto unavailable, no Look"
+          }
+        }
+      }
+    },
     "editor.photo.original.accessibility": {
       "comment": "VoiceOver label while Compare is showing the original.",
       "extractionState": "manual",
@@ -288,6 +492,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your original photograph"
+          }
+        }
+      }
+    },
+    "editor.save.failed": {
+      "comment": "VoiceOver announcement when Save copy fails; the reason is shown on screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The copy was not saved."
+          }
+        }
+      }
+    },
+    "editor.save.saved": {
+      "comment": "Save copy succeeded. Wording fixed by spec section 2 step 7.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved as a new photo. Original unchanged."
+          }
+        }
+      }
+    },
+    "editor.save.saving": {
+      "comment": "Save copy in progress.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saving…"
+          }
+        }
+      }
+    },
+    "editor.stop.auto": {
+      "comment": "Label of stop 0 of every Look slider: no creative Look, Auto only.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto"
           }
         }
       }

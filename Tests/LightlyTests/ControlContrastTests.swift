@@ -43,71 +43,72 @@ enum WCAG {
     }
 }
 
-/// WCAG 1.4.11 non-text contrast: at accessibility sizes the editor's
-/// controls sit on the plain background (not over the photo), so each
-/// control's boundary must contrast ≥ 3:1 with what surrounds it.
+/// WCAG 1.4.11 non-text contrast: the editor's controls sit on the plain
+/// background (never over the photo), so each control's boundary must
+/// contrast ≥ 3:1 with what surrounds it, at standard and large text.
 @MainActor
 final class ControlContrastTests: XCTestCase {
 
     private let size = SnapshotAssertion.defaultSize
 
-    private func editor(developed: Bool) async -> EditorViewModel {
-        let viewModel = EditorViewModel(original: TestFixtures.makePhoto(), developer: DebugFixedRecipeDeveloper())
-        if developed {
-            viewModel.develop()
-            await viewModel.developTask?.value
-        }
-        return viewModel
-    }
+    /// Back, every category chip (one of them selected) and every edit
+    /// action. A Look is applied first so Undo and Reset are enabled —
+    /// disabled controls are exempt from 1.4.11 and drawn faded on purpose.
+    private let editorControls = [
+        "editor.control.back",
+        "editor.category.Natural", "editor.category.Warm", "editor.category.Cool",
+        "editor.category.Film", "editor.category.Mono",
+        "editor.control.action.undo", "editor.control.action.reset",
+        "editor.control.action.compare", "editor.control.action.saveCopy"
+    ]
 
-    private func boundaryContrast(
-        of frame: CGRect, in pixels: [UInt8], width: Int
-    ) -> (ratio: Double, outside: (UInt8, UInt8, UInt8)) {
-        WCAG.edgeContrast(of: frame, in: pixels, width: width)
+    /// At accessibility sizes the bottom panel scrolls on a phone-sized
+    /// canvas, so some controls are below the fold. A control's chrome does
+    /// not depend on its position, so those runs use a taller canvas where
+    /// every control is drawn and can be sampled.
+    private func canvas(for dynamicTypeSize: DynamicTypeSize) -> CGSize {
+        dynamicTypeSize.isAccessibilitySize ? CGSize(width: size.width, height: 1_600) : size
     }
 
     private func assertControlBoundaries(
-        developed: Bool, scheme: ColorScheme, anchors: [String],
+        scheme: ColorScheme, dynamicTypeSize: DynamicTypeSize,
         file: StaticString = #filePath, line: UInt = #line
     ) async throws {
-        let viewModel = await editor(developed: developed)
-        let view = EditorView(viewModel: viewModel, onBack: {}).environment(\.dynamicTypeSize, .accessibility3)
+        let viewModel = try await EditorFixtures.readyEditor(lookStop: 1)
+        let view = EditorView(viewModel: viewModel, onBack: {}).environment(\.dynamicTypeSize, dynamicTypeSize)
         // Frames and pixels from the same host, so samples land on the edge.
-        let rendered = try XCTUnwrap(SnapshotAssertion.renderWithAnchors(view, size: size, colorScheme: scheme))
+        let rendered = try XCTUnwrap(SnapshotAssertion.renderWithAnchors(view, size: canvas(for: dynamicTypeSize), colorScheme: scheme))
         let pixels = try MetalLUTRenderer.rgba8Bytes(of: rendered.image)
-        let image = rendered.image
 
-        for anchor in anchors {
+        for anchor in editorControls {
             let frame = try XCTUnwrap(rendered.anchors[anchor], "\(anchor) missing; have \(rendered.anchors.keys.sorted())", file: file, line: line)
-            let measured = boundaryContrast(of: frame, in: pixels, width: image.width)
-            print("contrast \(anchor) \(scheme): \(String(format: "%.2f", measured.ratio)):1")
+            XCTAssertTrue(CGRect(origin: .zero, size: canvas(for: dynamicTypeSize)).insetBy(dx: 4, dy: 0).contains(frame),
+                          "\(anchor) at \(frame) is outside the rendered canvas", file: file, line: line)
+            guard CGRect(origin: .zero, size: canvas(for: dynamicTypeSize)).insetBy(dx: 4, dy: 0).contains(frame) else { continue }
+            let measured = WCAG.edgeContrast(of: frame, in: pixels, width: rendered.image.width)
+            print("contrast \(anchor) \(scheme) \(dynamicTypeSize): \(String(format: "%.2f", measured.ratio)):1")
             XCTAssertGreaterThanOrEqual(
                 measured.ratio, 3.0,
-                "\(anchor) boundary contrast \(String(format: "%.2f", measured.ratio)):1 against background \(measured.outside) in \(scheme) at AX3",
+                "\(anchor) boundary contrast \(String(format: "%.2f", measured.ratio)):1 against background \(measured.outside) in \(scheme) at \(dynamicTypeSize)",
                 file: file, line: line
             )
         }
     }
 
-    func testPreDevelopDevelopButtonBoundaryLight() async throws {
-        try await assertControlBoundaries(developed: false, scheme: .light, anchors: ["editor.develop"])
+    func testEditorControlBoundariesLight() async throws {
+        try await assertControlBoundaries(scheme: .light, dynamicTypeSize: .large)
     }
 
-    func testPreDevelopDevelopButtonBoundaryDark() async throws {
-        try await assertControlBoundaries(developed: false, scheme: .dark, anchors: ["editor.develop"])
+    func testEditorControlBoundariesDark() async throws {
+        try await assertControlBoundaries(scheme: .dark, dynamicTypeSize: .large)
     }
 
-    private let developedControls = [
-        "editor.control.chevron.left", "editor.control.ellipsis", "editor.control.crop",
-        "editor.control.compare", "editor.control.square.and.arrow.up"
-    ]
-
-    func testDevelopedControlBoundariesLight() async throws {
-        try await assertControlBoundaries(developed: true, scheme: .light, anchors: developedControls)
+    func testEditorControlBoundariesLightAccessibility3() async throws {
+        try await assertControlBoundaries(scheme: .light, dynamicTypeSize: .accessibility3)
     }
 
-    func testDevelopedControlBoundariesDark() async throws {
-        try await assertControlBoundaries(developed: true, scheme: .dark, anchors: developedControls)
+    func testEditorControlBoundariesDarkAccessibility3() async throws {
+        try await assertControlBoundaries(scheme: .dark, dynamicTypeSize: .accessibility3)
     }
 
     /// Labels inside the solid control fill stay ≥ 4.5:1 (WCAG 1.4.3).
@@ -118,6 +119,33 @@ final class ControlContrastTests: XCTestCase {
                 WCAG.luminance(of: LightlyColor.surfaceElevated(scheme))
             )
             XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(scheme): \(ratio):1")
+        }
+    }
+
+    /// A selected chip or toggle inverts: background-coloured text on a
+    /// text-coloured fill, also ≥ 4.5:1.
+    func testLabelContrastOnASelectedControl() {
+        for scheme in [ColorScheme.light, .dark] {
+            let ratio = WCAG.contrast(
+                WCAG.luminance(of: LightlyColor.background(scheme)),
+                WCAG.luminance(of: LightlyColor.textPrimary(scheme))
+            )
+            XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(scheme): \(ratio):1")
+        }
+    }
+
+    /// Notices and status text are secondary or primary text on the plain
+    /// background or the elevated notice fill: ≥ 4.5:1.
+    func testNoticeAndSecondaryTextContrast() {
+        for scheme in [ColorScheme.light, .dark] {
+            let pairs: [(Color, Color, String)] = [
+                (LightlyColor.textPrimary(scheme), LightlyColor.surfaceElevated(scheme), "notice"),
+                (LightlyColor.textSecondary(scheme), LightlyColor.background(scheme), "secondary text")
+            ]
+            for (text, fill, name) in pairs {
+                let ratio = WCAG.contrast(WCAG.luminance(of: text), WCAG.luminance(of: fill))
+                XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(name) in \(scheme): \(ratio):1")
+            }
         }
     }
 }
