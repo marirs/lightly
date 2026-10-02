@@ -240,3 +240,10 @@ def test_everything_passing_with_nothing_missing_is_validated(tmp_path, collecti
     assert stop["conversion"] == "complete"
     assert stop["status"] == "validated"
     assert stop["globalColour"]["evidence"] == "report.json"
+
+
+def test_build_scripts_import_cleanly():
+    # build_catalog.py once shipped with a syntax error that no test imported it to catch.
+    import importlib
+    for module in ("build_catalog", "build_look_pack", "ordering", "pack_common"):
+        importlib.import_module(module)

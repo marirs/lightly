@@ -33,11 +33,13 @@ Stop 0 is the base with no Look. It reads **Auto** when an Auto correction is ap
 
 | Category (provisional) | Browse order |
 |---|---|
-| Natural | Auto → S1 - Vibes (2.11) → S7 - Retro Mood (4.69) → Portrait-1 (4.72) → 08 (2.51) |
-| Warm | Auto → Earthy Wedding Tone (6) (4.9) → Nordic Tone (10) (4.48) → Adventure Tone (3) (3.91) → Golden Hour 9 (3.49) |
-| Cool | Auto → Cinematic Light Tone (11) (5.51) → Old Street-4 (6.54) → Black Paris Tone (11) (6.21) |
-| Film | Auto → Retro Wedding Tone (15) (4.25) → Rainy Tone (10) (5.15) → T2 (3.74) → C4 - Teals (4.96) |
-| Mono | Auto → Vintage Flim Tone (7) (11.02) → 03 Black and White 03 (1.62, near-duplicate) → 11 Black and White 11 (2.36) |
+| Natural | Base → S1 - Vibes (2.11) → S7 - Retro Mood (4.69) → Portrait-1 (4.78) → 08 (2.51) |
+| Warm | Base → Earthy Wedding Tone (6) (4.9) → Nordic Tone (10) (4.15) → Adventure Tone (3) (3.56) → Golden Hour 9 (3.49) |
+| Cool | Base → Cinematic Light Tone (11) (5.51) → Old Street-4 (6.54) → Black Paris Tone (11) (6.21) |
+| Film | Base → Retro Wedding Tone (15) (4.11) → Rainy Tone (10) (5.02) → T2 (3.74) → C4 - Teals (4.96) |
+| Mono | Base → Vintage Flim Tone (7) (11.02) → 03 Black and White 03 (1.61, near-duplicate) → 11 Black and White 11 (2.38) |
+
+**Known limitation (approximation only):** three Looks (Retro Wedding Tone (15), Portrait-1 and 08) change abruptly at the gamut edge for fully saturated yellows (pure yellow at maximum saturation). Real photos rarely reach it. A Lightroom HALD LUT replaces the approximation once the export kit is run.
 
 **Flag:** in Mono, "03 Black and White 03" is a small step from "Vintage Flim Tone (7)" (under the near-duplicate threshold). Review it before Mono is finalised.
 

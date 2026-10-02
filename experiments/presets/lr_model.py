@@ -205,6 +205,28 @@ def _calibration_matrix(p: Preset, C: Calib):
     return M / (M @ torch.ones(3)).unsqueeze(1)  # rows renormalised so white stays white
 
 
+LUMA = torch.tensor([0.2126, 0.7152, 0.0722])
+
+
+def apply_luminance(lin: torch.Tensor, target_Y: torch.Tensor) -> torch.Tensor:
+    """Scale linear RGB to luminance target_Y, keeping hue, without leaving the [0, 1] gamut.
+
+    A pure ratio (lin * target / Y) keeps hue but, for a dark saturated pixel, puts nearly all the new
+    luminance into one channel and can push it far past 1 (a near-black blue became bright blue). When
+    the ratio would exceed the gamut, the pixel is scaled only until its largest channel reaches 1 and
+    the remaining luminance is added as neutral: luminance is exact and the colour moves toward grey,
+    which is how a lift on a saturated shadow behaves in a bounded pipeline.
+    """
+    Y = (lin @ LUMA).unsqueeze(-1).clamp(min=1e-6)
+    scaled = lin * (target_Y / Y)
+    peak = lin.max(-1, keepdim=True).values
+    # k: the largest ratio that keeps every channel <= 1; then fill (target - k*Y) with neutral.
+    k = ((1 - target_Y) / (peak - Y).clamp(min=1e-9)).clamp(min=0)
+    limited = lin * k + (target_Y - k * Y)
+    over = scaled.max(-1, keepdim=True).values > 1
+    return torch.where(over, limited, scaled)
+
+
 def _bump(x, lo, hi):
     """Smooth hump that is 0 outside [lo, hi] and 1 at the centre."""
     t = ((x - lo) / (hi - lo).clamp(min=1e-3)).clamp(0, 1)
@@ -225,7 +247,10 @@ def render(rgb: torch.Tensor, p: Preset, C: Calib) -> torch.Tensor:
     """rgb: (..., 3) sRGB-encoded in [0,1] -> (..., 3) sRGB-encoded (unclamped until the end)."""
     v = p.v
     lin = srgb_to_linear(rgb)
-    lin = lin @ _calibration_matrix(p, C).T
+    # Calibration can rotate a saturated primary's neighbours below zero (Blue Saturation + on a pure
+    # blue). Negative light has no meaning here and made its luminance ~0, so the tone ratio below
+    # exploded; clip to the gamut first.
+    lin = (lin @ _calibration_matrix(p, C).T).clamp(min=0)
     # white balance (multiplicative in linear light, normalised to keep luminance)
     t = v["IncrementalTemperature"] * C.k_temp
     u = v["IncrementalTint"] * C.k_tint
@@ -255,7 +280,7 @@ def render(rgb: torch.Tensor, p: Preset, C: Calib) -> torch.Tensor:
         if t:
             d = d + ((C.tone_A[i] * t + C.tone_B[i] * t * t) * H).sum(-1, keepdim=True) * 0.1
     e2 = (e + d).clamp(min=0)
-    lin = lin * (srgb_to_linear(e2) / Y)
+    lin = apply_luminance(lin, srgb_to_linear(e2))
     # dehaze (global approximation): subtract a constant veil, renormalise
     dz = (C.k_dehaze * v["Dehaze"] / 100) * C.dehaze_air
     lin = (lin - dz * 0.05) / (1 - dz * 0.05)
