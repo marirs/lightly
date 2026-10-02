@@ -206,10 +206,31 @@ Failing before the fix (against the API skeleton): grant on pick `expected:<[ret
 
 ### 8.3 Looks: where they come from
 
-`LookBook` receives its Looks from `BundledLookBook.create()` (the counterpart of iOS `LUTLookBook.bundled`):
-- **Debug builds** (`src/debug`): `PlaceholderLookBook`, 9 procedural Looks in 5 categories. Each 33³ LUT is generated in code from a simple per-channel formula. No LUT file exists in the repo or the APK, and nothing is derived from any preset collection. The UI labels them: "Provisional Looks (debug build): procedural placeholders, not validated."
-- **Release builds** (`src/release`): an empty book, the same as iOS today. The Look controls are replaced by "No Looks in this build yet." Checked: the release APK's dex does not contain `PlaceholderLookBook`.
-- DEFERRED (core-looks, M3/M4): curated Look LUTs, converted and validated against Lightroom.
+Looks come from the **Look pack** built from the curated preset collection (`experiments/presets/look_pack/`, spec D5, D6, §4.5). The procedural `PlaceholderLookBook` and the debug/release `BundledLookBook` split are gone; formula LUTs survive only as a test fixture (`app/src/test/.../FixtureLookPack.kt`) that writes tiny packs in the real format.
+
+- **Loader** (`LookPackLoader`): reads `lookpack/manifest.json` from app assets. Format `lightly-look-pack` v1, `lutDimension` 33 and `lutEncoding` `rgba-float32-red-fastest` are required; anything else, a missing manifest or bad JSON gives an empty `LookBook` with `unavailableReason`. Each Look's LUT must exist, be 574,992 bytes and match its `lutSha256`; a failing Look is dropped and listed in `LookBook.problems` (logged under `LightlyLooks`), and a category left empty is dropped too. Unsafe `lutFile` paths (absolute, `..`) are refused.
+- **Order and labels**: categories and stops keep manifest order (the catalog's browse order). Labels are pack data; the editor keys categories by the opaque `id` and has no category names of its own. The default category is the pack's first; a saved `editor.category` the pack no longer has falls back to it.
+- **Slider**: stop 0, then one stop per preset, labelled with the preset's `name` verbatim. It picks a preset and is never an intensity control: moving between presets keeps the committed Look's strength (100% only when coming from no Look). The separate Strength slider is unchanged. TalkBack: "Warm, Nordic Tone (10), 3 of 5".
+- **Stop 0 name**: "Auto" only while an Auto correction is applied (`AutoStatus.Applied` and Auto strength > 0); otherwise "Original" (no model in the build, model unavailable, Use original, Auto strength 0). Visible label and TalkBack use the same name ("Warm, Original, 1 of 5").
+- **Honest status**: while any Look is `lr-model-approximation` or not `validated` (all 18 today), the editor shows "Looks are approximate conversions, not yet checked against Lightroom." (iOS wording). Pack LUTs omit spatial operators (clarity, texture, vignette, grain) by design; nothing here claims Lightroom fidelity.
+- **Persistence**: `LookRef(lookId, lookVersion: String, strength)`. `lookVersion` is the pack's version string (changes with the LUT), so `EditState.CURRENT_SCHEMA` is now **2**; a schema 1 edit is dropped and the photo develops again. Pack IDs depend only on the preset, so relabelling, reordering or regrouping categories does not affect a restored edit (tested with two fixture manifests). An unknown (id, version) still shows "Look unavailable; showing Auto." iOS must make the same `lookVersion` change.
+- **No pack**: the build succeeds and the editor shows "No Looks are available in this build."
+- DEFERRED: loading the pack off the main thread with lazy LUT decode (today ~10 MB of floats are read and hashed when the editor environment is created); the `{oldId → newId}` migration table.
+
+#### Bundling (app/build.gradle.kts)
+
+The pack is git-ignored and derived from the private presets, so it is never committed; each variant's generated assets get `lookpack/manifest.json` + `lookpack/luts/*.f32` from task `bundle<Variant>LookPack` (`variant.sources.assets.addGeneratedSourceDirectory`). The pack directory is, first match wins:
+1. `-PlightlyLookPackDir=/abs/path` or `LIGHTLY_LOOK_PACK_DIR` (a path without `manifest.json` fails the build);
+2. `<repo>/experiments/presets/look_pack/out` (`<repo>` = parent of `android/`);
+3. in a `<main>/.claude/worktrees/<name>` worktree, `<main>/experiments/presets/look_pack/out` (derived from the path).
+
+None found: a configuration warning, no assets, and the app has no Looks. Checked: the debug APK built in this worktree contains `assets/lookpack/manifest.json` and 18 LUTs; a throwaway checkout outside `.claude/worktrees` built with no `lookpack/` assets and succeeded.
+
+### 8.3a Launcher icon packaging check
+
+Task `verify<Variant>LauncherIcon` (debug and release; every `assemble<Variant>` depends on it) inspects the **built apk** with `aapt2` from `build-tools/<android.buildToolsVersion>`: `dump badging` must report an application icon, every icon path must be in the apk, and an adaptive-icon XML must have a foreground and background that resolve through `dump resources` (the foreground drawable file must be in the apk). Report: `app/build/reports/launcher-icon/<variant>.txt`.
+
+Regression proof: in a throwaway worktree at the pre-icon commit plus this check, `assembleDebug` failed with "Launcher icon check failed for app-debug.apk: aapt2 dump badging reports no application icon"; at the current head it passed (debug `res/mipmap-anydpi-v26/ic_launcher.xml`, release `res/BW.xml` after resource-name shortening). Emulator: the installed debug APK showed the Lightly icon in the Pixel 9 Pro (API 36) app drawer, not the default robot.
 
 ### 8.4 User flow on the emulator (emulator-only)
 
