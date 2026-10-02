@@ -36,4 +36,44 @@ Audited at `07d3a57` (saved-edit schema 2 and pack format 2 already landed). Sta
 
 ## 2. Gaps closed in this milestone
 
-Filled in as each gap lands; commit IDs are in the final report.
+| # | Behaviour | Now | Where |
+|---|---|---|---|
+| 2, 3 | Side panel when there is room; landscape and iPad | implemented | `EditorLayoutPolicy` in `EditorView.swift`: side panel (36% of the width, clamped to 320–380 pt) when the window is wider than tall or ≥ 700 pt wide and the photo keeps ≥ 320 pt; otherwise stacked. `ios/project.yml`: iPhone portrait + both landscapes, iPad all four, `TARGETED_DEVICE_FAMILY 1,2` |
+| 7 | A visible marker per stop | implemented | `SteppedTrack` (custom; detent per stop, thumb on the selected one). Drags move relative to the stop where they began and clamp at the ends; a tap selects the stop under the finger; a vertical drag scrolls the panel and changes nothing |
+| 8 | Name and position | implemented | `SteppedLookSlider.nameAndPosition`: "Nordic Tone (10) · 3 of 5", wraps at large text |
+| 9 | Strength | implemented | `StrengthControl`: caption-sized, secondary colour, small control, only while a Look renders; disabled (not removed) while another preset is being dragged in, so the panel does not jump under the finger. Drag previews, release is one step; VoiceOver adjusts in 10% steps |
+| 11 | Redo | implemented | `EditActions.redoAction` |
+| 13 | "Original" state on the photo | implemented | badge in the photo's corner while Compare (hold or toggle) shows the original |
+| 15 | Prominent Save copy | implemented | `SaveCopyButton`: filled capsule in the top bar, always visible; the outcome line sits with the notices |
+| 16 | Compact notices | implemented | one short line each; capped (18% of the height) and scrolled beyond that; `cappedScrollable` now measures its content (`CappedHeightLayout`) instead of `ViewThatFits`, which filled the whole cap |
+| 17 | Look unavailable / changed | implemented | `EditorNotices`: unavailable notice; changed notice with **Use current version** (an undoable step). The saved `LookRef` is kept in the edit and in history and written back unchanged |
+| 18 | Retry / Continue | implemented | `AutoFailureRow` for genuine failures only (`AutoUnavailableReason.isRetryableFailure`); "no model in this build" goes straight to editing with the notice |
+| 20 | Photo ≥ 40% at AX sizes on a phone in portrait | implemented | panel share 45% at AX sizes plus a photo minimum height of 40%; category chips wrap (`EqualWidthRowLayout`) instead of truncating |
+| 21 | The real pack loads | implemented | `07d3a57` (format 2). Verified in the installed app: 5 categories, 18 Looks, names verbatim, both Mono presets ("03 Black and White 03", "11 Black and White 11") |
+
+Saved edits (`ba077da`, `42580bb`): `Domain/Session/SavedEdit.swift` reads and writes EditState schema 2 byte-for-byte like the shared fixtures, migrates schema 1 to `legacy-v1-<n>`, rejects unknown keys, unknown schemas and out-of-range values; `LUTLookBook.resolve` gives available / unavailable / changed; only "available" renders, and preview and Save copy use the same passes, so what is shown is what is written.
+
+## 3. Verification
+
+Simulators only (no physical device). Snapshots on iPhone 17 / iOS 26.5 / Large text; the simulator's own text size was restored to extra-extra-extra-large afterwards.
+
+- **Unit, snapshot and layout tests:** 341 tests, 0 failures (was 292). New: `SavedEditFormatTests` (reads `shared/fixtures/edit-state/`), `SavedEditRestoreTests`, `EditorBehaviourTests`, layout tests for narrow / wide / split view / AX5 portrait and landscape / chip wrapping, 7 new snapshots (Strength + Redo, Look changed, Look unavailable, Auto failed, phone landscape, iPad portrait, iPad landscape comparing).
+- **UI tests (iPhone 17):** 7 tests, 6 passed, 1 skipped, 0 failures. The full flow: photo → Auto unavailable notice (no Retry) → two presets in one category → Strength → a preset in a second category → Compare (toggle and hold) → Undo → Redo → Reset → Undo → Save copy. The orientation test is skipped on this iPhone 17 simulator because it has rotation lock on (Safari does not rotate either). It passes on iPhone 17 Pro (landscape side panel) and iPad Pro 11-inch (M5) (side panel in portrait and landscape).
+- **Installed app:** `scripts/check_app_icon.sh` passed. `Lightly.app/LookPack/manifest.json` is format 2 with 18 LUTs, every sha256 matching, identical to `experiments/presets/look_pack/out` (the rebuilt pack from `6f6b66f`). The Home Screen shows the Lightly icon.
+- **Photos library:** before and after the UI suite, all 15 existing photos have the same sha256; two new 4032×3024 JPEGs were added (one per Save copy).
+- **Evidence:** `~/.codex/artifacts/lightly/editor-milestone-20261002/ios/` (screenshots per step, screen recording of the UI suite, xcresult summaries, before/after hashes, snapshot before/after images, failing-first test output).
+
+## 4. Deferred
+
+- **Relaunch restore.** `LUTEditorViewModel(restoringSession:)` and `LUTEditSession.savedSession(source:auto:)` are tested end to end, but the app has no entry point that restores a session after relaunch. Reopening the Original needs Photos read access or a private copy of the photo; both are product decisions for the recovery snapshot (spec §5.5, M4). Marked `// DEFERRED:` at the call site.
+- **Auto block of a saved edit.** iOS writes `SavedAutoResult.noModelInBuild` (zero weights, strength 0, `no-model-in-build`) because no Auto model ships. Real weights come with a production model.
+- **Float text below 1e-3.** Swift writes `0.0001` where Kotlin writes `1.0E-4`; both read back to the same value, but such edits would not be byte-identical across platforms. No fixture covers it.
+- **Category labels and Look names** are pack data shown verbatim (localisation and product names: spec U8).
+
+## 5. Hardware-only limitations (not verifiable on a simulator)
+
+- GPU render time and memory of the Metal LUT pass on 48 MP originals (preview latency while dragging, tiled export time); the simulator's GPU is the Mac's.
+- The real Photos library on a device: picker behaviour with iCloud originals, HEIC/ProRAW inputs, add-only permission prompts, and that the saved copy appears in the user's library.
+- Display: P3 panels, True Tone and HDR gain maps (dropped in V1 export) as seen on a device.
+- Rotation and split view on a physical iPad (Stage Manager window sizes), and touch precision of the stepped track and Strength control with a finger.
+- Thermal and memory pressure during long editing sessions.
