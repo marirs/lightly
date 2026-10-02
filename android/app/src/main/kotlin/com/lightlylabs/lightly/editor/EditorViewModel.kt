@@ -116,7 +116,15 @@ class EditorViewModel(
     // Resolved O1 LUT for the session's AutoResult (memoised: every entry shares one Auto result).
     private var resolvedAuto: Pair<AutoResult, AutoLutResolution>? = null
 
-    private var photo: LoadedPhoto? = null
+    /**
+     * The photo on screen, tagged with the [photoGeneration] that loaded it. Every async step for a
+     * photo carries its generation and re-checks it after each suspension point (Codex finding 1):
+     * cancelling the job is not enough, because a model runtime or decoder may ignore cancellation
+     * and still return, and its result must not land in the next photo's session.
+     */
+    private class CurrentPhoto(val generation: Long, val loaded: LoadedPhoto)
+
+    private var photo: CurrentPhoto? = null
     private var scheduler: RenderScheduler<LutPassPlan, Rgba8Image>? = null
     private var schedulerCollector: Job? = null
     private var loadJob: Job? = null
@@ -166,14 +174,16 @@ class EditorViewModel(
 
     /** DevelopFailed → [Retry]: one user-initiated model run (spec §5.6). */
     fun retryDevelop() {
-        val loaded = photo ?: return
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
         if (state.value.phase !is EditorPhase.DevelopFailed) return
-        loadJob = scope.launch { develop(loaded) }
+        loadJob = scope.launch { develop(current.loaded, current.generation) }
     }
 
     /** DevelopFailed → [Use original]: Ready with Auto strength 0 (spec §5.1). */
     fun useOriginal() {
-        val loaded = photo ?: return
+        // Bound to the photo on screen: the DevelopFailed phase can only belong to it, because
+        // stale failures are dropped before they reach the phase.
+        val loaded = photo?.takeIf { isCurrent(it.generation) }?.loaded ?: return
         if (state.value.phase !is EditorPhase.DevelopFailed) return
         val original = AutoResult(
             modelId = AutoResult.MODEL_ID_IA3DLUT,
@@ -200,25 +210,33 @@ class EditorViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                state.update { it.copy(phase = EditorPhase.LoadFailed(failure.message ?: "Couldn't open this photo")) }
+                // A failure for a photo the user has already left must not replace the current phase.
+                if (isCurrent(generation)) state.update { it.copy(phase = EditorPhase.LoadFailed(failure.message ?: "Couldn't open this photo")) }
                 return@launch
             }
-            if (generation != photoGeneration) return@launch
-            photo = loaded
+            if (!isCurrent(generation)) return@launch
+            photo = CurrentPhoto(generation, loaded)
             startPreviewScheduler(loaded, generation)
             if (restoredSession != null && restoredSession.current.source.fingerprint == loaded.source.fingerprint) {
                 // Restore: keep the saved AutoResult; do not re-run the model.
                 commit(restoredSession)
                 state.update { it.copy(phase = EditorPhase.Ready) }
             } else {
-                develop(loaded)
+                develop(loaded, generation)
             }
         }
     }
 
-    private suspend fun develop(loaded: LoadedPhoto) {
+    private fun isCurrent(generation: Long): Boolean = generation == photoGeneration
+
+    /** Runs Auto for [loaded]; every state change is dropped once [generation] is no longer current. */
+    private suspend fun develop(loaded: LoadedPhoto, generation: Long) {
+        if (!isCurrent(generation)) return
         state.update { it.copy(phase = EditorPhase.Developing) }
-        when (val result = env.autoDeveloper.develop(loaded.source.fingerprint, loaded.analysis)) {
+        val result = env.autoDeveloper.develop(loaded.source.fingerprint, loaded.analysis)
+        // The developer may ignore cancellation and return after the user picked another photo.
+        if (!isCurrent(generation)) return
+        when (result) {
             is DevelopResult.Developed -> {
                 commit(EditSession.start(loaded.source, result.auto))
                 state.update { it.copy(phase = EditorPhase.Ready) }
@@ -301,7 +319,7 @@ class EditorViewModel(
      * Returns false if the editor is not ready or an export is already running.
      */
     fun saveCopy(): Boolean {
-        val loaded = photo ?: return false
+        val loaded = photo?.takeIf { isCurrent(it.generation) }?.loaded ?: return false
         val session = state.value.session ?: return false
         if (state.value.phase != EditorPhase.Ready) return false
         val job = ExportJob(

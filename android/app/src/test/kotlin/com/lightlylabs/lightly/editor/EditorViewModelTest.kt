@@ -35,6 +35,10 @@ import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -74,7 +78,12 @@ class EditorViewModelTest {
         val written = mutableMapOf<String, ByteArrayOutputStream>()
     }
 
-    private fun TestScope.environment(fakes: Fakes, withBasis: Boolean = true): EditorEnvironment {
+    private fun TestScope.environment(
+        fakes: Fakes,
+        withBasis: Boolean = true,
+        photoLoader: PhotoLoader? = null,
+        autoDeveloper: AutoDeveloper? = null,
+    ): EditorEnvironment {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val bytes = bytesOf(basis)
         val registry = BasisRegistry(
@@ -93,12 +102,12 @@ class EditorViewModelTest {
             }
         }
         return EditorEnvironment(
-            photoLoader = PhotoLoader { id ->
+            photoLoader = photoLoader ?: PhotoLoader { id ->
                 fakes.loads++
                 check(id == assetId)
                 LoadedPhoto(source, analysis, display, FullResolutionSource { fullResolution })
             },
-            autoDeveloper = AutoDeveloper { _, analysisImage -> fakes.developedWith += analysisImage; fakes.developResult },
+            autoDeveloper = autoDeveloper ?: AutoDeveloper { _, analysisImage -> fakes.developedWith += analysisImage; fakes.developResult },
             autoResolver = RegistryAutoLutResolver(registry),
             lookBook = lookBook,
             previewRenderer = countingPreview,
@@ -384,6 +393,150 @@ class EditorViewModelTest {
         advanceUntilIdle()
         assertEquals(EditorPhase.Empty, vm.uiState.value.phase)
         assertNull(vm.uiState.value.session)
+    }
+
+    // --- Stale work for a previous photo (Codex finding 1) ---------------------------------------
+    //
+    // Each case opens photo A, leaves one of A's async steps suspended in a developer/loader that
+    // IGNORES cancellation, switches to photo B, waits until B is Ready, then lets A's step finish.
+    // B's session, preview, saved state and phase must be exactly what they were before.
+
+    private val assetB = "content://media/picker/0/43"
+    private val sourceB = SourceRef(assetB, SourceFingerprint("cd".repeat(32), 1_000_000, 80, 60), orientation = 1)
+    private val analysisB = image(64, 48, seed = 4)
+    private val displayB = image(40, 30, seed = 5)
+    private val autoA = auto.copy(weights = listOf(0.1f, 0.2f, 0.7f), strength = 1f)
+
+    /**
+     * A suspension that does not react to cancellation: [suspendCoroutine] is not cancellable, so the
+     * caller keeps running after [release] even though its Job was cancelled. Models a third-party
+     * model runtime (or blocking native call) that finishes its work regardless.
+     */
+    private class NonCooperativeGate<T> {
+        private var continuation: Continuation<T>? = null
+        val isWaiting: Boolean get() = continuation != null
+        suspend fun await(): T = suspendCoroutine { continuation = it }
+        fun release(value: T) = checkNotNull(continuation).also { continuation = null }.resume(value)
+        fun fail(error: Throwable) = checkNotNull(continuation).also { continuation = null }.resumeWithException(error)
+    }
+
+    /** Everything the user can observe for the current photo, plus what survives process death. */
+    private data class Observable(
+        val phase: EditorPhase,
+        val session: EditSession?,
+        val autoStatus: AutoStatus,
+        /** Content hash of the preview pixels, so a failure message stays readable. */
+        val previewHash: Int?,
+        val savedAsset: String?,
+        val savedSession: String?,
+    )
+
+    private fun observe(vm: EditorViewModel, handle: SavedStateHandle) = Observable(
+        phase = vm.uiState.value.phase,
+        session = vm.uiState.value.session,
+        autoStatus = vm.uiState.value.autoStatus,
+        previewHash = vm.uiState.value.preview?.pixels?.contentHashCode(),
+        savedAsset = handle[EditorViewModel.KEY_ASSET],
+        savedSession = handle[EditorViewModel.KEY_SESSION],
+    )
+
+    /** Photo A loads through [loadA] (immediate by default); photo B always loads immediately. */
+    private fun twoPhotoLoader(loadA: suspend () -> LoadedPhoto = { LoadedPhoto(source, analysis, display, FullResolutionSource { fullResolution }) }) =
+        PhotoLoader { id ->
+            when (id) {
+                assetId -> loadA()
+                assetB -> LoadedPhoto(sourceB, analysisB, displayB, FullResolutionSource { fullResolution })
+                else -> error("unexpected asset $id")
+            }
+        }
+
+    /** Photo A develops through [developA]; photo B always develops to [auto] immediately. */
+    private fun twoPhotoDeveloper(developA: suspend () -> DevelopResult) = AutoDeveloper { fingerprint, _ ->
+        if (fingerprint == source.fingerprint) developA() else DevelopResult.Developed(auto)
+    }
+
+    /** Opens B after A has started, and returns B's observable state once it is Ready. */
+    private fun TestScope.switchToReadyPhotoB(vm: EditorViewModel, handle: SavedStateHandle): Observable {
+        vm.openPhoto(assetB)
+        advanceUntilIdle()
+        val ready = observe(vm, handle)
+        assertEquals(EditorPhase.Ready, ready.phase)
+        assertEquals(sourceB, ready.session!!.current.source)
+        assertEquals(assetB, ready.savedAsset)
+        assertNotNull(ready.previewHash)
+        return ready
+    }
+
+    @Test
+    fun `a stale Auto success for the previous photo does not replace the current session`() = runTest {
+        val handle = SavedStateHandle()
+        val developA = NonCooperativeGate<DevelopResult>()
+        val vm = viewModel(handle, environment(Fakes(DevelopResult.Developed(auto)), photoLoader = twoPhotoLoader(), autoDeveloper = twoPhotoDeveloper { developA.await() }))
+        vm.openPhoto(assetId)
+        advanceUntilIdle()
+        assertEquals(EditorPhase.Developing, vm.uiState.value.phase)
+        assertTrue(developA.isWaiting)
+
+        val photoBReady = switchToReadyPhotoB(vm, handle)
+        developA.release(DevelopResult.Developed(autoA))
+        advanceUntilIdle()
+
+        assertEquals(photoBReady, observe(vm, handle))
+    }
+
+    @Test
+    fun `a stale Auto failure for the previous photo does not change the current phase`() = runTest {
+        val handle = SavedStateHandle()
+        val developA = NonCooperativeGate<DevelopResult>()
+        val vm = viewModel(handle, environment(Fakes(DevelopResult.Developed(auto)), photoLoader = twoPhotoLoader(), autoDeveloper = twoPhotoDeveloper { developA.await() }))
+        vm.openPhoto(assetId)
+        advanceUntilIdle()
+
+        val photoBReady = switchToReadyPhotoB(vm, handle)
+        developA.release(DevelopResult.Failed("model crashed on A"))
+        advanceUntilIdle()
+
+        assertEquals(photoBReady, observe(vm, handle))
+    }
+
+    @Test
+    fun `a stale load failure for the previous photo does not change the current phase`() = runTest {
+        val handle = SavedStateHandle()
+        val loadA = NonCooperativeGate<LoadedPhoto>()
+        val vm = viewModel(handle, environment(Fakes(DevelopResult.Developed(auto)), photoLoader = twoPhotoLoader { loadA.await() }, autoDeveloper = twoPhotoDeveloper { DevelopResult.Developed(autoA) }))
+        vm.openPhoto(assetId)
+        advanceUntilIdle()
+        assertEquals(EditorPhase.Loading, vm.uiState.value.phase)
+
+        val photoBReady = switchToReadyPhotoB(vm, handle)
+        loadA.fail(java.io.IOException("A was deleted"))
+        advanceUntilIdle()
+
+        assertEquals(photoBReady, observe(vm, handle))
+    }
+
+    @Test
+    fun `a stale retry for the previous photo does not replace the current session`() = runTest {
+        val handle = SavedStateHandle()
+        val retryA = NonCooperativeGate<DevelopResult>()
+        var developCallsForA = 0
+        val developer = twoPhotoDeveloper {
+            // The first run fails (DevelopFailed offers Retry); the retry hangs non-cooperatively.
+            if (++developCallsForA == 1) DevelopResult.Failed("first run failed") else retryA.await()
+        }
+        val vm = viewModel(handle, environment(Fakes(DevelopResult.Developed(auto)), photoLoader = twoPhotoLoader(), autoDeveloper = developer))
+        vm.openPhoto(assetId)
+        advanceUntilIdle()
+        assertIs<EditorPhase.DevelopFailed>(vm.uiState.value.phase)
+        vm.retryDevelop()
+        advanceUntilIdle()
+        assertTrue(retryA.isWaiting)
+
+        val photoBReady = switchToReadyPhotoB(vm, handle)
+        retryA.release(DevelopResult.Developed(autoA))
+        advanceUntilIdle()
+
+        assertEquals(photoBReady, observe(vm, handle))
     }
 
     // --- fixtures --------------------------------------------------------------------------------
