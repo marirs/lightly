@@ -41,15 +41,11 @@ final class EditorSnapshotTests: XCTestCase {
         SnapshotAssertion.assert(of: view, named: "editor-lut-look-applied-accessibility3")
     }
 
-    /// The fixture's long preset name at AX3: it wraps, it is not clipped.
-    func testLongPresetNameAtAccessibilityTextSize() async throws {
-        let viewModel = try await EditorFixtures.readyEditor()
-        viewModel.selectCategory("cat-beta")
-        viewModel.settleStop(2)
-        await viewModel.settleRendering()
-        let view = editor(viewModel).environment(\.dynamicTypeSize, .accessibility3)
-        SnapshotAssertion.assert(of: view, named: "editor-lut-long-name-accessibility3")
-    }
+    // DEFERRED: a long-preset-name snapshot at AX3. On the pinned 402×874
+    // canvas the AX3 panel scrolls the slider below the fold, so it would
+    // only duplicate editor-lut-look-applied-accessibility3; it needs a taller
+    // canvas. EditorLayoutTests.testLongPresetNameWrapsAtAccessibility3
+    // checks that the name wraps instead of truncating.
 
     /// A build without a Look pack says so instead of showing an empty slider.
     func testNoLooksInBuild() async throws {
