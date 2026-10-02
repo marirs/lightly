@@ -43,6 +43,6 @@ object PlaceholderLookBook {
             val base = (r + dimension * (g + dimension * b)) * 4
             rgba[base] = outR; rgba[base + 1] = outG; rgba[base + 2] = outB; rgba[base + 3] = 1f
         }
-        return LookDefinition(id, 1, category, stop, name, Lut3D(dimension, rgba))
+        return LookDefinition(id, "1", category, stop, name, Lut3D(dimension, rgba))
     }
 }

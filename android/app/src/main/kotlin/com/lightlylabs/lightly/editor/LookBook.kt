@@ -6,7 +6,7 @@ import com.lightlylabs.lightly.session.LookRef
 /** One stop of a category's stepped slider (spec D6). Stop 0 of every category is "Auto" (no Look). */
 class LookDefinition(
     val lookId: String,
-    val lookVersion: Int,
+    val lookVersion: String,
     val category: String,
     /** 1-based: stop 0 is the implicit Auto stop. */
     val stopIndex: Int,

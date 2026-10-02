@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * EditState v1 (docs/m1/spec.md §3). An immutable snapshot of one committed edit. Field names are
+ * EditState schema 2 (docs/m1/spec.md §3). An immutable snapshot of one committed edit. Field names are
  * the shared contract: iOS and Android must serialise the same JSON, so renaming a property here is
  * a contract change and must bump [EditState.CURRENT_SCHEMA].
  */
@@ -31,7 +31,12 @@ data class EditState(
     fun withCandidateLook(candidate: LookRef?): EditState = copy(look = candidate)
 
     companion object {
-        const val CURRENT_SCHEMA = 1
+        /**
+         * 2: `look.lookVersion` became the Look pack's version string (was an Int in schema 1). A
+         * schema 1 edit fails to decode and is dropped, which is safe because no schema 1 Look ID
+         * exists in any Look pack (they were procedural debug placeholders).
+         */
+        const val CURRENT_SCHEMA = 2
     }
 }
 
@@ -101,16 +106,23 @@ data class AutoResult(
     }
 }
 
-/** A reference to one curated Look; the LUT itself lives in the look-book, keyed by id + version. */
+/**
+ * A reference to one curated Look; the LUT itself lives in the Look pack, keyed by id + version.
+ *
+ * [lookVersion] is the pack's opaque version string (today the first 12 hex digits of the LUT's
+ * sha256, see experiments/presets/look_pack/build_look_pack.py). It changes whenever the LUT's
+ * pixels change, so a restored edit never silently replays a different Look under the same ID.
+ * Schema 1 used a hand-numbered Int here; that is why [EditState.CURRENT_SCHEMA] is 2.
+ */
 @Serializable
 data class LookRef(
     val lookId: String,
-    val lookVersion: Int,
+    val lookVersion: String,
     val strength: Float,
 ) {
     init {
         require(lookId.isNotBlank()) { "lookId must not be blank" }
-        require(lookVersion >= 1) { "lookVersion must be >= 1" }
+        require(lookVersion.isNotBlank()) { "lookVersion must not be blank" }
         requireUnitStrength(strength, "Look strength")
     }
 }

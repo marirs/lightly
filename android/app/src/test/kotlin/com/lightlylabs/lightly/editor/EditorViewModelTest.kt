@@ -410,7 +410,7 @@ class EditorViewModelTest {
     @Test
     fun `a Look missing from this build's look-book is reported and not rendered`() = runTest {
         val fakes = Fakes(DevelopResult.Developed(auto))
-        val edit = EditSession.start(source, auto).selectLook(LookRef("film.discontinued", 7, 1f))
+        val edit = EditSession.start(source, auto).selectLook(LookRef("film.discontinued", "7", 1f))
         val handle = SavedStateHandle(
             mapOf(EditorViewModel.KEY_ASSET to assetId, EditorViewModel.KEY_SESSION to SessionJson.encodeToString(EditSession.serializer(), edit)),
         )

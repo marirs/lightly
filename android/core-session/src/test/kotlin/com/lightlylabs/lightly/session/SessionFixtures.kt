@@ -16,9 +16,9 @@ object SessionFixtures {
         guardrail = AutoGuardrail.ENDPOINT_V1,
         strength = 0.75f,
     )
-    val portra = LookRef(lookId = "film.portra", lookVersion = 2, strength = 0.8f)
-    val warmGolden = LookRef(lookId = "warm.golden", lookVersion = 1, strength = 1f)
-    val mono = LookRef(lookId = "mono.silver", lookVersion = 1, strength = 1f)
+    val portra = LookRef(lookId = "film.portra", lookVersion = "3f2a9c1b7d0e", strength = 0.8f)
+    val warmGolden = LookRef(lookId = "warm.golden", lookVersion = "7b6a3a000001", strength = 1f)
+    val mono = LookRef(lookId = "mono.silver", lookVersion = "d5341f000001", strength = 1f)
 
     fun newSession(capacity: Int = UndoStack.DEFAULT_CAPACITY): EditSession =
         EditSession.start(source, auto, capacity)

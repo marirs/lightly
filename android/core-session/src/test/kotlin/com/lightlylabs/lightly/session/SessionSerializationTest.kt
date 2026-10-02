@@ -16,13 +16,13 @@ import kotlin.test.assertFailsWith
 class SessionSerializationTest {
 
     private val goldenEditState =
-        """{"schema":1,""" +
+        """{"schema":2,""" +
             """"source":{"assetId":"content://media/picker/0/42",""" +
             """"fingerprint":{"headSha256":"${"ab".repeat(32)}","byteSize":1048576,"pixelWidth":4032,"pixelHeight":3024},""" +
             """"orientation":6},""" +
             """"auto":{"modelId":"ia3dlut","modelVersion":"research-fivek-1","weights":[1.5,-0.25,-0.75],""" +
             """"guardrail":"endpoint-v1","strength":0.75},""" +
-            """"look":{"lookId":"film.portra","lookVersion":2,"strength":0.8},""" +
+            """"look":{"lookId":"film.portra","lookVersion":"3f2a9c1b7d0e","strength":0.8},""" +
             """"revision":7}"""
 
     private val stateWithLook = EditState(source = source, auto = auto, look = portra, revision = 7)
@@ -46,7 +46,7 @@ class SessionSerializationTest {
         assertEquals(
             goldenEditState
                 .replace(""""guardrail":"endpoint-v1"""", """"guardrail":null""")
-                .replace(""""look":{"lookId":"film.portra","lookVersion":2,"strength":0.8}""", """"look":null""")
+                .replace(""""look":{"lookId":"film.portra","lookVersion":"3f2a9c1b7d0e","strength":0.8}""", """"look":null""")
                 .replace(""""revision":7""", """"revision":0"""),
             json,
         )
@@ -69,11 +69,21 @@ class SessionSerializationTest {
     @Test
     fun `unknown keys and schemas are rejected rather than half-read`() {
         assertFailsWith<SerializationException> {
-            SessionJson.decodeFromString(EditState.serializer(), goldenEditState.replace("{\"schema\":1,", "{\"schema\":1,\"extra\":true,"))
+            SessionJson.decodeFromString(EditState.serializer(), goldenEditState.replace("{\"schema\":2,", "{\"schema\":2,\"extra\":true,"))
         }
         assertFailsWith<IllegalArgumentException> {
-            SessionJson.decodeFromString(EditState.serializer(), goldenEditState.replace("\"schema\":1", "\"schema\":2"))
+            SessionJson.decodeFromString(EditState.serializer(), goldenEditState.replace("\"schema\":2", "\"schema\":3"))
         }
+    }
+
+    @Test
+    fun `a schema 1 edit with a numeric lookVersion is rejected, not reinterpreted`() {
+        // Schema 1 numbered Look versions by hand; schema 2 uses the Look pack's version string.
+        // An old edit cannot name a pack Look, so it is dropped rather than half-matched.
+        val schemaOne = goldenEditState
+            .replace("\"schema\":2", "\"schema\":1")
+            .replace("\"lookVersion\":\"3f2a9c1b7d0e\"", "\"lookVersion\":2")
+        assertFailsWith<IllegalArgumentException> { SessionJson.decodeFromString(EditState.serializer(), schemaOne) }
     }
 
     @Test

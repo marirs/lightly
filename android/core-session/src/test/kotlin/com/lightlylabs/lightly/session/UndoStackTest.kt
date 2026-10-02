@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 class UndoStackTest {
 
-    private fun lookNumber(index: Int) = LookRef(lookId = "natural.$index", lookVersion = 1, strength = 1f)
+    private fun lookNumber(index: Int) = LookRef(lookId = "natural.$index", lookVersion = "v1", strength = 1f)
 
     @Test
     fun `one step per committed change`() {

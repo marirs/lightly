@@ -88,11 +88,11 @@ Ready ──► pick category ──► move stepped slider (each stop previews 
 **Invariant R (replace).** `EditState.look` is a single optional value. Selecting another Look replaces it. Preview of a candidate Look is computed as `render(committed.with(look: candidate))`, never as `committed.look ∘ candidate`. This fixes the current preview≠commit defect (§12, e).
 
 ```text
-EditState v1 {
-  schema: 1
+EditState {
+  schema: 2   // 2: look.lookVersion is the Look pack's version string (an Int in schema 1)
   source: { assetId, fingerprint (sha256 of first 64 KiB + byte size + pixel size), orientation }
   auto:   { modelId: "ia3dlut", modelVersion, weights: [f32;3], guardrail: "endpoint-v1"|null, strength: 0…1 }
-  look:   { lookId, lookVersion, strength: 0…1 } | null
+  look:   { lookId, lookVersion: string (Look pack, changes with the LUT), strength: 0…1 } | null
   revision: u64   // monotonically increasing within a session
 }
 ```
