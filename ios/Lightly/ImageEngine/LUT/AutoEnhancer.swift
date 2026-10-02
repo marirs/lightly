@@ -10,6 +10,17 @@ enum AutoUnavailableReason: Equatable, Sendable {
     /// The enhancer was configured inconsistently (e.g. basis LUTs of
     /// different sizes or a weight count that does not match).
     case invalidBasis
+    /// The analysis proxy could not be made from the photo.
+    case analysisFailed
+
+    /// True for a failure that a retry may fix. "No model in this build" is not one: offering
+    /// Retry there would be futile, so the editor goes straight to editing with a notice.
+    var isRetryableFailure: Bool {
+        switch self {
+        case .modelNotBundled: return false
+        case .invalidBasis, .analysisFailed: return true
+        }
+    }
 }
 
 /// What an enhancer produced for one photo.

@@ -10,6 +10,9 @@ enum LUTEditorPhase: Equatable, Sendable {
     /// Editing is possible. Auto may still be unavailable — that never
     /// blocks Looks, Compare, Undo, Reset or Save copy.
     case ready
+    /// Auto genuinely failed for this photo (not "no model in this build"). The user chooses
+    /// Retry or Continue without Auto; the photo stays visible.
+    case autoFailed(AutoUnavailableReason)
     /// The photo could not be prepared for editing (decode or GPU set-up).
     case failed(LightlyError)
 }
@@ -21,6 +24,22 @@ enum SaveCopyStatus: Equatable, Sendable {
     /// A new photo was added; the original was not touched (spec D8).
     case saved
     case failed(LightlyError)
+}
+
+/// What the editor must say about Auto (spec §2: never imply an enhancement that is not there).
+enum AutoNotice: Equatable, Sendable {
+    /// No Auto model ships in this build. Nothing to retry.
+    case notInBuild
+    /// Auto failed for this photo and the user chose to continue without it.
+    case failed
+}
+
+/// What the editor must say about the committed Look when it is not rendered (spec §4.5).
+enum LookNotice: Equatable, Sendable {
+    /// The Look is not in this build's pack.
+    case unavailable
+    /// The Look has changed since the edit; "Use current version" applies the pack's version.
+    case changed(lookName: String)
 }
 
 /// One stop of a category's stepped slider. Stop 0 is "no Look": the edit
@@ -60,13 +79,11 @@ final class LUTEditorViewModel {
     private(set) var isCompareToggledOn = false
     /// Compare engaged by press-and-hold on the photo.
     private(set) var isCompareHeld = false
+    /// The Strength under the finger while the Strength control moves; nil once released.
+    private(set) var previewedLookStrength: Float?
 
     /// nil only when the photo could not be prepared (`phase == .failed`).
     private(set) var session: LUTEditSession?
-
-    /// A restored edit named a Look this pack does not have (spec §4.5,
-    /// "Look unavailable"); cleared once the user changes the edit.
-    private(set) var showsLookUnavailableNotice = false
 
     /// Readable so tests can await completion instead of polling.
     private(set) var developTask: Task<Void, Never>?
@@ -90,16 +107,19 @@ final class LUTEditorViewModel {
         renderer: (any LUTRendering)?,
         libraryWriter: any PhotoLibraryWriting,
         previewLongEdge: Int = 1_290,
-        // DEFERRED: nothing passes a saved edit yet; the recovery snapshot
-        // that would supply one is spec §5.5 (M4).
-        restoring savedEdit: LUTEditState? = nil
+        // DEFERRED: the app passes neither yet. Relaunch restore needs the Original again, which
+        // iOS can only reopen with Photos read access or a private copy of the photo; both are a
+        // product decision for the recovery snapshot (spec §5.5, M4). Tests exercise both paths.
+        restoring savedEdit: LUTEditState? = nil,
+        restoringSession savedSession: SavedEditSession? = nil
     ) {
         self.photo = photo
         self.lookBook = lookBook
         self.libraryWriter = libraryWriter
+        let restored = savedSession.map(RestoredEditHistory.init) ?? savedEdit.map(RestoredEditHistory.init(single:))
         // The pack's first category, unless a restored Look lives elsewhere.
         // Never a named default: categories are pack data.
-        let restoredLookCategory = savedEdit?.lookID.flatMap { lookID in
+        let restoredLookCategory = restored.flatMap { $0.states[$0.cursor].lookID }.flatMap { lookID in
             lookBook.categories.first { $0.lookIDs.contains(lookID) }?.id
         }
         self.selectedCategoryID = restoredLookCategory ?? lookBook.categories.first?.id
@@ -107,22 +127,48 @@ final class LUTEditorViewModel {
         guard let renderer,
               let session = try? LUTEditSession(
                 photo: photo, autoEnhancer: autoEnhancer, lookBook: lookBook,
-                renderer: renderer, previewLongEdge: previewLongEdge, restoring: savedEdit
+                renderer: renderer, previewLongEdge: previewLongEdge, restoring: restored
               ) else {
             self.phase = .failed(.developFailed)
             return
         }
         self.session = session
-        self.showsLookUnavailableNotice = session.unavailableRestoredLookID != nil
         self.phase = .developing
+        startAuto(on: session)
+    }
+
+    private func startAuto(on session: LUTEditSession) {
         developTask = Task { [weak self] in
             await session.prepareAuto()
             self?.finishDeveloping()
         }
     }
 
+    /// "No model in this build" goes straight to editing with a notice: retrying cannot help.
+    /// A genuine failure stops on Retry / Continue so it is never mistaken for an edited photo.
     private func finishDeveloping() {
         guard !isClosed else { return }
+        if case .unavailable(let reason) = autoAvailability, reason.isRetryableFailure, !hasContinuedWithoutAuto {
+            phase = .autoFailed(reason)
+        } else {
+            phase = .ready
+        }
+    }
+
+    /// Set once the user chose Continue after an Auto failure; Auto then stays off for this photo.
+    private(set) var hasContinuedWithoutAuto = false
+
+    /// Retry after a genuine Auto failure.
+    func retryAuto() {
+        guard case .autoFailed = phase, let session else { return }
+        phase = .developing
+        startAuto(on: session)
+    }
+
+    /// Continue editing without Auto after a genuine failure; the notice says Auto failed.
+    func continueWithoutAuto() {
+        guard case .autoFailed = phase else { return }
+        hasContinuedWithoutAuto = true
         phase = .ready
     }
 
@@ -141,6 +187,16 @@ final class LUTEditorViewModel {
         return false
     }
 
+    /// The Auto notice to show, if any. While a failure waits for Retry/Continue the failure row
+    /// itself explains it, so no separate notice is shown.
+    var autoNotice: AutoNotice? {
+        guard case .unavailable(let reason) = autoAvailability else { return nil }
+        if reason.isRetryableFailure {
+            return phase == .ready ? .failed : nil
+        }
+        return .notInBuild
+    }
+
     var isReady: Bool { phase == .ready }
 
     var categories: [LUTLookCategory] { lookBook.categories }
@@ -154,18 +210,47 @@ final class LUTEditorViewModel {
     }
 
     /// Where the committed Look sits in the selected category; 0 (Auto)
-    /// when there is no Look or it belongs to another category.
+    /// when there is no Look, it belongs to another category, or it is not
+    /// rendered (unavailable or changed: the slider shows what the photo shows).
     var settledStopIndex: Int {
-        guard let selectedCategoryID, let session else { return 0 }
-        return lookBook.stopIndex(of: session.committedState.lookID, inCategory: selectedCategoryID)
+        guard let selectedCategoryID, case .available(let lookID) = lookResolution else { return 0 }
+        return lookBook.stopIndex(of: lookID, inCategory: selectedCategoryID)
     }
 
     /// The slider's position: the dragged stop while moving, else settled.
     var displayedStopIndex: Int { previewedStopIndex ?? settledStopIndex }
 
-    /// The committed Look, for labels and VoiceOver.
+    /// The committed Look while it renders, for labels and VoiceOver. nil for a Look that is
+    /// unavailable or changed: naming it would claim the photo shows it.
     var committedLook: LUTLook? {
-        session?.committedState.lookID.flatMap(lookBook.look(id:))
+        guard case .available(let lookID) = lookResolution else { return nil }
+        return lookBook.look(id: lookID)
+    }
+
+    /// How the committed Look resolves against this pack (spec §4.5).
+    var lookResolution: LookResolution { session?.committedLookResolution ?? .noLook }
+
+    /// Shown for as long as the committed edit carries a Look that is not rendered, so the
+    /// screen (and Save copy, which matches it) is never mistaken for the saved Look.
+    var lookNotice: LookNotice? {
+        switch lookResolution {
+        case .noLook, .available: return nil
+        case .unavailable: return .unavailable
+        case .changed(let lookID, _, _): return .changed(lookName: lookBook.look(id: lookID)?.name ?? lookID)
+        }
+    }
+
+    var canUseCurrentLookVersion: Bool {
+        guard isReady, case .changed = lookResolution else { return false }
+        return true
+    }
+
+    /// "Use current version": a new undoable step; the Look renders from then on.
+    func useCurrentLookVersion() {
+        guard canUseCurrentLookVersion, let session else { return }
+        abandonStopPreview()
+        session.useCurrentLookVersion()
+        editDidChange()
     }
 
     /// True only while an Auto correction is actually applied: Auto is
@@ -194,6 +279,12 @@ final class LUTEditorViewModel {
         categories.first { $0.id == selectedCategoryID }?.label ?? ""
     }
 
+    /// The visible name and position of the displayed stop, e.g. "3 of 5".
+    var stopPositionText: String {
+        guard !stops.isEmpty else { return "" }
+        return String(format: String(localized: "editor.lookSlider.position"), displayedStopIndex + 1, stops.count)
+    }
+
     /// VoiceOver value of the slider, e.g. "Warm, Nordic Tone (10), 3 of 5".
     var sliderAccessibilityValue: String {
         let index = displayedStopIndex
@@ -209,8 +300,37 @@ final class LUTEditorViewModel {
 
     var canUndo: Bool { isReady && (session?.canUndo ?? false) }
 
-    /// Reset to Auto only has something to do while a Look is committed.
-    var canResetToAuto: Bool { isReady && committedLook != nil }
+    var canRedo: Bool { isReady && (session?.canRedo ?? false) }
+
+    /// Reset to Auto has something to do while the edit carries a Look, rendered or not (a
+    /// stale reference can be cleared this way too).
+    var canResetToAuto: Bool { isReady && session?.committedState.lookID != nil }
+
+    // MARK: - Strength
+
+    /// Strength belongs to a rendered Look; with none there is no control (Android parity).
+    var showsStrengthControl: Bool { isReady && committedLook != nil && previewedStopIndex == nil }
+
+    /// The Strength shown: the dragged value while moving, else the committed one.
+    var displayedLookStrength: Float {
+        previewedLookStrength ?? session?.committedState.lookStrength ?? LUTEditState.original.lookStrength
+    }
+
+    /// The Strength control moved: transient preview, not a step.
+    func previewLookStrength(_ strength: Float) {
+        guard showsStrengthControl, let session else { return }
+        let clamped = min(max(strength, 0), 1)
+        previewedLookStrength = clamped
+        session.previewLookStrength(clamped)
+    }
+
+    /// The Strength control was released (or adjusted by VoiceOver): one undo step.
+    func commitLookStrength(_ strength: Float) {
+        guard showsStrengthControl, let session else { return }
+        previewedLookStrength = nil
+        session.setLookStrength(min(max(strength, 0), 1))
+        editDidChange()
+    }
 
     var canSaveCopy: Bool { isReady && saveStatus != .saving }
 
@@ -276,6 +396,13 @@ final class LUTEditorViewModel {
         editDidChange()
     }
 
+    func redo() {
+        guard canRedo, let session else { return }
+        abandonStopPreview()
+        session.redo()
+        editDidChange()
+    }
+
     func resetToAuto() {
         guard canResetToAuto, let session else { return }
         abandonStopPreview()
@@ -287,7 +414,7 @@ final class LUTEditorViewModel {
     /// changes, so it is cleared rather than left to mislead.
     private func editDidChange() {
         if saveStatus == .saved { saveStatus = .idle }
-        showsLookUnavailableNotice = false
+        previewedLookStrength = nil
     }
 
     // MARK: - Compare (spec D10: hold and toggle)

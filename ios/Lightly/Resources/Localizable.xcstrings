@@ -38,6 +38,30 @@
         }
       }
     },
+    "action.continueWithoutAuto": {
+      "comment": "Continues editing without Auto after a genuine failure.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue without Auto"
+          }
+        }
+      }
+    },
+    "action.redo": {
+      "comment": "Redo action label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redo"
+          }
+        }
+      }
+    },
     "action.reset": {
       "comment": "Reset to Auto: removes the Look, keeps Auto. Short visible label.",
       "extractionState": "manual",
@@ -62,6 +86,18 @@
         }
       }
     },
+    "action.retry": {
+      "comment": "Runs Auto again after a genuine failure.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        }
+      }
+    },
     "action.saveCopy": {
       "comment": "Saves the edit as a new photo; the original is never changed.",
       "extractionState": "manual",
@@ -82,6 +118,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Undo"
+          }
+        }
+      }
+    },
+    "action.useCurrentVersion": {
+      "comment": "Button on the 'Look changed' notice. Applies the pack's current version of the Look as a new, undoable step.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use current version"
           }
         }
       }
@@ -232,6 +280,30 @@
         }
       }
     },
+    "editor.auto.failed.notice": {
+      "comment": "Compact notice after the user chose Continue following a genuine Auto failure.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto couldn't be applied to this photo."
+          }
+        }
+      }
+    },
+    "editor.auto.failed.title": {
+      "comment": "Shown with Retry and Continue when Auto genuinely failed (not when no model ships).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto couldn't analyse this photo."
+          }
+        }
+      }
+    },
     "editor.auto.unavailable.notice": {
       "comment": "Shown while no Auto model is bundled. Must not imply the photo was enhanced.",
       "extractionState": "manual",
@@ -280,6 +352,18 @@
         }
       }
     },
+    "editor.lookSlider.position": {
+      "comment": "Position of the selected stop on the Look slider, e.g. '3 of 5'. Shown after the preset name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
     "editor.lookSlider.value": {
       "comment": "VoiceOver value of the Look slider: category label, stop name, stop number, stop count. E.g. \"Warm, Nordic Tone (10), 3 of 5\".",
       "extractionState": "manual",
@@ -300,6 +384,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Looks are approximate conversions, not yet checked against Lightroom."
+          }
+        }
+      }
+    },
+    "editor.looks.changed.notice": {
+      "comment": "Notice: a restored edit's Look exists in this build but with a different version (spec 4.5). %@ is the preset name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” has changed since this edit, so it isn't applied."
           }
         }
       }
@@ -364,6 +460,18 @@
         }
       }
     },
+    "editor.photo.originalBadge": {
+      "comment": "Badge on the photo while Compare shows the original.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original"
+          }
+        }
+      }
+    },
     "editor.save.failed": {
       "comment": "VoiceOver announcement when Save copy fails; the reason is shown on screen.",
       "extractionState": "manual",
@@ -420,6 +528,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Original"
+          }
+        }
+      }
+    },
+    "editor.strength.label": {
+      "comment": "Label of the optional Strength control for the applied Look.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
+          }
+        }
+      }
+    },
+    "editor.strength.value": {
+      "comment": "Strength as a percentage, e.g. '80%'.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%%"
           }
         }
       }

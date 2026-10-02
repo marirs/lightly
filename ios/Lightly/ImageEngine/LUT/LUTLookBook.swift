@@ -57,6 +57,25 @@ struct LUTLookCategory: Identifiable, Equatable, Sendable {
     let lookIDs: [String]
 }
 
+/// How an edit's Look reference relates to the installed pack (spec §4.5).
+enum LookResolution: Equatable, Sendable {
+    /// The edit has no Look.
+    case noLook
+    /// Same ID and version: the Look renders.
+    case available(lookID: String)
+    /// The pack has no Look with this ID. Renders without it; the reference is kept.
+    case unavailable(lookID: String)
+    /// The pack has the ID under another version (its LUT changed, or the edit was migrated from
+    /// schema 1). Renders without it until the user chooses "Use current version".
+    case changed(lookID: String, savedVersion: String, currentVersion: String)
+
+    /// Only an exact match is rendered (and exported).
+    var rendersLook: Bool {
+        if case .available = self { return true }
+        return false
+    }
+}
+
 /// The Looks available to the LUT editor. Lookup is exact (spec §4.5): an
 /// unknown ID is unavailable, never substituted.
 struct LUTLookBook: Sendable {
@@ -75,6 +94,19 @@ struct LUTLookBook: Sendable {
 
     func look(id: String) -> LUTLook? {
         looks.first { $0.id == id }
+    }
+
+    /// Resolves a Look reference (ID + the pack version it was saved with) against this pack
+    /// (shared/fixtures/edit-state/README.md). Exact matches only: a missing ID is unavailable and
+    /// a different version is changed; neither is ever answered with another Look.
+    func resolve(lookID: String?, version: String?) -> LookResolution {
+        guard let lookID else { return .noLook }
+        guard let look = look(id: lookID) else { return .unavailable(lookID: lookID) }
+        // A missing version cannot prove it is the current LUT, so it is treated as changed.
+        guard let version, version == look.version else {
+            return .changed(lookID: lookID, savedVersion: version ?? "", currentVersion: look.version)
+        }
+        return .available(lookID: lookID)
     }
 
     /// Stops 1…n of a category, in slider order. Unknown IDs are skipped

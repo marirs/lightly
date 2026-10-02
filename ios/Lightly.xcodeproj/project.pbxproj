@@ -49,9 +49,11 @@
 		28ACD849AF6D1DD7B576EB8F /* ExportColorPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4765D240C1C6B67BBBF6D211 /* ExportColorPipelineTests.swift */; };
 		2C19E196DEDEA053146A440A /* ControlChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E2FC6144CED7C87AECBD10 /* ControlChrome.swift */; };
 		2ECC75AADE07E1136A307E0C /* ExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7772E8B98209919C954C1C84 /* ExportTests.swift */; };
+		2F5A74876359FE0737DD582D /* EditorBehaviourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35CD9DF378AEA3A24E98B04F /* EditorBehaviourTests.swift */; };
 		30162224FFB813EFA1BC78D6 /* PhotoSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FC5B0784F57C993811BC60 /* PhotoSource.swift */; };
 		316B4EBEE82918E23E722AF3 /* LaunchLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03815F13274BE819399B6135 /* LaunchLayoutTests.swift */; };
 		3556EAEA8BC1C31E06D2729C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60273B07655FC75C3E4C4360 /* AppState.swift */; };
+		382F2D90404E5FE230646088 /* SavedEditRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF3031F369CD9957958C1D51 /* SavedEditRestoreTests.swift */; };
 		38BF8F0314F53E76CD43CD5C /* LightlyError+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00A322BB6B4F2DE9741FDC26 /* LightlyError+Presentation.swift */; };
 		3A3E50C5F99E850A6280B21A /* LUTLookBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4562B4E7907855E7A82EC02 /* LUTLookBook.swift */; };
 		3AAA7B9ACF86F5BEA5DFE620 /* LUTEditSession+Export.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D28160B384E6D12A35A7FC7 /* LUTEditSession+Export.swift */; };
@@ -200,6 +202,7 @@
 		2E914E9E5E062EE6588DA665 /* PresetCatalogLoadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetCatalogLoadingTests.swift; sourceTree = "<group>"; };
 		33F06B60ADDC5BA3C755A99F /* EditorFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFixtures.swift; sourceTree = "<group>"; };
 		35BE71B0D623CB01C0D3E079 /* AutoEnhancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoEnhancer.swift; sourceTree = "<group>"; };
+		35CD9DF378AEA3A24E98B04F /* EditorBehaviourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorBehaviourTests.swift; sourceTree = "<group>"; };
 		36C7D6A77D28F78630D1A2BD /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		36E3C386A1FA473C368713F4 /* LayoutProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutProbe.swift; sourceTree = "<group>"; };
 		389649D93331FEC5D49ED2BE /* EditHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditHistory.swift; sourceTree = "<group>"; };
@@ -258,6 +261,7 @@
 		A9F8E94ACEB56F48AC8352A1 /* LayoutAnchor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutAnchor.swift; sourceTree = "<group>"; };
 		A9FE8BA8FCBFBB9BAC04F50A /* LightlyPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyPreset.swift; sourceTree = "<group>"; };
 		ADA7F3DD90E84FEC19D1DB17 /* AnalysingDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysingDeveloper.swift; sourceTree = "<group>"; };
+		AF3031F369CD9957958C1D51 /* SavedEditRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedEditRestoreTests.swift; sourceTree = "<group>"; };
 		B115D05D2FDF3DE96E0F6D3C /* EditorPanelControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPanelControls.swift; sourceTree = "<group>"; };
 		B701BCDE146455B7448BDFA1 /* ControlContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlContrastTests.swift; sourceTree = "<group>"; };
 		BAE9214BBAE723CD04BB2700 /* CameraCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCaptureView.swift; sourceTree = "<group>"; };
@@ -417,6 +421,7 @@
 				B701BCDE146455B7448BDFA1 /* ControlContrastTests.swift */,
 				6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */,
 				FCCAFE13D807284DF5125AA1 /* EditHistoryTests.swift */,
+				35CD9DF378AEA3A24E98B04F /* EditorBehaviourTests.swift */,
 				8F1A4D1445668375EF949618 /* EditorLayoutTests.swift */,
 				16CDBE2FA72A1F834B4F6E3B /* EditorSnapshotTests.swift */,
 				4765D240C1C6B67BBBF6D211 /* ExportColorPipelineTests.swift */,
@@ -446,6 +451,7 @@
 				38A65CD47975A752738D3F1F /* RenderCacheIdentityTests.swift */,
 				A6DAB9C6D7730E8B0FD6DB61 /* RenderSchedulingTests.swift */,
 				9AFFE5A4360CB9EDA5681707 /* SavedEditFormatTests.swift */,
+				AF3031F369CD9957958C1D51 /* SavedEditRestoreTests.swift */,
 				0E39DBA313FDA5228CD78349 /* SheetControlContrastTests.swift */,
 				D217669F870E951BD92C014A /* SnapshotEnvironmentTests.swift */,
 				85E2C7356941352ABD05F0F7 /* SourceSheetLayoutTests.swift */,
@@ -927,6 +933,7 @@
 				6D26C71C7DA23615F20A3D04 /* ControlContrastTests.swift in Sources */,
 				ABF41ACB403B2485A5C75CB9 /* DeferredWorkTests.swift in Sources */,
 				C1AD858A08E66B18572CCA72 /* EditHistoryTests.swift in Sources */,
+				2F5A74876359FE0737DD582D /* EditorBehaviourTests.swift in Sources */,
 				1CD13DACEEF728B0299C99B4 /* EditorFixtures.swift in Sources */,
 				0782C503DF1FCF2BAF62F741 /* EditorLayoutTests.swift in Sources */,
 				9CDF5D9AC254EEEB958747EA /* EditorSnapshotTests.swift in Sources */,
@@ -959,6 +966,7 @@
 				DC76441DB4FDD6CBF6462C40 /* RenderCacheIdentityTests.swift in Sources */,
 				BBF12BA965DBD434F28F0EB4 /* RenderSchedulingTests.swift in Sources */,
 				72C880C25C9B5B5F8A905479 /* SavedEditFormatTests.swift in Sources */,
+				382F2D90404E5FE230646088 /* SavedEditRestoreTests.swift in Sources */,
 				D4A16C00C365112BD3111818 /* SheetControlContrastTests.swift in Sources */,
 				AAF610509B2E837FB28CA666 /* SnapshotAssertion.swift in Sources */,
 				228FFCD1BC0744D1F47D9682 /* SnapshotEnvironment.swift in Sources */,

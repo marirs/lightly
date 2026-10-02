@@ -189,16 +189,18 @@ final class LookPackEditorTests: XCTestCase {
 
         XCTAssertEqual(restored.committedLook?.id, "look-b")
         XCTAssertEqual(try XCTUnwrap(restored.session).committedState, saved)
-        XCTAssertFalse(restored.showsLookUnavailableNotice)
+        XCTAssertNil(restored.lookNotice)
         XCTAssertEqual(restored.selectedCategoryID, "cat-other", "Opens on the category that holds the Look")
         XCTAssertEqual(restored.settledStopIndex, 2)
         XCTAssertTrue(try MetalLUTRenderer.rgba8Bytes(of: restored.displayedImage)
                       == MetalLUTRenderer.rgba8Bytes(of: original.displayedImage), "Same Look, same pixels")
     }
 
-    /// Spec §4.5: an unknown ID becomes "Look unavailable" and falls back to
-    /// Auto with a visible notice; nothing is substituted.
-    func testAnUnknownLookIDFallsBackToAutoWithANotice() async throws {
+    /// Spec §4.5: an unknown ID becomes "Look unavailable": the photo renders
+    /// without it and a notice says so; nothing is substituted and the saved
+    /// reference is kept (shared/fixtures/edit-state/README.md).
+    // v3 differs: the reference used to be dropped from the restored state.
+    func testAnUnknownLookIDRendersWithoutTheLookWithANotice() async throws {
         var saved = LUTEditState.original
         saved.lookID = "no-such-look-000000"
         saved.lookVersion = "000000000000"
@@ -207,13 +209,13 @@ final class LookPackEditorTests: XCTestCase {
         let session = try XCTUnwrap(viewModel.session)
 
         XCTAssertNil(viewModel.committedLook)
-        XCTAssertNil(session.committedState.lookID)
-        XCTAssertTrue(viewModel.showsLookUnavailableNotice)
+        XCTAssertEqual(session.committedState, saved, "The saved LookRef is kept unchanged")
+        XCTAssertEqual(viewModel.lookNotice, .unavailable)
         XCTAssertEqual(session.history.count, 1)
         XCTAssertTrue(try MetalLUTRenderer.rgba8Bytes(of: viewModel.displayedImage) == session.previewBase.pixels,
                       "Auto (unavailable here) means the original pixels")
 
         viewModel.settleStop(1)
-        XCTAssertFalse(viewModel.showsLookUnavailableNotice, "Choosing a Look answers the notice")
+        XCTAssertNil(viewModel.lookNotice, "Choosing a Look answers the notice")
     }
 }

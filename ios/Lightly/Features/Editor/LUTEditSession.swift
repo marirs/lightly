@@ -22,6 +22,48 @@ struct LUTEditState: Equatable, Sendable {
     static let original = LUTEditState()
 }
 
+/// A history to start a session from: states, their revisions and the cursor.
+struct RestoredEditHistory: Equatable, Sendable {
+    let states: [LUTEditState]
+    let revisions: [Int64]
+    let cursor: Int
+    let lastIssuedRevision: Int64
+
+    /// A single committed edit (no undo history), at revision 0.
+    init(single state: LUTEditState) {
+        states = [state]
+        revisions = [0]
+        cursor = 0
+        lastIssuedRevision = 0
+    }
+
+    /// A saved schema 2 session. The decoder has already enforced its invariants (non-empty,
+    /// cursor in range, revisions not ahead of the counter).
+    init(_ saved: SavedEditSession) {
+        var states = saved.entries.map { entry in
+            LUTEditState(
+                autoStrength: entry.auto.strength,
+                lookID: entry.look?.lookId,
+                lookVersion: entry.look?.lookVersion,
+                lookStrength: entry.look?.strength ?? LUTEditState.original.lookStrength
+            )
+        }
+        var revisions = saved.entries.map(\.revision)
+        var cursor = saved.cursor
+        // A session saved with a larger cap keeps its newest entries, as committing would.
+        let overflow = states.count - LUTEditSession.historyCapacity
+        if overflow > 0 {
+            states.removeFirst(overflow)
+            revisions.removeFirst(overflow)
+            cursor = max(cursor - overflow, 0)
+        }
+        self.states = states
+        self.revisions = revisions
+        self.cursor = cursor
+        self.lastIssuedRevision = saved.lastIssuedRevision
+    }
+}
+
 /// Whether Auto can be used for this photo.
 enum AutoAvailability: Equatable, Sendable {
     case pending
@@ -43,7 +85,7 @@ extension MetalLUTRenderer: LUTRendering {}
 ///
 /// Preview: a display-sized copy of the decoded original, rendered through
 /// the shared latest-wins scheduler. Auto: computed once from the ≤1024
-/// analysis proxy. Undo/Reset walk a stack of `LUTEditState`s; Compare shows
+/// analysis proxy. Undo/Redo/Reset walk a stack of `LUTEditState`s; Compare shows
 /// the original preview. Export re-renders the full-resolution original
 /// with the same passes (see `LUTEditSession+Export`).
 ///
@@ -65,16 +107,27 @@ final class LUTEditSession {
     static let historyCapacity = 50
 
     private(set) var history: [LUTEditState] = [.original]
-    /// The Look a restored edit referred to that this pack does not have.
-    /// Spec §4.5: shown as "Look unavailable", replaced by Auto, never by a
-    /// similar-looking substitute.
-    private(set) var unavailableRestoredLookID: String?
+    /// Commit counter of each `history` entry (EditState `revision`). Kept beside the states
+    /// rather than inside them so that "is this a change?" compares edits, not counters.
+    private(set) var historyRevisions: [Int64] = [0]
+    /// Monotonic across the session, including after undo-then-commit (Android
+    /// `EditSession.lastIssuedRevision`), so it is stored rather than derived from the stack.
+    private(set) var lastIssuedRevision: Int64 = 0
     private(set) var historyIndex = 0
     /// Renders that reached the screen (diagnostic for latest-wins tests).
     private(set) var publishedRenderCount = 0
 
     var committedState: LUTEditState { history[historyIndex] }
     var canUndo: Bool { historyIndex > 0 }
+    var canRedo: Bool { historyIndex < history.count - 1 }
+
+    /// How the committed Look relates to the pack. Anything but `.available` renders (and
+    /// exports) without the Look while the reference itself is kept (spec §4.5).
+    var committedLookResolution: LookResolution { resolution(of: committedState) }
+
+    func resolution(of state: LUTEditState) -> LookResolution {
+        lookBook.resolve(lookID: state.lookID, version: state.lookVersion)
+    }
     var displayedImage: CGImage { isShowingOriginal ? previewOriginal : renderedImage }
 
     let lookBook: LUTLookBook
@@ -94,7 +147,7 @@ final class LUTEditSession {
         lookBook: LUTLookBook,
         renderer: any LUTRendering,
         previewLongEdge: Int = 1_290,
-        restoring savedEdit: LUTEditState? = nil
+        restoring savedHistory: RestoredEditHistory? = nil
     ) throws {
         guard let preview = AnalysisProxy.downscaled(photo.image, maximumLongEdge: previewLongEdge) else {
             throw LightlyError.developFailed
@@ -114,34 +167,24 @@ final class LUTEditSession {
             )
             return try MetalLUTRenderer.makeImage(rgba8: output, width: base.1, height: base.2)
         }
-        if let savedEdit { restore(savedEdit) }
+        if let savedHistory { restore(savedHistory) }
     }
 
-    /// Starts from a saved edit instead of the original.
+    /// Starts from a saved history instead of the original.
     ///
-    /// The Look is resolved by ID only; an unknown ID falls back to "no
-    /// Look" (Auto) and is remembered so the editor can say so.
-    // DEFERRED: a known ID whose `lookVersion` differs (the pack rebuilt that
-    // Look's LUT) replays the current LUT and records the current version.
-    // Telling the user the Look changed is a product decision for the
-    // recovery-snapshot work (spec §5.5, M4).
+    /// The states are taken exactly as saved: a Look that is missing from the pack or whose
+    /// version changed keeps its reference and simply does not render (`passes(for:)`), so the
+    /// editor can say so and nothing is substituted (shared/fixtures/edit-state/README.md).
+    /// v3 differs: the earlier restore dropped an unknown Look ID and silently replayed the
+    /// current LUT for a changed version.
     // DEFERRED: Auto strength is restored as saved, but Auto is only applied
     // once `prepareAuto()` makes it available; no model ships in this build.
-    private func restore(_ savedEdit: LUTEditState) {
-        var state = savedEdit
-        if let lookID = savedEdit.lookID {
-            if let look = lookBook.look(id: lookID) {
-                state.lookVersion = look.version
-            } else {
-                unavailableRestoredLookID = lookID
-                state.lookID = nil
-                state.lookVersion = nil
-                state.lookStrength = LUTEditState.original.lookStrength
-            }
-        }
-        history = [state]
-        historyIndex = 0
-        render(state)
+    private func restore(_ saved: RestoredEditHistory) {
+        history = saved.states
+        historyRevisions = saved.revisions
+        lastIssuedRevision = saved.lastIssuedRevision
+        historyIndex = saved.cursor
+        render(committedState)
     }
 
     // MARK: - Auto
@@ -149,7 +192,7 @@ final class LUTEditSession {
     /// Computes the Auto LUT from the analysis proxy (never the preview).
     func prepareAuto() async {
         guard let proxy = try? AnalysisProxy.make(from: photo) else {
-            autoAvailability = .unavailable(.invalidBasis)
+            autoAvailability = .unavailable(.analysisFailed)
             return
         }
         switch await autoEnhancer.autoLUT(forAnalysisProxy: proxy) {
@@ -213,11 +256,43 @@ final class LUTEditSession {
         render(committedState)
     }
 
+    /// Previews a Strength for the committed Look while the control is dragged; not a step.
+    func previewLookStrength(_ strength: Float) {
+        guard committedLookResolution.rendersLook else { return }
+        var candidate = committedState
+        candidate.lookStrength = min(max(strength, 0), 1)
+        render(candidate)
+    }
+
+    /// Commits a Strength for the committed Look (control released): one undo step. Without a
+    /// rendered Look there is no Strength to set (Android `setLookStrength`).
+    func setLookStrength(_ strength: Float) {
+        guard committedLookResolution.rendersLook else { return }
+        var next = committedState
+        next.lookStrength = min(max(strength, 0), 1)
+        commit(next)
+    }
+
+    /// "Use current version" for a changed Look: one undoable step that records the pack's
+    /// current version, after which the Look renders. Nothing happens for any other resolution.
+    func useCurrentLookVersion() {
+        guard case .changed(_, _, let currentVersion) = committedLookResolution else { return }
+        var next = committedState
+        next.lookVersion = currentVersion
+        commit(next)
+    }
+
     // MARK: - History and Compare
 
     func undo() {
         guard canUndo else { return }
         historyIndex -= 1
+        render(committedState)
+    }
+
+    func redo() {
+        guard canRedo else { return }
+        historyIndex += 1
         render(committedState)
     }
 
@@ -254,7 +329,10 @@ final class LUTEditSession {
             return
         }
         history.removeSubrange((historyIndex + 1)...)
+        historyRevisions.removeSubrange((historyIndex + 1)...)
+        lastIssuedRevision += 1
         history.append(state)
+        historyRevisions.append(lastIssuedRevision)
         dropEntriesBeyondCapacity()
         historyIndex = history.count - 1
         render(state)
@@ -268,6 +346,27 @@ final class LUTEditSession {
         let overflow = history.count - Self.historyCapacity
         guard overflow > 0 else { return }
         history.removeFirst(overflow)
+        historyRevisions.removeFirst(overflow)
+    }
+
+    // MARK: - Saved session
+
+    /// The history as EditState schema 2 (`SavedEditSession`), for persisting.
+    ///
+    /// `source` and `auto` describe the Original and the Auto result, which the session does not
+    /// own; each entry's Auto strength comes from that entry.
+    func savedSession(source: SavedSourceRef, auto: SavedAutoResult) -> SavedEditSession {
+        let entries = zip(history, historyRevisions).map { state, revision in
+            var entryAuto = auto
+            entryAuto.strength = state.autoStrength
+            let look = state.lookID.map {
+                SavedLookRef(lookId: $0, lookVersion: state.lookVersion ?? "", strength: state.lookStrength)
+            }
+            return SavedEditState(source: source, auto: entryAuto, look: look, revision: revision)
+        }
+        return SavedEditSession(
+            entries: entries, cursor: historyIndex, capacity: Self.historyCapacity, lastIssuedRevision: lastIssuedRevision
+        )
     }
 
     // MARK: - Passes
@@ -279,7 +378,9 @@ final class LUTEditSession {
         if let autoLUT, state.autoStrength > 0 {
             passes.append(autoLUT.blendedTowardIdentity(strength: state.autoStrength))
         }
-        if let id = state.lookID, let look = lookBook.look(id: id), state.lookStrength > 0 {
+        // Only an exact ID + version match renders; an unavailable or changed Look is left out of
+        // the preview and therefore of Save copy, which uses these same passes.
+        if case .available(let id) = resolution(of: state), let look = lookBook.look(id: id), state.lookStrength > 0 {
             passes.append(look.lut.blendedTowardIdentity(strength: state.lookStrength))
         }
         return passes

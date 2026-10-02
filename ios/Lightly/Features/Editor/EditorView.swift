@@ -125,6 +125,8 @@ struct EditorView: View {
                 LookControls(viewModel: viewModel)
                 EditActions(viewModel: viewModel)
                 SaveCopyStatusLine(status: viewModel.saveStatus)
+            case .autoFailed:
+                developingRow
             case .failed(let error):
                 failureRow(error)
             }

@@ -280,7 +280,7 @@ struct EditorNotices: View {
                 notice(symbol: "wand.and.stars.inverse", messageKey: "editor.auto.unavailable.notice",
                        identifier: "editor.autoUnavailableNotice")
             }
-            if viewModel.showsLookUnavailableNotice {
+            if viewModel.lookNotice == .unavailable {
                 notice(symbol: "exclamationmark.triangle", messageKey: "editor.looks.unavailable.notice",
                        identifier: "editor.lookUnavailableNotice")
             }
