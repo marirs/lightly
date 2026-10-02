@@ -411,3 +411,49 @@ Both APKs built, and both launcher-icon checks passed. Log: `logs/final-gradle-r
   - the recovery snapshot written on every commit, with its "Continue editing?" UX (M4);
   - loading the pack off the main thread.
 - The created AVDs `Lightly_Pixel_Tablet` and `Lightly_Pixel_9_Pro_Fold` are kept for re-runs. Delete them with `avdmanager delete avd -n <name>`.
+
+### 9.9 Codex review of `d5690dd`: Strength rule, Save copy, layout by photo area
+
+Worked directly on `master`. Evidence is in `~/.codex/artifacts/lightly/review-d5690dd-fixes/android/` (`failing-before/`, `apk-checks/`, `logs/`, `screens/`).
+
+**Strength (agreed rule, both platforms; replaces "strength carries over", v3 differs).** `EditorViewModel.lookAtStop`:
+- settling on the stop that is already committed returns the committed `LookRef`, so `EditSession` records nothing: Strength, history and redo stay, only the transient preview ends;
+- any other preset, previewed or committed, is its designed look at 100%, one undo step;
+- Undo / Redo restore Strength as committed, Reset is one undoable step, Strength commits on release only.
+"Already committed" is the same `lookId` **and** `lookVersion`. A changed Look (older version) does not render and the slider shows stop 0 for it, so picking its stop applies the pack's current version at 100%, as an explicit choice. Review repro test: A → Strength 40% → preview B (shown at 100%) → settle on A ⇒ 40%, session unchanged. Failing before: 4 of 7 new tests (`failing-before/strength-rule.txt`).
+
+**Save copy is pinned.** The panel is a scrolling area (`weight(1f, fill = false)`) followed by Save copy, so Strength or extra notices can no longer push it below the visible panel. `EditorScreenTest` asserts it lies wholly inside the panel and the window, without scrolling, with Strength and every notice shown: compact portrait at font 1.0 and 2.0, phone landscape at 2.0, tablet portrait at 2.0, tablet landscape, book posture at 2.0. Failing before: compact portrait 1.0 and phone landscape 2.0 (`failing-before/save-copy-visible.txt`).
+
+**Layout by displayed photo area (replaces the size-class rule of §9.3 #2, v3 differs).** `EditorLayoutPolicy.decide(…, photoAspectRatio)` fits the photo (aspect from the upright preview; 4:3 until it decodes) into the box each placement leaves and takes the larger area; ties go to controls below. The stacked panel is counted at its cap, which is conservative. Minimums:
+- a stacked panel under 280 dp (phone landscape) is not offered;
+- a portrait window under 533 dp never gets a side panel (320 dp panel and 40% photo);
+- the stacked photo keeps ≥ 40% at large text;
+- a separating hinge decides first (book: photo in one pane; tabletop: photo above), so the photo never crosses it.
+
+| Window (dp) | Landscape 3:2 photo | Portrait 2:3 photo |
+|---|---|---|
+| Phone portrait 412×860 | below | below |
+| Phone landscape 860×412 | side | side |
+| Tablet portrait 800×1230 | below | below (492×738 vs 480×720); a 9:21 photo goes side |
+| Tablet landscape 1280×750 | side | side; a 4:1 panorama goes below |
+| Foldable flat 852×860 | below (may span the flat fold) | side |
+| Foldable book posture | side, photo in the left pane | same |
+
+Failing before (old rule behind the new API): 4 policy tests (`failing-before/layout-by-photo-area.txt`). The now unused `window-core` dependency was removed.
+
+**Tests:** 246, 0 failures (app 115, core-render 43, core-session 31, core-export 28, core-model 17, core-decode 12). Both APKs built and both launcher-icon checks passed. Both APKs carry `assets/lookpack/manifest.json` format 2 with 18 LUTs, byte-identical to `experiments/presets/look_pack/out`, and no model, basis or ONNX file (`apk-checks/`).
+
+**Emulators** (emulator-only, debug APK, `-read-only` AVDs, `landscape_03.jpg` 3000×2000; one AVD at a time; UI dumps in `logs/`, crash buffers empty):
+
+| Device / state | Result | Evidence (`screens/`) |
+|---|---|---|
+| Pixel_9_Pro portrait, font 1.0, Warm → Earthy Wedding Tone (6), Strength 40% | Save copy 2604–2748 px inside the panel (1733–2784), visible without scrolling | `01-…png` |
+| Same, drag stop 1 → stop 2 (finger down) | Photo: "Nordic Tone (10) at 100 percent" | `02a-…png` |
+| Drag back to stop 1, release | "Earthy Wedding Tone (6) at 40 percent". One Undo returns to the same preset at 100% (the step before Strength), so the return added no step; Redo → 40% | `02b-…png`, `02c-…png` |
+| Pixel_9_Pro portrait, font 2.0 | Photo 156–1260 px (42% of the height); Save copy 2588–2748 visible | `03-…png` |
+| Lightly_Pixel_Tablet landscape | Side panel 1800–2560 px (380 dp) | `04-…png` |
+| Lightly_Pixel_Tablet portrait, landscape photo | Controls below; photo full width (1600 px), panel 1548–2496 | `05-…png` |
+| Lightly_Pixel_9_Pro_Fold unfolded flat, landscape photo | Controls below; photo 0–2076 × 136–1299 px | `06-…png` |
+| Same, book posture (`adb emu posture 2`) | Photo 0–1038 px, panel 1038–2076 px: photo stays left of the hinge | `07-…png` |
+
+While a different preset is previewed during a drag, the Strength label still shows the committed value (40%) rather than the preview's 100%. The photo shows the preview correctly; the label follows the committed Look by design (Strength belongs to it), noted for the design review.
