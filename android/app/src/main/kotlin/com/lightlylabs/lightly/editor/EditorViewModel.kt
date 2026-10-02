@@ -67,7 +67,10 @@ data class EditorUiState(
     val session: EditSession? = null,
     /** Transient preview while a slider moves (spec §3). Never in history, never persisted. */
     val transientPreview: EditState? = null,
+    /** The Compare toggle (persisted). */
     val compareOn: Boolean = false,
+    /** A finger is holding the photo (transient, never persisted). */
+    val compareHeld: Boolean = false,
     /**
      * The selected category's opaque pack id (never its label, which may change between packs);
      * `null` only when the build has no Looks.
@@ -83,6 +86,9 @@ data class EditorUiState(
     val lookIssue: LookIssue? = null,
     val save: SaveStatus = SaveStatus.Idle,
 ) {
+    /** The photo shows the Original (toggle or hold); the screen labels it "Original" on the photo. */
+    val showsOriginal: Boolean get() = compareOn || compareHeld
+
     /** What the photo area shows: the transient preview if any, else the committed state. */
     val displayed: EditState? get() = transientPreview ?: session?.current
 }
@@ -185,6 +191,16 @@ class EditorViewModel(
     /** Slider position (0 = no Look) of the displayed Look within the selected category. */
     val stopIndex: Int
         get() = state.value.selectedCategory?.let { env.lookBook.stopIndexOf(it, state.value.displayed?.look) } ?: 0
+
+    /**
+     * The selected stop's name and position among all stops, e.g. "Nordic Tone (10) · 3 of 5". It
+     * follows the displayed state, so while a finger is on the slider it names what the photo shows.
+     */
+    fun stopCaption(categoryId: String): String {
+        val names = sliderStopNames(categoryId)
+        val index = env.lookBook.stopIndexOf(categoryId, state.value.displayed?.look).coerceIn(0, names.lastIndex)
+        return "${names[index]} · ${index + 1} of ${names.size}"
+    }
 
     /** "Film look Portra at 80 percent", for the photo's accessibility label (spec §6). */
     fun describeLook(look: LookRef): String {
@@ -399,6 +415,21 @@ class EditorViewModel(
 
     fun redo() = updateSession { it.redo() }
 
+    /** Reset drops the Look; with no Look there is nothing to reset, so the control is disabled. */
+    val canReset: Boolean get() = state.value.session?.current?.look != null
+
+    /**
+     * Press-and-hold on the photo (spec §2.6). Independent of the Compare toggle: releasing returns to
+     * whatever the toggle shows. Not persisted, because a finger on the glass does not survive a
+     * configuration change or process death.
+     */
+    fun holdCompare(held: Boolean) {
+        if (state.value.compareHeld == held) return
+        state.update { it.copy(compareHeld = held) }
+        requestPreview()
+    }
+
+    /** The Compare toggle: persisted with the session (spec §5.5 keeps compare state). */
     fun setCompare(on: Boolean) {
         savedState[KEY_COMPARE] = on
         state.update { it.copy(compareOn = on) }
@@ -465,7 +496,7 @@ class EditorViewModel(
     private fun requestPreview() {
         val current = state.value
         val displayed = current.displayed ?: return
-        val plan = planFor(displayed, current.compareOn)
+        val plan = planFor(displayed, current.showsOriginal)
         scheduler?.submit(plan)
     }
 

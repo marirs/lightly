@@ -42,6 +42,23 @@ object FixtureLookPack {
         Category("cat-mono", "Mono", listOf(validatedStop("vintage-f6", "Vintage Flim Tone (7)", 6))),
     )
 
+    /**
+     * The real catalog's shape: its 5 categories, 18 preset names verbatim and their lookIds, in
+     * browse order (experiments/presets/look_pack/README.md). Only the LUTs are fixture formulas, so
+     * UI tests run without the git-ignored pack. Labels are provisional in the pack too.
+     */
+    val catalogShapedCategories: List<Category> = run {
+        var tint = 0
+        fun stop(lookId: String, name: String) = Stop(lookId, name, ++tint % 9)
+        listOf(
+            Category("cat-natural", "Natural", listOf(stop("s1-vibes-6de3bf", "S1 - Vibes"), stop("s7-retro-mood-155d3d", "S7 - Retro Mood"), stop("portrait-1-2e3940", "Portrait-1"), stop("08-f77c4a", "08"))),
+            Category("cat-warm", "Warm", listOf(stop("earthy-wedding-tone-6-8813aa", "Earthy Wedding Tone (6)"), stop("nordic-tone-10-7b6a3a", "Nordic Tone (10)"), stop("adventure-tone-3-afb354", "Adventure Tone (3)"), stop("golden-hour-9-26b448", "Golden Hour 9"))),
+            Category("cat-cool", "Cool", listOf(stop("cinematic-light-tone-11-a047f9", "Cinematic Light Tone (11)"), stop("old-street-4-3070c8", "Old Street-4"), stop("black-paris-tone-11-a01dc1", "Black Paris Tone (11)"))),
+            Category("cat-film", "Film", listOf(stop("retro-wedding-tone-15-aa27b2", "Retro Wedding Tone (15)"), stop("rainy-tone-10-faf297", "Rainy Tone (10)"), stop("t2-8d51bb", "T2"), stop("c4-teals-004c94", "C4 - Teals"))),
+            Category("cat-mono", "Mono", listOf(stop("vintage-flim-tone-7-e96e54", "Vintage Flim Tone (7)"), stop("03-black-and-white-03-d5341f", "03 Black and White 03"), stop("11-black-and-white-11-f6f246", "11 Black and White 11"))),
+        )
+    }
+
     /** A Lightroom-HALD Look with nothing omitted and both validations passed: the only `validated` kind. */
     fun validatedStop(lookId: String, name: String, tint: Int) = Stop(
         lookId, name, tint, lutSource = "lightroom-hald", status = "validated", globalColour = "validated", fullRecipe = "validated", omittedOperators = emptyList(),

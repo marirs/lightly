@@ -6,7 +6,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.geometry.Rect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.window.layout.FoldingFeature
+import androidx.window.layout.WindowInfoTracker
+import com.lightlylabs.lightly.editor.WindowHinge
+import kotlinx.coroutines.flow.map
 import com.lightlylabs.lightly.editor.AndroidEditorEnvironment
 import com.lightlylabs.lightly.editor.EditorEnvironment
 import com.lightlylabs.lightly.editor.EditorScreen
@@ -16,11 +23,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val environment = AppGraph.editorEnvironment(this)
+        // Folds and hinges (spec §6): book / tabletop posture must never put the photo across the hinge.
+        val hinges = WindowInfoTracker.getOrCreate(this).windowLayoutInfo(this).map { info ->
+            info.displayFeatures.filterIsInstance<FoldingFeature>().map { fold ->
+                WindowHinge(
+                    boundsInWindowPx = Rect(fold.bounds.left.toFloat(), fold.bounds.top.toFloat(), fold.bounds.right.toFloat(), fold.bounds.bottom.toFloat()),
+                    isVertical = fold.orientation == FoldingFeature.Orientation.VERTICAL,
+                    separatesContent = fold.isSeparating || fold.state == FoldingFeature.State.HALF_OPENED,
+                )
+            }
+        }
         setContent {
             MaterialTheme {
                 Surface {
                     val editor: EditorViewModel = viewModel(factory = EditorViewModel.factory(environment))
-                    EditorScreen(editor)
+                    val currentHinges by hinges.collectAsStateWithLifecycle(initialValue = emptyList())
+                    EditorScreen(editor, currentHinges)
                 }
             }
         }

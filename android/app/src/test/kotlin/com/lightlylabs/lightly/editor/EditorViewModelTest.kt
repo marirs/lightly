@@ -452,6 +452,72 @@ class EditorViewModelTest {
         assertContentEquals(render(display, expectedAutoLut, 0.8f, mono), vm.previewPixels())
     }
 
+    @Test
+    fun `holding the photo shows the original and releasing returns to the Compare toggle's state`() = runTest {
+        val vm = readyViewModel()
+        val mono = lookBook.stops("cat-mono")[0].ref()
+        vm.commitLook(mono)
+        advanceUntilIdle()
+        val edited = render(display, expectedAutoLut, 0.8f, mono)
+
+        vm.holdCompare(true)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.showsOriginal)
+        assertContentEquals(display.pixels, vm.previewPixels())
+        vm.holdCompare(false)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.showsOriginal)
+        assertContentEquals(edited, vm.previewPixels())
+
+        vm.setCompare(true)
+        vm.holdCompare(true)
+        vm.holdCompare(false)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.compareOn, "releasing a hold does not switch the toggle off")
+        assertTrue(vm.uiState.value.showsOriginal)
+        assertContentEquals(display.pixels, vm.previewPixels())
+    }
+
+    @Test
+    fun `a held compare is not persisted, the toggle is`() = runTest {
+        val handle = SavedStateHandle()
+        val vm = readyViewModel(handle = handle)
+        vm.holdCompare(true)
+        assertEquals(false, handle.get<Boolean>(EditorViewModel.KEY_COMPARE) ?: false, "a finger on the photo is transient")
+        vm.holdCompare(false)
+        vm.setCompare(true)
+        assertEquals(true, handle.get<Boolean>(EditorViewModel.KEY_COMPARE))
+    }
+
+    @Test
+    fun `the selected stop reads its name and its position among all stops`() = runTest {
+        val vm = readyViewModel()
+        vm.selectCategory("cat-warm")
+        assertEquals("Auto · 1 of 3", vm.stopCaption("cat-warm"))
+
+        vm.onStopSettled(2)
+        assertEquals("Nordic Tone (10) · 3 of 3", vm.stopCaption("cat-warm"))
+
+        vm.onStopChanged(1) // finger still down: the caption follows what the photo shows
+        assertEquals("Earthy Wedding Tone (6) · 2 of 3", vm.stopCaption("cat-warm"))
+    }
+
+    @Test
+    fun `reset is one undoable step and redo applies it again`() = runTest {
+        val vm = readyViewModel()
+        val warm = lookBook.stops("cat-warm")[0].ref()
+        vm.commitLook(warm)
+        vm.resetToAuto()
+        assertNull(vm.uiState.value.session!!.current.look)
+        assertEquals(3, vm.uiState.value.session!!.history.entries.size)
+
+        vm.undo()
+        assertEquals(warm, vm.uiState.value.session!!.current.look)
+        vm.redo()
+        assertNull(vm.uiState.value.session!!.current.look)
+        assertFalse(vm.canReset, "nothing left to reset")
+    }
+
     // --- Save copy -------------------------------------------------------------------------------
 
     @Test

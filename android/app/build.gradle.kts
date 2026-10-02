@@ -57,12 +57,21 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.savedstate)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.window)
+    implementation(libs.window.core) // WindowSizeClass; window only exposes it at runtime
 
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    // Compose UI tests run on Robolectric (no device): layout, stop markers, notices, large text.
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    // createComposeRule() needs its host activity in the merged debug manifest; this adds a
+    // non-exported test activity to debug builds only. Release is unaffected.
+    debugImplementation(platform(libs.compose.bom))
+    debugImplementation(libs.compose.ui.test.manifest)
 }
 
 // --- Look pack (spec §4.5) ------------------------------------------------------------------------
