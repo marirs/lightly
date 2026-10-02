@@ -20,8 +20,8 @@ Companion deliverables:
 | D2 | Selecting a photo develops it automatically, on device | No Develop button. Auto runs as soon as the photo is decoded |
 | D3 | Enhancement uses Image-Adaptive 3D LUT, subject to validation | Experiment in `experiments/lut3d/`. **The pretrained weights cannot ship as-is** (licence and quality, see feasibility report). The architecture and pipeline are retained |
 | D4 | The photo stays visible while editing | Controls are a bottom panel (≤ 35% of height) on compact screens and a side panel on wide screens. No modal sheet over the photo |
-| D5 | A small set of top-level Look categories | V1: 5 categories (Natural, Warm, Cool, Film, Mono) |
-| D6 | Each category has a stepped slider. Each stop is a curated preset that previews immediately | 4–6 stops per category; stop 0 is always "Auto" (no creative Look) |
+| D5 | A small set of top-level Look categories | Built from the curated preset collection. Categories, labels and membership are catalog data (`experiments/presets/look_pack/catalog.json`), not code; the current five labels (Natural, Warm, Cool, Film, Mono) are provisional |
+| D6 | Each category has a stepped slider. Each stop is a curated preset that previews immediately | Stop 0 is always "Auto" (no creative Look); every other stop is one preset, labelled with its name. The slider selects a preset; it is never an intensity control. Stops are in browse order: the shortest visual path from Auto through the category's presets (catalog `orderMethod`), or a recorded human override |
 | D7 | Auto is the starting result. Looks apply above it. Changing the Look replaces the previous one | `output = Look(Auto(Original))`, with at most one Look |
 | D8 | Save creates a new JPEG and never modifies the original | Add-only library access. No "replace" or "revert" path exists |
 | D9 | The JPEG is encoded once, at export | Previews are GPU textures or bitmaps and are never encoded |
@@ -162,6 +162,7 @@ O4 clamp [0,1] → encode sRGB 8-bit → JPEG (export only)
 ### 4.5 Looks and presets
 
 - A V1 Look is `{id, version, category, stopIndex, displayName, lut33: file+sha256, vignette?, grain?, sourceProvenance}`.
+- Both apps load Looks from one **Look pack** (`manifest.json` + `luts/<lookId>.f32`, built by `experiments/presets/look_pack/build_look_pack.py`). The ID depends only on the preset, never on category or stop, so relabelling or reordering the catalog does not break saved edits. Each Look records its LUT source (`lightroom-hald` or `lr-model-approximation`), validation status, and the operators its LUT omits or only approximates globally. Formula-generated Looks are test fixtures only and never ship as content.
 - Looks are **authored offline** from Lightroom-style recipes and compiled into LUTs by a desktop tool. That tool reports every unsupported parameter explicitly per preset (`unsupported: ["Texture", "ParametricCurve*", …]`), and a preset with unsupported parameters cannot be marked converted. Acceptance against Lightroom reference exports is M4.
 - IDs are stable. Renames go through an explicit migration table `{oldId → newId}`. Fuzzy, prefix or substring lookup is forbidden. An unknown ID becomes "Look unavailable" in the UI and falls back to Auto, with a visible notice.
 - **Provenance is recorded per Look** (`sourceProvenance`).
