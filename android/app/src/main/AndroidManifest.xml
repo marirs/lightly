@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- No storage or media permissions: selection uses the Photo Picker and saving inserts into
+         MediaStore, both permissionless on API 29+ (spec §2, §5.4). -->
+    <application
+        android:allowBackup="false"
+        android:label="Lightly"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <!-- No configChanges override: rotation/fold recreate the Activity on purpose, and the
+             ViewModel + SavedStateHandle carry the session across (spec §5.5). -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

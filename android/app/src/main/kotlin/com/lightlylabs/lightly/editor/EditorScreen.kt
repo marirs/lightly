@@ -1,0 +1,234 @@
+package com.lightlylabs.lightly.editor
+
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lightlylabs.lightly.render.image.Rgba8Image
+import com.lightlylabs.lightly.session.LookRef
+import java.nio.ByteBuffer
+import kotlin.math.roundToInt
+
+/**
+ * M2 editor shell: picker → preview → stepped Looks → Compare / Undo / Reset → Save copy.
+ *
+ * DEFERRED (M3/M4): adaptive layout (WindowSizeClass / FoldingFeature), haptic detents, the
+ * dirty-session "Discard edits?" dialog, crossfade, full TalkBack wording, and thumbnails.
+ */
+@Composable
+fun EditorScreen(viewModel: EditorViewModel) {
+    val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        // openPhoto persists the read grant synchronously, while the picker's temporary grant is valid.
+        if (uri != null) viewModel.openPhoto(uri.toString())
+    }
+    val pickPhoto = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+
+    // targetSdk 36 is edge-to-edge: without the safe-drawing insets the photo sits under the status
+    // bar and the bottom row under the gesture handle (seen on the API 36 emulator).
+    Column(
+        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        PhotoArea(ui, Modifier.fillMaxWidth().weight(1f), describeLook = viewModel::describeLook, onHold = { held -> viewModel.setCompare(held) })
+
+        when (val phase = ui.phase) {
+            EditorPhase.Empty -> Button(onClick = pickPhoto) { Text("Choose a photo") }
+            EditorPhase.Loading -> Text("Opening photo…")
+            EditorPhase.Developing -> Text("Enhancing…")
+            is EditorPhase.LoadFailed -> {
+                Text(phase.message, color = MaterialTheme.colorScheme.error)
+                Button(onClick = pickPhoto) { Text("Choose another") }
+            }
+            EditorPhase.PhotoAccessLost -> {
+                Text("Lightly can no longer open this photo. Choose it again to keep editing.", color = MaterialTheme.colorScheme.error)
+                Button(onClick = pickPhoto) { Text("Choose the photo again") }
+            }
+            is EditorPhase.DevelopFailed -> {
+                Text("Couldn't enhance. ${phase.message}", color = MaterialTheme.colorScheme.error)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = viewModel::retryDevelop) { Text("Retry") }
+                    Button(onClick = viewModel::useOriginal) { Text("Continue with original") }
+                }
+            }
+            EditorPhase.Ready -> ReadyControls(ui, viewModel, pickPhoto)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPhoto: () -> Unit) {
+    val session = ui.session ?: return
+    when (val status = ui.autoStatus) {
+        is AutoStatus.Unavailable -> Text(status.notice, color = MaterialTheme.colorScheme.error)
+        AutoStatus.UsingOriginal -> Text(AutoStatus.UsingOriginal.NOTICE, color = MaterialTheme.colorScheme.error)
+        AutoStatus.NoModelInThisBuild -> Text(AutoStatus.NoModelInThisBuild.NOTICE)
+        else -> Unit
+    }
+    ui.lookNotice?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+    val selectedCategory = viewModel.categories.firstOrNull { it.id == ui.selectedCategory }
+    if (selectedCategory == null) {
+        // The build was made without a Look pack, or its manifest was unusable (LookPackLoader).
+        Text(LookBook.NO_LOOKS_NOTICE)
+    } else {
+        LookControls(ui, viewModel, selectedCategory)
+    }
+
+    // Wraps instead of scrolling: in one scrolling row "Save copy" was off screen on a phone.
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = viewModel::undo, enabled = session.canUndo) { Text("Undo") }
+        OutlinedButton(onClick = viewModel::redo, enabled = session.canRedo) { Text("Redo") }
+        OutlinedButton(onClick = viewModel::resetToAuto, enabled = session.current.look != null) { Text("Reset") }
+        FilterChip(selected = ui.compareOn, onClick = { viewModel.setCompare(!ui.compareOn) }, label = { Text("Compare") })
+        Button(onClick = { viewModel.saveCopy() }, enabled = ui.save != SaveStatus.Saving) { Text("Save copy") }
+        OutlinedButton(onClick = pickPhoto) { Text("Other photo") }
+    }
+    when (val save = ui.save) {
+        SaveStatus.Saving -> Text("Saving…")
+        is SaveStatus.Saved -> Text("Saved as a new photo. Original unchanged.")
+        is SaveStatus.Failed -> Text("Couldn't save: ${save.message}", color = MaterialTheme.colorScheme.error)
+        else -> Unit
+    }
+}
+
+@Composable
+private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel, selectedCategory: LookCategory) {
+    viewModel.lookApproximationNotice?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+
+    // Labels come from the pack and are provisional; the chip is keyed by the opaque category id.
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        viewModel.categories.forEach { category ->
+            FilterChip(selected = category.id == selectedCategory.id, onClick = { viewModel.selectCategory(category.id) }, label = { Text(category.label) })
+        }
+    }
+
+    // One stop per preset, in the pack's browse order; the slider never sets strength (spec D6).
+    SteppedLookSlider(
+        stopNames = viewModel.sliderStopNames(selectedCategory.id),
+        settledStop = viewModel.stopIndex,
+        categoryId = selectedCategory.id,
+        categoryLabel = selectedCategory.label,
+        onMove = viewModel::onStopChanged,
+        onSettle = viewModel::onStopSettled,
+    )
+
+    ui.session?.current?.look?.let { activeLook ->
+        StrengthSlider(committed = activeLook.strength, onPreview = viewModel::previewLookStrength, onCommit = viewModel::commitLookStrength)
+    }
+}
+
+@Composable
+private fun PhotoArea(ui: EditorUiState, modifier: Modifier, describeLook: (LookRef) -> String, onHold: (Boolean) -> Unit) {
+    val description = when {
+        // Before a session exists (Loading / DevelopFailed) the preview already shows the Original.
+        ui.displayed == null && ui.preview != null -> "Photo, original"
+        ui.displayed == null -> "No photo"
+        ui.compareOn -> "Photo, original"
+        else -> {
+            val base = if (ui.autoStatus is AutoStatus.Applied) "Photo, enhanced automatically" else "Photo, auto enhancement unavailable"
+            ui.displayed?.look?.let { "$base, ${describeLook(it)}" } ?: base
+        }
+    }
+    val bitmap = remember(ui.preview) { ui.preview?.toBitmap()?.asImageBitmap() }
+    Box(
+        modifier
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .semantics { contentDescription = description }
+            // Press and hold shows the Original (spec §2.6); the Compare chip is the non-hold alternative.
+            .pointerInput(Unit) { detectTapGestures(onPress = { onHold(true); tryAwaitRelease(); onHold(false) }) },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bitmap != null) Image(bitmap, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+        else Text(if (ui.displayed == null && ui.phase == EditorPhase.Empty) "No photo" else "")
+    }
+}
+
+@Composable
+private fun SteppedLookSlider(
+    stopNames: List<String>,
+    settledStop: Int,
+    categoryId: String,
+    categoryLabel: String,
+    onMove: (Int) -> Unit,
+    onSettle: (Int) -> Unit,
+) {
+    var position by remember(settledStop, categoryId) { mutableFloatStateOf(settledStop.toFloat()) }
+    val current = position.roundToInt().coerceIn(0, stopNames.lastIndex)
+    Column {
+        // Only the current stop's name is shown: preset names are long ("Cinematic Light Tone (11)")
+        // and must stay readable at large font scales (spec §6), so the label wraps instead of clipping.
+        Text(stopNames[current], style = MaterialTheme.typography.titleMedium)
+        Slider(
+            value = position,
+            onValueChange = { value ->
+                val before = position.roundToInt()
+                position = value
+                if (value.roundToInt() != before) onMove(value.roundToInt())
+            },
+            onValueChangeFinished = { onSettle(position.roundToInt()) },
+            valueRange = 0f..stopNames.lastIndex.toFloat(),
+            steps = (stopNames.size - 2).coerceAtLeast(0),
+            // Stop 0 (Auto) sits in the left back-gesture zone; without the exclusion a drag that starts
+            // on the thumb there is taken by the system (seen on the API 36 emulator).
+            modifier = Modifier.systemGestureExclusion().semantics { stateDescription = "$categoryLabel, ${stopNames[current]}, ${current + 1} of ${stopNames.size}" },
+        )
+    }
+}
+
+@Composable
+private fun StrengthSlider(committed: Float, onPreview: (Float) -> Unit, onCommit: (Float) -> Unit) {
+    var dragging by remember(committed) { mutableFloatStateOf(committed) }
+    Column {
+        Text("Strength ${(dragging * 100).roundToInt()}%")
+        Slider(
+            value = dragging,
+            onValueChange = { value -> dragging = value; onPreview(value) },
+            onValueChangeFinished = { onCommit(dragging) },
+            modifier = Modifier.systemGestureExclusion(),
+        )
+    }
+}
+
+private fun Rgba8Image.toBitmap(): Bitmap =
+    Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { it.copyPixelsFromBuffer(ByteBuffer.wrap(pixels)) }

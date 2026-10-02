@@ -1,0 +1,11 @@
+# Build outputs and per-machine state. Golden fixtures are never copied in here; tests read them
+# from experiments/lut3d/golden (see docs/m2/android-foundation.md).
+.gradle/
+.kotlin/
+build/
+*/build/
+local.properties
+.idea/
+*.iml
+*.apk
+*.aab
