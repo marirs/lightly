@@ -6,6 +6,22 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXAggregateTarget section */
+		5CD1534D3A7AE7F2C34939F4 /* LookPack */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = BBC256936F1E643F4D43EDE5 /* Build configuration list for PBXAggregateTarget "LookPack" */;
+			buildPhases = (
+				B1494605EFDF8208C65F8D88 /* Bundle Look pack */,
+			);
+			dependencies = (
+			);
+			name = LookPack;
+			packageProductDependencies = (
+			);
+			productName = LookPack;
+		};
+/* End PBXAggregateTarget section */
+
 /* Begin PBXBuildFile section */
 		00BFB3D0700159CED07F318B /* PhotoFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0C8F9918CC281BA758EA6C /* PhotoFingerprint.swift */; };
 		02552677556F8A477FE506A8 /* LookPackLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 980F26D9A2B6938E2CFF28B9 /* LookPackLoaderTests.swift */; };
@@ -125,6 +141,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		97F54FFF1C19B16C7D0BADE8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 60487DCD3D8F726C21A9A09D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5CD1534D3A7AE7F2C34939F4;
+			remoteInfo = LookPack;
+		};
 		A6BFE21AE31AC7C6F9ABAAD0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 60487DCD3D8F726C21A9A09D /* Project object */;
@@ -740,6 +763,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				549568F31405F25073F5AAE0 /* PBXTargetDependency */,
 			);
 			name = Lightly;
 			packageProductDependencies = (
@@ -798,6 +822,7 @@
 				2260B40DD888F1447CE8DB1F /* Lightly */,
 				D126402617DC8E88FA930BED /* LightlyTests */,
 				212CAA7EBCD4D62ECF8AA619 /* LightlyUITests */,
+				5CD1534D3A7AE7F2C34939F4 /* LookPack */,
 			);
 		};
 /* End PBXProject section */
@@ -824,6 +849,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B1494605EFDF8208C65F8D88 /* Bundle Look pack */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle Look pack";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/bundle_look_pack.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4DB971C92D035A09779A15E1 /* Sources */ = {
@@ -964,6 +1011,11 @@
 			target = 2260B40DD888F1447CE8DB1F /* Lightly */;
 			targetProxy = AA5E04959D4592B6F3C4C5BB /* PBXContainerItemProxy */;
 		};
+		549568F31405F25073F5AAE0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5CD1534D3A7AE7F2C34939F4 /* LookPack */;
+			targetProxy = 97F54FFF1C19B16C7D0BADE8 /* PBXContainerItemProxy */;
+		};
 		B7E50BB46220D21D281F3D36 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 2260B40DD888F1447CE8DB1F /* Lightly */;
@@ -1048,6 +1100,14 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		A49562CC6A57A57DF8E8FFCD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				LIGHTLY_APP_WRAPPER_NAME = Lightly.app;
+			};
+			name = Debug;
 		};
 		A770591F46BC6E60C24A88DF /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1151,6 +1211,14 @@
 			};
 			name = Release;
 		};
+		E6B554B32949D1D200238317 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				LIGHTLY_APP_WRAPPER_NAME = Lightly.app;
+			};
+			name = Release;
+		};
 		F64ED038B19FE48E0ADA8F79 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1245,6 +1313,15 @@
 			buildConfigurations = (
 				38E6BBD888B6F511637A5CFC /* Debug */,
 				AA08456560A0DF8D02417EDE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BBC256936F1E643F4D43EDE5 /* Build configuration list for PBXAggregateTarget "LookPack" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A49562CC6A57A57DF8E8FFCD /* Debug */,
+				E6B554B32949D1D200238317 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
