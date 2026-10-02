@@ -97,6 +97,12 @@ EditState {
 }
 ```
 
+**Strength rule (both platforms):**
+- Settling the Look slider on the stop that is already committed (same `lookId`) is a no-op. Strength and history stay unchanged; only the transient preview ends.
+- Committing a **different** preset applies it at 100%, its designed look, as one undo step. Previewing a different preset while dragging also shows it at 100%. Strength is never carried from one preset to another.
+- Strength commits on release only.
+- Undo and Redo restore Strength exactly as committed. Reset to the base stop is one undoable step.
+
 Undo stack: `[EditState]` with a cursor. One step is pushed per committed Look change, Strength release or Reset. Redo is cleared on a new commit. The stack is capped at 50 entries, dropping the oldest. Undo/Redo is session-scoped and is not persisted after the user leaves the photo, except through the recovery snapshot (§5.6).
 
 ---
@@ -162,7 +168,7 @@ O4 clamp [0,1] → encode sRGB 8-bit → JPEG (export only)
 ### 4.5 Looks and presets
 
 - A V1 Look is `{id, version, category, stopIndex, displayName, lut33: file+sha256, vignette?, grain?, sourceProvenance}`.
-- Both apps load Looks from one **Look pack** (`manifest.json` + `luts/<lookId>.f32`, built by `experiments/presets/look_pack/build_look_pack.py`). The ID depends only on the preset, never on category or stop, so relabelling or reordering the catalog does not break saved edits. Each Look records its LUT source (`lightroom-hald` or `lr-model-approximation`), the operators its LUT omits or only approximates globally, and two separate validations: `globalColour` and `fullRecipe` (pack format 2). Its `status` is `approximate`, `global-colour-validated` or `validated`, promoted only by evidence about the shipped LUT. Approximate colour, or colour with missing effects, is never reported as a finished conversion. Formula-generated Looks are test fixtures only and never ship as content.
+- Both apps load Looks from one **Look pack** (`manifest.json` + `luts/<lookId>.f32`, built by `experiments/presets/look_pack/build_look_pack.py`). The ID depends only on the preset, never on category or stop, so relabelling or reordering the catalog does not break saved edits. Each Look records its LUT source (`lightroom-hald` or `lr-model-approximation`), the operators its LUT omits or only approximates globally, and two separate validations: `globalColour` and `fullRecipe` (pack format 2). Its `status` is `approximate`, `global-colour-validated` or `validated`, promoted only by evidence about the shipped LUT: the report's digests of the measured LUT, the original preset recipe and (for the full recipe) the renderer must equal those of what ships; otherwise the validation is `stale`. Approximate colour, or colour with missing effects, is never reported as a finished conversion. Formula-generated Looks are test fixtures only and never ship as content.
 - Looks are **authored offline** from Lightroom-style recipes and compiled into LUTs by a desktop tool. That tool reports every unsupported parameter explicitly per preset (`unsupported: ["Texture", "ParametricCurve*", …]`), and a preset with unsupported parameters cannot be marked converted. Acceptance against Lightroom reference exports is M4.
 - **Saved edits (EditState schema 2):** `lookVersion` is the pack's version string. A schema-1 edit is migrated to schema 2 with `lookVersion = "legacy-v1-<n>"`, not dropped. A saved Look whose ID is missing from the pack is *unavailable*; one whose version differs is *changed* and is not rendered until the user chooses "Use current version", which is an undoable step. No other Look is ever substituted. The shared fixtures and rules are in `shared/fixtures/edit-state/`.
 - IDs are stable. Renames go through an explicit migration table `{oldId → newId}`. Fuzzy, prefix or substring lookup is forbidden. An unknown ID becomes "Look unavailable" in the UI and falls back to Auto, with a visible notice.
