@@ -1,0 +1,106 @@
+{
+  "protocol_id": "lightly-auto-eval",
+  "version": "1.0.0",
+  "frozen_on": "2026-10-02",
+  "status": "Frozen for G0 (rules and code). The frozen evaluation SET does not exist yet: it needs T1 phone captures (auto-training-plan.md section 3.2). Any change to this file or to lightly_auto/rubric.py or lightly_auto/stats.py needs a version bump and a new PROTOCOL.lock (python freeze_protocol.py).",
+  "sources": {
+    "targets": "docs/m1/spec.md section 1.1 (per-scene Must preserve / Must correct)",
+    "metrics": "experiments/lut3d/reference/evaluate.py (factored into lightly_auto/rubric.py, same definitions)",
+    "gates": "docs/m1/auto-training-plan.md sections 1 (S1, S2), 3.4, 5.1, 6.3"
+  },
+  "analysis_resolution": {
+    "long_edge_px": 2048,
+    "resample": "PIL LANCZOS from the oriented 8-bit sRGB source",
+    "why": "2048 px is the deployment preview proxy (lut-feasibility.md section 6.1). All rubric statistics are global or region means, so a fixed proxy keeps metrics comparable across source sizes and bounds cost. The plan's 'full deployment resolution' is read as the proxy the app renders, not the export size."
+  },
+  "model_input": "lightly_auto preprocess = ia3dlut.prepare_256_antialiased(proxy): whole frame, aspect ignored, bilinear antialiased resize to 256x256, sRGB-encoded [0,1]",
+  "lut_application": "exact-grid trilinear (ia3dlut.apply_lut_reference with binsize numerator 1.0), output rounded as ia3dlut.to_uint8",
+  "face_detector": {
+    "source": "Apple Vision VNDetectFaceRectanglesRequest, confidence > 0.6 (experiments/lut3d/reference/faces.swift)",
+    "pinning": "The faces.json sha256 is recorded in every run summary. A new detector version is a protocol change."
+  },
+  "tolerances": {
+    "new_clipping_pp": 0.5,
+    "why_new_clipping_pp": "spec says 'no new clipping'. 0.5 percentage points of pixels absorbs 8-bit rounding at the clip thresholds (<=1, >=254) while still failing every crush seen in M1 (+3.5 to +7.4 pp)."
+  },
+  "criteria": {
+    "skin": {
+      "applies_to": "every image with at least one detected face and >= 50 skin-mask pixels, whatever its class",
+      "gated": {
+        "skin_abs_dh_deg": {"max": 4.0},
+        "skin_chroma_ratio": {"max": 1.12}
+      },
+      "conditional": {
+        "skin_dL": {"min_exclusive": 0.0, "only_if_label": "face_underexposed"}
+      },
+      "not_automated": "Correction of face under-exposure on images NOT labelled face_underexposed is judged in the preference study. No L* threshold is used to infer under-exposure, because any fixed L* threshold would label deep skin tones as under-exposed."
+    },
+    "portrait": {
+      "gated": {},
+      "requires_skin": true,
+      "note": "Portraits are gated by the skin criteria. A portrait with no usable face mask is unscorable."
+    },
+    "sunset": {
+      "gated": {
+        "warm_chroma_ratio": {"min": 0.95, "max": 1.10},
+        "warm_abs_dh_deg": {"max": 4.0}
+      },
+      "not_automated": "Crushed-foreground correction needs a foreground mask; preference study only in v1."
+    },
+    "night": {
+      "gated": {
+        "night_p50_dL": {"max": 3.0},
+        "clipLo_pp": {"max": 0.5}
+      },
+      "not_automated": "Mild opening of blocked shadows near light sources; preference study only in v1."
+    },
+    "backlit": {
+      "gated": {
+        "subject_dL": {"min_exclusive": 0.0},
+        "clipHi_pp": {"max": 0.5}
+      },
+      "subject_region": "first face box if any, else the darkest 30% of L* in the original"
+    },
+    "already_good": {
+      "gated": {
+        "dE00_mean": {"max": 3.0}
+      }
+    },
+    "landscape": {
+      "gated": {},
+      "note": "spec.md section 1.1 has no landscape row. Reported, not gated. Owner decision needed before T1 eval-set freeze if landscape should be gated."
+    },
+    "indoor_mixed": {
+      "gated": {},
+      "note": "Stress class from the plan; no spec target. Reported, not gated."
+    }
+  },
+  "class_rule_S1": {
+    "image_pass": "an image passes when every gated and applicable conditional criterion of its class passes, plus the skin criteria if it has faces",
+    "class_pass": "class mean of every gated metric meets its target (absolute-valued metrics use the mean of absolute values) AND the share of images passing individually >= min_pass_rate",
+    "min_pass_rate": 0.80,
+    "min_pass_rate_status": "provisional in the plan; fixed here at G0 as 0.80, applied to the point estimate. CIs are reported, not gated.",
+    "ci": {
+      "bootstrap": {"method": "percentile, resampling images within class", "resamples": 10000, "seed": 20261002, "level": 0.95},
+      "exact": {"method": "Clopper-Pearson on the pass count", "level": 0.95, "why": "the percentile bootstrap degenerates to [p, p] when every image passes or fails; the exact interval stays honest at small n"}
+    }
+  },
+  "already_good_rule_S2": {
+    "automatic": "class mean dE00 <= 3.0 on the already_good class (part of S1)",
+    "preference": "non-inferior to Original in the preference study (95% CI lower bound of preference share >= 45%). Not automated here."
+  },
+  "unscorable": "An image whose class criterion cannot be computed (e.g. a portrait with no detected face, a sunset with no warm pixels) is listed as unscorable, excluded from pass rates, and counted. A frozen eval set must have zero unscorable images for the Original arm.",
+  "frozen_eval_set_requirements_G0": {
+    "min_images_per_gated_class": 40,
+    "skin_tone_buckets": ["MST 1-3", "MST 4-7", "MST 8-10"],
+    "min_bucket_share_of_portrait_plus_backlit": 0.30,
+    "rights": "every image has 'eval' in permitted_uses in the rights ledger",
+    "integrity": "every file sha256 matches; manifest hash committed",
+    "leakage": "no exact (sha256) or near (64-bit DCT pHash Hamming <= 6) duplicate between the frozen eval set and any train/validation manifest",
+    "source_tier": "T1 only (own phone captures). Unsplash images (DEV-22) are never a frozen eval set and never train."
+  },
+  "arms_policy": {
+    "ai_auto": "Only a model trained under auto-training-plan.md may be called AI Auto. Original (identity) and non-learned controls are never AI Auto.",
+    "research": "FiveK-derived arms are internal evaluation only, never shown externally, never shipped, never used as training targets."
+  }
+}

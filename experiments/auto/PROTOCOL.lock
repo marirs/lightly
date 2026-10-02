@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "files": {
+    "PROTOCOL.json": "aee333fbffe265d2c7a1c66e8e56426965d20229a1754089b116793f605da397",
+    "lightly_auto/rubric.py": "9eb0079d542d0c596354c5db8626c4dedece837fc876524873045c4ba5e5759d",
+    "lightly_auto/stats.py": "5a3fff946c10557c691a771b95469b45e5b4bc78858a42e9d96af52e556d7d29"
+  },
+  "combined_sha256": "e9dec2f5fda1e9bd275e1f0375333e33a3c2b9ec6d8ed05a0e2711a5ba0eb26b"
+}

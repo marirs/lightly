@@ -1,0 +1,13 @@
+# Training runs hold weights, exported models and cached tensors. Nothing under runs/ is committed:
+# smoke weights are plumbing artefacts, and any run that ever touches research (FiveK-derived) data is
+# research-only and must never be bundled. Measured numbers are copied into results/ as JSON/CSV/MD.
+runs/
+__pycache__/
+.pytest_cache/
+*.png
+*.jpg
+*.onnx
+*.mlpackage
+*.pt
+*.bin
+*.f32
