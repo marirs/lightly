@@ -39,6 +39,18 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
+    postBuildScripts:
+      # Last phase: fail the build (so nothing gets installed) unless the built product carries the
+      # app icon. Sandboxed: it reads only the declared product files below.
+      - name: Check app icon
+        script: '"${SRCROOT}/scripts/check_app_icon.sh"'
+        # Every build, not only when an input changed: the check is cheap and must never be skipped.
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/scripts/check_app_icon.sh
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Assets.car
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AppIcon60x60@2x.png
     info:
       path: Lightly/Generated-Info.plist
       properties:

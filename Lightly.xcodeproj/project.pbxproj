@@ -117,6 +117,7 @@
 		B6739D58E6179B180EBD12E7 /* DevelopRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB2867C5D49814A9B978C7E /* DevelopRecipe.swift */; };
 		B699A9D372FCF406B8691C47 /* DevelopStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127C9E7A1DEDE2FE50A1E961 /* DevelopStage.swift */; };
 		B78E9F37FD364C0E37C33380 /* FavouritesManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D2D37AF0B8F8C62A80BD28 /* FavouritesManaging.swift */; };
+		B81A945FDD76A6675EC20523 /* AppIconPackagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B36E2108477D914C078154A /* AppIconPackagingTests.swift */; };
 		BBF12BA965DBD434F28F0EB4 /* RenderSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6DAB9C6D7730E8B0FD6DB61 /* RenderSchedulingTests.swift */; };
 		C04A4CCA0FEEE1F724F2AD9B /* Entitlements.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75AFA2AE4E25D4D088F4D701 /* Entitlements.swift */; };
 		C1A93CD389A42F5F63C6EEE9 /* LightlyPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9FE8BA8FCBFBB9BAC04F50A /* LightlyPreset.swift */; };
@@ -238,6 +239,7 @@
 		946E87F41D28B673539E8E10 /* PresetIDMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetIDMigrations.swift; sourceTree = "<group>"; };
 		980F26D9A2B6938E2CFF28B9 /* LookPackLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookPackLoaderTests.swift; sourceTree = "<group>"; };
 		98808A5F4DDED70E40233B3A /* SnapshotAssertion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotAssertion.swift; sourceTree = "<group>"; };
+		9B36E2108477D914C078154A /* AppIconPackagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconPackagingTests.swift; sourceTree = "<group>"; };
 		9D591C7936D48BA0E573A772 /* FavouritesManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavouritesManagerTests.swift; sourceTree = "<group>"; };
 		A13C873B5606C4AD11DB6FA1 /* LockedDecisionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockedDecisionsTests.swift; sourceTree = "<group>"; };
 		A3B01EF39D0D11916BF45A88 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
@@ -404,6 +406,7 @@
 			children = (
 				17AA44A8E71ACB1C0703ADBD /* AnalysingDeveloperTests.swift */,
 				15118BEA84CD488D75B7DAA1 /* AnalysisProxyTests.swift */,
+				9B36E2108477D914C078154A /* AppIconPackagingTests.swift */,
 				36C7D6A77D28F78630D1A2BD /* AppStateTests.swift */,
 				62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */,
 				68AD1F5D2E9C382F30B5F059 /* ColorPipelineRenderTests.swift */,
@@ -759,6 +762,7 @@
 			buildPhases = (
 				D8F732D793EA7EA6535DE4A6 /* Sources */,
 				52E0D138F7099DD73E53B45D /* Resources */,
+				EC88E40E60C9E30B937176BF /* Check app icon */,
 			);
 			buildRules = (
 			);
@@ -870,6 +874,29 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/scripts/bundle_look_pack.sh\"";
 		};
+		EC88E40E60C9E30B937176BF /* Check app icon */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/check_app_icon.sh",
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Assets.car",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AppIcon60x60@2x.png",
+			);
+			name = "Check app icon";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/check_app_icon.sh\"";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -879,6 +906,7 @@
 			files = (
 				0BCD469B52A4840C6921B37F /* AnalysingDeveloperTests.swift in Sources */,
 				4DD1E0AF5C6A7EDF4B094E03 /* AnalysisProxyTests.swift in Sources */,
+				B81A945FDD76A6675EC20523 /* AppIconPackagingTests.swift in Sources */,
 				813DB666DEFCE2FA88809868 /* AppStateTests.swift in Sources */,
 				2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */,
 				E2530F2A80A145DB5A03FA45 /* ColorPipelineRenderTests.swift in Sources */,
