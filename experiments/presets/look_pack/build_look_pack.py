@@ -14,8 +14,14 @@ LUT source per Look, best first:
 2. `lr-model-approximation`: the calibrated Lightroom approximation (held-out median ΔE00 4.8).
    It is a stand-in until the Lightroom exports exist and is labelled as such in the manifest.
 
-Every Look is `validation: "unvalidated"` until ingest_kit reports it validated; this script does
-not run that comparison. Category labels are copied from the catalog with their provisional status.
+Status (format 2). Two validations are tracked separately and never merged into one flag:
+- `globalColour`: Lightroom's global-only render vs the Look's LUT (ingest_kit "global").
+- `fullRecipe`:   Lightroom's full Look vs Lightly's complete recipe (ingest_kit "full").
+Each is {status: not-run | incomplete | failed | validated, evidence: report file name or null},
+read from `--validation-report <kit>/results/report.json`; this script never runs the comparison.
+`conversion` is "complete" only when the LUT is Lightroom's own and no operator is omitted;
+approximate colour, or colour with missing effects, is "approximate". The Look's `status` is
+promoted only by evidence that applies to the shipped LUT (see promoted_status). Category labels are copied from the catalog with their provisional status.
 """
 from __future__ import annotations
 
@@ -31,7 +37,7 @@ import pack_common as pc
 CATALOG = pc.HERE / "catalog.json"
 DEFAULT_OUT = pc.HERE / "out"
 FORMAT = "lightly-look-pack"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2  # 2: globalColour / fullRecipe / conversion / status replace `validation`
 
 
 def kit_look_id(category_key: str, stop: int, name: str) -> str:
@@ -61,11 +67,51 @@ def _coverage_fields(settings: dict, lut_source: str) -> dict:
     return {"omittedOperators": coverage["omitted"], "approximatedGlobally": coverage["approximatedGlobally"]}
 
 
+NOT_RUN = {"status": "not-run", "evidence": None}
+
+
+def _validation(report: dict | None, report_name: str | None, kit_id: str | None, kind: str) -> dict:
+    entry = (report or {}).get("looks", {}).get(kit_id or "", {}).get(kind)
+    if not entry:
+        return dict(NOT_RUN)
+    return {"status": entry["status"], "evidence": report_name}
+
+
+def promoted_status(lut_source: str, omitted: list[str], global_colour: str, full_recipe: str) -> str:
+    """The Look's overall status; promotion needs evidence about the LUT that actually ships.
+
+    - validated: Lightroom's own LUT, nothing omitted, and BOTH validations passed.
+    - global-colour-validated: Lightroom's own LUT and the global comparison passed. Effects may
+      still be missing or the full recipe may differ; the colour transform itself is confirmed.
+    - approximate: anything else, including any model-derived LUT whatever a report says, because
+      the report measured Lightroom's HALD, not the model's output.
+    """
+    if lut_source != "lightroom-hald" or global_colour != "validated":
+        return "approximate"
+    if full_recipe == "validated" and not omitted:
+        return "validated"
+    return "global-colour-validated"
+
+
+def _status_fields(kit_id, lut_source: str, settings: dict, report, report_name) -> dict:
+    global_colour = _validation(report, report_name, kit_id, "global")
+    full_recipe = _validation(report, report_name, kit_id, "full")
+    omitted = pc.operator_coverage(settings, lut_source)["omitted"]
+    return {
+        "conversion": "complete" if lut_source == "lightroom-hald" and not omitted else "approximate",
+        "globalColour": global_colour,
+        "fullRecipe": full_recipe,
+        "status": promoted_status(lut_source, omitted, global_colour["status"], full_recipe["status"]),
+    }
+
+
 def build(collection: Path, out: Path, hald_dir: Path | None = None, catalog_path: Path = CATALOG,
-          kit_ids: dict[str, str] | None = None) -> dict:
+          kit_ids: dict[str, str] | None = None, validation_report: Path | None = None) -> dict:
     """kit_ids maps a preset source to its export-kit ID (defaults to the shortlist's); tests inject it."""
     catalog = json.loads(catalog_path.read_text())
     kit_ids = kit_ids_by_source() if kit_ids is None else kit_ids
+    report = json.loads(validation_report.read_text()) if validation_report else None
+    report_name = validation_report.name if validation_report else None
     if out.exists():
         shutil.rmtree(out)  # the output is fully derived; never mix Looks from two catalog versions
     (out / "luts").mkdir(parents=True)
@@ -89,8 +135,8 @@ def build(collection: Path, out: Path, hald_dir: Path | None = None, catalog_pat
                 "lutSha256": digest,
                 "lutSource": lut_source,
                 "lightroomHald": hald_name,
-                "validation": "unvalidated",
                 **_coverage_fields(parsed.settings, lut_source),
+                **_status_fields(kit_ids.get(stop["source"]), lut_source, parsed.settings, report, report_name),
             })
         categories.append({
             "id": category["id"],
@@ -116,11 +162,13 @@ def main() -> None:
     parser.add_argument("--collection", type=Path, default=pc.DEFAULT_COLLECTION)
     parser.add_argument("--hald-dir", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--validation-report", type=Path, default=None,
+                        help="ingest_kit's <kit>/results/report.json; without it every validation is not-run")
     args = parser.parse_args()
-    manifest = build(args.collection, args.out, args.hald_dir)
+    manifest = build(args.collection, args.out, args.hald_dir, validation_report=args.validation_report)
     for category in manifest["categories"]:
-        sources = {s["lutSource"] for s in category["stops"]}
-        print(f"{category['label']:8s} {len(category['stops'])} stops  {', '.join(sorted(sources))}")
+        statuses = sorted({s["status"] for s in category["stops"]})
+        print(f"{category['label']:8s} {len(category['stops'])} stops  status: {', '.join(statuses)}")
     print(f"wrote {args.out}")
 
 

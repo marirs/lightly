@@ -120,7 +120,7 @@ def test_pack_follows_the_catalog_categories_and_order(tmp_path, collection):
         assert stop["lutSha256"] == hashlib.sha256(data).hexdigest()
         assert stop["lookVersion"] == stop["lutSha256"][:12]
         assert stop["lutSource"] == "lr-model-approximation"
-        assert stop["validation"] == "unvalidated"
+        assert stop["status"] == "approximate" and stop["globalColour"]["status"] == "not-run"
     grainy_stop = manifest["categories"][0]["stops"][0]
     assert grainy_stop["omittedOperators"] == ["clarity", "grain"]
     assert json.loads((out / "manifest.json").read_text()) == manifest
@@ -178,3 +178,65 @@ def test_committed_catalog_is_consistent_with_the_shortlist():
         assert category["orderMethod"] in ("shortest-visual-path-from-auto", "override")
         for stop in category["stops"]:
             assert stop["lookId"] == pc.stable_look_id(stop["name"], stop["source"])
+
+
+# --- Status: global colour and full recipe are separate (format 2) -------------------------------
+
+def _report(path: Path, looks: dict) -> Path:
+    path.write_text(json.dumps({"looks": looks}))
+    return path
+
+
+def _one_look_pack(tmp_path, collection, settings, report=None, hald=False):
+    source = _write_preset(collection, "Look", settings)
+    catalog = _catalog(tmp_path / "catalog.json", [("cat", "Label", [("Look", source)])])
+    hald_dir = None
+    if hald:
+        hald_dir = tmp_path / "hald"
+        hald_dir.mkdir()
+        make_kit.write_hald(hald_dir / "kit.1.look__global.tif")
+    manifest = build_look_pack.build(collection, tmp_path / "pack", hald_dir=hald_dir, catalog_path=catalog,
+                                     kit_ids={source: "kit.1.look"}, validation_report=report)
+    return manifest["categories"][0]["stops"][0], manifest
+
+
+def test_format_2_has_no_single_validation_flag(tmp_path, collection):
+    stop, manifest = _one_look_pack(tmp_path, collection, {"Saturation": "-20"})
+    assert manifest["formatVersion"] == 2
+    assert "validation" not in stop
+    assert stop["globalColour"] == {"status": "not-run", "evidence": None}
+    assert stop["fullRecipe"] == {"status": "not-run", "evidence": None}
+    assert stop["status"] == "approximate"
+    assert stop["conversion"] == "approximate"
+
+
+def test_global_colour_pass_alone_never_promotes_to_validated(tmp_path, collection):
+    report = _report(tmp_path / "report.json", {"kit.1.look": {"global": {"status": "validated"}, "full": {"status": "failed"}}})
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, report=report, hald=True)
+    assert stop["globalColour"]["status"] == "validated"
+    assert stop["fullRecipe"]["status"] == "failed"
+    assert stop["status"] == "global-colour-validated"
+
+
+def test_global_colour_from_the_model_is_not_evidence(tmp_path, collection):
+    # A report can only vouch for the LUT it measured: Lightroom's HALD. A model LUT stays approximate.
+    report = _report(tmp_path / "report.json", {"kit.1.look": {"global": {"status": "validated"}, "full": {"status": "validated"}}})
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, report=report, hald=False)
+    assert stop["lutSource"] == "lr-model-approximation"
+    assert stop["status"] == "approximate"
+
+
+def test_missing_effects_keep_conversion_unfinished_even_if_numbers_pass(tmp_path, collection):
+    report = _report(tmp_path / "report.json", {"kit.1.look": {"global": {"status": "validated"}, "full": {"status": "validated"}}})
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20", "GrainAmount": "20"}, report=report, hald=True)
+    assert stop["omittedOperators"] == ["grain"]
+    assert stop["conversion"] == "approximate"
+    assert stop["status"] == "global-colour-validated", "full recipe cannot be validated while an effect is missing"
+
+
+def test_everything_passing_with_nothing_missing_is_validated(tmp_path, collection):
+    report = _report(tmp_path / "report.json", {"kit.1.look": {"global": {"status": "validated"}, "full": {"status": "validated"}}})
+    stop, _ = _one_look_pack(tmp_path, collection, {"Saturation": "-20"}, report=report, hald=True)
+    assert stop["conversion"] == "complete"
+    assert stop["status"] == "validated"
+    assert stop["globalColour"]["evidence"] == "report.json"

@@ -48,6 +48,19 @@ Stop 0 is the base with no Look. It reads **Auto** when an Auto correction is ap
 | `lightroom-hald` | the export kit's `<kitLookId>__global.tif` exists | Lightroom's own global render |
 | `lr-model-approximation` | otherwise | Today, all 18 Looks use this source. Held-out median ΔE00 4.8 vs Lightroom |
 
-- Every Look is `"validation": "unvalidated"` until `ingest_kit.py` validates it.
-- `omittedOperators` lists what the LUT path does not render: clarity, texture, vignette, grain. For a HALD-derived LUT it also lists the adaptive tone sliders.
+Status fields (pack format 2). Global-colour and full-recipe validation are separate and never merged:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `globalColour.status` | not-run · incomplete · failed · validated | Lightroom's global-only render vs the Look's LUT (`ingest_kit` "global") |
+| `fullRecipe.status` | same | Lightroom's full Look vs Lightly's complete recipe (`ingest_kit` "full") |
+| `conversion` | approximate · complete | `complete` only for a Lightroom-HALD LUT with no omitted operator |
+| `status` | approximate · global-colour-validated · validated | promoted only by evidence about the LUT that ships |
+
+- `status` is `validated` only for a Lightroom-HALD LUT with nothing omitted where both validations passed.
+- `global-colour-validated` means a HALD LUT whose global comparison passed; effects may still be missing.
+- Everything else is `approximate`, including every model-derived LUT, whatever a report says.
+- Pass `--validation-report <kit>/results/report.json` to read the results; without it, every validation is `not-run`.
+- Today all 18 Looks are `approximate`, with both validations `not-run`, because no Lightroom exports exist yet.
+- `omittedOperators` lists what the LUT path does not render: clarity, texture, vignette and grain. For a HALD-derived LUT it also lists the adaptive tone sliders.
 - `approximatedGlobally` lists what the model folds into the LUT as a global approximation.
