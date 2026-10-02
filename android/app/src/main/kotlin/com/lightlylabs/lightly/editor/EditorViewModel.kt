@@ -164,7 +164,22 @@ class EditorViewModel(
     /** Stop labels 1..n of [categoryId]: each preset's name from the pack, verbatim. */
     fun stopNames(categoryId: String): List<String> = env.lookBook.stops(categoryId).map { it.name }
 
-    /** Slider position (0 = Auto) of the displayed Look within the selected category. */
+    /**
+     * Name of slider stop 0 (no creative Look). It reads "Auto" only while an Auto correction is
+     * actually applied; with no model, an unavailable model, "Use original" or Auto strength 0 the
+     * stop shows the untouched photo, and calling it "Auto" would promise an enhancement that is
+     * not there.
+     */
+    val baseStopName: String
+        get() {
+            val autoApplied = state.value.autoStatus is AutoStatus.Applied && (state.value.displayed?.auto?.strength ?: 0f) > 0f
+            return if (autoApplied) AUTO_STOP_NAME else ORIGINAL_STOP_NAME
+        }
+
+    /** Every slider stop's label: stop 0, then the category's presets. */
+    fun sliderStopNames(categoryId: String): List<String> = listOf(baseStopName) + stopNames(categoryId)
+
+    /** Slider position (0 = no Look) of the displayed Look within the selected category. */
     val stopIndex: Int
         get() = state.value.selectedCategory?.let { env.lookBook.stopIndexOf(it, state.value.displayed?.look) } ?: 0
 
@@ -469,6 +484,9 @@ class EditorViewModel(
     }
 
     companion object {
+        const val AUTO_STOP_NAME = "Auto"
+        const val ORIGINAL_STOP_NAME = "Original"
+
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
         const val KEY_COMPARE = "editor.compare"

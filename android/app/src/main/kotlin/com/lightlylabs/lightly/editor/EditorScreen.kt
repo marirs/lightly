@@ -145,7 +145,7 @@ private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel, selected
 
     // One stop per preset, in the pack's browse order; the slider never sets strength (spec D6).
     SteppedLookSlider(
-        stopNames = listOf(AUTO_STOP_NAME) + viewModel.stopNames(selectedCategory.id),
+        stopNames = viewModel.sliderStopNames(selectedCategory.id),
         settledStop = viewModel.stopIndex,
         categoryId = selectedCategory.id,
         categoryLabel = selectedCategory.label,
@@ -229,8 +229,6 @@ private fun StrengthSlider(committed: Float, onPreview: (Float) -> Unit, onCommi
         )
     }
 }
-
-private const val AUTO_STOP_NAME = "Auto"
 
 private fun Rgba8Image.toBitmap(): Bitmap =
     Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { it.copyPixelsFromBuffer(ByteBuffer.wrap(pixels)) }

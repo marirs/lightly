@@ -319,6 +319,48 @@ class EditorViewModelTest {
         assertEquals(listOf("Mid"), vm.stopNames("c-alpha"))
     }
 
+    // Stop 0 promises what the photo shows: "Auto" only while an Auto correction is applied.
+
+    @Test
+    fun `stop 0 reads Auto while an Auto correction is applied`() = runTest {
+        val vm = readyViewModel()
+        assertEquals(listOf("Auto", "Earthy Wedding Tone (6)", "Nordic Tone (10)"), vm.sliderStopNames("cat-warm"))
+    }
+
+    @Test
+    fun `stop 0 reads Original when the build has no Auto model`() = runTest {
+        val vm = readyViewModel(Fakes(DevelopResult.NoModelInThisBuild))
+        assertEquals(listOf("Original", "Earthy Wedding Tone (6)", "Nordic Tone (10)"), vm.sliderStopNames("cat-warm"))
+    }
+
+    @Test
+    fun `stop 0 reads Original after Use original`() = runTest {
+        val vm = readyViewModel(Fakes(DevelopResult.Failed("no inference engine")))
+        vm.useOriginal()
+        advanceUntilIdle()
+        assertEquals("Original", vm.baseStopName)
+    }
+
+    @Test
+    fun `stop 0 reads Original when the edit's Auto model is unavailable`() = runTest {
+        val vm = readyViewModel(withBasis = false)
+        assertIs<AutoStatus.Unavailable>(vm.uiState.value.autoStatus)
+        assertEquals("Original", vm.baseStopName)
+    }
+
+    @Test
+    fun `stop 0 reads Original when Auto strength is zero`() = runTest {
+        val vm = readyViewModel(Fakes(DevelopResult.Developed(auto.copy(strength = 0f))))
+        assertIs<AutoStatus.Applied>(vm.uiState.value.autoStatus)
+        assertEquals("Original", vm.baseStopName)
+    }
+
+    @Test
+    fun `stop 0 reads Original before any photo is developed`() = runTest {
+        val vm = viewModel(SavedStateHandle(), environment(Fakes(DevelopResult.Developed(auto))))
+        assertEquals("Original", vm.baseStopName)
+    }
+
     @Test
     fun `an unknown category is ignored rather than selected`() = runTest {
         val vm = readyViewModel()
