@@ -87,14 +87,21 @@ The evidence is in `~/.codex/artifacts/lightly/v1/slice2/ios/compare/<cell>/<scr
 
 | Cells | Status |
 |---|---|
-| Fold inner portrait (24 screens × 4 variants) | Captured on the current build |
+| Fold inner portrait (24 screens × 4 variants) | **STALE, not evidence.** Captured with fixed waits, before preset previews finished rendering (found at eb4aa8c, see below) |
 | Fold outer light-default | Partly captured |
 | Pixel 9 Pro, Pixel 10 Pro XL, Fold inner landscape, Pixel Tablet in portrait and landscape, rest of Fold outer | **Unverified-pending.** The Pixel 9 Pro pairs from 490cbee are older than f8a024c, so they are superseded and not counted |
 | Slice-1 recapture | Fold inner portrait and landscape recaptured (112 files), **not yet compared**. Pixel 10 Pro XL, Fold outer and Pixel Tablet slice-1 cells are still pending |
 
+**Android capture validity (eb4aa8c).** Android's old capture path waited fixed times (25 s and 10 s) and took screenshots before the preset preview finished rendering in the debug build. Measured on Pixel 9 Pro light-default with one APK:
+- dev-preset, dev-starred and dev-browse show the undeveloped photo;
+- dev-bw is still in colour;
+- nine more screens show an earlier preview.
+
+All Android slice-2 photo evidence from that path (f8a024c and earlier) is therefore invalid and marked STALE. The new persistent-session runner (one launch per batch, waiting for the app's ready signal) matches launch-with-ready-signal captures pixel for pixel in the app area on 23 of 23 screens. It is adopted for Android: 422 s per batch, against 679 s for launching per screen with the signal. Two runner timeouts are being fixed. The iOS capture path is being checked for the same problem.
+
 **Coordinator spot checks** (two images; not a review of the matrix):
 - iOS `iphone17-portrait-light-default/dev-preset`: the controls, text and spacing line up with the reference. The differences are the status bar and the photo, which shows the real preset render rather than the prototype's simulated colours.
-- Android `dev-browse` on Fold inner portrait light-default: the structure, list, rail and ruler match, and the whole screen sits about 10 dp lower (S1).
+- Android `dev-browse` on Fold inner portrait light-default: the structure, list, rail and ruler match, and the whole screen sits about 10 dp lower (S1). **Withdrawn:** that capture used the fixed-wait path, so its photo area is not valid evidence. The layout observation still needs confirming on a valid capture.
 
 ## Known deviations
 
