@@ -198,6 +198,16 @@ final class EditorSession {
             let analysed = await sceneAnalyser.people(in: prepared?.image ?? image)
             people = analysed
             sceneCache.people = analysed
+            #if DEBUG
+            // Capture sessions record what the face analysis found, so a screen showing
+            // "No face can be edited" can be traced to its cause.
+            for face in analysed.faces {
+                DebugCaptureTiming.mark(String(format: "face box=%.3f,%.3f,%.3f,%.3f quality=%.2f eyes=%d,%d lips=%d usable=%@",
+                                               face.box.x, face.box.y, face.box.width, face.box.height, face.quality ?? -1,
+                                               face.leftEye.count, face.rightEye.count, face.outerLips.count,
+                                               face.isUsable ? "yes" : "no").replacingOccurrences(of: " ", with: "_"))
+            }
+            #endif
         }
         // The renderer and bake cache exist only once the library has loaded (it loads in the
         // background from launch), so the preview scheduler is made after that.
