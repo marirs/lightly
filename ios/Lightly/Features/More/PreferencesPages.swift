@@ -133,15 +133,23 @@ struct FavouritePresetsPage: View {
     let favourites: FavouritePresetsStore
     let catalogue: DevelopPresetCatalogue
 
+    /// The favourite being dragged by its handle, and how far it has moved.
     @State private var draggedPresetID: String?
+    @State private var dragOffset: CGFloat = 0
+    @State private var rowHeight: CGFloat = ApprovedMetrics.rowMinimumHeight
+    /// Translation already turned into slot moves.
+    @State private var dragBase: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
             ApprovedNote(text: Text("favourites.note", bundle: .main))
-            ForEach(Array(favourites.presetIDs.enumerated()), id: \.element) { index, presetID in
-                row(presetID: presetID, index: index)
+            VStack(spacing: 0) {
+                ForEach(Array(favourites.presetIDs.enumerated()), id: \.element) { index, presetID in
+                    row(presetID: presetID, index: index)
+                }
             }
+            .coordinateSpace(name: "favourites")
             if favourites.freeSlots > 0 {
                 ApprovedNote(text: Text("favourites.free \(favourites.freeSlots)", bundle: .main))
             }
@@ -156,10 +164,15 @@ struct FavouritePresetsPage: View {
                 .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
                 .frame(width: ApprovedMetrics.minimumTarget, height: ApprovedMetrics.minimumTarget)
                 .contentShape(Rectangle())
-                .onDrag {
-                    draggedPresetID = presetID
-                    return NSItemProvider(object: presetID as NSString)
-                }
+                // The handle drags at once (no long press): the row follows the finger and takes
+                // the slot it is over. A plain drag gesture, not a system drag session, so the
+                // move cannot be lost to the session's lift timing or left half-done when a drag
+                // is dropped outside the list.
+                // v3 differs: slice 1 used onDrag/onDrop, which needed a long press to lift and
+                // reordered only when the system delivered dropEntered over another row.
+                .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("favourites"))
+                    .onChanged { value in dragChanged(presetID: presetID, translation: value.translation.height) }
+                    .onEnded { _ in dragEnded() })
             VStack(alignment: .leading, spacing: 0) {
                 name.approvedText(15).foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
                 if let entry {
@@ -182,9 +195,9 @@ struct FavouritePresetsPage: View {
         .frame(maxWidth: .infinity, minHeight: ApprovedMetrics.rowMinimumHeight)
         .overlay(alignment: .bottom) { ApprovedHairline() }
         .background(ApprovedColor.sheet.resolved(colorScheme))
-        .onDrop(of: [UTType.text], delegate: FavouriteReorderDropDelegate(
-            targetPresetID: presetID, favourites: favourites, draggedPresetID: $draggedPresetID
-        ))
+        .background(GeometryReader { proxy in Color.clear.onAppear { rowHeight = max(proxy.size.height, 1) } })
+        .offset(y: draggedPresetID == presetID ? dragOffset : 0)
+        .zIndex(draggedPresetID == presetID ? 1 : 0)
         // Reordering without dragging (VoiceOver, Switch Control).
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("favourites.row.\(index)")
@@ -200,26 +213,35 @@ struct FavouritePresetsPage: View {
     }
 }
 
-/// Moves the dragged favourite into the slot of the row it is dragged over.
-private struct FavouriteReorderDropDelegate: DropDelegate {
-    let targetPresetID: String
-    let favourites: FavouritePresetsStore
-    @Binding var draggedPresetID: String?
-
-    func dropEntered(info: DropInfo) {
-        MainActor.assumeIsolated {
-            guard let dragged = draggedPresetID, dragged != targetPresetID,
-                  let from = favourites.presetIDs.firstIndex(of: dragged),
-                  let to = favourites.presetIDs.firstIndex(of: targetPresetID) else { return }
-            withAnimation(.snappy(duration: 0.2)) { favourites.move(from: from, to: to) }
+extension FavouritePresetsPage {
+    /// The dragged row moves with the finger; whenever it passes half a row, it takes the
+    /// neighbouring slot and the offset is rebased, so the row stays under the finger.
+    func dragChanged(presetID: String, translation: CGFloat) {
+        if draggedPresetID != presetID {
+            draggedPresetID = presetID
+            dragBase = 0
         }
+        var offset = translation - dragBase
+        guard var index = favourites.presetIDs.firstIndex(of: presetID) else { return }
+        while offset > rowHeight / 2, index < favourites.presetIDs.count - 1 {
+            favourites.move(from: index, to: index + 1)
+            index += 1
+            dragBase += rowHeight
+            offset -= rowHeight
+        }
+        while offset < -rowHeight / 2, index > 0 {
+            favourites.move(from: index, to: index - 1)
+            index -= 1
+            dragBase -= rowHeight
+            offset += rowHeight
+        }
+        dragOffset = offset
     }
 
-    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
-
-    func performDrop(info: DropInfo) -> Bool {
+    func dragEnded() {
+        withAnimation(.snappy(duration: 0.2)) { dragOffset = 0 }
         draggedPresetID = nil
-        return true
+        dragBase = 0
     }
 }
 
