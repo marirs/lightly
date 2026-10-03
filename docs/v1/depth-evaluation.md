@@ -303,6 +303,11 @@ What the sheets show (by eye, at full resolution):
 
 ## 6. Rendering specification (for the shared rendering contract)
 
+> **Amended by contract fixes 1** (rendering-v2 revision 1, [contract-fixes-1.md](contract-fixes-1.md)): §R4's
+> constants and normalisation, the subject-in-focus rule (§R4), the pull-push algorithm (§R6), the depth
+> sources (§R0, §R8), the stored focus and replacement depth (§R2.4, §R3) and the goldens (§R9). The text
+> below is the amended specification.
+
 This is what both platforms implement. `experiments/depth/refocus.py` is its executable reference
 (section markers §R1–§R9 appear in its comments). Constants marked **[contract]** are part of the
 shared rendering contract and must match exactly; everything else is an implementation choice
@@ -322,7 +327,7 @@ enters the Background operator (i.e. after geometry), and cached per source + ge
 | `style` | lens · soft · swirl · motion | lens | kernel family |
 | `bokeh` | round · hex · heart · star | round | Lens only |
 | `styleAmount` | 0–100 | 50 | Soft: Glow; Swirl: Swirl; Motion: Direction = `styleAmount·3.6 − 180` degrees |
-| `depthSource` | embedded · estimated | — | recorded so every platform renders from the same depth |
+| `depthSource` | embedded · estimated (· subject-matte = no depth, Blur must stay 0) | — | recorded so every platform renders from the same depth |
 | replacement | image/colour/gradient + scale + position | none | §R2.4 |
 
 #### R1. Colour
@@ -370,8 +375,11 @@ on iOS, the platform's subject segmentation on Android, or the iOS Portrait Effe
 colours and gradients are images). Its disparity — "placed at a chosen depth behind the subject":
 * nearest allowed disparity `d_max = max(0, med_S − 0.10)` **[contract]** (always behind the subject);
 * default (**plane**): `D_B = min(median of the original D_B, d_max)` — the replacement sits where the
-  old background was, so swapping backgrounds keeps the blur the user already chose;
-* **own depth** (recommended when the replacement is a photo): run the same depth model on the
+  old background was, so swapping backgrounds keeps the blur the user already chose. This is a pure function
+  of the stored depth map and matte, so it is recomputed at render time; the recipe's `replacementDepth` is
+  not read (contract fixes 1, G6). It is the only placement the 1.0 contract renders;
+* **own depth** (not in the 1.0 contract: the edit recipe has no field for a replacement's depth map, so
+  adding it is a recipe change): run the same depth model on the
   replacement once, normalise (§R2.1), `D_B = D_rep · d_max`. A street or landscape then keeps its
   own near-to-far blur gradient behind the subject (sheet 08, columns 5–6).
 Focus & Blur then runs unchanged; the subject plane is already separated, so no fill is needed
@@ -385,15 +393,28 @@ sheets 05–07 have no subject at all).
 `d_f` = median of the disparity of the **topmost plane at the tap** (subject if `M(tap) ≥ 0.5`, else
 background) over a square window of half-size `0.01 × longSide` around the tap **[contract]**.
 Default target: subject matte centroid when a subject exists, else the image centre.
+The recipe stores the result as depth (`depth.focusDepth = 1 − d_f`, resolved when the target is set) and the
+renderer uses `d_f = 1 − focusDepth`; a null `focusDepth` is resolved with this rule at render time. A null
+target with a subject means "focus on the subject" (§R4).
 
 #### R4. Circle of confusion and layers
 
 For a thin lens the blur radius is proportional to `|1/z − 1/z_f|`, i.e. linear in disparity, so:
-* `R_max = blur/100 × 0.035 × longSide` px **[contract]** (relative to the long side, so preview and
-  export match at any resolution);
-* `h = 0.30 × (focusDepth/100)^1.5` (half-width of the sharp band, disparity units) **[contract]**;
-* signed CoC per plane pixel: `c = sign(D − d_f) · clamp((|D − d_f| − h)/(1 − h), 0, 1) · R_max`
-  (positive = in front of the focal band, negative = behind) **[contract]**;
+* `R_max = blur/100 × 0.06 × longSide` px **[contract]** (relative to the long side, so preview and
+  export match at any resolution). *Was 0.035; re-derived from the approved bg-* screens (contract fixes 1 §1).*
+* `h = 0.5 × focusDepth/100` (half-width of the sharp band, disparity units) **[contract]**.
+  *Was `0.30 × (focusDepth/100)^1.5`, which at the default 40 (h = 0.076) blurred the subject's shoulder.*
+* defocus range `S = max(d_f, 1 − d_f)` **[contract]**: the disparity distance from the focal plane to the
+  farther end of [0, 1]. Normalised disparity always spans [0, 1] (§R2.1), so the farthest content from the
+  focal plane gets the full `R_max`, which is what "Blur" means in the approved prototype.
+* signed CoC per plane pixel: `c = sign(D − d_f) · clamp((|D − d_f| − h)/max(S − h, 1e-6), 0, 1) · R_max`
+  (positive = in front of the focal band, negative = behind) **[contract]**. One scale serves both sides,
+  so the ratio of blur between any two depths is the thin-lens ratio. *Was `/(1 − h)`: with the focus on a
+  face at disparity 0.46 the wall behind could never exceed 0.46·R_max.*
+* **subject in focus** **[contract]**: when the focus is on the subject (`M(tap) ≥ 0.5`, or a null target
+  with a subject), the subject plane's CoC is 0 everywhere. The approved prototype keeps the whole person
+  sharp; with depth alone a shoulder nearer than the face fell outside the band and blurred. Focusing on the
+  background still blurs the subject as one plane (with its compressed disparity).
 * quantise into `2K + 1` layers, `K = 8` **[contract]**: layer `j ∈ [−K, K]` has radius `|j|·R_max/K`.
   Membership is a tent: `w_j = max(0, 1 − |c·K/R_max − j|) · α_plane` (each pixel belongs to at most
   two adjacent layers → no visible steps).
@@ -441,9 +462,14 @@ no blur). Then:
    two planes would fix it at ~2× the compositing cost.
 4. Inverse highlight expansion (§R1.2), Soft glow (§R5.2), encode.
 
-Pull-push fill **[contract algorithm]**: pull — repeatedly 2× area-downsample premultiplied colour and
-alpha, setting `α' = min(4α, 1)` and scaling colour by `α'/α`, until the short side ≤ 4 px; push —
-from coarsest to finest, `C_l = C_l + (1 − clamp(α_l))·upsample_bilinear(C_{l+1})`.
+Pull-push fill **[contract algorithm]**: pull — repeatedly 2× downsample premultiplied colour and alpha
+with an exact 2×2 box mean (an odd last row or column is repeated first), setting `α' = min(4α, 1)` and
+scaling colour by `α'/α`, **until the level is 1×1**; then `filled = C/max(α, 1e-6)` at that level;
+push — from coarsest to finest, `C_l = C_l + (1 − clamp(α_l, 0, 1))·upsample_bilinear(C_{l+1})`, with
+half-pixel centres (`src = clamp((dst + 0.5)·in/out − 0.5, 0, in − 1)` per axis). *Contract fixes 1 (G7):
+the first version stopped when the short side was ≤ 4 px, so a coarsest-level cell with no coverage stayed 0
+and a large disocclusion filled toward black. Kraus & Strengert pull to the top of the pyramid; only a plane
+with no coverage at all yields 0.*
 
 #### R7. Implementation latitude (GPU)
 
@@ -461,14 +487,15 @@ from coarsest to finest, `C_l = C_l + (1 − clamp(α_l))·upsample_bilinear(C_{
 * `blur = 0` → operator is the identity (after replacement compositing if any).
 * No subject → background plane only; "Change background" disabled as already designed.
 * Depth unavailable (model failed / cancelled) → the approved "couldn't separate" state; never fake
-  depth with a mask-only blur.
+  depth with a mask-only blur. The recipe's `depth.source = subject-matte` means exactly this: no depth,
+  and the edit-recipe reader rejects it with Blur > 0 (contract fixes 1, G3).
 * Tiny or very thin subjects: if `erode` leaves < 50 px, use `M > 0.5` unchanged.
 * Refine edges (brush) edits `M`; both planes are rebuilt from the edited matte.
 
 #### R9. Parity
 
 Golden test images: the reference renderer's output for fixed inputs (photo, disparity, matte,
-params). Renderer goldens take the disparity map as an *input*, so they do not depend on the depth
+params), committed in `shared/fixtures/rendering/` (generator `shared/contracts/make_rendering_goldens.py`). Renderer goldens take the disparity map as an *input*, so they do not depend on the depth
 model. The model is checked separately: each platform's output on the golden photos must correlate
 ≥ 0.999 with the PyTorch reference at 518×392 (measured: Apple P8 0.99997, LiteRT int8-weights
 0.99996). Platforms must match within ΔE00 mean ≤ 1.0 / p99 ≤ 4 at the working resolution; the
