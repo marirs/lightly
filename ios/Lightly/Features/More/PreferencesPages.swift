@@ -170,7 +170,7 @@ struct FavouritePresetsPage: View {
                 // is dropped outside the list.
                 // v3 differs: slice 1 used onDrag/onDrop, which needed a long press to lift and
                 // reordered only when the system delivered dropEntered over another row.
-                .gesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("favourites"))
+                .highPriorityGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("favourites"))
                     .onChanged { value in dragChanged(presetID: presetID, translation: value.translation.height) }
                     .onEnded { _ in dragEnded() })
             VStack(alignment: .leading, spacing: 0) {
