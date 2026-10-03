@@ -145,7 +145,13 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertEqual(label("develop.position"), "0 / 564")
         XCTAssertEqual(label("develop.name"), "Original")
         XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Browsing made no undo step")
-        element("develop.category.landscape").tap()
+        // Landscape is scrolled out of sight to the left: swipe the row back, then choose it.
+        let landscape = element("develop.category.landscape")
+        for _ in 0..<3 where !landscape.isHittable {
+            let start = element("develop.category.cinematic").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 200, dy: 0)))
+        }
+        landscape.tap()
         XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
         XCTAssertEqual(label("develop.position"), "37 / 518")
     }
@@ -155,8 +161,10 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(waitFor { self.element("develop.amount").label == "Amount 100" })
         element("develop.amount").tap()
         XCTAssertTrue(element("slider.amount").waitForExistence(timeout: timeout))
-        element("slider.amount").adjust(toNormalizedSliderPosition: 0.3)
-        element("slider.amount").swipeLeft()
+        // Drag the knob from the track's end towards its start, as a finger does.
+        let slider = element("slider.amount")
+        slider.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: slider.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.5)))
         element("develop.amount.done").tap()
         XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
         XCTAssertNotEqual(element("develop.amount").label, "Amount 100")

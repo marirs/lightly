@@ -124,10 +124,18 @@ struct EditorTopBar: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // `.ib[disabled]` is ink3 at full opacity; the plain style would dim it further.
+        .buttonStyle(UndimmedButtonStyle())
         .disabled(!enabled)
         .accessibilityLabel(Text(label))
         .accessibilityIdentifier(identifier)
+    }
+}
+
+/// Draws the label exactly as given: no pressed or disabled dimming beyond the label's own colours.
+struct UndimmedButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
