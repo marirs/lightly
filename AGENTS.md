@@ -12,3 +12,7 @@ The user explicitly requires **NO UX DEVIATIONS**. This applies to every impleme
 - Never alter the approved mockups or re-record reference baselines to make a divergent implementation pass review.
 - Review against the actual reference screens and interactions. Report mismatches as findings; missing visual or behavioural evidence is unverified, not accepted. Passing code tests alone is not UX approval.
 - Technical, correctness, accessibility, and safety reviews remain required; they do not permit silent changes to the approved UX. Raise any conflict explicitly for user resolution.
+
+## Verification throughput
+
+Read `docs/v1/verification-workflow.md` before scheduling builds, tests or screenshot batches. Use `scripts/heavy` for all heavy work, including commands prefixed by `rtk`. A busy lock is pending work, not permission to bypass it or launch automatic retry loops.

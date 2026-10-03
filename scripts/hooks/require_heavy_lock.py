@@ -90,6 +90,11 @@ def simple_command_bypasses_lock(raw_words: list[str]) -> bool:
     words = program_words(raw_words)
     if not words:
         return False
+    if os.path.basename(words[0]) == "rtk":
+        wrapped = words[1:]
+        if wrapped and wrapped[0] == "proxy":
+            wrapped = wrapped[1:]
+        return simple_command_bypasses_lock(wrapped)
     program_path = words[0]
     program = os.path.basename(program_path)
     if program_path.endswith("scripts/heavy"):

@@ -1,7 +1,8 @@
 #!/bin/bash
 # Run one heavy job (build, test run, simulator or emulator session) while
 # holding the machine-wide heavy-job lock. Only one heavy job may run at a
-# time; a second caller waits here until the first finishes.
+# time; a second caller waits at most 120 seconds by default.
+# Exit 75 means busy: leave the work pending, do not start a retry loop.
 #
 # Usage: scripts/heavy <label> <command> [args...]
 #   scripts/heavy ios-unit xcodebuild test -project ...
@@ -24,6 +25,10 @@ if [ $# -lt 2 ]; then
   exit 64
 fi
 label=$1; shift
+wait_seconds=${LIGHTLY_HEAVY_WAIT_SECONDS:-120}
+case "$wait_seconds" in
+  ''|*[!0-9]*) echo "LIGHTLY_HEAVY_WAIT_SECONDS must be a nonnegative integer" >&2; exit 64 ;;
+esac
 
 shutdown_devices() {
   xcrun simctl shutdown all >/dev/null 2>&1
@@ -47,7 +52,7 @@ export LIGHTLY_HEAVY_LOCK_HELD=1
 export LIGHTLY_HEAVY_LABEL="$label"
 export LIGHTLY_HEAVY_REQUESTED="$requested"
 export -f shutdown_devices
-exec lockf -k "$LOCK_FILE" bash -c '
+exec lockf -t "$wait_seconds" -k "$LOCK_FILE" bash -c '
   started=$(date +%s)
   echo "$(date "+%F %T") START pid=$$ label=$LIGHTLY_HEAVY_LABEL waited=$((started-LIGHTLY_HEAVY_REQUESTED))s" >> '"$LOG_FILE"'
   shutdown_devices

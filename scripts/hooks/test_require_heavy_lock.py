@@ -4,6 +4,10 @@ import unittest
 from require_heavy_lock import command_bypasses_lock
 
 REFUSED = [
+    "rtk xcodebuild test -scheme X",
+    "rtk proxy xcodebuild test -scheme X",
+    "rtk proxy bash -c 'xcrun simctl boot FA7C'",
+    "rtk proxy ./gradlew test",
     "cd ios && xcodebuild test -scheme X | tail",
     "cd android && ./gradlew test",
     "scripts/heavy x true; ./gradlew assembleDebug",
@@ -18,6 +22,9 @@ REFUSED = [
     "echo $(xcodebuild -version)",
 ]
 ALLOWED = [
+    "rtk proxy scripts/heavy ios-unit xcodebuild test",
+    "rtk git status",
+    "rtk proxy xcrun simctl list devices",
     "scripts/heavy ios-unit xcodebuild test -scheme X | tail -5",
     "cd ios && ../scripts/heavy ios-unit xcodebuild test 2>&1 | grep -E 'error:'",
     "/Users/sg/Documents/Dev/Projects/lightly/scripts/heavy l bash -c 'cd ios; xcodebuild test; xcrun simctl io booted screenshot a.png'",
