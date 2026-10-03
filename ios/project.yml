@@ -34,6 +34,11 @@ targets:
       # verbatim; favourites (slice 1) and the Develop panel (slice 2) read it.
       - path: ../presets/develop-design-ui.json
         buildPhase: resources
+      # Rendering contract v2, verbatim: the Develop model constants (and their digest) the app bakes
+      # preset LUTs with. Read at launch by DevelopModel; the preset pack is refused if it was built
+      # against other constants.
+      - path: ../shared/contracts/rendering-v2.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly
@@ -109,7 +114,7 @@ targets:
         TEST_TARGET_NAME: Lightly
 
 aggregateTargets:
-  # Copies the git-ignored Look pack into the app bundle (scripts/bundle_look_pack.sh).
+  # Copies the git-ignored preset pack (format 3) into the app bundle (scripts/bundle_look_pack.sh).
   #
   # A separate target only so that this one script runs without user-script sandboxing; the
   # app target and every other script keep ENABLE_USER_SCRIPT_SANDBOXING: YES. Why it cannot be
