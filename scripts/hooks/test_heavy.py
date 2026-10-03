@@ -41,9 +41,17 @@ class HeavyTests(unittest.TestCase):
             result = self.run_job("1", "touch", str(marker))
             self.assertEqual(result.returncode, 75, result.stderr)
             self.assertFalse(marker.exists())
+            self.assertIn(" BUSY ", (self.root / "log").read_text())
         finally:
             holder.terminate()
             holder.wait(timeout=8)
+
+    def test_command_exit_75_is_not_logged_busy(self):
+        result = self.run_job("1", "bash", "-c", "exit 75")
+        self.assertEqual(result.returncode, 75)
+        log = (self.root / "log").read_text()
+        self.assertNotIn(" BUSY ", log)
+        self.assertIn("status=75", log)
 
     def test_invalid_wait_rejected(self):
         self.assertEqual(self.run_job("bad", "true").returncode, 64)

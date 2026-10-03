@@ -51,9 +51,16 @@ echo "$(date '+%F %T') WAIT  pid=$$ label=$label" >> "$LOG_FILE"
 export LIGHTLY_HEAVY_LOCK_HELD=1
 export LIGHTLY_HEAVY_LABEL="$label"
 export LIGHTLY_HEAVY_REQUESTED="$requested"
+# Touched by the job once it holds the lock, so a command's own exit 75 is
+# never mistaken for a busy lock.
+export LIGHTLY_HEAVY_STARTED_MARKER="${TMPDIR:-/tmp}/lightly-heavy-started.$$"
+rm -f "$LIGHTLY_HEAVY_STARTED_MARKER"
 export -f shutdown_devices
-exec lockf -t "$wait_seconds" -k "$LOCK_FILE" bash -c '
+# Not exec: the wrapper must outlive lockf to log a busy refusal, so the
+# time callers spend waiting for a lock they never get is measured too.
+lockf -t "$wait_seconds" -k "$LOCK_FILE" bash -c '
   started=$(date +%s)
+  : > "$LIGHTLY_HEAVY_STARTED_MARKER"
   echo "$(date "+%F %T") START pid=$$ label=$LIGHTLY_HEAVY_LABEL waited=$((started-LIGHTLY_HEAVY_REQUESTED))s" >> '"$LOG_FILE"'
   shutdown_devices
   "$@"; status=$?
@@ -61,3 +68,9 @@ exec lockf -t "$wait_seconds" -k "$LOCK_FILE" bash -c '
   echo "$(date "+%F %T") END   pid=$$ label=$LIGHTLY_HEAVY_LABEL ran=$(( $(date +%s)-started ))s status=$status" >> '"$LOG_FILE"'
   exit $status
 ' heavy-job "$@"
+status=$?
+if [ "$status" -eq 75 ] && [ ! -e "$LIGHTLY_HEAVY_STARTED_MARKER" ]; then
+  echo "$(date '+%F %T') BUSY  pid=$$ label=$label waited=$(( $(date +%s)-requested ))s" >> "$LOG_FILE"
+fi
+rm -f "$LIGHTLY_HEAVY_STARTED_MARKER"
+exit "$status"
