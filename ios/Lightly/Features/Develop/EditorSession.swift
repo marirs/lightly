@@ -390,7 +390,7 @@ final class EditorSession {
         }
         matteImage = matte.flatMap { Self.maskImage($0.matte) }
         if let matte {
-            let centroid = RefocusRenderer.defaultTarget(matte: matte.matte)
+            let centroid = RefocusRenderer.defaultTarget(matte: matte.matte, faces: people?.faces ?? [])
             defaultFocusTarget = (Double(centroid.x), Double(centroid.y))
         }
         subjectState = matte == nil ? .noSubject : .ready

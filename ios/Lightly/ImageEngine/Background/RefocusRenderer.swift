@@ -194,7 +194,20 @@ enum RefocusRenderer {
         return focalDisparity(scene, x: x, y: y)
     }
 
-    /// The default focus target: the subject's matte centroid, else the image centre.
+    /// The default focus target with no tap: the centre of the first usable face when it lies on
+    /// the subject (the approved screens focus on the face, prototype `ph.target`), else the
+    /// subject's matte centroid, else the image centre.
+    static func defaultTarget(matte: FloatImage?, faces: [DetectedFace]) -> (x: Float, y: Float) {
+        if let matte, let face = faces.first(where: \.isUsable) {
+            let x = Float(face.box.x + face.box.width / 2), y = Float(face.box.y + face.box.height / 2)
+            let mx = Int((min(max(x, 0), 1) * Float(matte.width - 1)).rounded(.down))
+            let my = Int((min(max(y, 0), 1) * Float(matte.height - 1)).rounded(.down))
+            if matte.data[my * matte.width + mx] >= 0.5 { return (x, y) }
+        }
+        return defaultTarget(matte: matte)
+    }
+
+    /// The subject's matte centroid, else the image centre.
     static func defaultTarget(matte: FloatImage?) -> (x: Float, y: Float) {
         guard let matte else { return (0.5, 0.5) }
         var sx: Float = 0, sy: Float = 0, total: Float = 0

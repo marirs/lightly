@@ -67,7 +67,6 @@ struct BackgroundPanelView: View {
                 .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 4)
             content
         }
-        .padding(.bottom, 4)
         .task { session.analyseSubjectIfNeeded() }
     }
 

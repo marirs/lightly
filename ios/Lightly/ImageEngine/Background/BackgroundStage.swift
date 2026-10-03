@@ -52,7 +52,7 @@ enum BackgroundStage {
             // §R2.4 "plane" placement; `replacementDepth` is not read (revision 1, G6).
             scene = RefocusRenderer.replacingBackground(scene, with: replacementLinear, ownDisparity: nil)
         }
-        let target = background.focus.target.map { (Float($0.x), Float($0.y)) } ?? RefocusRenderer.defaultTarget(matte: matte)
+        let target = background.focus.target.map { (Float($0.x), Float($0.y)) } ?? RefocusRenderer.defaultTarget(matte: matte, faces: cache.people?.faces ?? [])
         let params = RefocusRenderer.Parameters(
             targetX: target.0, targetY: target.1, blur: blur, focusDepth: Float(background.focus.depthOfField),
             style: background.focus.style, bokeh: background.focus.bokeh, styleAmount: Float(background.focus.styleAmount),

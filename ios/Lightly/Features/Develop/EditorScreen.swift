@@ -250,7 +250,7 @@ struct EditorScreen: View {
                     backgroundMarks(size: size)
                 case .portrait:
                     if let people = session.people {
-                        FaceRingsMark(faces: people.usableFaces.map(\.box), selected: portraitPanel.selectedFace,
+                        FaceRingsMark(faces: people.usableFaces.map(\.ring), selected: portraitPanel.selectedFace,
                                       people: people.usableFaces.isEmpty ? people.people + people.faces.map(\.box) : [],
                                       onSelect: { portraitPanel.selectedFace = $0 })
                     }

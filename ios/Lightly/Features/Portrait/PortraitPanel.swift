@@ -76,7 +76,6 @@ struct PortraitPanelView: View {
                 sliders
             }
         }
-        .padding(.bottom, 4)
     }
 
     private var faceStrip: some View {
