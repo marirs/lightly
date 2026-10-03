@@ -196,3 +196,27 @@ def download(url: str, destination: str, expected_sha1: str | None) -> str:
         os.remove(destination)
         raise ValueError(f"sha1 mismatch for {url}")
     return hashlib.sha256(content).hexdigest()
+
+
+def trace_sha1(sha1: str, cache_dir: str) -> dict | None:
+    """Find the Commons file whose bytes have this sha1 and return its full record (licence, author, EXIF).
+    Two API requests (allimages by sha1, then imageinfo by title); cached per sha1."""
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_path = os.path.join(cache_dir, sha1 + ".json")
+    if os.path.exists(cache_path):
+        return json.load(open(cache_path))["record"]
+    session = _session()
+    found = polite_get(session, API, "api", params={"action": "query", "list": "allimages", "aisha1": sha1,
+                                                    "format": "json"}).json()
+    hits = (found.get("query") or {}).get("allimages") or []
+    record = None
+    if hits:
+        data = polite_get(session, API, "api", params={
+            "action": "query", "format": "json", "titles": hits[0]["title"], "prop": "imageinfo",
+            "iiprop": "url|size|sha1|mime|extmetadata|metadata",
+            "iiextmetadatafilter": "LicenseShortName|LicenseUrl|UsageTerms|Artist|Credit|Categories|Restrictions|ImageDescription"}).json()
+        page = next(iter(data["query"]["pages"].values()))
+        page.setdefault("pageid", page.get("pageid"))
+        record = record_from_page(page)
+    json.dump({"sha1": sha1, "record": record}, open(cache_path, "w"))
+    return record

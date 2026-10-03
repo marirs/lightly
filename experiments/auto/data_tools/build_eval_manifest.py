@@ -1,9 +1,10 @@
-"""Build the public held-out evaluation set PH-1 from reviewed Commons selections.
+"""Build the public held-out evaluation set PH-1 from reviewed selections.
 
-  python -m data_tools.build_eval_manifest --selection manifests/ph1_selection.json --set-id ph1
+  python -m data_tools.build_eval_manifest --selection manifests/ph1_selection.json --set-id ph1 [--faces ...]
 
-For every selected file:
-  1. download the ORIGINAL upload once, verify Commons' sha1, record its sha256;
+For every selected file (an original fetched from PD12M's S3 copy, md5-verified by pd12m_eval_candidates):
+  1. trace its bytes (sha1) to the Commons file page and re-apply the Commons licence/provenance/unedited
+     rules on that page's own data; refuse the file if it fails or cannot be traced;
   2. derive the analysis proxy exactly once: EXIF orientation applied, embedded ICC profile converted to sRGB
      (phone JPEGs are often Display P3), LANCZOS to 2048 px long edge (protocol analysis_resolution), saved
      as lossless PNG. The runner then reads the proxy (already at 2048, so it is not resized again);
@@ -27,18 +28,17 @@ import os
 import numpy as np
 from PIL import Image, ImageCms, ImageOps
 
-from data_tools.commons import download
-from data_tools.fetch_review_pool import original_path as review_original_path
+from data_tools.commons import eligible, phone_brand, trace_sha1
 from lightly_auto.manifest import file_sha256, manifest_hash, write_manifest
 
 AUTO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO_ROOT = os.path.dirname(os.path.dirname(AUTO_ROOT))
 LONG_EDGE = 2048
 SOURCE_TIER = "T2_public_cc0_pd"  # third-party CC0 / public domain; NOT T1, so never a G0 frozen set
-PROVENANCE_COLUMNS = ["image_id", "rubric_class", "commons_page", "original_url", "licence", "licence_url", "author",
-                      "original_sha1", "original_sha256", "original_bytes", "proxy_sha256", "device_brand", "device_model",
-                      "capture_datetime", "personality_rights_flag", "faces_detected", "provisional_ita_deg",
-                      "provisional_ita_bucket"]
+PROVENANCE_COLUMNS = ["image_id", "rubric_class", "commons_page", "original_url", "pd12m_url", "licence", "licence_url",
+                      "author", "original_sha1", "original_sha256", "original_bytes", "proxy_sha256", "device_brand",
+                      "device_model", "is_phone", "capture_datetime", "personality_rights_flag", "faces_detected",
+                      "provisional_ita_deg", "provisional_ita_bucket", "reviewer_note"]
 
 
 def to_srgb_upright(path: str) -> Image.Image:
@@ -94,25 +94,36 @@ def ita_bucket(ita: float | None) -> str:
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--selection", required=True)
-    parser.add_argument("--candidates", default="data/commons/candidates.json")
+    parser.add_argument("--candidates", default="data/pd12m/eval_candidates.json")
     parser.add_argument("--set-id", default="ph1")
     parser.add_argument("--faces", default=None, help="faces.json for the proxies (second pass, after detection)")
     args = parser.parse_args(argv)
-    candidates = {r["sha1"]: r for r in json.load(open(os.path.join(AUTO_ROOT, args.candidates)))}
+    candidates = {r["id"]: r for r in json.load(open(os.path.join(AUTO_ROOT, args.candidates)))}
     selection = json.load(open(os.path.join(AUTO_ROOT, args.selection)))
     faces = json.load(open(os.path.join(AUTO_ROOT, args.faces))) if args.faces else {}
     data_dir = os.path.join(AUTO_ROOT, "data", args.set_id)
-    rows, provenance = [], []
-    for index, item in enumerate(sorted(selection, key=lambda s: (s["rubric_class"], s["sha1"]))):
-        record = candidates[item["sha1"]]
-        original_path = review_original_path(record)  # shared with the review pool, fetched once
-        original_sha256 = download(record["url"], original_path, record["sha1"])
-        image_id = f"{args.set_id}_{item['rubric_class']}_{record['sha1'][:10]}"
+    trace_dir = os.path.join(AUTO_ROOT, "data", "pd12m", "commons_trace")
+    rows, provenance, refused = [], [], []
+    for index, item in enumerate(sorted(selection, key=lambda s: (s["rubric_class"], s["id"]))):
+        candidate = candidates[item["id"]]
+        original_path = os.path.join(AUTO_ROOT, "data", "pd12m", "eval_originals", candidate["id"] + ".jpg")
+        original_sha1 = hashlib.sha1(open(original_path, "rb").read()).hexdigest()
+        # Same per-file evidence as a direct Commons download: trace the bytes to their Commons page and apply
+        # the Commons licence / provenance / unedited rules there, not only PD12M's record.
+        record = trace_sha1(original_sha1, trace_dir)
+        if record is None:
+            refused.append((item["id"], "no Commons file with these bytes"))
+            continue
+        ok, why = eligible(record, require_phone=False)
+        if not ok:
+            refused.append((item["id"], why))
+            continue
+        original_sha256 = file_sha256(original_path)
+        image_id = f"{args.set_id}_{item['rubric_class']}_{original_sha1[:10]}"
         proxy_path = os.path.join(data_dir, "proxy", image_id + ".png")
         if not os.path.exists(proxy_path):
             make_proxy(original_path, proxy_path)
         proxy_sha256 = file_sha256(proxy_path)
-        from data_tools.commons import phone_brand
         brand = phone_brand(record["make"], record["model"]) or record["make"]
         boxes = faces.get(image_id, [])
         ita = provisional_ita(np.asarray(Image.open(proxy_path).convert("RGB")), boxes) if boxes else None
@@ -122,16 +133,17 @@ def main(argv=None):
             "split": "public_holdout", "source_tier": SOURCE_TIER, "contributor_id": "commons:" + record["artist"][:80],
             "session_id": (record["datetime_original"] or "")[:10], "device_brand": brand, "device_model": record["model"],
             "rights_doc_id": record["descriptionurl"], "permitted_uses": "eval",
-            "notes": f"{record['licence_short']}; original sha256 {original_sha256}"})
+            "notes": f"{record['licence_short']}; original sha256 {original_sha256}; PD12M id {candidate['id']}"})
         provenance.append({
             "image_id": image_id, "rubric_class": item["rubric_class"], "commons_page": record["descriptionurl"],
-            "original_url": record["url"], "licence": record["licence_short"], "licence_url": record["licence_url"],
-            "author": record["artist"][:120], "original_sha1": record["sha1"], "original_sha256": original_sha256,
-            "original_bytes": record["bytes"], "proxy_sha256": proxy_sha256, "device_brand": brand,
-            "device_model": record["model"], "capture_datetime": record["datetime_original"],
+            "original_url": record["url"], "pd12m_url": candidate["url"], "licence": record["licence_short"],
+            "licence_url": record["licence_url"], "author": record["artist"][:120], "original_sha1": original_sha1,
+            "original_sha256": original_sha256, "original_bytes": os.path.getsize(original_path), "proxy_sha256": proxy_sha256,
+            "device_brand": brand, "device_model": record["model"], "is_phone": bool(phone_brand(record["make"], record["model"])),
+            "capture_datetime": record["datetime_original"],
             "personality_rights_flag": "yes" if "ersonality" in (record.get("restrictions") or "") else "",
             "faces_detected": len(boxes) if args.faces else "", "provisional_ita_deg": "" if ita is None else round(ita, 1),
-            "provisional_ita_bucket": ita_bucket(ita)})
+            "provisional_ita_bucket": ita_bucket(ita), "reviewer_note": item.get("note", "")})
         print(f"[{index + 1}/{len(selection)}] {image_id}", flush=True)
     manifests_dir = os.path.join(AUTO_ROOT, "manifests")
     os.makedirs(manifests_dir, exist_ok=True)
@@ -140,9 +152,12 @@ def main(argv=None):
         writer = csv.DictWriter(handle, fieldnames=PROVENANCE_COLUMNS)
         writer.writeheader()
         writer.writerows(provenance)
+    os.makedirs(data_dir, exist_ok=True)
     with open(os.path.join(data_dir, "face_list.tsv"), "w") as handle:
         for row in rows:
             handle.write(f"{row['image_id']}\t{os.path.join(REPO_ROOT, row['source_path'])}\n")
+    json.dump(refused, open(os.path.join(data_dir, "refused.json"), "w"), indent=1)
+    print("refused", len(refused), refused[:10])
     print("manifest hash", manifest_hash(rows), "rows", len(rows))
 
 

@@ -25,8 +25,15 @@ def thumb_url(original_url: str, width: int = 330) -> str:
     return f"{prefix}/wikipedia/commons/thumb/{rest}/{width}px-{name}"
 
 
-def fetch_thumb(record: dict, session) -> Image.Image | None:
-    path = os.path.join(THUMB_DIR, record["sha1"] + ".jpg")
+def record_key(record: dict) -> str:
+    """PD12M candidates are keyed by PD12M id, Commons-API candidates by sha1."""
+    return record.get("id") or record["sha1"]
+
+
+def fetch_thumb(record: dict, session, cached_only: bool = False) -> Image.Image | None:
+    path = os.path.join(THUMB_DIR, record_key(record) + ".jpg")
+    if not os.path.exists(path) and cached_only:
+        return None
     if not os.path.exists(path):
         os.makedirs(THUMB_DIR, exist_ok=True)
         try:
@@ -42,7 +49,8 @@ def fetch_thumb(record: dict, session) -> Image.Image | None:
         return None
 
 
-def make_sheets(records: list[dict], out_prefix: str, per_sheet: int = 48, columns: int = 8, cell: int = 220) -> list[str]:
+def make_sheets(records: list[dict], out_prefix: str, per_sheet: int = 48, columns: int = 8, cell: int = 220,
+                cached_only: bool = False) -> list[str]:
     session = _session()
     paths = []
     for sheet_index in range(0, len(records), per_sheet):
@@ -51,7 +59,7 @@ def make_sheets(records: list[dict], out_prefix: str, per_sheet: int = 48, colum
         sheet = Image.new("RGB", (columns * cell, rows * (cell + 18)), "white")
         draw = ImageDraw.Draw(sheet)
         for offset, record in enumerate(chunk):
-            thumb = fetch_thumb(record, session)
+            thumb = fetch_thumb(record, session, cached_only)
             x, y = (offset % columns) * cell, (offset // columns) * (cell + 18)
             if thumb is not None:
                 thumb.thumbnail((cell - 4, cell - 4))
@@ -71,17 +79,21 @@ def main(argv=None):
     parser.add_argument("--out", required=True)
     parser.add_argument("--phones-only", action="store_true")
     parser.add_argument("--max", type=int, default=0, help="review at most N candidates (deterministic order)")
+    parser.add_argument("--cached-only", action="store_true", help="use review thumbnails already on disk; no requests")
     args = parser.parse_args(argv)
     records = [r for r in json.load(open(os.path.join(AUTO_ROOT, args.candidates)))
                if args.nominated in r["nominated_classes"] and (r["is_phone"] or not args.phones_only)]
     # Phones first, then camera fallbacks; stable order so sheet indices are reproducible.
-    records.sort(key=lambda r: (not r["is_phone"], r["sha1"]))
+    records.sort(key=lambda r: (not r["is_phone"], record_key(r)))
     if args.max:
         records = records[:args.max]
     index_path = os.path.join(AUTO_ROOT, args.out + "_index.json")
     os.makedirs(os.path.dirname(index_path), exist_ok=True)
-    json.dump([r["sha1"] for r in records], open(index_path, "w"))
-    for path in make_sheets(records, os.path.join(AUTO_ROOT, args.out)):
+    json.dump([record_key(r) for r in records], open(index_path, "w"))
+    if args.cached_only:
+        records = [r for r in records if os.path.exists(os.path.join(THUMB_DIR, record_key(r) + ".jpg"))]
+    json.dump([record_key(r) for r in records], open(index_path, "w"))
+    for path in make_sheets(records, os.path.join(AUTO_ROOT, args.out), cached_only=args.cached_only):
         print(path)
 
 

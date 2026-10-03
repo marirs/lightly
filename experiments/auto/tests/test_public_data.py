@@ -4,7 +4,7 @@ import hashlib
 import numpy as np
 import pytest
 
-from data_tools.build_train_manifest import split_for
+from data_tools.build_pd12m_train_manifest import split_for
 from data_tools.commons import eligible, licence_accepted, phone_brand
 from eval_synthetic import frozen_degradation
 from lightly_auto.manifest import TrainingRightsError, assert_training_rights
@@ -52,9 +52,9 @@ def test_phone_brand_excludes_camera_lines_of_phone_makers():
     assert phone_brand("SAMSUNG", "NX300") is None
 
 
-def test_photographer_split_is_deterministic_and_case_insensitive():
-    assert split_for("Jane Doe") == split_for("  jane doe ")
-    shares = [split_for(f"artist {i}") for i in range(3000)]
+def test_session_split_is_deterministic_and_about_80_10_10():
+    assert split_for("apple|iphone 12|2023:01:01") == split_for("apple|iphone 12|2023:01:01")
+    shares = [split_for(f"session {i}") for i in range(3000)]
     assert 0.75 < shares.count("train") / 3000 < 0.85
 
 
