@@ -4,13 +4,21 @@ import Observation
 
 /// The screen the user is currently on.
 ///
-/// Modelled as an explicit enum rather than a `NavigationStack` path because the
-/// V1 flow is linear and shallow (spec §3), and because "one clear next step"
-/// (§2.2) is far easier to guarantee when the set of reachable states is
-/// enumerable and testable.
+/// Modelled as an explicit enum rather than a `NavigationStack` path because the entry flow is
+/// linear and shallow, and "one clear next step" is far easier to guarantee when the set of
+/// reachable states is enumerable and testable.
+///
+/// The approved Launch (the mark alone, centred) is the system launch screen
+/// (`UILaunchScreen` in project.yml); it has no route because nothing in the app holds it.
+// v3 differs: v1 started on a launch screen with a swipe-up gesture that revealed a source
+// sheet. The approved design replaces both with Welcome's Choose a photo and Camera buttons.
 enum AppRoute: Equatable, Sendable {
-    /// Launch screen with the brand mark and swipe affordance.
-    case launch
+    /// Mark, wordmark, tagline, Choose a photo, Camera, the privacy line and Privacy Policy.
+    case welcome
+    /// Camera permission was denied or is restricted.
+    case cameraAccessOff
+    /// The chosen photo could not be read or decoded.
+    case photoCannotBeOpened
     /// A photograph is loaded and ready to develop.
     case editor(SelectedPhotoReference)
 }
@@ -24,9 +32,23 @@ struct SelectedPhotoReference: Equatable, Sendable {
     let id: UUID
 }
 
+/// What the More sheet (⋮) opens on.
+enum MoreEntry: Identifiable, Equatable, Sendable {
+    /// More › Preferences, Legal, About (from Welcome or the editor).
+    case menu
+    /// Welcome's Privacy Policy link: the policy alone; its back button returns to Welcome.
+    case privacyPolicyFromWelcome
+
+    var id: Self { self }
+}
+
+/// Produces the bytes of a chosen photo. Kept so "Try again" on "This photo can’t be opened"
+/// repeats the same request (an iCloud download can succeed the second time).
+typealias PhotoDataProvider = @Sendable () async throws -> Data
+
 /// Root application state.
 ///
-/// Owns navigation, the current photograph, and the active error state. Views
+/// Owns navigation, the current photograph and the preferences. Views
 /// read from it and call intent methods on it; they never mutate it directly.
 /// Isolated to the main actor because every property here drives UI.
 @MainActor
@@ -36,34 +58,37 @@ final class AppState {
     // MARK: - Navigation
 
     /// The current screen.
-    private(set) var route: AppRoute = .launch
+    private(set) var route: AppRoute = .welcome
 
-    /// Whether the source-selection sheet is presented.
-    var isSourceSheetPresented: Bool = false
-
-    /// The source the user chose, once the sheet has been dismissed and a
-    /// system picker or capture flow should be presented.
+    /// The system picker or camera to present, if any.
     private(set) var activeSource: PhotoSource?
+
+    /// The More sheet, if presented.
+    var moreEntry: MoreEntry?
+
+    /// No camera on this device (the simulator): a plain alert instead of a capture screen.
+    var isCameraUnavailableAlertPresented = false
 
     // MARK: - Content
 
     /// The photograph currently loaded, if any.
     private(set) var selectedPhoto: SelectedPhoto?
 
-    /// True while a chosen asset is being decoded.
+    /// True while a chosen asset is being read and decoded.
     private(set) var isLoadingPhoto: Bool = false
 
-    // MARK: - Failure
+    // MARK: - Preferences
 
-    /// The active recoverable failure, if any (spec §28).
-    ///
-    /// Presentation is the view layer's concern; the state machine only records
-    /// that a defined failure occurred. Cancellation never lands here.
-    private(set) var activeError: LightlyError?
+    let preferences: PreferencesStore
+    let favourites: FavouritePresetsStore
+    let presetCatalogue: DevelopPresetCatalogue
+    let releaseContent: ReleaseContent
+    let appVersion: AppVersion
 
     // MARK: - Dependencies
 
     private let photoLoader: any PhotoLoading
+    private let cameraAccess: any CameraAccessing
 
     /// Editor view models, retained per photograph.
     ///
@@ -78,21 +103,38 @@ final class AppState {
     private let lookBook: LUTLookBook
     private let lutRenderer: (any LUTRendering)?
 
+    /// The last photo request, for "Try again".
+    @ObservationIgnored private var lastPhotoRequest: (source: PhotoSource, provider: PhotoDataProvider)?
+
     init(
         photoLoader: any PhotoLoading,
         libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
         autoEnhancer: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
         lookBook: LUTLookBook = .empty,
         // nil makes the editor report a failure. The composition root passes
-        // the Metal renderer; the default keeps previews and launch-screen
+        // the Metal renderer; the default keeps previews and entry-screen
         // tests from compiling a GPU kernel they never use.
-        lutRenderer: (any LUTRendering)? = nil
+        lutRenderer: (any LUTRendering)? = nil,
+        cameraAccess: any CameraAccessing = SystemCameraAccess(),
+        preferences: PreferencesStore? = nil,
+        favourites: FavouritePresetsStore? = nil,
+        presetCatalogue: DevelopPresetCatalogue = .empty,
+        releaseContent: ReleaseContent = .none,
+        appVersion: AppVersion = AppVersion(bundle: .main)
     ) {
         self.photoLoader = photoLoader
         self.libraryWriter = libraryWriter
         self.autoEnhancer = autoEnhancer
         self.lookBook = lookBook
         self.lutRenderer = lutRenderer
+        self.cameraAccess = cameraAccess
+        // Default stores are built here, not in the signature: default arguments are evaluated
+        // outside the main actor, and both stores are main-actor isolated.
+        self.preferences = preferences ?? PreferencesStore()
+        self.favourites = favourites ?? FavouritePresetsStore(catalogue: presetCatalogue)
+        self.presetCatalogue = presetCatalogue
+        self.releaseContent = releaseContent
+        self.appVersion = appVersion
     }
 
     /// Returns the editor for a photograph, creating it on first request.
@@ -103,33 +145,52 @@ final class AppState {
         if let existing = editorViewModels[photo.id] {
             return existing
         }
+        let preferences = preferences
         let viewModel = LUTEditorViewModel(
             photo: photo,
             autoEnhancer: autoEnhancer,
             lookBook: lookBook,
             renderer: lutRenderer,
-            libraryWriter: libraryWriter
+            libraryWriter: libraryWriter,
+            // Read at each save, so a switch changed in More applies to the next copy.
+            saveCopySettings: { preferences.saveCopySettings }
         )
         editorViewModels[photo.id] = viewModel
         return viewModel
     }
 
-    // MARK: - Intents
+    // MARK: - Intents: choosing a photo
 
-    /// The user completed the upward swipe on the launch screen.
-    func revealSourceSelection() {
-        guard route == .launch else { return }
-        isSourceSheetPresented = true
+    /// Welcome › Choose a photo (also "Choose a photo instead" and "Choose another photo").
+    ///
+    /// Apple's picker needs no Photos permission, so there is nothing to ask first.
+    func chooseFromLibrary() {
+        route = .welcome
+        activeSource = .photoLibrary
     }
 
-    /// The user chose Camera or Photo Library.
-    ///
-    /// Dismisses the sheet and records the pending source so the view layer can
-    /// present the corresponding *system* interface. Lightly presents no custom
-    /// gallery here (spec §0.1).
-    func selectSource(_ source: PhotoSource) {
-        isSourceSheetPresented = false
-        activeSource = source
+    /// Welcome › Camera: the system permission flow, then the system camera.
+    func chooseCamera() async {
+        switch cameraAccess.authorization() {
+        case .authorized:
+            presentCameraIfAvailable()
+        case .notDetermined:
+            if await cameraAccess.requestAccess() {
+                presentCameraIfAvailable()
+            } else {
+                route = .cameraAccessOff
+            }
+        case .denied:
+            route = .cameraAccessOff
+        }
+    }
+
+    private func presentCameraIfAvailable() {
+        if cameraAccess.isCaptureAvailable {
+            activeSource = .camera
+        } else {
+            isCameraUnavailableAlertPresented = true
+        }
     }
 
     /// The system picker or capture flow finished presenting.
@@ -137,15 +198,23 @@ final class AppState {
         activeSource = nil
     }
 
-    /// Decodes bytes returned by a system picker or the camera.
+    /// The user backed out of the system picker or camera: back where they were, nothing changed.
+    func cancelPhotoSelection() {
+        activeSource = nil
+        isLoadingPhoto = false
+    }
+
+    /// Reads and decodes a chosen photo, then opens the editor.
     ///
-    /// Failures are mapped onto the §28 catalogue rather than propagated, so no
-    /// caller can accidentally leave the UI in an indeterminate state.
-    func loadPhoto(from data: Data, source: PhotoSource) async {
+    /// Any failure (unreadable, undownloadable or unsupported) leads to "This photo can’t be
+    /// opened"; cancellation leads nowhere.
+    func openPhoto(source: PhotoSource, data provider: @escaping PhotoDataProvider) async {
+        lastPhotoRequest = (source, provider)
         isLoadingPhoto = true
         defer { isLoadingPhoto = false }
 
         do {
+            let data = try await provider()
             let photo = try await photoLoader.loadPhoto(from: data, source: source)
             if let previous = selectedPhoto, previous.id != photo.id {
                 // Switching photos ends the previous session; its in-flight
@@ -153,55 +222,52 @@ final class AppState {
                 closeEditor(for: previous.id)
             }
             selectedPhoto = photo
+            lastPhotoRequest = nil
             route = .editor(SelectedPhotoReference(id: photo.id))
-        } catch let error as LightlyError {
-            present(error)
+        } catch LightlyError.userCancelled {
+            return
         } catch {
-            // Any unexpected throw is still a defined product state; it must
-            // never surface as an unhandled failure or a hung spinner.
-            present(.photoLoadingFailed)
+            // Every other throw is the same defined state: never a hung spinner or a silent no-op.
+            route = .photoCannotBeOpened
         }
     }
 
-    /// The user backed out of the system picker or capture flow.
-    ///
-    /// Modelled explicitly so cancellation unwinds through one path with no
-    /// side effects (spec §28, `userCancelled`).
-    func cancelPhotoSelection() {
-        activeSource = nil
-        isLoadingPhoto = false
+    /// Decodes bytes already in hand (the camera).
+    func loadPhoto(from data: Data, source: PhotoSource) async {
+        await openPhoto(source: source, data: { data })
     }
 
-    /// Returns to the launch screen, discarding the loaded photograph.
+    /// "This photo can’t be opened" › Try again.
+    func retryLastPhoto() async {
+        guard let request = lastPhotoRequest else {
+            route = .welcome
+            return
+        }
+        await openPhoto(source: request.source, data: request.provider)
+    }
+
+    // MARK: - Intents: leaving
+
+    /// Close on a recovery screen, or leaving the editor: back to Welcome.
     ///
     /// The original asset in the user's library is untouched — Lightly never
     /// writes to it (spec §2.6).
-    func returnToLaunch() {
+    func returnToWelcome() {
         if let photo = selectedPhoto {
             closeEditor(for: photo.id)
         }
         selectedPhoto = nil
-        route = .launch
+        lastPhotoRequest = nil
+        route = .welcome
     }
 
     private func closeEditor(for photoID: UUID) {
         editorViewModels.removeValue(forKey: photoID)?.close()
     }
 
-    // MARK: - Error handling
+    // MARK: - Intents: More
 
-    /// Records a failure for presentation.
-    ///
-    /// Cancellation is filtered out here rather than at each call site, so a
-    /// future contributor cannot accidentally show the user an error banner for
-    /// having changed their mind.
-    func present(_ error: LightlyError) {
-        guard error.isFault else { return }
-        activeError = error
-    }
-
-    /// Dismisses the active failure.
-    func dismissError() {
-        activeError = nil
-    }
+    func openMore() { moreEntry = .menu }
+    func openPrivacyPolicyFromWelcome() { moreEntry = .privacyPolicyFromWelcome }
+    func closeMore() { moreEntry = nil }
 }

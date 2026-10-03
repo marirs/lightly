@@ -36,8 +36,6 @@ enum LightlyRadius {
 enum LightlySize {
     /// Minimum tap target, per Apple HIG.
     static let minimumTapTarget: CGFloat = 44
-    /// The eight-ray brand mark on the launch screen.
-    static let brandMarkLaunch: CGFloat = 56
     /// Leading icon inside a source-selection row.
     static let rowIcon: CGFloat = 24
 }

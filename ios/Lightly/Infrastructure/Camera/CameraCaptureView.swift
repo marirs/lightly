@@ -14,11 +14,15 @@ struct CameraCaptureView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let controller = UIImagePickerController()
-        // Guard the source type: the simulator and iPads without a camera will
-        // otherwise raise at presentation time.
-        controller.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera)
-            ? .camera
-            : .photoLibrary
+        // v3 differs: v1 fell back to the legacy library picker when there was
+        // no camera. The approved flow has no such picker: `AppState` presents
+        // this view only when capture is available (`CameraAccessing`).
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            controller.sourceType = .camera
+        } else {
+            // Unreachable through AppState; never show a library instead.
+            DispatchQueue.main.async { onCancel() }
+        }
         controller.delegate = context.coordinator
         return controller
     }

@@ -1,16 +1,15 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
-/// Hosts the current route and owns presentation of the system photo
-/// interfaces.
+/// Hosts the current route and owns presentation of the system photo interfaces and the More
+/// sheet.
 ///
-/// System pickers are presented here rather than inside `LaunchView` so that the
-/// launch screen stays a pure presentation of state, and so the picker choice
-/// (spec §0.1) lives in one auditable place.
+/// System pickers are presented here rather than inside Welcome so that the screens stay pure
+/// presentations of state, and the picker choice (spec §0.1) lives in one auditable place.
 struct RootView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// Selection binding for Apple's system photo picker.
     @State private var pickerSelection: PhotosPickerItem?
@@ -18,32 +17,17 @@ struct RootView: View {
     var body: some View {
         @Bindable var appState = appState
 
-        Group {
-            switch appState.route {
-            case .launch:
-                LaunchView()
-            case .editor:
-                if let photo = appState.selectedPhoto {
-                    // Identified by the photo so that selecting a different
-                    // photograph builds a fresh editor rather than reusing the
-                    // previous one's history.
-                    EditorView(
-                        viewModel: appState.makeEditorViewModel(for: photo),
-                        onBack: { appState.returnToLaunch() }
-                    )
-                    .id(photo.id)
+        GeometryReader { geometry in
+            routeView
+                .sheet(item: $appState.moreEntry) { entry in
+                    moreSheet(entry, windowSize: fullSize(of: geometry))
                 }
-            }
         }
-        .sheet(isPresented: $appState.isSourceSheetPresented) {
-            SourceSelectionSheet()
-                .presentationDetents(SourceSelectionSheet.detents(for: dynamicTypeSize))
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(LightlyRadius.sheet)
-        }
+        .ignoresSafeArea(.keyboard)
         // Apple's native picker. Presenting it this way requires no Photos
         // authorisation and no NSPhotoLibraryUsageDescription entry — which is
-        // precisely why §0.1 mandates it over a custom gallery.
+        // precisely why §0.1 mandates it over a custom gallery. Cancelling it
+        // leaves Welcome exactly as it was.
         .photosPicker(
             isPresented: .init(
                 get: { appState.activeSource == .photoLibrary },
@@ -72,29 +56,108 @@ struct RootView: View {
             )
             .ignoresSafeArea()
         }
+        .alert(Text("camera.unavailable.title", bundle: .main), isPresented: $appState.isCameraUnavailableAlertPresented) {
+            Button(String(localized: "common.ok")) {}
+        }
         .task(id: pickerSelection) {
             await handlePickerSelection()
         }
-        .alert(
-            Text("error.title", bundle: .main),
-            isPresented: .init(
-                get: { appState.activeError != nil },
-                set: { isPresented in
-                    if !isPresented { appState.dismissError() }
-                }
-            )
-        ) {
-            Button(String(localized: "error.action.dismiss")) {
-                appState.dismissError()
-            }
-        } message: {
-            if let error = appState.activeError {
-                Text(error.localizedMessageKey, bundle: .main)
+        .onChange(of: appState.preferences.appearance, initial: true) { _, appearance in
+            Self.apply(appearance)
+        }
+        #if DEBUG
+        .task { await Self.runDebugLaunchActions(on: appState) }
+        #endif
+    }
+
+    #if DEBUG
+    /// `--open-unreadable-photo` (DEBUG only): opens bytes that are not an image through the real
+    /// open path, so UI tests and design captures reach "This photo can’t be opened" without a
+    /// broken asset in the simulator's library.
+    private static func runDebugLaunchActions(on appState: AppState) async {
+        guard CommandLine.arguments.contains("--open-unreadable-photo") else { return }
+        await appState.openPhoto(source: .photoLibrary) { Data("not an image".utf8) }
+    }
+    #endif
+
+    @ViewBuilder
+    private var routeView: some View {
+        switch appState.route {
+        case .welcome:
+            WelcomeView()
+        case .cameraAccessOff:
+            CameraAccessOffView()
+        case .photoCannotBeOpened:
+            PhotoCannotBeOpenedView()
+        case .editor:
+            if let photo = appState.selectedPhoto {
+                // Identified by the photo so that selecting a different
+                // photograph builds a fresh editor rather than reusing the
+                // previous one's history.
+                EditorView(
+                    viewModel: appState.makeEditorViewModel(for: photo),
+                    onBack: { appState.returnToWelcome() },
+                    onMore: { appState.openMore() }
+                )
+                .id(photo.id)
             }
         }
     }
 
-    /// Loads bytes from the system picker selection.
+    // MARK: - More
+
+    /// Phones: a sheet 88% of the screen tall with its grabber (the prototype's `.sheet`: 92%
+    /// requested, capped by `max-height: 88%`). Tablets: a
+    /// centred form sheet 540 pt wide (at most 92% of the width) and 70% of the height.
+    @ViewBuilder
+    private func moreSheet(_ entry: MoreEntry, windowSize: CGSize) -> some View {
+        let isTablet = horizontalSizeClass == .regular
+        let content = MoreSheet(entry: entry)
+            // The prototype's sheet puts the page header below its grabber (8 + 15 pt) on
+            // phones, and 8 pt from the top of the form sheet on tablets.
+            .padding(.top, isTablet ? 8 : 23)
+            .presentationBackground(ApprovedColor.sheet.dynamic)
+            .presentationCornerRadius(14)
+        if isTablet {
+            content
+                .frame(idealWidth: min(540, windowSize.width * 0.92), idealHeight: windowSize.height * 0.7)
+                .modifier(FittedFormSheetSizing())
+                .presentationDragIndicator(.hidden)
+        } else {
+            // A height, not `.fraction`: fractions are of the largest sheet height, not of the
+            // screen, and `.large` would shrink Welcome behind the sheet, which the design does
+            // not do. The system caps the height at its largest sheet.
+            content
+                .presentationDetents([.height(windowSize.height * 0.88)])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func fullSize(of geometry: GeometryProxy) -> CGSize {
+        CGSize(
+            width: geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing,
+            height: geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom
+        )
+    }
+
+    // MARK: - Appearance
+
+    /// Applies Preferences › Appearance to every window at once, sheets and system pickers
+    /// included, the moment it changes. A window override is used rather than
+    /// `preferredColorScheme` because returning to System must restore the system setting
+    /// immediately everywhere, including an already-presented sheet.
+    static func apply(_ appearance: AppearancePreference) {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                window.overrideUserInterfaceStyle = appearance.interfaceStyle
+            }
+        }
+    }
+
+    // MARK: - Picker
+
+    /// Hands the system picker's selection to `AppState`.
     ///
     /// A nil selection means the sheet was dismissed without a choice, which is
     /// cancellation rather than failure (spec §28).
@@ -105,15 +168,24 @@ struct RootView: View {
         defer { pickerSelection = nil }
 
         appState.clearActiveSource()
-
-        do {
+        await appState.openPhoto(source: .photoLibrary) {
+            // Kept by AppState so "Try again" repeats the same request (e.g. an iCloud download).
             guard let data = try await item.loadTransferable(type: Data.self) else {
-                appState.present(.photoLoadingFailed)
-                return
+                throw LightlyError.photoLoadingFailed
             }
-            await appState.loadPhoto(from: data, source: .photoLibrary)
-        } catch {
-            appState.present(.photoLoadingFailed)
+            return data
+        }
+    }
+}
+
+/// Lets the form sheet take its content's ideal size (iOS 18+). On iOS 17 the system's standard
+/// form sheet size is used.
+private struct FittedFormSheetSizing: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.presentationSizing(.fitted)
+        } else {
+            content
         }
     }
 }

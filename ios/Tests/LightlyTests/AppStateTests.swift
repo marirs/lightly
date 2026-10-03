@@ -47,99 +47,248 @@ private struct StubPhotoLoader: PhotoLoading {
     }
 }
 
+/// Camera permission stub: the outcome of the system prompt is the test's choice.
+private final class StubCameraAccess: CameraAccessing, @unchecked Sendable {
+    var status: CameraAuthorization
+    var grantsWhenAsked: Bool
+    var captureAvailable: Bool
+    private(set) var requestCount = 0
+
+    init(status: CameraAuthorization, grantsWhenAsked: Bool = true, captureAvailable: Bool = true) {
+        self.status = status
+        self.grantsWhenAsked = grantsWhenAsked
+        self.captureAvailable = captureAvailable
+    }
+
+    @MainActor var isCaptureAvailable: Bool { captureAvailable }
+    func authorization() -> CameraAuthorization { status }
+    func requestAccess() async -> Bool {
+        requestCount += 1
+        status = grantsWhenAsked ? .authorized : .denied
+        return grantsWhenAsked
+    }
+}
+
 @MainActor
 final class AppStateTests: XCTestCase {
 
-    // MARK: - Navigation
+    private let suiteName = "AppStateTests.\(UUID().uuidString)"
+    private var defaults: UserDefaults { UserDefaults(suiteName: suiteName)! }
 
-    func testStartsOnLaunchRoute() {
-        let state = AppState(photoLoader: StubPhotoLoader(outcome: .success))
+    override func tearDown() {
+        UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+    }
 
-        XCTAssertEqual(state.route, .launch)
-        XCTAssertFalse(state.isSourceSheetPresented)
+    private func makeState(
+        outcome: StubPhotoLoader.Outcome = .success,
+        camera: StubCameraAccess = StubCameraAccess(status: .authorized)
+    ) -> AppState {
+        AppState(
+            photoLoader: StubPhotoLoader(outcome: outcome),
+            cameraAccess: camera,
+            preferences: PreferencesStore(defaults: defaults),
+            favourites: FavouritePresetsStore(defaults: defaults)
+        )
+    }
+
+    // MARK: - Welcome
+
+    func testStartsOnWelcomeWithNothingPresented() {
+        let state = makeState()
+
+        XCTAssertEqual(state.route, .welcome)
+        XCTAssertNil(state.activeSource)
+        XCTAssertNil(state.moreEntry)
         XCTAssertNil(state.selectedPhoto)
     }
 
-    func testSwipeRevealsSourceSheet() {
-        let state = AppState(photoLoader: StubPhotoLoader(outcome: .success))
+    func testChooseAPhotoPresentsTheSystemPicker() {
+        let state = makeState()
 
-        state.revealSourceSelection()
+        state.chooseFromLibrary()
 
-        XCTAssertTrue(state.isSourceSheetPresented)
+        XCTAssertEqual(state.activeSource, .photoLibrary)
+        XCTAssertEqual(state.route, .welcome)
     }
 
-    func testSelectingSourceDismissesSheetAndRecordsSource() {
-        let state = AppState(photoLoader: StubPhotoLoader(outcome: .success))
-        state.revealSourceSelection()
+    /// Cancelling the picker returns to Welcome with nothing changed.
+    func testCancellingThePickerChangesNothing() {
+        let state = makeState()
+        state.chooseFromLibrary()
 
-        state.selectSource(.photoLibrary)
+        state.cancelPhotoSelection()
 
-        XCTAssertFalse(state.isSourceSheetPresented)
+        XCTAssertNil(state.activeSource)
+        XCTAssertEqual(state.route, .welcome)
+        XCTAssertNil(state.selectedPhoto)
+        XCTAssertFalse(state.isLoadingPhoto)
+    }
+
+    // MARK: - Camera permission
+
+    func testCameraAlreadyAllowedOpensTheCamera() async {
+        let camera = StubCameraAccess(status: .authorized)
+        let state = makeState(camera: camera)
+
+        await state.chooseCamera()
+
+        XCTAssertEqual(state.activeSource, .camera)
+        XCTAssertEqual(camera.requestCount, 0, "No prompt once decided")
+    }
+
+    func testFirstCameraUseAsksAndOpensWhenAllowed() async {
+        let camera = StubCameraAccess(status: .notDetermined, grantsWhenAsked: true)
+        let state = makeState(camera: camera)
+
+        await state.chooseCamera()
+
+        XCTAssertEqual(camera.requestCount, 1)
+        XCTAssertEqual(state.activeSource, .camera)
+    }
+
+    func testDeclinedPromptShowsCameraAccessOff() async {
+        let state = makeState(camera: StubCameraAccess(status: .notDetermined, grantsWhenAsked: false))
+
+        await state.chooseCamera()
+
+        XCTAssertEqual(state.route, .cameraAccessOff)
+        XCTAssertNil(state.activeSource)
+    }
+
+    func testPreviouslyDeniedShowsCameraAccessOffWithoutAsking() async {
+        let camera = StubCameraAccess(status: .denied)
+        let state = makeState(camera: camera)
+
+        await state.chooseCamera()
+
+        XCTAssertEqual(state.route, .cameraAccessOff)
+        XCTAssertEqual(camera.requestCount, 0)
+    }
+
+    func testChooseAPhotoInsteadLeavesCameraAccessOffForThePicker() async {
+        let state = makeState(camera: StubCameraAccess(status: .denied))
+        await state.chooseCamera()
+
+        state.chooseFromLibrary()
+
+        XCTAssertEqual(state.route, .welcome)
         XCTAssertEqual(state.activeSource, .photoLibrary)
     }
 
-    // MARK: - Loading
+    func testNoCameraOnTheDeviceShowsAnAlertNotALibraryPicker() async {
+        let state = makeState(camera: StubCameraAccess(status: .authorized, captureAvailable: false))
+
+        await state.chooseCamera()
+
+        XCTAssertTrue(state.isCameraUnavailableAlertPresented)
+        XCTAssertNil(state.activeSource)
+        XCTAssertEqual(state.route, .welcome)
+    }
+
+    // MARK: - Opening a photo
 
     func testSuccessfulLoadRoutesToEditor() async {
-        let state = AppState(photoLoader: StubPhotoLoader(outcome: .success))
+        let state = makeState()
 
         await state.loadPhoto(from: Data(), source: .photoLibrary)
 
         XCTAssertNotNil(state.selectedPhoto)
-        XCTAssertNil(state.activeError)
         XCTAssertFalse(state.isLoadingPhoto)
         guard case .editor = state.route else {
             return XCTFail("Expected the editor route after a successful load")
         }
     }
 
-    func testFailedLoadStaysOnLaunchAndSurfacesDefinedError() async {
-        let state = AppState(
-            photoLoader: StubPhotoLoader(outcome: .failure(.unsupportedImageFormat))
-        )
+    func testUndecodablePhotoShowsThePhotoCannotBeOpenedScreen() async {
+        let state = makeState(outcome: .failure(.unsupportedImageFormat))
 
         await state.loadPhoto(from: Data(), source: .photoLibrary)
 
-        XCTAssertEqual(state.route, .launch)
+        XCTAssertEqual(state.route, .photoCannotBeOpened)
         XCTAssertNil(state.selectedPhoto)
-        XCTAssertEqual(state.activeError, .unsupportedImageFormat)
         // Spec section 28 forbids leaving a spinner running after a failure.
         XCTAssertFalse(state.isLoadingPhoto)
     }
 
-    // MARK: - Cancellation
+    func testUnreadableAssetShowsThePhotoCannotBeOpenedScreen() async {
+        let state = makeState()
+
+        await state.openPhoto(source: .photoLibrary) { throw LightlyError.photoLoadingFailed }
+
+        XCTAssertEqual(state.route, .photoCannotBeOpened)
+    }
+
+    /// Try again repeats the same request: an iCloud download can succeed the second time.
+    func testTryAgainRepeatsTheSameRequest() async {
+        let state = makeState()
+        let attempts = AttemptCounter()
+
+        await state.openPhoto(source: .photoLibrary) {
+            if await attempts.next() == 1 { throw LightlyError.photoLoadingFailed }
+            return Data()
+        }
+        XCTAssertEqual(state.route, .photoCannotBeOpened)
+
+        await state.retryLastPhoto()
+
+        let count = await attempts.count
+        XCTAssertEqual(count, 2)
+        guard case .editor = state.route else { return XCTFail("Retry should open the photo") }
+    }
 
     /// Spec section 28 models cancellation explicitly so that backing out has no
     /// side effects and never presents an error.
-    func testCancellationProducesNoErrorAndNoSideEffects() {
-        let state = AppState(photoLoader: StubPhotoLoader(outcome: .success))
-        state.selectSource(.camera)
+    func testCancelledLoadProducesNoErrorScreen() async {
+        let state = makeState()
 
-        state.cancelPhotoSelection()
+        await state.openPhoto(source: .photoLibrary) { throw LightlyError.userCancelled }
 
-        XCTAssertNil(state.activeSource)
-        XCTAssertNil(state.activeError)
-        XCTAssertFalse(state.isLoadingPhoto)
-        XCTAssertEqual(state.route, .launch)
+        XCTAssertEqual(state.route, .welcome)
     }
 
-    func testUserCancelledIsNeverPresentedAsAnError() {
-        let state = AppState(photoLoader: StubPhotoLoader(outcome: .success))
+    // MARK: - Leaving
 
-        state.present(.userCancelled)
+    func testCloseOnARecoveryScreenReturnsToWelcome() async {
+        let state = makeState(outcome: .failure(.unsupportedImageFormat))
+        await state.loadPhoto(from: Data(), source: .photoLibrary)
 
-        XCTAssertNil(state.activeError)
+        state.returnToWelcome()
+
+        XCTAssertEqual(state.route, .welcome)
     }
 
-    // MARK: - Returning
-
-    func testReturningToLaunchDiscardsThePhoto() async {
-        let state = AppState(photoLoader: StubPhotoLoader(outcome: .success))
+    func testLeavingTheEditorDiscardsThePhoto() async {
+        let state = makeState()
         await state.loadPhoto(from: Data(), source: .camera)
 
-        state.returnToLaunch()
+        state.returnToWelcome()
 
-        XCTAssertEqual(state.route, .launch)
+        XCTAssertEqual(state.route, .welcome)
         XCTAssertNil(state.selectedPhoto)
+    }
+
+    // MARK: - More
+
+    func testMoreAndThePrivacyLinkOpenTheirEntries() {
+        let state = makeState()
+
+        state.openMore()
+        XCTAssertEqual(state.moreEntry, .menu)
+        state.closeMore()
+        XCTAssertNil(state.moreEntry)
+
+        state.openPrivacyPolicyFromWelcome()
+        XCTAssertEqual(state.moreEntry, .privacyPolicyFromWelcome)
+        state.closeMore()
+        XCTAssertEqual(state.route, .welcome, "Back from the policy returns to Welcome")
+    }
+}
+
+/// Counts provider calls across the async boundary.
+private actor AttemptCounter {
+    private(set) var count = 0
+    func next() -> Int {
+        count += 1
+        return count
     }
 }

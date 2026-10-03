@@ -13,9 +13,6 @@ enum LightlyTypography {
     /// The "Lightly" wordmark on the launch screen.
     static let wordmark = Font.system(.largeTitle, design: .default).weight(.light)
 
-    /// The "LABS" lockup beneath the wordmark. Tracking is applied by the view.
-    static let wordmarkSubtitle = Font.system(.caption, design: .default).weight(.regular)
-
     /// The tagline: "See it as you remember it."
     static let tagline = Font.system(.title3, design: .default).weight(.regular)
 
@@ -36,7 +33,4 @@ enum LightlyTypography {
 
     /// Small captions and the swipe affordance label.
     static let caption = Font.system(.caption, design: .default).weight(.regular)
-
-    /// Letter-spacing applied to the "LABS" lockup, in points.
-    static let wordmarkSubtitleTracking: CGFloat = 6
 }

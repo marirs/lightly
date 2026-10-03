@@ -89,13 +89,16 @@ struct EditorView: View {
     @State private var viewModel: LUTEditorViewModel
     /// Called when the user leaves the editor.
     let onBack: () -> Void
+    /// ⋮ More (Preferences, Legal, About), as on Welcome.
+    let onMore: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(viewModel: LUTEditorViewModel, onBack: @escaping () -> Void) {
+    init(viewModel: LUTEditorViewModel, onBack: @escaping () -> Void, onMore: @escaping () -> Void = {}) {
         _viewModel = State(initialValue: viewModel)
         self.onBack = onBack
+        self.onMore = onMore
     }
 
     /// Notices above the photo are capped so they cannot squeeze it; beyond that they scroll.
@@ -186,6 +189,18 @@ struct EditorView: View {
             .accessibilityIdentifier("editor.back")
             Spacer(minLength: LightlySpacing.s)
             SaveCopyButton(viewModel: viewModel)
+            // DEFERRED(slice 2): the approved editor top bar (close, undo, redo, compare,
+            // Save copy, ⋮) replaces this legacy bar; only ⋮ More is added here in slice 1.
+            Button(action: onMore) {
+                ApprovedIconView(icon: .more, size: 22)
+                    .foregroundStyle(LightlyColor.textPrimary(colorScheme))
+                    .frame(width: LightlySize.minimumTapTarget, height: LightlySize.minimumTapTarget)
+                    .controlChrome(Circle(), onPlainBackground: true, colorScheme: colorScheme)
+                    .layoutAnchor("editor.control.more")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("more.accessibility", bundle: .main))
+            .accessibilityIdentifier("editor.more")
         }
         .padding(.horizontal, LightlySpacing.m)
         .padding(.top, LightlySpacing.xs)

@@ -11,10 +11,8 @@ final class PickerDiagnostics: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Lightly"].waitForExistence(timeout: 20))
-        app.swipeUp()
-        XCTAssertTrue(app.staticTexts["Photo Library"].waitForExistence(timeout: 20))
-        app.staticTexts["Photo Library"].tap()
+        XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: 20))
+        app.buttons["welcome.choosePhoto"].tap()
 
         // Give the out-of-process picker time to present.
         _ = app.otherElements.firstMatch.waitForExistence(timeout: 8)

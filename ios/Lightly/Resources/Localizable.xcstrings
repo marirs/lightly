@@ -2,6 +2,30 @@
   "sourceLanguage": "en",
   "version": "1.0",
   "strings": {
+    "about.title": {
+      "comment": "More › About.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        }
+      }
+    },
+    "about.version %@ %@": {
+      "comment": "About: version and build from the bundle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %1$@ (%2$@)"
+          }
+        }
+      }
+    },
     "action.compare": {
       "comment": "Compare action label.",
       "extractionState": "manual",
@@ -134,6 +158,114 @@
         }
       }
     },
+    "appearance.dark": {
+      "comment": "Dark appearance.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
+          }
+        }
+      }
+    },
+    "appearance.light": {
+      "comment": "Light appearance.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
+        }
+      }
+    },
+    "appearance.system": {
+      "comment": "Appearance follows the system setting.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        }
+      }
+    },
+    "border.none": {
+      "comment": "No border.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        }
+      }
+    },
+    "border.note": {
+      "comment": "Preferred border page note.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens first in Border. It is never added to a photo automatically."
+          }
+        }
+      }
+    },
+    "border.photoFrame": {
+      "comment": "Photo Frame border.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Frame"
+          }
+        }
+      }
+    },
+    "border.polaroid": {
+      "comment": "Polaroid border.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Polaroid"
+          }
+        }
+      }
+    },
+    "border.solid": {
+      "comment": "Solid border.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solid"
+          }
+        }
+      }
+    },
+    "border.title": {
+      "comment": "Preferences row and page title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preferred border"
+          }
+        }
+      }
+    },
     "brand.wordmark": {
       "comment": "The Lightly wordmark on the launch screen. Product name — do not translate.",
       "extractionState": "manual",
@@ -147,15 +279,98 @@
         }
       }
     },
-    "brand.wordmark.subtitle": {
-      "comment": "The LABS lockup beneath the wordmark. Company name — do not translate.",
+    "camera.unavailable.title": {
+      "comment": "Alert when Camera is chosen on a device without one (the simulator).",
       "extractionState": "manual",
-      "shouldTranslate": false,
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "LABS"
+            "value": "No camera is available on this device."
+          }
+        }
+      }
+    },
+    "cameraOff.choosePhoto": {
+      "comment": "Opens the system photo picker from the camera-denied screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a photo instead"
+          }
+        }
+      }
+    },
+    "cameraOff.message": {
+      "comment": "Explanation on the camera-denied screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To take a photo in Lightly, allow camera access in Settings. You can still choose a photo from your library."
+          }
+        }
+      }
+    },
+    "cameraOff.openSettings": {
+      "comment": "Opens Lightly in the Settings app.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        }
+      }
+    },
+    "cameraOff.title": {
+      "comment": "Title of the screen shown when camera permission is denied.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera access is off"
+          }
+        }
+      }
+    },
+    "common.back": {
+      "comment": "Back button on a page.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "common.close": {
+      "comment": "Close button on a page or screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "common.ok": {
+      "comment": "Acknowledges a plain alert.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
           }
         }
       }
@@ -964,50 +1179,170 @@
         }
       }
     },
-    "launch.accessibility.hint": {
-      "comment": "VoiceOver hint describing the equivalent action for the swipe gesture.",
+    "favourites.free %lld": {
+      "comment": "Free favourite slots.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Double tap to choose a photo"
+            "value": "%lld free. Star a preset in Develop to add it."
           }
         }
       }
     },
-    "launch.accessibility.label": {
-      "comment": "VoiceOver label for the launch screen as a whole.",
+    "favourites.moveDown": {
+      "comment": "Accessibility action: moves a favourite one place down.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lightly. See it as you remember it."
+            "value": "Move down"
           }
         }
       }
     },
-    "launch.swipe.prompt": {
-      "comment": "Label beneath the upward chevron on the launch screen.",
+    "favourites.moveUp": {
+      "comment": "Accessibility action: moves a favourite one place up.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Swipe up to choose a photo"
+            "value": "Move up"
           }
         }
       }
     },
-    "launch.tagline": {
-      "comment": "Launch screen tagline. Line break is intentional and part of the composition.",
+    "favourites.note": {
+      "comment": "Explanation at the top of Favourite presets.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "See it as\nyou remember it."
+            "value": "Up to five. Drag to reorder. Favourites are shortcuts in Develop; they are never applied automatically."
+          }
+        }
+      }
+    },
+    "favourites.remove %@": {
+      "comment": "Removes a favourite preset (accessibility label of the trash button).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %@"
+          }
+        }
+      }
+    },
+    "favourites.title": {
+      "comment": "Preferences row and page title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favourite presets"
+          }
+        }
+      }
+    },
+    "legal.privacyPolicy": {
+      "comment": "Legal row and page title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy Policy"
+          }
+        }
+      }
+    },
+    "legal.termsOfUse": {
+      "comment": "Legal row and page title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms of Use"
+          }
+        }
+      }
+    },
+    "legal.title": {
+      "comment": "More › Legal.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legal"
+          }
+        }
+      }
+    },
+    "legal.unavailable": {
+      "comment": "Shown while the release text is not bundled (plan D2). Never replaced by placeholder text.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This document isn’t available in this build."
+          }
+        }
+      }
+    },
+    "loadFailed.chooseAnother": {
+      "comment": "Opens the system photo picker again.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose another photo"
+          }
+        }
+      }
+    },
+    "loadFailed.message": {
+      "comment": "Explanation on the load-failed screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It may be in a format Lightly doesn’t support, or it couldn’t be downloaded. Your library is unchanged."
+          }
+        }
+      }
+    },
+    "loadFailed.title": {
+      "comment": "Title of the screen shown when a chosen photo cannot be read.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo can’t be opened"
+          }
+        }
+      }
+    },
+    "loadFailed.tryAgain": {
+      "comment": "Retries opening the same photo.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
           }
         }
       }
@@ -1228,6 +1563,30 @@
         }
       }
     },
+    "more.accessibility": {
+      "comment": "Accessibility label of the ⋮ button on Welcome and in the editor.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        }
+      }
+    },
+    "more.title": {
+      "comment": "Title of the More sheet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        }
+      }
+    },
     "paywall.action.notNow": {
       "comment": "Dismisses the upgrade prompt without purchasing.",
       "extractionState": "manual",
@@ -1276,74 +1635,242 @@
         }
       }
     },
-    "source.camera.subtitle": {
-      "comment": "Camera row detail on the source sheet.",
+    "preferences.favourites.detail %lld %lld": {
+      "comment": "Sub-line of Favourite presets: how many of the five slots are used.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Take a new photo"
+            "value": "%1$lld of %2$lld · shortcuts, never applied automatically"
           }
         }
       }
     },
-    "source.camera.title": {
-      "comment": "Camera row title on the source sheet.",
+    "preferences.group.appearance": {
+      "comment": "Preferences section label.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Camera"
+            "value": "Appearance"
           }
         }
       }
     },
-    "source.library.subtitle": {
-      "comment": "Photo library row detail on the source sheet.",
+    "preferences.group.saving": {
+      "comment": "Preferences section label.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose from your library"
+            "value": "Saving"
           }
         }
       }
     },
-    "source.library.title": {
-      "comment": "Photo library row title on the source sheet.",
+    "preferences.group.shortcuts": {
+      "comment": "Preferences section label.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo Library"
+            "value": "Shortcuts"
           }
         }
       }
     },
-    "source.privacy.subtitle": {
-      "comment": "Privacy reassurance on the source sheet. Spec section 0.5 requires the qualified 'by default' wording. Never use an absolute claim such as 'Everything stays on your device' — opt-in cloud features make that untrue.",
+    "preferences.includeLocation": {
+      "comment": "Switch: copy GPS coordinates into saved copies.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your photos stay on your device by default."
+            "value": "Include location"
           }
         }
       }
     },
-    "source.title": {
-      "comment": "Title of the source selection sheet.",
+    "preferences.includeLocation.detail": {
+      "comment": "Sub-line of Include location.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a photo"
+            "value": "GPS coordinates in saved copies. Off by default."
+          }
+        }
+      }
+    },
+    "preferences.keepMetadata": {
+      "comment": "Switch: copy camera details into saved copies.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep photo metadata"
+          }
+        }
+      }
+    },
+    "preferences.keepMetadata.detail": {
+      "comment": "Sub-line of Keep photo metadata.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera, lens, aperture, shutter speed, ISO and date taken. Location is separate."
+          }
+        }
+      }
+    },
+    "preferences.signature.detail": {
+      "comment": "Sub-line of Saved signature.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reused only when you choose it"
+          }
+        }
+      }
+    },
+    "preferences.title": {
+      "comment": "More › Preferences.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preferences"
+          }
+        }
+      }
+    },
+    "signature.draw": {
+      "comment": "Saved signature page row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw a new signature"
+          }
+        }
+      }
+    },
+    "signature.empty": {
+      "comment": "Saved signature page when none has been saved.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No saved signature"
+          }
+        }
+      }
+    },
+    "signature.import": {
+      "comment": "Saved signature page row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import from a photo"
+          }
+        }
+      }
+    },
+    "signature.note": {
+      "comment": "Saved signature page note.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A saved signature is added only when you choose it in Watermark."
+          }
+        }
+      }
+    },
+    "signature.title": {
+      "comment": "Preferences row and page title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved signature"
+          }
+        }
+      }
+    },
+    "support.contact": {
+      "comment": "Opens the support destination.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contact support"
+          }
+        }
+      }
+    },
+    "support.note": {
+      "comment": "Support page introduction, shown when a support destination exists.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questions or a problem with a photo? Contact us and include your version number."
+          }
+        }
+      }
+    },
+    "support.title": {
+      "comment": "About row and page title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support"
+          }
+        }
+      }
+    },
+    "support.unavailable": {
+      "comment": "Shown while no support destination is bundled (plan D2).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support contact details aren’t available in this build."
+          }
+        }
+      }
+    },
+    "support.version": {
+      "comment": "Support page: version row label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
           }
         }
       }
@@ -1464,6 +1991,66 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tone"
+          }
+        }
+      }
+    },
+    "welcome.camera": {
+      "comment": "Welcome secondary action: opens the system camera.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera"
+          }
+        }
+      }
+    },
+    "welcome.choosePhoto": {
+      "comment": "Welcome primary action: opens the system photo picker.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a photo"
+          }
+        }
+      }
+    },
+    "welcome.privacyLine": {
+      "comment": "Welcome privacy line. Qualified on purpose: no absolute on-device claim (spec §0.5).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your photos stay on your device by default."
+          }
+        }
+      }
+    },
+    "welcome.privacyPolicy": {
+      "comment": "Link at the bottom of Welcome that opens the Privacy Policy.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy Policy"
+          }
+        }
+      }
+    },
+    "welcome.tagline": {
+      "comment": "Welcome tagline under the wordmark.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See it as you remember it."
           }
         }
       }

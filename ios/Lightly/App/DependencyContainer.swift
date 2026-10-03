@@ -53,12 +53,42 @@ struct DependencyContainer {
 
     /// Builds the root state from this container.
     func makeAppState() -> AppState {
-        AppState(
+        let defaults = UserDefaults.standard
+        let catalogue = DevelopPresetCatalogue.loadBundled()
+        #if DEBUG
+        Self.applyDebugArguments(to: defaults, catalogue: catalogue)
+        #endif
+        return AppState(
             photoLoader: photoLoader,
             libraryWriter: libraryWriter,
             autoEnhancer: autoEnhancer,
             lookBook: lookBook,
-            lutRenderer: lutRenderer
+            lutRenderer: lutRenderer,
+            preferences: PreferencesStore(defaults: defaults),
+            favourites: FavouritePresetsStore(defaults: defaults, catalogue: catalogue),
+            presetCatalogue: catalogue,
+            releaseContent: ReleaseContent.loadBundled(),
+            appVersion: AppVersion(bundle: .main)
         )
     }
+
+    #if DEBUG
+    /// Launch arguments for UI tests and the design-comparison captures (DEBUG builds only):
+    /// - `--reset-preferences`: start from the approved defaults (no stored preferences or favourites).
+    /// - `--seed-favourites`: store the five favourites the approved Preferences screens show
+    ///   (prototype `PRIVATE_FAVS`: Portrait 13, Landscape 37, Film 12, Golden Hour 4,
+    ///   Black & White 3), so a capture shows the same rows as the reference.
+    private static func applyDebugArguments(to defaults: UserDefaults, catalogue: DevelopPresetCatalogue) {
+        let arguments = CommandLine.arguments
+        if arguments.contains("--reset-preferences") {
+            PreferencesStore.removeAll(from: defaults)
+            defaults.removeObject(forKey: FavouritePresetsStore.storageKey)
+        }
+        if arguments.contains("--seed-favourites") {
+            let seeded = [("portrait", 13), ("landscape", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
+                .compactMap { catalogue.preset(inCategory: $0.0, atStop: $0.1)?.id }
+            defaults.set(seeded, forKey: FavouritePresetsStore.storageKey)
+        }
+    }
+    #endif
 }

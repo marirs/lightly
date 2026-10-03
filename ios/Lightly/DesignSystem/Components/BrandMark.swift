@@ -17,6 +17,9 @@ struct BrandMark: View {
     let size: CGFloat
     /// Colour of the rays.
     let tint: Color
+    /// Floor for the stroke weight. The approved design's mark (`mark()` in
+    /// `docs/ui/app/app.js`) floors at 1.6 pt; the legacy screens keep 1.25.
+    var minimumStrokeWidth: CGFloat = 1.25
 
     /// Fraction of the radius left empty at the centre. The gap is what makes
     /// the mark read as an aperture rather than an asterisk.
@@ -55,7 +58,7 @@ struct BrandMark: View {
     /// Stroke weight as a fraction of size, with a floor so the mark survives at
     /// favicon and notification sizes (spec §32 size ladder).
     private var strokeWidth: CGFloat {
-        max(1.25, size * 0.035)
+        max(minimumStrokeWidth, size * 0.035)
     }
 
     private func point(from centre: CGPoint, angle: Angle, distance: CGFloat) -> CGPoint {

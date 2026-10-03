@@ -6,8 +6,7 @@ private struct InertWriter: PhotoLibraryWriting {
     func save(_ data: Data, fileExtension: String) async throws {}
 }
 
-/// WCAG 1.4.11 for the export and source sheets: Save, Share and the source
-/// rows must show a boundary ≥ 3:1 against the sheet, at the default size
+/// WCAG 1.4.11 for the export sheet: Save and Share must show a boundary ≥ 3:1 against the sheet, at the default size
 /// and at AX3, in light and dark; their labels ≥ 4.5:1 (WCAG 1.4.3).
 @MainActor
 final class SheetControlContrastTests: XCTestCase {
@@ -25,10 +24,6 @@ final class SheetControlContrastTests: XCTestCase {
             ),
             onClose: {}
         )
-    }
-
-    private func sourceSheet() -> some View {
-        SourceSelectionSheet().environment(AppState(photoLoader: ImageIOPhotoLoader()))
     }
 
     private func assertBoundaries(
@@ -56,10 +51,6 @@ final class SheetControlContrastTests: XCTestCase {
 
     func testExportActionBoundaries() throws {
         try assertBoundaries(exportSheet(), anchors: ["export.save", "export.share"])
-    }
-
-    func testSourceRowBoundaries() throws {
-        try assertBoundaries(sourceSheet(), anchors: ["source.camera.row", "source.photoLibrary.row"])
     }
 
     /// Text on these controls: primary on the elevated fill (Save, rows),

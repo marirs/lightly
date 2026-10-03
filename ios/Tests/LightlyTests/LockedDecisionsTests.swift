@@ -37,7 +37,7 @@ final class LockedDecisionsTests: XCTestCase {
     /// No absolute on-device claim may ship. Opt-in cloud features make the
     /// unqualified form false, which is the exact risk the spec calls out.
     func testPrivacyCopyIsQualifiedAndNotAbsolute() {
-        let copy = String(localized: "source.privacy.subtitle")
+        let copy = String(localized: "welcome.privacyLine")
 
         XCTAssertEqual(copy, "Your photos stay on your device by default.")
         XCTAssertTrue(
@@ -62,12 +62,12 @@ final class LockedDecisionsTests: XCTestCase {
 
     /// "AI" is an implementation detail, never the emotional headline. The
     /// user-facing strings shipped in Phase 1 must not lead with it.
-    func testUserFacingLaunchCopyDoesNotLeadWithAI() {
+    func testUserFacingWelcomeCopyDoesNotLeadWithAI() {
         let keys = [
-            "launch.tagline",
-            "launch.swipe.prompt",
-            "source.title",
-            "source.privacy.subtitle"
+            "welcome.tagline",
+            "welcome.choosePhoto",
+            "welcome.camera",
+            "welcome.privacyLine"
         ]
 
         for key in keys {

@@ -30,13 +30,17 @@ targets:
       - path: Lightly
         excludes:
           - "**/.DS_Store"
+      # The approved Develop catalogue (categories and preset names), shared with Android. Copied
+      # verbatim; favourites (slice 1) and the Develop panel (slice 2) read it.
+      - path: ../presets/develop-design-ui.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        # Photo-first in every orientation: the editor moves its controls beside the photo when the
-        # screen is wide (EditorLayoutPolicy). iPhone excludes upside down (HIG); iPad allows all.
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        # Approved layouts: iPhone portrait only (one phone layout, controls below the photo);
+        # iPad in every orientation (controls below in portrait, beside in landscape).
+        # v3 differs: iPhone also allowed both landscapes.
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         # iPhone and iPad (XcodeGen's default too, stated so it cannot silently change).
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -63,6 +67,12 @@ targets:
       path: Lightly/Generated-Info.plist
       properties:
         CFBundleDisplayName: Lightly
+        # Approved Launch: the eight-ray mark alone, centred, on the background colour. The
+        # system shows it until the first frame; Welcome follows. No timer holds it on screen.
+        UILaunchScreen:
+          UIImageName: LaunchMark
+          UIColorName: LaunchBackground
+          UIImageRespectsSafeAreaInsets: false
 
   LightlyTests:
     type: bundle.unit-test

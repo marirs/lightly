@@ -22,35 +22,51 @@ final class EditorFlowUITests: XCTestCase {
         app.launch()
     }
 
-    // MARK: - Launch
+    // MARK: - Welcome
 
-    func testLaunchShowsTaglineAndNoChrome() {
-        XCTAssertTrue(
-            app.staticTexts["Lightly"].waitForExistence(timeout: timeout),
-            "Launch screen should show the wordmark."
-        )
-        // Spec §4.1: no login, no onboarding, no buttons.
+    /// Welcome shows the brand and both ways in; no login, no onboarding (approved Welcome).
+    func testWelcomeShowsBrandAndBothWaysIn() {
+        XCTAssertTrue(app.staticTexts["Lightly"].waitForExistence(timeout: timeout), "Welcome should show the wordmark.")
+        XCTAssertTrue(app.staticTexts["See it as you remember it."].exists)
+        XCTAssertTrue(app.buttons["welcome.choosePhoto"].exists)
+        XCTAssertTrue(app.buttons["welcome.camera"].exists)
+        XCTAssertTrue(app.buttons["welcome.privacyPolicy"].exists)
+        XCTAssertTrue(app.buttons["welcome.more"].exists)
         XCTAssertFalse(app.buttons["Sign In"].exists)
         XCTAssertFalse(app.buttons["Continue"].exists)
 
-        capture(named: "01-launch")
+        capture(named: "01-welcome")
     }
 
-    // MARK: - Source selection
+    /// Cancelling the system picker returns to Welcome with nothing changed.
+    func testCancellingThePickerReturnsToWelcome() throws {
+        XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
+        app.buttons["welcome.choosePhoto"].tap()
+        let grid = app.scrollViews["photosView_content_scroll_view"]
+        guard grid.waitForExistence(timeout: timeout) else { throw XCTSkip("System photo picker did not present.") }
+        capture(named: "02-system-photo-picker")
+        let cancel = app.buttons["Cancel"].firstMatch
+        if cancel.waitForExistence(timeout: 3) {
+            cancel.tap()
+        } else {
+            grid.swipeDown(velocity: .fast)
+        }
+        XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
+        XCTAssertFalse(grid.waitForExistence(timeout: 2), "The picker should be gone")
+        XCTAssertTrue(app.staticTexts["See it as you remember it."].exists, "Still on Welcome")
+    }
 
-    func testSwipeUpRevealsSourceSheet() {
-        XCTAssertTrue(app.staticTexts["Lightly"].waitForExistence(timeout: timeout))
-
-        app.swipeUp()
-
-        XCTAssertTrue(
-            app.staticTexts["Choose a photo"].waitForExistence(timeout: timeout),
-            "Swiping up should reveal the source sheet."
-        )
-        XCTAssertTrue(app.staticTexts["Camera"].exists)
-        XCTAssertTrue(app.staticTexts["Photo Library"].exists)
-
-        capture(named: "02-source-sheet")
+    /// ⋮ in the editor opens More; closing it returns to the same photo.
+    func testEditorMoreOpensAndCloses() throws {
+        try openFirstLibraryPhoto()
+        let more = app.buttons["editor.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: timeout))
+        more.tap()
+        XCTAssertTrue(app.buttons["more.row.preferences"].waitForExistence(timeout: timeout))
+        capture(named: "02c-editor-more")
+        app.buttons["page.close"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].waitForExistence(timeout: timeout))
+        XCTAssertFalse(app.buttons["more.row.preferences"].exists)
     }
 
     // MARK: - Full flow
@@ -236,8 +252,8 @@ final class EditorFlowUITests: XCTestCase {
         capture(named: "c-large-text-long-name")
     }
 
-    /// Photo first in every orientation: on a phone in portrait the controls sit below the
-    /// photo; in landscape (and on iPad in either orientation) they move beside it. Screenshots
+    /// Photo first in every orientation: on a phone (portrait only) the controls sit below the
+    /// photo; on iPad in landscape they move beside it. Screenshots
     /// of each orientation go to `LIGHTLY_UI_TEST_OUTPUT`.
     func testLayoutFollowsOrientation() throws {
         XCUIDevice.shared.orientation = .portrait
@@ -255,14 +271,14 @@ final class EditorFlowUITests: XCTestCase {
         defer { XCUIDevice.shared.orientation = .portrait }
         for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
             if orientation.isLandscape && !isPad {
-                // An iPhone simulator with rotation lock on keeps every app in portrait (Safari
-                // too), which says nothing about the app; the screenshot shows which happened.
+                // Approved layouts: iPhone is portrait only, so turning the phone keeps the app
+                // (and the controls below the photo) in portrait.
                 XCUIDevice.shared.orientation = orientation
                 let rotated = NSPredicate { _, _ in self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height }
-                if waitForRotation(rotated) == false {
-                    capture(named: "layout-\(device)-landscape-not-rotated")
-                    throw XCTSkip("The simulator did not rotate (rotation lock?); landscape is covered by EditorLayoutTests.")
-                }
+                XCTAssertFalse(waitForRotation(rotated), "iPhone must stay in portrait")
+                XCTAssertTrue(slider.frame.minY >= app.descendants(matching: .any)["editor.photo"].frame.maxY, "Controls stay below the photo")
+                capture(named: "layout-iphone-turned-stays-portrait")
+                continue
             }
             XCUIDevice.shared.orientation = orientation
             let photo = app.descendants(matching: .any)["editor.photo"]
@@ -303,10 +319,8 @@ final class EditorFlowUITests: XCTestCase {
     }
 
     private func openFirstLibraryPhoto() throws {
-        XCTAssertTrue(app.staticTexts["Lightly"].waitForExistence(timeout: timeout))
-        app.swipeUp()
-        XCTAssertTrue(app.staticTexts["Photo Library"].waitForExistence(timeout: timeout))
-        app.staticTexts["Photo Library"].tap()
+        XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
+        app.buttons["welcome.choosePhoto"].tap()
         try selectFirstPhotoFromSystemPicker()
     }
 
