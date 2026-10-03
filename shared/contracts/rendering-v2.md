@@ -1,0 +1,319 @@
+# Rendering contract v2
+
+This contract defines the ordered pipeline that renders a whole Lightly edit. It covers every tool in the approved UX (`docs/ui/app/`). The parameters, ranges, units and calibrated constants are in `rendering-v2.json`, which `build_rendering_v2.py` generates; do not edit the JSON by hand. This file gives the equations and the reasons behind them.
+
+**Status:** Develop is specified exactly enough to port.
+- The global stage is the calibrated model, ported as `shared/look-pack/reference_model.py`. Per preset, it reproduces `experiments/presets/lr_model.py` within 3.7e-4 over the 2,591 catalogue presets.
+- The other stages are specified at the level of parameters, coordinate spaces and order.
+- Operators marked *provisional* have uncalibrated constants. Nothing here is validated against Lightroom yet.
+
+## 1. Stage order
+
+| # | Stage | Frame | Recipe source |
+|---|---|---|---|
+| 1 | `auto` | source | `editState.auto` (ia3dlut LUT, strength) |
+| 2 | `develop.global` | source | preset `recipe.global` × `look.strength` |
+| 3 | `develop.spatial` | source | preset `recipe.spatial` × `look.strength` |
+| 4 | `edit.geometry` | source → frame | `tools.edit.geometry` |
+| 5 | `edit.adjust` | frame | `tools.edit.adjust` |
+| 6 | `edit.remove` | frame | `tools.edit.remove` |
+| 7 | `background.replace` | frame | `tools.background.replacement` |
+| 8 | `background.focus` | frame | `tools.background.focus` |
+| 9 | `portrait` | frame | `tools.portrait.faces` |
+| 10 | `effects` | frame | `tools.effects` + preset `recipe.finishing` |
+| 11 | `border` | frame → canvas | `tools.border` |
+| 12 | `watermark` | canvas | `tools.watermark` |
+
+Preview and export run the same stages on the same committed recipe. Only the resolution differs, and every spatial quantity is resolution independent (§2).
+
+**Departure from the order sketched in plan.md decision 3, on purpose.** The preset's own **vignette and grain** are carried in the preset (`recipe.finishing`) but evaluated in stage 10, `effects`, rather than in `develop.spatial`. They run in the order: light leak → preset vignette → user vignette → preset grain → user grain. There are three reasons:
+1. Lightroom's vignette is *post-crop*: it follows the final frame. If it were evaluated before `edit.geometry`, a crop would cut it off-centre.
+2. Grain applied before geometry would be resampled by rotation and straightening, and blurred by Focus & Blur.
+3. Grain is applied last because it belongs to the medium (the emulsion), while vignettes and light leaks are optical. This is also Lightroom's order: vignette before grain.
+
+The approved "added on top, not replaced" notice is unchanged: user effects compose with the preset's. This order should be confirmed against the prototype screenshots before it is frozen.
+
+**Replaced backgrounds get the photo's colour.** In the approved prototype, the new background receives the Look's grade along with the photo. Stage 7 therefore passes the replacement through the photo's global colour stages before compositing it: `auto`, `develop.global` at strength, and `edit.adjust` colour. Spatial operators are not applied to the replacement.
+
+## 2. Conventions
+
+- **Pixels:** pixels between stages are sRGB-encoded floats in [0, 1], ordered R, G, B. An operator linearises internally where an equation says so.
+- **sRGB transfer:**
+  - `lin(e) = e/12.92` if e ≤ 0.04045, else `((max(e,0.04045)+0.055)/1.055)^2.4`.
+  - `enc(l) = 12.92·l` if l ≤ 0.0031308, else `1.055·max(l,0.0031308)^(1/2.4) − 0.055`, with l first clamped to ≥ 0.
+- **OKLab:** Ottosson's matrices M1 and M2, as in `reference_model.py`.
+  - `lms = max(lin·M1ᵀ, 1e-7)^(1/3)` and `lab = lms·M2ᵀ`.
+  - The inverse uses the exact inverse matrices: `lin = (lab·M2⁻ᵀ)³·M1⁻ᵀ`.
+  - Keep the 1e-7 floor. It makes the neutral recipe lift near-black by at most 1e-4, exactly as the model does.
+- **Luma:** Y = 0.2126 R + 0.7152 G + 0.0722 B on linear values.
+- **Resolution independence:** a radius is a fraction of the stage input's **long edge**. A Lightroom radius given in pixels (sharpening) is defined at `referenceLongEdgePx` = 3000.
+- **Coordinates:** normalised [0, 1], origin top-left.
+  - *Source*: the oriented original.
+  - *Frame*: after `edit.geometry`.
+  - *Canvas*: frame plus border.
+  - Points that belong to photo content are stored in source coordinates, so they survive a change of crop: Remove strokes, refine strokes, the focus target and face boxes. Stages map them through the geometry.
+- **smoothstep(a, b, x):** `t = clamp((x−a)/(b−a), 0, 1)`, then `t²(3−2t)`.
+
+## 3. The preset recipe (pack manifest `recipe`, recipeVersion 1)
+
+`recipe = {global: {...}, spatial: {...}, finishing: {...}}`. An operator is present only when it changes pixels, and when it is present every one of its parameters is written explicitly. `operators` lists the present operators in pipeline order.
+
+What the recipe cannot carry is recorded per preset: `approximated`, `unsupported` and `notApplied`, each as `{code, keys}` with reasons in the manifest's `coverageCodes`. The settings themselves are kept verbatim in `unconverted.json`. `completeness` is `complete`, `approximate` or `incomplete`, and it is separate from validation.
+
+## 4. Develop
+
+### 4.1 Global stage: `develop.global` (calibrated model)
+
+Let C be `developModel.constants`. Every slider value v is in Lightroom units, and `v/100` is written `v̂`. An absent operator has neutral values. The steps run in this order on each pixel.
+
+#### G1 Calibration
+Applies to each primary i ∈ {R, G, B}, with the next primary n = (i+1) mod 3 and the previous one p = (i−1) mod 3:
+```
+h  = hue_i^ · k_cal_hue · cal_hue[i]
+e  = unit_i + max(h,0)·unit_n + max(−h,0)·unit_p
+s  = 1 + sat_i^ · k_cal_sat · cal_sat[i]
+col_i = mean(e)·1 + s·(e − mean(e)·1)          # mean(e) = sum(e)/3
+M = [col_R col_G col_B] (columns); each ROW divided by its sum
+lin = max(lin(rgb)·Mᵀ, 0)
+```
+
+#### G2 White balance
+```
+t = temperature·k_temp,  u = tint·k_tint
+g = (exp(t), exp(−u), exp(−t));   g /= g·luma
+lin *= g
+```
+Only the incremental values are used. The absolute Temperature and Tint are `notApplied` (code `absolute-white-balance`).
+
+#### G3 Exposure
+`lin *= 2^ev`
+
+#### G4 Shadow tint
+```
+Y = max(lin·luma, 1e-6)                 # computed BEFORE this step's multiply; reused by G5
+w = 1 − smoothstep(0, 0.25, Y)
+lin.G *= exp(−shadowTint·k_shadow_tint·10)^w
+```
+
+#### G5 Basic tone
+This step covers toneSliders and dehaze, using the global approximation of Lightroom's adaptive operators.
+```
+e  = enc(Y)                              # Y from G4 (before the shadow-tint multiply)
+d  = k_contrast·contrast^·(e−0.5)·4e(1−e)
+   + k_hi·highlights^·exp(−((e−c_hi)/w_hi)²)·e
+   + k_sh·shadows^·exp(−((e−c_sh)/w_sh)²)·(1−e)
+   + k_wh·whites^·e⁴ + k_bl·blacks^·(1−e)⁴
+   + 0.1·Σ_rows s≠0 Σ_j (tone_A[row][j]·s + tone_B[row][j]·s²)·hat_j(e)
+       rows: contrast, highlights, shadows, whites, blacks, dehaze;  s = slider^
+       hat_j(e) = max(1 − |e − j/11|·11, 0),  j = 0…11
+lin = applyLuminance(lin, lin(max(e + d, 0)))
+veil = k_dehaze·dehaze^·dehaze_air·0.05
+lin = (lin − veil)/(1 − veil)
+```
+`applyLuminance(lin, T)` works as follows:
+1. Compute `Y' = max(lin·luma, 1e-6)` and `scaled = lin·T/Y'`.
+2. If max(scaled) ≤ 1, the result is `scaled`.
+3. Otherwise, compute `k = max((1−T)/max(peak−Y', 1e-9), 0)`, where peak is the largest channel, and the result is `lin·k + (T − k·Y')`.
+
+The result is continuous at the switch between steps 2 and 3.
+
+#### G6 Parametric curve
+This step works per channel on `x = enc(lin)`. The splits are s1, s2, s3, each = split/100.
+```
+bump(x, lo, hi) = sin(π·clamp((x−lo)/max(hi−lo, 1e-3), 0, 1))²
+x += k_param·0.25/100·( shadows·bump(x, −s1, 2s1) + darks·bump(x, 2s1−s2, s2)
+                      + lights·bump(x, s2, 2s3−s2) + highlights·bump(x, 2s3−1, 2−s3) )
+```
+x is not clamped here.
+
+#### G7 Point curves
+Each curve is `[[x, y], …]` in 0…255, sorted with unique x. The generator normalises it the way Lightroom reads it: sorted, and the last duplicate x wins.
+- **2 points:** the curve is linear.
+- **3 or more points:** the curve is a natural cubic spline, with second derivative 0 at both ends. It is evaluated on `clamp(t, x0, xN)` and holds y0 or yN outside that range.
+
+Sample each curve at `t = i/255`, i = 0…255. Clamp the samples to [0, 1] and store them as float32. Lookup then works like this:
+```
+p = clamp(x,0,1)·255;  i = clamp(floor(p), 0, 254);  f = p − i;  y = T[i]·(1−f) + T[i+1]·f
+```
+The master curve applies to all three channels, followed by red, green and blue on their own channels. An absent channel is the identity. Note that lookup clamps x, but an absent curve does not.
+
+#### G8 HSL
+```
+lab = OKLab(lin(clamp(x,0,1))); L, a, b
+C = sqrt(a²+b²+1e-9);  H = deg(atan2(b, a+1e-9)) mod 360
+w = bandWeights(H)                       # piecewise-linear partition of unity, centres
+                                         # 29, 55, 105, 142, 195, 264, 300, 328 (red…magenta), circular
+colourful = clamp(C/0.08, 0, 1)
+H += k_hue·(w·(hue^ ∘ hue_band))·colourful
+C *= max(1 + k_hsl_sat·(w·(sat^ ∘ sat_band)), 0)
+L += k_hsl_lum·(w·(lum^ ∘ lum_band))·colourful·L
+```
+`bandWeights` works per band i, with centre c_i and neighbours c_{i−1} and c_{i+1}:
+```
+o = ((H − c_i + 180) mod 360) − 180
+w_i = o < 0 ? clamp(1 + o/((c_i − c_{i−1}) mod 360), 0, 1) : clamp(1 − o/((c_{i+1} − c_i) mod 360), 0, 1)
+```
+Then normalise by the sum, with the sum floored at 1e-6. Here `mod` is floored, with the result taking the sign of the divisor.
+
+#### G9 Vibrance, saturation
+```
+C *= max(1 + k_vib·vibrance^·(1 − clamp(C/0.25, 0, 1)), 0)
+C *= max(1 + k_sat·saturation^, 0)
+```
+
+#### G10 Colour grading
+The generator has already folded legacy Split Toning into these values.
+```
+a = C·cos(H°), b = C·sin(H°)
+bal = balance/100;  bl = 0.15 + 0.35·blending/100
+w_hi = smoothstep(0.5+0.25bal−bl, 0.5+0.25bal+bl, L);  w_sh = 1 − w_hi;  w_mid = 1 − |w_sh − w_hi|
+for zone z in (shadows w_sh, midtones w_mid, highlights w_hi, global 1), z = 0…3, if sat_z ≠ 0 or lum_z ≠ 0:
+    θ = rad(hue_z + 25)
+    a += k_grade·grade_zone[z]·sat_z/100·cos θ·w_z
+    b += k_grade·grade_zone[z]·sat_z/100·sin θ·w_z
+    L += k_grade_lum·lum_z/100·w_z·0.5
+```
+The weights are computed once, before the loop, from the L that G8 produced.
+
+#### G11 Grayscale
+`L *= 1 + 0.3·(w·mix^)·colourful`, then a = b = 0. Here w and colourful are the G8 values computed before the HSL edits.
+
+**Output:** `clamp(enc(OKLab⁻¹(L, a, b)), 0, 1)`.
+
+### 4.2 Baking and Amount
+- **Bake:** the device samples the global stage on a 33³ grid, using `linspace(0,1,33)` for each axis. The layout is `[b][g][r][rgb]` with red fastest. The bake is then applied by trilinear interpolation.
+- **Amount:** the Develop Amount is `look.strength` in [0, 1].
+  - Global stage: `out = in + strength·(LUT(in) − in)`.
+  - `develop.spatial` and `finishing`: amount-like parameters are multiplied by strength. These are noise reduction luminance and colour, clarity, texture, sharpening amount, vignette amount and grain amount.
+
+### 4.3 Look version
+`lookVersion` is the first 12 hex digits of the sha256 of the canonical JSON (sorted keys, no spaces) of `{recipeVersion, recipe, developModel: {id, version, constantsSha256}, globalOverrideSha256}`.
+
+A change to the recipe, the model constants or an override changes the version. Saved edits then resolve as *changed*, under the EditState schema 2 rules: never substitute.
+
+### 4.4 Lightroom HALD override
+A preset may ship `globalOverride` (`luts/<id>.f32`: 33³ RGBA float32, red fastest). It does so only when `ingest_kit` reports global-colour **validated** with evidence digests that match what ships:
+- the LUT bytes;
+- the original settings' recipe digest;
+- for the full recipe, the renderer digest, as defined in `experiments/presets/evidence.py`.
+
+When an override is present, `develop.global` changes:
+1. Apply the model restricted to highlights, shadows, whites, blacks and dehaze. Contrast is not among them; it stays inside the HALD.
+2. Then apply the override LUT.
+
+`reference_model.develop_global_with_override` implements this. No override exists today.
+
+### 4.5 Process versions
+- **10, 11, 15:** rendered by the model, which was calibrated on these.
+- **6.7:** this is PV2012, not PV2010. It is rendered by the same model and recorded as `process-version-2012` (approximated).
+  - Its legacy keys (`ToneCurve`, `ToneCurveName`) are inactive under PV2012 in Lightroom and are recorded as `notApplied`.
+- **Before 6.7 (PV2010 or older):** recorded `unsupported` (`process-version-2010`). The catalogue has none.
+
+Point Color: the 786 presets that carry `PointColors` hold only the −1 placeholder, so none is active. An active Point Color would be recorded as `unsupported` (`point-color`).
+
+## 5. Develop spatial: `develop.spatial`
+
+These operators run in this order: noise reduction → clarity → texture → (local dehaze, reserved) → sharpening. Lightroom also removes noise before sharpening, and `ingest_kit.full_recipe` applies local contrast after the global stage.
+
+`G_σ` is a separable Gaussian with reflect padding. Its radius is `min(max(3, ceil(3σ)), floor(max(H,W)/2) − 1)`, and σ is floored at 0.3 px. A port may approximate large Gaussians, for example with a pyramid, provided the result stays within the full-recipe tolerance once one is set.
+
+### S1 Noise reduction
+This operator is *provisional* and uncalibrated. `scale = longEdge / referenceLongEdgePx`.
+```
+OKLab (L, a, b)
+if luminance: S = G_{nrLumaRadiusPx·scale}(L); keep = smoothstep(0, nrDetailScale·(1.01 − luminanceDetail/100), |L − S|)
+              L += (S − L)·luminance/100·(1 − keep)·(1 − 0.5·luminanceContrast/100)
+if color:     r = nrColourRadiusPx·scale·(0.5 + colorSmoothness/100);  a += (G_r(a) − a)·color/100;  b likewise
+```
+`colorDetail` is carried in the recipe but not used yet. It is reserved for the calibrated operator.
+
+### S2 Clarity and texture
+These use the calibrated `spatialConstants`.
+```
+L += k_clarity·clarity/100·4L(1−L)·(L − G_{r_clarity·longEdge}(L)) + k_texture·texture/100·(L − G_{r_texture·longEdge}(L))
+```
+L is clamped to [0, 1]. a and b are kept.
+
+### S3 Sharpening
+This operator is *provisional*. σ = `radius·longEdge/referenceLongEdgePx`.
+```
+D = L − G_σ(L);  t = (1 − detail/100)·sharpenDetailThreshold;  D *= |D|/(|D| + t)
+if edgeMasking: E = |∇G_σ(L)|·longEdge/referenceLongEdgePx;  D *= smoothstep(0, edgeMasking/100·sharpenEdgeScale, E)
+L += k_sharpen·amount/100·D
+```
+
+## 6. Effects and the preset's finishing operators
+
+### F1 Vignette
+This operator is *experimental* and uncalibrated: `VIGNETTE_K` is a first guess. It is lr_model's `apply_vignette`, evaluated on the frame.
+
+Pixel centres are `x_j = −1 + 2j/(W−1)` and `y_i = −1 + 2i/(H−1)`.
+```
+a = amount/100; if roundness > 0: x *= 1 + roundness^·(W/H − 1)
+p = 2 + max(0, −roundness^)·6;  r = (|x|^p + |y|^p)^(1/p) / 2^(1/p)
+t = smoothstep(c − w/2, c + w/2, r),  c = 0.25 + 0.65·midpoint/100,  w = 0.05 + 0.6·feather/100
+style 3 (paint overlay): rgb = mix(rgb, a<0 ? 0 : 1, clamp(|a|·K·t, 0, 1))
+style 2 (colour priority): L *= max(1 + K·a·t, 0)^(1/3)   (OKLab, a/b kept)
+style 1 (highlight priority): g = 1 + K·a·t; if a < 0: g = 1 + (g−1)·(1 − hc·smoothstep(0.35, 0.9, Y)); lin *= max(g, 0)
+```
+Here hc = highlightContrast/100. The user Effects vignette maps onto this operator: `amount = −amount`, `midpoint = size`, `feather = softness`, roundness 0, style 1.
+
+### F2 Grain
+This operator is *experimental* and uncalibrated. **v2 differs from lr_model on purpose** in two ways:
+- The random field is portable, where lr_model uses `torch.randn`.
+- It is normalised analytically, where lr_model normalises it per image.
+
+As a result, preview and export get the same grain on every platform.
+```
+cells = max(8, round(GRAIN_REF_LONG/(1 + 4·size/100)));  rows = max(2, round(cells·H/longEdge)), cols likewise
+fine   = bilinear(N(seed, 0, rows, cols)) / (2/3)
+coarse = bilinear(N(seed, 1, max(2, rows div 3), max(2, cols div 3))) / (2/3)
+n = ((1−r)·fine + r·coarse)/sqrt((1−r)² + r²),  r = roughness/100
+L += GRAIN_K·amount/100·n·(4L(1−L) + 0.2)
+```
+- `bilinear` uses half-pixel centres: `src = clamp((dst + 0.5)·in/out − 0.5, 0, in − 1)`.
+- `N(seed, layer, i, j)` is defined below. All arithmetic is uint32, modulo 2³²:
+  ```
+  lowbias32(x): x ^= x>>16; x *= 0x7FEB352D; x ^= x>>15; x *= 0x846CA68B; x ^= x>>16
+  base = lowbias32(seed ^ lowbias32(layer))
+  h1 = lowbias32(base ^ lowbias32((i·0x9E3779B1) ^ lowbias32(j)));  h2 = lowbias32(h1 ^ 0x85EBCA6B)
+  u_k = ((h_k >> 8) + 0.5)/2²⁴;  N = sqrt(−2 ln u1)·cos(2π u2)
+  ```
+  `shared/fixtures/look-pack/golden.json` gives exact vectors under `portableRandom`.
+- **Seed:** the preset seed comes from `GrainSeed` when the preset has one. Otherwise it is the first 32 bits of sha256(preset id). The user grain seed is fixed when the edit is created.
+- **User grain styles:** `fine`, `film` and `coarse` scale size by 0.7, 1.0 and 1.5 respectively, capped at 100.
+
+### Light leak
+This operator is *provisional*, using design values from the prototype. It is a radial glow centred at (x, y)% of the frame, rotated by `rotation`, and screen-blended. The core opacity is intensity/130 and the 30 % ring opacity is intensity/400; it fades to 0 at 55 % of the long edge. Style colours:
+- warm: (255, 150, 70) → (255, 90, 60)
+- amber: (255, 176, 64) → (230, 120, 40)
+- rose: (255, 140, 160) → (220, 90, 120)
+- prism: a hue sweep, using the same opacities
+
+## 7. Other stages (parameters in rendering-v2.json)
+
+- **`edit.geometry`** runs in the displayed frame, in this order: quarter turns → flips → perspective (keystone, ±100 scales the far edge by 1 ∓ 0.3) → straighten (rotate about the centre and zoom by the smallest factor that leaves no empty corner) → crop (`rect` in the straightened frame; a fixed aspect holds w/h in pixels).
+- **`edit.adjust`** maps onto the Develop model: `ev = exposure/50`, with contrast, highlights, shadows, temp, tint, saturation and vibrance passed through. Detail maps onto S1–S3; see `maps` in the JSON. *Provisional mapping.*
+- **`edit.remove`:** each applied stroke replays its stored patch (`derivedRef`). It is blocked on D4.
+- **`background.replace`:** the subject matte composites the subject over an image (x, y, scale), a colour or a gradient. The replacement receives the photo's global colour (§1).
+- **`background.focus`** is a depth-aware blur.
+  - Depth comes from `depth.source`: the embedded depth map, an estimated depth map (D5), or `subject-matte` (two planes).
+  - The circle of confusion is proportional to `blur`, outside a band of half-width `depthOfField/100·0.5` around `focusDepth`. Its maximum radius is 0.03 of the long edge.
+  - The kernel shape follows `style`: lens (bokeh round, hex, heart or star), soft (glow = styleAmount), swirl, or motion (direction = styleAmount·3.6 − 180°).
+  - It also applies to a replaced background, which sits at `replacementDepth`.
+- **`portrait`** works per face, inside landmark-derived regions. It never changes eye colour, eye shape or skin-tone colour.
+- **`border`** insets are fractions of the image width:
+  - solid: [w, w, w]
+  - frame: (w + s) on all sides, with a mat band s inside the frame band w
+  - polaroid: side 0.055, top 0.055, bottom 0.24
+- **`watermark`** height at size 34, as a fraction of the image's short edge: signature 0.068, text font 0.047, logo 0.079. It scales linearly with size. Anchors sit at 6/50/94 % of the frame.
+  - On a border, the watermark is centred in the bottom margin: 6 % from the bottom for polaroid, 1 % otherwise.
+  - On a polaroid margin, the ink is #222222.
+
+## 8. Tolerances (native parity)
+
+See `docs/v1/preset-pack.md` §Parity. In short, against `shared/fixtures/look-pack/golden.json`:
+- each 17³ LUT node within 1e-3;
+- each direct probe within 5e-4;
+- each probe through a 33³ bake and trilinear lookup within 1e-3;
+- the random vectors exact (field values within 1e-6).

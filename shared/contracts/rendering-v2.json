@@ -1,0 +1,1511 @@
+{
+ "contract": "lightly-rendering",
+ "version": 2,
+ "prose": "shared/contracts/rendering-v2.md",
+ "generatedBy": "shared/contracts/build_rendering_v2.py",
+ "conventions": {
+  "pixels": "sRGB-encoded floats in [0, 1] between stages; operators linearise internally where stated",
+  "luma": [
+   0.2126,
+   0.7152,
+   0.0722
+  ],
+  "radii": "fraction-of-long-edge of the stage's input image, so preview and export match",
+  "coordinates": {
+   "source": "oriented original, normalised [0, 1], origin top-left",
+   "frame": "after edit.geometry (turned, flipped, perspective, straightened, cropped)",
+   "canvas": "frame plus border"
+  },
+  "colours": "#RRGGBB, sRGB",
+  "angles": "degrees"
+ },
+ "stages": [
+  {
+   "order": 1,
+   "id": "auto",
+   "frame": "source",
+   "recipe": "editState.auto",
+   "operators": [
+    {
+     "id": "autoLut",
+     "params": {
+      "strength": {
+       "type": "number",
+       "min": 0,
+       "max": 1,
+       "default": 1,
+       "unit": "fraction"
+      }
+     },
+     "note": "ia3dlut fused 33³ LUT from the stored weights and guardrail (EditState schema 2); out = in + strength·(LUT(in) − in). Skipped when modelVersion is no-model-in-build.",
+     "status": "existing"
+    }
+   ]
+  },
+  {
+   "order": 2,
+   "id": "develop.global",
+   "frame": "source",
+   "recipe": "pack preset recipe.global, editState.look.strength",
+   "operators": [
+    {
+     "id": "calibration",
+     "params": {
+      "redHue": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "redSaturation": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "greenHue": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "greenSaturation": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "blueHue": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "blueSaturation": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g1-calibration"
+    },
+    {
+     "id": "whiteBalance",
+     "params": {
+      "temperature": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider",
+       "note": "IncrementalTemperature"
+      },
+      "tint": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider",
+       "note": "IncrementalTint"
+      }
+     },
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g2-white-balance"
+    },
+    {
+     "id": "exposure",
+     "params": {
+      "ev": {
+       "type": "number",
+       "min": -5,
+       "max": 5,
+       "default": 0,
+       "unit": "stops"
+      }
+     },
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g3-exposure"
+    },
+    {
+     "id": "shadowTint",
+     "params": {
+      "amount": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g4-shadow-tint"
+    },
+    {
+     "id": "toneSliders",
+     "params": {
+      "contrast": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "highlights": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "shadows": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "whites": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "blacks": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "status": "calibrated-global-approximation",
+     "equation": "rendering-v2.md#g5-basic-tone"
+    },
+    {
+     "id": "dehaze",
+     "params": {
+      "amount": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "status": "calibrated-global-approximation",
+     "equation": "rendering-v2.md#g5-basic-tone"
+    },
+    {
+     "id": "parametricCurve",
+     "params": {
+      "shadows": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "darks": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "lights": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "highlights": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "shadowSplit": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 25,
+       "unit": "percent"
+      },
+      "midtoneSplit": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      },
+      "highlightSplit": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 75,
+       "unit": "percent"
+      }
+     },
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g6-parametric-curve"
+    },
+    {
+     "id": "toneCurve",
+     "params": {
+      "master": {
+       "type": "curve",
+       "note": "[[x, y], ...] in 0…255, x strictly increasing; 2 points linear, ≥3 natural cubic spline; end values held outside [x0, xN]; sampled to a 256-entry table, then linear lookup"
+      },
+      "red": {
+       "type": "curve",
+       "note": "[[x, y], ...] in 0…255, x strictly increasing; 2 points linear, ≥3 natural cubic spline; end values held outside [x0, xN]; sampled to a 256-entry table, then linear lookup"
+      },
+      "green": {
+       "type": "curve",
+       "note": "[[x, y], ...] in 0…255, x strictly increasing; 2 points linear, ≥3 natural cubic spline; end values held outside [x0, xN]; sampled to a 256-entry table, then linear lookup"
+      },
+      "blue": {
+       "type": "curve",
+       "note": "[[x, y], ...] in 0…255, x strictly increasing; 2 points linear, ≥3 natural cubic spline; end values held outside [x0, xN]; sampled to a 256-entry table, then linear lookup"
+      }
+     },
+     "note": "a channel that is absent is the identity",
+     "status": "exact",
+     "equation": "rendering-v2.md#g7-point-curves"
+    },
+    {
+     "id": "hsl",
+     "params": {
+      "hue": {
+       "type": "array",
+       "items": {
+        "type": "number",
+        "min": -100,
+        "max": 100,
+        "default": 0,
+        "unit": "lightroom-slider"
+       },
+       "length": 8,
+       "order": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "aqua",
+        "blue",
+        "purple",
+        "magenta"
+       ]
+      },
+      "saturation": {
+       "type": "array",
+       "items": {
+        "type": "number",
+        "min": -100,
+        "max": 100,
+        "default": 0,
+        "unit": "lightroom-slider"
+       },
+       "length": 8,
+       "order": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "aqua",
+        "blue",
+        "purple",
+        "magenta"
+       ]
+      },
+      "luminance": {
+       "type": "array",
+       "items": {
+        "type": "number",
+        "min": -100,
+        "max": 100,
+        "default": 0,
+        "unit": "lightroom-slider"
+       },
+       "length": 8,
+       "order": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "aqua",
+        "blue",
+        "purple",
+        "magenta"
+       ]
+      }
+     },
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g8-hsl"
+    },
+    {
+     "id": "vibranceSaturation",
+     "params": {
+      "vibrance": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "saturation": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g9-vibrance-saturation"
+    },
+    {
+     "id": "colorGrading",
+     "params": {
+      "shadows": {
+       "type": "object",
+       "params": {
+        "hue": {
+         "type": "number",
+         "min": 0,
+         "max": 360,
+         "default": 0,
+         "unit": "degrees"
+        },
+        "saturation": {
+         "type": "number",
+         "min": 0,
+         "max": 100,
+         "default": 0,
+         "unit": "percent"
+        },
+        "luminance": {
+         "type": "number",
+         "min": -100,
+         "max": 100,
+         "default": 0,
+         "unit": "lightroom-slider"
+        }
+       }
+      },
+      "midtones": {
+       "type": "object",
+       "params": {
+        "hue": {
+         "type": "number",
+         "min": 0,
+         "max": 360,
+         "default": 0,
+         "unit": "degrees"
+        },
+        "saturation": {
+         "type": "number",
+         "min": 0,
+         "max": 100,
+         "default": 0,
+         "unit": "percent"
+        },
+        "luminance": {
+         "type": "number",
+         "min": -100,
+         "max": 100,
+         "default": 0,
+         "unit": "lightroom-slider"
+        }
+       }
+      },
+      "highlights": {
+       "type": "object",
+       "params": {
+        "hue": {
+         "type": "number",
+         "min": 0,
+         "max": 360,
+         "default": 0,
+         "unit": "degrees"
+        },
+        "saturation": {
+         "type": "number",
+         "min": 0,
+         "max": 100,
+         "default": 0,
+         "unit": "percent"
+        },
+        "luminance": {
+         "type": "number",
+         "min": -100,
+         "max": 100,
+         "default": 0,
+         "unit": "lightroom-slider"
+        }
+       }
+      },
+      "global": {
+       "type": "object",
+       "params": {
+        "hue": {
+         "type": "number",
+         "min": 0,
+         "max": 360,
+         "default": 0,
+         "unit": "degrees"
+        },
+        "saturation": {
+         "type": "number",
+         "min": 0,
+         "max": 100,
+         "default": 0,
+         "unit": "percent"
+        },
+        "luminance": {
+         "type": "number",
+         "min": -100,
+         "max": 100,
+         "default": 0,
+         "unit": "lightroom-slider"
+        }
+       }
+      },
+      "balance": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "blending": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      }
+     },
+     "note": "legacy Split Toning is folded in by the generator (ColorGrade* wins, else SplitToning*)",
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g10-colour-grading"
+    },
+    {
+     "id": "grayscale",
+     "params": {
+      "mix": {
+       "type": "array",
+       "items": {
+        "type": "number",
+        "min": -100,
+        "max": 100,
+        "default": 0,
+        "unit": "lightroom-slider"
+       },
+       "length": 8,
+       "order": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "aqua",
+        "blue",
+        "purple",
+        "magenta"
+       ]
+      }
+     },
+     "status": "calibrated",
+     "equation": "rendering-v2.md#g11-grayscale"
+    }
+   ],
+   "bake": {
+    "lutDimension": 33,
+    "grid": "linspace(0, 1, N) per axis",
+    "layout": "[b][g][r][rgb], red fastest",
+    "interpolation": "trilinear",
+    "amount": "out = in + strength·(LUT(in) − in)"
+   },
+   "override": "a Lightroom HALD LUT replaces the bake only when bound evidence validates it (rendering-v2.md §4.4)"
+  },
+  {
+   "order": 3,
+   "id": "develop.spatial",
+   "frame": "source",
+   "recipe": "pack preset recipe.spatial",
+   "operators": [
+    {
+     "id": "noiseReduction",
+     "params": {
+      "luminance": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "luminanceDetail": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      },
+      "luminanceContrast": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "color": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "colorDetail": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      },
+      "colorSmoothness": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      }
+     },
+     "status": "provisional-uncalibrated",
+     "equation": "rendering-v2.md#s1-noise-reduction"
+    },
+    {
+     "id": "clarity",
+     "params": {
+      "amount": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "status": "calibrated-not-validated",
+     "equation": "rendering-v2.md#s2-clarity-and-texture"
+    },
+    {
+     "id": "texture",
+     "params": {
+      "amount": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "status": "calibrated-not-validated",
+     "equation": "rendering-v2.md#s2-clarity-and-texture"
+    },
+    {
+     "id": "dehazeLocal",
+     "params": {},
+     "status": "reserved",
+     "note": "local (spatially varying) dehaze is not implemented; develop.global's dehaze approximation is used"
+    },
+    {
+     "id": "sharpening",
+     "params": {
+      "amount": {
+       "type": "number",
+       "min": 0,
+       "max": 150,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "radius": {
+       "type": "number",
+       "min": 0.5,
+       "max": 3.0,
+       "default": 1.0,
+       "unit": "lightroom-pixels-at-reference-long-edge"
+      },
+      "detail": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 25,
+       "unit": "percent"
+      },
+      "edgeMasking": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      }
+     },
+     "status": "provisional-uncalibrated",
+     "equation": "rendering-v2.md#s3-sharpening"
+    }
+   ],
+   "amount": "amount-like parameters (noise reduction luminance/color, clarity, texture, sharpening amount) are multiplied by strength"
+  },
+  {
+   "order": 4,
+   "id": "edit.geometry",
+   "frame": "source → frame",
+   "recipe": "editState.tools.edit.geometry",
+   "operators": [
+    {
+     "id": "quarterTurns",
+     "params": {
+      "quarterTurns": {
+       "type": "integer",
+       "min": 0,
+       "max": 3,
+       "default": 0,
+       "unit": "90-degree clockwise turns"
+      }
+     }
+    },
+    {
+     "id": "flip",
+     "params": {
+      "horizontal": {
+       "type": "boolean",
+       "default": false
+      },
+      "vertical": {
+       "type": "boolean",
+       "default": false
+      }
+     },
+     "note": "in the turned frame (what the user sees)"
+    },
+    {
+     "id": "perspective",
+     "params": {
+      "vertical": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "horizontal": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "note": "keystone about the frame centre; ±100 = the far edge scaled by 1 ∓ 0.3"
+    },
+    {
+     "id": "straighten",
+     "params": {
+      "degrees": {
+       "type": "number",
+       "min": -45,
+       "max": 45,
+       "default": 0,
+       "unit": "degrees, clockwise positive"
+      }
+     },
+     "note": "rotated about the centre and scaled by the smallest factor that leaves no empty corner"
+    },
+    {
+     "id": "crop",
+     "params": {
+      "aspect": {
+       "type": "enum",
+       "values": [
+        "original",
+        "free",
+        "1:1",
+        "4:5",
+        "3:2",
+        "16:9",
+        "9:16"
+       ],
+       "default": "original"
+      },
+      "rect": {
+       "type": "rect",
+       "unit": "fraction-of-frame",
+       "default": [
+        0,
+        0,
+        1,
+        1
+       ]
+      }
+     },
+     "note": "rect [x, y, w, h] in the straightened frame; for a fixed aspect, w/h equals it in pixels"
+    }
+   ]
+  },
+  {
+   "order": 5,
+   "id": "edit.adjust",
+   "frame": "frame",
+   "recipe": "editState.tools.edit.adjust",
+   "operators": [
+    {
+     "id": "adjustColour",
+     "maps": "develop.global model with: exposure.ev = exposure/50; toneSliders contrast, highlights, shadows = same values; whiteBalance temperature = temp, tint = tint; vibranceSaturation saturation, vibrance = same values (all other operators neutral)",
+     "params": {
+      "exposure": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "contrast": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "highlights": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "shadows": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "temp": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "tint": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "saturation": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "vibrance": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "status": "provisional-mapping"
+    },
+    {
+     "id": "adjustDetail",
+     "maps": "develop.spatial operators with: noiseReduction luminance = color = noise (other parameters at defaults); clarity.amount = clarity; sharpening amount = sharpness, radius 1.0, detail 25, edgeMasking 0",
+     "params": {
+      "sharpness": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "clarity": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "noise": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      }
+     },
+     "status": "provisional-mapping"
+    }
+   ]
+  },
+  {
+   "order": 6,
+   "id": "edit.remove",
+   "frame": "frame (strokes stored in source coordinates)",
+   "recipe": "editState.tools.edit.remove",
+   "operators": [
+    {
+     "id": "inpaint",
+     "params": {
+      "strokes": {
+       "type": "array",
+       "note": "see edit-recipe-v1 removeStroke"
+      }
+     },
+     "note": "each applied stroke's result patch is stored by digest and replayed, never recomputed silently; blocked on dependency D4 (no on-device inpainting model)",
+     "status": "blocked-D4"
+    }
+   ]
+  },
+  {
+   "order": 7,
+   "id": "background.replace",
+   "frame": "frame",
+   "recipe": "editState.tools.background.replacement",
+   "operators": [
+    {
+     "id": "replaceBackground",
+     "note": "subject matte (segmentation) composites the subject over the replacement (image, colour or gradient). The replacement first receives the photo's global colour (auto, develop.global at strength, adjustColour), as in the approved prototype; no spatial operator is applied to it.",
+     "params": {
+      "x": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      },
+      "y": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      },
+      "scale": {
+       "type": "number",
+       "min": 100,
+       "max": 200,
+       "default": 100,
+       "unit": "percent"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "order": 8,
+   "id": "background.focus",
+   "frame": "frame",
+   "recipe": "editState.tools.background.focus",
+   "operators": [
+    {
+     "id": "depthBlur",
+     "params": {
+      "blur": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "depthOfField": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 40,
+       "unit": "percent",
+       "note": "'Focus depth' slider"
+      },
+      "style": {
+       "type": "enum",
+       "values": [
+        "lens",
+        "soft",
+        "swirl",
+        "motion"
+       ],
+       "default": "lens"
+      },
+      "bokeh": {
+       "type": "enum",
+       "values": [
+        "round",
+        "hex",
+        "heart",
+        "star"
+       ],
+       "default": "round",
+       "note": "lens style only"
+      },
+      "styleAmount": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent",
+       "note": "soft: glow, swirl: swirl, motion: direction (-180…180° = styleAmount·3.6−180)"
+      },
+      "maxBlurRadius": {
+       "type": "constant",
+       "value": 0.03,
+       "unit": "fraction-of-long-edge"
+      }
+     },
+     "note": "circle of confusion from |depth − focusDepth|; depth from the recorded depth source (embedded map, estimated map, or the subject matte as a two-plane fallback). Applies to the replaced background too (it sits at depth replacementDepth).",
+     "status": "provisional"
+    }
+   ]
+  },
+  {
+   "order": 9,
+   "id": "portrait",
+   "frame": "frame (faces stored in source coordinates)",
+   "recipe": "editState.tools.portrait",
+   "operators": [
+    {
+     "id": "faceRetouch",
+     "params": {
+      "skin.smoothing": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "skin.blemishes": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "skin.evenTone": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "skin.keepTexture": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 85,
+       "unit": "percent"
+      },
+      "underEye.brighten": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "underEye.softenLines": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "eyes.brighten": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "eyes.clarity": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "teeth.brighten": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "hair.definition": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "hair.flyaways": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      },
+      "hair.shine": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 0,
+       "unit": "percent"
+      }
+     },
+     "note": "per face, in face-region masks from landmarks; eye colour/shape and skin tone colour are never changed",
+     "status": "provisional"
+    }
+   ]
+  },
+  {
+   "order": 10,
+   "id": "effects",
+   "frame": "frame",
+   "recipe": "editState.tools.effects + preset recipe.finishing",
+   "operators": [
+    {
+     "id": "lightLeak",
+     "params": {
+      "style": {
+       "type": "enum",
+       "values": [
+        "warm",
+        "amber",
+        "rose",
+        "prism"
+       ],
+       "default": "warm"
+      },
+      "intensity": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 55,
+       "unit": "percent"
+      },
+      "x": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 18,
+       "unit": "percent"
+      },
+      "y": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 14,
+       "unit": "percent"
+      },
+      "rotation": {
+       "type": "number",
+       "min": -180,
+       "max": 180,
+       "default": 0,
+       "unit": "degrees"
+      }
+     },
+     "status": "provisional"
+    },
+    {
+     "id": "presetVignette",
+     "operator": "vignette",
+     "source": "preset recipe.finishing.vignette (amount × look strength)"
+    },
+    {
+     "id": "userVignette",
+     "operator": "vignette",
+     "maps": "amount = −effects.vignette.amount, midpoint = size, feather = softness, roundness 0, style 1, highlightContrast 0"
+    },
+    {
+     "id": "presetGrain",
+     "operator": "grain",
+     "source": "preset recipe.finishing.grain (amount × look strength)"
+    },
+    {
+     "id": "userGrain",
+     "operator": "grain",
+     "maps": "amount, size, roughness from effects.grain; style fine: size × 0.7, film: size × 1.0, coarse: size × 1.5 (capped at 100); seed from effects.grain.seed"
+    }
+   ],
+   "note": "user effects are added on top of the preset's own vignette/grain, never replace them (approved notice)"
+  },
+  {
+   "order": 11,
+   "id": "border",
+   "frame": "frame → canvas",
+   "recipe": "editState.tools.border",
+   "operators": [
+    {
+     "id": "border",
+     "params": {
+      "type": {
+       "type": "enum",
+       "values": [
+        "none",
+        "solid",
+        "frame",
+        "polaroid"
+       ],
+       "default": "none"
+      },
+      "width": {
+       "type": "number",
+       "min": 1,
+       "max": 15,
+       "default": 4,
+       "unit": "percent-of-image-width"
+      },
+      "spacing": {
+       "type": "number",
+       "min": 0,
+       "max": 12,
+       "default": 3,
+       "unit": "percent-of-image-width"
+      }
+     },
+     "note": "insets as fractions of the image width: solid [w, w, w]; frame [(w+s), (w+s), (w+s)] with a mat band s inside a frame band w; polaroid [0.055, 0.055, 0.24] (side, top, bottom)"
+    }
+   ]
+  },
+  {
+   "order": 12,
+   "id": "watermark",
+   "frame": "canvas",
+   "recipe": "editState.tools.watermark",
+   "operators": [
+    {
+     "id": "watermark",
+     "params": {
+      "size": {
+       "type": "number",
+       "min": 10,
+       "max": 80,
+       "default": 34,
+       "unit": "size-units"
+      },
+      "opacity": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 85,
+       "unit": "percent"
+      },
+      "position": {
+       "type": "integer",
+       "min": 0,
+       "max": 8,
+       "default": 8,
+       "unit": "anchor index (row-major 3×3)"
+      }
+     },
+     "note": "height at size 34: signature 0.068, text font size 0.047, logo 0.079 of the image's short edge; linear in size. Anchors at 6/50/94 % of the frame. On a border: centred in the bottom margin (polaroid 6 %, other borders 1 % from the bottom)",
+     "status": "provisional"
+    }
+   ]
+  }
+ ],
+ "developModel": {
+  "id": "lightly-develop-model",
+  "version": 1,
+  "source": "experiments/presets/lr_model.py (render, apply_local_contrast, apply_vignette, apply_grain)",
+  "calibration": {
+   "global": "experiments/presets/calibration_natural.json",
+   "spatial": "experiments/presets/calibration_spatial_natural.json",
+   "heldOutMedianDeltaE00": 4.8
+  },
+  "constantsSha256": "c85518517aa68396480e3d01bf53ae2131d3bc9779f61d6c5813e98e1a6402df",
+  "constants": {
+   "k_temp": 0.01116524450480938,
+   "k_tint": 0.00013509002747014165,
+   "abs_temp_ref": 5493.4326171875,
+   "k_mired": -0.008870795369148254,
+   "k_contrast": 0.3550838530063629,
+   "k_hi": 0.20345298945903778,
+   "k_sh": 0.1238858550786972,
+   "k_wh": 0.11969959735870361,
+   "k_bl": 0.13063417375087738,
+   "c_hi": 1.0336569547653198,
+   "c_sh": 0.265666663646698,
+   "w_hi": 0.4425843060016632,
+   "w_sh": 0.32548031210899353,
+   "k_dehaze": -0.15451623499393463,
+   "dehaze_air": 0.4117951989173889,
+   "k_param": 0.59132981300354,
+   "k_hue": 32.851783752441406,
+   "k_hsl_sat": 0.8118240237236023,
+   "k_hsl_lum": 0.3384193778038025,
+   "k_sat": 0.8739323616027832,
+   "k_vib": 1.0643187761306763,
+   "k_cal_hue": 0.2149887979030609,
+   "k_cal_sat": 1.080773949623108,
+   "k_shadow_tint": -0.00025513628497719765,
+   "k_grade": 0.0992138534784317,
+   "k_grade_lum": 0.10390811413526535,
+   "tone_A": [
+    [
+     -0.25177380442619324,
+     -0.21125495433807373,
+     -0.13186655938625336,
+     -0.19978000223636627,
+     -0.2804788649082184,
+     -0.42125603556632996,
+     -0.5391145944595337,
+     -0.4706382155418396,
+     -0.3687955141067505,
+     -0.41040143370628357,
+     -0.4970589578151703,
+     0.7473043203353882
+    ],
+    [
+     0.06832339614629745,
+     0.12529198825359344,
+     0.3095146119594574,
+     0.11318609118461609,
+     0.05943431332707405,
+     0.08489374071359634,
+     0.24746118485927582,
+     0.2738005816936493,
+     0.052735887467861176,
+     0.04831632226705551,
+     -0.23157528042793274,
+     0.21642273664474487
+    ],
+    [
+     -0.24712881445884705,
+     0.12263927608728409,
+     0.13234442472457886,
+     0.06952155381441116,
+     -0.11835326254367828,
+     0.1452980637550354,
+     0.12308906018733978,
+     0.05969374254345894,
+     -0.05710562318563461,
+     0.03710169345140457,
+     0.11447487771511078,
+     0.1976519376039505
+    ],
+    [
+     -0.27595263719558716,
+     0.02744407393038273,
+     0.3903099298477173,
+     0.4880566895008087,
+     0.4918525516986847,
+     0.6036401987075806,
+     0.8024267554283142,
+     0.7987079620361328,
+     0.4849323034286499,
+     0.5297432541847229,
+     0.1425652801990509,
+     -0.36683857440948486
+    ],
+    [
+     -0.9486604332923889,
+     -0.011067773215472698,
+     0.25344014167785645,
+     0.20174527168273926,
+     0.22872887551784515,
+     0.3584553897380829,
+     0.26531878113746643,
+     0.2582916021347046,
+     0.29200562834739685,
+     0.16900232434272766,
+     0.23175029456615448,
+     0.7341263890266418
+    ],
+    [
+     -0.0663047581911087,
+     -1.1191900968551636,
+     -0.735758364200592,
+     -0.8495194911956787,
+     -0.181687131524086,
+     -0.2855561673641205,
+     -0.10953905433416367,
+     -0.16500473022460938,
+     -0.5554668307304382,
+     -0.15640172362327576,
+     -0.3326312005519867,
+     0.8132008910179138
+    ]
+   ],
+   "tone_B": [
+    [
+     0.25274142622947693,
+     0.08831734955310822,
+     0.07894712686538696,
+     -0.0631912425160408,
+     -0.2191738784313202,
+     -0.23898625373840332,
+     -0.2586647868156433,
+     -0.0630279928445816,
+     -0.029012873768806458,
+     -0.06777115911245346,
+     -0.8778476715087891,
+     0.11597973108291626
+    ],
+    [
+     -0.0749654471874237,
+     0.0641435831785202,
+     0.13210751116275787,
+     -0.006207391619682312,
+     -0.02116011641919613,
+     -0.03447289019823074,
+     0.10601892322301865,
+     0.20683445036411285,
+     0.24095073342323303,
+     0.27691972255706787,
+     -0.009808254428207874,
+     0.1334303319454193
+    ],
+    [
+     0.08638756722211838,
+     -0.07066754251718521,
+     -0.16700947284698486,
+     -0.10393939912319183,
+     -0.0022013040725141764,
+     -0.08801978826522827,
+     0.111327163875103,
+     0.3646484911441803,
+     0.184348002076149,
+     0.24504271149635315,
+     0.4322134554386139,
+     0.5523608922958374
+    ],
+    [
+     -0.28878721594810486,
+     0.026491308584809303,
+     0.42580822110176086,
+     0.3984181880950928,
+     0.36072349548339844,
+     0.34068718552589417,
+     0.5639706254005432,
+     0.8220279216766357,
+     0.2524167001247406,
+     0.26603853702545166,
+     0.4537343680858612,
+     0.5405091047286987
+    ],
+    [
+     -0.228240966796875,
+     -0.31678691506385803,
+     -0.131796196103096,
+     0.19757387042045593,
+     0.4349237084388733,
+     0.30878159403800964,
+     0.2829146385192871,
+     -0.20039771497249603,
+     -0.2298743575811386,
+     -0.029311008751392365,
+     0.058736398816108704,
+     -0.5588937401771545
+    ],
+    [
+     -0.6548932790756226,
+     1.1087926626205444,
+     1.7407777309417725,
+     1.3440371751785278,
+     0.36610350012779236,
+     0.1779998540878296,
+     0.2862178683280945,
+     0.6430094242095947,
+     0.6114884614944458,
+     0.35794857144355774,
+     -0.6826190948486328,
+     -0.6041153073310852
+    ]
+   ],
+   "hue_band": [
+    1.9784482717514038,
+    0.8831995129585266,
+    1.7687280178070068,
+    0.33758634328842163,
+    1.1572208404541016,
+    3.6378796100616455,
+    5.373028755187988,
+    2.0385353565216064
+   ],
+   "sat_band": [
+    1.5043444633483887,
+    0.7370659708976746,
+    0.9152283072471619,
+    1.3111920356750488,
+    -0.5672576427459717,
+    0.6430507302284241,
+    1.5819684267044067,
+    2.212148666381836
+   ],
+   "lum_band": [
+    0.134787917137146,
+    0.8697240352630615,
+    0.9915808439254761,
+    2.1667799949645996,
+    0.6270642876625061,
+    0.4235515594482422,
+    1.7015106678009033,
+    0.9045705199241638
+   ],
+   "grade_zone": [
+    0.8630857467651367,
+    0.6840625405311584,
+    0.7074335217475891,
+    0.4592586159706116
+   ],
+   "cal_hue": [
+    0.3551962971687317,
+    0.266390323638916,
+    1.7652957439422607
+   ],
+   "cal_sat": [
+    0.23163992166519165,
+    1.0168392658233643,
+    2.1096980571746826
+   ]
+  },
+  "curveMethod": "natural",
+  "spatialConstants": {
+   "k_clarity": 0.4245913326740265,
+   "r_clarity": 0.053682684898376465,
+   "k_texture": 0.4813469648361206,
+   "r_texture": 0.0005000000237487257
+  },
+  "experimentalConstants": {
+   "VIGNETTE_K": 0.9,
+   "GRAIN_K": 0.12,
+   "GRAIN_REF_LONG": 1200
+  },
+  "provisionalConstants": {
+   "referenceLongEdgePx": 3000,
+   "k_sharpen": 1.0,
+   "sharpenDetailThreshold": 0.02,
+   "sharpenEdgeScale": 0.05,
+   "nrLumaRadiusPx": 2.0,
+   "nrDetailScale": 0.05,
+   "nrColourRadiusPx": 4.0
+  }
+ },
+ "lookVersion": {
+  "definition": "first 12 hex digits of sha256 over the canonical JSON (sorted keys, no spaces) of {recipeVersion, recipe, developModel: {id, version, constantsSha256}, globalOverrideSha256}",
+  "semantics": "EditState schema 2 rules: lookId missing → unavailable; lookVersion differs → changed; never substitute"
+ }
+}
