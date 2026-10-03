@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.initializer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.core.content.ContextCompat
@@ -77,6 +79,16 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var captures: CameraCaptures
 
+    /**
+     * The view models the content is built from. Only the debug capture runner replaces them (with a
+     * new [ActiveViewModels.epoch]); the content is keyed by the epoch, so every remembered UI state
+     * (scroll, sheets, focus, dialogs) starts again as on a fresh launch.
+     */
+    private var active by androidx.compose.runtime.mutableStateOf<ActiveViewModels?>(null)
+
+    /** Store for the capture runner's per-screen view models; cleared (onCleared, scopes cancelled) per screen. */
+    private val captureStore = androidx.lifecycle.ViewModelStore()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyOrientationPolicy()
@@ -92,9 +104,17 @@ class MainActivity : ComponentActivity() {
         val shell = ViewModelProvider(this, AppViewModel.factory)[AppViewModel::class.java]
         val editor = ViewModelProvider(this, EditorViewModel.factory(graph.editorEnvironment))[EditorViewModel::class.java]
         editor.onLeave = { shell.navigate(AppNavigator.toWelcome()) }
-        if (savedInstanceState == null) DebugLaunchOptions.apply(intent, shell, graph.preferences, editor)
+        active = ActiveViewModels(0, shell, editor)
+        val launchScenario = if (savedInstanceState == null) DebugLaunchOptions.apply(intent, shell, graph.preferences, editor) else null
+        // Debug builds only (the release source set's hook does nothing): the persistent capture runner,
+        // and the same render-complete signal for a per-launch capture.
+        if (BuildConfig.DEBUG && savedInstanceState == null) com.lightlylabs.lightly.capture.CaptureRunnerHook.attach(this, intent, graph.preferences, launchScenario)
 
         setContent {
+          val viewModels = active ?: return@setContent
+          androidx.compose.runtime.key(viewModels.epoch) {
+            val shell = viewModels.shell
+            val editor = viewModels.editor
             val preferences by graph.preferences.preferences.collectAsStateWithLifecycle()
             val catalogue by graph.catalogue.collectAsStateWithLifecycle()
             val nav by shell.nav.collectAsStateWithLifecycle()
@@ -191,8 +211,34 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+          }
         }
     }
+
+    /**
+     * Capture runner (debug builds only): replaces the shell and editor view models with new ones, as
+     * a fresh launch creates them, after clearing the previous capture's (cancelling their work and
+     * timers), and clears focus and the keyboard. The content recomposes from scratch under a new key.
+     */
+    internal fun resetForCapture(): ActiveViewModels {
+        captureStore.clear()
+        val graph = AppGraph.get(this)
+        val provider = ViewModelProvider.create(captureStore, androidx.lifecycle.viewmodel.viewModelFactory {
+            initializer { AppViewModel(androidx.lifecycle.SavedStateHandle()) }
+            initializer { EditorViewModel(androidx.lifecycle.SavedStateHandle(), graph.editorEnvironment, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)) }
+        })
+        val shell = provider[AppViewModel::class.java]
+        val editor = provider[EditorViewModel::class.java]
+        editor.onLeave = { shell.navigate(AppNavigator.toWelcome()) }
+        currentFocus?.clearFocus()
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).hide(androidx.core.view.WindowInsetsCompat.Type.ime())
+        val next = ActiveViewModels((active?.epoch ?: 0) + 1, shell, editor)
+        active = next
+        return next
+    }
+
+    /** Capture runner diagnostics (debug builds only): the editor of the current epoch. */
+    internal fun activeEditorForCapture(): EditorViewModel? = active?.editor
 
     private fun openInEditor(assetId: String, editor: EditorViewModel, shell: AppViewModel) {
         editor.openPhoto(assetId)
@@ -262,6 +308,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** The view models one capture epoch (or the normal app) is built from. */
+internal class ActiveViewModels(val epoch: Int, val shell: AppViewModel, val editor: EditorViewModel)
 
 /**
  * Process-wide singletons (manual DI until Hilt). The editor environment, and with it the export

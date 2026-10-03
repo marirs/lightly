@@ -43,32 +43,66 @@ object DebugLaunchOptions {
     private const val EXTRA_EDITOR = "lightly.debug.editor"
     private const val EXTRA_PEOPLE = "lightly.debug.people"
 
-    fun apply(intent: Intent?, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel) {
-        if (!BuildConfig.DEBUG || intent == null) return
-        applyEditor(intent, shell, editor)
-        intent.getStringExtra(EXTRA_FAVOURITES)?.let { ids ->
+    /** One capture state, read from launch extras or (persistent capture runner) a broadcast's extras. */
+    data class Request(
+        val screen: String?,
+        val photo: String?,
+        val editor: String?,
+        val people: String?,
+        val favourites: String?,
+        val appearance: String?,
+        val benchmark: Boolean = false,
+    ) {
+        companion object {
+            fun from(intent: Intent) = Request(
+                screen = intent.getStringExtra(EXTRA_SCREEN),
+                photo = intent.getStringExtra(EXTRA_PHOTO),
+                editor = intent.getStringExtra(EXTRA_EDITOR),
+                people = intent.getStringExtra(EXTRA_PEOPLE),
+                favourites = intent.getStringExtra(EXTRA_FAVOURITES),
+                appearance = intent.getStringExtra(EXTRA_APPEARANCE),
+                benchmark = intent.getBooleanExtra("lightly.debug.benchmark", false),
+            )
+        }
+    }
+
+    fun apply(intent: Intent?, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel): kotlinx.coroutines.Job? {
+        if (!BuildConfig.DEBUG || intent == null) return null
+        return apply(Request.from(intent), shell, preferences, editor)
+    }
+
+    /**
+     * Applies [request] to freshly created view models. Returns the job that finishes when the editor
+     * state is configured (null when nothing asynchronous was started), so the capture runner can wait
+     * for it before it waits for the render.
+     */
+    fun apply(request: Request, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel): kotlinx.coroutines.Job? {
+        if (!BuildConfig.DEBUG) return null
+        val editorJob = applyEditor(request, shell, editor)
+        request.favourites?.let { ids ->
             preferences.update { it.copy(favouritePresetIds = ids.split(",").filter(String::isNotBlank).take(5)) }
         }
         // Lets the comparison switch light/dark in-app instead of toggling the system night mode,
         // which restarts System UI on every switch.
-        intent.getStringExtra(EXTRA_APPEARANCE)?.let { name ->
+        request.appearance?.let { name ->
             Appearance.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { appearance -> preferences.update { it.copy(appearance = appearance) } }
         }
-        val screen = intent.getStringExtra(EXTRA_SCREEN) ?: return
+        val screen = request.screen ?: return editorJob
         val state = when (screen) {
             "welcome" -> AppNavigator.toWelcome()
             "camera-denied" -> AppNavigator.showCameraDenied()
             "load-failed" -> AppNavigator.showLoadFailed()
             "welcome-privacy" -> AppNavigator.openPrivacyFromWelcome(AppNavigator.toWelcome())
             else -> MorePage.entries.firstOrNull { it.name.lowercase() == screen }?.let { AppNavigator.openPage(AppNavigator.toWelcome(), it) }
-        } ?: return
+        } ?: return editorJob
         shell.navigate(state)
+        return editorJob
     }
 
-    private fun applyEditor(intent: Intent, shell: AppViewModel, editor: EditorViewModel) {
-        val path = intent.getStringExtra(EXTRA_PHOTO) ?: return
-        val screen = intent.getStringExtra(EXTRA_EDITOR) ?: "model-unavailable"
-        editor.debugPresence = when (intent.getStringExtra(EXTRA_PEOPLE)) {
+    private fun applyEditor(request: Request, shell: AppViewModel, editor: EditorViewModel): kotlinx.coroutines.Job? {
+        val path = request.photo ?: return null
+        val screen = request.editor ?: "model-unavailable"
+        editor.debugPresence = when (request.people) {
             "present" -> PersonPresence.PRESENT
             "absent" -> PersonPresence.ABSENT
             else -> null
@@ -79,14 +113,14 @@ object DebugLaunchOptions {
         shell.navigate(if (screen == "more") AppNavigator.openMore(AppNavigator.openEditor()) else AppNavigator.openEditor())
         if (screen == "developing") {
             editor.debugSetPhase(EditorPhase.Developing)
-            return
+            return null
         }
-        if (screen == "loading") return
-        if (intent.getBooleanExtra("lightly.debug.benchmark", false)) {
+        if (screen == "loading") return null
+        if (request.benchmark) {
             editor.debugBenchmark { line -> android.util.Log.i("LightlyBench", line) }
-            return
+            return null
         }
-        editor.applyDebugState { api ->
+        return editor.applyDebugState { api ->
             val auto = when (screen) {
                 "model-unavailable" -> AutoState.UNAVAILABLE
                 "develop-failed" -> AutoState.FAILED

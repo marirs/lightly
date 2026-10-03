@@ -670,6 +670,7 @@ class EditorViewModel(
         scheduler = newScheduler
         schedulerCollector = scope.launch {
             newScheduler.published.collect { result ->
+                if (result != null && result.sessionId == "photo-$photoGeneration") settledRevision = result.revision
                 val rendered = (result?.outcome as? RenderOutcome.Rendered)?.value ?: return@collect
                 if (result.sessionId == "photo-$photoGeneration") {
                     state.update { it.copy(preview = rendered) }
@@ -687,6 +688,17 @@ class EditorViewModel(
     // Debug benchmark bookkeeping (docs/v1/slice2-android.md › Performance).
     @Volatile internal var publishedRevision: Long = -1
     @Volatile internal var requestedRevision: Long = -1
+
+    /** Latest revision the scheduler published anything for (rendered or failed); capture readiness. */
+    @Volatile internal var settledRevision: Long = -1
+
+    /**
+     * Capture runner readiness (debug builds only): no photo load, prefetch or separation running and
+     * the latest requested preview settled. Held debug states (loading, separating) count as settled,
+     * because their jobs return immediately.
+     */
+    internal fun debugWorkIdle(): Boolean =
+        listOf(loadJob, prefetchJob, separationJob).none { it?.isActive == true } && settledRevision >= requestedRevision
     internal val renderMillis: MutableList<Double> = java.util.Collections.synchronizedList(mutableListOf())
 
     // --- debug launch state (debug builds only; see DebugLaunchOptions) --------------------------
@@ -707,12 +719,11 @@ class EditorViewModel(
      * Applies a capture state once the session is Ready. Debug builds only: release builds never call
      * it (DebugLaunchOptions is gated on BuildConfig.DEBUG).
      */
-    internal fun applyDebugState(apply: (DebugEditorApi) -> Unit) {
+    internal fun applyDebugState(apply: (DebugEditorApi) -> Unit): Job =
         scope.launch {
             while (state.value.phase != EditorPhase.Ready && state.value.phase !is EditorPhase.LoadFailed) delay(50)
             if (state.value.phase == EditorPhase.Ready) apply(DebugEditorApi())
         }
-    }
 
     /**
      * Debug benchmark (docs/v1/slice2-android.md › Performance): cold 33³ bakes of 40 presets, a scrub
