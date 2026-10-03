@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre-Android-12 launch window mark: the eight-ray Lightly mark at 64 dp (prototype launchHTML: mark(64)), same geometry as
+     LightlyMark / BrandMark.swift. Generated: rays from 30% of the radius, alternating 100% / 86%. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp" android:height="64dp"
+    android:viewportWidth="64" android:viewportHeight="64">
+    <path android:pathData="M 41.6000,32.0000 L 64.0000,32.0000 M 38.7882,38.7882 L 51.4596,51.4596 M 32.0000,41.6000 L 32.0000,64.0000 M 25.2118,38.7882 L 12.5404,51.4596 M 22.4000,32.0000 L 0.0000,32.0000 M 25.2118,25.2118 L 12.5404,12.5404 M 32.0000,22.4000 L 32.0000,0.0000 M 38.7882,25.2118 L 51.4596,12.5404"
+        android:strokeColor="@color/lightly_ink" android:strokeWidth="2.24"
+        android:strokeLineCap="round" />
+</vector>

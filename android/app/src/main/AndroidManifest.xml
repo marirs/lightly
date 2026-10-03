@@ -2,16 +2,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- No storage or media permissions: selection uses the Photo Picker and saving inserts into
-         MediaStore, both permissionless on API 29+ (spec §2, §5.4). -->
+         MediaStore, both permissionless on API 29+ (spec §2, §5.4).
+         CAMERA: declared so the approved permission flow (camera-permission / camera-denied) is
+         the system's own. The capture itself is the system camera app (ACTION_IMAGE_CAPTURE), which
+         requires this permission to be granted once the app declares it. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Lets TakePicture find the system camera app on API 30+ (package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:label="Lightly"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.NoActionBar">
+        android:theme="@style/Theme.Lightly">
         <!-- No configChanges override: rotation/fold recreate the Activity on purpose, and the
-             ViewModel + SavedStateHandle carry the session across (spec §5.5). -->
+             ViewModels + SavedStateHandle carry the session and navigation across (spec §5.5).
+             Orientation is requested at runtime (OrientationPolicy): portrait on phone-sized
+             displays, free on unfolded foldables and tablets. -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -20,5 +35,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Camera captures are written by the system camera into cache/captures through this
+             provider; nothing else is shared. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.captures"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/capture_paths" />
+        </provider>
     </application>
 </manifest>

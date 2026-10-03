@@ -243,6 +243,12 @@ class EditorViewModel(
         loadPhoto(assetId, restoredSession = null)
     }
 
+    /**
+     * The photo the editor was last asked to open (survives process death), or null. The shell's
+     * "This photo can't be opened › Try again" reopens it.
+     */
+    val currentAssetId: String? get() = savedState.get<String>(KEY_ASSET)
+
     /** DevelopFailed → [Retry]: one user-initiated model run (spec §5.6). */
     fun retryDevelop() {
         val current = photo?.takeIf { isCurrent(it.generation) } ?: return

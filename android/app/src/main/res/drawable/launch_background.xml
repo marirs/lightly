@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch window before the first frame on API 29–30 (no system splash API): the approved
+     background with the mark centred, matching the API 31+ splash. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/lightly_bg" />
+    <item android:drawable="@drawable/launch_mark" android:gravity="center" />
+</layer-list>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ splash icon (288 dp canvas, no icon background): the eight-ray Lightly mark at 64 dp (prototype launchHTML: mark(64)), same geometry as
+     LightlyMark / BrandMark.swift. Generated: rays from 30% of the radius, alternating 100% / 86%. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp" android:height="288dp"
+    android:viewportWidth="288" android:viewportHeight="288">
+    <path android:pathData="M 153.6000,144.0000 L 176.0000,144.0000 M 150.7882,150.7882 L 163.4596,163.4596 M 144.0000,153.6000 L 144.0000,176.0000 M 137.2118,150.7882 L 124.5404,163.4596 M 134.4000,144.0000 L 112.0000,144.0000 M 137.2118,137.2118 L 124.5404,124.5404 M 144.0000,134.4000 L 144.0000,112.0000 M 150.7882,137.2118 L 163.4596,124.5404"
+        android:strokeColor="@color/lightly_ink" android:strokeWidth="2.24"
+        android:strokeLineCap="round" />
+</vector>

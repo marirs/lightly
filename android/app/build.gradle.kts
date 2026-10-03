@@ -26,6 +26,8 @@ android {
 
     buildFeatures {
         compose = true
+        // About shows versionName (versionCode); debug-only launch options read BuildConfig.DEBUG.
+        buildConfig = true
     }
 
     compileOptions {
@@ -114,6 +116,9 @@ fun mainCheckoutOfWorktree(checkout: File): File? {
 
 // The loader test that checks the real pack (format 2, 18 Looks, names verbatim) reads it in place.
 tasks.withType<Test>().configureEach {
+    // The catalogue test parses the real approved catalogue in place.
+    systemProperty("lightly.presetCatalogue", presetCatalogueFile.absolutePath)
+    inputs.file(presetCatalogueFile).withPathSensitivity(PathSensitivity.NONE).withPropertyName("presetCatalogue")
     lookPackDirectory?.let { pack ->
         systemProperty("lightly.lookPackDir", pack.absolutePath)
         inputs.file(pack.resolve("manifest.json")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("lookPackManifest")
@@ -147,6 +152,29 @@ abstract class BundleLookPackTask : DefaultTask() {
         pack.resolve("luts").listFiles { lut -> lut.extension == "f32" }.orEmpty().forEach { lut ->
             lut.copyTo(target.resolve("luts/${lut.name}"))
         }
+    }
+}
+
+// --- Develop catalogue (Lightly 1.0) ---------------------------------------------------------------
+//
+// presets/develop-design-ui.json is the approved category/stop catalogue (ids, display names). It is
+// versioned in the repository and bundled verbatim under assets/catalogue/, so the app and the design
+// read the same ids (favourites in slice 1; Develop in slice 2). A missing file fails the build.
+val presetCatalogueFile: File = rootDir.parentFile.resolve("presets/develop-design-ui.json")
+
+abstract class BundlePresetCatalogueTask : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val catalogueFile: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    fun bundle() {
+        val assetsRoot = assetsDirectory.get().asFile
+        assetsRoot.deleteRecursively()
+        catalogueFile.get().asFile.copyTo(assetsRoot.resolve("catalogue/develop-design-ui.json"))
     }
 }
 
@@ -255,6 +283,11 @@ androidComponents {
             lookPackDirectory?.let { packDirectory.set(it) }
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleLookPack, BundleLookPackTask::assetsDirectory)
+
+        val bundleCatalogue = tasks.register<BundlePresetCatalogueTask>("bundle${variantName}PresetCatalogue") {
+            catalogueFile.set(presetCatalogueFile)
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleCatalogue, BundlePresetCatalogueTask::assetsDirectory)
 
         val verifyIcon = tasks.register<VerifyLauncherIconTask>("verify${variantName}LauncherIcon") {
             apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))

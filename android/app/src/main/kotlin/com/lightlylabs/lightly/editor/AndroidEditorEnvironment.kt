@@ -9,6 +9,9 @@ import com.lightlylabs.lightly.export.BitmapExportFrame
 import com.lightlylabs.lightly.export.BitmapFrameJpegEncoder
 import com.lightlylabs.lightly.export.ContentResolverGateway
 import com.lightlylabs.lightly.export.ExportCoordinator
+import com.lightlylabs.lightly.export.ExportMetadataStep
+import com.lightlylabs.lightly.export.MetadataPolicy
+import com.lightlylabs.lightly.export.PlatformExifMetadata
 import com.lightlylabs.lightly.export.MediaStoreGateway
 import com.lightlylabs.lightly.export.NewImageSpec
 import com.lightlylabs.lightly.export.SaveCopyExporter
@@ -16,6 +19,7 @@ import com.lightlylabs.lightly.model.BasisRegistry
 import com.lightlylabs.lightly.model.RegistryAutoLutResolver
 import com.lightlylabs.lightly.render.lut.CpuLutPassRenderer
 import kotlinx.coroutines.asCoroutineDispatcher
+import java.io.File
 import java.io.FileNotFoundException
 import java.io.OutputStream
 import java.util.concurrent.Executors
@@ -39,7 +43,11 @@ object AndroidEditorEnvironment {
     /** One thread owns rendering (it will own the EGL context once GL is wired). */
     private val renderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-render") }.asCoroutineDispatcher()
 
-    fun create(context: Context, screenLongestPx: Int): EditorEnvironment {
+    /**
+     * @param metadataPolicy read when Save copy is tapped (Preferences › Keep photo metadata /
+     *   Include location), so the policy in force at the tap is the one the saved file follows.
+     */
+    fun create(context: Context, screenLongestPx: Int, metadataPolicy: () -> MetadataPolicy): EditorEnvironment {
         val resolver = context.applicationContext.contentResolver
         val decoder = ProxyDecoder()
         val gateway = UriStringGateway(ContentResolverGateway(resolver))
@@ -55,11 +63,11 @@ object AndroidEditorEnvironment {
             renderDispatcher = renderDispatcher,
             exporter = ExportCoordinator(
                 renderer = CpuLutPassRenderer,
-                saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder()),
+                saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder(), metadataStep = metadataStep(context.applicationContext)),
                 frameFactory = BitmapExportFrame.factory,
                 renderDispatcher = renderDispatcher,
             ),
-            newImageSpec = { source -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg") },
+            newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },
         )
     }
 
@@ -75,6 +83,17 @@ object AndroidEditorEnvironment {
     }
 
     private const val LOG_TAG = "LightlyLooks"
+
+    /** EXIF copy for Save copy; the editor keys photos by URI string, the platform reader by Uri. */
+    private fun metadataStep(context: Context): ExportMetadataStep<String> {
+        val uriReader = PlatformExifMetadata.contentResolverReader(context.contentResolver)
+        val scratch = File(context.cacheDir, "export-scratch").apply { mkdirs() }
+        return ExportMetadataStep(
+            reader = { source, tags -> uriReader.read(Uri.parse(source), tags) },
+            writer = PlatformExifMetadata.writer,
+            scratchDirectory = scratch,
+        )
+    }
 
     /** Pack files live under `assets/lookpack/`, put there by the app's Gradle build. */
     private class AssetLookPackSource(private val assets: AssetManager) : LookPackSource {

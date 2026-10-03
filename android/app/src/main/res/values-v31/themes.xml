@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+: the system splash IS the approved Launch screen: the eight-ray mark on the
+         approved background (light/dark from values-night, or from Appearance via
+         UiModeManager.setApplicationNightMode). No icon background, no branding image. -->
+    <style name="Theme.Lightly" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/lightly_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenBackground">@color/lightly_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/launch_splash_mark</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/lightly_bg</item>
+    </style>
+</resources>
