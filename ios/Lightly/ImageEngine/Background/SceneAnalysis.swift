@@ -39,21 +39,13 @@ struct DetectedFace: Sendable, Equatable {
 
     static let detector = EditRecipe.ModelRef(id: "vision-face-landmarks", version: "ios-17-rev3")
 
-    /// The ellipse the face ring follows (prototype `.faceRing` drawn on the face): the jaw
-    /// contour's width, from the forehead (brow line raised by half the brow-to-chin height,
-    /// the usual facial thirds) to the chin. Vision's bounding box is a square around eyes and
-    /// mouth, so a ring on it is a circle that cuts the chin and forehead. Falls back to the box.
+    /// The ellipse the face ring follows (prototype `.faceRing`, an upright ellipse on the face).
+    /// Vision's face box spans roughly brows to chin and is square; the ring adds the forehead
+    /// (a fifth of the box above it) and a little below the chin, so it is about 1.25 times as
+    /// tall as wide. Landmarks are not used: in the Simulator their CPU path returned contours
+    /// that moved between runs of the same photo.
     var ring: EditRecipe.Rect {
-        let brows = leftEyebrow + rightEyebrow
-        guard faceContour.count >= 3, !brows.isEmpty else { return box }
-        let xs = faceContour.map(\.x)
-        let chin = faceContour.map(\.y).max()!, browTop = brows.map(\.y).min()!
-        guard chin > browTop else { return box }
-        let left = xs.min()!, right = xs.max()!
-        let top = browTop - (chin - browTop) / 2
-        let margin = (right - left) * 0.06
-        return EditRecipe.Rect(x: Double(left - margin), y: Double(top), width: Double(right - left + 2 * margin),
-                               height: Double(chin - top) * 1.04)
+        EditRecipe.Rect(x: box.x, y: box.y - box.height * 0.2, width: box.width, height: box.height * 1.25)
     }
 
     /// Usable for Portrait: big enough, with landmarks, facing the camera well enough. The
