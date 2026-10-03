@@ -1,5 +1,6 @@
 package com.lightlylabs.lightly.export
 
+import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 
@@ -18,6 +19,8 @@ data class NewImageSpec(
     /** Under the shared Pictures collection, so the copy shows up next to camera photos. */
     val relativePath: String = "Pictures/Lightly",
     val dateTakenMillis: Long? = null,
+    /** Captured from Preferences when Save copy is tapped, so a later toggle cannot change this save. */
+    val metadataPolicy: MetadataPolicy = MetadataPolicy.DEFAULT,
 )
 
 /**
@@ -61,6 +64,12 @@ class SaveCopyExporter<H, I>(
     private val gateway: MediaStoreGateway<H>,
     private val encoder: JpegEncoder<I>,
     private val quality: Int = DEFAULT_QUALITY,
+    /**
+     * Copies whitelisted EXIF per [NewImageSpec.metadataPolicy]. `null` (pure-JVM tests, or a
+     * platform without an EXIF writer) encodes straight into the row with no EXIF, which is the
+     * most private outcome.
+     */
+    private val metadataStep: ExportMetadataStep<H>? = null,
 ) {
     init {
         require(quality in 1..100) { "JPEG quality must be 1..100, was $quality" }
@@ -79,13 +88,44 @@ class SaveCopyExporter<H, I>(
         check(target != source) { "MediaStore returned the source row as the insert target; refusing to write" }
 
         try {
-            gateway.openForWrite(target).use { sink -> encoder.encode(rendered, quality, sink) }
+            gateway.openForWrite(target).use { sink -> encodeWithMetadata(source, spec.metadataPolicy, rendered, sink) }
             if (!gateway.publish(target)) throw SaveCopyFailure.PublishFailed()
             return target
         } catch (failure: Throwable) {
             deletePendingQuietly(target, failure)
             throw classify(failure)
         }
+    }
+
+    /**
+     * Encodes once. With metadata to copy, the JPEG goes to a scratch file, gets its EXIF block, and
+     * is streamed into [sink]; otherwise it is encoded straight into [sink].
+     */
+    private fun encodeWithMetadata(source: H, policy: MetadataPolicy, rendered: I, sink: OutputStream) {
+        val step = metadataStep
+        val tags = policy.tagsToCopy
+        // Read before encoding: an unreadable Original simply yields no metadata.
+        val attributes = if (step == null || tags.isEmpty()) emptyMap() else readQuietly(step, source, tags)
+        if (step == null || attributes.isEmpty()) {
+            encoder.encode(rendered, quality, sink)
+            return
+        }
+        val scratch = File.createTempFile("lightly-export", ".jpg", step.scratchDirectory)
+        try {
+            scratch.outputStream().use { file -> encoder.encode(rendered, quality, file) }
+            step.writer.write(scratch, attributes)
+            scratch.inputStream().use { file -> file.copyTo(sink) }
+        } finally {
+            scratch.delete()
+        }
+    }
+
+    private fun readQuietly(step: ExportMetadataStep<H>, source: H, tags: List<String>): Map<String, String> = try {
+        step.reader.read(source, tags).filterKeys { it in tags }
+    } catch (unreadable: IOException) {
+        emptyMap()
+    } catch (denied: SecurityException) {
+        emptyMap()
     }
 
     /** Cleanup must not replace the original error: a failed delete is attached as suppressed. */
