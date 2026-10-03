@@ -165,6 +165,35 @@ def trained_run_arm(run_dir: str) -> LearnedLutArm:
     return LearnedLutArm(f"{kind}:{card['run_id']}", label, kind, classifier, basis)
 
 
+class GatedLutArm(LearnedLutArm):
+    """A trained run behind a conservative gate (lightly_auto/gating.py). The gate only scales the model's own
+    correction toward identity; it never adds a correction, so this is still the learned model, never a fixed
+    filter. Its label inherits the run's label, so a gated research candidate is still NOT AI Auto."""
+
+    def __init__(self, base: LearnedLutArm, gate_config):
+        super().__init__(f"{base.name}+gate:{gate_config.gate_id}", f"{base.label} + conservative gate {gate_config.gate_id}",
+                         base.kind, base.classifier, base.basis_luts)
+        self.gate_config = gate_config
+
+    def render(self, proxy_rgb8):
+        from .gating import choose_strength, detector_features, detector_probability, preview_profile
+        from .paths import AUTO_ROOT
+        import torch
+        x256 = ia.prepare_256_antialiased(proxy_rgb8)
+        with torch.no_grad():
+            weights = self.classifier(torch.from_numpy(x256).unsqueeze(0))[0].numpy()
+        model_lut = ia.fuse_luts(self.basis_luts, weights)
+        profile = preview_profile(x256, model_lut)
+        detector_p = None
+        if self.gate_config.detector_path:
+            detector = json.load(open(os.path.join(AUTO_ROOT, self.gate_config.detector_path)))
+            detector_p = detector_probability(detector_features(x256, weights, profile), detector)
+        strength, reasons = choose_strength(profile, self.gate_config, detector_p)
+        lut = ia.blend_toward_identity(model_lut, strength)
+        return ArmOutput(apply_lut_to_rgb8(lut, proxy_rgb8),
+                         {"weights": np.round(weights, 4).tolist(), "gate_strength": strength, **reasons})
+
+
 def build_arm(spec: str) -> Arm:
     if spec == "original":
         return OriginalArm()
@@ -174,4 +203,8 @@ def build_arm(spec: str) -> Arm:
         return research_arm(spec[len("research_"):])
     if spec.startswith("run:"):
         return trained_run_arm(spec[len("run:"):])
+    if spec.startswith("gated:"):  # gated:<run_dir>@<gate_config.json>
+        from .gating import GateConfig
+        run_dir, config_path = spec[len("gated:"):].split("@", 1)
+        return GatedLutArm(trained_run_arm(run_dir), GateConfig.load(config_path))
     raise ValueError(f"unknown arm {spec!r}")

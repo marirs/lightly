@@ -1,0 +1,851 @@
+{
+  "run_name": "dev22_pipeline_check",
+  "protocol": {
+    "version": "1.0.0",
+    "files": {
+      "PROTOCOL.json": "aee333fbffe265d2c7a1c66e8e56426965d20229a1754089b116793f605da397",
+      "lightly_auto/rubric.py": "9eb0079d542d0c596354c5db8626c4dedece837fc876524873045c4ba5e5759d",
+      "lightly_auto/stats.py": "5a3fff946c10557c691a771b95469b45e5b4bc78858a42e9d96af52e556d7d29"
+    },
+    "combined_sha256": "e9dec2f5fda1e9bd275e1f0375333e33a3c2b9ec6d8ed05a0e2711a5ba0eb26b"
+  },
+  "manifest": {
+    "path": "experiments/auto/eval/dev22_manifest.csv",
+    "hash": "a7dae3151707cd670e48092fcf86d269c7bd92b0299be51f23e0b7f48ef12cab",
+    "n_images": 22,
+    "splits": [
+      "dev"
+    ]
+  },
+  "faces_json_sha256": "b6c88304cde70791344c161d0736d128ca98a2d3f5913481f7ccf917ade588a7",
+  "analysis_long_edge": 2048,
+  "code_commit": "b9b1f76ea865a1c794c6249139fdb6ef58ff11fa",
+  "environment": {
+    "python": "3.11.16",
+    "numpy": "2.4.6",
+    "torch": "2.5.1",
+    "skimage": "0.26.0"
+  },
+  "elapsed_s": 70.4,
+  "arms": [
+    {
+      "arm": {
+        "name": "original",
+        "label": "Original (unchanged) - NOT AI Auto",
+        "kind": "identity",
+        "is_ai_auto": false
+      },
+      "classes": [
+        {
+          "rubric_class": "portrait",
+          "n_images": 7,
+          "n_scorable": 7,
+          "n_pass": 7,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.5903836027749967,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "skin_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 7,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_chroma_ratio",
+              "bound": {
+                "max": 1.12
+              },
+              "n": 7,
+              "mean": 1.0,
+              "ci": [
+                1.0,
+                1.0
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "sunset",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "warm_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "warm_chroma_ratio",
+              "bound": {
+                "min": 0.95,
+                "max": 1.1
+              },
+              "n": 3,
+              "mean": 1.0,
+              "ci": [
+                1.0,
+                1.0
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "night",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "clipLo_pp",
+              "bound": {
+                "max": 0.5
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "night_p50_dL",
+              "bound": {
+                "max": 3.0
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "backlit",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 0,
+          "pass_rate": 0.0,
+          "pass_rate_bootstrap_ci": [
+            0.0,
+            0.0
+          ],
+          "pass_rate_exact_ci": [
+            0.0,
+            0.7075982261787134
+          ],
+          "criteria": [
+            {
+              "name": "clipHi_pp",
+              "bound": {
+                "max": 0.5
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 1,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_chroma_ratio",
+              "bound": {
+                "max": 1.12
+              },
+              "n": 1,
+              "mean": 1.0,
+              "ci": [
+                1.0,
+                1.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "subject_dL",
+              "bound": {
+                "min_exclusive": 0.0
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": false
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": false,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "already_good",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "dE00_mean",
+              "bound": {
+                "max": 3.0
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "landscape",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [],
+          "gated": false,
+          "class_passes_S1": null,
+          "unscorable_images": []
+        }
+      ]
+    },
+    {
+      "arm": {
+        "name": "candidate:photo_a_001",
+        "label": "Stage (a) research candidate: self-supervised on CC0/PD reference photos - NOT released, NOT validated as AI Auto (ship gates S1-S5 not met)",
+        "kind": "candidate",
+        "is_ai_auto": false
+      },
+      "classes": [
+        {
+          "rubric_class": "portrait",
+          "n_images": 7,
+          "n_scorable": 7,
+          "n_pass": 6,
+          "pass_rate": 0.8571428571428571,
+          "pass_rate_bootstrap_ci": [
+            0.5714285714285714,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.4212768029568048,
+            0.9963897031380994
+          ],
+          "criteria": [
+            {
+              "name": "skin_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 7,
+              "mean": 1.0893711490346476,
+              "ci": [
+                0.5843017343443181,
+                1.6730269096100143
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_chroma_ratio",
+              "bound": {
+                "max": 1.12
+              },
+              "n": 7,
+              "mean": 1.0606333629387465,
+              "ci": [
+                1.0168068949812863,
+                1.1117206122562828
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "sunset",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 1,
+          "pass_rate": 0.3333333333333333,
+          "pass_rate_bootstrap_ci": [
+            0.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.008403758659612643,
+            0.9057006759497539
+          ],
+          "criteria": [
+            {
+              "name": "warm_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 3,
+              "mean": 1.007970352677385,
+              "ci": [
+                0.34778394718509276,
+                1.938742599731711
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "warm_chroma_ratio",
+              "bound": {
+                "min": 0.95,
+                "max": 1.1
+              },
+              "n": 3,
+              "mean": 0.9127721401027054,
+              "ci": [
+                0.8496292354681247,
+                1.0154058504458738
+              ],
+              "mean_meets_target": false
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": false,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "night",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 2,
+          "pass_rate": 0.6666666666666666,
+          "pass_rate_bootstrap_ci": [
+            0.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.09429932405024613,
+            0.9915962413403874
+          ],
+          "criteria": [
+            {
+              "name": "clipLo_pp",
+              "bound": {
+                "max": 0.5
+              },
+              "n": 3,
+              "mean": -0.3645344355013282,
+              "ci": [
+                -0.5551656087239583,
+                -0.003259984867938371
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "night_p50_dL",
+              "bound": {
+                "max": 3.0
+              },
+              "n": 3,
+              "mean": 2.2711617066212426,
+              "ci": [
+                1.3945647453001762,
+                3.966474597565046
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": false,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "backlit",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 0,
+          "pass_rate": 0.0,
+          "pass_rate_bootstrap_ci": [
+            0.0,
+            0.0
+          ],
+          "pass_rate_exact_ci": [
+            0.0,
+            0.7075982261787134
+          ],
+          "criteria": [
+            {
+              "name": "clipHi_pp",
+              "bound": {
+                "max": 0.5
+              },
+              "n": 3,
+              "mean": 0.4670695230162745,
+              "ci": [
+                -0.014237065018315018,
+                1.4165164262820509
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 1,
+              "mean": 4.98422829943334,
+              "ci": [
+                4.98422829943334,
+                4.98422829943334
+              ],
+              "mean_meets_target": false
+            },
+            {
+              "name": "skin_chroma_ratio",
+              "bound": {
+                "max": 1.12
+              },
+              "n": 1,
+              "mean": 0.8296700255104474,
+              "ci": [
+                0.8296700255104474,
+                0.8296700255104474
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "subject_dL",
+              "bound": {
+                "min_exclusive": 0.0
+              },
+              "n": 3,
+              "mean": -3.776685392667629,
+              "ci": [
+                -6.899699682693736,
+                -1.7847103179508457
+              ],
+              "mean_meets_target": false
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": false,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "already_good",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 2,
+          "pass_rate": 0.6666666666666666,
+          "pass_rate_bootstrap_ci": [
+            0.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.09429932405024613,
+            0.9915962413403874
+          ],
+          "criteria": [
+            {
+              "name": "dE00_mean",
+              "bound": {
+                "max": 3.0
+              },
+              "n": 3,
+              "mean": 2.0341351807955754,
+              "ci": [
+                1.503026108299786,
+                3.0521145431606436
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": false,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "landscape",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [],
+          "gated": false,
+          "class_passes_S1": null,
+          "unscorable_images": []
+        }
+      ]
+    },
+    {
+      "arm": {
+        "name": "candidate:photo_a_001+gate:gate_v1",
+        "label": "Stage (a) research candidate: self-supervised on CC0/PD reference photos - NOT released, NOT validated as AI Auto (ship gates S1-S5 not met) + conservative gate gate_v1",
+        "kind": "candidate",
+        "is_ai_auto": false
+      },
+      "classes": [
+        {
+          "rubric_class": "portrait",
+          "n_images": 7,
+          "n_scorable": 7,
+          "n_pass": 7,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.5903836027749967,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "skin_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 7,
+              "mean": 0.1930933875451148,
+              "ci": [
+                0.0,
+                0.5792801626353443
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_chroma_ratio",
+              "bound": {
+                "max": 1.12
+              },
+              "n": 7,
+              "mean": 1.01523337648945,
+              "ci": [
+                1.0,
+                1.0457001294683494
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "sunset",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "warm_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "warm_chroma_ratio",
+              "bound": {
+                "min": 0.95,
+                "max": 1.1
+              },
+              "n": 3,
+              "mean": 1.0,
+              "ci": [
+                1.0,
+                1.0
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "night",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "clipLo_pp",
+              "bound": {
+                "max": 0.5
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "night_p50_dL",
+              "bound": {
+                "max": 3.0
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "backlit",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 0,
+          "pass_rate": 0.0,
+          "pass_rate_bootstrap_ci": [
+            0.0,
+            0.0
+          ],
+          "pass_rate_exact_ci": [
+            0.0,
+            0.7075982261787134
+          ],
+          "criteria": [
+            {
+              "name": "clipHi_pp",
+              "bound": {
+                "max": 0.5
+              },
+              "n": 3,
+              "mean": -0.005102619077742433,
+              "ci": [
+                -0.014237065018315018,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 1,
+              "mean": 0.2667379534357792,
+              "ci": [
+                0.2667379534357792,
+                0.2667379534357792
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_chroma_ratio",
+              "bound": {
+                "max": 1.12
+              },
+              "n": 1,
+              "mean": 0.976080694259303,
+              "ci": [
+                0.976080694259303,
+                0.976080694259303
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "subject_dL",
+              "bound": {
+                "min_exclusive": 0.0
+              },
+              "n": 3,
+              "mean": -1.457897239218384,
+              "ci": [
+                -2.645646177358305,
+                0.0
+              ],
+              "mean_meets_target": false
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": false,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "already_good",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "dE00_mean",
+              "bound": {
+                "max": 3.0
+              },
+              "n": 3,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "landscape",
+          "n_images": 3,
+          "n_scorable": 3,
+          "n_pass": 3,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.29240177382128674,
+            1.0
+          ],
+          "criteria": [],
+          "gated": false,
+          "class_passes_S1": null,
+          "unscorable_images": []
+        }
+      ]
+    }
+  ]
+}

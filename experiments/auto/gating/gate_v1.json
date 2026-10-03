@@ -1,0 +1,16 @@
+{
+  "description": "Conservative gate v1 for photo_a_001: learned 'needs correction' detector (threshold 0.6) plus scene-aware constraints. Chosen on the CC0REF VALIDATION split only (results/gating_v1/validation). Frozen here before any frozen-set run; see PREREGISTRATION_gate_v1.json.",
+  "gate": {
+    "gate_id": "gate_v1",
+    "predicted_change_deadzone_dE00": 0.0,
+    "use_scene_constraints": true,
+    "dark_scene_median_L": 35.0,
+    "dark_max_median_dL": 1.5,
+    "warm_scene_min_share": 0.02,
+    "warm_min_chroma_ratio": 0.98,
+    "warm_max_abs_dh_deg": 2.5,
+    "max_new_clip_pp": 0.25,
+    "detector_path": "gating/detector_v1.json",
+    "detector_threshold": 0.6
+  }
+}

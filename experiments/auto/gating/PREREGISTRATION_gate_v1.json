@@ -1,0 +1,56 @@
+{
+  "title": "Pre-registered single frozen-set evaluation of conservative gate v1 on photo_a_001",
+  "registered_on": "2026-10-03",
+  "status": "Registered BEFORE the run. This file is committed before run_eval.py / eval_synthetic.py are executed with the gated arm. The run is executed ONCE; its results are reported whatever they are, and no gate parameter may be changed in response to them.",
+  "model": {
+    "run": "runs/photo_a_001",
+    "classifier_sha256": "5441b5614f7d06bb4c797c10cf327f2be6d8d1df31f9f673d9d0766d4fc8d535",
+    "basis_luts_sha256": "764046e734461472f350dd21585f63e8bb676ecb6a979fceae14496b69224ebe"
+  },
+  "gate_config": "gating/gate_v1.json",
+  "gate_files_sha256": {
+    "gating/gate_v1.json": "2d5d285c3417bfa9f395362ade095481f6d3a15b9704ea6090d3e21d13d94dee",
+    "gating/detector_v1.json": "e5cf01fe84185dd61f691036051d50a659a993e3c5e8c8f5f41ec1130d9b6cd8",
+    "lightly_auto/gating.py": "c9d86e5e5daffca15b0e62a4afa588cde94382452d2aae84b22baaa594b9935b"
+  },
+  "how_it_was_chosen": {
+    "data": "CC0REF validation split only (542 photos, each clean and with one synthetic degradation; night/sunset tags from machine captions). The detector was fitted on 1000 CC0REF TRAIN photos. DEV-22 not used for selection. PH-1 and HO-SYN not used; no PH-1 image was viewed while choosing.",
+    "swept": "predicted-change deadzone (1-5 dE00), detector threshold (0.4-0.7), with and without scene constraints, and combinations (results/gating_v1/validation/summary.md). Scene-constraint thresholds were NOT swept: they were set once, before the study, as the protocol limits with margin.",
+    "selection_rule": "Among validated gates, maximise recovery retained on degraded validation photos subject to: share of clean validation photos with dE00 <= 3 at least 0.90, and night-tagged and sunset-tagged failure rates each at most 0.10.",
+    "validation_numbers_of_chosen_gate": {
+      "clean_mean_dE00_to_input": 0.78,
+      "clean_share_le_3": 0.91,
+      "clean_share_untouched": 0.84,
+      "degraded_mean_dE00_to_clean": 7.4,
+      "degraded_input_mean_dE00": 8.68,
+      "ungated_degraded_mean_dE00": 6.65,
+      "recovery_retained": 0.63,
+      "night_tagged_fail": 0.0,
+      "sunset_tagged_fail": 0.031
+    }
+  },
+  "runs": [
+    "cd experiments/auto && OMP_NUM_THREADS=2 lockf -k /tmp/lightly-heavy.lock python run_eval.py --manifest manifests/ph1_manifest.csv --faces manifests/ph1_faces.json --arms gated:runs/photo_a_001@gating/gate_v1.json --out results/heldout_v1_gate_v1/ph1 --threads 2",
+    "cd experiments/auto && OMP_NUM_THREADS=2 lockf -k /tmp/lightly-heavy.lock python eval_synthetic.py --manifest manifests/cc0ref_manifest.csv --arms gated:runs/photo_a_001@gating/gate_v1.json --out results/heldout_v1_gate_v1/hosyn --threads 2"
+  ],
+  "comparators": "Original, control and ungated photo_a_001 are NOT re-run; their frozen-set results are the committed results/heldout_v1/{ph1_photo_a_001,hosyn_photo_a_001}.",
+  "hypotheses": {
+    "H1_ph1_already_good": "S1 PASS on already_good (class mean dE00 <= 3 and >= 80% of images pass).",
+    "H2_ph1_night": "S1 PASS on night.",
+    "H3_ph1_sunset": "S1 PASS on sunset.",
+    "H4_ph1_portrait": "S1 PASS on portrait (preservation only).",
+    "H5_ph1_backlit": "S1 FAIL on backlit is EXPECTED: a gate only scales the model toward identity and cannot raise a subject the model darkens.",
+    "H6_hosyn_identity": "HO-SYN identity samples: mean dE00 to input <= 1.5.",
+    "H7_hosyn_recovery": "HO-SYN degraded samples: upper bound of the 95% CI of mean dE00 to clean is below the unchanged input's mean (8.71), i.e. the gated model still recovers some degradation."
+  },
+  "interpretation_fixed_in_advance": [
+    "Passing H1-H4 and H6 would show the gate meets preservation limits on these public held-out sets. It would NOT show that the gated model improves photos: the unchanged Original passes the same limits. Improvement needs the preference study.",
+    "Whatever the outcome, the model is not shipped and Auto stays an unresolved release requirement. PH-1 is not a T1 G0 set.",
+    "After this run PH-1 has been scored for two candidates. Any further gate or model iteration informed by these results must be evaluated on a new frozen set."
+  ],
+  "descriptive_reported_without_hypothesis": [
+    "Per class: share of PH-1 images the gate leaves exactly unchanged (strength 0), and mean strength, read from per_image.csv arm_info. On DEV-22 (development data) the gate acted on only 4 of 22 photos, so a pass on preservation limits may largely reflect abstention; this share is what tells the two apart.",
+    "HO-SYN: share improved vs input and share worse by > 1 dE00 on degraded samples; share of identity samples <= 1.5."
+  ],
+  "dev22_pipeline_check": "results/gating_v1/dev22_pipeline_check (development data, not evidence)."
+}
