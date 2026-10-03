@@ -144,8 +144,10 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(waitFor { self.label("develop.context") == "Applied: 05 Hiking 05" })
         XCTAssertEqual(label("develop.position"), "0 / 564")
         XCTAssertEqual(label("develop.name"), "Original")
-        app.buttons["editor.undo"].tap()
-        XCTAssertTrue(waitFor { self.label("develop.context").isEmpty }, "Undo removes the Look, not the browsing")
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Browsing made no undo step")
+        element("develop.category.landscape").tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
+        XCTAssertEqual(label("develop.position"), "37 / 518")
     }
 
     func testAmountOpensTheSliderWithDone() {
@@ -186,8 +188,9 @@ final class EditorFlowUITests: XCTestCase {
     }
 
     func testClosingWithUnsavedEditsAsks() {
-        openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
+        openEditor()
+        dragRuler(by: 3)
+        XCTAssertTrue(waitFor { self.label("develop.name") != "Original" })
         app.buttons["editor.close"].tap()
         XCTAssertTrue(app.alerts["Leave without saving?"].waitForExistence(timeout: timeout))
         app.alerts.buttons["Keep editing"].tap()

@@ -160,10 +160,12 @@ final class EditorSession {
             previewBase = (prepared.pixels, prepared.width, prepared.height)
             originalPreview = prepared.image
             displayedImage = prepared.image
-            makeScheduler()
         }
         async let person = personDetector.containsPerson(prepared?.image ?? image)
+        // The renderer and bake cache exist only once the library has loaded (it loads in the
+        // background from launch), so the preview scheduler is made after that.
         await library.waitUntilLoaded()
+        if prepared != nil { makeScheduler() }
         hasPerson = await person
         guard !isClosed else { return }
         #if DEBUG
@@ -575,11 +577,15 @@ final class EditorSession {
     #if DEBUG
     /// Design captures and UI tests: put the session in an approved state directly.
     func debugSetAutoState(_ state: AutoState) { autoState = state }
+    /// Sets up a scenario's starting recipe the way the prototype's `stateFor` does: as the
+    /// session's initial state, not as an undo step.
     func debugApply(_ preset: PresetPack.Preset, amount: Double) {
         amountMemory[preset.id] = Self.strength(forAmount: amount)
         var next = recipe
         next.look = .init(lookId: preset.id, lookVersion: preset.lookVersion, strength: Self.strength(forAmount: amount))
-        commit(next)
+        history = [next]
+        historyIndex = 0
+        renderCommitted()
     }
     #endif
 }

@@ -219,17 +219,23 @@ extension PhotoStage where Overlay == EmptyView {
 }
 
 /// `.progress`: the dark rounded box with a spinner, a label and a bar.
+///
+/// Over the photo the box is absolutely positioned at `left: 50%`, so CSS shrink-to-fit gives it
+/// at most half the stage's width (it is 200 pt minimum): on a phone the subtitle wraps there.
+/// Over the saving scrim it is in normal flow and takes its natural width.
 struct ProgressBox<Extra: View>: View {
     let title: String
     var subtitle: String?
     let barFraction: CGFloat
+    /// Half the stage width over the photo; nil in normal flow.
+    var maximumWidth: CGFloat?
     @ViewBuilder var extra: () -> Extra
 
     var body: some View {
         VStack(spacing: 0) {
-            ProgressView().progressViewStyle(.circular).tint(.white).frame(width: 22, height: 22).padding(.bottom, 8)
-            Text(title).font(.system(size: 14))
-            if let subtitle { Text(subtitle).font(.system(size: 13)).opacity(0.75) }
+            RingSpinner().padding(.bottom, 8)
+            Text(title).font(.system(size: 14)).fixedSize(horizontal: false, vertical: true)
+            if let subtitle { Text(subtitle).font(.system(size: 13)).opacity(0.75).fixedSize(horizontal: false, vertical: true) }
             Capsule().fill(.white.opacity(0.25)).frame(height: 3)
                 .overlay(alignment: .leading) {
                     GeometryReader { proxy in Capsule().fill(.white).frame(width: proxy.size.width * barFraction) }
@@ -240,10 +246,26 @@ struct ProgressBox<Extra: View>: View {
         .multilineTextAlignment(.center)
         .foregroundStyle(.white)
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .frame(minWidth: 200)
-        .fixedSize()
+        .frame(minWidth: 200, maxWidth: maximumWidth.map { max(200, $0) })
+        .fixedSize(horizontal: maximumWidth == nil, vertical: true)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 20 / 255, green: 20 / 255, blue: 22 / 255).opacity(0.72)))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// `.spinner`: a 22 pt ring, 2.5 pt, 35 % white with a white top quarter. The prototype draws it
+/// still; here it turns, as a spinner does, and every frame looks like the approved one.
+struct RingSpinner: View {
+    @State private var angle: Double = 0
+    var body: some View {
+        ZStack {
+            Circle().strokeBorder(.white.opacity(0.35), lineWidth: 2.5)
+            Circle().inset(by: 1.25).trim(from: 0.625, to: 0.875).stroke(.white, lineWidth: 2.5)
+        }
+        .frame(width: 22, height: 22)
+        .rotationEffect(.degrees(angle))
+        .onAppear { withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) { angle = 360 } }
+        .accessibilityHidden(true)
     }
 }
 
@@ -277,7 +299,7 @@ struct ToolNavigation: View {
             HStack(spacing: 6) {
                 ForEach(tools) { toolButton($0, minHeight: 56) }
             }
-            .padding(.horizontal, 4).padding(.top, 2)
+            .padding(.horizontal, 4).padding(.top, 3)  // border-top 1 + padding-top 2
             .frame(maxWidth: .infinity)
             .overlay(alignment: .top) { ApprovedHairline() }
             .accessibilityElement(children: .contain)
@@ -287,7 +309,7 @@ struct ToolNavigation: View {
                 HStack(spacing: 0) {
                     ForEach(tools) { toolButton($0, minHeight: 56) }
                 }
-                .padding(.horizontal, 4).padding(.top, 2)
+                .padding(.horizontal, 4).padding(.top, 3)  // border-top 1 + padding-top 2
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             // `.dock.scrolls`: mask-image: linear-gradient(90deg, #000 86%, transparent).

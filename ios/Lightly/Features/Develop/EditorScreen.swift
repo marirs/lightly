@@ -167,10 +167,11 @@ struct EditorScreen: View {
             .frame(height: 48)
             PhotoStage(image: session.displayedImage) {
                 if session.phase == .opening {
-                    ProgressBox(title: "Opening photo…", barFraction: 0.3) { EmptyView() }
+                    ProgressBox(title: "Opening photo…", barFraction: 0.3, maximumWidth: layout.screen.width / 2) { EmptyView() }
                         .accessibilityIdentifier("loading.opening")
                 } else {
-                    ProgressBox(title: "Developing…", subtitle: "Applying thoughtful enhancements.", barFraction: 0.7) { EmptyView() }
+                    ProgressBox(title: "Developing…", subtitle: "Applying thoughtful enhancements.", barFraction: 0.7,
+                                maximumWidth: layout.screen.width / 2) { EmptyView() }
                         .accessibilityIdentifier("loading.developing")
                 }
             }
@@ -184,18 +185,21 @@ struct EditorScreen: View {
     private func overlays(_ layout: EditorLayout) -> some View {
         let isTabletSheet = layout.screen.width > 700
         if session.saveState == .saving {
-            ApprovedColor.scrim(colorScheme).ignoresSafeArea()
-                .overlay {
-                    ProgressBox(title: "Saving a copy…", barFraction: 0.55) {
-                        Button("Cancel") { session.cancelSave() }
-                            .font(.system(size: 14))
-                            .foregroundStyle(.white)
-                            .frame(minWidth: 64, minHeight: 44)
-                            .padding(.top, 6)
-                            .accessibilityIdentifier("saving.cancel")
-                    }
-                    .accessibilityIdentifier("saving")
+            // `.scrim.middle` covers the whole screen, status bar included, and centres the box in it.
+            ZStack {
+                ApprovedColor.scrim(colorScheme)
+                ProgressBox(title: "Saving a copy…", barFraction: 0.55) {
+                    Button("Cancel") { session.cancelSave() }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(minWidth: 64, minHeight: 44)
+                        .padding(.top, 6)
+                        .accessibilityIdentifier("saving.cancel")
                 }
+                .accessibilityIdentifier("saving")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea()
         }
         if case .saved(let data) = session.saveState {
             ApprovedSheetOverlay(isTablet: isTabletSheet, onDismiss: session.dismissSaveState) {

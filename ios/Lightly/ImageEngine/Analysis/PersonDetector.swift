@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreML
 import Foundation
 import Vision
 
@@ -22,6 +23,11 @@ struct VisionPersonDetector: PersonDetecting {
             let faces = VNDetectFaceRectanglesRequest()
             let humans = VNDetectHumanRectanglesRequest()
             humans.upperBodyOnly = false
+            #if targetEnvironment(simulator)
+            // The simulator has no Neural Engine and Vision's default devices fail there; run on the
+            // CPU so simulator runs (tests, design captures) decide exactly as a device would.
+            for request in [faces, humans] as [VNRequest] { Self.useCPU(for: request) }
+            #endif
             let handler = VNImageRequestHandler(cgImage: image, options: [:])
             do {
                 try handler.perform([faces, humans])
@@ -34,6 +40,15 @@ struct VisionPersonDetector: PersonDetecting {
             let humanFound = (humans.results ?? []).contains { $0.confidence >= Self.minimumConfidence }
             return faceFound || humanFound
         }.value
+    }
+
+    private static func useCPU(for request: VNRequest) {
+        guard let stages = try? request.supportedComputeStageDevices else { return }
+        for (stage, devices) in stages {
+            if let cpu = devices.first(where: { if case .cpu = $0 { return true } else { return false } }) {
+                request.setComputeDevice(cpu, for: stage)
+            }
+        }
     }
 }
 

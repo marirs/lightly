@@ -117,7 +117,7 @@ struct ApprovedIconView: View {
     }
 }
 
-/// Parses the subset of SVG path data the prototype's icons use: M, L, H, V, C, A and Z, absolute
+/// Parses the subset of SVG path data the prototype's icons use: M, L, H, V, C, S, A and Z, absolute
 /// and relative, with implicit command repetition and compact numbers ("4.5-4.5", ".01").
 enum SVGPathParser {
 
@@ -127,6 +127,8 @@ enum SVGPathParser {
         var current = CGPoint.zero
         var subpathStart = CGPoint.zero
         var command: Character = "M"
+        // The second control point of the previous C/S segment, for S's reflected first one.
+        var previousControl: CGPoint?
 
         while let next = scanner.nextCommandOrNumber() {
             if case .command(let letter) = next {
@@ -140,7 +142,10 @@ enum SVGPathParser {
             scanner.pushBack()
             let relative = command.isLowercase
             let origin = relative ? current : .zero
-            switch command.uppercased().first! {
+            let upper = command.uppercased().first!
+            let reflected = previousControl.map { CGPoint(x: 2 * current.x - $0.x, y: 2 * current.y - $0.y) } ?? current
+            if upper != "C" && upper != "S" { previousControl = nil }
+            switch upper {
             case "M":
                 guard let x = scanner.number(), let y = scanner.number() else { return path }
                 current = CGPoint(x: origin.x + x, y: origin.y + y)
@@ -164,8 +169,18 @@ enum SVGPathParser {
                 guard let x1 = scanner.number(), let y1 = scanner.number(), let x2 = scanner.number(),
                       let y2 = scanner.number(), let x = scanner.number(), let y = scanner.number() else { return path }
                 let end = CGPoint(x: origin.x + x, y: origin.y + y)
-                path.addCurve(to: end, control1: CGPoint(x: origin.x + x1, y: origin.y + y1), control2: CGPoint(x: origin.x + x2, y: origin.y + y2))
+                let control2 = CGPoint(x: origin.x + x2, y: origin.y + y2)
+                path.addCurve(to: end, control1: CGPoint(x: origin.x + x1, y: origin.y + y1), control2: control2)
                 current = end
+                previousControl = control2
+            case "S":
+                guard let x2 = scanner.number(), let y2 = scanner.number(), let x = scanner.number(),
+                      let y = scanner.number() else { return path }
+                let end = CGPoint(x: origin.x + x, y: origin.y + y)
+                let control2 = CGPoint(x: origin.x + x2, y: origin.y + y2)
+                path.addCurve(to: end, control1: reflected, control2: control2)
+                current = end
+                previousControl = control2
             case "A":
                 guard let rx = scanner.number(), let ry = scanner.number(), let rotation = scanner.number(),
                       let largeArc = scanner.number(), let sweep = scanner.number(),

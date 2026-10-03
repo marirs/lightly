@@ -60,7 +60,7 @@ final class EditorCaptureUITests: XCTestCase {
     }
 
     func testCaptureEditorScreens() {
-        let only = ProcessInfo.processInfo.environment["LIGHTLY_CAPTURE_ONLY"].map { Set($0.split(separator: ",").map(String.init)) }
+        let only = ProcessInfo.processInfo.environment["LIGHTLY_CAPTURE_ONLY"].flatMap { $0.isEmpty ? nil : Set($0.split(separator: ",").map(String.init)) }
         for screen in Self.screens where only?.contains(screen.id) ?? true {
             let photo = "\(Self.repositoryRoot)/docs/ui/assets/photos/\(Self.photoFiles[screen.photo]!).jpg"
             app.terminate()

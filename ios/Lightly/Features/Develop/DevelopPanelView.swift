@@ -75,7 +75,9 @@ struct DevelopPanelView: View {
                 Circle()
                     .fill(isOn ? c(ApprovedColor.selection) : .clear)
                     .overlay(Circle().strokeBorder(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary), lineWidth: 1.5))
-                    .frame(width: 9, height: 9)
+                    // `.autoT::before`: 9 × 9 plus a 1.5 border outside it (pseudo-elements are not
+                    // covered by `.dv * { box-sizing: border-box }`), so 12 pt overall.
+                    .frame(width: 12, height: 12)
                 Text("Auto")
                     .approvedText(15)
                     .foregroundStyle(isOn ? c(ApprovedColor.ink) : isUnavailable ? c(ApprovedColor.inkTertiary) : c(ApprovedColor.inkSecondary))
@@ -239,12 +241,16 @@ struct DevelopPanelView: View {
     // MARK: Amount
 
     private var amountRow: some View {
+        // The prototype's row is `display:flex` around the `.sl` grid, which is not stretched: its
+        // `minmax(90px, 1fr)` track resolves to 90 pt, and Done follows straight after the value.
         HStack(spacing: 0) {
-            ApprovedSlider(label: "Amount", value: model.amountValue, range: 0...100,
+            ApprovedSlider(label: "Amount", value: model.amountValue, range: 0...100, fixedTrackWidth: 90,
                            onChange: { model.amountChanged($0) }, onEnd: { model.amountEnded($0) })
+                .fixedSize(horizontal: true, vertical: false)
             Button("Done") { model.closeAmount() }
                 .buttonStyle(ApprovedSmallQuietButtonStyle())
                 .accessibilityIdentifier("develop.amount.done")
+            Spacer(minLength: 0)
         }
     }
 }
@@ -311,6 +317,8 @@ struct ApprovedSlider: View {
     let label: String
     let value: Double
     let range: ClosedRange<Double>
+    /// A fixed track width (the Amount row); nil stretches the track (`minmax(90px, 1fr)`).
+    var fixedTrackWidth: CGFloat?
     let onChange: (Double) -> Void
     let onEnd: (Double) -> Void
 
@@ -337,7 +345,7 @@ struct ApprovedSlider: View {
                     .onChanged { onChange(Self.value(at: $0.location.x, width: width, range: range)) }
                     .onEnded { onEnd(Self.value(at: $0.location.x, width: width, range: range)) })
             }
-            .frame(minWidth: 90)
+            .frame(minWidth: 90, idealWidth: fixedTrackWidth ?? 90, maxWidth: fixedTrackWidth ?? .infinity)
             Text("\(Int(value.rounded()))")
                 .approvedText(13).monospacedDigit()
                 .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))

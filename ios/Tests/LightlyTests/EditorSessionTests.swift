@@ -80,6 +80,24 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(EditorTool.available(hasPerson: false).count, 6, "Every other tool stays listed")
     }
 
+    /// The app's library loads in the background from launch: a photo opened before it finishes
+    /// must still render Looks once it has (regression: the preview had no renderer).
+    func testAPhotoOpenedWhileTheLibraryLoadsStillRendersLooks() async throws {
+        let loading = DevelopLibrary()
+        let session = EditorSession(photo: try await EditorTestSupport.photo(), library: loading,
+                                    personDetector: FixedPersonDetector(result: false), previewLongEdge: 640)
+        session.start()
+        try await Task.sleep(for: .milliseconds(100))
+        await loading.loadBundled(lutApplier: try MetalLUTRenderer())
+        await session.waitUntilReady()
+        let mono = try XCTUnwrap(loading.pack.categories.flatMap(\.presets).first { $0.recipe.global.grayscaleMix != nil })
+        session.applyLook(mono)
+        await session.settleRendering()
+        let mean = EditorTestSupport.mean(session.displayedImage)
+        XCTAssertEqual(mean.x, mean.z, accuracy: 0.02, "The black & white Look is on screen")
+        XCTAssertNotEqual(try pixels(session.displayedImage), try pixels(session.originalImage))
+    }
+
     // MARK: - Ruler
 
     func testDraggingPreviewsAndOnlyReleaseCommitsOneStep() async throws {

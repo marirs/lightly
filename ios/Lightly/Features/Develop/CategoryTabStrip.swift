@@ -20,24 +20,29 @@ struct CategoryTabStrip: View {
 
     var body: some View {
         let panel = DevelopPanelView(model: model, style: .tabs)
-        HStack(spacing: 20) {
-            ForEach(model.categoryItems) { item in
-                panel.categoryTab(item)
-                    .background {
-                        if item.id == model.currentCategoryID {
-                            GeometryReader { proxy in
-                                Color.clear.preference(key: SelectedTabX.self, value: proxy.frame(in: .named("tabStrip")).minX)
+        // The row sits in an overlay so its full (ideal) width never widens the panel: only the
+        // strip's own frame takes part in layout.
+        Color.clear
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .overlay(alignment: .leading) {
+                HStack(spacing: 20) {
+                    ForEach(model.categoryItems) { item in
+                        panel.categoryTab(item)
+                            .background {
+                                if item.id == model.currentCategoryID {
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(key: SelectedTabX.self, value: proxy.frame(in: .named("tabStrip")).minX)
+                                    }
+                                }
                             }
-                        }
                     }
+                }
+                .padding(.leading, 14).padding(.trailing, 18)
+                .fixedSize()
+                .coordinateSpace(name: "tabStrip")
+                .background(GeometryReader { proxy in Color.clear.preference(key: ContentWidth.self, value: proxy.size.width) })
+                .offset(x: -offset)
             }
-        }
-        .padding(.leading, 14).padding(.trailing, 18)
-        .fixedSize()
-        .coordinateSpace(name: "tabStrip")
-        .background(GeometryReader { proxy in Color.clear.preference(key: ContentWidth.self, value: proxy.size.width) })
-        .offset(x: -offset)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .background(GeometryReader { proxy in
             Color.clear.preference(key: Viewport.self, value: proxy.frame(in: .global))
         })
@@ -89,11 +94,16 @@ struct CategoryTabStrip: View {
 
     private struct SelectedTabX: PreferenceKey {
         static let defaultValue: CGFloat = 0
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+        // Siblings without the preference report the default (0): keep the one real value.
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
     }
 
     private struct Viewport: PreferenceKey {
         static let defaultValue: CGRect = .zero
-        static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
+        // Subtrees without the preference report `.zero`; keep the measured frame.
+        static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+            let next = nextValue()
+            if next != .zero { value = next }
+        }
     }
 }
