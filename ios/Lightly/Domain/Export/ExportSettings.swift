@@ -65,17 +65,31 @@ struct ExportSettings: Equatable, Sendable {
     var format: ExportFormat
     var quality: ExportQuality
 
-    /// Copy capture date, camera, and lens from the original.
+    /// "Keep photo metadata": copy camera, lens, aperture, shutter speed, ISO
+    /// and date taken from the original (`ExportMetadataComposer.keptExifKeys`).
     var preservesMetadata: Bool
 
-    /// Copy GPS coordinates from the original.
+    /// "Include location": copy the GPS block from the original.
     ///
-    /// Separate from `preservesMetadata`, and defaulted **off**, because
-    /// location is the one field that discloses something about the person
-    /// rather than the photograph. Spec §13 lists it as its own setting for
-    /// exactly this reason. The export sheet shows both switches so the choice
-    /// is visible rather than buried in a default.
+    /// Defaulted **off**, because location is the one field that discloses
+    /// something about the person rather than the photograph.
+    // v3 differs: v1 honoured this only while `preservesMetadata` was on. The
+    // approved Preferences make the two switches independent.
     var preservesLocation: Bool
+
+    /// The two switches as the encoder's policy.
+    var metadataPolicy: ExportMetadataPolicy {
+        ExportMetadataPolicy(keepsCaptureMetadata: preservesMetadata, includesLocation: preservesLocation)
+    }
+
+    /// Save copy's settings for the person's metadata preferences: always a
+    /// new JPEG (spec D8) at the fixed Save-copy quality.
+    static func saveCopy(metadata policy: ExportMetadataPolicy) -> ExportSettings {
+        var settings = ExportSettings.default
+        settings.preservesMetadata = policy.keepsCaptureMetadata
+        settings.preservesLocation = policy.includesLocation
+        return settings
+    }
 
     static let `default` = ExportSettings(
         // Spec D8: Save creates a new JPEG. HEIC/PNG remain selectable but

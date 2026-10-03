@@ -90,6 +90,10 @@ final class LUTEditorViewModel {
     private(set) var saveTask: Task<Void, Never>?
 
     private let libraryWriter: any PhotoLibraryWriting
+    /// Read at each Save copy, not at init: the metadata switches in Preferences can change
+    /// while this photo is open (More is reachable from the editor) and must apply to the
+    /// next save.
+    private let saveCopySettings: @MainActor () -> ExportSettings
     private var isClosed = false
 
     /// Creates the session and starts Auto immediately: selecting a photo
@@ -106,6 +110,7 @@ final class LUTEditorViewModel {
         lookBook: LUTLookBook,
         renderer: (any LUTRendering)?,
         libraryWriter: any PhotoLibraryWriting,
+        saveCopySettings: @escaping @MainActor () -> ExportSettings = { .default },
         previewLongEdge: Int = 1_290,
         // DEFERRED: the app passes neither yet. Relaunch restore needs the Original again, which
         // iOS can only reopen with Photos read access or a private copy of the photo; both are a
@@ -116,6 +121,7 @@ final class LUTEditorViewModel {
         self.photo = photo
         self.lookBook = lookBook
         self.libraryWriter = libraryWriter
+        self.saveCopySettings = saveCopySettings
         let restored = savedSession.map(RestoredEditHistory.init) ?? savedEdit.map(RestoredEditHistory.init(single:))
         // The pack's first category, unless a restored Look lives elsewhere.
         // Never a named default: categories are pack data.
@@ -515,9 +521,10 @@ final class LUTEditorViewModel {
         guard canSaveCopy, let session else { return }
         saveStatus = .saving
         let writer = libraryWriter
+        let settings = saveCopySettings()
         saveTask = Task { [weak self] in
             do {
-                try await session.saveCopy(to: writer)
+                try await session.saveCopy(to: writer, settings: settings)
                 self?.finishSave(.saved)
             } catch let error as LightlyError {
                 // Declining is not a failure to report (spec §28).

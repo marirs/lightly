@@ -249,6 +249,39 @@ final class LUTEditorViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.photo.originalData, originalBytes, "The original is never modified")
     }
 
+    /// Save copy writes each combination of the two Preferences switches, read at the moment
+    /// of saving: the saved JPEG's bytes are inspected for all four (`ExportMetadataPolicyTests`).
+    func testSaveCopyAppliesTheMetadataSwitchesInAllFourCombinations() async throws {
+        let original = try ExportMetadataPolicyTests.makeCameraOriginal()
+        let base = LUTEditSessionTests.makePhoto(width: 240, height: 180)
+        let photo = SelectedPhoto(image: base.image, source: .camera, originalData: original)
+        var policy = ExportMetadataPolicy.default
+        for combination in ExportMetadataPolicyTests.allCombinations {
+            let writer = SpyLibraryWriter()
+            let viewModel = LUTEditorViewModel(
+                photo: photo, autoEnhancer: ModelNotBundledAutoEnhancer(), lookBook: Self.book,
+                renderer: metal, libraryWriter: writer,
+                saveCopySettings: { .saveCopy(metadata: policy) },
+                previewLongEdge: 200
+            )
+            await viewModel.developTask?.value
+            viewModel.settleStop(1)
+            // Changed after the editor exists: the switch is read when saving, not when opening.
+            policy = combination
+
+            viewModel.saveCopy()
+            await viewModel.saveTask?.value
+
+            XCTAssertEqual(viewModel.saveStatus, .saved)
+            let saved = await writer.lastSave()
+            let data = try XCTUnwrap(saved.data)
+            ExportMetadataPolicyTests.assertPolicy(
+                combination, on: try ExportMetadataPolicyTests.WrittenFile(data), width: 240, height: 180
+            )
+            XCTAssertEqual(viewModel.photo.originalData, original, "The original is never modified")
+        }
+    }
+
     func testSaveFailureIsShownAndTheEditKept() async throws {
         let viewModel = await makeEditor(writer: SpyLibraryWriter(behaviour: .fail(.permissionDenied)))
         viewModel.settleStop(1)
