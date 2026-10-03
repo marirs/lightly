@@ -13,7 +13,6 @@ object ColourMath {
     const val LUMA_G = 0.7152
     const val LUMA_B = 0.0722
 
-    private const val ONE_THIRD = 1.0 / 3.0
     private const val INVERSE_GAMMA = 1.0 / 2.4
 
     /** `srgb_to_linear`. Defined for any input; values above 1 follow the power branch. */
@@ -55,9 +54,10 @@ object ColourMath {
 
     /** linear sRGB → OKLab into out[0..2]. */
     fun linearToOklab(r: Double, g: Double, b: Double, out: DoubleArray) {
-        val l = maxOf(M1[0] * r + M1[1] * g + M1[2] * b, 1e-7).pow(ONE_THIRD)
-        val m = maxOf(M1[3] * r + M1[4] * g + M1[5] * b, 1e-7).pow(ONE_THIRD)
-        val s = maxOf(M1[6] * r + M1[7] * g + M1[8] * b, 1e-7).pow(ONE_THIRD)
+        // Math.cbrt equals NumPy's x ** (1/3) to within an ulp and is several times faster than pow.
+        val l = Math.cbrt(maxOf(M1[0] * r + M1[1] * g + M1[2] * b, 1e-7))
+        val m = Math.cbrt(maxOf(M1[3] * r + M1[4] * g + M1[5] * b, 1e-7))
+        val s = Math.cbrt(maxOf(M1[6] * r + M1[7] * g + M1[8] * b, 1e-7))
         out[0] = M2[0] * l + M2[1] * m + M2[2] * s
         out[1] = M2[3] * l + M2[4] * m + M2[5] * s
         out[2] = M2[6] * l + M2[7] * m + M2[8] * s

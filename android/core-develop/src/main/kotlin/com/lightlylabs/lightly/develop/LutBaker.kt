@@ -30,8 +30,9 @@ object LutBaker {
         val out = DoubleArray(3)
         val scratch = DoubleArray(DevelopGlobal.SCRATCH_SIZE)
         val step = dimension - 1
+        val linear = DoubleArray(dimension) { ColourMath.srgbToLinear(it.toDouble() / step) }
         for (b in firstBlue until endBlue) for (g in 0 until dimension) for (r in 0 until dimension) {
-            stage.evaluate(r.toDouble() / step, g.toDouble() / step, b.toDouble() / step, out, scratch)
+            stage.evaluateLinear(linear[r], linear[g], linear[b], out, scratch)
             val base = (r + dimension * (g + dimension * b)) * 4
             rgba[base] = out[0].toFloat()
             rgba[base + 1] = out[1].toFloat()

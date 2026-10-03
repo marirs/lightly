@@ -34,7 +34,7 @@ class TiledExportTest {
     @Test
     fun `tile boundary pixels are identical to an untiled render`() = runTest {
         val frame = Rgba8ExportFrame(source.width, source.height)
-        TiledExportRenderer(CpuLutPassRenderer, maxTileEdge = 64).render(source, plan, frame)
+        TiledExportRenderer(maxTileEdge = 64).render(source, LutPassExportPlan(CpuLutPassRenderer, plan), frame)
 
         val untiled = CpuLutPassRenderer.render(source, plan).pixels
         // Explicitly the seam rows/columns on both sides of every tile boundary, then everything.
@@ -61,12 +61,11 @@ class TiledExportTest {
         val ledger = ExportBufferLedger()
         var fullFramesLiveDuringEncode = -1
         val encoder = JpegEncoder<Rgba8ExportFrame> { _, _, _ -> fullFramesLiveDuringEncode = ledger.liveCount(ExportBufferLedger.Kind.FULL_FRAME) }
-        val coordinator = ExportCoordinator(
-            CpuLutPassRenderer, SaveCopyExporter(gateway, encoder), Rgba8ExportFrame.factory,
+        val coordinator = ExportCoordinator(SaveCopyExporter(gateway, encoder), Rgba8ExportFrame.factory,
             StandardTestDispatcher(testScheduler), maxTileEdge = 64, ledger = ledger,
         )
 
-        coordinator.start(ExportJob("content://media/original/1", { source }, plan, NewImageSpec("x.jpg")))
+        coordinator.start(ExportJob("content://media/original/1", { source }, LutPassExportPlan(CpuLutPassRenderer, plan), NewImageSpec("x.jpg")))
         advanceUntilIdle()
 
         assertIs<ExportState.Saved<String>>(coordinator.state.value)
@@ -96,11 +95,10 @@ class TiledExportTest {
                 return CpuLutPassRenderer.render(source, plan)
             }
         }
-        coordinator = ExportCoordinator(
-            cancellingRenderer, SaveCopyExporter(failingGateway, JpegEncoder<Rgba8ExportFrame> { _, _, _ -> }), Rgba8ExportFrame.factory,
+        coordinator = ExportCoordinator(SaveCopyExporter(failingGateway, JpegEncoder<Rgba8ExportFrame> { _, _, _ -> }), Rgba8ExportFrame.factory,
             StandardTestDispatcher(testScheduler), maxTileEdge = 16, ledger = ledger,
         )
-        coordinator.start(ExportJob("src", { source }, plan, NewImageSpec("x.jpg")))
+        coordinator.start(ExportJob("src", { source }, LutPassExportPlan(cancellingRenderer, plan), NewImageSpec("x.jpg")))
         advanceUntilIdle()
 
         assertEquals(3, tilesRendered, "rendering stops at the next tile boundary")

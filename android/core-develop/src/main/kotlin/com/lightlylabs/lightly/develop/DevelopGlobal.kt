@@ -108,10 +108,14 @@ class DevelopGlobal(recipe: GlobalRecipe, model: DevelopModel) {
      * develop.global of one sRGB-encoded colour, written to out[0..2] in [0, 1]. [scratch] must hold
      * at least [SCRATCH_SIZE] doubles; passing it avoids per-pixel allocation in the bake loop.
      */
-    fun evaluate(red: Double, green: Double, blue: Double, out: DoubleArray, scratch: DoubleArray = DoubleArray(SCRATCH_SIZE)) {
-        var lr = srgbToLinear(red)
-        var lg = srgbToLinear(green)
-        var lb = srgbToLinear(blue)
+    fun evaluate(red: Double, green: Double, blue: Double, out: DoubleArray, scratch: DoubleArray = DoubleArray(SCRATCH_SIZE)) =
+        evaluateLinear(srgbToLinear(red), srgbToLinear(green), srgbToLinear(blue), out, scratch)
+
+    /** [evaluate] from already linearised input (the bake linearises its 33 grid values once). */
+    fun evaluateLinear(linearRed: Double, linearGreen: Double, linearBlue: Double, out: DoubleArray, scratch: DoubleArray = DoubleArray(SCRATCH_SIZE)) {
+        var lr = linearRed
+        var lg = linearGreen
+        var lb = linearBlue
 
         // G1: rotated primaries can go below zero; negative light breaks the tone ratio, so clip.
         val m = calibration

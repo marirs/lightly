@@ -92,31 +92,48 @@ class ExportBufferLedger {
 }
 
 /**
- * Full-resolution tiled render (spec §5.3): tiles ≤ min(device limit, 4096)², every LUT pass applied
- * per tile by the same [LutPassRenderer] as previews, written straight into the encode target.
+ * What one export renders. [prepare] is called once with the decoded full frame (so a plan can compute
+ * per-frame context, such as clarity's low-resolution base), then the returned renderer is asked for
+ * each tile. A tile renderer reads whatever neighbourhood (apron) it needs from the full frame itself.
+ */
+fun interface ExportRenderPlan {
+    fun prepare(frame: Rgba8Image): ExportTileRenderer
+}
+
+fun interface ExportTileRenderer {
+    /** The finished pixels of [tile], exactly tile-sized. */
+    fun renderTile(frame: Rgba8Image, tile: Tile): Rgba8Image
+}
+
+/** The per-pixel LUT-pass plan of M2: tiles need no apron. */
+class LutPassExportPlan(private val renderer: LutPassRenderer, val plan: LutPassPlan) : ExportRenderPlan {
+    override fun prepare(frame: Rgba8Image) = ExportTileRenderer { source, tile -> renderer.render(TileCopy.extract(source, tile), plan) }
+}
+
+/**
+ * Full-resolution tiled render (spec §5.3): tiles ≤ min(device limit, 4096)², each rendered by the
+ * job's [ExportRenderPlan] and written straight into the encode target.
  *
- * Tiles need no apron because the LUT passes are per-pixel. DEFERRED: vignette and grain (O3) are
- * defined in normalised image coordinates; when they land, each tile must receive its offset in the
- * full frame (and local contrast an apron), which this class must then pass on.
+ * Memory: the plan's own working buffers for a tile (its apron and float planes) are bounded by the
+ * tile edge, which is why the app exports Develop recipes with spatial operators in 1024² tiles.
  */
 class TiledExportRenderer(
-    private val renderer: LutPassRenderer,
     private val maxTileEdge: Int = TilePlan.SPEC_MAX_TILE_EDGE,
     private val ledger: ExportBufferLedger = ExportBufferLedger(),
 ) {
-    suspend fun render(source: Rgba8Image, plan: LutPassPlan, target: ExportFrame) {
+    suspend fun render(source: Rgba8Image, plan: ExportRenderPlan, target: ExportFrame) {
         require(target.width == source.width && target.height == source.height) { "Target frame does not match the source" }
+        val tileRenderer = plan.prepare(source)
         for (tile in TilePlan.plan(source.width, source.height, maxTileEdge).tiles) {
             coroutineContext.ensureActive() // cancel is honoured between tiles, before encoding
             val tileBytes = ExportBufferLedger.rgba8Bytes(tile.width, tile.height)
-            ledger.acquire(ExportBufferLedger.Kind.TILE, tileBytes)
-            val input = TileCopy.extract(source, tile)
-            ledger.acquire(ExportBufferLedger.Kind.TILE, tileBytes)
-            val rendered = renderer.render(input, plan)
-            ledger.release(ExportBufferLedger.Kind.TILE, tileBytes) // input tile done
+            ledger.acquire(ExportBufferLedger.Kind.TILE, tileBytes) // the plan's working tile (input/apron)
+            ledger.acquire(ExportBufferLedger.Kind.TILE, tileBytes) // the rendered output tile
+            val rendered = tileRenderer.renderTile(source, tile)
+            ledger.release(ExportBufferLedger.Kind.TILE, tileBytes)
             target.writeTile(tile, rendered)
-            ledger.release(ExportBufferLedger.Kind.TILE, tileBytes) // output tile copied into the frame
-            yield() // let preview renders queued on the shared GL thread interleave between tiles
+            ledger.release(ExportBufferLedger.Kind.TILE, tileBytes)
+            yield() // let preview renders queued on the shared render thread interleave between tiles
         }
     }
 }

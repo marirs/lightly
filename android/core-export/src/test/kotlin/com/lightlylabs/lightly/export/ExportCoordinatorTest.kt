@@ -34,6 +34,7 @@ class ExportCoordinatorTest {
 
     private val original = Rgba8Image(97, 61, ByteArray(97 * 61 * 4).also { Random(9).nextBytes(it) })
     private val snapshotPlan = LutPassPlan.of(OUT_OF_RANGE_AUTO, 0.75f, null, 1f)
+    private val exportPlan = LutPassExportPlan(CpuLutPassRenderer, snapshotPlan)
     private val spec = NewImageSpec(displayName = "IMG_1_lightly.jpg")
 
     private class MemoryGateway : MediaStoreGateway<String> {
@@ -64,11 +65,11 @@ class ExportCoordinatorTest {
         val dispatcher = StandardTestDispatcher(test.testScheduler)
         val gateway = MemoryGateway()
         val encoder = encoder
-        val coordinator = ExportCoordinator(CpuLutPassRenderer, SaveCopyExporter(gateway, encoder), Rgba8ExportFrame.factory, dispatcher, maxTileEdge = tileEdge)
+        val coordinator = ExportCoordinator(SaveCopyExporter(gateway, encoder), Rgba8ExportFrame.factory, dispatcher, maxTileEdge = tileEdge)
     }
 
     private fun job(decodeMillis: Long = 500) =
-        ExportJob("content://media/original/1", SlowSource(original, decodeMillis), snapshotPlan, spec)
+        ExportJob("content://media/original/1", SlowSource(original, decodeMillis), exportPlan, spec)
 
     @Test
     fun `an export is not dropped or superseded by later previews or by closing the preview session`() = runTest {
@@ -230,7 +231,7 @@ class ExportCoordinatorTest {
             override fun publish(handle: String) = true
             override fun delete(handle: String) { deleted += handle }
         }
-        val coordinator = ExportCoordinator(CpuLutPassRenderer, SaveCopyExporter(failing, CountingEncoder()), Rgba8ExportFrame.factory, StandardTestDispatcher(testScheduler))
+        val coordinator = ExportCoordinator(SaveCopyExporter(failing, CountingEncoder()), Rgba8ExportFrame.factory, StandardTestDispatcher(testScheduler))
         coordinator.start(job(decodeMillis = 0))
         advanceUntilIdle()
 
@@ -245,8 +246,8 @@ class ExportCoordinatorTest {
         val counting = object : LutPassRenderer {
             override fun render(source: Rgba8Image, plan: LutPassPlan): Rgba8Image { renderCalls++; return CpuLutPassRenderer.render(source, plan) }
         }
-        val coordinator = ExportCoordinator(counting, SaveCopyExporter(MemoryGateway(), CountingEncoder()), Rgba8ExportFrame.factory, StandardTestDispatcher(testScheduler), maxTileEdge = 32)
-        coordinator.start(job(decodeMillis = 0))
+        val coordinator = ExportCoordinator(SaveCopyExporter(MemoryGateway(), CountingEncoder()), Rgba8ExportFrame.factory, StandardTestDispatcher(testScheduler), maxTileEdge = 32)
+        coordinator.start(ExportJob("content://media/original/1", SlowSource(original, 0), LutPassExportPlan(counting, snapshotPlan), spec))
         advanceUntilIdle()
 
         assertEquals(4 * 2, renderCalls, "97x61 at 32-px tiles = 4 x 2 tiles")

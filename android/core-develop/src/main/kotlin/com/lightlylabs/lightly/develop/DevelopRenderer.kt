@@ -267,8 +267,40 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
         rgb[0] = (source.pixels[base].toInt() and 0xff) / 255f
         rgb[1] = (source.pixels[base + 1].toInt() and 0xff) / 255f
         rgb[2] = (source.pixels[base + 2].toInt() and 0xff) / 255f
-        plan.autoLut?.sample(rgb[0], rgb[1], rgb[2], rgb)
-        plan.lookLut?.sample(rgb[0], rgb[1], rgb[2], rgb)
+        plan.autoLut?.let { trilinear(it, rgb) }
+        plan.lookLut?.let { trilinear(it, rgb) }
+    }
+
+    /**
+     * Trilinear lookup in float, with the Lut3D boundary rule (input clamped to [0, 1], last cell
+     * kept valid). Same result as Lut3D.sample to float rounding; written out because it runs per pixel.
+     */
+    private fun trilinear(lut: com.lightlylabs.lightly.render.lut.Lut3D, rgb: FloatArray) {
+        val n = lut.dimension
+        val scale = (n - 1).toFloat()
+        val r = rgb[0].coerceIn(0f, 1f) * scale
+        val g = rgb[1].coerceIn(0f, 1f) * scale
+        val b = rgb[2].coerceIn(0f, 1f) * scale
+        val r0 = minOf(r.toInt(), n - 2)
+        val g0 = minOf(g.toInt(), n - 2)
+        val b0 = minOf(b.toInt(), n - 2)
+        val fr = r - r0
+        val fg = g - g0
+        val fb = b - b0
+        val t = lut.rgba
+        val stepG = n * 4
+        val stepB = n * n * 4
+        val base = (r0 + n * (g0 + n * b0)) * 4
+        for (c in 0 until 3) {
+            val i = base + c
+            val c00 = t[i] + (t[i + 4] - t[i]) * fr
+            val c10 = t[i + stepG] + (t[i + stepG + 4] - t[i + stepG]) * fr
+            val c01 = t[i + stepB] + (t[i + stepB + 4] - t[i + stepB]) * fr
+            val c11 = t[i + stepB + stepG] + (t[i + stepB + stepG + 4] - t[i + stepB + stepG]) * fr
+            val c0 = c00 + (c10 - c00) * fg
+            val c1 = c01 + (c11 - c01) * fg
+            rgb[c] = c0 + (c1 - c0) * fb
+        }
     }
 
     private fun write(out: ByteArray, offset: Int, rgb: FloatArray, finishing: FinishingPass?, x: Int, y: Int, work: DoubleArray, alpha: Byte) {
@@ -289,6 +321,27 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
     }
 
     companion object {
+        /** 2×2 box average to half size (odd edges keep their last row/column), alpha kept from the top-left. */
+        fun halfSize(image: Rgba8Image): Rgba8Image {
+            if (image.width < 2 || image.height < 2) return image
+            val w = image.width / 2
+            val h = image.height / 2
+            val src = image.pixels
+            val out = ByteArray(w * h * 4)
+            for (y in 0 until h) for (x in 0 until w) {
+                val a = ((2 * y) * image.width + 2 * x) * 4
+                val b = a + 4
+                val c = a + image.width * 4
+                val d = c + 4
+                for (k in 0 until 3) {
+                    val sum = (src[a + k].toInt() and 0xff) + (src[b + k].toInt() and 0xff) + (src[c + k].toInt() and 0xff) + (src[d + k].toInt() and 0xff)
+                    out[(y * w + x) * 4 + k] = ((sum + 2) / 4).toByte()
+                }
+                out[(y * w + x) * 4 + 3] = src[a + 3]
+            }
+            return Rgba8Image(w, h, out)
+        }
+
         /** O4 rounding, as CpuLutRenderer.encodeUint8: `x·255 + 0.5`, clamp, truncate. */
         fun encode(value: Float): Byte {
             val scaled = value * 255f + 0.5f

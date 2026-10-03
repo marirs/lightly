@@ -2,7 +2,7 @@ package com.lightlylabs.lightly.develop
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
@@ -15,11 +15,13 @@ import kotlinx.serialization.json.jsonPrimitive
 data class CoverageRecord(val code: String, val keys: List<String>)
 
 /**
- * One preset of the format-3 pack (docs/v1/preset-pack.md › Per preset). Display fields are the
- * approved catalogue's, verbatim. The recipe is parsed on first use: browsing the catalogue only
- * needs names and stops, and parsing 2,591 recipes up front would cost cold-start time for nothing.
+ * One preset of the format-3 pack (docs/v1/preset-pack.md › Per preset). Display fields (id, name,
+ * stop, lookVersion, completeness, effects) are read when the pack is indexed; the rest of the entry
+ * (recipe, coverage records, validation) is parsed from its own JSON text on first use. Browsing the
+ * catalogue needs only names and stops, and building a tree of 2,591 entries up front took seconds on
+ * the emulator (docs/v1/slice2-android.md › Performance).
  */
-class LookPreset(
+class LookPreset internal constructor(
     val id: String,
     val displayName: String,
     val categoryId: String,
@@ -27,20 +29,28 @@ class LookPreset(
     val stop: Int,
     val lookVersion: String,
     val recipeVersion: Int,
-    val operators: List<String>,
     val completeness: String,
-    val approximated: List<CoverageRecord>,
-    val unsupported: List<CoverageRecord>,
-    val notApplied: List<CoverageRecord>,
     val hasGrain: Boolean,
     val hasVignette: Boolean,
-    val validationStatus: String,
-    private val recipeJson: JsonObject,
+    private val entryText: () -> String,
 ) {
-    val recipe: PresetRecipe by lazy { PresetRecipe.parse(recipeJson) }
+    private val entry: JsonObject by lazy { Json.parseToJsonElement(entryText()).jsonObject }
+
+    val operators: List<String> get() = entry.getValue("operators").jsonArray.map { it.jsonPrimitive.content }
+    val approximated: List<CoverageRecord> get() = coverage(entry["approximated"])
+    val unsupported: List<CoverageRecord> get() = coverage(entry["unsupported"])
+    val notApplied: List<CoverageRecord> get() = coverage(entry["notApplied"])
+    val validationStatus: String get() = entry["validation"]?.jsonObject?.get("status")?.let { (it as? JsonPrimitive)?.content } ?: "approximate"
 
     /** The raw recipe object, for [LookVersion] (hashing needs the original literals). */
-    val recipeObject: JsonObject get() = recipeJson
+    val recipeObject: JsonObject get() = entry.getValue("recipe").jsonObject
+
+    val recipe: PresetRecipe by lazy { PresetRecipe.parse(recipeObject) }
+
+    private fun coverage(element: JsonElement?): List<CoverageRecord> = (element as? JsonArray).orEmpty().map { record ->
+        val o = record.jsonObject
+        CoverageRecord(o.string("code"), o["keys"]?.jsonArray.orEmpty().map { it.jsonPrimitive.content })
+    }
 }
 
 class LookCategory(val id: String, val name: String, val presets: List<LookPreset>)
@@ -70,9 +80,30 @@ class LookPack(
         const val FORMAT_VERSION = 3
         const val RECIPE_VERSION = 1
 
-        fun parse(json: String, model: DevelopModel): LookPack = parse(Json.parseToJsonElement(json).jsonObject, model)
+        /**
+         * Indexes the manifest in one pass over its text ([JsonScanner]): top-level fields other than
+         * `categories` are parsed normally (they are small); each preset entry is located, its display
+         * fields read, and the entry's text range kept for lazy parsing.
+         */
+        fun parse(json: String, model: DevelopModel): LookPack {
+            val scanner = JsonScanner(json)
+            val header = mutableMapOf<String, JsonElement>()
+            val categories = mutableListOf<LookCategory>()
+            scanner.objectFields { key ->
+                if (key == "categories") {
+                    scanner.arrayItems { categories += scanCategory(scanner, json) }
+                } else {
+                    header[key] = scanner.valueElement()
+                }
+            }
+            checkHeader(JsonObject(header), model)
+            val ids = categories.flatMap { c -> c.presets.map { it.id } }
+            require(ids.size == ids.toSet().size) { "Duplicate preset ids in the look pack" }
+            val provisional = (header["status"] as? JsonObject)?.get("state")?.jsonPrimitive?.content == "provisional"
+            return LookPack(FORMAT_VERSION, provisional, categories)
+        }
 
-        fun parse(root: JsonObject, model: DevelopModel): LookPack {
+        private fun checkHeader(root: JsonObject, model: DevelopModel) {
             require(root.string("format") == FORMAT) { "Not a Lightly look pack" }
             val format = root.getValue("formatVersion").jsonPrimitive.int
             require(format == FORMAT_VERSION) { "Look pack format $format is not supported (expected $FORMAT_VERSION)" }
@@ -82,47 +113,201 @@ class LookPack(
                 packModel.string("constantsSha256") == model.constantsSha256) {
                 "The look pack was built for a different Develop model (${packModel.string("constantsSha256")} != ${model.constantsSha256})"
             }
-            val provisional = root["status"]?.jsonObject?.get("state")?.jsonPrimitive?.content == "provisional"
-            val categories = root.getValue("categories").jsonArray.map { element ->
-                val category = element.jsonObject
-                val categoryId = category.string("id")
-                val presets = category.getValue("presets").jsonArray.map { presetOf(it.jsonObject, categoryId) }
-                LookCategory(categoryId, category.string("name"), presets)
-            }
-            val ids = categories.flatMap { c -> c.presets.map { it.id } }
-            require(ids.size == ids.toSet().size) { "Duplicate preset ids in the look pack" }
-            return LookPack(format, provisional, categories)
         }
 
-        private fun presetOf(p: JsonObject, categoryId: String): LookPreset {
-            val id = p.string("id")
-            // No HALD override is implemented by this port; none exists today (all null). Refusing one
-            // keeps a future pack from rendering the model where it promises a validated Lightroom LUT.
-            require(p["globalOverride"] == null || p["globalOverride"] is JsonNull) { "Preset $id has a globalOverride, which this build cannot render" }
-            val effects = p.getValue("effects").jsonObject
-            return LookPreset(
-                id = id,
-                displayName = p.string("displayName"),
-                categoryId = categoryId,
-                stop = p.getValue("stop").jsonPrimitive.int,
-                lookVersion = p.string("lookVersion"),
-                recipeVersion = p.getValue("recipeVersion").jsonPrimitive.int.also { require(it == RECIPE_VERSION) { "Preset $id recipeVersion $it" } },
-                operators = p.getValue("operators").jsonArray.map { it.jsonPrimitive.content },
-                completeness = p.string("completeness"),
-                approximated = coverage(p["approximated"]),
-                unsupported = coverage(p["unsupported"]),
-                notApplied = coverage(p["notApplied"]),
-                hasGrain = effects.getValue("grain").jsonPrimitive.boolean,
-                hasVignette = effects.getValue("vignette").jsonPrimitive.boolean,
-                validationStatus = p["validation"]?.jsonObject?.get("status")?.let { (it as? JsonPrimitive)?.content } ?: "approximate",
-                recipeJson = p.getValue("recipe").jsonObject,
-            )
+        private fun scanCategory(scanner: JsonScanner, json: String): LookCategory {
+            var id: String? = null
+            var name: String? = null
+            val pending = mutableListOf<(String) -> LookPreset>()
+            scanner.objectFields { key ->
+                when (key) {
+                    "id" -> id = scanner.string()
+                    "name" -> name = scanner.string()
+                    "presets" -> scanner.arrayItems { pending += scanPreset(scanner, json) }
+                    else -> scanner.skipValue()
+                }
+            }
+            val categoryId = requireNotNull(id) { "category without id" }
+            return LookCategory(categoryId, requireNotNull(name) { "category $categoryId without name" }, pending.map { it(categoryId) })
         }
 
-        private fun coverage(element: kotlinx.serialization.json.JsonElement?): List<CoverageRecord> =
-            (element as? JsonArray).orEmpty().map { record ->
-                val o = record.jsonObject
-                CoverageRecord(o.string("code"), o["keys"]?.jsonArray.orEmpty().map { it.jsonPrimitive.content })
+        /** Reads the display fields of one preset entry and remembers its text range. */
+        private fun scanPreset(scanner: JsonScanner, json: String): (String) -> LookPreset {
+            val start = scanner.position
+            var id: String? = null
+            var displayName: String? = null
+            var stop = -1
+            var lookVersion: String? = null
+            var recipeVersion = -1
+            var completeness: String? = null
+            var grain: Boolean? = null
+            var vignette: Boolean? = null
+            var hasRecipe = false
+            scanner.objectFields { key ->
+                when (key) {
+                    "id" -> id = scanner.string()
+                    "displayName" -> displayName = scanner.string()
+                    "stop" -> stop = scanner.int()
+                    "lookVersion" -> lookVersion = scanner.string()
+                    "recipeVersion" -> recipeVersion = scanner.int()
+                    "completeness" -> completeness = scanner.string()
+                    "effects" -> scanner.objectFields { effect ->
+                        when (effect) {
+                            "grain" -> grain = scanner.boolean()
+                            "vignette" -> vignette = scanner.boolean()
+                            else -> scanner.skipValue()
+                        }
+                    }
+                    // No HALD override is implemented by this port; none exists today (all null). Refusing one
+                    // keeps a future pack from rendering the model where it promises a validated Lightroom LUT.
+                    "globalOverride" -> require(scanner.isNull()) { "Preset ${id ?: "?"} has a globalOverride, which this build cannot render" }
+                    "recipe" -> { hasRecipe = true; scanner.skipValue() }
+                    else -> scanner.skipValue()
+                }
             }
+            val end = scanner.position
+            val presetId = requireNotNull(id) { "preset without id" }
+            require(recipeVersion == RECIPE_VERSION) { "Preset $presetId recipeVersion $recipeVersion" }
+            require(hasRecipe) { "Preset $presetId has no recipe" }
+            require(stop >= 1) { "Preset $presetId has no stop" }
+            val name = requireNotNull(displayName) { "Preset $presetId has no displayName" }
+            val version = requireNotNull(lookVersion) { "Preset $presetId has no lookVersion" }
+            val complete = requireNotNull(completeness) { "Preset $presetId has no completeness" }
+            val hasGrain = requireNotNull(grain) { "Preset $presetId has no effects" }
+            val hasVignette = vignette!!
+            return { categoryId ->
+                LookPreset(presetId, name, categoryId, stop, version, recipeVersion, complete, hasGrain, hasVignette) { json.substring(start, end) }
+            }
+        }
+    }
+}
+
+/**
+ * A minimal pull scanner over JSON text: walks objects and arrays without building a tree, skips
+ * values by bracket depth (respecting strings and escapes), and hands small values to kotlinx.
+ * Positions are UTF-16 indices into the text, so substrings re-parse exactly.
+ */
+internal class JsonScanner(private val text: String) {
+    var position = 0
+        private set
+
+    private fun skipWhitespace() {
+        while (position < text.length && text[position].isWhitespace()) position++
+    }
+
+    private fun expect(char: Char) {
+        skipWhitespace()
+        require(position < text.length && text[position] == char) { "Expected '$char' at $position" }
+        position++
+    }
+
+    /** Calls [field] for each key of the object at the cursor; [field] must consume the value. */
+    fun objectFields(field: (String) -> Unit) {
+        expect('{')
+        skipWhitespace()
+        if (text[position] == '}') { position++; return }
+        while (true) {
+            val key = string()
+            expect(':')
+            skipWhitespace()
+            field(key)
+            skipWhitespace()
+            when (text[position++]) {
+                ',' -> continue
+                '}' -> return
+                else -> throw IllegalArgumentException("Expected ',' or '}' at ${position - 1}")
+            }
+        }
+    }
+
+    /** Calls [item] for each element of the array at the cursor; [item] must consume it. */
+    fun arrayItems(item: () -> Unit) {
+        expect('[')
+        skipWhitespace()
+        if (text[position] == ']') { position++; return }
+        while (true) {
+            skipWhitespace()
+            item()
+            skipWhitespace()
+            when (text[position++]) {
+                ',' -> continue
+                ']' -> return
+                else -> throw IllegalArgumentException("Expected ',' or ']' at ${position - 1}")
+            }
+        }
+    }
+
+    fun string(): String {
+        skipWhitespace()
+        val start = position
+        skipString()
+        // Most strings have no escapes: take the characters between the quotes directly.
+        if ((start until position).none { text[it] == '\\' }) return text.substring(start + 1, position - 1)
+        return Json.parseToJsonElement(text.substring(start, position)).jsonPrimitive.content
+    }
+
+    /** A plain JSON integer token (no fraction or exponent). */
+    fun int(): Int {
+        skipWhitespace()
+        val start = position
+        skipValue()
+        return text.substring(start, position).toInt()
+    }
+
+    fun boolean(): Boolean {
+        skipWhitespace()
+        val value = when {
+            text.startsWith("true", position) -> true
+            text.startsWith("false", position) -> false
+            else -> throw IllegalArgumentException("Expected a boolean at $position")
+        }
+        skipValue()
+        return value
+    }
+
+    fun isNull(): Boolean {
+        skipWhitespace()
+        val isNull = text.startsWith("null", position)
+        skipValue()
+        return isNull
+    }
+
+    /** The value at the cursor as a kotlinx element (for small values only). */
+    fun valueElement(): JsonElement {
+        skipWhitespace()
+        val start = position
+        skipValue()
+        return Json.parseToJsonElement(text.substring(start, position))
+    }
+
+    fun skipValue() {
+        skipWhitespace()
+        when (text[position]) {
+            '"' -> skipString()
+            '{', '[' -> {
+                var depth = 0
+                while (true) {
+                    when (text[position]) {
+                        '"' -> { skipString(); continue }
+                        '{', '[' -> depth++
+                        '}', ']' -> { depth--; if (depth == 0) { position++; return } }
+                    }
+                    position++
+                }
+            }
+            else -> while (position < text.length && text[position] !in ",}] \n\r\t") position++
+        }
+    }
+
+    private fun skipString() {
+        require(text[position] == '"') { "Expected a string at $position" }
+        position++
+        while (true) {
+            when (text[position]) {
+                '\\' -> position += 2
+                '"' -> { position++; return }
+                else -> position++
+            }
+        }
     }
 }
