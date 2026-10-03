@@ -1,0 +1,6 @@
+{
+  "auto-unavailable": {
+    "description": "The screen's approved setup with Auto in the approved 'unavailable' state. Used because no Auto model ships (D1), so builds can only show the unavailable state. The screen exactly as registered (Auto applied) stays blocked by D1 and is never replaced by this variant in the matrix.",
+    "state": { "auto": "unavailable" }
+  }
+}
