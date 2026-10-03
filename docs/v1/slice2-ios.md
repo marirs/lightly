@@ -110,35 +110,208 @@ No shippable model exists (D1). The build ships `ModelNotBundledAutoEnhancer`; t
 **Artifacts:** `~/.codex/artifacts/lightly/v1/slice2/ios/`
 - `reference/<device>-<orientation>-<theme>-<text>/<screen>.png`: the approved renderer (`docs/ui/app`, same calls as `docs/ui/tools/shot.js`) at the device's logical size and scale, all 21 screens × 24 cells.
 - `native/<cell>/<screen>.png`: the app on the simulator (`Tests/LightlyUITests/EditorCaptureUITests.swift`, DEBUG `--open-photo <prototype photo> --scenario <screen id>`; optimised build; Large = simulator extra-extra-large).
-- `compare/<cell>/<screen>.png`: reference left, native right.
+- `compare/<cell>/<screen>.png`: reference left, native right (review copies; new ones are JPEG, generated on demand).
+- References from now on come from the shared cache (`scripts/reference_cache.py`, variant `auto-unavailable` for the Develop screens).
 
 **Reference variant used for the Develop screens.** Every approved Develop screen is drawn with Auto *applied* (`newSession` sets `auto: 'applied'`). No Auto model ships (D1), so the build can only show the approved unavailable state. The references for `model-unavailable`, `dev-*`, `compare`, `saving` and `saved` were therefore rendered with the approved renderer and the screen's own setup plus `s.auto = 'unavailable'` (the approved combination of "presets still work" with that screen). The screens exactly as registered (Auto applied, no notice) are **blocked by D1** in every cell. `loading`, `developing` and `develop-failed` are compared as registered.
 
-**Status of the 24 cells** (21 screens each). Capture runs were stopped at the coordinator's request; nothing below is inferred from another cell.
+**Status of the 24 cells.** All 504 screens (21 × 24) were captured and every one was reviewed side by side against its reference (all screens of every cell, no sampling). Each entry gives the result and the commit the capture was taken at (`@commit`):
 
-| Cell | Native captured (final build 1a4503c) | Reviewed side by side |
-|---|---|---|
-| iphone17 portrait light default | 21/21 | all 21 (contact sheets 1, 3, 5; sheets 2, 4, 6 reviewed on the capture before 1a4503c; that commit changed only the tab row scrolling and disabled-icon dimming, both rechecked) |
-| iphone17 portrait light large | 21/21 | 4 screens (`dev-favourites`, `dev-fav-full`, `dev-fav-replace`, `dev-bw`); 17 unverified-pending |
-| iphone17 portrait dark default | 21/21 | 4 screens (`dev-favourites`, `dev-fav-full`, `dev-fav-replace`, `dev-bw`); 17 unverified-pending |
-| iphone17 portrait dark large | 21/21 | 0; 21 unverified-pending (an earlier build's `dev-preset`/`dev-amount` were reviewed and found the dark-mode tab bug fixed in 773adec) |
-| iphone17promax portrait light default | 21/21 | 4 screens (`dev-original`, `dev-preset`, `dev-dragging`, `dev-browse`); 17 unverified-pending |
-| iphone17promax portrait light large | 21/21 | 4 screens (`dev-large`, `dev-long-name`, `dev-amount`, `dev-starred`); 17 unverified-pending |
-| iphone17promax portrait dark default | 21/21 | 0; 21 unverified-pending |
-| iphone17promax portrait dark large | 21/21 | 0; 21 unverified-pending |
-| ipadpro11 portrait light default | 21/21 | 4 screens (`dev-favourites`, `dev-fav-full`, `dev-fav-replace`, `dev-bw`); 17 unverified-pending |
-| ipadpro11 portrait light large | 21/21 | 0; 21 unverified-pending |
-| ipadpro11 portrait dark default | 21/21 | 0; 21 unverified-pending |
-| ipadpro11 portrait dark large | not captured | 21 unverified-pending |
-| ipadpro11 landscape light default | not captured on the final build | 21 unverified-pending (an earlier build's `dev-preset` and `dev-fav-replace` matched apart from deviation M2) |
-| ipadpro11 landscape light large, dark default, dark large | not captured | 63 unverified-pending |
-| ipadpro13 portrait and landscape, all 8 cells | not captured | 168 unverified-pending |
+- **V**: exact match in layout, controls, copy, hierarchy, colours, icons and state.
+- **Mn / Xn**: a recorded deviation or defect (table below). No screen was left unreviewed.
+- Every capture also carries D1 (Auto blocked), M1 (status bar) and M7 (real versus simulated rendering); these three are not repeated per screen.
 
-No cell is recorded as exact-match verified as a whole: every reviewed cell carries at least the deviations below.
+**These results are stale, not current verification.** They describe the build at `1a4503c` (slice-2 final) and `7356591` (the second batch, which recaptured `loading`, `developing` and `dev-fav-replace` after 7278bfc and 7356591). Later editor changes (slice 3 in `EditorScreen`, `EditorSession` and `EditorChrome`, the X2 fix, the capture driver) affect every screen, so each capture is marked `STALE.json` in its cell folder. They must be recaptured with the validated one-launch runner (below) before any cell is accepted. The four `ipadpro11-landscape` recaptures of `loading` and `developing` taken at `25f47bf+wip` used the first, unvalidated driver and are not evidence.
 
-### Results for the reviewed screens
+#### iPhone 17, portrait
 
-Matched in layout, controls, copy, hierarchy, colours, icons and state (apart from the deviations listed for that cell): `loading`, `developing`, `model-unavailable`, `develop-failed`, `dev-original`, `dev-preset`, `dev-dragging` (Fine shown), `dev-browse` (Applied context, selected tab at 120 pt), `dev-large`, `dev-amount`, `dev-starred`, `dev-favourites`, `dev-fav-full`, `dev-bw`, `dev-landscape-photo`, `dev-portrait-photo` (Portrait offered by Vision), `saving`, `saved` on iPhone 17 light default; the four listed screens in each partially reviewed cell; side layout (`dev-preset`, `dev-fav-replace`) on iPad 11-inch landscape (earlier build).
+| Screen | light, default | light, Large | dark, default | dark, Large |
+|---|---|---|---|---|
+| `loading` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
+| `developing` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
+| `model-unavailable` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `develop-failed` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-original` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-preset` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-dragging` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-browse` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-large` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-long-name` | M4 @1a4503c | M3 @1a4503c | M4 @1a4503c | M3 @1a4503c |
+| `dev-amount` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-starred` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-favourites` | M9 @1a4503c | M3, M9 @1a4503c | M9 @1a4503c | M3, M9 @1a4503c |
+| `dev-fav-full` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-fav-replace` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
+| `dev-bw` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-landscape-photo` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-portrait-photo` | M9 @1a4503c | M3, M9 @1a4503c | M9 @1a4503c | M3, M9 @1a4503c |
+| `compare` | M5 @1a4503c | M3, M5 @1a4503c | M5 @1a4503c | M3, M5 @1a4503c |
+| `saving` | M5 @1a4503c | M3, M5 @1a4503c | M5 @1a4503c | M3, M5 @1a4503c |
+| `saved` | M5 @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+
+#### iPhone 17 Pro Max, portrait
+
+| Screen | light, default | light, Large | dark, default | dark, Large |
+|---|---|---|---|---|
+| `loading` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
+| `developing` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
+| `model-unavailable` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `develop-failed` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-original` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-preset` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-dragging` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-browse` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-large` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-long-name` | M4 @1a4503c | M3 @1a4503c | M4 @1a4503c | M3 @1a4503c |
+| `dev-amount` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-starred` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-favourites` | M9 @1a4503c | M3, M9 @1a4503c | M9 @1a4503c | M3, M9 @1a4503c |
+| `dev-fav-full` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-fav-replace` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
+| `dev-bw` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-landscape-photo` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `dev-portrait-photo` | M9 @1a4503c | M3, M9 @1a4503c | M9 @1a4503c | M3, M9 @1a4503c |
+| `compare` | M5 @1a4503c | M3, M5 @1a4503c | M5 @1a4503c | M3, M5 @1a4503c |
+| `saving` | M5 @1a4503c | M3, M5 @1a4503c | M5 @1a4503c | M3, M5 @1a4503c |
+| `saved` | M5 @1a4503c | M3 @1a4503c | M5 @1a4503c | M3 @1a4503c |
+
+#### iPad Pro 11-inch, portrait
+
+| Screen | light, default | light, Large | dark, default | dark, Large |
+|---|---|---|---|---|
+| `loading` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2 @7356591 |
+| `developing` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2 @7356591 |
+| `model-unavailable` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `develop-failed` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-original` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-preset` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-dragging` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-browse` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-large` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-long-name` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-amount` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-starred` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-favourites` | M2, M9 @1a4503c | M2, M3, M9 @1a4503c | M2, M9 @1a4503c | M2, M3, M9 @7356591 |
+| `dev-fav-full` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-fav-replace` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-bw` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-landscape-photo` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
+| `dev-portrait-photo` | M2, M9 @1a4503c | M2, M3, M9 @1a4503c | M2, M9 @1a4503c | M2, M3, M9 @7356591 |
+| `compare` | M2, M5 @1a4503c | M2, M3, M5 @1a4503c | M2, M5 @1a4503c | M2, M3, M5 @7356591 |
+| `saving` | M2, M5 @1a4503c | M2, M3, M5 @1a4503c | M2, M5 @1a4503c | M2, M3, M5 @7356591 |
+| `saved` | M2, M5 @1a4503c | M2, M3, M5 @1a4503c | M2, M5 @1a4503c | M2, M3, M5 @7356591 |
+
+#### iPad Pro 11-inch, landscape
+
+| Screen | light, default | light, Large | dark, default | dark, Large |
+|---|---|---|---|---|
+| `loading` | M2 @25f47bf+wip | M2 @25f47bf+wip | M2 @25f47bf+wip | M2 @25f47bf+wip |
+| `developing` | X2 @25f47bf+wip | X2 @25f47bf+wip | X2 @25f47bf+wip | X2 @25f47bf+wip |
+| `model-unavailable` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `develop-failed` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-original` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-preset` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-dragging` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-browse` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-large` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-long-name` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-amount` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-starred` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-favourites` | M2, M9 @7356591 | M2, M3, M9 @7356591 | M2, M9 @7356591 | M2, M3, M9 @7356591 |
+| `dev-fav-full` | M2, M4 @7356591 | M2, M3 @7356591 | M2, M4 @7356591 | M2, M3 @7356591 |
+| `dev-fav-replace` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-bw` | M2, M4 @7356591 | M2, M3 @7356591 | M2, M4 @7356591 | M2, M3 @7356591 |
+| `dev-landscape-photo` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-portrait-photo` | M2, M4, M9 @7356591 | M2, M3, M9 @7356591 | M2, M4, M9 @7356591 | M2, M3, M9 @7356591 |
+| `compare` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
+| `saving` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
+| `saved` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
+
+#### iPad Pro 13-inch, portrait
+
+| Screen | light, default | light, Large | dark, default | dark, Large |
+|---|---|---|---|---|
+| `loading` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `developing` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `model-unavailable` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `develop-failed` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-original` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-preset` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-dragging` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-browse` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-large` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-long-name` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-amount` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-starred` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-favourites` | M2, M9 @7356591 | M2, M9 @7356591 | M2, M9 @7356591 | M2, M9 @7356591 |
+| `dev-fav-full` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-fav-replace` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-bw` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-landscape-photo` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-portrait-photo` | M2, M9 @7356591 | M2, M9 @7356591 | M2, M9 @7356591 | M2, M9 @7356591 |
+| `compare` | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 |
+| `saving` | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 |
+| `saved` | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 |
+
+#### iPad Pro 13-inch, landscape
+
+| Screen | light, default | light, Large | dark, default | dark, Large |
+|---|---|---|---|---|
+| `loading` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `developing` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `model-unavailable` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `develop-failed` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-original` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-preset` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-dragging` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-browse` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-large` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-long-name` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-amount` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-starred` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-favourites` | M2, M9 @7356591 | M2, M3, M9 @7356591 | M2, M9 @7356591 | M2, M3, M9 @7356591 |
+| `dev-fav-full` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-fav-replace` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
+| `dev-bw` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-landscape-photo` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
+| `dev-portrait-photo` | M2, M9 @7356591 | M2, M3, M9 @7356591 | M2, M9 @7356591 | M2, M3, M9 @7356591 |
+| `compare` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
+| `saving` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
+| `saved` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
+
+
+### Capture runner (one launch per cell)
+
+`EditorCaptureUITests` now photographs a whole cell in one launch. A DEBUG-only driver (`App/DebugCaptureDriver.swift`, compiled out of release builds) takes each screen's arguments from a command file. Before each screen it closes the previous editor and waits until that session's work has stopped (open, subject separation and depth, Save copy, renders). It then resets preferences, favourites and the Develop bake cache, and opens the screen's photo through the normal open path. The editor marks `capture.ready.<n>` only when the scenario has been applied, the renders for the current recipe have landed (`settleRendering`), the screen's save state holds (`saving`, `saved`), and two Core Animation commits have passed. The test waits for that marker; there are no fixed sleeps. Animations are off in a capture session, so the spinner stands still. The launch-per-screen path stays available (`LIGHTLY_CAPTURE_MODE=launch`) only to validate the runner. The lifecycle tests (Welcome, recovery, launch) remain launch-based.
+
+**Validation (old launch-per-screen path against the runner, same build, same simulator, status bar fixed at 9:41, all 21 slice-2 screens, pixel by pixel).** Artifacts: `~/.codex/artifacts/lightly/v1/runner-validation/<cell>/{launch,session,launch2}/`, each PNG with a JSON record (revision, local-change fingerprint, device, orientation, theme, text size, mode, tool version, PNG SHA-256).
+
+| Cell | Identical | Differences | Explanation |
+|---|---|---|---|
+| iPhone 17 portrait light default | 4 of 21 | `loading`, `developing`, `saving`: 611–838 px in a 65 px square at the spinner. 14 other screens: 1–54 px, every one a difference of 1 level in one channel. | Spinner: the runner turns animations off, so the ring stands still; the old path photographs it mid-turn (M8). The 1-level differences lie on the anti-aliased edges of stroked vector icons: the top bar's close and undo icons, and the tool dock and rail icons. |
+| iPad Pro 11-inch landscape light default | 6 of 21 | Spinner squares as above; elsewhere 3–9 px of 1 level, on the undo icon at (112–115, 56–61) pt and one rail-icon pixel. | Same. Control: a second launch-per-screen run of five screens against the first shows the same 1-level differences on the same icon pixels (4–8 px). The old path is not bit-stable at those pixels either, so this is rasteriser noise, not state. |
+
+No difference is unexplained, and no state, layout, copy, colour or photo pixel differs. Timing per batch (21 screens): iPhone 17 170 s → 57 s; iPad 11-inch 180 s → 62 s. The whole jobs, including build and unit tests for the first, ran 409 s and 377 s (`/tmp/lightly-heavy.log`: `ios-runner-validate-iphone17`, `ios-runner-validate-ipad11-landscape`).
+
+**Measured demonstration (iPhone 17 portrait light default, all 21 slice-2 screens, one build, `22d673f`, local-change fingerprint `a2a5c3a3691f859d`).** Components come from timestamps the app (`--capture-timing`) and the test write with the same clock. Launch = from the test's launch call to the app's first event. Setup = driver navigation and reset (runner), or app start to scenario applied (old path). Render = scenario applied until `settleRendering` returns. Readiness = render done until the screenshot starts. Capture = screenshot taken and written.
+
+| Batch | Job (heavy log) | Launches (counted) | Launch | Setup | Render | Readiness | Capture | Sum |
+|---|---|---|---|---|---|---|---|---|
+| Old, launch per screen | `capture-ios-iphone17-light-default-launch` 225 s | 21 | 56.0 s | 15.9 s | 7.0 s | 81.3 s (fixed sleeps) | 3.4 s | 163.7 s |
+| Runner | `capture-ios-iphone17-light-default-session` 103 s | 1 | 6.5 s | 7.9 s | 4.8 s | 33.3 s | 3.0 s | 55.5 s |
+| Runner after the fix below | `capture-ios-iphone17-light-default-session-after` 87 s | 1 | 6.8 s | 11.1 s | 7.4 s | 4.1 s | 4.8 s | 34.2 s |
+
+The runner's largest component was readiness: 32.2 s of it was the test noticing the app's signal, because XCTest refreshes an accessibility query (and an `NSPredicate` expectation) about once a second. Fix: the app also writes the sequence to `<command file>.ready`, and the test polls that file, and the acknowledgement, every 10 ms. Detection fell from 32.2 s to 0.14 s. The rest of readiness is the test's assertion that the screen's own element exists (3.9 s, an accessibility query per screen). The job also carries about 50 s of simulator boot and shutdown outside the batch. The builds before the two runs were `build-ios-runner-demo` (46 s) and `build-ios-runner-detect-fix` (27 s).
+
+Equivalence: the old and new captures from the same build differ only at the spinner (`loading`, `developing`, `saving`: 811–845 px in the 65 px spinner square, M8) and by 1 level in 1–55 px elsewhere. Every one of those pixels lies on an anti-aliased stroked icon: close (20–32, 80–88) pt, compare/undo (68–112, 80–92) pt, the Favourites star in the category row (100–104, 576) pt, the star by the preset name (24–32, 680–692) pt, the tool dock (116–120, 800–808) pt, and the Share icon in `saved`. The runner's captures before and after the fix are identical except 59 and 4 such icon pixels.
+
+**Did the old path photograph screens before rendering finished?** No, for the screens measured. It waited for an element and then a fixed time (2.5 s; 1.5 s for `saved`), not for a render signal. In the measured batch every screenshot started 1.7–4.3 s after the app's render-complete event, and the photo areas match the runner's captures exactly. The earlier matrix captures (1a4503c, 7356591) used the same method but have no timestamps, so this cannot be proven for them; they are already marked STALE and will be replaced by runner captures.
+
+Since validation, the capture test gained one argument: in the Simulator, Background screens may use subject mattes that Vision computed on macOS (slice 3; see docs/v1/slice3-ios.md). This does not touch the slice-2 screens; the tool version is now `editor-capture-4` (ready file).
+
+### Favourites reorder (the coordinator's failing UI test)
+
+`WelcomeAndMoreUITests.testFavouritesCanBeRemovedAndReordered` failed at line 166 because of **a defect in the code, not in the test**. The page reordered through a system drag session (`onDrag`/`onDrop`). That needed a long-press lift and changed the order only when the system delivered `dropEntered` over another row, so a press-and-drag of the handle sometimes moved nothing. Fixed in 9df579b (a direct drag gesture on the handle: the row follows the finger and takes the slot it passes) and 476ab35 (the handle's gesture takes priority over the page's scroll view). The test is unchanged. Targeted run on the working tree containing both commits: **5 of 5 passed** (job `ios-slice3-build-reorder-captures`). An earlier batch run failed 2 of 3, but that batch started building at 19:06:02, while 9df579b (19:06:51) and 476ab35 (19:07:14) were still being committed, so its app need not contain them.
 
 ### Deviations (expected / observed / evidence)
 
@@ -148,11 +321,14 @@ Matched in layout, controls, copy, hierarchy, colours, icons and state (apart fr
 | M1 | all reviewed | Status bar 9:41, prototype icons | Simulator status bar (time, Wi-Fi, battery %) | all captures | System UI |
 | M2 | iPad (all) | Top safe area 24 pt (`DEVICES.safe.top`) | iPadOS 26 status bar 32 pt: top bar and photo start 8 pt lower, photo 8 pt shorter | `compare/ipadpro11-portrait-*/*` | Platform safe area; needs the user's acceptance or a decision to draw under the status bar |
 | M3 | large text cells | Text at ×1.24 with the browser's metrics | Same point sizes (Dynamic Type XXL, ×1.235) but SF's optical tracking makes lines ~4 % narrower, so some wraps differ: "The Walking Dead 03" fits on one line (Pro Max large), notices wrap one word later | `compare/iphone17promax-portrait-light-large/dev-large.png`, `compare/iphone17-portrait-light-large/dev-fav-full.png` | Text rendering; needs a decision (matching would mean overriding iOS's system tracking) |
-| M4 | iPhone 17 light default | "Landscape 15 - Winter / Wonderland" | "Landscape 15 - / Winter Wonderland" | `compare/iphone17-portrait-light-default/dev-long-name.png` | Same text-metric cause as M3 at default size |
+| M4 | default text: iPhone 17 (`dev-long-name`); iPad 11-inch landscape (`dev-fav-full`, `dev-bw`, `dev-portrait-photo`) | "Landscape 15 - Winter / Wonderland" | "Landscape 15 - / Winter Wonderland" | `compare/iphone17-portrait-light-default/dev-long-name.png` | Same text-metric cause as M3 at default size |
 | M5 | `compare`, `saving`, `saved` (all) | Effects tool shows the "used" dot (the screen's setup turns a vignette on) | No dot | `compare/*/compare.png` | The Effects tool is slice 4; the state cannot be set up yet |
-| M6 | `dev-fav-replace` (all captured cells) | "Cancel" in the sheet head at 17 pt (`.sheethead` font inherited) | 15 pt | `compare/iphone17-portrait-light-large/dev-fav-replace.png` | **Fixed in 7278bfc after the captures; unverified-pending recapture** |
+| M6 | `dev-fav-replace` (all captured cells) | "Cancel" in the sheet head at 17 pt (`.sheethead` font inherited) | 15 pt | `compare/iphone17-portrait-light-large/dev-fav-replace.png` | Fixed in 7278bfc; the recaptures at 7356591 match in every cell |
 | M7 | all photo screens | The prototype simulates each Look with a CSS filter | The real preset rendered from the pack recipe | every `dev-*` capture | Expected: the reference does not process photographs |
 | M8 | `loading`, `developing`, `saving` | `.spinner` drawn still | The same ring, turning | — | See UX conflict 3 |
+| M9 | `dev-favourites`, `dev-portrait-photo` (all) | The prototype's CSS stand-in for "5 - (Portrait) - Glow" | Coarse, coloured grain over the whole photo | `compare/*/dev-portrait-photo.png` | The preset's grain (55) through the uncalibrated `GRAIN_K`; `reference_model.apply_grain` gives the same result, so it is the contract issue reported under Spatial and finishing operators, not the port |
+| X1 | `loading`, `developing` (Pro Max and iPad) | `.progress` shrinks to its content | The box was as wide as its maximum | earlier captures | Defect, fixed in 7356591; the recaptures match |
+| X2 | `developing` on iPad 11-inch landscape (4 cells) | `.progress` is a mark inside `.imgbox`, so it is at most half the *photo's* width | The box was capped at half the screen's width, so it was wider than the prototype's and its subtitle did not wrap | `compare/ipadpro11-landscape-*/developing.png` | Defect, fixed in the working tree (the box is laid out over the fitted photo); recapture pending with the validated runner |
 
 ## Tests
 
