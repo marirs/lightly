@@ -193,6 +193,7 @@ struct EditorScreen: View {
         case "saving": await session.debugWait { session.saveState == .saving }
         default: break
         }
+        await session.debugAwaitPendingAnalysis()
         await session.settleRendering()
         DebugCaptureTiming.mark("rendered")
         guard DebugCaptureDriver.isActive, let sequence = DebugCaptureDriver.sequence else {
