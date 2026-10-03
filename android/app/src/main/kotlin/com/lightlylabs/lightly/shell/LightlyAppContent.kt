@@ -44,8 +44,7 @@ class ShellActions(
  * The whole app below the Activity: the base screen for [state], with ⋮ More above it presented per
  * [layout]. Pure UI (state in, callbacks out) so Robolectric drives it without launchers.
  *
- * [editor] is the existing M2 editor, hosted under a top row with Back and ⋮ until slice 2 replaces
- * it with the approved editor.
+ * [editor] is the approved editor (slice 2); it draws its own top bar and handles its insets.
  */
 @Composable
 fun LightlyAppContent(
@@ -100,15 +99,7 @@ private fun BaseScreenView(state: AppNavState, layout: ShellLayout, actions: She
             secondaryLabel = StartCopy.TRY_AGAIN, onSecondary = actions.retryLoad,
             onBack = { actions.navigate(AppNavigator.toWelcome()) },
         )
-        BaseScreen.EDITOR -> Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-            // DEFERRED(slice 2): the approved editor top bar (close, undo, redo, compare, Save copy, ⋮).
-            TopBar {
-                IconTapTarget(LightlyIcons.BackArrow, "Back", { actions.navigate(AppNavigator.toWelcome()) }, tag = ShellTags.BACK)
-                Box(Modifier.weight(1f))
-                IconTapTarget(LightlyIcons.More, "More", { actions.navigate(AppNavigator.openMore(state)) }, tag = ShellTags.MORE)
-            }
-            Box(Modifier.weight(1f).fillMaxWidth()) { editor() }
-        }
+        BaseScreen.EDITOR -> Box(Modifier.fillMaxSize()) { editor() }
     }
 }
 

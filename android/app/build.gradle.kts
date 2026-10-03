@@ -45,6 +45,7 @@ android {
 
 dependencies {
     implementation(project(":core-session"))
+    implementation(project(":core-develop"))
     implementation(project(":core-model"))
     implementation(project(":core-render"))
     implementation(project(":core-decode"))
@@ -75,19 +76,22 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 }
 
-// --- Look pack (spec §4.5) ------------------------------------------------------------------------
+// --- Look pack, format 3 (docs/v1/preset-pack.md) ------------------------------------------------
 //
-// The pack (manifest.json + luts/*.f32) is built from the private preset collection by
-// experiments/presets/look_pack/build_look_pack.py into a git-ignored out/ folder, so it is never in
-// the repository; it is copied into every variant's assets under lookpack/ at build time.
+// The Develop catalogue's recipes: shared/look-pack/build_pack.py writes manifest.json (formatVersion
+// 3, one recipe per preset, no per-preset LUTs) into the git-ignored shared/look-pack/out/. It is
+// copied verbatim into every variant's assets under lookpack/, together with the rendering contract
+// (shared/contracts/rendering-v2.json), whose developModel holds the calibrated constants the device
+// bakes each preset's 33³ LUT with. The app refuses a pack whose model digest differs from the
+// contract's, and so does this task, at build time.
 // Lookup order:
-//   1. -PlightlyLookPackDir=/abs/path (or LIGHTLY_LOOK_PACK_DIR); a given path that has no
-//      manifest.json fails the build rather than silently shipping no Looks.
-//   2. This checkout's experiments/presets/look_pack/out.
-//   3. Inside a git worktree at <main>/.claude/worktrees/<name>, the main checkout's out/ (ignored
-//      folders do not exist in a fresh worktree). Derived from the path, never hard-coded.
-// No pack found: the build still succeeds, and the app says "No Looks are available in this build."
-val lookPackRelativePath = "experiments/presets/look_pack/out"
+//   1. -PlightlyLookPackDir=/abs/path (or LIGHTLY_LOOK_PACK_DIR) holding manifest.json.
+//   2. This checkout's shared/look-pack/out.
+//   3. Inside a git worktree at <main>/.claude/worktrees/<name>, the main checkout's out/.
+// v3 differs: format 2 (experiments/presets/look_pack/out, 18 Looks as .f32 LUTs) is retired, and a
+// build WITHOUT a pack now fails: Develop is the core of the editor, so an APK without presets is broken.
+val lookPackRelativePath = "shared/look-pack/out"
+val renderingContractFile: File = rootDir.parentFile.resolve("shared/contracts/rendering-v2.json")
 val lookPackDirectory: File? = resolveLookPackDirectory()
 
 fun resolveLookPackDirectory(): File? {
@@ -97,7 +101,7 @@ fun resolveLookPackDirectory(): File? {
     if (explicit != null) {
         val directory = file(explicit)
         if (!directory.resolve("manifest.json").isFile) {
-            throw GradleException("lightlyLookPackDir=$explicit has no manifest.json (build it with build_look_pack.py)")
+            throw GradleException("lightlyLookPackDir=$explicit has no manifest.json (build it with shared/look-pack/build_pack.py)")
         }
         return directory
     }
@@ -114,44 +118,92 @@ fun mainCheckoutOfWorktree(checkout: File): File? {
     return if (markerIndex > 0) File(path.substring(0, markerIndex)) else null
 }
 
-// The loader test that checks the real pack (format 2, 18 Looks, names verbatim) reads it in place.
+// The pack and contract tests read the real files in place.
 tasks.withType<Test>().configureEach {
     // The catalogue test parses the real approved catalogue in place.
     systemProperty("lightly.presetCatalogue", presetCatalogueFile.absolutePath)
     inputs.file(presetCatalogueFile).withPathSensitivity(PathSensitivity.NONE).withPropertyName("presetCatalogue")
+    systemProperty("lightly.renderingContract", renderingContractFile.absolutePath)
+    inputs.file(renderingContractFile).withPathSensitivity(PathSensitivity.NONE).withPropertyName("renderingContract")
     lookPackDirectory?.let { pack ->
         systemProperty("lightly.lookPackDir", pack.absolutePath)
-        inputs.file(pack.resolve("manifest.json")).withPathSensitivity(PathSensitivity.NONE).withPropertyName("lookPackManifest")
+        inputs.property("lookPackManifest", pack.resolve("manifest.json").absolutePath)
     }
 }
 
-if (lookPackDirectory == null) {
-    logger.warn("Lightly: no Look pack found ($lookPackRelativePath or -PlightlyLookPackDir); this build has no Looks.")
-} else {
-    logger.info("Lightly: bundling the Look pack from $lookPackDirectory")
+/**
+ * The facts both pack checks need: the manifest's formatVersion, and whether its developModel digest
+ * equals the contract's. Read with Groovy's JSON parser (a 6.5 MB manifest parses in well under 1 s).
+ * An object (not a script function) so the task classes, which are not inner classes, can call it.
+ */
+object LookPackFacts {
+    @Suppress("UNCHECKED_CAST")
+    fun read(manifestText: String, contractText: String): Pair<Int, Boolean> {
+        val manifest = groovy.json.JsonSlurper().parseText(manifestText) as Map<String, Any?>
+        val contract = groovy.json.JsonSlurper().parseText(contractText) as Map<String, Any?>
+        val packDigest = (manifest["developModel"] as? Map<String, Any?>)?.get("constantsSha256")
+        val contractDigest = (contract["developModel"] as? Map<String, Any?>)?.get("constantsSha256")
+        return ((manifest["formatVersion"] as? Number)?.toInt() ?: -1) to (packDigest != null && packDigest == contractDigest)
+    }
 }
 
-/** Copies only the pack's own files (manifest + .f32 LUTs) into a generated assets root. */
+/** Copies manifest.json and the rendering contract into a generated assets root, after checking them. */
 abstract class BundleLookPackTask : DefaultTask() {
     @get:Optional
-    @get:InputDirectory
-    @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val packDirectory: DirectoryProperty
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val manifestFile: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val contractFile: RegularFileProperty
 
     @get:OutputDirectory
     abstract val assetsDirectory: DirectoryProperty
 
     @TaskAction
     fun bundle() {
+        val manifest = manifestFile.orNull?.asFile
+            ?: throw GradleException("No look pack: build shared/look-pack/out/manifest.json with shared/look-pack/build_pack.py, or pass -PlightlyLookPackDir")
+        val contract = contractFile.get().asFile
+        val (format, digestMatches) = LookPackFacts.read(manifest.readText(), contract.readText())
+        if (format != 3) throw GradleException("$manifest is look-pack format $format; this app reads format 3 only")
+        if (!digestMatches) throw GradleException("$manifest was built for other Develop model constants than $contract")
         val assetsRoot = assetsDirectory.get().asFile
         assetsRoot.deleteRecursively()
-        assetsRoot.mkdirs()
-        val pack = packDirectory.orNull?.asFile ?: return // no pack: no assets, the app reports it
-        val target = assetsRoot.resolve("lookpack")
-        pack.resolve("manifest.json").copyTo(target.resolve("manifest.json"))
-        pack.resolve("luts").listFiles { lut -> lut.extension == "f32" }.orEmpty().forEach { lut ->
-            lut.copyTo(target.resolve("luts/${lut.name}"))
+        manifest.copyTo(assetsRoot.resolve("lookpack/manifest.json"))
+        contract.copyTo(assetsRoot.resolve("lookpack/rendering-v2.json"))
+    }
+}
+
+/** Fails unless the BUILT apk carries a format-3 pack and the contract that matches it. */
+abstract class VerifyLookPackTask : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val apkDirectory: DirectoryProperty
+
+    @get:Internal
+    abstract val builtArtifactsLoader: Property<BuiltArtifactsLoader>
+
+    @get:OutputFile
+    abstract val reportFile: RegularFileProperty
+
+    @TaskAction
+    fun verify() {
+        val artifacts = builtArtifactsLoader.get().load(apkDirectory.get()) ?: throw GradleException("No apk metadata in ${apkDirectory.get()}")
+        val report = artifacts.elements.joinToString("\n") { element ->
+            val apk = File(element.outputFile)
+            ZipFile(apk).use { zip ->
+                fun text(path: String) = zip.getEntry(path)?.let { entry -> zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) } }
+                    ?: throw GradleException("Look pack check failed for ${apk.name}: $path is not in the apk")
+                val manifest = text("assets/lookpack/manifest.json")
+                val contract = text("assets/lookpack/rendering-v2.json")
+                val (format, digestMatches) = LookPackFacts.read(manifest, contract)
+                if (format != 3 || !digestMatches) throw GradleException("Look pack check failed for ${apk.name}: format $format, model digest matches: $digestMatches")
+                "${apk.name}: look pack format 3, ${manifest.length} bytes, model digest OK"
+            }
         }
+        reportFile.get().asFile.writeText(report + "\n")
     }
 }
 
@@ -280,7 +332,8 @@ androidComponents {
         val variantName = variant.name.replaceFirstChar { it.uppercase() }
 
         val bundleLookPack = tasks.register<BundleLookPackTask>("bundle${variantName}LookPack") {
-            lookPackDirectory?.let { packDirectory.set(it) }
+            lookPackDirectory?.let { manifestFile.set(it.resolve("manifest.json")) }
+            contractFile.set(renderingContractFile)
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleLookPack, BundleLookPackTask::assetsDirectory)
 
@@ -295,6 +348,11 @@ androidComponents {
             aapt2.set(aapt2Executable)
             reportFile.set(layout.buildDirectory.file("reports/launcher-icon/${variant.name}.txt"))
         }
-        tasks.matching { it.name == "assemble$variantName" }.configureEach { dependsOn(verifyIcon) }
+        val verifyPack = tasks.register<VerifyLookPackTask>("verify${variantName}LookPack") {
+            apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+            builtArtifactsLoader.set(variant.artifacts.getBuiltArtifactsLoader())
+            reportFile.set(layout.buildDirectory.file("reports/look-pack/${variant.name}.txt"))
+        }
+        tasks.matching { it.name == "assemble$variantName" }.configureEach { dependsOn(verifyIcon, verifyPack) }
     }
 }

@@ -6,14 +6,16 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.lightlylabs.lightly.develop.DevelopRenderer
+import com.lightlylabs.lightly.develop.LookPreset
+import com.lightlylabs.lightly.develop.PixelRect
 import com.lightlylabs.lightly.export.ExportJob
+import com.lightlylabs.lightly.export.ExportRenderPlan
 import com.lightlylabs.lightly.export.ExportStart
 import com.lightlylabs.lightly.export.ExportState
-import com.lightlylabs.lightly.model.AutoLutResolution
-import com.lightlylabs.lightly.model.BasisUnavailableReason
+import com.lightlylabs.lightly.export.ExportTileRenderer
+import com.lightlylabs.lightly.export.SaveCopyFailure
 import com.lightlylabs.lightly.render.image.Rgba8Image
-import com.lightlylabs.lightly.render.lut.Lut3D
-import com.lightlylabs.lightly.render.lut.LutPassPlan
 import com.lightlylabs.lightly.render.schedule.PreviewRenderer
 import com.lightlylabs.lightly.render.schedule.RenderOutcome
 import com.lightlylabs.lightly.render.schedule.RenderScheduler
@@ -22,112 +24,72 @@ import com.lightlylabs.lightly.session.EditSession
 import com.lightlylabs.lightly.session.EditState
 import com.lightlylabs.lightly.session.LookRef
 import com.lightlylabs.lightly.session.SavedEdits
-import com.lightlylabs.lightly.session.SourceRef
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
-/** Session state machine (spec §5.1). */
+/** The session's lifecycle (prototype screens loading → editor; recovery states from slice 1). */
 sealed interface EditorPhase {
     data object Empty : EditorPhase
+
+    /** Decoding; once the display proxy exists it is shown under the approved "Opening photo…" box. */
     data object Loading : EditorPhase
+
+    /** A real Auto model runs (approved "Developing…"); never shown in this build, which has none (D1). */
+    data object Developing : EditorPhase
     data class LoadFailed(val message: String) : EditorPhase
 
-    /**
-     * The saved photo can no longer be read, typically after a restart without a persisted grant or
-     * after the grant was revoked (Codex finding 4). Recoverable: the screen offers "Choose the
-     * photo again", which goes through the picker and [EditorViewModel.openPhoto].
-     */
+    /** The saved photo can no longer be read; the shell offers to choose it again. */
     data object PhotoAccessLost : EditorPhase
-    data object Developing : EditorPhase
-    data class DevelopFailed(val message: String) : EditorPhase
     data object Ready : EditorPhase
 }
 
-sealed interface SaveStatus {
-    data object Idle : SaveStatus
-    data object Saving : SaveStatus
-    data class Saved(val newAssetId: String) : SaveStatus
-    data class Failed(val message: String) : SaveStatus
-    data object Cancelled : SaveStatus
-}
+/** Sheets and dialogs over the editor (prototype `overlayHTML`). */
+enum class EditorOverlay { FAVOURITE_REPLACE, SAVING, SAVED, LEAVE, EXPORT_FAILED, STORAGE_FULL }
 
-/** Everything the editor screen renders from. */
+/** What the preview shows: an exact render of a recipe, the transient drag render, or the original. */
+private data class PreviewRequest(val state: EditState?, val globalOnly: Boolean)
+
 data class EditorUiState(
     val phase: EditorPhase = EditorPhase.Empty,
-    /** Committed history; `null` until a photo is developed (or "Use original" is chosen). */
     val session: EditSession? = null,
-    /** Transient preview while a slider moves (spec §3). Never in history, never persisted. */
-    val transientPreview: EditState? = null,
-    /** The Compare toggle (persisted). */
-    val compareOn: Boolean = false,
-    /** A finger is holding the photo (transient, never persisted). */
+    val auto: AutoState = AutoState.UNAVAILABLE,
+    val tool: EditorTool = EditorTool.DEVELOP,
+    val tools: List<EditorTool> = EditorTool.entries.toList(),
+    val develop: DevelopUi = DevelopUi(),
+    /** Session-scoped Amount per preset id (prototype `s.dev.amount`); the applied one is in the recipe. */
+    val rememberedAmounts: Map<String, Int> = emptyMap(),
+    val overlay: EditorOverlay? = null,
+    val toast: String? = null,
+    /** Hold-to-compare finger, and the accessible Compare toggle. Both show the original. */
     val compareHeld: Boolean = false,
-    /**
-     * The selected category's opaque pack id (never its label, which may change between packs);
-     * `null` only when the build has no Looks.
-     */
-    val selectedCategory: String? = null,
-    val autoStatus: AutoStatus = AutoStatus.NoSession,
-    /** Latest preview the scheduler published for the current photo (latest-wins). */
+    val compareToggled: Boolean = false,
+    /** The decoded display proxy (the original) and the latest published render of the edit. */
+    val original: Rgba8Image? = null,
     val preview: Rgba8Image? = null,
-    /**
-     * Set while the COMMITTED Look is unavailable or changed (spec §4.5): the photo renders without
-     * it and the notice stays until the edit no longer holds that Look.
-     */
-    val lookIssue: LookIssue? = null,
-    val save: SaveStatus = SaveStatus.Idle,
+    /** The saved copy's content URI, for Share in the Saved sheet. */
+    val savedAsset: String? = null,
 ) {
-    /** The photo shows the Original (toggle or hold); the screen labels it "Original" on the photo. */
-    val showsOriginal: Boolean get() = compareOn || compareHeld
-
-    /** What the photo area shows: the transient preview if any, else the committed state. */
-    val displayed: EditState? get() = transientPreview ?: session?.current
-}
-
-/** Whether the O1 Auto stage can render for the current session (Codex M2 finding 4). */
-sealed interface AutoStatus {
-    data object NoSession : AutoStatus
-
-    data class Applied(val modelId: String, val modelVersion: String) : AutoStatus
-
-    /**
-     * The edit names a model version whose basis is not installed or fails verification. Auto
-     * renders as identity ("off") and the screen shows [notice]. The stored AutoResult is kept
-     * untouched, so the edit renders correctly again once that version is available.
-     */
-    data class Unavailable(val modelId: String, val modelVersion: String, val reason: BasisUnavailableReason) : AutoStatus {
-        val notice: String get() = "Auto enhancement unavailable for this edit (model $modelId $modelVersion is not installed on this device)."
-    }
-
-    /** "Use original" after DevelopFailed (spec §5.1): Auto strength 0, Looks still work. */
-    data object UsingOriginal : AutoStatus {
-        const val NOTICE = "Auto enhancement unavailable. Looks are applied to the original."
-    }
-
-    /** The build has no Auto model ([DevelopResult.NoModelInThisBuild]); wording matches iOS. */
-    data object NoModelInThisBuild : AutoStatus {
-        const val NOTICE = "Auto is unavailable: this build has no Auto model. Looks apply to your original photo."
-    }
+    val showsOriginal: Boolean get() = compareHeld || compareToggled
+    val canUndo: Boolean get() = session?.canUndo == true
+    val canRedo: Boolean get() = session?.canRedo == true
 }
 
 /**
- * Editor state holder (spec §8: ViewModel + SavedStateHandle), wiring the M2 modules end to end:
- * pick → analysis decode + display proxy → Auto → Looks (stepped slider) → latest-wins preview
- * through [RenderScheduler] with a two-pass [LutPassPlan] → Compare / Undo / Reset → Save copy via
- * the [ExportCoordinator][com.lightlylabs.lightly.export.ExportCoordinator].
+ * One continuous session per photo (slice 2): Loading with the photo visible → automatic Develop →
+ * the editor, one EditState schema 3 history with whole-recipe undo/redo, latest-request-wins
+ * previews, Save copy of the committed recipe.
  *
- * Configuration changes keep this instance. Process death keeps only [SavedStateHandle]: the asset
- * ID, the session JSON, compare and category. On restore the photo is decoded again but the model is
- * NOT re-run: the saved AutoResult is used as-is (spec §4.6). The transient preview is not saved.
+ * Every async step carries the photo generation and re-checks it after each suspension point, so
+ * nothing from a previous photo can land in the current photo's session (Codex finding 1).
  */
 class EditorViewModel(
     private val savedState: SavedStateHandle,
@@ -135,104 +97,48 @@ class EditorViewModel(
     private val scope: CoroutineScope,
 ) : ViewModel(scope) {
 
-    // Resolved O1 LUT for the session's AutoResult (memoised: every entry shares one Auto result).
-    private var resolvedAuto: Pair<AutoResult, AutoLutResolution>? = null
-
-    /**
-     * The photo on screen, tagged with the [photoGeneration] that loaded it. Every async step for a
-     * photo carries its generation and re-checks it after each suspension point (Codex finding 1):
-     * cancelling the job is not enough, because a model runtime or decoder may ignore cancellation
-     * and still return, and its result must not land in the next photo's session.
-     */
     private class CurrentPhoto(val generation: Long, val loaded: LoadedPhoto)
 
     private var photo: CurrentPhoto? = null
-    private var scheduler: RenderScheduler<LutPassPlan, Rgba8Image>? = null
+    private var scheduler: RenderScheduler<PreviewRequest, Rgba8Image>? = null
     private var schedulerCollector: Job? = null
     private var loadJob: Job? = null
+    private var prefetchJob: Job? = null
+    private var toastJob: Job? = null
     private var photoGeneration = 0L
 
-    private val state = MutableStateFlow(
-        EditorUiState(
-            compareOn = savedState.get<Boolean>(KEY_COMPARE) ?: false,
-            selectedCategory = initialCategory(savedState.get<String>(KEY_CATEGORY), env.lookBook),
-        ),
-    )
+    /** The recipe as last saved (or as first developed): "dirty" means the edit differs from it. */
+    private var cleanState: EditState? = null
+
+    private val state = MutableStateFlow(EditorUiState())
     val uiState: StateFlow<EditorUiState> = state.asStateFlow()
 
-    /** The O1 LUT the renderer must use, or `null` meaning "Auto off" (identity). */
-    val autoLutForRendering: Lut3D?
-        get() = (resolvedAuto?.second as? AutoLutResolution.Ready)?.lut
+    /** Null until the bundled pack has been parsed (off the main thread, at app start). */
+    val library: DevelopLibrary?
+        @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+        get() = if (env.library.isCompleted && !env.library.isCancelled) runCatching { env.library.getCompleted() }.getOrNull() else null
 
-    /** In pack order; labels are display text only. Empty when the build has no Looks. */
-    val categories: List<LookCategory> get() = env.lookBook.categories
+    val favourites: StateFlow<List<String>> get() = env.favourites.favourites
 
-    /** Shown beside the Look controls while any Look on offer is not a validated Lightroom render. */
-    val lookApproximationNotice: String? get() = env.lookBook.approximationNotice
-
-    /** Stop labels 1..n of [categoryId]: each preset's name from the pack, verbatim. */
-    fun stopNames(categoryId: String): List<String> = env.lookBook.stops(categoryId).map { it.name }
-
-    /**
-     * Name of slider stop 0 (no creative Look). It reads "Auto" only while an Auto correction is
-     * actually applied; with no model, an unavailable model, "Use original" or Auto strength 0 the
-     * stop shows the untouched photo, and calling it "Auto" would promise an enhancement that is
-     * not there.
-     */
-    val baseStopName: String
-        get() {
-            val autoApplied = state.value.autoStatus is AutoStatus.Applied && (state.value.displayed?.auto?.strength ?: 0f) > 0f
-            return if (autoApplied) AUTO_STOP_NAME else ORIGINAL_STOP_NAME
-        }
-
-    /** Every slider stop's label: stop 0, then the category's presets. */
-    fun sliderStopNames(categoryId: String): List<String> = listOf(baseStopName) + stopNames(categoryId)
-
-    /** Slider position (0 = no Look) of the displayed Look within the selected category. */
-    val stopIndex: Int
-        get() = state.value.selectedCategory?.let { env.lookBook.stopIndexOf(it, state.value.displayed?.look) } ?: 0
-
-    /**
-     * The selected stop's name and position among all stops, e.g. "Nordic Tone (10) · 3 of 5". It
-     * follows the displayed state, so while a finger is on the slider it names what the photo shows.
-     */
-    fun stopCaption(categoryId: String): String {
-        val names = sliderStopNames(categoryId)
-        val index = env.lookBook.stopIndexOf(categoryId, state.value.displayed?.look).coerceIn(0, names.lastIndex)
-        return "${names[index]} · ${index + 1} of ${names.size}"
-    }
-
-    /** "Film look Portra at 80 percent", for the photo's accessibility label (spec §6). */
-    fun describeLook(look: LookRef): String {
-        val definition = env.lookBook.find(look) ?: return "unavailable look"
-        val category = env.lookBook.categoryOf(look)?.label
-        val percent = (look.strength * 100).roundToInt()
-        return listOfNotNull(category, "look", definition.name, "at $percent percent").joinToString(" ")
-    }
+    /** Notified when the session should leave the editor (Close without changes, Discard edits). */
+    var onLeave: () -> Unit = {}
 
     init {
-        scope.launch { env.exporter.state.collect { exportState -> state.update { it.copy(save = saveStatusOf(exportState)) } } }
+        scope.launch { env.exporter.state.collect(::onExportState) }
         val assetId = savedState.get<String>(KEY_ASSET)
         if (assetId != null) {
-            val restored = savedState.get<String>(KEY_SESSION)?.let { json ->
-                // A snapshot that no longer decodes (schema change across an update) is dropped
-                // rather than crashing; the photo is then developed again.
-                // SavedEdits migrates schema 1 entries (spec §4.5) instead of dropping the edit.
-                runCatching { SavedEdits.decodeEditSession(json) }.getOrNull()
-            }?.takeIf { it.current.source.assetId == assetId }
+            val restored = savedState.get<String>(KEY_SESSION)?.let { json -> runCatching { SavedEdits.decodeEditSession(json) }.getOrNull() }
+                ?.takeIf { it.current.source.assetId == assetId }
             loadPhoto(assetId, restored)
         }
         addCloseable { scheduler?.close() }
     }
 
-    // --- Photo lifecycle -------------------------------------------------------------------------
+    // --- photo lifecycle ------------------------------------------------------------------------
 
     /**
-     * Photo Picker result. Leaving a dirty session must be confirmed by the UI first (spec §5.5).
-     *
-     * Persists read access to the new photo while the picker's temporary grant is still valid, so a
-     * restore after process death can reopen it, then gives back the previous photo's grant so
-     * grants do not pile up against the per-app cap (Codex finding 4). The new grant is taken first.
+     * A picked or captured photo. Persists read access to it while the picker's grant is valid, then
+     * gives back the previous photo's grant. All work for the previous photo is invalidated.
      */
     fun openPhoto(assetId: String) {
         val previousAsset = savedState.get<String>(KEY_ASSET)
@@ -243,53 +149,19 @@ class EditorViewModel(
         loadPhoto(assetId, restoredSession = null)
     }
 
-    /**
-     * The photo the editor was last asked to open (survives process death), or null. The shell's
-     * "This photo can't be opened › Try again" reopens it.
-     */
     val currentAssetId: String? get() = savedState.get<String>(KEY_ASSET)
 
-    /** DevelopFailed → [Retry]: one user-initiated model run (spec §5.6). */
-    fun retryDevelop() {
-        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
-        if (state.value.phase !is EditorPhase.DevelopFailed) return
-        loadJob = scope.launch { develop(current.loaded, current.generation) }
-    }
-
-    /** DevelopFailed → [Use original]: Ready with Auto strength 0 (spec §5.1). */
-    fun useOriginal() {
-        // Bound to the photo on screen: the DevelopFailed phase can only belong to it, because
-        // stale failures are dropped before they reach the phase.
-        val loaded = photo?.takeIf { isCurrent(it.generation) }?.loaded ?: return
-        if (state.value.phase !is EditorPhase.DevelopFailed) return
-        startWithAutoOff(loaded, USE_ORIGINAL_MODEL_VERSION)
-    }
-
-    /**
-     * Ready with Auto strength 0. [markerVersion] records why Auto is off in the saved session, so a
-     * restore reports the same notice without re-running the model (spec §4.6). It is never resolved
-     * against a basis.
-     */
-    private fun startWithAutoOff(loaded: LoadedPhoto, markerVersion: String) {
-        val autoOff = AutoResult(
-            modelId = AutoResult.MODEL_ID_IA3DLUT,
-            modelVersion = markerVersion,
-            weights = listOf(0f, 0f, 0f),
-            guardrail = null,
-            strength = 0f,
-        )
-        commit(EditSession.start(loaded.source, autoOff))
-        state.update { it.copy(phase = EditorPhase.Ready) }
-    }
+    private fun isCurrent(generation: Long) = generation == photoGeneration
 
     private fun loadPhoto(assetId: String, restoredSession: EditSession?) {
         loadJob?.cancel()
+        prefetchJob?.cancel()
         scheduler?.close()
         schedulerCollector?.cancel()
         photo = null
-        resolvedAuto = null
+        cleanState = null
         val generation = ++photoGeneration
-        state.update { it.copy(phase = EditorPhase.Loading, session = restoredSession, transientPreview = null, preview = null, autoStatus = AutoStatus.NoSession, save = SaveStatus.Idle) }
+        state.value = EditorUiState(phase = EditorPhase.Loading)
         loadJob = scope.launch {
             val loaded = try {
                 env.photoLoader.load(assetId)
@@ -299,63 +171,344 @@ class EditorViewModel(
                 if (isCurrent(generation)) enterPhotoAccessLost(assetId)
                 return@launch
             } catch (failure: Exception) {
-                // A failure for a photo the user has already left must not replace the current phase.
                 if (isCurrent(generation)) state.update { it.copy(phase = EditorPhase.LoadFailed(failure.message ?: "Couldn't open this photo")) }
                 return@launch
             }
             if (!isCurrent(generation)) return@launch
             photo = CurrentPhoto(generation, loaded)
+            // The photo is visible under "Opening photo…" while the pack and Develop finish.
+            state.update { it.copy(original = loaded.display) }
             startPreviewScheduler(loaded, generation)
+            if (debugHoldLoading) return@launch // capture of the approved loading screen (debug builds only)
+            val library = env.library.await()
+            if (!isCurrent(generation)) return@launch
+            val presence = env.personDetector.detect(loaded.analysis)
+            if (!isCurrent(generation)) return@launch
+            state.update { it.copy(tools = EditorTools.visible(debugPresence ?: presence, env.debugBuild)) }
             if (restoredSession != null && restoredSession.current.source.fingerprint == loaded.source.fingerprint) {
-                // Restore: keep the saved AutoResult; do not re-run the model.
-                commit(restoredSession)
+                // Restore: replay the saved recipe; Auto is not re-run (spec §4.6).
+                cleanState = restoredSession.history.entries.first()
+                commit(restoredSession, autoStateOf(restoredSession.current.auto))
                 state.update { it.copy(phase = EditorPhase.Ready) }
             } else {
-                develop(loaded, generation)
+                develop(loaded, generation, retry = false)
             }
         }
     }
 
-    private fun isCurrent(generation: Long): Boolean = generation == photoGeneration
-
-    /**
-     * The saved photo cannot be read any more. Its URI and session are dropped from the saved state
-     * so a later restart does not retry a dead URI, and its grant (if any) is given back. The screen
-     * offers "Choose the photo again", which is a normal [openPhoto].
-     *
-     * DEFERRED (M3): re-attaching the dropped edit when the user picks the same photo again (match by
-     * SourceFingerprint and rebase the session onto the new URI). Until then the photo develops anew.
-     */
     private fun enterPhotoAccessLost(lostAsset: String) {
         savedState.remove<String>(KEY_ASSET)
         savedState.remove<String>(KEY_SESSION)
         env.photoAccess.release(lostAsset)
-        state.update { it.copy(phase = EditorPhase.PhotoAccessLost, session = null, transientPreview = null, preview = null, autoStatus = AutoStatus.NoSession) }
+        state.value = EditorUiState(phase = EditorPhase.PhotoAccessLost)
     }
 
-    /** Runs Auto for [loaded]; every state change is dropped once [generation] is no longer current. */
-    private suspend fun develop(loaded: LoadedPhoto, generation: Long) {
+    /** Automatic Develop. Without a model the photo opens unchanged with the approved "isn't available" notice. */
+    private suspend fun develop(loaded: LoadedPhoto, generation: Long, retry: Boolean) {
         if (!isCurrent(generation)) return
-        state.update { it.copy(phase = EditorPhase.Developing) }
         val result = env.autoDeveloper.develop(loaded.source.fingerprint, loaded.analysis)
-        // The developer may ignore cancellation and return after the user picked another photo.
         if (!isCurrent(generation)) return
-        when (result) {
-            is DevelopResult.Developed -> {
-                commit(EditSession.start(loaded.source, result.auto))
-                state.update { it.copy(phase = EditorPhase.Ready) }
-            }
-            is DevelopResult.Failed -> state.update { it.copy(phase = EditorPhase.DevelopFailed(result.message)) }
-            // Not a failure: Retry could never succeed, so go straight to editing with Auto off.
-            DevelopResult.NoModelInThisBuild -> startWithAutoOff(loaded, NO_MODEL_IN_BUILD_MODEL_VERSION)
+        val (auto, autoState) = when (result) {
+            // DEFERRED(D1): no model ships, so no Auto LUT can be resolved and a "Developed" result
+            // cannot render. It would be shown as unavailable rather than presented as Auto.
+            is DevelopResult.Developed -> noModelAuto() to AutoState.UNAVAILABLE
+            is DevelopResult.Failed -> autoOff(DEVELOP_FAILED_MODEL_VERSION) to AutoState.FAILED
+            DevelopResult.NoModelInThisBuild -> noModelAuto() to AutoState.UNAVAILABLE
         }
+        val existing = state.value.session
+        if (retry && existing != null) {
+            commit(existing.commit { it.copy(auto = auto) }, autoState)
+        } else {
+            val session = EditSession.start(loaded.source, auto)
+            cleanState = session.current
+            commit(session, autoState)
+        }
+        state.update { it.copy(phase = EditorPhase.Ready) }
+    }
+
+    private fun noModelAuto() = autoOff(NO_MODEL_IN_BUILD_MODEL_VERSION)
+
+    private fun autoOff(markerVersion: String) =
+        AutoResult(modelId = AutoResult.MODEL_ID_IA3DLUT, modelVersion = markerVersion, weights = listOf(0f, 0f, 0f), guardrail = null, strength = 0f)
+
+    private fun autoStateOf(auto: AutoResult): AutoState = when {
+        auto.modelVersion == NO_MODEL_IN_BUILD_MODEL_VERSION -> AutoState.UNAVAILABLE
+        auto.modelVersion == DEVELOP_FAILED_MODEL_VERSION -> AutoState.FAILED
+        auto.strength == 0f -> AutoState.OFF
+        else -> AutoState.UNAVAILABLE // a stored Auto from another build cannot render here (D1)
+    }
+
+    /** Approved failure state › Retry: one user-initiated run. */
+    fun retryAuto() {
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
+        if (state.value.auto != AutoState.FAILED) return
+        state.update { it.copy(phase = EditorPhase.Developing) }
+        loadJob = scope.launch { develop(current.loaded, current.generation, retry = true) }
+    }
+
+    /** Approved failure state › Continue with original: Auto is off, presets still work. One undo step. */
+    fun continueWithOriginal() {
+        if (state.value.auto != AutoState.FAILED) return
+        val session = state.value.session ?: return
+        commit(session.commit { it.copy(auto = autoOff(USE_ORIGINAL_MODEL_VERSION)) }, AutoState.OFF)
+    }
+
+    /** The Auto switch toggles only a real, applied correction; unavailable or failed Auto does nothing. */
+    fun toggleAuto() {
+        // DEFERRED(D1): with no model the switch is always in its unavailable state.
+    }
+
+    // --- tools ----------------------------------------------------------------------------------
+
+    fun selectTool(tool: EditorTool) {
+        if (tool !in state.value.tools) return
+        if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
+        state.update { it.copy(tool = tool, develop = DevelopUi()) }
+    }
+
+    // --- Develop --------------------------------------------------------------------------------
+
+    fun panelModel(ui: EditorUiState = state.value, favourites: List<String> = this.favourites.value): DevelopPanelModel? {
+        val library = library ?: return null
+        val session = ui.session ?: return null
+        return DevelopPanelModel.derive(library.pack, session.current.look, ui.auto, favourites, ui.develop, ui.rememberedAmounts)
+    }
+
+    /** Browsing another category never changes the applied Look (not an undo step). */
+    fun selectCategory(categoryId: String) {
+        state.update { it.copy(develop = it.develop.copy(category = categoryId, dragStop = null, amountOpen = false)) }
+    }
+
+    /** The needle crossed [stop] while dragging: preview only (the drag render is develop.global). */
+    fun onRulerDrag(stop: Int) {
+        val model = panelModel() ?: return
+        val clamped = stop.coerceIn(0, model.presets.size)
+        if (state.value.develop.dragStop == clamped) return
+        state.update { it.copy(develop = it.develop.copy(dragStop = clamped)) }
+        val session = state.value.session ?: return
+        requestPreview(session.current.copy(look = lookAt(model, clamped)), globalOnly = true)
+        prefetchAround(model, clamped)
+    }
+
+    fun onRulerFine(fine: Boolean) {
+        if (state.value.develop.fine != fine) state.update { it.copy(develop = it.develop.copy(fine = fine)) }
+    }
+
+    /** Release: ONE undo step, and only when the Look actually changes. No interpolation between stops. */
+    fun onRulerRelease(stop: Int) {
+        val model = panelModel()
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, fine = false)) }
+        val session = state.value.session ?: return
+        if (model == null) return
+        val look = lookAt(model, stop.coerceIn(0, model.presets.size))
+        if (look?.lookId == session.current.look?.lookId) {
+            requestPreview(session.current, globalOnly = false)
+            return
+        }
+        commit(session.selectLook(look), state.value.auto)
+    }
+
+    /**
+     * The Look at [stop] of the browsed list. Re-selecting the applied preset keeps its Amount; any
+     * other preset takes the Amount last set for it in this session (prototype `s.dev.amount`), else 100.
+     */
+    private fun lookAt(model: DevelopPanelModel, stop: Int): LookRef? {
+        if (stop == 0) return null
+        val preset = model.presets[stop - 1]
+        val applied = state.value.session?.current?.look
+        if (applied != null && applied.lookId == preset.id && applied.lookVersion == preset.lookVersion) return applied
+        val amount = state.value.rememberedAmounts[preset.id] ?: 100
+        return LookRef(preset.id, preset.lookVersion, amount / 100f)
+    }
+
+    /** Bakes the neighbouring stops ahead of the needle, on the prefetch thread, latest drag wins. */
+    private fun prefetchAround(model: DevelopPanelModel, stop: Int) {
+        val library = library ?: return
+        val neighbours = listOf(stop + 1, stop - 1, stop + 2, stop - 2).filter { it in 1..model.presets.size }.map { model.presets[it - 1] }
+        prefetchJob?.cancel()
+        prefetchJob = scope.launch(env.prefetchDispatcher) {
+            for (preset in neighbours) {
+                if (!library.isCached(preset, DevelopLibrary.DRAG_DIMENSION)) library.lutFor(preset, DevelopLibrary.DRAG_DIMENSION)
+            }
+        }
+    }
+
+    fun toggleStar() {
+        val library = library ?: return
+        val applied = library.preset(state.value.session?.current?.look) ?: return
+        val favourites = favourites.value
+        when {
+            applied.id in favourites -> env.favourites.update { it - applied.id }
+            favourites.size >= DevelopPanelModel.MAX_FAVOURITES -> state.update { it.copy(develop = it.develop.copy(favouritesFull = true)) }
+            else -> env.favourites.update { it + applied.id }
+        }
+    }
+
+    fun openFavouriteReplace() = state.update { it.copy(overlay = EditorOverlay.FAVOURITE_REPLACE) }
+
+    fun replaceFavourite(replacedId: String) {
+        val applied = library?.preset(state.value.session?.current?.look) ?: return
+        env.favourites.update { list -> list.map { if (it == replacedId) applied.id else it } }
+        state.update { it.copy(overlay = null, develop = it.develop.copy(favouritesFull = false)) }
+    }
+
+    /** "Not now", Cancel, Keep editing: closes the overlay and the favourites notice. */
+    fun dismiss() {
+        state.update { it.copy(overlay = null, develop = it.develop.copy(favouritesFull = false)) }
+    }
+
+    fun openAmount() = state.update { it.copy(develop = it.develop.copy(amountOpen = true)) }
+
+    fun amountDone() = state.update { it.copy(develop = it.develop.copy(amountOpen = false, amountDrag = null)) }
+
+    fun onAmountDrag(amount: Int) {
+        val session = state.value.session ?: return
+        val look = session.current.look ?: return
+        val value = amount.coerceIn(0, 100)
+        state.update { it.copy(develop = it.develop.copy(amountDrag = value)) }
+        requestPreview(session.current.copy(look = look.copy(strength = value / 100f)), globalOnly = true)
+    }
+
+    /** Slider release: one undo step. */
+    fun onAmountRelease(amount: Int) {
+        val session = state.value.session ?: return
+        val look = session.current.look ?: return
+        val value = amount.coerceIn(0, 100)
+        state.update { it.copy(develop = it.develop.copy(amountDrag = null), rememberedAmounts = it.rememberedAmounts + (look.lookId to value)) }
+        commit(session.setLookStrength(value / 100f), state.value.auto)
+    }
+
+    // --- history and compare --------------------------------------------------------------------
+
+    /** Undo and Redo restore the whole recipe (every tool, and Auto), and drop any transient Develop UI. */
+    fun undo() {
+        val session = state.value.session?.takeIf { it.canUndo }?.undo() ?: return
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, amountDrag = null)) }
+        commit(session, autoStateOf(session.current.auto))
+    }
+
+    fun redo() {
+        val session = state.value.session?.takeIf { it.canRedo }?.redo() ?: return
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, amountDrag = null)) }
+        commit(session, autoStateOf(session.current.auto))
+    }
+
+    fun holdCompare(held: Boolean) {
+        if (state.value.compareHeld != held) state.update { it.copy(compareHeld = held) }
+    }
+
+    /** The accessible Compare toggle (TalkBack double-tap): shows the original until toggled again. */
+    fun toggleCompare() = state.update { it.copy(compareToggled = !it.compareToggled) }
+
+    // --- save copy and leaving ------------------------------------------------------------------
+
+    val isDirty: Boolean
+        get() {
+            val current = state.value.session?.current ?: return false
+            val clean = cleanState ?: return true
+            return current.copy(revision = 0) != clean.copy(revision = 0)
+        }
+
+    /** Save copy: a full-resolution JPEG of the SAME committed recipe the preview shows. */
+    fun saveCopy() {
+        val loaded = photo?.takeIf { isCurrent(it.generation) }?.loaded ?: return
+        val session = state.value.session ?: return
+        val library = library ?: return
+        if (state.value.phase != EditorPhase.Ready) return
+        val committed = session.current
+        val plan = library.planFor(committed)
+        val exportPlan = ExportRenderPlan { frame ->
+            // One renderer and clarity base per frame; tiles read their apron from the full frame.
+            val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
+            val base = renderer.clarityBase(frame, plan)
+            ExportTileRenderer { source, tile -> renderer.renderTile(source, PixelRect(tile.x, tile.y, tile.width, tile.height), plan, base) }
+        }
+        val job = ExportJob(sourceHandle = loaded.source.assetId, original = loaded.fullResolution, plan = exportPlan, spec = env.newImageSpec(loaded.source))
+        if (env.exporter.start(job) is ExportStart.Started) {
+            savingRecipe = committed
+            state.update { it.copy(overlay = EditorOverlay.SAVING) }
+        }
+    }
+
+    private var savingRecipe: EditState? = null
+    private var userCancelledSave = false
+
+    fun cancelSave() {
+        userCancelledSave = true
+        env.exporter.cancel()
+    }
+
+    private fun onExportState(export: ExportState<*>) {
+        when (export) {
+            is ExportState.Saved<*> -> {
+                cleanState = savingRecipe ?: cleanState
+                state.update { it.copy(overlay = EditorOverlay.SAVED, savedAsset = export.newAsset.toString()) }
+            }
+            is ExportState.Failed -> {
+                val overlay = if (export.error is SaveCopyFailure.OutOfStorage) EditorOverlay.STORAGE_FULL else EditorOverlay.EXPORT_FAILED
+                state.update { it.copy(overlay = overlay) }
+            }
+            is ExportState.Cancelled -> {
+                if (userCancelledSave) showToast(SAVE_CANCELLED)
+                userCancelledSave = false
+                state.update { if (it.overlay == EditorOverlay.SAVING) it.copy(overlay = null) else it }
+            }
+            else -> Unit
+        }
+    }
+
+    /**
+     * Close (Android back arrow) and system Back: with unsaved changes the approved "Leave without
+     * saving?" dialog asks first; otherwise the editor is left at once.
+     */
+    fun close() {
+        when {
+            state.value.overlay != null && state.value.overlay != EditorOverlay.SAVING -> dismiss()
+            isDirty -> state.update { it.copy(overlay = EditorOverlay.LEAVE) }
+            else -> onLeave()
+        }
+    }
+
+    fun discardAndLeave() {
+        state.update { it.copy(overlay = null) }
+        onLeave()
+    }
+
+    private fun showToast(text: String) {
+        toastJob?.cancel()
+        state.update { it.copy(toast = text) }
+        toastJob = scope.launch {
+            delay(TOAST_MILLIS)
+            state.update { if (it.toast == text) it.copy(toast = null) else it }
+        }
+    }
+
+    // --- commit and preview ---------------------------------------------------------------------
+
+    private fun commit(session: EditSession, auto: AutoState) {
+        savedState[KEY_SESSION] = SavedEdits.encodeEditSession(session)
+        state.update { it.copy(session = session, auto = auto) }
+        requestPreview(session.current, globalOnly = false)
     }
 
     private fun startPreviewScheduler(loaded: LoadedPhoto, generation: Long) {
         val display = loaded.display
+        // The drag preview renders a half-size copy (a quarter of the pixels); committed previews use the full proxy.
+        val dragProxy = DevelopRenderer.halfSize(display)
         val newScheduler = RenderScheduler(
             sessionId = "photo-$generation",
-            renderer = PreviewRenderer<LutPassPlan, Rgba8Image> { request -> env.previewRenderer.render(display, request.payload) },
+            renderer = PreviewRenderer<PreviewRequest, Rgba8Image> { request ->
+                val library = env.library.await()
+                val edit = request.payload.state ?: return@PreviewRenderer display
+                val start = System.nanoTime()
+                val plan = library.planFor(edit, request.payload.globalOnly)
+                val source = if (request.payload.globalOnly) dragProxy else display
+                val image = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
+                val millis = (System.nanoTime() - start) / 1e6
+                renderMillis += millis
+                env.onPreviewRendered(millis, request.payload.globalOnly)
+                image
+            },
             parentScope = scope,
             renderDispatcher = env.renderDispatcher,
         )
@@ -363,216 +516,159 @@ class EditorViewModel(
         schedulerCollector = scope.launch {
             newScheduler.published.collect { result ->
                 val rendered = (result?.outcome as? RenderOutcome.Rendered)?.value ?: return@collect
-                // Session check on top of the scheduler's own: a result for a previous photo is dropped.
-                if (result.sessionId == "photo-$photoGeneration") state.update { it.copy(preview = rendered) }
+                if (result.sessionId == "photo-$photoGeneration") {
+                    state.update { it.copy(preview = rendered) }
+                    publishedRevision = result.revision
+                }
             }
         }
-        // Show the Original immediately while Auto develops.
-        newScheduler.submit(LutPassPlan.of(null, 0f, null, 0f))
-    }
-
-    // --- Looks: stepped slider, strength ---------------------------------------------------------
-
-    /** Changing category alone does not change the Look (spec §2.4), so it is not an undo step. */
-    fun selectCategory(categoryId: String) {
-        if (env.lookBook.category(categoryId) == null) return
-        savedState[KEY_CATEGORY] = categoryId
-        state.update { it.copy(selectedCategory = categoryId) }
-    }
-
-    /** Slider moving over stop [index] (0 = Auto): transient preview only. */
-    fun onStopChanged(index: Int) = previewLook(lookAtStop(index))
-
-    /** Slider settled on stop [index] (pointer up / accessibility increment): one undo step. */
-    fun onStopSettled(index: Int) = commitLook(lookAtStop(index))
-
-    fun previewLook(candidate: LookRef?) {
-        val session = state.value.session ?: return
-        state.update { it.copy(transientPreview = session.previewOf(candidate)) }
-        requestPreview()
-    }
-
-    fun commitLook(look: LookRef?) = updateSession { it.selectLook(look) }
-
-    fun previewLookStrength(strength: Float) {
-        val look = state.value.session?.current?.look ?: return
-        previewLook(look.copy(strength = strength))
-    }
-
-    fun commitLookStrength(strength: Float) = updateSession { it.setLookStrength(strength) }
-
-    fun resetToAuto() = updateSession { it.selectLook(null) } // the old editor is replaced in slice 2
-
-    /**
-     * "Use current version" on a changed Look: one new, undoable step that keeps the Look and its
-     * strength and takes the pack's current version. Does nothing for an unavailable Look.
-     */
-    fun useCurrentLookVersion() {
-        val saved = state.value.session?.current?.look ?: return
-        val changed = env.lookBook.resolve(saved) as? LookResolution.Changed ?: return
-        updateSession { it.selectLook(saved.copy(lookVersion = changed.current.lookVersion)) }
-    }
-
-    /** Strength is secondary and exists only for a committed Look that actually renders. */
-    val showsStrength: Boolean
-        get() = state.value.session?.current?.look?.let { env.lookBook.resolve(it) is LookResolution.Available } ?: false
-
-    fun undo() = updateSession { it.undo() }
-
-    fun redo() = updateSession { it.redo() }
-
-    /** Reset drops the Look; with no Look there is nothing to reset, so the control is disabled. */
-    val canReset: Boolean get() = state.value.session?.current?.look != null
-
-    /**
-     * Press-and-hold on the photo (spec §2.6). Independent of the Compare toggle: releasing returns to
-     * whatever the toggle shows. Not persisted, because a finger on the glass does not survive a
-     * configuration change or process death.
-     */
-    fun holdCompare(held: Boolean) {
-        if (state.value.compareHeld == held) return
-        state.update { it.copy(compareHeld = held) }
-        requestPreview()
-    }
-
-    /** The Compare toggle: persisted with the session (spec §5.5 keeps compare state). */
-    fun setCompare(on: Boolean) {
-        savedState[KEY_COMPARE] = on
-        state.update { it.copy(compareOn = on) }
-        requestPreview()
-    }
-
-    /**
-     * The Look at slider stop [index] (0 = Auto), per the agreed Strength rule (both platforms):
-     * - the stop that is already committed returns the committed LookRef unchanged, so settling on it
-     *   is a no-op in [EditSession] (Strength and history kept; only the transient preview ends);
-     * - any other preset is its designed look at 100%. Strength is never carried between presets,
-     *   because a strength tuned for one preset says nothing about another.
-     *
-     * "Already committed" means the same lookId AND lookVersion. A changed Look (older version of
-     * this preset) does not render and the slider does not show it on this stop, so picking the
-     * stop is an explicit choice of the pack's current preset and applies it at 100%.
-     *
-     * v3 differs: before the d5690dd review, the committed strength carried over to the new preset.
-     */
-    private fun lookAtStop(index: Int): LookRef? {
-        if (index == 0) return null
-        val categoryId = state.value.selectedCategory ?: return null
-        val stop = env.lookBook.stops(categoryId).getOrNull(index - 1) ?: error("Stop $index out of range for $categoryId")
-        val committed = state.value.session?.current?.look
-        val isCommittedStop = committed != null && committed.lookId == stop.lookId && committed.lookVersion == stop.lookVersion
-        return if (isCommittedStop) committed else stop.ref(FULL_STRENGTH)
-    }
-
-    // --- Save copy -------------------------------------------------------------------------------
-
-    /**
-     * Exports the COMMITTED state (a transient preview is never exported, spec §5.4 step 1).
-     * Returns false if the editor is not ready or an export is already running.
-     */
-    fun saveCopy(): Boolean {
-        val loaded = photo?.takeIf { isCurrent(it.generation) }?.loaded ?: return false
-        val session = state.value.session ?: return false
-        if (state.value.phase != EditorPhase.Ready) return false
-        val job = ExportJob(
-            sourceHandle = loaded.source.assetId,
-            original = loaded.fullResolution,
-            plan = planFor(session.current, compare = false),
-            spec = env.newImageSpec(loaded.source),
-        )
-        return env.exporter.start(job) is ExportStart.Started
-    }
-
-    fun cancelSave() = env.exporter.cancel()
-
-    private fun saveStatusOf(exportState: ExportState<*>): SaveStatus = when (exportState) {
-        ExportState.Idle -> SaveStatus.Idle
-        is ExportState.Running -> SaveStatus.Saving
-        is ExportState.Saved<*> -> SaveStatus.Saved(exportState.newAsset.toString())
-        is ExportState.Failed -> SaveStatus.Failed(exportState.error.message ?: "Couldn't save")
-        is ExportState.Cancelled -> SaveStatus.Cancelled
-    }
-
-    // --- Commit, preview, persistence ------------------------------------------------------------
-
-    private inline fun updateSession(change: (EditSession) -> EditSession) {
-        val session = state.value.session ?: return
-        commit(change(session))
-    }
-
-    private fun commit(session: EditSession) {
-        savedState[KEY_SESSION] = SavedEdits.encodeEditSession(session)
-        val lookIssue = LookIssue.of(session.current.look?.let(env.lookBook::resolve))
-        state.update { it.copy(session = session, transientPreview = null, autoStatus = autoStatusFor(session), lookIssue = lookIssue) }
-        requestPreview()
     }
 
     /** Latest-wins: every call replaces the pending request; at most one render is in flight. */
-    private fun requestPreview() {
-        val current = state.value
-        val displayed = current.displayed ?: return
-        val plan = planFor(displayed, current.showsOriginal)
-        scheduler?.submit(plan)
+    private fun requestPreview(edit: EditState, globalOnly: Boolean) {
+        requestedRevision = scheduler?.submit(PreviewRequest(edit, globalOnly)) ?: requestedRevision
     }
 
-    /** Two LUT passes (spec §4.1): Auto (if available and on), then the Look (if any and known). */
-    private fun planFor(editState: EditState, compare: Boolean): LutPassPlan {
-        // Compare always shows the Original, not the Auto result (spec §2.6).
-        if (compare) return LutPassPlan.of(null, 0f, null, 0f)
-        // Exact (id, version) only: an unavailable or changed Look is left out, never replaced, so
-        // preview and Save copy both show the photo without it (P=E holds for these edits too).
-        val lookDefinition = (editState.look?.let(env.lookBook::resolve) as? LookResolution.Available)?.definition
-        return LutPassPlan.of(
-            autoLut = autoLutForRendering,
-            autoStrength = editState.auto.strength,
-            lookLut = lookDefinition?.lut,
-            lookStrength = editState.look?.strength ?: 0f,
-        )
+    // Debug benchmark bookkeeping (docs/v1/slice2-android.md › Performance).
+    @Volatile internal var publishedRevision: Long = -1
+    @Volatile internal var requestedRevision: Long = -1
+    internal val renderMillis: MutableList<Double> = java.util.Collections.synchronizedList(mutableListOf())
+
+    // --- debug launch state (debug builds only; see DebugLaunchOptions) --------------------------
+
+    /** Capture-only override of person detection, so a capture can mirror the reference photo. */
+    internal var debugPresence: PersonPresence? = null
+
+    /** Capture-only: stop after decoding, so the approved "Opening photo…" screen can be captured. */
+    internal var debugHoldLoading: Boolean = false
+
+    /** Capture-only: sets the phase (the loading capture shows "Developing…", which no model triggers here). */
+    internal fun debugSetPhase(phase: EditorPhase) = state.update { it.copy(phase = phase) }
+
+    /**
+     * Applies a capture state once the session is Ready. Debug builds only: release builds never call
+     * it (DebugLaunchOptions is gated on BuildConfig.DEBUG).
+     */
+    internal fun applyDebugState(apply: (DebugEditorApi) -> Unit) {
+        scope.launch {
+            while (state.value.phase != EditorPhase.Ready && state.value.phase !is EditorPhase.LoadFailed) delay(50)
+            if (state.value.phase == EditorPhase.Ready) apply(DebugEditorApi())
+        }
     }
 
-    private fun autoStatusFor(session: EditSession): AutoStatus {
-        val auto = session.current.auto
-        if (auto.strength == 0f && auto.modelVersion == USE_ORIGINAL_MODEL_VERSION) {
-            resolvedAuto = null
-            return AutoStatus.UsingOriginal
+    /**
+     * Debug benchmark (docs/v1/slice2-android.md › Performance): cold 33³ bakes of 40 presets, a scrub
+     * through 20 consecutive stops at 20 stops per second, and committed full-recipe preview renders.
+     */
+    internal fun debugBenchmark(log: (String) -> Unit) {
+        scope.launch {
+            while (state.value.phase != EditorPhase.Ready) delay(50)
+            val library = library ?: return@launch
+            fun summary(values: List<Double>): String {
+                val sorted = values.sorted()
+                return "n=${sorted.size} median=${"%.1f".format(sorted[sorted.size / 2])} p95=${"%.1f".format(sorted[(sorted.size * 95 / 100).coerceAtMost(sorted.size - 1)])} max=${"%.1f".format(sorted.last())} ms"
+            }
+            val presets = library.pack.category("film")!!.presets.take(40)
+            val bakes = kotlinx.coroutines.withContext(env.renderDispatcher) {
+                presets.map { preset ->
+                    val start = System.nanoTime()
+                    com.lightlylabs.lightly.develop.LutBaker.bake(com.lightlylabs.lightly.develop.DevelopGlobal(preset.recipe.global, library.model), executor = workerPoolForBenchmark(), parallelism = 4)
+                    (System.nanoTime() - start) / 1e6
+                }
+            }
+            log("bake 33³ (cold, 40 Film presets): ${summary(bakes)}")
+            renderMillis.clear()
+            val waits = DebugEditorApi().scrub("street", 1, 20, 50)
+            log("scrub 20 stops at 50 ms/stop: stale-preview wait ${summary(waits)}")
+            log("drag (global-only) preview renders: ${summary(renderMillis.toList())}")
+            delay(1500)
+            renderMillis.clear()
+            val committed = mutableListOf<Double>()
+            for (stop in listOf(10, 20, 30, 40, 50)) {
+                val start = System.nanoTime()
+                onRulerDrag(stop); onRulerRelease(stop)
+                val revision = requestedRevision
+                while (publishedRevision < revision) delay(5)
+                committed += (System.nanoTime() - start) / 1e6
+            }
+            log("committed full-recipe preview (bake + spatial + finishing, ${state.value.original?.width}x${state.value.original?.height}): ${summary(committed)}")
+            log("manifest parse + index: ${"%.0f".format(AndroidEditorEnvironment.manifestParseMillis)} ms")
         }
-        if (auto.strength == 0f && auto.modelVersion == NO_MODEL_IN_BUILD_MODEL_VERSION) {
-            resolvedAuto = null
-            return AutoStatus.NoModelInThisBuild
+    }
+
+    private fun workerPoolForBenchmark() = benchmarkPool
+
+    /** The handful of state changes the capture script needs, applied as the user would (commits included). */
+    inner class DebugEditorApi {
+        val library: DevelopLibrary? get() = this@EditorViewModel.library
+
+        fun setAuto(auto: AutoState) = state.update { it.copy(auto = auto) }
+
+        fun applyPreset(categoryId: String, stop: Int, amount: Int = 100) {
+            val preset: LookPreset = library?.pack?.category(categoryId)?.presets?.getOrNull(stop - 1) ?: return
+            val session = state.value.session ?: return
+            commit(session.selectLook(LookRef(preset.id, preset.lookVersion, amount / 100f)), state.value.auto)
         }
-        val resolution = resolvedAuto?.takeIf { it.first == auto }?.second
-            ?: env.autoResolver.resolve(auto).also { resolvedAuto = auto to it }
-        return when (resolution) {
-            is AutoLutResolution.Ready -> AutoStatus.Applied(auto.modelId, auto.modelVersion)
-            is AutoLutResolution.AutoUnavailable -> AutoStatus.Unavailable(resolution.modelId, resolution.modelVersion, resolution.reason)
+
+        fun setUi(change: (EditorUiState) -> EditorUiState) = state.update(change)
+
+        /**
+         * Makes the configured recipe the start of history, as the prototype's directly opened screens
+         * are (their Undo is disabled). Captures only; the recipe itself is unchanged.
+         */
+        fun rebaseHistory(keepUnsaved: Boolean = false) {
+            val session = state.value.session ?: return
+            val rebased = EditSession(com.lightlylabs.lightly.session.UndoStack.startingAt(session.current), session.lastIssuedRevision)
+            if (!keepUnsaved) cleanState = rebased.current
+            commit(rebased, state.value.auto)
+        }
+
+        fun preview(globalOnly: Boolean, look: LookRef?) {
+            val session = state.value.session ?: return
+            requestPreview(session.current.copy(look = look), globalOnly)
+        }
+
+        /**
+         * Scrubs [count] consecutive stops at one per [intervalMillis] and reports, per stop, how long the
+         * screen showed an older stop (time until a preview at least as new was published).
+         */
+        suspend fun scrub(categoryId: String, firstStop: Int, count: Int, intervalMillis: Long): List<Double> {
+            selectCategory(categoryId)
+            val waits = mutableListOf<Double>()
+            for (i in 0 until count) {
+                val start = System.nanoTime()
+                onRulerDrag(firstStop + i)
+                val revision = requestedRevision
+                while (publishedRevision < revision) delay(2)
+                waits += (System.nanoTime() - start) / 1e6
+                val elapsed = (System.nanoTime() - start) / 1_000_000
+                if (elapsed < intervalMillis) delay(intervalMillis - elapsed)
+            }
+            onRulerRelease(firstStop + count - 1)
+            return waits
         }
     }
 
     companion object {
-        const val AUTO_STOP_NAME = "Auto"
-        const val ORIGINAL_STOP_NAME = "Original"
-
-        /** A newly chosen preset shows its designed look (agreed Strength rule). */
-        private const val FULL_STRENGTH = 1f
-
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
-        const val KEY_COMPARE = "editor.compare"
-        const val KEY_CATEGORY = "editor.category"
+        const val SAVE_CANCELLED = "Save cancelled · nothing was written"
+        private const val TOAST_MILLIS = 1400L
 
-        /** Marks the "Use original" Auto result; never resolved against a basis. */
+        /** Marks "Continue with original" in the saved recipe; never resolved against a model. */
         const val USE_ORIGINAL_MODEL_VERSION = "use-original"
 
-        /**
-         * Marks an edit made in a build with no Auto model; never resolved against a basis. A session
-         * restored into a later build that has a model keeps Auto off: the edit is replayed as the
-         * user made it, not re-developed (spec §4.6).
-         */
+        /** Marks an edit made in a build with no Auto model (edit-recipe neutral fixture). */
         const val NO_MODEL_IN_BUILD_MODEL_VERSION = "no-model-in-build"
 
-        /** The saved category if this build's pack still has it, else the pack's first category. */
-        internal fun initialCategory(saved: String?, lookBook: LookBook): String? =
-            saved?.takeIf { lookBook.category(it) != null } ?: lookBook.categories.firstOrNull()?.id
+        /** Marks the approved "didn't finish" state, so Undo after "Continue with original" returns to it. */
+        const val DEVELOP_FAILED_MODEL_VERSION = "develop-failed"
+
+        private val benchmarkPool = java.util.concurrent.Executors.newFixedThreadPool(4)
+        private const val EXPORT_PARALLELISM = 4
+        private val exportPool = java.util.concurrent.Executors.newFixedThreadPool(EXPORT_PARALLELISM) { runnable ->
+            Thread(runnable, "lightly-export-worker").apply { isDaemon = true }
+        }
 
         fun factory(env: EditorEnvironment): ViewModelProvider.Factory = viewModelFactory {
             initializer {

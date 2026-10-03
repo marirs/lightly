@@ -17,7 +17,13 @@ import java.io.IOException
 class ContentResolverPhotoLoader(
     private val resolver: ContentResolver,
     private val decoder: ProxyDecoder,
+    /** Long edge of the display proxy (the preview render input). */
     private val screenLongestPx: Int,
+    /**
+     * Debug builds only: also open `file://` URIs, which the scripted emulator comparison uses to open
+     * the approved reference photos from the app's own external files folder (no picker, no permission).
+     */
+    private val allowFileUris: Boolean = false,
 ) : PhotoLoader {
 
     override suspend fun load(assetId: String): LoadedPhoto = try {
@@ -32,8 +38,13 @@ class ContentResolverPhotoLoader(
     private suspend fun decodeAll(uri: Uri): LoadedPhoto = withContext(Dispatchers.IO) {
         val analysis = decoder.decodeForAnalysis(ImageDecoder.createSource(resolver, uri))
         val display = decoder.decodeForDisplay(ImageDecoder.createSource(resolver, uri), screenLongestPx)
-        val byteSize = resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+        val byteSize = if (uri.scheme == "file") {
+            if (!allowFileUris) throw IOException("Couldn't open this photo")
+            uri.path?.let { java.io.File(it).length() }?.takeIf { it > 0 }
+        } else {
+            resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+            }
         } ?: throw IOException("Couldn't open this photo")
         val fingerprint = resolver.openInputStream(uri)?.use { stream ->
             SourceFingerprints.compute(stream, byteSize, analysis.originalSize.width, analysis.originalSize.height)

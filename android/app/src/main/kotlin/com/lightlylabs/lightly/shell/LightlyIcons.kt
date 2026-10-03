@@ -54,6 +54,38 @@ object LightlyIcons {
         circle(9f, 10f, 1.8f),
         "M4 17l4.5-4.5 4 4 2.5-2.5 5 5",
     )
+    val Undo = lineIcon("undo", "M9 7H5V3", "M5.5 7.5A8 8 0 1 1 4 13")
+    val Redo = lineIcon("redo", "M15 7h4V3", "M18.5 7.5A8 8 0 1 0 20 13")
+    val Compare = lineIcon(
+        "compare",
+        "M7 4.5h10a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H7a2.5 2.5 0 0 1-2.5-2.5V7A2.5 2.5 0 0 1 7 4.5z",
+        "M12 4.5v15",
+        filledPaths = listOf("M12 4.5h5a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5h-5z"),
+    )
+    val Develop = lineIcon("develop", "M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1")
+    val Background = lineIcon(
+        "background",
+        "M6 5h12a2.5 2.5 0 0 1 2.5 2.5v9a2.5 2.5 0 0 1-2.5 2.5H6a2.5 2.5 0 0 1-2.5-2.5v-9A2.5 2.5 0 0 1 6 5z",
+        circle(12f, 11f, 2.6f),
+        "M7 19c.8-2.6 2.8-4 5-4s4.2 1.4 5 4",
+    )
+    val Portrait = lineIcon("portrait", circle(12f, 8.5f, 3.6f), "M5 20c1.2-3.8 4-5.6 7-5.6s5.8 1.8 7 5.6")
+    val Edit = lineIcon("edit", "M5 7h9M18 7h1M5 17h1M10 17h9", circle(16f, 7f, 2f), circle(8f, 17f, 2f))
+    val Effects = lineIcon("effects", "M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z")
+    val Watermark = lineIcon("watermark", "M4 17c2.5-4 4.5-9 7-9 1.6 0 1 4 2.6 4 1.3 0 1.7-2 3-2 1 0 1.6 1 3.4 2", "M4 20h16")
+    val Border = lineIcon(
+        "border",
+        "M5 3.5h14a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5V5A1.5 1.5 0 0 1 5 3.5z",
+        "M7.5 7h9a.5 .5 0 0 1 .5.5v7a.5 .5 0 0 1-.5.5h-9a.5 .5 0 0 1-.5-.5v-7a.5 .5 0 0 1 .5-.5z",
+    )
+    private const val STAR_PATH = "M12 4.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 9.8l5-.7z"
+    val Star = lineIcon("star", STAR_PATH)
+
+    /** `.star.on .icon { fill: currentColor }`: the same star, stroked and filled. */
+    val StarFilled = lineIcon("starOn", STAR_PATH, filledPaths = listOf(STAR_PATH))
+    val Info = lineIcon("info", circle(12f, 12f, 8.5f), "M12 11v5M12 8v.5")
+    val Warn = lineIcon("warn", "M12 4l9 16H3z", "M12 10v4M12 17v.5")
+    val Share = lineIcon("share", "M12 3v12M7.5 7.5 12 3l4.5 4.5", "M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12")
     val Camera = lineIcon(
         "camera",
         "M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z",

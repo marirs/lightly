@@ -2,6 +2,13 @@ package com.lightlylabs.lightly.shell
 
 import android.content.Intent
 import com.lightlylabs.lightly.BuildConfig
+import com.lightlylabs.lightly.editor.AutoState
+import com.lightlylabs.lightly.editor.DevelopUi
+import com.lightlylabs.lightly.editor.EditorOverlay
+import com.lightlylabs.lightly.editor.EditorPhase
+import com.lightlylabs.lightly.editor.EditorViewModel
+import com.lightlylabs.lightly.editor.PersonPresence
+import java.io.File
 import com.lightlylabs.lightly.prefs.Appearance
 import com.lightlylabs.lightly.prefs.PreferencesStore
 
@@ -17,14 +24,28 @@ import com.lightlylabs.lightly.prefs.PreferencesStore
  * ```
  * Screens: welcome, camera-denied, load-failed, and every [MorePage] name in lower case
  * (more, preferences, favourites, signature, preferred_border, legal, privacy, terms, about, support).
+ *
+ * Slice 2 editor states: `--es lightly.debug.photo <absolute path in the app's external files folder>`
+ * opens that file as the photo, `--es lightly.debug.editor <prototype screen id>` (dev-preset, dev-amount, …)
+ * sets the session as the prototype's screen registry does, and `--es lightly.debug.people present|absent`
+ * stands in for the pending person detector (D3) so Portrait matches the reference photo.
+ *
+ * Every Auto state other than "unavailable" is INJECTED here for layout comparison only: no Auto model
+ * ships (D1), so the photo is never corrected; captures made this way are labelled in
+ * docs/v1/slice2-android.md.
  */
 object DebugLaunchOptions {
     private const val EXTRA_SCREEN = "lightly.debug.screen"
     private const val EXTRA_FAVOURITES = "lightly.debug.favourites"
     private const val EXTRA_APPEARANCE = "lightly.debug.appearance"
 
-    fun apply(intent: Intent?, shell: AppViewModel, preferences: PreferencesStore) {
+    private const val EXTRA_PHOTO = "lightly.debug.photo"
+    private const val EXTRA_EDITOR = "lightly.debug.editor"
+    private const val EXTRA_PEOPLE = "lightly.debug.people"
+
+    fun apply(intent: Intent?, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel) {
         if (!BuildConfig.DEBUG || intent == null) return
+        applyEditor(intent, shell, editor)
         intent.getStringExtra(EXTRA_FAVOURITES)?.let { ids ->
             preferences.update { it.copy(favouritePresetIds = ids.split(",").filter(String::isNotBlank).take(5)) }
         }
@@ -42,5 +63,69 @@ object DebugLaunchOptions {
             else -> MorePage.entries.firstOrNull { it.name.lowercase() == screen }?.let { AppNavigator.openPage(AppNavigator.toWelcome(), it) }
         } ?: return
         shell.navigate(state)
+    }
+
+    private fun applyEditor(intent: Intent, shell: AppViewModel, editor: EditorViewModel) {
+        val path = intent.getStringExtra(EXTRA_PHOTO) ?: return
+        val screen = intent.getStringExtra(EXTRA_EDITOR) ?: "model-unavailable"
+        editor.debugPresence = when (intent.getStringExtra(EXTRA_PEOPLE)) {
+            "present" -> PersonPresence.PRESENT
+            "absent" -> PersonPresence.ABSENT
+            else -> null
+        }
+        editor.debugHoldLoading = screen == "loading" || screen == "developing"
+        editor.openPhoto("file://" + File(path).absolutePath)
+        shell.navigate(if (screen == "more") AppNavigator.openMore(AppNavigator.openEditor()) else AppNavigator.openEditor())
+        if (screen == "developing") {
+            editor.debugSetPhase(EditorPhase.Developing)
+            return
+        }
+        if (screen == "loading") return
+        if (intent.getBooleanExtra("lightly.debug.benchmark", false)) {
+            editor.debugBenchmark { line -> android.util.Log.i("LightlyBench", line) }
+            return
+        }
+        editor.applyDebugState { api ->
+            val auto = when (screen) {
+                "model-unavailable" -> AutoState.UNAVAILABLE
+                "develop-failed" -> AutoState.FAILED
+                "dev-original" -> AutoState.OFF
+                else -> AutoState.APPLIED // injected, see the class comment
+            }
+            api.setAuto(auto)
+            fun preset(category: String, stop: Int, amount: Int = 100) = api.applyPreset(category, stop, amount)
+            when (screen) {
+                "developed" -> api.setUi { it.copy(toast = "Developed") }
+                "dev-preset", "compare", "saving", "saved", "leave-unsaved", "more", "dev-starred" -> preset("landscape", 37)
+                "dev-dragging" -> {
+                    preset("landscape", 37)
+                    val target = api.library?.pack?.category("landscape")?.presets?.getOrNull(40)
+                    api.setUi { it.copy(develop = DevelopUi(dragStop = 41, fine = true)) }
+                    target?.let { api.preview(globalOnly = true, look = com.lightlylabs.lightly.session.LookRef(it.id, it.lookVersion, 1f)) }
+                }
+                "dev-browse" -> { preset("landscape", 37); api.setUi { it.copy(develop = DevelopUi(category = "cinematic", dragStop = 0)) } }
+                "dev-large" -> preset("cinematic", 564)
+                "dev-long-name" -> {
+                    val stop = api.library?.pack?.category("landscape")?.presets?.indexOfFirst { it.displayName == "Landscape 15 - Winter Wonderland" }?.plus(1) ?: 0
+                    if (stop > 0) preset("landscape", stop)
+                }
+                "dev-amount" -> { preset("landscape", 37, amount = 70); api.setUi { it.copy(develop = DevelopUi(amountOpen = true), rememberedAmounts = emptyMap()) } }
+                "dev-favourites" -> { preset("portrait", 13); api.setUi { it.copy(develop = DevelopUi(category = "favourites")) } }
+                "dev-fav-full" -> { preset("travel", 5); api.setUi { it.copy(develop = DevelopUi(favouritesFull = true)) } }
+                "dev-fav-replace" -> { preset("travel", 5); api.setUi { it.copy(overlay = EditorOverlay.FAVOURITE_REPLACE) } }
+                "dev-bw" -> preset("black-white", 8)
+                "dev-landscape-photo" -> preset("golden-hour", 12)
+                "dev-portrait-photo" -> preset("portrait", 13)
+            }
+            // History starts at the configured recipe (Undo disabled, as on the prototype's screens);
+            // "Leaving with unsaved changes" keeps the recipe unsaved.
+            api.rebaseHistory(keepUnsaved = screen == "leave-unsaved")
+            when (screen) {
+                "compare" -> api.setUi { it.copy(compareToggled = true) }
+                "saving" -> api.setUi { it.copy(overlay = EditorOverlay.SAVING) }
+                "saved" -> api.setUi { it.copy(overlay = EditorOverlay.SAVED) }
+                "leave-unsaved" -> api.setUi { it.copy(overlay = EditorOverlay.LEAVE) }
+            }
+        }
     }
 }

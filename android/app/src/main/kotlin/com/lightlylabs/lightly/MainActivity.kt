@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,11 +33,12 @@ import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import androidx.window.layout.WindowMetricsCalculator
 import com.lightlylabs.lightly.editor.AndroidEditorEnvironment
+import com.lightlylabs.lightly.editor.EditorActions
 import com.lightlylabs.lightly.editor.EditorEnvironment
 import com.lightlylabs.lightly.editor.EditorPhase
 import com.lightlylabs.lightly.editor.EditorScreen
 import com.lightlylabs.lightly.editor.EditorViewModel
-import com.lightlylabs.lightly.editor.WindowHinge
+import com.lightlylabs.lightly.editor.FavouritesStore
 import com.lightlylabs.lightly.prefs.Appearance
 import com.lightlylabs.lightly.prefs.PreferencesStore
 import com.lightlylabs.lightly.prefs.PresetCatalogue
@@ -91,7 +91,8 @@ class MainActivity : ComponentActivity() {
         // Same owner and default keys as `viewModel()` would use, so these survive recreation.
         val shell = ViewModelProvider(this, AppViewModel.factory)[AppViewModel::class.java]
         val editor = ViewModelProvider(this, EditorViewModel.factory(graph.editorEnvironment))[EditorViewModel::class.java]
-        if (savedInstanceState == null) DebugLaunchOptions.apply(intent, shell, graph.preferences)
+        editor.onLeave = { shell.navigate(AppNavigator.toWelcome()) }
+        if (savedInstanceState == null) DebugLaunchOptions.apply(intent, shell, graph.preferences, editor)
 
         setContent {
             val preferences by graph.preferences.preferences.collectAsStateWithLifecycle()
@@ -103,11 +104,15 @@ class MainActivity : ComponentActivity() {
             val dark = isDarkAppearance(preferences.appearance)
             LaunchedEffect(dark) { applySystemBars(dark) }
 
-            // A photo the editor cannot open moves to the approved "can't be opened" screen.
+            // A photo the editor cannot open (or can no longer read) moves to the approved "can't be opened" screen.
             LaunchedEffect(editorUi.phase, nav.base) {
-                if (nav.base == BaseScreen.EDITOR && editorUi.phase is EditorPhase.LoadFailed) shell.navigate(AppNavigator.showLoadFailed())
+                val failed = editorUi.phase is EditorPhase.LoadFailed || editorUi.phase is EditorPhase.PhotoAccessLost
+                if (nav.base == BaseScreen.EDITOR && failed) shell.navigate(AppNavigator.showLoadFailed())
             }
-            BackHandler(enabled = nav != AppNavState()) { if (!shell.back()) finish() }
+            BackHandler(enabled = nav != AppNavState()) {
+                // In the editor, Back is the editor's Close: it may ask "Leave without saving?" first.
+                if (nav.base == BaseScreen.EDITOR && nav.morePage == null) editor.close() else if (!shell.back()) finish()
+            }
 
             val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
                 // Cancel (null) changes nothing. openPhoto persists the read grant while it is valid.
@@ -166,7 +171,16 @@ class MainActivity : ComponentActivity() {
                                 openSupport = ::openSupportDestination,
                             ),
                         ),
-                        editor = { EditorScreen(editor, currentFolds.map { it.toWindowHinge() }) },
+                        editor = {
+                            EditorScreen(
+                                editor, layout,
+                                EditorActions(
+                                    more = { shell.navigate(AppNavigator.openMore(nav)) },
+                                    share = ::shareSavedCopy,
+                                    chooseAnother = choosePhoto,
+                                ),
+                            )
+                        },
                     )
                 }
             }
@@ -228,11 +242,18 @@ class MainActivity : ComponentActivity() {
 
     private fun versionLabel() = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
-    private fun FoldingFeature.toWindowHinge() = WindowHinge(
-        boundsInWindowPx = Rect(bounds.left.toFloat(), bounds.top.toFloat(), bounds.right.toFloat(), bounds.bottom.toFloat()),
-        isVertical = orientation == FoldingFeature.Orientation.VERTICAL,
-        separatesContent = isSeparating || state == FoldingFeature.State.HALF_OPENED,
-    )
+    /**
+     * Saved sheet › Share: the system share sheet with the saved copy, which already follows the
+     * metadata policy it was saved with. DEFERRED(slice 5): the approved share flow's own checks.
+     */
+    private fun shareSavedCopy(savedUri: String) {
+        val send = Intent(Intent.ACTION_SEND).setType("image/jpeg").putExtra(Intent.EXTRA_STREAM, Uri.parse(savedUri)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try {
+            startActivity(Intent.createChooser(send, null))
+        } catch (noHandler: ActivityNotFoundException) {
+            // Nothing can share it; the Saved sheet stays.
+        }
+    }
 }
 
 /**
@@ -250,12 +271,29 @@ internal class AppGraph private constructor(context: Context) {
     /** Parsed off the main thread (340 KB of JSON); the favourites page shows ids until it is ready. */
     val catalogue: StateFlow<PresetCatalogue> = catalogueState
 
+    /** Favourites are the slice-1 preference: Develop's star and Preferences › Favourite presets share them. */
+    private val favouritesStore = object : FavouritesStore {
+        private val state = MutableStateFlow(preferences.preferences.value.favouritePresetIds)
+        override val favourites: StateFlow<List<String>> = state
+
+        init {
+            CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+                preferences.preferences.collect { state.value = it.favouritePresetIds }
+            }
+        }
+
+        override fun update(change: (List<String>) -> List<String>) {
+            preferences.update { prefs -> prefs.copy(favouritePresetIds = change(prefs.favouritePresetIds).distinct().take(UserPreferences.MAX_FAVOURITES)) }
+        }
+    }
+
     val editorEnvironment: EditorEnvironment = run {
         val metrics = context.resources.displayMetrics
         AndroidEditorEnvironment.create(
             context,
             screenLongestPx = maxOf(metrics.widthPixels, metrics.heightPixels),
             metadataPolicy = { preferences.preferences.value.metadataPolicy },
+            favourites = favouritesStore,
         )
     }
 

@@ -1,88 +1,103 @@
 package com.lightlylabs.lightly.editor
 
 import android.content.Context
-import android.content.res.AssetManager
 import android.net.Uri
 import android.util.Log
+import com.lightlylabs.lightly.BuildConfig
 import com.lightlylabs.lightly.decode.ProxyDecoder
+import com.lightlylabs.lightly.develop.DevelopRenderer
 import com.lightlylabs.lightly.export.BitmapExportFrame
 import com.lightlylabs.lightly.export.BitmapFrameJpegEncoder
 import com.lightlylabs.lightly.export.ContentResolverGateway
 import com.lightlylabs.lightly.export.ExportCoordinator
 import com.lightlylabs.lightly.export.ExportMetadataStep
-import com.lightlylabs.lightly.export.MetadataPolicy
-import com.lightlylabs.lightly.export.PlatformExifMetadata
 import com.lightlylabs.lightly.export.MediaStoreGateway
+import com.lightlylabs.lightly.export.MetadataPolicy
 import com.lightlylabs.lightly.export.NewImageSpec
+import com.lightlylabs.lightly.export.PlatformExifMetadata
 import com.lightlylabs.lightly.export.SaveCopyExporter
-import com.lightlylabs.lightly.model.BasisRegistry
-import com.lightlylabs.lightly.model.RegistryAutoLutResolver
-import com.lightlylabs.lightly.render.lut.CpuLutPassRenderer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.asCoroutineDispatcher
 import java.io.File
-import java.io.FileNotFoundException
 import java.io.OutputStream
 import java.util.concurrent.Executors
 
 /**
- * Production wiring of [EditorEnvironment] for the M2 shell.
+ * Production wiring of [EditorEnvironment] for slice 2.
  *
  * Honest about what is missing:
- * - **Auto:** no inference engine ships (ONNX Runtime PENDING on device) and no basis LUT ships
- *   (the research basis must not be bundled), so develop reports DevelopFailed and the user
- *   continues with "Use original". Tests inject a fake model and a test basis instead.
- * - **Preview renderer:** the CPU reference ([CpuLutPassRenderer]) on the display proxy. The GLES
- *   renderer (:core-render-gl) is not wired until it has been validated on Adreno/Mali (PENDING);
- *   swapping it in only changes [EditorEnvironment.previewRenderer] and the render thread.
- * - **Looks:** the Look pack bundled under `assets/lookpack/` (see app/build.gradle.kts), loaded by
- *   [LookPackLoader]. Its LUTs are unvalidated approximations of the curated presets and omit
- *   spatial operators by design; the editor says so. A build made without the pack has no Looks.
+ * - **Auto:** no shippable model (dependency D1): every photo opens with the approved
+ *   "Automatic correction isn't available on this device. Presets still work." state.
+ * - **Rendering:** the CPU [DevelopRenderer] (core-develop) on the display proxy and, tile by tile,
+ *   on the full-resolution decode for Save copy. The GLES path (:core-render-gl) is not wired: it
+ *   implements only LUT passes and has not been validated on a GPU (PENDING), while Develop also
+ *   needs its spatial operators.
+ * - **Portrait visibility:** the person detector is a pending dependency (D3) — see [PendingPersonDetector].
  */
 object AndroidEditorEnvironment {
+    private const val LOG_TAG = "LightlyDevelop"
 
-    /** One thread owns rendering (it will own the EGL context once GL is wired). */
+    /** Preview renders run on one thread; their per-pixel work fans out on [workerPool]. */
     private val renderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-render") }.asCoroutineDispatcher()
+    private val prefetchDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-prefetch").apply { priority = Thread.MIN_PRIORITY } }.asCoroutineDispatcher()
+
+    /** Threads for bakes and row-parallel rendering: at most 4, leaving the UI thread a core. */
+    private val parallelism = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+    private val workerPool = Executors.newFixedThreadPool(parallelism) { runnable -> Thread(runnable, "lightly-develop-worker").apply { isDaemon = true } }
 
     /**
-     * @param metadataPolicy read when Save copy is tapped (Preferences › Keep photo metadata /
-     *   Include location), so the policy in force at the tap is the one the saved file follows.
+     * The display proxy's long edge: enough for every approved stage (the largest is a tablet's photo
+     * area), small enough for the CPU spatial operators to finish a committed preview interactively.
      */
-    fun create(context: Context, screenLongestPx: Int, metadataPolicy: () -> MetadataPolicy): EditorEnvironment {
-        val resolver = context.applicationContext.contentResolver
-        val decoder = ProxyDecoder()
+    const val PREVIEW_LONG_EDGE_PX = 1600
+
+    /** Wall-clock milliseconds the bundled manifest took to parse and index (debug benchmark). */
+    @Volatile var manifestParseMillis: Double = -1.0
+        private set
+
+    fun create(context: Context, screenLongestPx: Int, metadataPolicy: () -> MetadataPolicy, favourites: FavouritesStore): EditorEnvironment {
+        val app = context.applicationContext
+        val resolver = app.contentResolver
         val gateway = UriStringGateway(ContentResolverGateway(resolver))
+        val library = CoroutineScope(SupervisorJob() + Dispatchers.IO).async {
+            val manifest = app.assets.open(DevelopLibrary.ASSET_MANIFEST).use { it.readBytes().toString(Charsets.UTF_8) }
+            val contract = app.assets.open(DevelopLibrary.ASSET_CONTRACT).use { it.readBytes().toString(Charsets.UTF_8) }
+            DevelopLibrary.load(
+                manifest, contract, workerPool, parallelism,
+                parseMillis = { millis ->
+                    manifestParseMillis = millis
+                    Log.i(LOG_TAG, "manifest parse + index: ${"%.0f".format(millis)} ms")
+                },
+                onBake = { millis -> Log.i(LOG_TAG, "bake 33³: ${"%.1f".format(millis)} ms") },
+            )
+        }
+        val exportTileEdge = 1024
         return EditorEnvironment(
-            photoLoader = ContentResolverPhotoLoader(resolver, decoder, screenLongestPx),
+            photoLoader = ContentResolverPhotoLoader(resolver, ProxyDecoder(), minOf(screenLongestPx, PREVIEW_LONG_EDGE_PX), allowFileUris = BuildConfig.DEBUG),
             photoAccess = ContentResolverPhotoAccessGrants(resolver),
-            // DEFERRED: no production Auto model or inference engine is bundled; research (FiveK)
-            // weights must never ship. Until one exists every photo opens with Auto off.
+            // DEFERRED(D1): no production Auto model or inference engine is bundled; research weights must never ship.
             autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
-            autoResolver = RegistryAutoLutResolver(BasisRegistry(installed = emptyList())),
-            lookBook = loadBundledLookPack(context.applicationContext.assets),
-            previewRenderer = CpuLutPassRenderer,
+            personDetector = PendingPersonDetector,
+            library = library,
+            previewRenderer = DevelopRenderer(workerPool, parallelism),
             renderDispatcher = renderDispatcher,
+            prefetchDispatcher = prefetchDispatcher,
             exporter = ExportCoordinator(
-                renderer = CpuLutPassRenderer,
-                saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder(), metadataStep = metadataStep(context.applicationContext)),
+                saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder(), metadataStep = metadataStep(app)),
                 frameFactory = BitmapExportFrame.factory,
                 renderDispatcher = renderDispatcher,
+                maxTileEdge = exportTileEdge,
             ),
+            favourites = favourites,
+            debugBuild = BuildConfig.DEBUG,
+            exportTileEdge = exportTileEdge,
+            onPreviewRendered = { millis, globalOnly -> Log.i(LOG_TAG, "preview ${if (globalOnly) "drag" else "committed"}: ${"%.1f".format(millis)} ms") },
             newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },
         )
     }
-
-    /**
-     * Loads the whole pack eagerly (18 LUTs, about 10 MB of floats, sha256-checked) when the editor
-     * environment is first created. DEFERRED (M3): load off the main thread and decode LUTs lazily.
-     */
-    private fun loadBundledLookPack(assets: AssetManager): LookBook {
-        val book = LookPackLoader.load(AssetLookPackSource(assets))
-        book.unavailableReason?.let { Log.w(LOG_TAG, "Look pack unavailable: $it") }
-        book.problems.forEach { Log.w(LOG_TAG, "Look pack: $it") }
-        return book
-    }
-
-    private const val LOG_TAG = "LightlyLooks"
 
     /** EXIF copy for Save copy; the editor keys photos by URI string, the platform reader by Uri. */
     private fun metadataStep(context: Context): ExportMetadataStep<String> {
@@ -94,17 +109,6 @@ object AndroidEditorEnvironment {
             scratchDirectory = scratch,
         )
     }
-
-    /** Pack files live under `assets/lookpack/`, put there by the app's Gradle build. */
-    private class AssetLookPackSource(private val assets: AssetManager) : LookPackSource {
-        override fun read(relativePath: String): ByteArray? = try {
-            assets.open("$ASSET_ROOT/$relativePath").use { it.readBytes() }
-        } catch (missing: FileNotFoundException) {
-            null
-        }
-    }
-
-    private const val ASSET_ROOT = "lookpack"
 
     /** The editor keys assets by string; MediaStore by Uri. */
     private class UriStringGateway(private val delegate: ContentResolverGateway) : MediaStoreGateway<String> {

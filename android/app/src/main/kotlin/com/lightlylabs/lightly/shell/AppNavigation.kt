@@ -58,8 +58,9 @@ object AppNavigator {
     fun toWelcome() = AppNavState(base = BaseScreen.WELCOME)
 
     /**
-     * System Back. Returns null when Back should leave the app (Welcome with nothing open).
-     * DEFERRED(slice 5): leaving an editor with unsaved changes asks first (`leave-unsaved`).
+     * System Back. Returns null when Back should leave the app (Welcome with nothing open). In the
+     * editor with nothing open above it, the Activity asks the editor first (it may show the approved
+     * "Leave without saving?" dialog) and only then calls this.
      */
     fun back(state: AppNavState): AppNavState? {
         val page = state.morePage

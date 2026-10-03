@@ -1,23 +1,23 @@
 package com.lightlylabs.lightly.editor
 
 import android.graphics.Bitmap
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,356 +25,461 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.unit.Density
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lightlylabs.lightly.render.image.Rgba8Image
-import com.lightlylabs.lightly.session.LookRef
+import com.lightlylabs.lightly.shell.LightlyIcon
+import com.lightlylabs.lightly.shell.LightlyIcons
+import com.lightlylabs.lightly.shell.ShellLayout
+import com.lightlylabs.lightly.shell.lightlyColors
+import com.lightlylabs.lightly.shell.lightlyTextStyle
+import com.lightlylabs.lightly.shell.testTagResource
 import java.nio.ByteBuffer
-import kotlin.math.roundToInt
 
-/** A WindowManager FoldingFeature in window pixels; converted to the editor's own dp by the screen. */
-data class WindowHinge(val boundsInWindowPx: Rect, val isVertical: Boolean, val separatesContent: Boolean)
+/** What the editor asks of the shell: ⋮ More, the system share sheet, the photo picker. */
+class EditorActions(val more: () -> Unit, val share: (String) -> Unit, val chooseAnother: () -> Unit)
 
-/** Test tags for the Compose UI tests. */
+/** Stable tags for tests and the scripted emulator comparison. */
 object EditorTags {
-    const val PHOTO = "editor-photo"
-    const val PANEL = "editor-panel"
-    const val ORIGINAL_INDICATOR = "editor-original-indicator"
-    const val STOP_CAPTION = "editor-stop-caption"
-    const val STRENGTH = "editor-strength"
-    const val SAVE_COPY = "editor-save-copy"
-    const val NOTICES = "editor-notices"
+    const val CLOSE = "editor-close"
+    const val UNDO = "editor-undo"
+    const val REDO = "editor-redo"
+    const val COMPARE = "editor-compare"
+    const val SAVE = "editor-save"
+    const val MORE = "editor-more"
+    const val STAGE = "editor-stage"
+    const val RULER = "develop-ruler"
+    const val STAR = "develop-star"
+    const val AMOUNT = "develop-amount"
+    const val AUTO = "develop-auto"
+    fun tool(tool: EditorTool) = "tool-${tool.name.lowercase()}"
+    fun category(id: String) = "category-$id"
 }
 
 /**
- * Photo-first editor (spec §6): picker → preview → categories and stepped Looks → Strength →
- * Undo / Redo / Compare / Reset → Save copy. Placement comes from [EditorLayoutPolicy]: panel below
- * the photo on a compact portrait window, beside it otherwise, and never across a separating hinge.
- *
- * DEFERRED (M3/M4): the dirty-session "Discard edits?" dialog, crossfade, thumbnails, stop names
- * under every marker when they fit (only the current name is shown today), full TalkBack wording.
+ * The approved editor (prototype `editorHTML`) in every layout mode, or the approved "Opening photo…"
+ * screen while the session starts.
  */
 @Composable
-fun EditorScreen(viewModel: EditorViewModel, hinges: List<WindowHinge> = emptyList()) {
-    val ui by viewModel.uiState.collectAsStateWithLifecycle()
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        // openPhoto persists the read grant synchronously, while the picker's temporary grant is valid.
-        if (uri != null) viewModel.openPhoto(uri.toString())
-    }
-    val pickPhoto = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-    EditorContent(ui, viewModel, hinges, pickPhoto)
-}
-
-/** The screen without the picker launcher, so Robolectric UI tests can drive it directly. */
-@Composable
-fun EditorContent(ui: EditorUiState, viewModel: EditorViewModel, hinges: List<WindowHinge>, pickPhoto: () -> Unit) {
-    var originInWindow by remember { mutableStateOf(Offset.Zero) }
-    val density = LocalDensity.current
-    // targetSdk 36 is edge-to-edge: without the safe-drawing insets the photo sits under the status
-    // bar and the bottom row under the gesture handle (seen on the API 36 emulator).
-    BoxWithConstraints(
-        Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .onGloballyPositioned { originInWindow = it.positionInWindow() }
-            // Test tags double as resource IDs so the scripted emulator run (uiautomator) can find
-            // the photo, the slider markers and Save copy without pixel coordinates.
-            .semantics { testTagsAsResourceId = true },
-    ) {
-        val hinge = hinges.firstOrNull()?.toEditorHinge(originInWindow, density)
-        // The preview is decoded upright (EXIF applied), so its shape is the photo's displayed shape.
-        val photoAspectRatio = ui.preview?.let { it.width.toFloat() / it.height }
-        val layout = EditorLayoutPolicy.decide(maxWidth.value, maxHeight.value, density.fontScale, hinge, photoAspectRatio)
-        val availableHeight = maxHeight
-        val panelScroll = rememberScrollState()
-        val photo: @Composable (Modifier) -> Unit = { modifier -> PhotoArea(ui, modifier, viewModel::describeLook, viewModel::holdCompare) }
-        val panel: @Composable (Modifier) -> Unit = { modifier -> EditorPanel(ui, viewModel, pickPhoto, modifier, panelScroll) }
-        when (layout) {
-            is EditorLayout.Stacked -> Column(Modifier.fillMaxSize()) {
-                photo(Modifier.fillMaxWidth().weight(1f))
-                panel(Modifier.fillMaxWidth().heightIn(max = availableHeight * layout.panelMaxHeightFraction))
+fun EditorScreen(vm: EditorViewModel, shellLayout: ShellLayout, actions: EditorActions) {
+    val ui by vm.uiState.collectAsStateWithLifecycle()
+    val favourites by vm.favourites.collectAsStateWithLifecycle()
+    val colors = lightlyColors
+    BoxWithConstraints(Modifier.fillMaxSize().background(colors.bg)) {
+        val layout = EditorLayout.decide(shellLayout, maxWidth.value, maxHeight.value)
+        val insets = WindowInsets.safeDrawing.asPaddingValues()
+        val direction = LocalLayoutDirection.current
+        val frame = EditorFrame(
+            layout = layout,
+            top = insets.calculateTopPadding(),
+            bottom = insets.calculateBottomPadding(),
+            start = insets.calculateLeftPadding(direction),
+            end = insets.calculateRightPadding(direction),
+            foldDp = when (shellLayout) {
+                is ShellLayout.SplitVertical -> shellLayout.foldXDp
+                is ShellLayout.SplitHorizontal -> shellLayout.foldYDp
+                else -> null
+            },
+        )
+        when (ui.phase) {
+            EditorPhase.Ready -> {
+                val model = vm.panelModel(ui, favourites)
+                EditorContent(vm, ui, model, frame, actions)
+                EditorOverlays(vm, ui, model, frame, favourites, actions)
             }
-            is EditorLayout.SideBySide -> Row(Modifier.fillMaxSize()) {
-                val photoWidth = layout.photoWidthDp
-                photo(if (photoWidth != null) Modifier.width(photoWidth.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight())
-                if (layout.hingeGapDp > 0f) Spacer(Modifier.width(layout.hingeGapDp.dp))
-                panel(Modifier.width(layout.panelWidthDp.dp).fillMaxHeight())
-            }
-            is EditorLayout.AboveHinge -> Column(Modifier.fillMaxSize()) {
-                photo(Modifier.fillMaxWidth().height(layout.photoHeightDp.dp))
-                Spacer(Modifier.height(layout.hingeGapDp.dp))
-                panel(Modifier.fillMaxWidth().weight(1f))
-            }
+            EditorPhase.Developing -> LoadingScreen(vm, ui, frame, developing = true)
+            else -> LoadingScreen(vm, ui, frame, developing = false)
         }
     }
 }
 
-private fun WindowHinge.toEditorHinge(originInWindow: Offset, density: Density): EditorHinge = with(density) {
-    EditorHinge(
-        leftDp = (boundsInWindowPx.left - originInWindow.x).toDp().value,
-        topDp = (boundsInWindowPx.top - originInWindow.y).toDp().value,
-        rightDp = (boundsInWindowPx.right - originInWindow.x).toDp().value,
-        bottomDp = (boundsInWindowPx.bottom - originInWindow.y).toDp().value,
-        isVertical = isVertical,
-        separatesContent = separatesContent,
-    )
-}
-
-/**
- * The controls: a scrolling area, then Save copy pinned below it. Save copy sits outside the scroll
- * so it is visible without scrolling in every layout and state; in the scrolling panel a Strength
- * slider or an extra notice pushed it below the visible panel (d5690dd review screenshot). The
- * scrolling part takes only what is left (weight, fill = false), so a short panel still wraps.
- */
-@Composable
-private fun EditorPanel(ui: EditorUiState, viewModel: EditorViewModel, pickPhoto: () -> Unit, modifier: Modifier, scroll: ScrollState) {
-    Column(modifier.testTag(EditorTags.PANEL)) {
-        ScrollingControls(ui, viewModel, pickPhoto, Modifier.weight(1f, fill = false), scroll)
-        if (ui.phase == EditorPhase.Ready && ui.session != null) SaveCopyButton(ui, viewModel)
-    }
-}
-
-/** The one prominent action: full width, filled, never scrolled away. */
-@Composable
-private fun SaveCopyButton(ui: EditorUiState, viewModel: EditorViewModel) {
-    Button(
-        onClick = { viewModel.saveCopy() },
-        enabled = ui.save != SaveStatus.Saving,
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp).testTag(EditorTags.SAVE_COPY),
-    ) { Text("Save copy") }
-}
+/** The window's layout plus its system insets and the fold position (dp from the window's top/left). */
+data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, val start: Dp, val end: Dp, val foldDp: Float?)
 
 @Composable
-private fun ScrollingControls(ui: EditorUiState, viewModel: EditorViewModel, pickPhoto: () -> Unit, modifier: Modifier, scroll: ScrollState) {
-    Column(
-        modifier.verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        when (val phase = ui.phase) {
-            EditorPhase.Empty -> {
-                Text("Choose a photo to start editing. Your original is never changed.", style = MaterialTheme.typography.bodyMedium)
-                Button(onClick = pickPhoto, modifier = Modifier.fillMaxWidth()) { Text("Choose a photo") }
-            }
-            EditorPhase.Loading -> Text("Opening photo…")
-            EditorPhase.Developing -> Text("Enhancing…")
-            is EditorPhase.LoadFailed -> {
-                Text(phase.message, color = MaterialTheme.colorScheme.error)
-                Button(onClick = pickPhoto) { Text("Choose another") }
-            }
-            EditorPhase.PhotoAccessLost -> {
-                Text("Lightly can no longer open this photo. Choose it again to keep editing.", color = MaterialTheme.colorScheme.error)
-                Button(onClick = pickPhoto) { Text("Choose the photo again") }
-            }
-            // Only a genuine Auto failure offers Retry; a build without a model goes straight to Ready.
-            is EditorPhase.DevelopFailed -> {
-                Text("Couldn't enhance. ${phase.message}", color = MaterialTheme.colorScheme.error)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = viewModel::retryDevelop) { Text("Retry") }
-                    Button(onClick = viewModel::useOriginal) { Text("Continue with original") }
+private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
+    val layout = frame.layout
+    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier) }
+    val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
+    val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
+    Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
+        when (layout.mode) {
+            EditorMode.BELOW, EditorMode.WIDE -> {
+                Spacer(Modifier.height(frame.top))
+                EditorTopBar(vm, ui, actions)
+                stage(Modifier.weight(1f).fillMaxWidth())
+                val wide = layout.mode == EditorMode.WIDE
+                // The panel never takes more than its share of the height: it scrolls, so the photo stays dominant.
+                val maxPanel = (layout.heightDp * if (wide) 0.3f else 0.34f).let { kotlin.math.round(it) }.dp
+                Column(Modifier.fillMaxWidth()) {
+                    Column(
+                        Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .then(if (wide) Modifier.widthIn(max = layout.contentWidthDp.dp).fillMaxWidth().padding(top = 4.dp) else Modifier.fillMaxWidth())
+                            .heightIn(max = maxPanel)
+                            .verticalScroll(rememberScrollState()),
+                    ) { panel(false, wide) }
+                    tools(if (wide) DockKind.FITS else DockKind.SCROLLS)
+                    Spacer(Modifier.height(frame.bottom))
                 }
             }
-            EditorPhase.Ready -> ReadyControls(ui, viewModel, pickPhoto)
-        }
-    }
-}
-
-@Composable
-private fun ReadyControls(ui: EditorUiState, viewModel: EditorViewModel, pickPhoto: () -> Unit) {
-    val session = ui.session ?: return
-    StatusNotices(ui, viewModel)
-
-    val selectedCategory = viewModel.categories.firstOrNull { it.id == ui.selectedCategory }
-    if (selectedCategory == null) {
-        // The build was made without a Look pack, or its manifest was unusable (LookPackLoader).
-        Text(LookBook.NO_LOOKS_NOTICE, style = MaterialTheme.typography.bodySmall)
-    } else {
-        LookControls(ui, viewModel, selectedCategory)
-    }
-
-    EditActions(ui, viewModel, canUndo = session.canUndo, canRedo = session.canRedo)
-
-    // Save copy is pinned below this scrolling area (EditorPanel); the secondary action scrolls.
-    TextButton(onClick = pickPhoto) { Text("Choose another photo") }
-}
-
-/**
- * Short, small notices in one place: a Look that does not render (with its one action), why Auto
- * is off, the pack's approximation status, and the save result.
- */
-@Composable
-private fun StatusNotices(ui: EditorUiState, viewModel: EditorViewModel) {
-    val autoNotice = when (val status = ui.autoStatus) {
-        is AutoStatus.Unavailable -> status.notice
-        AutoStatus.UsingOriginal -> AutoStatus.UsingOriginal.NOTICE
-        AutoStatus.NoModelInThisBuild -> AutoStatus.NoModelInThisBuild.NOTICE
-        else -> null
-    }
-    val saveLine: Pair<String, Boolean>? = when (val save = ui.save) {
-        SaveStatus.Saving -> "Saving…" to false
-        is SaveStatus.Saved -> "Saved as a new photo. Original unchanged." to false
-        is SaveStatus.Failed -> "Couldn't save: ${save.message}" to true
-        else -> null
-    }
-    val approximation = viewModel.lookApproximationNotice
-    if (autoNotice == null && ui.lookIssue == null && approximation == null && saveLine == null) return
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth().testTag(EditorTags.NOTICES),
-    ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            ui.lookIssue?.let { issue ->
-                Text(issue.notice, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                if (issue.offersCurrentVersion) TextButton(onClick = viewModel::useCurrentLookVersion) { Text(LookIssue.USE_CURRENT_VERSION) }
+            EditorMode.SIDE -> {
+                Spacer(Modifier.height(frame.top))
+                EditorTopBar(vm, ui, actions)
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    stage(Modifier.weight(1f).fillMaxHeight())
+                    Column(
+                        Modifier.width(layout.panelWidthDp.dp).fillMaxHeight().hairlineStart(lightlyColors.hair).verticalScroll(rememberScrollState()),
+                    ) { panel(true, false) }
+                    tools(DockKind.RAIL)
+                }
+                Spacer(Modifier.height(frame.bottom))
             }
-            autoNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            approximation?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
-            saveLine?.let { (text, isError) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                        // Spec §5.4: success is announced politely, failure assertively.
-                        modifier = Modifier.weight(1f).semantics { liveRegion = if (isError) LiveRegionMode.Assertive else LiveRegionMode.Polite },
-                    )
-                    if (ui.save == SaveStatus.Saving) TextButton(onClick = viewModel::cancelSave) { Text("Cancel") }
+            EditorMode.SPLIT_V -> {
+                val half = ((frame.foldDp ?: (layout.widthDp / 2)) - frame.start.value).dp
+                Spacer(Modifier.height(frame.top))
+                // Top bar split at the fold: history and compare over the photo, Save copy and ⋮ over the panel.
+                Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.width(half).padding(start = 6.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TopBarLeft(vm, ui)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TopBarRight(vm, actions)
+                }
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    stage(Modifier.width(half).fillMaxHeight())
+                    Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) { panel(true, false) }
+                    tools(DockKind.RAIL)
+                }
+                Spacer(Modifier.height(frame.bottom))
+            }
+            EditorMode.SPLIT_H -> {
+                // The whole upper half above the fold is photo; actions, controls and tools share the lower half.
+                val fold = (frame.foldDp ?: (layout.heightDp / 2)).dp
+                Column(Modifier.height(fold).fillMaxWidth()) {
+                    Spacer(Modifier.height(frame.top))
+                    stage(Modifier.weight(1f).fillMaxWidth())
+                }
+                Column(Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp)) {
+                    EditorTopBar(vm, ui, actions)
+                    Column(Modifier.weight(1f).fillMaxWidth()) {
+                        Column(
+                            Modifier.align(Alignment.CenterHorizontally).widthIn(max = layout.contentWidthDp.dp).fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                        ) { panel(false, false) }
+                        tools(DockKind.FITS)
+                    }
+                    Spacer(Modifier.height(frame.bottom))
                 }
             }
         }
     }
 }
 
+// --- top bar ----------------------------------------------------------------------------------------
+
 @Composable
-private fun LookControls(ui: EditorUiState, viewModel: EditorViewModel, selectedCategory: LookCategory) {
-    // Labels come from the pack and are provisional; the chip is keyed by the opaque category id.
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        viewModel.categories.forEach { category ->
-            FilterChip(selected = category.id == selectedCategory.id, onClick = { viewModel.selectCategory(category.id) }, label = { Text(category.label) })
-        }
-    }
-
-    // "Nordic Tone (10) · 3 of 5": the name wraps rather than clipping at large text (spec §6).
-    Text(viewModel.stopCaption(selectedCategory.id), style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag(EditorTags.STOP_CAPTION))
-    SteppedLookSlider(
-        stopNames = viewModel.sliderStopNames(selectedCategory.id),
-        selectedStop = viewModel.stopIndex,
-        categoryLabel = selectedCategory.label,
-        onMove = viewModel::onStopChanged,
-        onSettle = viewModel::onStopSettled,
-    )
-
-    // Secondary: only for a committed Look that renders.
-    val activeLook = ui.session?.current?.look
-    if (activeLook != null && viewModel.showsStrength) {
-        // While another preset is previewed, the photo shows it at 100% (spec Strength rule), so the
-        // label follows the displayed preset. A Strength drag previews the SAME preset and keeps the
-        // committed value as the slider's anchor; its live value comes from the slider itself.
-        val previewedOther = ui.displayed?.look?.takeIf { it.lookId != activeLook.lookId }
-        StrengthSlider(committed = (previewedOther ?: activeLook).strength, onPreview = viewModel::previewLookStrength, onCommit = viewModel::commitLookStrength)
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun EditActions(ui: EditorUiState, viewModel: EditorViewModel, canUndo: Boolean, canRedo: Boolean) {
-    // Wraps instead of scrolling: in one scrolling row an action was off screen on a phone.
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = viewModel::undo, enabled = canUndo) { Text("Undo") }
-        OutlinedButton(onClick = viewModel::redo, enabled = canRedo) { Text("Redo") }
-        FilterChip(selected = ui.compareOn, onClick = { viewModel.setCompare(!ui.compareOn) }, label = { Text("Compare") })
-        OutlinedButton(onClick = viewModel::resetToAuto, enabled = viewModel.canReset) { Text("Reset") }
+private fun EditorTopBar(vm: EditorViewModel, ui: EditorUiState, actions: EditorActions) {
+    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        TopBarLeft(vm, ui)
+        Spacer(Modifier.weight(1f))
+        TopBarRight(vm, actions)
     }
 }
 
 @Composable
-private fun PhotoArea(ui: EditorUiState, modifier: Modifier, describeLook: (LookRef) -> String, onHold: (Boolean) -> Unit) {
-    val description = when {
-        // Before a session exists (Loading / DevelopFailed) the preview already shows the Original.
-        ui.displayed == null && ui.preview != null -> "Photo, original"
-        ui.displayed == null -> "No photo"
-        ui.showsOriginal -> "Photo, original"
-        else -> {
-            val base = if (ui.autoStatus is AutoStatus.Applied) "Photo, enhanced automatically" else "Photo, auto enhancement unavailable"
-            // A Look that does not render is not described as applied.
-            ui.displayed?.look?.takeIf { ui.lookIssue == null }?.let { "$base, ${describeLook(it)}" } ?: base
-        }
-    }
-    val bitmap = remember(ui.preview) { ui.preview?.toBitmap()?.asImageBitmap() }
+private fun TopBarLeft(vm: EditorViewModel, ui: EditorUiState) {
+    // Android: the back arrow closes the editor (prototype closeIcon: backA, label "Back").
+    BarIcon(LightlyIcons.BackArrow, "Back", vm::close, tag = EditorTags.CLOSE)
+    BarIcon(LightlyIcons.Undo, "Undo", vm::undo, enabled = ui.canUndo, tag = EditorTags.UNDO)
+    BarIcon(LightlyIcons.Redo, "Redo", vm::redo, enabled = ui.canRedo, tag = EditorTags.REDO)
+    CompareButton(vm, ui)
+}
+
+@Composable
+private fun TopBarRight(vm: EditorViewModel, actions: EditorActions) {
+    val colors = lightlyColors
+    // `.save`: min-height 44, padding 0 14, radius 9, ink fill, weight 600, margin 0 4.
     Box(
-        modifier
-            .testTag(EditorTags.PHOTO)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .semantics { contentDescription = description }
-            // Press and hold shows the Original (spec §2.6); the Compare chip is the non-hold toggle.
-            .pointerInput(Unit) { detectTapGestures(onPress = { onHold(true); tryAwaitRelease(); onHold(false) }) },
+        Modifier
+            .padding(horizontal = 4.dp)
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(colors.ink)
+            .clickable(role = Role.Button, onClick = vm::saveCopy)
+            .testTagResource(EditorTags.SAVE)
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        if (bitmap != null) Image(bitmap, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-        else Text(if (ui.phase == EditorPhase.Empty) "No photo" else "")
-        if (ui.showsOriginal && ui.session != null) {
-            // On the photo itself, so the Original is never mistaken for the edit (spec §2.6).
-            Surface(
-                color = MaterialTheme.colorScheme.inverseSurface,
-                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                shape = RoundedCornerShape(50),
-                modifier = Modifier.align(Alignment.TopStart).padding(12.dp).testTag(EditorTags.ORIGINAL_INDICATOR),
-            ) { Text("Original", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) }
+        Text("Save copy", style = lightlyTextStyle(15.sp, FontWeight.SemiBold, colors.bg), maxLines = 1)
+    }
+    BarIcon(LightlyIcons.More, "More", actions.more, tag = EditorTags.MORE)
+}
+
+/** `.ib`: 44 dp, radius 10; disabled icons are ink3. */
+@Composable
+private fun BarIcon(icon: ImageVector, description: String, onClick: () -> Unit, enabled: Boolean = true, tag: String) {
+    val colors = lightlyColors
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description }
+            .testTagResource(tag),
+        contentAlignment = Alignment.Center,
+    ) { LightlyIcon(icon, tint = if (enabled) colors.ink else colors.ink3) }
+}
+
+/**
+ * Hold to compare: the original shows while a finger is down. For TalkBack and switch access the same
+ * button is a toggle (double-tap shows the original until double-tapped again).
+ */
+@Composable
+private fun CompareButton(vm: EditorViewModel, ui: EditorUiState) {
+    val colors = lightlyColors
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    vm.holdCompare(true)
+                    waitForUpOrCancellation()
+                    vm.holdCompare(false)
+                }
+            }
+            .semantics {
+                contentDescription = "Hold to compare with the original"
+                role = Role.Switch
+                stateDescription = if (ui.compareToggled) "Showing the original" else "Showing your edit"
+                onClick(label = "Toggle the original") { vm.toggleCompare(); true }
+            }
+            .testTagResource(EditorTags.COMPARE),
+        contentAlignment = Alignment.Center,
+    ) { LightlyIcon(LightlyIcons.Compare, tint = if (ui.showsOriginal) colors.sel else colors.ink) }
+}
+
+// --- photo stage ------------------------------------------------------------------------------------
+
+/** Rgba8Image bytes are ARGB_8888's memory order (R, G, B, A), so they copy straight into a Bitmap. */
+internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { it.copyPixelsFromBuffer(ByteBuffer.wrap(pixels)) }
+
+/**
+ * `.stage`: the canvas colour, the photo contain-fitted (never cropped). With Compare, the original and
+ * the "Original" badge at the photo's top-left corner.
+ */
+@Composable
+private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}) {
+    val colors = lightlyColors
+    val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
+    BoxWithConstraints(modifier.background(colors.canvas).testTagResource(EditorTags.STAGE), contentAlignment = Alignment.Center) {
+        if (image != null) {
+            val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
+            val ratio = image.width.toFloat() / image.height
+            val width = minOf(maxWidth.value, maxHeight.value * ratio)
+            Box(Modifier.size(width.dp, (width / ratio).dp)) {
+                Image(bitmap, contentDescription = if (ui.showsOriginal) "The original photo" else "Your photo with the edit", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                if (ui.showsOriginal) {
+                    Text(
+                        "Original",
+                        style = lightlyTextStyle(12.5.sp, FontWeight.SemiBold, Color.White),
+                        modifier = Modifier.padding(10.dp).background(Color(0x8C000000), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 3.dp),
+                    )
+                }
+                overlay()
+            }
+        }
+        ui.toast?.let { text ->
+            Text(
+                text,
+                style = lightlyTextStyle(13.5.sp, color = Color.White),
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).background(Color(0xE61C1C1E), RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+            )
         }
     }
 }
 
+/** `.progress`: the dark box centred on the photo with a spinner, the label and a progress bar. */
 @Composable
-private fun StrengthSlider(committed: Float, onPreview: (Float) -> Unit, onCommit: (Float) -> Unit) {
-    var dragging by remember(committed) { mutableFloatStateOf(committed) }
-    Column(Modifier.testTag(EditorTags.STRENGTH)) {
-        Text("Strength ${(dragging * 100).roundToInt()}%", style = MaterialTheme.typography.labelMedium)
-        Slider(
-            value = dragging,
-            onValueChange = { value -> dragging = value; onPreview(value) },
-            // Release commits exactly one step (spec §3).
-            onValueChangeFinished = { onCommit(dragging) },
-            modifier = Modifier.systemGestureExclusion(),
-        )
+internal fun ProgressBox(label: String, detail: String?, barFraction: Float, cancel: (() -> Unit)? = null) {
+    // Content-sized (min 200 dp): the bar spans the box, not the photo.
+    Column(
+        Modifier.width(IntrinsicSize.Max).widthIn(min = 200.dp).background(Color(0xB8141416), RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.padding(bottom = 8.dp).size(22.dp).drawBehind {
+            val stroke = 2.5.dp.toPx()
+            drawCircle(Color(0x59FFFFFF), radius = size.minDimension / 2 - stroke / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+            drawArc(Color.White, -135f, 90f, useCenter = false, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
+                topLeft = Offset(stroke / 2, stroke / 2), size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke))
+        })
+        Text(label, style = lightlyTextStyle(14.sp, color = Color.White))
+        if (detail != null) Text(detail, style = lightlyTextStyle(13.sp, color = Color.White.copy(alpha = 0.75f)))
+        Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF))) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(barFraction).background(Color.White))
+        }
+        if (cancel != null) {
+            Box(Modifier.padding(top = 6.dp).heightIn(min = 44.dp).widthIn(min = 64.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = cancel).padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+                Text("Cancel", style = lightlyTextStyle(15.sp, FontWeight.SemiBold, Color.White))
+            }
+        }
     }
 }
 
-private fun Rgba8Image.toBitmap(): Bitmap =
-    Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { it.copyPixelsFromBuffer(ByteBuffer.wrap(pixels)) }
+/**
+ * Prototype `loadingHTML`: Cancel (the back arrow), the photo with "Opening photo…" (or "Developing…"
+ * while a real Auto model runs), and the space the controls will take.
+ */
+@Composable
+private fun LoadingScreen(vm: EditorViewModel, ui: EditorUiState, frame: EditorFrame, developing: Boolean) {
+    val layout = frame.layout
+    val box: @Composable () -> Unit = {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (developing) ProgressBox("Developing…", "Applying thoughtful enhancements.", 0.7f) else ProgressBox("Opening photo…", null, 0.3f)
+        }
+    }
+    Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
+        Spacer(Modifier.height(frame.top))
+        Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            BarIcon(LightlyIcons.BackArrow, "Cancel", vm::discardAndLeave, tag = EditorTags.CLOSE)
+        }
+        val stageModifier = when (layout.mode) {
+            EditorMode.SPLIT_V -> Modifier.weight(1f).padding(end = (layout.widthDp / 2).dp)
+            EditorMode.SPLIT_H -> Modifier.height(((frame.foldDp ?: (layout.heightDp / 2)) - frame.top.value - 48f).dp)
+            else -> Modifier.weight(1f)
+        }.fillMaxWidth()
+        Stage(ui.copy(preview = null, compareHeld = false, compareToggled = false, toast = null), stageModifier, overlay = box)
+        if (ui.original == null) Box(Modifier.fillMaxWidth()) {}
+        val below = when (layout.mode) {
+            EditorMode.SIDE, EditorMode.SPLIT_V -> 20.dp
+            EditorMode.SPLIT_H -> ((layout.heightDp / 2) - frame.bottom.value).dp
+            else -> 120.dp
+        }
+        if (layout.mode == EditorMode.SPLIT_H) Spacer(Modifier.weight(1f)) else Spacer(Modifier.height(below))
+        Spacer(Modifier.height(frame.bottom))
+    }
+}
+
+// --- tool panel and navigation ---------------------------------------------------------------------
+
+@Composable
+private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, roomy: Boolean, wrapped: Boolean) {
+    if (ui.tool == EditorTool.DEVELOP) {
+        if (model != null) DevelopPanel(vm, model, roomy, wrapped)
+    } else {
+        ToolStub(ui.tool, roomy)
+    }
+}
+
+enum class DockKind { SCROLLS, FITS, RAIL }
+
+@Composable
+private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
+    val colors = lightlyColors
+    val used = ui.session?.current?.look != null
+    val items: @Composable () -> Unit = {
+        ui.tools.forEach { tool -> ToolItem(tool, selected = tool == ui.tool, used = tool == EditorTool.DEVELOP && used, rail = kind == DockKind.RAIL) { vm.selectTool(tool) } }
+    }
+    when (kind) {
+        DockKind.RAIL -> Column(
+            Modifier.width(84.dp).fillMaxHeight().hairlineStart(colors.hair).semantics { contentDescription = "Tools" },
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+        ) { items() }
+        DockKind.FITS -> Row(
+            Modifier.fillMaxWidth().hairlineTop(colors.hair).padding(start = 4.dp, end = 4.dp, top = 2.dp).semantics { contentDescription = "Tools" },
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        ) { items() }
+        DockKind.SCROLLS -> Row(
+            Modifier
+                .fillMaxWidth()
+                .hairlineTop(colors.hair)
+                .fadeEnd()
+                .horizontalScroll(rememberScrollState())
+                .padding(start = 4.dp, end = 4.dp, top = 2.dp)
+                .semantics { contentDescription = "Tools" },
+        ) { items() }
+    }
+}
+
+@Composable
+private fun ToolItem(tool: EditorTool, selected: Boolean, used: Boolean, rail: Boolean, onClick: () -> Unit) {
+    val colors = lightlyColors
+    val icon = when (tool) {
+        EditorTool.DEVELOP -> LightlyIcons.Develop
+        EditorTool.BACKGROUND -> LightlyIcons.Background
+        EditorTool.PORTRAIT -> LightlyIcons.Portrait
+        EditorTool.EDIT -> LightlyIcons.Edit
+        EditorTool.EFFECTS -> LightlyIcons.Effects
+        EditorTool.WATERMARK -> LightlyIcons.Watermark
+        EditorTool.BORDER -> LightlyIcons.Border
+    }
+    Column(
+        Modifier
+            .then(if (rail) Modifier.fillMaxWidth().heightIn(min = 62.dp) else Modifier.width(76.dp).heightIn(min = 56.dp))
+            .clickable(role = Role.Tab, onClick = onClick)
+            .semantics { this.selected = selected }
+            .testTagResource(EditorTags.tool(tool)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+    ) {
+        LightlyIcon(icon, tint = if (selected) colors.sel else colors.ink3)
+        Text(tool.label, style = lightlyTextStyle(11.sp, FontWeight.Medium, if (selected) colors.ink else colors.ink3), maxLines = 1)
+        if (used) Box(Modifier.padding(top = 1.dp).size(4.dp).background(if (selected) colors.sel else colors.ink3, CircleShape))
+    }
+}
+
+// --- small drawing helpers -------------------------------------------------------------------------
+
+internal fun Modifier.hairlineTop(color: Color) = drawBehind { drawLine(color, Offset(0f, 0.5f), Offset(size.width, 0.5f), strokeWidth = 1.dp.toPx()) }
+
+internal fun Modifier.hairlineStart(color: Color) = drawBehind { drawLine(color, Offset(0.5f, 0f), Offset(0.5f, size.height), strokeWidth = 1.dp.toPx()) }
+
+/** `.dock.scrolls`: mask fading the last 14 % to transparent. */
+private fun Modifier.fadeEnd() = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+    drawContent()
+    drawRect(Brush.horizontalGradient(0.86f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+}
+
+@Composable
+internal fun ColumnScope.PanelTitle(text: String) {
+    Text(text, style = lightlyTextStyle(13.sp, FontWeight.SemiBold, lightlyColors.ink2), modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 4.dp))
+}
