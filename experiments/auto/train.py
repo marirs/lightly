@@ -10,8 +10,10 @@ Contract obeyed during training (spec.md section 4.6, plan section 2):
 
 Data sources:
   * procedural (default): lightly_auto.synthetic scenes + plan section 4(a) degradations. Plumbing only.
-  * manifest:<csv>: DEFERRED - not implemented until licensed T1/T2 data exists. The rights gate
-    (manifest.assert_training_rights) is already enforced for it.
+  * manifest:<csv>: real reference photos (rows with split train / validation) + the same degradations.
+    The rights gate (manifest.assert_training_rights) runs first and refuses DEV-22, FiveK, frozen-eval
+    rows and rows without a documented 'train' permission. Rows of any other split (e.g. a held-out set)
+    are ignored, never loaded.
 
 Outputs runs/<run-id>/ (git-ignored): classifier.pt, basis_luts.npy, run_card.json, train_log.csv.
 """
@@ -40,6 +42,11 @@ from lightly_auto.manifest import assert_training_rights, load_manifest
 from lightly_auto.paths import REPO_ROOT, RUNS_DIR, ia3dlut as ia
 
 SMOKE_ARM_LABEL = "Pipeline smoke model (procedural synthetic scenes) - plumbing only, NOT an AI Auto candidate"
+PHOTO_ARM_LABEL = ("Stage (a) research candidate: self-supervised on CC0/PD reference photos - "
+                   "NOT released, NOT validated as AI Auto (ship gates S1-S5 not met)")
+# Training photos are resized once to a fixed square (aspect ignored, exactly as the deployment resize ignores
+# aspect) so batches stack. 320 > 256 keeps the classifier's antialiased resize a real downscale.
+PHOTO_TRAIN_SIZE = 320
 
 
 class ContractModel(nn.Module):
@@ -96,11 +103,29 @@ def build_procedural_data(count: int, seed: int) -> np.ndarray:
     return np.stack([synthetic.procedural_scene(rng) for _ in range(count)])
 
 
-def make_validation_pairs(scenes: np.ndarray, seed: int, components: tuple = synthetic.ALL_COMPONENTS):
+def load_photo_split(rows: list[dict], split: str, size: int = PHOTO_TRAIN_SIZE) -> np.ndarray:
+    """Decode, verify and resize every row of one split. Integrity is checked against the manifest sha256, so
+    the run provably used the pinned bytes."""
+    from PIL import Image
+    from lightly_auto.manifest import file_sha256, resolve_source
+    images = []
+    for row in rows:
+        if row["split"] != split:
+            continue
+        path = resolve_source(row)
+        if file_sha256(path) != row["sha256"]:
+            raise RuntimeError(f"{row['image_id']}: sha256 mismatch against manifest")
+        image = Image.open(path).convert("RGB").resize((size, size), Image.LANCZOS)
+        images.append(np.asarray(image))
+    return np.stack(images)
+
+
+def make_validation_pairs(scenes: np.ndarray, seed: int, components: tuple = synthetic.ALL_COMPONENTS,
+                          identity_probability: float = synthetic.IDENTITY_SAMPLE_PROBABILITY):
     rng = np.random.default_rng(seed)
     pairs = []
     for scene in scenes:
-        degradation = synthetic.sample_degradation(rng, components)
+        degradation = synthetic.sample_degradation(rng, components, identity_probability)
         pairs.append((synthetic.apply_degradation(scene, degradation), scene, degradation.identity))
     return pairs
 
@@ -171,6 +196,8 @@ def main(argv=None) -> dict:
     # Small on purpose: inverting a synthetic WB shift legitimately rotates warm hues, so a strong hinge
     # would fight the stage (a) objective. Stage (b) on real photos is where it is meant to bite.
     parser.add_argument("--lambda-warm-hue", type=float, default=0.01)
+    parser.add_argument("--identity-prob", type=float, default=synthetic.IDENTITY_SAMPLE_PROBABILITY)
+    parser.add_argument("--val-every", type=int, default=500)
     parser.add_argument("--runs-dir", default=RUNS_DIR)
     args = parser.parse_args(argv)
 
@@ -178,17 +205,29 @@ def main(argv=None) -> dict:
     torch.set_num_threads(args.threads)  # shared machine: keep the run modest
     seed_everything(args.seed)
 
-    if args.data.startswith("manifest:"):
-        rows = load_manifest(args.data[len("manifest:"):])
-        assert_training_rights(rows)  # refuses DEV-22, FiveK, frozen-eval rows, and rows without 'train'
-        raise NotImplementedError("DEFERRED: photo-manifest training waits for licensed T1/T2 data (plan section 3)")
-    if args.data != "procedural":
-        raise ValueError(args.data)
     components = synthetic.ALL_COMPONENTS if args.degradations == "all" else tuple(args.degradations.split(","))
-
     started = time.time()
-    train_scenes = build_procedural_data(args.scenes, seed=10_000 + args.seed)
-    val_pairs = make_validation_pairs(build_procedural_data(args.val_scenes, seed=20_000 + args.seed), seed=30_000 + args.seed, components=components)
+    manifest_info = None
+    if args.data.startswith("manifest:"):
+        manifest_path = args.data[len("manifest:"):]
+        all_rows = load_manifest(manifest_path)
+        used_rows = [r for r in all_rows if r["split"] in ("train", "validation")]
+        assert_training_rights(used_rows)  # refuses DEV-22, FiveK, frozen-eval rows, and rows without 'train'
+        train_scenes = load_photo_split(used_rows, "train")
+        val_scenes = load_photo_split(used_rows, "validation")
+        from lightly_auto.manifest import file_sha256, manifest_hash
+        manifest_info = {"path": os.path.relpath(os.path.abspath(manifest_path), REPO_ROOT),
+                         "file_sha256": file_sha256(manifest_path), "rows_hash_train_validation": manifest_hash(used_rows),
+                         "n_train": len(train_scenes), "n_validation": len(val_scenes),
+                         "source_tiers": sorted({r["source_tier"] for r in used_rows}),
+                         "ignored_rows_other_splits": len(all_rows) - len(used_rows)}
+    elif args.data == "procedural":
+        train_scenes = build_procedural_data(args.scenes, seed=10_000 + args.seed)
+        val_scenes = build_procedural_data(args.val_scenes, seed=20_000 + args.seed)
+    else:
+        raise ValueError(args.data)
+    val_pairs = make_validation_pairs(val_scenes, seed=30_000 + args.seed, components=components,
+                                      identity_probability=args.identity_prob)
     data_seconds = time.time() - started
 
     model = ContractModel()
@@ -208,7 +247,8 @@ def main(argv=None) -> dict:
         degraded, clean = [], []
         for index in indices:
             scene = train_scenes[index]
-            degraded.append(synthetic.apply_degradation(scene, synthetic.sample_degradation(degradation_rng, components)))
+            degraded.append(synthetic.apply_degradation(
+                scene, synthetic.sample_degradation(degradation_rng, components, args.identity_prob)))
             clean.append(scene)
         inputs, targets = to_tensor(degraded), to_tensor(clean)
         flat_inputs, flat_targets = inputs.flatten(2), targets.flatten(2)
@@ -233,32 +273,57 @@ def main(argv=None) -> dict:
                    "psnr_db": float(-10 * torch.log10(reconstruction)), "elapsed_s": round(time.time() - train_started, 1)}
             log_rows.append(row)
             print(" ".join(f"{k}={v:.4g}" if isinstance(v, float) else f"{k}={v}" for k, v in row.items()), flush=True)
-        if step % 500 == 0 and step != args.steps:
+        if step % args.val_every == 0 and step != args.steps:
             validation_history.append({"step": step, **validate(model, val_pairs)})
+            # Keep the best checkpoint by validation median dE00 (validation split only; held-out sets never
+            # take part in selection).
+            if validation_history[-1]["output_vs_clean_dE00_median"] <= min(
+                    v["output_vs_clean_dE00_median"] for v in validation_history[1:]):
+                torch.save(model.classifier.state_dict(), os.path.join(run_dir, "best_classifier.pt"))
+                np.save(os.path.join(run_dir, "best_basis_luts.npy"), model.basis.detach().numpy().astype(np.float32))
     validation_history.append({"step": args.steps, **validate(model, val_pairs)})
 
     model.eval()
-    torch.save(model.classifier.state_dict(), os.path.join(run_dir, "classifier.pt"))
-    np.save(os.path.join(run_dir, "basis_luts.npy"), model.basis.detach().numpy().astype(np.float32))
+    torch.save(model.classifier.state_dict(), os.path.join(run_dir, "last_classifier.pt"))
+    np.save(os.path.join(run_dir, "last_basis_luts.npy"), model.basis.detach().numpy().astype(np.float32))
+    # The exported model (classifier.pt / basis_luts.npy) is the checkpoint with the lowest VALIDATION median
+    # dE00 among the periodic checks and the final step. Smoke runs keep the final step, as before.
+    scored = [v for v in validation_history[1:] if v["output_vs_clean_dE00_median"] is not None]
+    best = min(scored, key=lambda v: v["output_vs_clean_dE00_median"])
+    use_best = manifest_info is not None and best["step"] != args.steps and os.path.exists(os.path.join(run_dir, "best_classifier.pt"))
+    selected_step = best["step"] if use_best else args.steps
+    source_prefix = "best_" if use_best else "last_"
+    import shutil
+    shutil.copyfile(os.path.join(run_dir, source_prefix + "classifier.pt"), os.path.join(run_dir, "classifier.pt"))
+    shutil.copyfile(os.path.join(run_dir, source_prefix + "basis_luts.npy"), os.path.join(run_dir, "basis_luts.npy"))
     with open(os.path.join(run_dir, "train_log.csv"), "w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(log_rows[0]))
         writer.writeheader()
         writer.writerows(log_rows)
-    final = validation_history[-1]
+    final = next(v for v in validation_history if v["step"] == selected_step)
+    if manifest_info is None:
+        identity = {"kind": "smoke", "arm_label": SMOKE_ARM_LABEL, "is_ai_auto_candidate": False,
+                    "why_not_shippable": "Trained on procedural synthetic scenes to validate the pipeline. Says nothing about quality on photos."}
+        data_card = {"source": "procedural", "generator": "lightly_auto/synthetic.py", "train_scenes": args.scenes,
+                     "val_scenes": args.val_scenes, "scene_seed": 10_000 + args.seed, "val_seed": 20_000 + args.seed,
+                     "rights": "Generated by our own code; no third-party images, no FiveK, no Unsplash."}
+    else:
+        identity = {"kind": "candidate", "arm_label": PHOTO_ARM_LABEL, "is_ai_auto_candidate": True,
+                    "why_not_shippable": ("Stage (a) only. Ship gates S1-S5 are not met: no T1 frozen set, no preference "
+                                          "study, no device parity, and counsel has not confirmed the CC0/PD source "
+                                          "(personality rights of people pictured; S5).")}
+        data_card = {"source": "manifest", **manifest_info, "train_size_px": PHOTO_TRAIN_SIZE, "val_seed": 30_000 + args.seed,
+                     "rights": "Wikimedia Commons files with CC0 or public-domain status, checked per file (structured "
+                               "data + rendered licence); no FiveK, no Unsplash, no Pexels. See manifests/*_provenance.csv."}
     card = {
         "run_id": args.run_id,
-        "kind": "smoke",
-        "arm_label": SMOKE_ARM_LABEL,
-        "is_ai_auto_candidate": False,
+        **identity,
         "research_only": False,
         "shippable": False,
-        "why_not_shippable": "Trained on procedural synthetic scenes to validate the pipeline. Says nothing about quality on photos.",
-        "data": {"source": "procedural", "generator": "lightly_auto/synthetic.py", "train_scenes": args.scenes,
-                 "val_scenes": args.val_scenes, "scene_seed": 10_000 + args.seed, "val_seed": 20_000 + args.seed,
+        "data": {**data_card,
                  "train_scenes_sha256": hashlib.sha256(train_scenes.tobytes()).hexdigest(),
-                 "identity_sample_probability": synthetic.IDENTITY_SAMPLE_PROBABILITY,
-                 "degradation_components": list(components),
-                 "rights": "Generated by our own code; no third-party images, no FiveK, no Unsplash."},
+                 "identity_sample_probability": args.identity_prob,
+                 "degradation_components": list(components)},
         "contract": {"input": "[1,3,256,256] sRGB [0,1], pinned antialiased resize", "basis_luts": 3, "lut_dim": ia.LUT_DIM,
                      "precision": "fp32", "classifier_params": sum(p.numel() for p in model.classifier.parameters())},
         "config": vars(args),
@@ -269,6 +334,8 @@ def main(argv=None) -> dict:
                         "machine": platform.machine(), "threads": args.threads, "device": "cpu"},
         "timing_s": {"data_generation": round(data_seconds, 1), "training": round(time.time() - train_started, 1)},
         "validation_history": validation_history,
+        "selected_checkpoint_step": selected_step,
+        "selection_rule": "lowest validation-split median dE00 (photo runs); final step (smoke runs)",
         "g1_synthetic_check": {
             "criterion_degraded_median_dE00_max": 2.0, "criterion_identity_median_dE00_max": 1.5,
             "degraded_median_dE00": final["output_vs_clean_dE00_median"],

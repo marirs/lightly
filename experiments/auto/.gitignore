@@ -11,3 +11,5 @@ __pycache__/
 *.pt
 *.bin
 *.f32
+# Downloaded third-party photos (licence-checked). Only manifests are committed (manifests/).
+data/

@@ -107,13 +107,14 @@ class Degradation:
 ALL_COMPONENTS = ("exposure", "white_balance", "phone_tone_map", "gamma", "contrast", "saturation", "flatten")
 
 
-def sample_degradation(rng: np.random.Generator, components: tuple = ALL_COMPONENTS) -> Degradation:
+def sample_degradation(rng: np.random.Generator, components: tuple = ALL_COMPONENTS,
+                       identity_probability: float = IDENTITY_SAMPLE_PROBABILITY) -> Degradation:
     """components restricts the family (curriculum / diagnostics). A run is reproducible from its seed and
     component list; different component lists consume the random stream differently."""
     unknown = set(components) - set(ALL_COMPONENTS)
     if unknown:
         raise ValueError(f"unknown degradation components {sorted(unknown)}")
-    if rng.random() < IDENTITY_SAMPLE_PROBABILITY:
+    if rng.random() < identity_probability:
         return Degradation(identity=True)
     d = Degradation()
     while not d.applied:  # at least one component, so non-identity samples are really degraded

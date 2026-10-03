@@ -67,6 +67,11 @@ def render_markdown(summary: dict) -> str:
     splits = summary["manifest"]["splits"]
     if splits == ["frozen_eval"]:
         data_banner = "Data: FROZEN HELD-OUT evaluation set."
+    elif splits == ["public_holdout"]:
+        # PH-1 is genuinely held out (frozen and hashed before any photo training, never tuned on), but it is
+        # third-party CC0/PD photos, not the T1 set G0 requires, so it can never stand in for the gate.
+        data_banner = ("Data: PUBLIC HELD-OUT set (CC0/public-domain Commons photos, frozen before training, never tuned on). "
+                       "Held-out evaluation, but NOT the G0 frozen T1 set: no ship gate can be passed on it.")
     else:
         # Coordinator/reviewer rule: development data is never reported as an evaluation result.
         data_banner = (f"Data: splits {splits} - NOT the frozen held-out set (DEV-22 is development data that M1 tuned on). "
