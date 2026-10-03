@@ -53,8 +53,16 @@ import androidx.compose.ui.unit.sp
  */
 
 /** Body text in the approved scale: 15 sp, line height 1.35. */
+// CSS line boxes (`font: 15px/1.35`): the half-leading sits equally above and below the glyphs and is
+// never trimmed. Compose's default LineHeightStyle trims the first and last line, which made stacked
+// labels (a row's title and its sub-label) about 2 dp closer than the approved layout.
+private val cssLineBox = androidx.compose.ui.text.style.LineHeightStyle(
+    alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+    trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.None,
+)
+
 fun lightlyTextStyle(size: TextUnit = 15.sp, weight: FontWeight = FontWeight.Normal, color: Color = Color.Unspecified) =
-    TextStyle(fontSize = size, fontWeight = weight, color = color, lineHeight = size * 1.35f)
+    TextStyle(fontSize = size, fontWeight = weight, color = color, lineHeight = size * 1.35f, lineHeightStyle = cssLineBox)
 
 /** `.ib`: a 44 dp square icon button. */
 @Composable

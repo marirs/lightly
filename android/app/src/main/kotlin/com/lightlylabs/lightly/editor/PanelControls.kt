@@ -207,10 +207,18 @@ fun Swatch(fill: (Size) -> Brush, selected: Boolean, description: String, onClic
             .size(width = width, height = 44.dp)
             .drawBehind {
                 if (selected) {
-                    val inset = (-5).dp.toPx()
+                    // `.sw.on::after`: absolutely positioned at inset -5px from the swatch's PADDING box
+                    // (inside its 1px border), so the ring's outer edge is 4 dp outside the swatch; a 2px
+                    // border; border-radius 50% of the ring box, i.e. a circle on round swatches and an
+                    // ellipse on the 52 × 44 gradient swatches.
+                    val outside = 4.dp.toPx()
                     val stroke = 2.dp.toPx()
-                    if (cornerRadius == null) drawCircle(colors.sel, size.minDimension / 2 - inset - stroke / 2, style = Stroke(stroke))
-                    else drawRoundRect(colors.sel, Offset(inset + stroke / 2, inset + stroke / 2), Size(size.width - 2 * inset - stroke, size.height - 2 * inset - stroke), CornerRadius((cornerRadius + 5.dp).toPx()), style = Stroke(stroke))
+                    drawOval(
+                        colors.sel,
+                        topLeft = Offset(-outside + stroke / 2, -outside + stroke / 2),
+                        size = Size(size.width + 2 * outside - stroke, size.height + 2 * outside - stroke),
+                        style = Stroke(stroke),
+                    )
                 }
             }
             .clip(shape)

@@ -348,9 +348,13 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
 /** `.progress`: the dark box centred on the photo with a spinner, the label and a progress bar. */
 @Composable
 internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, cancel: (() -> Unit)? = null) {
-    // Content-sized (min 200 dp): the bar spans the box, not the photo.
+    // `.progress` is absolutely positioned at left:50%, so its shrink-to-fit width is at most half the
+    // container (the rest of the width is to the left of it), and at least min-width 200 dp: a long
+    // line ("Applying thoughtful enhancements.") wraps instead of widening the box. The bar spans the box.
+    androidx.compose.foundation.layout.BoxWithConstraints {
+    val available = maxOf(200.dp, maxWidth / 2)
     Column(
-        Modifier.width(IntrinsicSize.Max).widthIn(min = 200.dp).background(Color(0xB8141416), RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 12.dp),
+        Modifier.width(IntrinsicSize.Max).widthIn(min = 200.dp, max = available).background(Color(0xB8141416), RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.padding(bottom = 8.dp).size(22.dp).drawBehind {
@@ -359,8 +363,8 @@ internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, ca
             drawArc(Color.White, -135f, 90f, useCenter = false, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
                 topLeft = Offset(stroke / 2, stroke / 2), size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke))
         })
-        Text(label, style = lightlyTextStyle(14.sp, color = Color.White))
-        if (detail != null) Text(detail, style = lightlyTextStyle(13.sp, color = Color.White.copy(alpha = 0.75f)))
+        Text(label, style = lightlyTextStyle(14.sp, color = Color.White), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        if (detail != null) Text(detail, style = lightlyTextStyle(13.sp, color = Color.White.copy(alpha = 0.75f)), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         if (barFraction != null) {
             Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF))) {
                 Box(Modifier.fillMaxHeight().fillMaxWidth(barFraction).background(Color.White))
@@ -371,6 +375,7 @@ internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, ca
                 Text("Cancel", style = lightlyTextStyle(15.sp, FontWeight.SemiBold, Color.White))
             }
         }
+    }
     }
 }
 

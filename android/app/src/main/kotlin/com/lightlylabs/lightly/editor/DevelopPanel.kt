@@ -140,10 +140,13 @@ private fun AutoSwitchButton(state: AutoSwitch, onToggle: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
+        // `.autoT::before`: 9px wide plus a 1.5px border. `.dv * { box-sizing: border-box }` does not
+        // match pseudo-elements, so the box is content-box: 12 dp outside, corner radius 5px.
+        val dotShape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
         Box(
-            Modifier.size(9.dp).then(
-                if (state == AutoSwitch.ON) Modifier.background(colors.sel, CircleShape).border(1.5.dp, colors.sel, CircleShape)
-                else Modifier.border(1.5.dp, colors.ink3, CircleShape),
+            Modifier.size(12.dp).then(
+                if (state == AutoSwitch.ON) Modifier.background(colors.sel, dotShape).border(1.5.dp, colors.sel, dotShape)
+                else Modifier.border(1.5.dp, colors.ink3, dotShape),
             ),
         )
         Text("Auto", style = lightlyTextStyle(color = text))
@@ -330,7 +333,7 @@ private fun NameRow(model: DevelopPanelModel, vm: EditorViewModel) {
         }
         Text(
             model.name,
-            style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = colors.ink, letterSpacing = (-0.01).em, lineHeight = 17.sp * 1.2f),
+            style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = colors.ink, letterSpacing = (-0.01).em, lineHeight = 17.sp * 1.2f, lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center, androidx.compose.ui.text.style.LineHeightStyle.Trim.None)),
             modifier = Modifier.weight(1f),
         )
         Text(model.position, style = lightlyTextStyle(13.sp, color = colors.ink3), maxLines = 1)
