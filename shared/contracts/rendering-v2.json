@@ -1,6 +1,8 @@
 {
  "contract": "lightly-rendering",
  "version": 2,
+ "revision": 1,
+ "changeLog": "shared/contracts/rendering-v2.md#change-log",
  "prose": "shared/contracts/rendering-v2.md",
  "generatedBy": "shared/contracts/build_rendering_v2.py",
  "conventions": {
@@ -967,15 +969,53 @@
        "default": 50,
        "unit": "percent",
        "note": "soft: glow, swirl: swirl, motion: direction (-180…180° = styleAmount·3.6−180)"
-      },
-      "maxBlurRadius": {
-       "type": "constant",
-       "value": 0.03,
-       "unit": "fraction-of-long-edge"
       }
      },
-     "note": "circle of confusion from |depth − focusDepth|; depth from the recorded depth source (embedded map, estimated map, or the subject matte as a two-plane fallback). Applies to the replaced background too (it sits at depth replacementDepth).",
-     "status": "provisional"
+     "constants": {
+      "maxBlurRadius": {
+       "value": 0.06,
+       "unit": "fraction-of-long-edge",
+       "note": "radius at blur 100 for the depth farthest from the focal plane"
+      },
+      "focusHalfWidthPerUnit": {
+       "value": 0.5,
+       "unit": "disparity",
+       "note": "h = 0.5·depthOfField/100"
+      },
+      "defocusRange": {
+       "definition": "S = max(d_f, 1 − d_f)",
+       "note": "c = sign(D − d_f)·clamp((|D − d_f| − h)/max(S − h, 1e-6), 0, 1)·R_max"
+      },
+      "subjectInFocus": "when the focus is on the subject (target null with a subject, or M(target) ≥ 0.5), the subject plane's CoC is 0",
+      "layersPerSide": {
+       "export": 8,
+       "interactivePreview": 4
+      },
+      "subjectDepthCompression": 0.5,
+      "replacementMinGap": 0.1,
+      "highlightExpansion": {
+       "threshold": 0.7,
+       "gain": 0.85,
+       "styles": [
+        "lens",
+        "swirl",
+        "motion"
+       ]
+      },
+      "focusWindowHalfSize": {
+       "value": 0.01,
+       "unit": "fraction-of-long-edge"
+      },
+      "disparityNormalisation": "D = clamp((raw − p1)/(p99 − p1), 0, 1), then bilinear to the working size and a guided filter (grey guide, radius round(0.006·long edge) ≥ 2 px, ε 1e-3), clamped to [0, 1]",
+      "pullPush": "pull: 2×2 box mean with edge padding of an odd row/column, α' = min(4α, 1), colour scaled by α'/α, repeated until the level is 1×1; push: C_l += (1 − clamp(α_l, 0, 1))·bilinear_halfpixel(C_{l+1})"
+     },
+     "depthSources": {
+      "embedded": "the photo's own depth/disparity map",
+      "estimated": "Depth Anything V2 Small (D5)",
+      "subject-matte": "no depth: the operator must not blur (blur 0 is enforced by the edit-recipe reader); never a mask-only blur (depth-evaluation.md §R8)"
+     },
+     "note": "rendering-v2.md §7.1 and docs/v1/depth-evaluation.md §6; executable reference experiments/depth/refocus.py. The renderer works in disparity (1 near); the recipe stores depth (0 near), so disparity = 1 − depth. Applies to the replaced background too (§R2.4 plane placement).",
+     "status": "calibrated-to-approved-prototype"
     }
    ]
   },

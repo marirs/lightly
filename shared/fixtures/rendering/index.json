@@ -1,0 +1,941 @@
+{
+ "format": "lightly-rendering-goldens",
+ "formatVersion": 1,
+ "renderingContract": {
+  "version": 2,
+  "revision": 1
+ },
+ "generatedBy": "shared/contracts/make_rendering_goldens.py",
+ "arrays": "little-endian float32, row-major; images are HxWx3 sRGB-encoded in [0, 1] unless named otherwise",
+ "tolerances": {
+  "scalars": "signedCoc, halfWidth, radiusMax, focalDisparity, highlights: max abs 1e-4 (px for CoC)",
+  "kernels": "max abs 1e-5 per tap",
+  "pullPush": "max abs 1e-4",
+  "focusRender": "ΔE00 mean ≤ 1.0 and p99 ≤ 4 against `expected` (depth-evaluation.md §R9)",
+  "grain": "noise max abs 1e-4; expected max abs 2e-4 (inside `crop` [row, column, height, width] when set)"
+ },
+ "backgroundFocus": {
+  "constants": {
+   "maxBlurRadius": {
+    "value": 0.06,
+    "unit": "fraction-of-long-edge",
+    "note": "radius at blur 100 for the depth farthest from the focal plane"
+   },
+   "focusHalfWidthPerUnit": {
+    "value": 0.5,
+    "unit": "disparity",
+    "note": "h = 0.5·depthOfField/100"
+   },
+   "defocusRange": {
+    "definition": "S = max(d_f, 1 − d_f)",
+    "note": "c = sign(D − d_f)·clamp((|D − d_f| − h)/max(S − h, 1e-6), 0, 1)·R_max"
+   },
+   "subjectInFocus": "when the focus is on the subject (target null with a subject, or M(target) ≥ 0.5), the subject plane's CoC is 0",
+   "layersPerSide": {
+    "export": 8,
+    "interactivePreview": 4
+   },
+   "subjectDepthCompression": 0.5,
+   "replacementMinGap": 0.1,
+   "highlightExpansion": {
+    "threshold": 0.7,
+    "gain": 0.85,
+    "styles": [
+     "lens",
+     "swirl",
+     "motion"
+    ]
+   },
+   "focusWindowHalfSize": {
+    "value": 0.01,
+    "unit": "fraction-of-long-edge"
+   },
+   "disparityNormalisation": "D = clamp((raw − p1)/(p99 − p1), 0, 1), then bilinear to the working size and a guided filter (grey guide, radius round(0.006·long edge) ≥ 2 px, ε 1e-3), clamped to [0, 1]",
+   "pullPush": "pull: 2×2 box mean with edge padding of an odd row/column, α' = min(4α, 1), colour scaled by α'/α, repeated until the level is 1×1; push: C_l += (1 − clamp(α_l, 0, 1))·bilinear_halfpixel(C_{l+1})"
+  },
+  "scene": {
+   "image": {
+    "file": "scene-image.f32",
+    "shape": [
+     144,
+     108,
+     3
+    ],
+    "sha256": "4d3485068e02ef72820fdc088eaf334e72c0092fe2c80b4b11d69ae5a7b8c56b"
+   },
+   "disparity": {
+    "file": "scene-disparity.f32",
+    "shape": [
+     144,
+     108
+    ],
+    "sha256": "41cd5afcd6b187130d64c0feb839c6fa5501d30384c65f10769f4fc116f0953c"
+   },
+   "matte": {
+    "file": "scene-matte.f32",
+    "shape": [
+     144,
+     108
+    ],
+    "sha256": "f445232b7ce11bf26d33b2636cc53eae90c91188b48e41c22da0f0e3f6eed634"
+   }
+  },
+  "replacement": {
+   "file": "scene-replacement.f32",
+   "shape": [
+    60,
+    80,
+    3
+   ],
+   "sha256": "b99d2e805a4f2e0e106f98ab90ff1906ba0a3d2b024cc4b54a322e886cdea16c"
+  },
+  "sceneNote": "disparity is already at the working size (no guided filter); matte in [0, 1]; the replacement is placed by §R2.4 'plane' (cover fit, scale 1)",
+  "scalars": {
+   "signedCoc": [
+    {
+     "focal": 0.458,
+     "depthOfField": 40,
+     "blur": 55,
+     "longEdge": 1600,
+     "halfWidth": 0.2,
+     "defocusRange": 0.542,
+     "radiusMaxPx": 52.800000000000004,
+     "disparity": [
+      0.0,
+      0.05,
+      0.1,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.45,
+      0.5,
+      0.55,
+      0.6,
+      0.65,
+      0.7,
+      0.75,
+      0.8,
+      0.85,
+      0.9,
+      0.95,
+      1.0
+     ],
+     "signedCocPx": [
+      -39.83158,
+      -32.11228,
+      -24.39298,
+      -16.67368,
+      -8.95439,
+      -1.23509,
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      6.48421,
+      14.20351,
+      21.92281,
+      29.64211,
+      37.3614,
+      45.0807,
+      52.8
+     ]
+    },
+    {
+     "focal": 0.05,
+     "depthOfField": 25,
+     "blur": 55,
+     "longEdge": 1600,
+     "halfWidth": 0.125,
+     "defocusRange": 0.95,
+     "radiusMaxPx": 52.800000000000004,
+     "disparity": [
+      0.0,
+      0.05,
+      0.1,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.45,
+      0.5,
+      0.55,
+      0.6,
+      0.65,
+      0.7,
+      0.75,
+      0.8,
+      0.85,
+      0.9,
+      0.95,
+      1.0
+     ],
+     "signedCocPx": [
+      -0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.6,
+      4.8,
+      8.0,
+      11.2,
+      14.4,
+      17.6,
+      20.8,
+      24.0,
+      27.2,
+      30.4,
+      33.6,
+      36.8,
+      40.0,
+      43.2,
+      46.4,
+      49.6,
+      52.8
+     ]
+    },
+    {
+     "focal": 0.9,
+     "depthOfField": 100,
+     "blur": 55,
+     "longEdge": 1600,
+     "halfWidth": 0.5,
+     "defocusRange": 0.9,
+     "radiusMaxPx": 52.800000000000004,
+     "disparity": [
+      0.0,
+      0.05,
+      0.1,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.45,
+      0.5,
+      0.55,
+      0.6,
+      0.65,
+      0.7,
+      0.75,
+      0.8,
+      0.85,
+      0.9,
+      0.95,
+      1.0
+     ],
+     "signedCocPx": [
+      -52.8,
+      -46.19999,
+      -39.59999,
+      -33.0,
+      -26.4,
+      -19.8,
+      -13.2,
+      -6.59999,
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0,
+      0.0,
+      0.0,
+      0.0
+     ]
+    },
+    {
+     "focal": 0.5,
+     "depthOfField": 0,
+     "blur": 55,
+     "longEdge": 1600,
+     "halfWidth": 0.0,
+     "defocusRange": 0.5,
+     "radiusMaxPx": 52.800000000000004,
+     "disparity": [
+      0.0,
+      0.05,
+      0.1,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.45,
+      0.5,
+      0.55,
+      0.6,
+      0.65,
+      0.7,
+      0.75,
+      0.8,
+      0.85,
+      0.9,
+      0.95,
+      1.0
+     ],
+     "signedCocPx": [
+      -52.8,
+      -47.52,
+      -42.24,
+      -36.96,
+      -31.68,
+      -26.4,
+      -21.12,
+      -15.84,
+      -10.56,
+      -5.28,
+      0.0,
+      5.28,
+      10.56,
+      15.84,
+      21.12,
+      26.4,
+      31.68,
+      36.96,
+      42.24,
+      47.52,
+      52.8
+     ]
+    }
+   ],
+   "highlights": {
+    "linear": [
+     [
+      0.1,
+      0.2,
+      0.3
+     ],
+     [
+      0.7,
+      0.5,
+      0.2
+     ],
+     [
+      0.85,
+      0.9,
+      0.95
+     ],
+     [
+      1.0,
+      1.0,
+      1.0
+     ],
+     [
+      1.0,
+      0.2,
+      0.0
+     ]
+    ],
+    "expanded": [
+     [
+      0.1,
+      0.2,
+      0.3
+     ],
+     [
+      0.7,
+      0.5,
+      0.2
+     ],
+     [
+      1.393233,
+      1.475188,
+      1.557143
+     ],
+     [
+      2.700001,
+      2.700001,
+      2.700001
+     ],
+     [
+      2.700001,
+      0.54,
+      0.0
+     ]
+    ],
+    "roundTrip": [
+     [
+      0.1,
+      0.2,
+      0.3
+     ],
+     [
+      0.7,
+      0.5,
+      0.2
+     ],
+     [
+      0.85,
+      0.9,
+      0.95
+     ],
+     [
+      1.0,
+      1.0,
+      1.0
+     ],
+     [
+      1.0,
+      0.2,
+      0.0
+     ]
+    ]
+   }
+  },
+  "kernels": [
+   {
+    "kind": "bokeh",
+    "shape": [
+     7,
+     7
+    ],
+    "radius": 2.5,
+    "file": "kernel-round-2.5.f32",
+    "sha256": "bde0ee87b6041b46a933e047aedbacb56b1b4b92f8bf71f57388e4c8da898a3d"
+   },
+   {
+    "kind": "bokeh",
+    "shape": [
+     13,
+     13
+    ],
+    "radius": 6.0,
+    "file": "kernel-round-6.0.f32",
+    "sha256": "17235af023d2114ed39435f21d5a1ef6fc9ee9da55fa9e42068518ced14d45a1"
+   },
+   {
+    "kind": "bokeh",
+    "shape": [
+     7,
+     7
+    ],
+    "radius": 2.5,
+    "file": "kernel-hex-2.5.f32",
+    "sha256": "45c32e65148a3101834dedcfd6edbf2dcacbd5a64308565fcf070ccb2c8c3ad5"
+   },
+   {
+    "kind": "bokeh",
+    "shape": [
+     13,
+     13
+    ],
+    "radius": 6.0,
+    "file": "kernel-hex-6.0.f32",
+    "sha256": "6491c3c32d37284f8f512b6fa67101d60e6067fae57d1ba4ee5e7fe7a8219b4b"
+   },
+   {
+    "kind": "bokeh",
+    "shape": [
+     7,
+     7
+    ],
+    "radius": 2.5,
+    "file": "kernel-heart-2.5.f32",
+    "sha256": "e4c00e5133010a69de5600fafd21fd131248eaef040af50d4a22741780cba178"
+   },
+   {
+    "kind": "bokeh",
+    "shape": [
+     13,
+     13
+    ],
+    "radius": 6.0,
+    "file": "kernel-heart-6.0.f32",
+    "sha256": "659605ba9fa06050de3ad01e2d3600e062fc9313a921c51ef1f473db63b8016c"
+   },
+   {
+    "kind": "bokeh",
+    "shape": [
+     7,
+     7
+    ],
+    "radius": 2.5,
+    "file": "kernel-star-2.5.f32",
+    "sha256": "6ba7e95601f56f5176990ea7d9e40fa6b36c0f087c023d5e0d22774b29a57767"
+   },
+   {
+    "kind": "bokeh",
+    "shape": [
+     13,
+     13
+    ],
+    "radius": 6.0,
+    "file": "kernel-star-6.0.f32",
+    "sha256": "c3dd34a1dc91ecc6c172a1b249a5137d6b81c3f737cbb3c071a9443e9e9427de"
+   },
+   {
+    "kind": "gaussian",
+    "radius": 4.0,
+    "file": "kernel-gaussian-4.0.f32",
+    "shape": [
+     13,
+     13
+    ],
+    "sha256": "e3dd82bff4ca714e1beb8f675ceed30d9669c216314b17789297b49a4bd7f551"
+   },
+   {
+    "kind": "motion",
+    "radius": 4.0,
+    "directionDegrees": 30.0,
+    "file": "kernel-motion-4.0-30.f32",
+    "shape": [
+     13,
+     13
+    ],
+    "sha256": "5d60c04757a474f163877fbafd43056e466af369c9eab2da6f0687cf0eaf1e0f"
+   }
+  ],
+  "pullPush": [
+   {
+    "name": "large-hole",
+    "colour": {
+     "file": "pullpush-large-hole-colour.f32",
+     "shape": [
+      37,
+      29,
+      3
+     ],
+     "sha256": "f10a1084f82ba4763af344322a386f57ee26581a3c01e7ceb14ece44f4ed589b"
+    },
+    "coverage": {
+     "file": "pullpush-large-hole-coverage.f32",
+     "shape": [
+      37,
+      29
+     ],
+     "sha256": "f435cef69f66bce21a3e29de4943a25a43c145225680a8e46daaca699cf6fe86"
+    },
+    "expected": {
+     "file": "pullpush-large-hole-expected.f32",
+     "shape": [
+      37,
+      29,
+      3
+     ],
+     "sha256": "56cdf58e1ffce407d83afe61f14b44865c2fa849a238d14adc68f16d4cdac6b1"
+    }
+   },
+   {
+    "name": "partial",
+    "colour": {
+     "file": "pullpush-partial-colour.f32",
+     "shape": [
+      37,
+      29,
+      3
+     ],
+     "sha256": "f10a1084f82ba4763af344322a386f57ee26581a3c01e7ceb14ece44f4ed589b"
+    },
+    "coverage": {
+     "file": "pullpush-partial-coverage.f32",
+     "shape": [
+      37,
+      29
+     ],
+     "sha256": "c71206c707c7b15bee535cfdaf6c6af17b5c107f59d07bbee5001966e3384cc7"
+    },
+    "expected": {
+     "file": "pullpush-partial-expected.f32",
+     "shape": [
+      37,
+      29,
+      3
+     ],
+     "sha256": "edfece90bc59fde36f581cfcb903c141ec23da958f28359b79b64cc0d88a53ea"
+    }
+   }
+  ],
+  "renders": [
+   {
+    "name": "lens-round-subject",
+    "params": {
+     "target_x": 0.5,
+     "target_y": 0.6,
+     "blur": 100,
+     "focus_depth": 40,
+     "style": "lens",
+     "bokeh": "round"
+    },
+    "matte": true,
+    "replacement": false,
+    "focalDisparity": 0.595986,
+    "subjectInFocus": true,
+    "radiusMaxPx": 8.64,
+    "halfWidth": 0.2,
+    "expected": {
+     "file": "focus-lens-round-subject.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "1249c8984e4d97cbff190242ab4e13ba5799492d6baff12cb2eb8d84d7b75014"
+    }
+   },
+   {
+    "name": "lens-hex-background",
+    "params": {
+     "target_x": 0.85,
+     "target_y": 0.15,
+     "blur": 100,
+     "focus_depth": 25,
+     "style": "lens",
+     "bokeh": "hex"
+    },
+    "matte": true,
+    "replacement": false,
+    "focalDisparity": 0.301389,
+    "subjectInFocus": false,
+    "radiusMaxPx": 8.64,
+    "halfWidth": 0.125,
+    "expected": {
+     "file": "focus-lens-hex-background.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "3534933c738d4e8f842ef583c4cd10e9ad23272623b77f615e3e913e3ff8143a"
+    }
+   },
+   {
+    "name": "lens-heart-depth-only",
+    "params": {
+     "target_x": 0.1,
+     "target_y": 0.5,
+     "blur": 100,
+     "focus_depth": 10,
+     "style": "lens",
+     "bokeh": "heart"
+    },
+    "matte": false,
+    "replacement": false,
+    "focalDisparity": 0.079167,
+    "subjectInFocus": false,
+    "radiusMaxPx": 8.64,
+    "halfWidth": 0.05,
+    "expected": {
+     "file": "focus-lens-heart-depth-only.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "cb83d5b356100721552023cbcb93ea8105894675641472e46ff1aa8943da9cc3"
+    }
+   },
+   {
+    "name": "lens-star-subject",
+    "params": {
+     "target_x": 0.5,
+     "target_y": 0.6,
+     "blur": 90,
+     "focus_depth": 0,
+     "style": "lens",
+     "bokeh": "star"
+    },
+    "matte": true,
+    "replacement": false,
+    "focalDisparity": 0.595986,
+    "subjectInFocus": true,
+    "radiusMaxPx": 7.776,
+    "halfWidth": 0.0,
+    "expected": {
+     "file": "focus-lens-star-subject.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "b545c5368ab988bf70fa5a19e4a4edf39ebca5b0d162432ded9dce1aa0fd1c65"
+    }
+   },
+   {
+    "name": "soft-subject",
+    "params": {
+     "target_x": 0.5,
+     "target_y": 0.6,
+     "blur": 100,
+     "focus_depth": 40,
+     "style": "soft",
+     "style_amount": 50
+    },
+    "matte": true,
+    "replacement": false,
+    "focalDisparity": 0.595986,
+    "subjectInFocus": true,
+    "radiusMaxPx": 8.64,
+    "halfWidth": 0.2,
+    "expected": {
+     "file": "focus-soft-subject.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "86e39df026aef63fdd829f26b63abb613c286a92ea77e76cdf82eb8b167be345"
+    }
+   },
+   {
+    "name": "swirl-subject",
+    "params": {
+     "target_x": 0.5,
+     "target_y": 0.6,
+     "blur": 100,
+     "focus_depth": 40,
+     "style": "swirl",
+     "style_amount": 60
+    },
+    "matte": true,
+    "replacement": false,
+    "focalDisparity": 0.595986,
+    "subjectInFocus": true,
+    "radiusMaxPx": 8.64,
+    "halfWidth": 0.2,
+    "expected": {
+     "file": "focus-swirl-subject.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "05eb9e6d238aeb0f9ec035c7f3766315fd3bb86bfce127a2779b031d0f3e1f38"
+    }
+   },
+   {
+    "name": "motion-subject",
+    "params": {
+     "target_x": 0.5,
+     "target_y": 0.6,
+     "blur": 100,
+     "focus_depth": 40,
+     "style": "motion",
+     "style_amount": 75
+    },
+    "matte": true,
+    "replacement": false,
+    "focalDisparity": 0.595986,
+    "subjectInFocus": true,
+    "radiusMaxPx": 8.64,
+    "halfWidth": 0.2,
+    "expected": {
+     "file": "focus-motion-subject.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "207bcf7411e334333accb0170f6c5f45bb8237838d973ac27cc9aeea11f47628"
+    }
+   },
+   {
+    "name": "replaced-lens-subject",
+    "params": {
+     "target_x": 0.5,
+     "target_y": 0.6,
+     "blur": 100,
+     "focus_depth": 40,
+     "style": "lens",
+     "bokeh": "round"
+    },
+    "matte": true,
+    "replacement": true,
+    "focalDisparity": 0.595986,
+    "subjectInFocus": true,
+    "radiusMaxPx": 8.64,
+    "halfWidth": 0.2,
+    "expected": {
+     "file": "focus-replaced-lens-subject.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "6a9f44bb0a14e240c6005778877ca7dc73ba06b3d4e227085702f16ff1ca9ac5"
+    }
+   },
+   {
+    "name": "lens-blur-55-default",
+    "params": {
+     "target_x": 0.5,
+     "target_y": 0.6,
+     "blur": 55,
+     "focus_depth": 40,
+     "style": "lens",
+     "bokeh": "round"
+    },
+    "matte": true,
+    "replacement": false,
+    "focalDisparity": 0.595986,
+    "subjectInFocus": true,
+    "radiusMaxPx": 4.752,
+    "halfWidth": 0.2,
+    "expected": {
+     "file": "focus-lens-blur-55-default.f32",
+     "shape": [
+      144,
+      108,
+      3
+     ],
+     "sha256": "84c23647f2bbd1f90be9ec00364dd79a2203bccb2d6e50676c24d107db700e41"
+    }
+   }
+  ]
+ },
+ "grain": [
+  {
+   "name": "size100-no-supersampling",
+   "height": 480,
+   "width": 360,
+   "params": {
+    "amount": 80,
+    "size": 100,
+    "roughness": 100,
+    "seed": 123456789
+   },
+   "input": "grain_input (see generator)",
+   "supersampling": 1,
+   "crop": [
+    40,
+    24,
+    64,
+    64
+   ],
+   "noise": {
+    "file": "grain-size100-no-supersampling-noise.f32",
+    "shape": [
+     64,
+     64
+    ],
+    "sha256": "436ea7f164144f8294c963552b268a9d8d8fa108cc7064651364247cae1b0223"
+   },
+   "expected": {
+    "file": "grain-size100-no-supersampling-expected.f32",
+    "shape": [
+     64,
+     64,
+     3
+    ],
+    "sha256": "e0d1316f60a100b958f25d3162b51c76702d2ca123a94d2656f69a91d3b226a1"
+   }
+  },
+  {
+   "name": "portrait13-glow-preview",
+   "height": 480,
+   "width": 320,
+   "params": {
+    "amount": 55,
+    "size": 25,
+    "roughness": 59,
+    "seed": 3343035603
+   },
+   "input": "grain_input (see generator)",
+   "supersampling": 3,
+   "crop": [
+    40,
+    24,
+    64,
+    64
+   ],
+   "noise": {
+    "file": "grain-portrait13-glow-preview-noise.f32",
+    "shape": [
+     64,
+     64
+    ],
+    "sha256": "7a3fb1a8d34d97c988c9ea0a5befd5767fa472787fcd6c5e181c2b020f35bde4"
+   },
+   "expected": {
+    "file": "grain-portrait13-glow-preview-expected.f32",
+    "shape": [
+     64,
+     64,
+     3
+    ],
+    "sha256": "dee89955f32ebe5e7210cdf40e87f4d22125b24e32e05222ffa4f898f075e1fc"
+   }
+  },
+  {
+   "name": "fine-size0",
+   "height": 360,
+   "width": 480,
+   "params": {
+    "amount": 30,
+    "size": 0,
+    "roughness": 0,
+    "seed": 7
+   },
+   "input": "grain_input (see generator)",
+   "supersampling": 5,
+   "crop": [
+    40,
+    24,
+    64,
+    64
+   ],
+   "noise": {
+    "file": "grain-fine-size0-noise.f32",
+    "shape": [
+     64,
+     64
+    ],
+    "sha256": "f85a12eb77c684008ac19f4d42e7bb0edc6ade74cb947b0e966161600f903e40"
+   },
+   "expected": {
+    "file": "grain-fine-size0-expected.f32",
+    "shape": [
+     64,
+     64,
+     3
+    ],
+    "sha256": "d41ff57c422f1ee4f857c562046be1da256728cba60196cc3c6d04c93e6f516a"
+   }
+  },
+  {
+   "name": "thumbnail",
+   "height": 24,
+   "width": 18,
+   "params": {
+    "amount": 55,
+    "size": 25,
+    "roughness": 59,
+    "seed": 3343035603
+   },
+   "input": "grain_input (see generator)",
+   "supersampling": 50,
+   "crop": null,
+   "noise": {
+    "file": "grain-thumbnail-noise.f32",
+    "shape": [
+     24,
+     18
+    ],
+    "sha256": "aeef8ac05777a8b873e6ad8f40de3def6b8640a704c4d8ba31abd2c817f17b12"
+   },
+   "expected": {
+    "file": "grain-thumbnail-expected.f32",
+    "shape": [
+     24,
+     18,
+     3
+    ],
+    "sha256": "bdcd4707c68eededd79a6c1f4fa2f15ef06c1c83f4fdcc4e484050e7addd1b69"
+   }
+  }
+ ]
+}

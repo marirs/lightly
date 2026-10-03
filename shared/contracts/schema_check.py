@@ -131,6 +131,9 @@ def recipe_rule_errors(state: dict) -> list[str]:
     depth = tools["background"]["focus"]["depth"]
     if (depth["source"] == "subject-matte") != (depth["map"] is None):
         out.append("$.tools.background.focus.depth.map: null exactly when source is subject-matte")
+    # Contract fixes 1 (G3): without depth the blur stays 0; a mask-only blur is never rendered (§R8).
+    if depth["source"] == "subject-matte" and tools["background"]["focus"]["blur"] != 0:
+        out.append("$.tools.background.focus.blur: must be 0 when the depth source is subject-matte (no depth)")
     for i, stroke in enumerate(tools["edit"]["remove"]["strokes"]):
         if (stroke["result"]["status"] == "applied") != (stroke["result"]["patch"] is not None):
             out.append(f"$.tools.edit.remove.strokes[{i}].result.patch: set exactly when applied")

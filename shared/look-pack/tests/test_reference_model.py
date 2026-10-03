@@ -174,13 +174,47 @@ def test_gaussian_field_is_standard_normal_and_deterministic():
 
 
 def test_grain_is_resolution_independent():
-    """Same grain strength in a preview and an export of the same photo (invariant P=E)."""
+    """Invariant P=E: a preview shows the grain the export shows once downscaled to the preview's size.
+
+    Revision 1: the 300x400 preview has fewer than 2 px per grain cell (600 cells), so it is rendered at 3x
+    and box-averaged, which is exactly the export's field averaged over 3x3 blocks. The first reference
+    point-sampled the field instead and gave the preview full-amplitude per-pixel grain.
+    """
     params = {"amount": 50, "size": 25, "roughness": 50, "seed": 11}
+    experimental = MODEL["experimentalConstants"]
+    preview = rm.grain_noise(300, 400, params, experimental)
+    export = rm.grain_noise(900, 1200, params, experimental)
+    assert np.allclose(preview, rm.box_average(export, 3), atol=1e-12)
     flat = lambda h, w: np.full((h, w, 3), 0.5)
-    preview = rm.apply_grain(flat(300, 400), params, MODEL["experimentalConstants"]) - 0.5
-    export = rm.apply_grain(flat(900, 1200), params, MODEL["experimentalConstants"]) - 0.5
-    assert abs(preview.std() / export.std() - 1) < 0.1
-    assert np.allclose(rm.apply_grain(flat(300, 400), params, MODEL["experimentalConstants"]) - 0.5, preview, atol=0)
+    assert np.array_equal(rm.apply_grain(flat(300, 400), params, experimental), rm.apply_grain(flat(300, 400), params, experimental))
+
+
+def test_grain_changes_lightness_only_never_colour():
+    """Revision 1: chromaticity (a/L, b/L) is kept. With a and b held fixed (the first reference), grain 55 on
+    skin changed OKLab saturation by 12.7 % (std); the saturated block here must stay within float noise."""
+    params = {"amount": 55, "size": 25, "roughness": 59, "seed": 3343035603}
+    img = np.zeros((120, 90, 3))
+    img[:] = [0.62, 0.42, 0.33]          # skin-like
+    img[:40] = [0.75, 0.2, 0.15]         # saturated red
+    out = rm.apply_grain(img, params, MODEL["experimentalConstants"])
+    lab_in, lab_out = rm.linear_to_oklab(rm.srgb_to_linear(img)), rm.linear_to_oklab(rm.srgb_to_linear(out))
+    unclipped = ((out > 0) & (out < 1)).all(-1)
+    assert unclipped.mean() > 0.95
+    assert np.abs(lab_out[..., 0] - lab_in[..., 0]).std() > 0.02   # grain is there
+    ratio_in = lab_in[..., 1:] / lab_in[..., :1]
+    ratio_out = lab_out[..., 1:] / lab_out[..., :1]
+    assert np.abs(ratio_out - ratio_in)[unclipped].max() < 1e-9
+
+
+def test_small_renders_average_the_grain_instead_of_point_sampling_it():
+    """Revision 1: with fewer than 2 px per grain cell the field is supersampled and box-averaged, so a
+    thumbnail is never noisier than the export (the first reference point-sampled at 1.5x amplitude)."""
+    params = {"amount": 50, "size": 0, "roughness": 0, "seed": 11}   # 1200 cells along the long edge
+    experimental = MODEL["experimentalConstants"]
+    assert rm.grain_supersampling(1200, 400) == 6 and rm.grain_supersampling(1200, 2400) == 1
+    thumbnail = rm.grain_noise(300, 400, params, experimental).std()
+    export = rm.grain_noise(1800, 2400, params, experimental).std()
+    assert thumbnail < 0.5 < 0.9 < export < 1.05   # 3x3 subpixel cells per pixel average out
 
 
 def test_sharpening_and_noise_reduction_are_neutral_at_zero_and_act_otherwise():

@@ -18,6 +18,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().parent / "rendering-v2.json"
 PRESETS = REPO / "experiments/presets"
+# Revision within contract version 2; rendering-v2.md "Change log" lists what each one changed.
+# 1 = contract fixes 1 (docs/v1/contract-fixes-1.md): background.focus constants, pull-push, grain colour/aliasing.
+CONTRACT_REVISION = 1
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -109,8 +112,31 @@ def finishing_operators():
         {"id": "grain", "params": {"amount": num(0, 100, 0, PERCENT), "size": num(0, 100, 25, PERCENT),
                                    "roughness": num(0, 100, 50, PERCENT, "Lightroom GrainFrequency"),
                                    "seed": num(0, 4294967295, 0, "uint32", integer=True)},
-         "status": "experimental-uncalibrated", "equation": "rendering-v2.md#f2-grain"},
+         "status": "experimental-uncalibrated", "equation": "rendering-v2.md#f2-grain",
+         "note": "revision 1: lightness only with chromaticity kept (a, b scaled with L); renders with fewer than 2 px per "
+                 "grain cell are supersampled by s = ceil(2·cells/longEdge) and box-averaged"},
     ]
+
+
+def focus_constants() -> dict:
+    """background.focus constants (rendering-v2.md §7.1). Contract fixes 1 re-derived maxBlurRadius and the
+    depth-of-field slope from the approved bg-* screens (docs/v1/contract-fixes-1.md §1)."""
+    return {
+        "maxBlurRadius": {"value": 0.06, "unit": LONG_EDGE, "note": "radius at blur 100 for the depth farthest from the focal plane"},
+        "focusHalfWidthPerUnit": {"value": 0.5, "unit": "disparity", "note": "h = 0.5·depthOfField/100"},
+        "defocusRange": {"definition": "S = max(d_f, 1 − d_f)",
+                         "note": "c = sign(D − d_f)·clamp((|D − d_f| − h)/max(S − h, 1e-6), 0, 1)·R_max"},
+        "subjectInFocus": "when the focus is on the subject (target null with a subject, or M(target) ≥ 0.5), the subject plane's CoC is 0",
+        "layersPerSide": {"export": 8, "interactivePreview": 4},
+        "subjectDepthCompression": 0.5,
+        "replacementMinGap": 0.10,
+        "highlightExpansion": {"threshold": 0.70, "gain": 0.85, "styles": ["lens", "swirl", "motion"]},
+        "focusWindowHalfSize": {"value": 0.01, "unit": LONG_EDGE},
+        "disparityNormalisation": "D = clamp((raw − p1)/(p99 − p1), 0, 1), then bilinear to the working size and a guided filter "
+                                  "(grey guide, radius round(0.006·long edge) ≥ 2 px, ε 1e-3), clamped to [0, 1]",
+        "pullPush": "pull: 2×2 box mean with edge padding of an odd row/column, α' = min(4α, 1), colour scaled by α'/α, "
+                    "repeated until the level is 1×1; push: C_l += (1 − clamp(α_l, 0, 1))·bilinear_halfpixel(C_{l+1})",
+    }
 
 
 def stages():
@@ -168,12 +194,15 @@ def stages():
                         "params": {"blur": num(0, 100, 0, PERCENT), "depthOfField": num(0, 100, 40, PERCENT, "'Focus depth' slider"),
                                    "style": enum(["lens", "soft", "swirl", "motion"], "lens"),
                                    "bokeh": enum(["round", "hex", "heart", "star"], "round", "lens style only"),
-                                   "styleAmount": num(0, 100, 50, PERCENT, "soft: glow, swirl: swirl, motion: direction (-180…180° = styleAmount·3.6−180)"),
-                                   "maxBlurRadius": {"type": "constant", "value": 0.03, "unit": LONG_EDGE}},
-                        "note": "circle of confusion from |depth − focusDepth|; depth from the recorded depth source "
-                                "(embedded map, estimated map, or the subject matte as a two-plane fallback). Applies to the "
-                                "replaced background too (it sits at depth replacementDepth).",
-                        "status": "provisional"}]},
+                                   "styleAmount": num(0, 100, 50, PERCENT, "soft: glow, swirl: swirl, motion: direction (-180…180° = styleAmount·3.6−180)")},
+                        "constants": focus_constants(),
+                        "depthSources": {"embedded": "the photo's own depth/disparity map", "estimated": "Depth Anything V2 Small (D5)",
+                                         "subject-matte": "no depth: the operator must not blur (blur 0 is enforced by the edit-recipe "
+                                                          "reader); never a mask-only blur (depth-evaluation.md §R8)"},
+                        "note": "rendering-v2.md §7.1 and docs/v1/depth-evaluation.md §6; executable reference experiments/depth/refocus.py. "
+                                "The renderer works in disparity (1 near); the recipe stores depth (0 near), so disparity = 1 − depth. "
+                                "Applies to the replaced background too (§R2.4 plane placement).",
+                        "status": "calibrated-to-approved-prototype"}]},
         {"order": 9, "id": "portrait", "frame": "frame (faces stored in source coordinates)", "recipe": "editState.tools.portrait",
          "operators": [{"id": "faceRetouch", "params": {
              "skin.smoothing": num(0, 100, 0, PERCENT), "skin.blemishes": num(0, 100, 0, PERCENT), "skin.evenTone": num(0, 100, 0, PERCENT),
@@ -230,7 +259,8 @@ def develop_model():
 
 def contract() -> dict:
     return {
-        "contract": "lightly-rendering", "version": 2,
+        "contract": "lightly-rendering", "version": 2, "revision": CONTRACT_REVISION,
+        "changeLog": "shared/contracts/rendering-v2.md#change-log",
         "prose": "shared/contracts/rendering-v2.md",
         "generatedBy": "shared/contracts/build_rendering_v2.py",
         "conventions": {

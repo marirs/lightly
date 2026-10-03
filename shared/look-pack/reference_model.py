@@ -495,29 +495,73 @@ def bilinear_upsample(field: np.ndarray, height: int, width: int) -> np.ndarray:
     return top * (1 - fy)[:, None] + bottom * fy[:, None]
 
 
-def apply_grain(rgb, params: dict, experimental: dict, strength: float = 1.0):
-    """Film grain on OKLab L, strongest in the midtones. Grain cells are set per long edge (resolution independent).
+def grain_supersampling(cells_long: int, long_edge: int) -> int:
+    """Integer supersampling factor so every grain cell spans at least 2 output pixels before averaging.
 
-    v2 differs from lr_model.apply_grain on purpose: the random field comes from a portable hash instead of
-    torch.randn, and is normalised analytically (bilinear interpolation of unit noise has standard deviation
-    2/3 on average) instead of by the image's own sample statistics, so preview and export get the same grain.
+    Contract fixes 1 (rendering-v2 revision 1): when a small render has fewer pixels than grain cells, the
+    bilinear "upsample" became a point sample of the field. Each pixel then got an independent value at
+    1.5x the intended amplitude (the 2/3 normalisation assumes interpolation), so a small preview showed
+    coarse, too-strong grain that the same export viewed at that size does not have. Rendering at s times
+    the size and box-averaging s x s blocks gives the preview what downscaling the export would give it.
     """
-    amount = params["amount"] / 100 * strength
-    if not amount:
-        return rgb
+    return max(1, math.ceil(2 * cells_long / long_edge))
+
+
+def box_average(plane: np.ndarray, factor: int) -> np.ndarray:
+    """Mean of each factor x factor block (the plane's sides are multiples of factor)."""
+    if factor == 1:
+        return plane
+    h, w = plane.shape[0] // factor, plane.shape[1] // factor
+    return plane.reshape(h, factor, w, factor).mean(axis=(1, 3))
+
+
+def grain_noise(height: int, width: int, params: dict, experimental: dict) -> np.ndarray:
+    """The unit grain field n at the output size (rendering-v2.md F2), before amount and tone weighting."""
     size = params["size"] / 100
-    h, w = rgb.shape[:2]
-    long_edge = max(h, w)
+    long_edge = max(height, width)
     cells_long = max(8, int(round(experimental["GRAIN_REF_LONG"] / (1 + 4 * size))))
-    rows, cols = max(2, round(cells_long * h / long_edge)), max(2, round(cells_long * w / long_edge))
+    rows, cols = max(2, round(cells_long * height / long_edge)), max(2, round(cells_long * width / long_edge))
+    factor = grain_supersampling(cells_long, long_edge)
+    h, w = height * factor, width * factor
     fine = bilinear_upsample(gaussian_field(params["seed"], 0, rows, cols), h, w) / (2 / 3)
     coarse = bilinear_upsample(gaussian_field(params["seed"], 1, max(2, rows // 3), max(2, cols // 3)), h, w) / (2 / 3)
     roughness = params["roughness"] / 100
     noise = ((1 - roughness) * fine + roughness * coarse) / math.sqrt((1 - roughness) ** 2 + roughness ** 2)
+    return box_average(noise, factor)
+
+
+def _with_lightness_keep_chromaticity(rgb, new_lightness, lab):
+    """Replace OKLab L, scaling a and b by the same factor so hue and saturation (a/L, b/L) are unchanged.
+
+    Scaling (L, a, b) by r scales LMS^(1/3) by r, i.e. linear RGB by r^3: the pixel only gets brighter or
+    darker. `_with_lightness` keeps a and b fixed instead, which raises the saturation of every pixel the
+    grain darkens and lowers it where it brightens; on skin at grain 55 that read as coloured grain.
+    L is at least about 0.0046 (the 1e-7 LMS floor), so the ratio is always defined.
+    """
+    target = np.clip(new_lightness, 0, 1)
+    ratio = target / np.maximum(lab[..., 0], 1e-6)
+    scaled = np.stack([target, lab[..., 1] * ratio, lab[..., 2] * ratio], -1)
+    return np.clip(linear_to_srgb(oklab_to_linear(scaled)), 0, 1)
+
+
+def apply_grain(rgb, params: dict, experimental: dict, strength: float = 1.0):
+    """Film grain on OKLab lightness, strongest in the midtones. Grain cells are set per long edge (resolution independent).
+
+    v2 differs from lr_model.apply_grain on purpose: the random field comes from a portable hash instead of
+    torch.randn, and is normalised analytically (bilinear interpolation of unit noise has standard deviation
+    2/3 on average) instead of by the image's own sample statistics, so preview and export get the same grain.
+    Revision 1 also differs on purpose: chromaticity is kept (no colour noise) and renders with fewer pixels
+    than 2 per grain cell are supersampled and box-averaged (see grain_supersampling).
+    """
+    amount = params["amount"] / 100 * strength
+    if not amount:
+        return rgb
+    h, w = rgb.shape[:2]
+    noise = grain_noise(h, w, params, experimental)
     lab = linear_to_oklab(srgb_to_linear(rgb))
     L = lab[..., 0]
     L = L + experimental["GRAIN_K"] * amount * noise * (4 * L * (1 - L) + 0.2)
-    return _with_lightness(rgb, L, lab)
+    return _with_lightness_keep_chromaticity(rgb, L, lab)
 
 
 def develop_global_with_override(rgb, recipe: dict, model: dict, override_lut: np.ndarray):

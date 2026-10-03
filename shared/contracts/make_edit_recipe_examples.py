@@ -85,6 +85,11 @@ def face(box, **changes) -> dict:
     return entry
 
 
+def estimated_depth(focus_depth=None) -> dict:
+    """An estimated (Depth Anything V2 Small) map; focusDepth null = resolved at render from the default target."""
+    return {"source": "estimated", "map": derived("e7", DEPTH_MODEL, 512, 384), "focusDepth": focus_depth, "replacementDepth": 1}
+
+
 def with_matte(state: dict) -> dict:
     state["tools"]["background"]["subject"]["matte"] = derived("5a", SEGMENTATION, 1008, 756)
     return state
@@ -131,9 +136,11 @@ def examples() -> dict[str, dict]:
     s = with_matte(neutral_state(revision=2))
     focus = s["tools"]["background"]["focus"]
     focus.update(blur=35, style="motion", styleAmount=75)  # direction = 75 * 3.6 - 180 = 90 degrees
-    out["background-focus-subject-matte-motion"] = s
+    focus["depth"] = estimated_depth()
+    out["background-focus-estimated-motion"] = s
     s = with_matte(neutral_state(revision=2))
     s["tools"]["background"]["focus"].update(blur=45, style="swirl", styleAmount=60, bokeh="star")
+    s["tools"]["background"]["focus"]["depth"] = estimated_depth()
     out["background-focus-swirl"] = s
 
     s = neutral_state(revision=5)
@@ -203,6 +210,8 @@ def demo_combined() -> dict:
     s["tools"]["background"]["replacement"] = {"kind": "image", "image": {"kind": "bundled", "id": "background.landscape_01"},
                                                "x": 50, "y": 50, "scale": 120}  # 2 background replaced
     s["tools"]["background"]["focus"].update(blur=55, target=[0.4, 0.48])  # 3 focus & blur on the new background
+    # Depth under the face, stored as depth (0 near): 1 - disparity 0.458 measured on this photo (contract-fixes-1.md).
+    s["tools"]["background"]["focus"]["depth"] = estimated_depth(focus_depth=0.54)
     s["tools"]["portrait"]["faces"] = [face([0.29, 0.37, 0.22, 0.25], skin__smoothing=22, skin__blemishes=35,
                                             underEye__brighten=15)]          # 4 portrait
     s["tools"]["effects"]["vignette"].update(enabled=True)                 # 5 effects
@@ -236,6 +245,9 @@ def invalid_examples() -> dict[str, dict]:
     s = neutral_state(look=LOOK_LANDSCAPE)
     s["look"]["strength"] = 1.5
     out["invalid-look-strength"] = s
+    s = with_matte(neutral_state(revision=2))
+    s["tools"]["background"]["focus"].update(blur=35, style="motion", styleAmount=75)
+    out["invalid-blur-without-depth"] = s   # subject-matte cannot blur (contract fixes 1, gap G3)
     return out
 
 

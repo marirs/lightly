@@ -6,7 +6,7 @@ These are shared by the iOS and Android tests. The schema is `shared/contracts/e
 |---|---|
 | `neutral.json` | Decodes and re-encodes identically: the `newSession` defaults with no Auto model |
 | `develop-look-amount-auto.json` | A Look at Amount 60 (`strength` 0.6) on top of an applied Auto |
-| `background-*.json` | Replacement (bundled image, colour, gradient) plus Focus & Blur: every style and bokeh, each depth source (embedded map, estimated map, subject matte), refine-edge strokes, and blur applied after replacement |
+| `background-*.json` | Replacement (bundled image, colour, gradient) plus Focus & Blur: every style and bokeh, each depth source (embedded map, estimated map; `subject-matte`, i.e. no depth, only with blur 0), refine-edge strokes, and blur applied after replacement |
 | `portrait-two-faces.json` | Two faces, each with its own settings |
 | `edit-geometry.json`, `edit-adjust.json`, `edit-remove-strokes.json` | Crop, quarter turn, flip, perspective, straighten; every Adjust slider; one applied and one failed Remove stroke |
 | `effects-combined-on-top-of-preset.json` | Light leak, grain and vignette over a Look (composed with the preset's own grain and vignette, never replacing them) |
@@ -14,7 +14,7 @@ These are shared by the iOS and Android tests. The schema is `shared/contracts/e
 | `border-*.json` | Solid, Photo Frame, and Polaroid with the signature on its margin |
 | `demo-combined.json` | The approved "Combined edit, one session" (`docs/ui/app/screens.js` DEMO steps 1 to 7) |
 | `migrated-from-v2-with-look.json` | Expected result of migrating `../edit-state/v2-with-look.json` |
-| `invalid-*.json` | Rejected as a whole: an unknown key, an out-of-range value, a colour name, schema 4, a missing tool section, an unknown depth source, Look strength above 1 |
+| `invalid-*.json` | Rejected as a whole: an unknown key, an out-of-range value, a colour name, schema 4, a missing tool section, an unknown depth source, a blur without depth, Look strength above 1 |
 
 ## Relation to EditState schema 2
 
@@ -41,4 +41,5 @@ Reader rules beyond the schema, implemented in `shared/contracts/schema_check.py
 - exactly the watermark part that matches `type` is set;
 - gradient stop positions must not decrease;
 - the depth `map` is null exactly when the source is `subject-matte`;
-- a Remove `patch` is present exactly when the stroke was applied.
+- a Remove `patch` is present exactly when the stroke was applied;
+- `blur` is 0 when the depth source is `subject-matte` (no depth; a matte alone never drives a blur, rendering-v2 revision 1).

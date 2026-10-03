@@ -2,6 +2,8 @@
 
 This contract defines the ordered pipeline that renders a whole Lightly edit. It covers every tool in the approved UX (`docs/ui/app/`). The parameters, ranges, units and calibrated constants are in `rendering-v2.json`, which `build_rendering_v2.py` generates; do not edit the JSON by hand. This file gives the equations and the reasons behind them.
 
+**Revision:** 1 (contract fixes 1, 2026-10-03). See the [change log](#change-log) at the end and the porting notes in `docs/v1/contract-fixes-1.md`.
+
 **Status:** Develop is specified exactly enough to port.
 - The global stage is the calibrated model, ported as `shared/look-pack/reference_model.py`. Per preset, it reproduces `experiments/presets/lr_model.py` within 3.7e-4 over the 2,591 catalogue presets.
 - The other stages are specified at the level of parameters, coordinate spaces and order.
@@ -259,19 +261,27 @@ style 1 (highlight priority): g = 1 + K·a·t; if a < 0: g = 1 + (g−1)·(1 −
 Here hc = highlightContrast/100. The user Effects vignette maps onto this operator: `amount = −amount`, `midpoint = size`, `feather = softness`, roundness 0, style 1.
 
 ### F2 Grain
-This operator is *experimental* and uncalibrated. **v2 differs from lr_model on purpose** in two ways:
+This operator is *experimental* and uncalibrated. **v2 differs from lr_model on purpose** in four ways:
 - The random field is portable, where lr_model uses `torch.randn`.
 - It is normalised analytically, where lr_model normalises it per image.
+- *(revision 1)* Only lightness changes; the pixel's chromaticity is kept (below).
+- *(revision 1)* A render with fewer than 2 pixels per grain cell is supersampled and box-averaged (below).
 
-As a result, preview and export get the same grain on every platform.
+As a result, preview and export get the same grain on every platform, and a small preview shows what the export shows once downscaled.
 ```
 cells = max(8, round(GRAIN_REF_LONG/(1 + 4·size/100)));  rows = max(2, round(cells·H/longEdge)), cols likewise
-fine   = bilinear(N(seed, 0, rows, cols)) / (2/3)
-coarse = bilinear(N(seed, 1, max(2, rows div 3), max(2, cols div 3))) / (2/3)
-n = ((1−r)·fine + r·coarse)/sqrt((1−r)² + r²),  r = roughness/100
-L += GRAIN_K·amount/100·n·(4L(1−L) + 0.2)
+s = max(1, ceil(2·cells/longEdge))                       # supersampling factor, integer
+fine   = bilinear(N(seed, 0, rows, cols) → s·H × s·W) / (2/3)
+coarse = bilinear(N(seed, 1, max(2, rows div 3), max(2, cols div 3)) → s·H × s·W) / (2/3)
+n = boxMean_s( ((1−r)·fine + r·coarse)/sqrt((1−r)² + r²) ),  r = roughness/100     # mean of each s×s block
+(L, a, b) = OKLab(lin(rgb))
+L' = clamp(L + GRAIN_K·amount/100·n·(4L(1−L) + 0.2), 0, 1)
+out = clamp(enc(OKLab⁻¹(L', a·L'/L, b·L'/L)), 0, 1)      # L ≥ ~0.0046 because of the 1e-7 LMS floor
 ```
 - `bilinear` uses half-pixel centres: `src = clamp((dst + 0.5)·in/out − 0.5, 0, in − 1)`.
+- **Why a and b scale with L (revision 1).** Scaling (L, a, b) by one factor scales linear RGB by its cube, so the pixel only gets lighter or darker. The first version kept a and b fixed, which raises OKLab saturation (C/L) wherever the grain darkens and lowers it where it lightens. On skin at grain 55 ("5 - (Portrait) - Glow") that was a 12.7 % saturation noise (std): the "coloured grain" in iOS M9 and Android S8. Gamut clipping added little: 5.8 % of the photo's pixels clipped, and hue noise on skin was 0.8° (std). With the fix the saturation noise on skin is 1.3 % and the hue noise 0.4°, both from the remaining clipping at white and black (3.4 % of pixels).
+- **Why supersample (revision 1).** With fewer pixels than cells, the bilinear "upsample" is a point sample: every pixel gets an independent value at 1.5× the intended amplitude (the 2/3 normalisation assumes interpolation). For 600 cells (size 25), that happens below 1,200 px on the long edge; for size 0, below 2,400 px. With s, a 300×400 preview equals the 900×1200 export averaged over 3×3 blocks, exactly.
+- **What GRAIN_K means.** The midtone weight 4L(1−L) + 0.2 is 1.2 at L = 0.5, so the OKLab L standard deviation at amount 100 is 0.144 at mid-grey (0.2·K at black and white), not the 0.12 that lr_model's comment states. Neither GRAIN_K nor GRAIN_REF_LONG is calibrated against anything: they are lr_model's first guesses. Calibrating them needs Lightroom exports (D8; `docs/v1/contract-fixes-1.md` §3 lists the minimum set).
 - `N(seed, layer, i, j)` is defined below. All arithmetic is uint32, modulo 2³²:
   ```
   lowbias32(x): x ^= x>>16; x *= 0x7FEB352D; x ^= x>>15; x *= 0x846CA68B; x ^= x>>16
@@ -279,7 +289,7 @@ L += GRAIN_K·amount/100·n·(4L(1−L) + 0.2)
   h1 = lowbias32(base ^ lowbias32((i·0x9E3779B1) ^ lowbias32(j)));  h2 = lowbias32(h1 ^ 0x85EBCA6B)
   u_k = ((h_k >> 8) + 0.5)/2²⁴;  N = sqrt(−2 ln u1)·cos(2π u2)
   ```
-  `shared/fixtures/look-pack/golden.json` gives exact vectors under `portableRandom`.
+  `shared/fixtures/look-pack/golden.json` gives exact vectors under `portableRandom`; `shared/fixtures/rendering/` gives whole-operator vectors (`grain`).
 - **Seed:** the preset seed comes from `GrainSeed` when the preset has one. Otherwise it is the first 32 bits of sha256(preset id). The user grain seed is fixed when the edit is created.
 - **User grain styles:** `fine`, `film` and `coarse` scale size by 0.7, 1.0 and 1.5 respectively, capped at 100.
 
@@ -296,11 +306,7 @@ This operator is *provisional*, using design values from the prototype. It is a 
 - **`edit.adjust`** maps onto the Develop model: `ev = exposure/50`, with contrast, highlights, shadows, temp, tint, saturation and vibrance passed through. Detail maps onto S1–S3; see `maps` in the JSON. *Provisional mapping.*
 - **`edit.remove`:** each applied stroke replays its stored patch (`derivedRef`). It is blocked on D4.
 - **`background.replace`:** the subject matte composites the subject over an image (x, y, scale), a colour or a gradient. The replacement receives the photo's global colour (§1).
-- **`background.focus`** is a depth-aware blur.
-  - Depth comes from `depth.source`: the embedded depth map, an estimated depth map (D5), or `subject-matte` (two planes).
-  - The circle of confusion is proportional to `blur`, outside a band of half-width `depthOfField/100·0.5` around `focusDepth`. Its maximum radius is 0.03 of the long edge.
-  - The kernel shape follows `style`: lens (bokeh round, hex, heart or star), soft (glow = styleAmount), swirl, or motion (direction = styleAmount·3.6 − 180°).
-  - It also applies to a replaced background, which sits at `replacementDepth`.
+- **`background.focus`** is a depth-aware blur, specified in §7.1.
 - **`portrait`** works per face, inside landmark-derived regions. It never changes eye colour, eye shape or skin-tone colour.
 - **`border`** insets are fractions of the image width:
   - solid: [w, w, w]
@@ -310,6 +316,30 @@ This operator is *provisional*, using design values from the prototype. It is a 
   - On a border, the watermark is centred in the bottom margin: 6 % from the bottom for polaroid, 1 % otherwise.
   - On a polaroid margin, the ink is #222222.
 
+### 7.1 `background.focus` (revision 1)
+
+The full algorithm is `docs/v1/depth-evaluation.md` §6 (§R1–§R9); `experiments/depth/refocus.py` is its executable reference and `rendering-v2.json` (`stages[background.focus].operators[0].constants`) carries the constants. This section fixes what the first contract left inconsistent with that specification.
+
+**Depth source** (`tools.background.focus.depth.source`):
+- `embedded` or `estimated`: a normalised depth map, stored as depth (0 near, 1 far). The renderer works in disparity, `D = 1 − depth`, normalised as §R2.1 and guided-filtered at the working size.
+- `subject-matte`: **no depth.** The operator must not blur from a matte alone (§R8). The edit-recipe reader rejects `blur > 0` with this source; the panel shows the approved failure state instead of offering Blur.
+
+**Focal plane.** `d_f = 1 − depth.focusDepth` when it is stored (it is resolved when the target is set). When it is null, `d_f` is the §R3 median under the target, or under the default target (subject matte centroid, else the image centre) when the target is null too.
+
+**Circle of confusion** (per plane pixel, px):
+```
+R_max = blur/100 · 0.06 · longEdge
+h     = 0.5 · depthOfField/100                      # 'Focus depth' slider: half-width of the sharp band
+S     = max(d_f, 1 − d_f)                           # distance to the farther end of the depth range
+c     = sign(D − d_f) · clamp((|D − d_f| − h)/max(S − h, 1e-6), 0, 1) · R_max
+c     = 0 on the subject plane when the focus is on the subject (M(target) ≥ 0.5, or a null target with a subject)
+```
+The farthest content from the focal plane gets R_max, which is what the prototype's Blur slider shows; between the sharp band and that point, blur stays linear in real disparity (never a flat mask blur). The constants were measured against the approved bg-* screens (`docs/v1/contract-fixes-1.md` §1).
+
+**Layers, kernels, compositing:** §R4 (K = 8 for export, 4 allowed for interactive preview), §R5, §R6. Pull-push pulls to a 1×1 level with exact 2×2 box means (odd rows and columns repeated) and pushes back with half-pixel bilinear upsampling (§R6).
+
+**Replaced background.** Placed by §R2.4 "plane": `D_B = min(median of the original background disparity, max(0, median_subject − 0.10))`. It is recomputed from the stored depth map and matte; `depth.replacementDepth` is not read.
+
 ## 8. Tolerances (native parity)
 
 See `docs/v1/preset-pack.md` §Parity. In short, against `shared/fixtures/look-pack/golden.json`:
@@ -317,3 +347,12 @@ See `docs/v1/preset-pack.md` §Parity. In short, against `shared/fixtures/look-p
 - each direct probe within 5e-4;
 - each probe through a 33³ bake and trilinear lookup within 1e-3;
 - the random vectors exact (field values within 1e-6).
+
+Against `shared/fixtures/rendering/index.json` (revision 1): grain noise within 1e-4 and output within 2e-4; background.focus scalars (CoC, half-width, R_max, focal disparity, highlight curve) within 1e-4, kernels within 1e-5, pull-push within 1e-4, and whole renders ΔE00 mean ≤ 1.0 / p99 ≤ 4 (§R9).
+
+## Change log
+
+| Revision | Date | Change | Affects lookVersion |
+|---|---|---|---|
+| 0 | — | Contract version 2 as first published (`e96349c`) | — |
+| 1 | 2026-10-03 | Contract fixes 1 (`docs/v1/contract-fixes-1.md`). **background.focus:** maxBlurRadius 0.03 → 0.06 of the long edge; CoC normalised by S − h with S = max(d_f, 1 − d_f) instead of 1 − h; the subject plane stays sharp when the focus is on the subject; depth-of-field half-width stays 0.5·depthOfField/100 (depth-evaluation §R4 changed to match); pull-push pulls to 1×1 (G7); `subject-matte` means no depth and cannot blur (G3); depth direction and stored focus depth defined (G4); replacement placement by §R2.4, `replacementDepth` not read (G6); renderer goldens (G5). **Grain (F2):** chromaticity kept; supersampling below 2 px per cell. Develop constants and their digest are unchanged. | No: `developModel.constantsSha256` is unchanged, so every `lookVersion` is unchanged. No saved edit exists outside development devices; the revision number versions the rendering change instead |

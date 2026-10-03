@@ -44,11 +44,18 @@ class FocusBlurParams:
     style: str = "lens"            # lens | soft | swirl | motion
     bokeh: str = "round"           # lens only: round | hex | heart | star
     style_amount: float = 50.0     # 0..100  soft: Glow, swirl: Swirl, motion: Direction (-180..180 via *3.6-180)
+    # None: decided by the tap (M(target) >= 0.5). True for a null recipe target with a subject, which means
+    # "focus on the subject" even when the default target (matte centroid) falls outside the matte (§R4).
+    subject_focus: bool | None = None
 
 
 # Constants that both platforms must use (§R3, §R4). Radii are fractions of the image long side.
-MAX_COC_FRACTION_OF_LONG_SIDE = 0.035   # blur 100 -> 3.5 % of the long side (56 px at 1600 px)
-MAX_FOCUS_HALF_WIDTH = 0.30             # focus depth 100 -> sharp band of +-0.30 disparity
+# Contract fixes 1 (rendering-v2 revision 1, docs/v1/contract-fixes-1.md §1): the maximum radius and the
+# depth-of-field slope were re-derived from the approved prototype's bg-* screens. 0.035 and
+# 0.30·(focusDepth/100)^1.5 blurred the wall behind the woman at a third of the prototype's strength and
+# softened her jacket at the default Focus depth 40.
+MAX_COC_FRACTION_OF_LONG_SIDE = 0.06    # blur 100 -> 6 % of the long side, reached at the far end of the depth range
+FOCUS_HALF_WIDTH_PER_UNIT = 0.5         # focus depth 100 -> sharp band of +-0.5 disparity (linear in the slider)
 LAYERS_PER_SIDE = 8                     # signed CoC quantisation: 8 behind + focal + 8 in front
 SUBJECT_DEPTH_COMPRESSION = 0.5         # subject disparity pulled half-way to its median
 REPLACEMENT_MIN_GAP = 0.10              # a replacement background stays at least this far behind the subject
@@ -57,11 +64,21 @@ HIGHLIGHT_GAIN = 0.85                   # expansion strength (1.0 linear maps to
 
 
 def focus_half_width(focus_depth: float) -> float:
-    return MAX_FOCUS_HALF_WIDTH * (np.clip(focus_depth, 0, 100) / 100.0) ** 1.5
+    return FOCUS_HALF_WIDTH_PER_UNIT * float(np.clip(focus_depth, 0, 100)) / 100.0
 
 
 def max_coc_radius_px(blur: float, long_side: int) -> float:
     return np.clip(blur, 0, 100) / 100.0 * MAX_COC_FRACTION_OF_LONG_SIDE * long_side
+
+
+def defocus_range(focal: float) -> float:
+    """Disparity distance from the focal plane to the farther end of [0, 1] (§R4): max(d_f, 1 - d_f).
+
+    Normalised disparity always spans [0, 1] (§R2.1), so this is where `blur` reaches R_max. It is one
+    scale for both sides of the focal plane, so the ratio of blur between any two depths is the thin-lens
+    ratio of their disparity differences; only the overall scale follows the focal plane.
+    """
+    return max(focal, 1.0 - focal)
 
 
 # --------------------------------------------------------------------------------- colour (§R1)
@@ -99,32 +116,59 @@ def compress_highlights(expanded: np.ndarray) -> np.ndarray:
 
 # ----------------------------------------------------------------------------- fill (pull-push)
 
+def _downsample_2x(plane: np.ndarray) -> np.ndarray:
+    """Exact 2x2 box mean; an odd last row/column is repeated first (edge padding). Portable by design."""
+    h, w = plane.shape[:2]
+    if h % 2:
+        plane = np.concatenate([plane, plane[-1:]], axis=0)
+    if w % 2:
+        plane = np.concatenate([plane, plane[:, -1:]], axis=1)
+    return 0.25 * (plane[0::2, 0::2] + plane[1::2, 0::2] + plane[0::2, 1::2] + plane[1::2, 1::2])
+
+
+def _upsample_bilinear(plane: np.ndarray, height: int, width: int) -> np.ndarray:
+    """Half-pixel-centre bilinear resize, src = clamp((dst + 0.5)·in/out - 0.5, 0, in - 1), per axis."""
+    def axis(out_n, in_n):
+        src = np.clip((np.arange(out_n) + 0.5) * in_n / out_n - 0.5, 0, in_n - 1)
+        lo = np.floor(src).astype(np.int64)
+        return lo, np.minimum(lo + 1, in_n - 1), (src - lo).astype(np.float32)
+    y0, y1, fy = axis(height, plane.shape[0])
+    x0, x1, fx = axis(width, plane.shape[1])
+    fx = fx[None, :, None]
+    top = plane[y0][:, x0] * (1 - fx) + plane[y0][:, x1] * fx
+    bottom = plane[y1][:, x0] * (1 - fx) + plane[y1][:, x1] * fx
+    return top * (1 - fy)[:, None, None] + bottom * fy[:, None, None]
+
+
 def pull_push_fill(premultiplied: np.ndarray, coverage: np.ndarray) -> np.ndarray:
     """Normalised fill of a partially covered image (§R6, Kraus & Strengert 2007 pull-push).
 
     `premultiplied` is HxWxC (colour already multiplied by coverage), `coverage` HxW in [0,1].
     Returns HxWxC un-premultiplied colour defined everywhere: where coverage is 1 it is the input,
     where coverage is partial it is normalised, where it is 0 it comes from coarser levels.
+
+    The pyramid is pulled all the way to 1x1 (contract fixes 1, gap G7). The first reference stopped
+    when the short side reached 4 px and divided by the coverage there; a cell of that level with no
+    coverage stayed 0, so a large disocclusion filled toward black. At 1x1 the only cell holds the
+    coverage-weighted mean of the whole plane, so any hole that has covered pixels anywhere is filled
+    from them. Only a plane with no coverage at all returns 0.
     """
-    levels = [(premultiplied.astype(np.float32), coverage.astype(np.float32))]
-    while min(levels[-1][1].shape) > 4:
+    colour = premultiplied.astype(np.float32)
+    if colour.ndim == 2:
+        colour = colour[..., None]
+    levels = [(colour, coverage.astype(np.float32))]
+    while max(levels[-1][1].shape) > 1:
         colour, alpha = levels[-1]
-        h, w = alpha.shape
-        size = ((w + 1) // 2, (h + 1) // 2)
-        down_colour = cv2.resize(colour, size, interpolation=cv2.INTER_AREA)
-        down_alpha = cv2.resize(alpha, size, interpolation=cv2.INTER_AREA)
-        if down_colour.ndim == 2:
-            down_colour = down_colour[..., None]
-        # Re-normalise coverage per level so a half-covered region becomes fully covered one level up.
+        down_colour = _downsample_2x(colour)
+        down_alpha = _downsample_2x(alpha)
+        # Re-normalise coverage per level so a quarter-covered cell becomes fully covered one level up.
         gain = np.minimum(down_alpha * 4.0, 1.0) / np.maximum(down_alpha, 1e-6)
         levels.append((down_colour * gain[..., None], np.minimum(down_alpha * 4.0, 1.0)))
     colour, alpha = levels[-1]
     filled = colour / np.maximum(alpha, 1e-6)[..., None]
     for colour, alpha in reversed(levels[:-1]):
         h, w = alpha.shape
-        upsampled = cv2.resize(filled, (w, h), interpolation=cv2.INTER_LINEAR)
-        if upsampled.ndim == 2:
-            upsampled = upsampled[..., None]
+        upsampled = _upsample_bilinear(filled, h, w)
         clamped = np.clip(alpha, 0, 1)[..., None]
         filled = colour + (1 - clamped) * upsampled
     return filled.astype(np.float32)
@@ -264,11 +308,22 @@ def cover_fit(image: np.ndarray, shape: tuple[int, int], scale: float = 1.0,
 
 # ------------------------------------------------------------------------- focus selection (§R3)
 
+def _tap_pixel(scene: Scene, target_x: float, target_y: float) -> tuple[int, int]:
+    h, w = scene.background.disparity.shape
+    return int(np.clip(target_x, 0, 1) * (w - 1)), int(np.clip(target_y, 0, 1) * (h - 1))
+
+
+def focus_is_on_subject(scene: Scene, target_x: float, target_y: float) -> bool:
+    """True when the tap lands on the subject plane (M(tap) >= 0.5), the topmost plane there (§R3)."""
+    cx, cy = _tap_pixel(scene, target_x, target_y)
+    return scene.subject is not None and bool(scene.subject.alpha[cy, cx] >= 0.5)
+
+
 def focal_disparity(scene: Scene, target_x: float, target_y: float) -> float:
     """Disparity under the tap: weighted median over a small window of the topmost plane there."""
     h, w = scene.background.disparity.shape
-    cx, cy = int(np.clip(target_x, 0, 1) * (w - 1)), int(np.clip(target_y, 0, 1) * (h - 1))
-    on_subject = scene.subject is not None and scene.subject.alpha[cy, cx] >= 0.5
+    cx, cy = _tap_pixel(scene, target_x, target_y)
+    on_subject = focus_is_on_subject(scene, target_x, target_y)
     disparity = scene.subject.disparity if on_subject else scene.background.disparity
     radius = max(2, round(0.01 * max(h, w)))
     window = disparity[max(0, cy - radius):cy + radius + 1, max(0, cx - radius):cx + radius + 1]
@@ -279,10 +334,14 @@ def signed_coc(disparity: np.ndarray, focal: float, half_width: float, radius_ma
     """Signed circle of confusion in px (§R4): >0 in front of the focal band, <0 behind it.
 
     CoC of a thin lens is proportional to |1/z - 1/z_f| = |disparity - focal|; the dead band of
-    +-half_width is the depth of field the "Focus depth" slider controls.
+    +-half_width is the depth of field the "Focus depth" slider controls. The distance is scaled by
+    `defocus_range(focal) - half_width`, so the farthest depth from the focal plane gets `radius_max`
+    whatever the tap: Blur means "how blurred the farthest content is", as in the approved prototype,
+    while the falloff between the band and that point stays linear in real disparity.
     """
     delta = disparity - focal
-    magnitude = np.maximum(np.abs(delta) - half_width, 0) / max(1 - half_width, 1e-6)
+    span = max(defocus_range(focal) - half_width, 1e-6)
+    magnitude = np.maximum(np.abs(delta) - half_width, 0) / span
     return (np.sign(delta) * np.clip(magnitude, 0, 1) * radius_max).astype(np.float32)
 
 
@@ -417,8 +476,10 @@ def blur_layer(stack: np.ndarray, radius: float, params: FocusBlurParams, radius
 def render(scene: Scene, params: FocusBlurParams, focal_override: float | None = None) -> tuple[np.ndarray, dict]:
     """Render the refocused image (sRGB float HxWx3) and diagnostics (focal disparity, CoC map).
 
-    focal_override is for experiments only (e.g. rendering a background plane alone at the focal
-    disparity of a tap that landed on the subject); the apps always derive it from the tap (§R3).
+    focal_override: the focal disparity when the edit stored it. The recipe stores depth (0 near), so the
+    apps pass `1 - depth.focusDepth` when it is not null, and leave this None to resolve the tap with §R3
+    (rendering-v2.md §7.1, contract fixes 1 gap G4). Whether the subject is in focus is still decided by
+    the tap (M(target) >= 0.5).
     """
     h, w = scene.background.disparity.shape
     radius_max = max_coc_radius_px(params.blur, max(h, w))
@@ -433,9 +494,19 @@ def render(scene: Scene, params: FocusBlurParams, focal_override: float | None =
     front_sums = [np.zeros((h, w, 4), np.float32) for _ in planes]
     coc_maps = []
 
+    # Contract fixes 1 (§R4): focusing on the subject keeps the whole subject plane sharp, as the approved
+    # prototype shows it. Without this an arm or shoulder nearer than the face fell outside the band at the
+    # default Focus depth and blurred visibly. Depth still shapes everything in the background plane.
+    if params.subject_focus is None:
+        subject_in_focus = scene.subject is not None and focus_is_on_subject(scene, params.target_x, params.target_y)
+    else:
+        subject_in_focus = scene.subject is not None and params.subject_focus
     for plane_index, plane in enumerate(planes):
         colour = expand_highlights(plane.colour_linear) if use_highlights else plane.colour_linear
-        coc = signed_coc(plane.disparity, focal, half_width, radius_max)
+        if plane_index == 1 and subject_in_focus:
+            coc = np.zeros_like(plane.disparity, dtype=np.float32)
+        else:
+            coc = signed_coc(plane.disparity, focal, half_width, radius_max)
         coc_maps.append(coc)
         layer_position = coc / layer_step  # continuous signed layer index
         for layer in range(-LAYERS_PER_SIDE, LAYERS_PER_SIDE + 1):
