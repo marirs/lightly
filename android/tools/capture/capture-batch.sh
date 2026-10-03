@@ -56,7 +56,12 @@ HIKING=look-617ee7c8edcb1bad9c35
 FILES=/data/user/0/$PKG/files
 photo_for() { case $1 in bg-no-subject) echo landscape_02;; bg-*) echo portrait_medium_02;; dev-long-name) echo landscape_03;; dev-favourites|dev-bw|dev-portrait-photo) echo portrait_deep_03;; dev-landscape-photo) echo sunset_02;; *) echo landscape_02;; esac; }
 people_for() { case $(photo_for $1) in portrait_deep_03|portrait_medium_02) echo present;; *) echo absent;; esac; }
-favs_for() { case $1 in dev-favourites|dev-fav-full|dev-fav-replace) echo $FAVS;; dev-starred) echo $HIKING;; *) echo "";; esac; }
+# Slice-1 screens (no photo): file id → debug navigation route (DebugLaunchOptions screen names).
+SLICE1_SCREENS="welcome welcome-more camera-denied load-failed preferences pref-favourites pref-signature pref-border legal privacy terms about support"
+route_for() { case $1 in welcome-more) echo more;; pref-favourites) echo favourites;; pref-signature) echo signature;; pref-border) echo preferred_border;; *) echo $1;; esac; }
+is_slice1() { case " $SLICE1_SCREENS " in *" $1 "*) return 0;; *) return 1;; esac; }
+# Slice-1 favourites preference shows these five; other slice-1 screens do not show favourites.
+favs_for() { is_slice1 $1 && { echo $FAVS; return; }; case $1 in dev-favourites|dev-fav-full|dev-fav-replace) echo $FAVS;; dev-starred) echo $HIKING;; *) echo "";; esac; }
 
 # --- boot (one per batch) ---------------------------------------------------------------------
 boot_started=$(date +%s)
@@ -118,9 +123,13 @@ if [ "$MODE" = runner ]; then
     seq=$((seq + 1))
     F="$OUT/${S}__${DEV}__${ORIENT}__${THEME}__${TEXT}.png"
     $ADB logcat -c
+    if is_slice1 $S; then
+      target="--es lightly.debug.screen $(route_for $S)"
+    else
+      target="--es lightly.debug.photo $FILES/$(photo_for $S).jpg --es lightly.debug.editor $S --es lightly.debug.people $(people_for $S)"
+    fi
     $ADB shell am broadcast -p $PKG -a com.lightlylabs.lightly.debug.CAPTURE --ei seq $seq \
-      --es lightly.debug.appearance $THEME --es lightly.debug.favourites "'$(favs_for $S)'" \
-      --es lightly.debug.photo $FILES/$(photo_for $S).jpg --es lightly.debug.editor $S --es lightly.debug.people $(people_for $S) >/dev/null
+      --es lightly.debug.appearance $THEME --es lightly.debug.favourites "'$(favs_for $S)'" $target >/dev/null
     line=$(bounded 150 $ADB logcat -s LightlyCapture:I -m 1 -e "(ready|failed) seq=$seq " | tr -d '\r' | tail -1)
     case $line in
       *"ready seq=$seq "*) screencap "$F"; sidecar "$F" "$S" "$line"; echo "$F ${line##*screen=}"
