@@ -1,25 +1,35 @@
+@file:UseSerializers(CanonicalFloatSerializer::class)
+
 package com.lightlylabs.lightly.session
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseSerializers
 
 /**
- * EditState schema 2 (docs/m1/spec.md §3). An immutable snapshot of one committed edit. Field names are
- * the shared contract: iOS and Android must serialise the same JSON, so renaming a property here is
- * a contract change and must bump [EditState.CURRENT_SCHEMA].
+ * EditState schema 3 = edit recipe v1 (shared/contracts/edit-recipe-v1.json). An immutable snapshot of
+ * one committed edit covering every tool. Schema 3 is schema 2 (source, auto, look, revision: same keys,
+ * same meaning) plus `recipeVersion` and `tools`. Field names and their ORDER are the shared contract:
+ * iOS and Android write the same canonical bytes, so renaming or reordering is a contract change.
+ *
+ * The Develop tool is `auto` + `look`; its Amount is `look.strength` (Amount / 100). Undo and redo
+ * store whole EditStates, so they restore every tool at once.
  */
 @Serializable
 data class EditState(
     val schema: Int = CURRENT_SCHEMA,
+    val recipeVersion: Int = RECIPE_VERSION,
     val source: SourceRef,
     val auto: AutoResult,
-    /** At most one creative Look (Invariant R). `null` means "Auto only". */
+    /** At most one creative Look (Invariant R). `null` means "no Look" (Auto or Original). */
     val look: LookRef?,
     /** Commit counter, monotonically increasing within a session; assigned by [EditSession]. */
     val revision: Long,
+    val tools: EditTools,
 ) {
     init {
         require(schema == CURRENT_SCHEMA) { "Unsupported EditState schema $schema (expected $CURRENT_SCHEMA)" }
+        require(recipeVersion == RECIPE_VERSION) { "Unsupported recipeVersion $recipeVersion (expected $RECIPE_VERSION)" }
         require(revision >= 0) { "revision must be non-negative, was $revision" }
     }
 
@@ -32,13 +42,16 @@ data class EditState(
 
     companion object {
         /**
-         * 2: `look.lookVersion` became the Look pack's version string (was an Int in schema 1).
-         * v3 differs: a schema 1 edit is no longer dropped. [SavedEdits] migrates it to schema 2
-         * with `lookVersion = "legacy-v1-<n>"`, which never matches a pack version, so the Look
-         * resolves as "changed" and is not rendered until the user accepts the current version.
-         * Constructing an EditState directly still requires schema 2.
+         * 3: edit recipe v1 (recipeVersion + tools). 2: `look.lookVersion` became the Look pack's
+         * version string (was an Int in schema 1). [SavedEdits] migrates 1 → 2 → 3 on read; a schema 1
+         * Look becomes `legacy-v1-<n>`, which never matches a pack version, so it resolves as "changed".
          */
-        const val CURRENT_SCHEMA = 2
+        const val CURRENT_SCHEMA = 3
+        const val RECIPE_VERSION = 1
+
+        /** A new edit of [source]: the given Auto result, no Look, every tool neutral, revision 0. */
+        fun initial(source: SourceRef, auto: AutoResult): EditState =
+            EditState(source = source, auto = auto, look = null, revision = 0, tools = EditTools.neutral(EditTools.grainSeedFor(source.fingerprint)))
     }
 }
 
@@ -71,7 +84,8 @@ data class SourceFingerprint(
         require(headSha256.length == 64 && headSha256.all { it in '0'..'9' || it in 'a'..'f' }) {
             "headSha256 must be 64 lowercase hex characters"
         }
-        require(byteSize > 0) { "byteSize must be positive" }
+        // edit-recipe-v1.json allows 0 (schema minimum); a negative size is never valid.
+        require(byteSize >= 0) { "byteSize must not be negative" }
         require(pixelWidth > 0 && pixelHeight > 0) { "pixel size must be positive" }
     }
 }

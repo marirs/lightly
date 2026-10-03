@@ -64,16 +64,31 @@ class EditSessionTest {
         assertEquals(listOf(null, portra, warmGolden), forked.history.entries.map { it.look })
     }
 
+    // v3 differs: the approved Develop has no Reset control (docs/v1/slice2-android.md › UX conflicts),
+    // so `resetToAuto` is gone. Choosing stop 0 on the ruler is the same commit (selectLook(null)).
     @Test
-    fun `reset to Auto is one undoable step`() {
+    fun `choosing stop zero is one undoable step`() {
         val withLook = newSession().selectLook(portra)
 
-        val reset = withLook.resetToAuto()
-        assertNull(reset.current.look)
-        assertEquals(3, reset.history.entries.size)
+        val cleared = withLook.selectLook(null)
+        assertNull(cleared.current.look)
+        assertEquals(3, cleared.history.entries.size)
 
-        val undone = reset.undo()
+        val undone = cleared.undo()
         assertEquals(portra, undone.current.look)
+    }
+
+    @Test
+    fun `undo restores the whole recipe, every tool together`() {
+        val base = newSession()
+        val edited = base.commit { state ->
+            state.copy(look = portra, tools = state.tools.copy(border = state.tools.border.copy(type = BorderType.SOLID)))
+        }
+        assertEquals(BorderType.SOLID, edited.current.tools.border.type)
+
+        val undone = edited.undo()
+        assertEquals(base.current, undone.current)
+        assertEquals(edited.current, undone.redo().current)
     }
 
     @Test
@@ -83,7 +98,8 @@ class EditSessionTest {
         assertSame(withLook, withLook.selectLook(portra))
         assertSame(withLook, withLook.setLookStrength(portra.strength))
         val baseline = newSession()
-        assertSame(baseline, baseline.resetToAuto(), "reset with no Look has nothing to reset")
+        assertSame(baseline, baseline.selectLook(null), "stop zero with no Look is no change")
+        assertSame(baseline, baseline.commit { it }, "an identical recipe is no change")
     }
 
     @Test

@@ -23,6 +23,8 @@ val lightlyModelsDir: String = providers.gradleProperty("lightlyModelsDir")
 // read these exact files; no module keeps a private copy, so a contract change on one side fails
 // the other side's tests instead of drifting silently.
 val sharedEditStateFixturesDir: File = repoRoot.resolve("shared/fixtures/edit-state")
+// EditState schema 3 (edit recipe v1) fixtures, shared with iOS in the same way.
+val sharedEditRecipeFixturesDir: File = repoRoot.resolve("shared/fixtures/edit-recipe")
 
 // Robolectric instruments JDK classes with ASM; on JDK 26 it fails with "Unsupported class file major
 // version 70", which surfaces as misleading test failures. Fail fast with the fix instead.
@@ -43,8 +45,10 @@ subprojects {
         systemProperty("lightly.goldenDir", lightlyGoldenDir)
         systemProperty("lightly.modelsDir", lightlyModelsDir)
         systemProperty("lightly.editStateFixturesDir", sharedEditStateFixturesDir.absolutePath)
+        systemProperty("lightly.editRecipeFixturesDir", sharedEditRecipeFixturesDir.absolutePath)
         // Small and committed, unlike the golden set: hash it so editing a fixture re-runs the tests.
         inputs.dir(sharedEditStateFixturesDir).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("sharedEditStateFixtures")
+        inputs.dir(sharedEditRecipeFixturesDir).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("sharedEditRecipeFixtures")
         // The fixture folders are too large to hash as task inputs; record the paths so pointing at a
         // different folder re-runs the tests instead of reusing a cached result.
         inputs.property("lightlyGoldenDir", lightlyGoldenDir)

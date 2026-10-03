@@ -6,9 +6,11 @@ import kotlinx.serialization.Serializable
  * The committed edit history of one photo, plus the revision counter. Pure and immutable: every
  * operation returns a new session, so the ViewModel can hold it in a StateFlow and persist it as-is.
  *
- * Commit rules (spec §3): one step per committed Look change, Strength release or Reset; redo is
- * cleared on commit; a change that leaves the state identical is NOT a step (re-selecting the
- * current stop must not create an undo entry that appears to do nothing).
+ * Commit rules (spec §3, edit recipe v1): one step per committed change of the WHOLE recipe (a ruler
+ * release, an Amount release, an Auto toggle, any later tool's commit); redo is cleared on commit; a
+ * change that leaves the state identical is NOT a step (re-selecting the current stop must not create
+ * an undo entry that appears to do nothing). Undo and Redo restore complete EditStates, so every tool
+ * goes back together.
  *
  * Revisions: [EditState.revision] is the commit counter. It is monotonically increasing across the
  * whole session, including after undo-then-commit, so it is tracked separately in
@@ -37,14 +39,17 @@ data class EditSession(
     fun selectLook(look: LookRef?): EditSession =
         commitIfChanged(current.copy(look = look))
 
-    /** Strength release for the active Look. Without an active Look there is no Strength control. */
+    /** Amount release for the active Look (strength = Amount / 100). Without a Look there is no Amount. */
     fun setLookStrength(strength: Float): EditSession {
-        val activeLook = checkNotNull(current.look) { "Strength is only available while a Look is active" }
+        val activeLook = checkNotNull(current.look) { "Amount is only available while a Look is active" }
         return commitIfChanged(current.copy(look = activeLook.copy(strength = strength)))
     }
 
-    /** "Reset to Auto": drops the Look. Undoable like any other commit. */
-    fun resetToAuto(): EditSession = commitIfChanged(current.copy(look = null))
+    /**
+     * Commits any change of the recipe as one step (the Auto switch, and the later tools). The revision
+     * is assigned here; [change] must not edit it.
+     */
+    fun commit(change: (EditState) -> EditState): EditSession = commitIfChanged(change(current))
 
     fun undo(): EditSession = copy(history = history.undo())
 
@@ -61,9 +66,9 @@ data class EditSession(
     }
 
     companion object {
-        /** Starts a session from the developed Auto baseline. The baseline is revision 0. */
+        /** Starts a session from the developed Auto baseline (every tool neutral). The baseline is revision 0. */
         fun start(source: SourceRef, auto: AutoResult, capacity: Int = UndoStack.DEFAULT_CAPACITY): EditSession {
-            val baseline = EditState(source = source, auto = auto, look = null, revision = 0)
+            val baseline = EditState.initial(source, auto)
             return EditSession(history = UndoStack.startingAt(baseline, capacity), lastIssuedRevision = 0)
         }
     }

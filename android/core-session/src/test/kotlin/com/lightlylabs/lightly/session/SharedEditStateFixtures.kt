@@ -29,4 +29,19 @@ object SharedEditStateFixtures {
         check(file.isFile) { "Shared edit-state fixture $name is missing from $directory" }
         return file.readText(Charsets.UTF_8)
     }
+
+    private val recipeDirectory: File by lazy {
+        val path = checkNotNull(System.getProperty("lightly.editRecipeFixturesDir")) { "lightly.editRecipeFixturesDir is not set; run the tests through Gradle" }
+        File(path).also { check(it.isDirectory) { "Shared edit-recipe fixtures not found at $it" } }
+    }
+
+    /** shared/fixtures/edit-recipe/<name>, exact text (canonical bytes, no trailing newline). */
+    fun readRecipe(name: String): String {
+        val file = File(recipeDirectory, name)
+        check(file.isFile) { "Shared edit-recipe fixture $name is missing from $recipeDirectory" }
+        return file.readText(Charsets.UTF_8)
+    }
+
+    /** Every edit-recipe fixture file name (sorted), valid and invalid. */
+    val recipeFixtureNames: List<String> by lazy { recipeDirectory.list { _, name -> name.endsWith(".json") }.orEmpty().sorted() }
 }

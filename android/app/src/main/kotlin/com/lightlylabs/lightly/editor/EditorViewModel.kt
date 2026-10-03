@@ -401,7 +401,7 @@ class EditorViewModel(
 
     fun commitLookStrength(strength: Float) = updateSession { it.setLookStrength(strength) }
 
-    fun resetToAuto() = updateSession { it.resetToAuto() }
+    fun resetToAuto() = updateSession { it.selectLook(null) } // the old editor is replaced in slice 2
 
     /**
      * "Use current version" on a changed Look: one new, undoable step that keeps the Look and its
