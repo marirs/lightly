@@ -96,6 +96,21 @@ for p in landscape_02 landscape_03 sunset_02 portrait_deep_03 portrait_medium_02
 done
 echo "boot+setup $(( $(date +%s) - boot_started ))s"
 
+# Two-display AVDs (the Fold): screencap without -d may read the display that is off (an all-black PNG).
+# Unless --display is given, capture every physical display once and keep the one that shows content:
+# a black frame compresses to a few KB, the app's frame to hundreds.
+pick_display() {
+  [ -n "$DISP" ] && return
+  local ids best="" best_size=0
+  ids=$($ADB shell dumpsys SurfaceFlinger --display-id 2>/dev/null | tr -d '\r' | sed -n 's/^Display \([0-9]*\).*/\1/p')
+  [ $(echo "$ids" | wc -w) -le 1 ] && return
+  for id in $ids; do
+    size=$($ADB exec-out screencap -p -d $id | perl -0777 -pe 's/\A.*?(?=\x89PNG)//s' | wc -c | tr -d ' ')
+    if [ "$size" -gt "$best_size" ]; then best=$id; best_size=$size; fi
+  done
+  DISP=$best
+  echo "display $DISP (of: $(echo $ids))"
+}
 screencap() {  # <file>: two-display AVDs prefix a warning to stdout; keep only the PNG.
   $ADB exec-out screencap -p ${DISP:+-d $DISP} | perl -0777 -pe 's/\A.*?(?=\x89PNG)//s' > "$1"
 }
@@ -105,7 +120,7 @@ import json, sys, time, hashlib
 png, screen, ready, info = sys.argv[1:5]
 meta = json.load(open(info))
 meta.update(screen=screen, device="$DEV", orientation="$ORIENT", theme="$THEME", text="$TEXT", mode="$MODE",
-            avd="$AVD", posture="$POSTURE", capture_tool_version="$TOOL_VERSION", ready=ready,
+            avd="$AVD", posture="$POSTURE", display="${DISP:-default}", capture_tool_version="$TOOL_VERSION", ready=ready,
             png_sha256=hashlib.sha256(open(png, "rb").read()).hexdigest(),
             captured_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
 json.dump(meta, open(png + ".json", "w"), indent=2)
@@ -119,6 +134,7 @@ if [ "$MODE" = runner ]; then
   $ADB logcat -c
   $ADB shell am start -n $PKG/.MainActivity --ez lightly.capture.runner true --es lightly.debug.appearance $THEME >/dev/null
   bounded 120 $ADB logcat -s LightlyCapture:I -m 1 -e "attached" >/dev/null || { echo "runner did not attach" >&2; failures=1; }
+  pick_display
   seq=0
   for S in $SCREENS; do
     seq=$((seq + 1))
@@ -145,6 +161,7 @@ if [ "$MODE" = runner ]; then
     esac
   done
 elif [ "$MODE" = launch ]; then
+  picked=
   seq=0
   for S in $SCREENS; do
     seq=$((seq + 1))
@@ -153,6 +170,7 @@ elif [ "$MODE" = launch ]; then
     $ADB shell am start -f 0x10008000 -n $PKG/.MainActivity --ei lightly.capture.signal $seq --es lightly.debug.appearance $THEME --es lightly.debug.favourites "'$(favs_for $S)'" \
       --es lightly.debug.photo $FILES/$(photo_for $S).jpg --es lightly.debug.editor $S --es lightly.debug.people $(people_for $S) >/dev/null 2>&1
     line=$(bounded 150 $ADB logcat -s LightlyCapture:I -m 1 -e "(ready|failed) seq=$seq " | tr -d '\r' | tail -1)
+    [ -z "$picked" ] && { pick_display; picked=1; }
     case $line in
       *"ready seq=$seq "*) screencap "$F"; sidecar "$F" "$S" "$line"; echo "$F ${line##*screen=}";;
       *) echo "FAILED $S: ${line:-no signal}" >&2; failures=$((failures + 1));;
