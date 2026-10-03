@@ -1,0 +1,158 @@
+{
+  "migan:coreml:cpu": {
+    "config": "migan:coreml:cpu",
+    "load_ms": 24555.9,
+    "median_ms": 873.9,
+    "min_ms": 566.2,
+    "peak_rss_mb": 407.5,
+    "rss_before_load_mb": 36.0,
+    "load_average": [
+      36.1,
+      28.2,
+      74.6
+    ]
+  },
+  "migan:coreml:gpu": {
+    "config": "migan:coreml:gpu",
+    "load_ms": 20920.6,
+    "median_ms": 52.7,
+    "min_ms": 31.9,
+    "peak_rss_mb": 294.7,
+    "rss_before_load_mb": 36.0,
+    "load_average": [
+      38.1,
+      29.5,
+      73.5
+    ]
+  },
+  "migan:coreml:ane": {
+    "config": "migan:coreml:ane",
+    "load_ms": 20023.6,
+    "median_ms": 44.4,
+    "min_ms": 39.3,
+    "peak_rss_mb": 306.5,
+    "rss_before_load_mb": 36.2,
+    "load_average": [
+      36.0,
+      29.8,
+      72.3
+    ]
+  },
+  "migan:coreml:all": {
+    "config": "migan:coreml:all",
+    "load_ms": 22917.6,
+    "median_ms": 45.2,
+    "min_ms": 42.7,
+    "peak_rss_mb": 313.7,
+    "rss_before_load_mb": 36.3,
+    "load_average": [
+      34.6,
+      30.2,
+      71.0
+    ]
+  },
+  "lama:coreml:cpu": {
+    "config": "lama:coreml:cpu",
+    "load_ms": 23742.0,
+    "median_ms": 2318.0,
+    "min_ms": 1579.2,
+    "peak_rss_mb": 356.5,
+    "rss_before_load_mb": 36.2,
+    "load_average": [
+      30.0,
+      29.7,
+      68.5
+    ]
+  },
+  "lama:coreml:gpu": {
+    "config": "lama:coreml:gpu",
+    "load_ms": 22333.6,
+    "median_ms": 529.4,
+    "min_ms": 254.9,
+    "peak_rss_mb": 350.9,
+    "rss_before_load_mb": 36.1,
+    "load_average": [
+      32.4,
+      30.3,
+      67.2
+    ]
+  },
+  "lama:coreml:ane": {
+    "config": "lama:coreml:ane",
+    "load_ms": 266401.1,
+    "median_ms": 2756.7,
+    "min_ms": 2335.7,
+    "peak_rss_mb": 520.0,
+    "rss_before_load_mb": 36.1,
+    "load_average": [
+      42.5,
+      35.8,
+      58.7
+    ]
+  },
+  "lama:coreml:all": {
+    "config": "lama:coreml:all",
+    "load_ms": 294919.8,
+    "median_ms": 646.8,
+    "min_ms": 449.7,
+    "peak_rss_mb": 404.2,
+    "rss_before_load_mb": 35.9,
+    "load_average": [
+      67.3,
+      51.8,
+      58.8
+    ]
+  },
+  "migan:onnx:cpu4": {
+    "config": "migan:onnx:cpu4",
+    "load_ms": 247.2,
+    "median_ms": 1505.2,
+    "min_ms": 665.7,
+    "peak_rss_mb": 905.0,
+    "rss_before_load_mb": 35.8,
+    "load_average": [
+      58.5,
+      50.8,
+      58.3
+    ]
+  },
+  "lama:onnx:cpu4": {
+    "config": "lama:onnx:cpu4",
+    "load_ms": 935.9,
+    "median_ms": 8042.1,
+    "min_ms": 7382.6,
+    "peak_rss_mb": 901.8,
+    "rss_before_load_mb": 36.1,
+    "load_average": [
+      51.5,
+      50.2,
+      57.4
+    ]
+  },
+  "migan:tflite:cpu4": {
+    "config": "migan:tflite:cpu4",
+    "load_ms": 447.7,
+    "median_ms": 836.9,
+    "min_ms": 409.9,
+    "peak_rss_mb": 599.2,
+    "rss_before_load_mb": 36.1,
+    "load_average": [
+      47.7,
+      49.3,
+      56.8
+    ]
+  },
+  "lama:tflite:cpu4": {
+    "config": "lama:tflite:cpu4",
+    "load_ms": 2091.4,
+    "median_ms": 6906.2,
+    "min_ms": 5639.5,
+    "peak_rss_mb": 990.5,
+    "rss_before_load_mb": 36.2,
+    "load_average": [
+      77.4,
+      58.2,
+      59.5
+    ]
+  }
+}

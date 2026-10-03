@@ -1,0 +1,10 @@
+{
+  "migan": {
+    "gmacs_512": 15.08,
+    "parameters_m": 5.97
+  },
+  "lama": {
+    "gmacs_512": 231.11,
+    "parameters_m": 50.98
+  }
+}

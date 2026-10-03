@@ -1,0 +1,78 @@
+{
+  "migan": {
+    "parameters_m": 5.97,
+    "coreml_fp16": {
+      "path": "models/exported/migan_512_fp16.mlpackage",
+      "size_mb": 14.16,
+      "convert_s": 6.1,
+      "psnr_vs_pytorch_db": 63.22,
+      "max_abs_diff": 0.0437,
+      "sha256": "28d351f0371975176ab79e9641f9003fc7155f09f57d661cdb0cd28ace4357a4"
+    },
+    "coreml_fp32": {
+      "path": "models/exported/migan_512_fp32.mlpackage",
+      "size_mb": 28.09,
+      "convert_s": 5.7,
+      "psnr_vs_pytorch_db": 135.33,
+      "max_abs_diff": 0.0,
+      "sha256": "e8d87fd6bea7f34e403ba858dc6ddaa8471215bab71ec978df5640552dac98de"
+    },
+    "onnx_fp32": {
+      "path": "models/exported/migan_512.onnx",
+      "size_mb": 28.05,
+      "opset": 17,
+      "psnr_vs_pytorch_db": 136.62,
+      "max_abs_diff": 0.0,
+      "sha256": "cd8a170ec00ad5625ae85af895fd131724d689cf00ac67fcd9cc92884544099b"
+    },
+    "tflite_fp32": {
+      "path": "models/exported/migan_512_fp32.tflite",
+      "size_mb": 28.14,
+      "convert_s": 88.5,
+      "psnr_vs_pytorch_db": 137.78,
+      "max_abs_diff": 0.0,
+      "sha256": "2bb9da728c41b5b719c2f8556d06a7f7221c4dfafa440f425d8377c45f4fdfae",
+      "converter": "litert-torch 0.9.4, torch 2.13.0"
+    }
+  },
+  "lama": {
+    "dft_matmul_vs_torch_fft": {
+      "max_abs_diff": 1.8775463104248047e-06,
+      "psnr_db": 147.08
+    },
+    "parameters_m": 50.98,
+    "coreml_fp16": {
+      "path": "models/exported/lama_512_fp16.mlpackage",
+      "size_mb": 102.87,
+      "convert_s": 280.2,
+      "psnr_vs_pytorch_db": 64.37,
+      "max_abs_diff": 0.0241,
+      "sha256": "787574a416b33050eb9940030f794c5afa41680d3fd0b0486897d48a1b4d6837"
+    },
+    "coreml_fp32": {
+      "path": "models/exported/lama_512_fp32.mlpackage",
+      "size_mb": 204.79,
+      "convert_s": 109.0,
+      "psnr_vs_pytorch_db": 130.76,
+      "max_abs_diff": 0.0,
+      "sha256": "cf57a5632f7b1fd7791112bf5505f88c544ab64c6d9c16abaeb0e25fad6aaf47"
+    },
+    "onnx_fp32": {
+      "path": "models/exported/lama_512.onnx",
+      "size_mb": 210.97,
+      "opset": 17,
+      "psnr_vs_pytorch_db": 133.9,
+      "max_abs_diff": 0.0,
+      "sha256": "fa5b88101c492247a80fe0ec4364328718aa585c0b80b01556069f81aaaf89ba"
+    },
+    "tflite_fp32": {
+      "path": "models/exported/lama_512_fp32.tflite",
+      "size_mb": 206.06,
+      "convert_s": 280.4,
+      "psnr_vs_pytorch_db": 131.44,
+      "max_abs_diff": 0.0,
+      "sha256": "39fa82d6a2b576de99b30481c85d73d48955f126deb7bea8504e58b15b43ca0e",
+      "converter": "litert-torch 0.9.4, torch 2.13.0"
+    }
+  }
+}

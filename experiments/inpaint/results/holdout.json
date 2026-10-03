@@ -1,0 +1,1594 @@
+{
+  "telea": [
+    {
+      "photo": "backlit_01",
+      "shape": "spot",
+      "psnr_masked_db": 29.31,
+      "lpips_crop": 0.3687
+    },
+    {
+      "photo": "backlit_01",
+      "shape": "stroke",
+      "psnr_masked_db": 27.94,
+      "lpips_crop": 0.057
+    },
+    {
+      "photo": "backlit_01",
+      "shape": "blob",
+      "psnr_masked_db": 28.09,
+      "lpips_crop": 0.2012
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "spot",
+      "psnr_masked_db": 10.62,
+      "lpips_crop": 0.1906
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "stroke",
+      "psnr_masked_db": 18.61,
+      "lpips_crop": 0.0465
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "blob",
+      "psnr_masked_db": 19.6,
+      "lpips_crop": 0.1974
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "spot",
+      "psnr_masked_db": 43.28,
+      "lpips_crop": 0.0323
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "stroke",
+      "psnr_masked_db": 45.81,
+      "lpips_crop": 0.0004
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "blob",
+      "psnr_masked_db": 29.61,
+      "lpips_crop": 0.0407
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "spot",
+      "psnr_masked_db": 20.52,
+      "lpips_crop": 0.3626
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "stroke",
+      "psnr_masked_db": 41.86,
+      "lpips_crop": 0.0279
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "blob",
+      "psnr_masked_db": 13.88,
+      "lpips_crop": 0.2544
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "spot",
+      "psnr_masked_db": 22.74,
+      "lpips_crop": 0.2727
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "stroke",
+      "psnr_masked_db": 17.06,
+      "lpips_crop": 0.0603
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "blob",
+      "psnr_masked_db": 14.91,
+      "lpips_crop": 0.2772
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "spot",
+      "psnr_masked_db": 32.58,
+      "lpips_crop": 0.1113
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "stroke",
+      "psnr_masked_db": 33.56,
+      "lpips_crop": 0.0173
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "blob",
+      "psnr_masked_db": 22.02,
+      "lpips_crop": 0.2962
+    },
+    {
+      "photo": "night_01",
+      "shape": "spot",
+      "psnr_masked_db": 22.18,
+      "lpips_crop": 0.2375
+    },
+    {
+      "photo": "night_01",
+      "shape": "stroke",
+      "psnr_masked_db": 15.75,
+      "lpips_crop": 0.0522
+    },
+    {
+      "photo": "night_01",
+      "shape": "blob",
+      "psnr_masked_db": 13.32,
+      "lpips_crop": 0.2601
+    },
+    {
+      "photo": "night_02",
+      "shape": "spot",
+      "psnr_masked_db": 27.09,
+      "lpips_crop": 0.3523
+    },
+    {
+      "photo": "night_02",
+      "shape": "stroke",
+      "psnr_masked_db": 26.28,
+      "lpips_crop": 0.102
+    },
+    {
+      "photo": "night_02",
+      "shape": "blob",
+      "psnr_masked_db": 17.45,
+      "lpips_crop": 0.292
+    },
+    {
+      "photo": "night_03",
+      "shape": "spot",
+      "psnr_masked_db": 26.12,
+      "lpips_crop": 0.305
+    },
+    {
+      "photo": "night_03",
+      "shape": "stroke",
+      "psnr_masked_db": 32.78,
+      "lpips_crop": 0.0894
+    },
+    {
+      "photo": "night_03",
+      "shape": "blob",
+      "psnr_masked_db": 14.61,
+      "lpips_crop": 0.2764
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "spot",
+      "psnr_masked_db": 38.07,
+      "lpips_crop": 0.1205
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "stroke",
+      "psnr_masked_db": 38.67,
+      "lpips_crop": 0.0096
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "blob",
+      "psnr_masked_db": 26.37,
+      "lpips_crop": 0.0319
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "spot",
+      "psnr_masked_db": 17.95,
+      "lpips_crop": 0.1926
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "stroke",
+      "psnr_masked_db": 26.35,
+      "lpips_crop": 0.0408
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "blob",
+      "psnr_masked_db": 22.73,
+      "lpips_crop": 0.1792
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "spot",
+      "psnr_masked_db": 38.95,
+      "lpips_crop": 0.1814
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "stroke",
+      "psnr_masked_db": 15.6,
+      "lpips_crop": 0.1222
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "blob",
+      "psnr_masked_db": 17.76,
+      "lpips_crop": 0.3049
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "spot",
+      "psnr_masked_db": 35.44,
+      "lpips_crop": 0.0674
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "stroke",
+      "psnr_masked_db": 33.87,
+      "lpips_crop": 0.0203
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "blob",
+      "psnr_masked_db": 29.55,
+      "lpips_crop": 0.0334
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "spot",
+      "psnr_masked_db": 22.43,
+      "lpips_crop": 0.1586
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "stroke",
+      "psnr_masked_db": 31.66,
+      "lpips_crop": 0.0323
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "blob",
+      "psnr_masked_db": 26.46,
+      "lpips_crop": 0.217
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "spot",
+      "psnr_masked_db": 23.85,
+      "lpips_crop": 0.2143
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "stroke",
+      "psnr_masked_db": 31.21,
+      "lpips_crop": 0.0201
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "blob",
+      "psnr_masked_db": 24.01,
+      "lpips_crop": 0.186
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "spot",
+      "psnr_masked_db": 21.26,
+      "lpips_crop": 0.0881
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "stroke",
+      "psnr_masked_db": 32.33,
+      "lpips_crop": 0.0392
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "blob",
+      "psnr_masked_db": 17.24,
+      "lpips_crop": 0.1479
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "spot",
+      "psnr_masked_db": 27.99,
+      "lpips_crop": 0.1771
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "stroke",
+      "psnr_masked_db": 39.72,
+      "lpips_crop": 0.0042
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "blob",
+      "psnr_masked_db": 25.48,
+      "lpips_crop": 0.1274
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "spot",
+      "psnr_masked_db": 27.1,
+      "lpips_crop": 0.2671
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "stroke",
+      "psnr_masked_db": 27.87,
+      "lpips_crop": 0.0219
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "blob",
+      "psnr_masked_db": 19.85,
+      "lpips_crop": 0.1609
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "spot",
+      "psnr_masked_db": 24.07,
+      "lpips_crop": 0.2519
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "stroke",
+      "psnr_masked_db": 15.34,
+      "lpips_crop": 0.0524
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "blob",
+      "psnr_masked_db": 19.83,
+      "lpips_crop": 0.1566
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "spot",
+      "psnr_masked_db": 17.81,
+      "lpips_crop": 0.1402
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "stroke",
+      "psnr_masked_db": 25.34,
+      "lpips_crop": 0.028
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "blob",
+      "psnr_masked_db": 11.76,
+      "lpips_crop": 0.2553
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "spot",
+      "psnr_masked_db": 20.34,
+      "lpips_crop": 0.2361
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "stroke",
+      "psnr_masked_db": 22.14,
+      "lpips_crop": 0.034
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "blob",
+      "psnr_masked_db": 12.32,
+      "lpips_crop": 0.2621
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "spot",
+      "psnr_masked_db": 24.87,
+      "lpips_crop": 0.2557
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "stroke",
+      "psnr_masked_db": 18.4,
+      "lpips_crop": 0.0407
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "blob",
+      "psnr_masked_db": 17.3,
+      "lpips_crop": 0.22
+    }
+  ],
+  "migan": [
+    {
+      "photo": "backlit_01",
+      "shape": "spot",
+      "psnr_masked_db": 26.87,
+      "lpips_crop": 0.1035
+    },
+    {
+      "photo": "backlit_01",
+      "shape": "stroke",
+      "psnr_masked_db": 26.97,
+      "lpips_crop": 0.0187
+    },
+    {
+      "photo": "backlit_01",
+      "shape": "blob",
+      "psnr_masked_db": 27.44,
+      "lpips_crop": 0.0601
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "spot",
+      "psnr_masked_db": 11.42,
+      "lpips_crop": 0.0958
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "stroke",
+      "psnr_masked_db": 16.71,
+      "lpips_crop": 0.0366
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "blob",
+      "psnr_masked_db": 18.68,
+      "lpips_crop": 0.1551
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "spot",
+      "psnr_masked_db": 40.04,
+      "lpips_crop": 0.3011
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "stroke",
+      "psnr_masked_db": 45.45,
+      "lpips_crop": 0.0546
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "blob",
+      "psnr_masked_db": 32.43,
+      "lpips_crop": 0.0737
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "spot",
+      "psnr_masked_db": 21.65,
+      "lpips_crop": 0.0961
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "stroke",
+      "psnr_masked_db": 40.95,
+      "lpips_crop": 0.161
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "blob",
+      "psnr_masked_db": 11.08,
+      "lpips_crop": 0.2439
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "spot",
+      "psnr_masked_db": 19.47,
+      "lpips_crop": 0.1851
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "stroke",
+      "psnr_masked_db": 14.93,
+      "lpips_crop": 0.035
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "blob",
+      "psnr_masked_db": 14.38,
+      "lpips_crop": 0.1968
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "spot",
+      "psnr_masked_db": 33.08,
+      "lpips_crop": 0.1349
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "stroke",
+      "psnr_masked_db": 35.34,
+      "lpips_crop": 0.0399
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "blob",
+      "psnr_masked_db": 22.93,
+      "lpips_crop": 0.1538
+    },
+    {
+      "photo": "night_01",
+      "shape": "spot",
+      "psnr_masked_db": 20.78,
+      "lpips_crop": 0.1119
+    },
+    {
+      "photo": "night_01",
+      "shape": "stroke",
+      "psnr_masked_db": 18.76,
+      "lpips_crop": 0.0224
+    },
+    {
+      "photo": "night_01",
+      "shape": "blob",
+      "psnr_masked_db": 14.57,
+      "lpips_crop": 0.1668
+    },
+    {
+      "photo": "night_02",
+      "shape": "spot",
+      "psnr_masked_db": 24.09,
+      "lpips_crop": 0.1585
+    },
+    {
+      "photo": "night_02",
+      "shape": "stroke",
+      "psnr_masked_db": 24.59,
+      "lpips_crop": 0.055
+    },
+    {
+      "photo": "night_02",
+      "shape": "blob",
+      "psnr_masked_db": 15.61,
+      "lpips_crop": 0.2636
+    },
+    {
+      "photo": "night_03",
+      "shape": "spot",
+      "psnr_masked_db": 26.28,
+      "lpips_crop": 0.0718
+    },
+    {
+      "photo": "night_03",
+      "shape": "stroke",
+      "psnr_masked_db": 30.4,
+      "lpips_crop": 0.0318
+    },
+    {
+      "photo": "night_03",
+      "shape": "blob",
+      "psnr_masked_db": 19.98,
+      "lpips_crop": 0.1359
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "spot",
+      "psnr_masked_db": 38.54,
+      "lpips_crop": 0.295
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "stroke",
+      "psnr_masked_db": 38.1,
+      "lpips_crop": 0.0569
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "blob",
+      "psnr_masked_db": 39.59,
+      "lpips_crop": 0.036
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "spot",
+      "psnr_masked_db": 18.99,
+      "lpips_crop": 0.129
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "stroke",
+      "psnr_masked_db": 27.72,
+      "lpips_crop": 0.0772
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "blob",
+      "psnr_masked_db": 23.58,
+      "lpips_crop": 0.1183
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "spot",
+      "psnr_masked_db": 38.59,
+      "lpips_crop": 0.3335
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "stroke",
+      "psnr_masked_db": 9.8,
+      "lpips_crop": 0.1194
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "blob",
+      "psnr_masked_db": 17.31,
+      "lpips_crop": 0.2143
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "spot",
+      "psnr_masked_db": 37.43,
+      "lpips_crop": 0.3842
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "stroke",
+      "psnr_masked_db": 35.86,
+      "lpips_crop": 0.0662
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "blob",
+      "psnr_masked_db": 37.68,
+      "lpips_crop": 0.0473
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "spot",
+      "psnr_masked_db": 22.29,
+      "lpips_crop": 0.0843
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "stroke",
+      "psnr_masked_db": 33.22,
+      "lpips_crop": 0.0437
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "blob",
+      "psnr_masked_db": 27.01,
+      "lpips_crop": 0.2148
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "spot",
+      "psnr_masked_db": 24.06,
+      "lpips_crop": 0.1084
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "stroke",
+      "psnr_masked_db": 34.99,
+      "lpips_crop": 0.045
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "blob",
+      "psnr_masked_db": 24.33,
+      "lpips_crop": 0.1449
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "spot",
+      "psnr_masked_db": 31.29,
+      "lpips_crop": 0.1895
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "stroke",
+      "psnr_masked_db": 37.66,
+      "lpips_crop": 0.0741
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "blob",
+      "psnr_masked_db": 15.83,
+      "lpips_crop": 0.1476
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "spot",
+      "psnr_masked_db": 27.77,
+      "lpips_crop": 0.0543
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "stroke",
+      "psnr_masked_db": 38.25,
+      "lpips_crop": 0.051
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "blob",
+      "psnr_masked_db": 25.83,
+      "lpips_crop": 0.1257
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "spot",
+      "psnr_masked_db": 25.84,
+      "lpips_crop": 0.0951
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "stroke",
+      "psnr_masked_db": 28.86,
+      "lpips_crop": 0.0417
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "blob",
+      "psnr_masked_db": 20.98,
+      "lpips_crop": 0.1703
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "spot",
+      "psnr_masked_db": 23.76,
+      "lpips_crop": 0.0721
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "stroke",
+      "psnr_masked_db": 16.16,
+      "lpips_crop": 0.015
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "blob",
+      "psnr_masked_db": 18.58,
+      "lpips_crop": 0.1285
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "spot",
+      "psnr_masked_db": 27.73,
+      "lpips_crop": 0.029
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "stroke",
+      "psnr_masked_db": 25.47,
+      "lpips_crop": 0.0303
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "blob",
+      "psnr_masked_db": 19.82,
+      "lpips_crop": 0.1452
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "spot",
+      "psnr_masked_db": 17.89,
+      "lpips_crop": 0.0923
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "stroke",
+      "psnr_masked_db": 21.47,
+      "lpips_crop": 0.0207
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "blob",
+      "psnr_masked_db": 13.09,
+      "lpips_crop": 0.1726
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "spot",
+      "psnr_masked_db": 25.78,
+      "lpips_crop": 0.0812
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "stroke",
+      "psnr_masked_db": 22.73,
+      "lpips_crop": 0.0129
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "blob",
+      "psnr_masked_db": 17.64,
+      "lpips_crop": 0.1536
+    }
+  ],
+  "lama": [
+    {
+      "photo": "backlit_01",
+      "shape": "spot",
+      "psnr_masked_db": 27.25,
+      "lpips_crop": 0.0566
+    },
+    {
+      "photo": "backlit_01",
+      "shape": "stroke",
+      "psnr_masked_db": 27.71,
+      "lpips_crop": 0.008
+    },
+    {
+      "photo": "backlit_01",
+      "shape": "blob",
+      "psnr_masked_db": 27.91,
+      "lpips_crop": 0.0623
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "spot",
+      "psnr_masked_db": 12.08,
+      "lpips_crop": 0.0712
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "stroke",
+      "psnr_masked_db": 19.03,
+      "lpips_crop": 0.0252
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "blob",
+      "psnr_masked_db": 19.71,
+      "lpips_crop": 0.1459
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "spot",
+      "psnr_masked_db": 43.56,
+      "lpips_crop": 0.0083
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "stroke",
+      "psnr_masked_db": 42.89,
+      "lpips_crop": 0.0005
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "blob",
+      "psnr_masked_db": 33.24,
+      "lpips_crop": 0.0107
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "spot",
+      "psnr_masked_db": 21.46,
+      "lpips_crop": 0.1264
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "stroke",
+      "psnr_masked_db": 41.05,
+      "lpips_crop": 0.007
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "blob",
+      "psnr_masked_db": 13.51,
+      "lpips_crop": 0.1801
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "spot",
+      "psnr_masked_db": 21.45,
+      "lpips_crop": 0.124
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "stroke",
+      "psnr_masked_db": 15.83,
+      "lpips_crop": 0.0252
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "blob",
+      "psnr_masked_db": 15.54,
+      "lpips_crop": 0.1888
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "spot",
+      "psnr_masked_db": 35.98,
+      "lpips_crop": 0.0231
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "stroke",
+      "psnr_masked_db": 36.46,
+      "lpips_crop": 0.0037
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "blob",
+      "psnr_masked_db": 23.04,
+      "lpips_crop": 0.1345
+    },
+    {
+      "photo": "night_01",
+      "shape": "spot",
+      "psnr_masked_db": 22.72,
+      "lpips_crop": 0.0902
+    },
+    {
+      "photo": "night_01",
+      "shape": "stroke",
+      "psnr_masked_db": 22.73,
+      "lpips_crop": 0.0136
+    },
+    {
+      "photo": "night_01",
+      "shape": "blob",
+      "psnr_masked_db": 21.66,
+      "lpips_crop": 0.0873
+    },
+    {
+      "photo": "night_02",
+      "shape": "spot",
+      "psnr_masked_db": 24.92,
+      "lpips_crop": 0.0304
+    },
+    {
+      "photo": "night_02",
+      "shape": "stroke",
+      "psnr_masked_db": 25.21,
+      "lpips_crop": 0.016
+    },
+    {
+      "photo": "night_02",
+      "shape": "blob",
+      "psnr_masked_db": 17.34,
+      "lpips_crop": 0.206
+    },
+    {
+      "photo": "night_03",
+      "shape": "spot",
+      "psnr_masked_db": 26.29,
+      "lpips_crop": 0.0404
+    },
+    {
+      "photo": "night_03",
+      "shape": "stroke",
+      "psnr_masked_db": 30.97,
+      "lpips_crop": 0.0095
+    },
+    {
+      "photo": "night_03",
+      "shape": "blob",
+      "psnr_masked_db": 21.47,
+      "lpips_crop": 0.099
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "spot",
+      "psnr_masked_db": 36.93,
+      "lpips_crop": 0.0401
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "stroke",
+      "psnr_masked_db": 39.41,
+      "lpips_crop": 0.0025
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "blob",
+      "psnr_masked_db": 36.05,
+      "lpips_crop": 0.0102
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "spot",
+      "psnr_masked_db": 19.51,
+      "lpips_crop": 0.1033
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "stroke",
+      "psnr_masked_db": 26.9,
+      "lpips_crop": 0.0048
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "blob",
+      "psnr_masked_db": 22.5,
+      "lpips_crop": 0.0868
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "spot",
+      "psnr_masked_db": 36.87,
+      "lpips_crop": 0.0109
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "stroke",
+      "psnr_masked_db": 14.78,
+      "lpips_crop": 0.0259
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "blob",
+      "psnr_masked_db": 18.34,
+      "lpips_crop": 0.1835
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "spot",
+      "psnr_masked_db": 42.93,
+      "lpips_crop": 0.0055
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "stroke",
+      "psnr_masked_db": 38.32,
+      "lpips_crop": 0.0039
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "blob",
+      "psnr_masked_db": 42.55,
+      "lpips_crop": 0.0116
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "spot",
+      "psnr_masked_db": 25.82,
+      "lpips_crop": 0.0442
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "stroke",
+      "psnr_masked_db": 36.02,
+      "lpips_crop": 0.0052
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "blob",
+      "psnr_masked_db": 30.15,
+      "lpips_crop": 0.0978
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "spot",
+      "psnr_masked_db": 26.69,
+      "lpips_crop": 0.021
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "stroke",
+      "psnr_masked_db": 35.17,
+      "lpips_crop": 0.0038
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "blob",
+      "psnr_masked_db": 25.02,
+      "lpips_crop": 0.0908
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "spot",
+      "psnr_masked_db": 36.98,
+      "lpips_crop": 0.0041
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "stroke",
+      "psnr_masked_db": 40.83,
+      "lpips_crop": 0.0022
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "blob",
+      "psnr_masked_db": 33.45,
+      "lpips_crop": 0.0187
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "spot",
+      "psnr_masked_db": 29.0,
+      "lpips_crop": 0.0245
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "stroke",
+      "psnr_masked_db": 39.57,
+      "lpips_crop": 0.0015
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "blob",
+      "psnr_masked_db": 24.92,
+      "lpips_crop": 0.0924
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "spot",
+      "psnr_masked_db": 26.62,
+      "lpips_crop": 0.0434
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "stroke",
+      "psnr_masked_db": 31.61,
+      "lpips_crop": 0.0075
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "blob",
+      "psnr_masked_db": 22.1,
+      "lpips_crop": 0.1229
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "spot",
+      "psnr_masked_db": 24.34,
+      "lpips_crop": 0.0206
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "stroke",
+      "psnr_masked_db": 18.54,
+      "lpips_crop": 0.0104
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "blob",
+      "psnr_masked_db": 19.71,
+      "lpips_crop": 0.0916
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "spot",
+      "psnr_masked_db": 30.09,
+      "lpips_crop": 0.0201
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "stroke",
+      "psnr_masked_db": 29.11,
+      "lpips_crop": 0.0061
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "blob",
+      "psnr_masked_db": 22.83,
+      "lpips_crop": 0.1177
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "spot",
+      "psnr_masked_db": 20.03,
+      "lpips_crop": 0.0629
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "stroke",
+      "psnr_masked_db": 21.81,
+      "lpips_crop": 0.0116
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "blob",
+      "psnr_masked_db": 14.97,
+      "lpips_crop": 0.1582
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "spot",
+      "psnr_masked_db": 26.53,
+      "lpips_crop": 0.0539
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "stroke",
+      "psnr_masked_db": 24.22,
+      "lpips_crop": 0.0061
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "blob",
+      "psnr_masked_db": 21.39,
+      "lpips_crop": 0.0946
+    }
+  ],
+  "shiftmap": [
+    {
+      "photo": "backlit_01",
+      "shape": "spot",
+      "psnr_masked_db": 25.92,
+      "lpips_crop": 0.0818
+    },
+    {
+      "photo": "backlit_01",
+      "shape": "stroke",
+      "psnr_masked_db": 26.06,
+      "lpips_crop": 0.0096
+    },
+    {
+      "photo": "backlit_01",
+      "shape": "blob",
+      "psnr_masked_db": 26.71,
+      "lpips_crop": 0.0383
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "spot",
+      "psnr_masked_db": 8.79,
+      "lpips_crop": 0.1529
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "stroke",
+      "psnr_masked_db": 15.97,
+      "lpips_crop": 0.046
+    },
+    {
+      "photo": "backlit_02",
+      "shape": "blob",
+      "psnr_masked_db": 16.47,
+      "lpips_crop": 0.1467
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "spot",
+      "psnr_masked_db": 36.44,
+      "lpips_crop": 0.016
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "stroke",
+      "psnr_masked_db": 50.71,
+      "lpips_crop": 0.0003
+    },
+    {
+      "photo": "backlit_03",
+      "shape": "blob",
+      "psnr_masked_db": 20.07,
+      "lpips_crop": 0.1018
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "spot",
+      "psnr_masked_db": 20.55,
+      "lpips_crop": 0.1138
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "stroke",
+      "psnr_masked_db": 38.94,
+      "lpips_crop": 0.0146
+    },
+    {
+      "photo": "landscape_01",
+      "shape": "blob",
+      "psnr_masked_db": 8.88,
+      "lpips_crop": 0.1978
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "spot",
+      "psnr_masked_db": 19.51,
+      "lpips_crop": 0.1684
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "stroke",
+      "psnr_masked_db": 13.77,
+      "lpips_crop": 0.0437
+    },
+    {
+      "photo": "landscape_02",
+      "shape": "blob",
+      "psnr_masked_db": 11.64,
+      "lpips_crop": 0.2002
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "spot",
+      "psnr_masked_db": 31.31,
+      "lpips_crop": 0.0744
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "stroke",
+      "psnr_masked_db": 30.61,
+      "lpips_crop": 0.0119
+    },
+    {
+      "photo": "landscape_03",
+      "shape": "blob",
+      "psnr_masked_db": 21.99,
+      "lpips_crop": 0.1129
+    },
+    {
+      "photo": "night_01",
+      "shape": "spot",
+      "psnr_masked_db": 19.62,
+      "lpips_crop": 0.1576
+    },
+    {
+      "photo": "night_01",
+      "shape": "stroke",
+      "psnr_masked_db": 16.04,
+      "lpips_crop": 0.0345
+    },
+    {
+      "photo": "night_01",
+      "shape": "blob",
+      "psnr_masked_db": 10.82,
+      "lpips_crop": 0.2266
+    },
+    {
+      "photo": "night_02",
+      "shape": "spot",
+      "psnr_masked_db": 22.96,
+      "lpips_crop": 0.0346
+    },
+    {
+      "photo": "night_02",
+      "shape": "stroke",
+      "psnr_masked_db": 20.92,
+      "lpips_crop": 0.0376
+    },
+    {
+      "photo": "night_02",
+      "shape": "blob",
+      "psnr_masked_db": 11.45,
+      "lpips_crop": 0.2315
+    },
+    {
+      "photo": "night_03",
+      "shape": "spot",
+      "psnr_masked_db": 25.31,
+      "lpips_crop": 0.0456
+    },
+    {
+      "photo": "night_03",
+      "shape": "stroke",
+      "psnr_masked_db": 30.57,
+      "lpips_crop": 0.0094
+    },
+    {
+      "photo": "night_03",
+      "shape": "blob",
+      "psnr_masked_db": 18.28,
+      "lpips_crop": 0.126
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "spot",
+      "psnr_masked_db": 34.99,
+      "lpips_crop": 0.0359
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "stroke",
+      "psnr_masked_db": 32.89,
+      "lpips_crop": 0.0046
+    },
+    {
+      "photo": "portrait_deep_01",
+      "shape": "blob",
+      "psnr_masked_db": 20.44,
+      "lpips_crop": 0.0617
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "spot",
+      "psnr_masked_db": 17.32,
+      "lpips_crop": 0.1196
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "stroke",
+      "psnr_masked_db": 24.39,
+      "lpips_crop": 0.0521
+    },
+    {
+      "photo": "portrait_deep_02",
+      "shape": "blob",
+      "psnr_masked_db": 18.87,
+      "lpips_crop": 0.2472
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "spot",
+      "psnr_masked_db": 36.96,
+      "lpips_crop": 0.0144
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "stroke",
+      "psnr_masked_db": 13.43,
+      "lpips_crop": 0.0441
+    },
+    {
+      "photo": "portrait_deep_03",
+      "shape": "blob",
+      "psnr_masked_db": 16.39,
+      "lpips_crop": 0.2022
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "spot",
+      "psnr_masked_db": 39.64,
+      "lpips_crop": 0.0162
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "stroke",
+      "psnr_masked_db": 31.74,
+      "lpips_crop": 0.0141
+    },
+    {
+      "photo": "portrait_light_01",
+      "shape": "blob",
+      "psnr_masked_db": 32.86,
+      "lpips_crop": 0.0509
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "spot",
+      "psnr_masked_db": 19.21,
+      "lpips_crop": 0.1247
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "stroke",
+      "psnr_masked_db": 31.87,
+      "lpips_crop": 0.0151
+    },
+    {
+      "photo": "portrait_light_02",
+      "shape": "blob",
+      "psnr_masked_db": 24.57,
+      "lpips_crop": 0.157
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "spot",
+      "psnr_masked_db": 21.72,
+      "lpips_crop": 0.1011
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "stroke",
+      "psnr_masked_db": 30.72,
+      "lpips_crop": 0.0155
+    },
+    {
+      "photo": "portrait_medium_01",
+      "shape": "blob",
+      "psnr_masked_db": 19.66,
+      "lpips_crop": 0.1847
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "spot",
+      "psnr_masked_db": 31.49,
+      "lpips_crop": 0.0161
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "stroke",
+      "psnr_masked_db": 37.56,
+      "lpips_crop": 0.0037
+    },
+    {
+      "photo": "portrait_medium_02",
+      "shape": "blob",
+      "psnr_masked_db": 32.58,
+      "lpips_crop": 0.0161
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "spot",
+      "psnr_masked_db": 26.83,
+      "lpips_crop": 0.1
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "stroke",
+      "psnr_masked_db": 38.38,
+      "lpips_crop": 0.0029
+    },
+    {
+      "photo": "sunset_01",
+      "shape": "blob",
+      "psnr_masked_db": 15.81,
+      "lpips_crop": 0.2455
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "spot",
+      "psnr_masked_db": 24.73,
+      "lpips_crop": 0.0411
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "stroke",
+      "psnr_masked_db": 27.92,
+      "lpips_crop": 0.0163
+    },
+    {
+      "photo": "sunset_02",
+      "shape": "blob",
+      "psnr_masked_db": 20.92,
+      "lpips_crop": 0.1434
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "spot",
+      "psnr_masked_db": 23.1,
+      "lpips_crop": 0.0447
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "stroke",
+      "psnr_masked_db": 14.7,
+      "lpips_crop": 0.0213
+    },
+    {
+      "photo": "sunset_03",
+      "shape": "blob",
+      "psnr_masked_db": 18.17,
+      "lpips_crop": 0.1022
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "spot",
+      "psnr_masked_db": 27.17,
+      "lpips_crop": 0.0147
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "stroke",
+      "psnr_masked_db": 25.52,
+      "lpips_crop": 0.0156
+    },
+    {
+      "photo": "wellexposed_01",
+      "shape": "blob",
+      "psnr_masked_db": 17.35,
+      "lpips_crop": 0.1351
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "spot",
+      "psnr_masked_db": 15.65,
+      "lpips_crop": 0.1712
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "stroke",
+      "psnr_masked_db": 19.47,
+      "lpips_crop": 0.0192
+    },
+    {
+      "photo": "wellexposed_02",
+      "shape": "blob",
+      "psnr_masked_db": 11.15,
+      "lpips_crop": 0.1735
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "spot",
+      "psnr_masked_db": 24.85,
+      "lpips_crop": 0.0904
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "stroke",
+      "psnr_masked_db": 18.18,
+      "lpips_crop": 0.0162
+    },
+    {
+      "photo": "wellexposed_03",
+      "shape": "blob",
+      "psnr_masked_db": 15.66,
+      "lpips_crop": 0.181
+    }
+  ]
+}
