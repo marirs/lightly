@@ -19,18 +19,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -121,7 +114,7 @@ private fun BaseScreenView(state: AppNavState, layout: ShellLayout, actions: She
 
 /**
  * More as a sheet (prototype `overlayHTML('page')`):
- * - phones: bottom sheet, 92% of the screen, with a grabber;
+ * - phones: bottom sheet with a grabber, 92% of the screen capped at 88% (`.sheet` max-height), so 88%;
  * - tablets: centred form sheet, min(540 dp, 92%) wide and 70% tall, no grabber;
  * - unfolded foldables: a bottom sheet confined to the right (vertical fold) or lower (horizontal
  *   fold) pane, as tall as its content, so it never crosses the fold.
@@ -130,9 +123,7 @@ private fun BaseScreenView(state: AppNavState, layout: ShellLayout, actions: She
 @Composable
 private fun MoreSheet(page: MorePage, layout: ShellLayout, content: MoreContent, actions: MoreActions) {
     val colors = lightlyColors
-    val density = LocalDensity.current
-    var originInWindow by remember { mutableStateOf(Offset.Zero) }
-    BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { originInWindow = it.positionInWindow() }) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -149,7 +140,7 @@ private fun MoreSheet(page: MorePage, layout: ShellLayout, content: MoreContent,
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(maxHeight * 0.92f)
+                    .height(maxHeight * 0.88f)
                     .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
                     .background(colors.sheet)
                     .then(sheetSurface)
@@ -172,13 +163,13 @@ private fun MoreSheet(page: MorePage, layout: ShellLayout, content: MoreContent,
             ) {
                 MorePageView(page, content, actions, Modifier.weight(1f))
             }
+            // Prototype `.scrim.paneR` / `.paneB`: the sheet lives in the right / lower half of the
+            // screen (padding 50%), bottom-aligned, as tall as its content.
             is ShellLayout.SplitVertical, is ShellLayout.SplitHorizontal -> {
                 val paneModifier = if (layout is ShellLayout.SplitVertical) {
-                    val foldX = with(density) { (layout.foldXDp.dp.toPx() - originInWindow.x).toDp() }.coerceIn(0.dp, maxWidth)
-                    Modifier.align(Alignment.BottomEnd).width(maxWidth - foldX).heightIn(max = maxHeight)
+                    Modifier.align(Alignment.BottomEnd).width(maxWidth / 2).heightIn(max = maxHeight)
                 } else {
-                    val foldY = with(density) { ((layout as ShellLayout.SplitHorizontal).foldYDp.dp.toPx() - originInWindow.y).toDp() }.coerceIn(0.dp, maxHeight)
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max = maxHeight - foldY)
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max = maxHeight / 2)
                 }
                 Column(
                     paneModifier

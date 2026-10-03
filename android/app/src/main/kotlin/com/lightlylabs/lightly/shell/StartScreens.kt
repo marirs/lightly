@@ -16,16 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -70,30 +62,21 @@ object ShellTags {
 }
 
 /**
- * Two panes either side of a fold, measured against this composable's own position in the window, so
- * the split lands exactly on the hinge whatever sits above it (status bar, top bar).
+ * Two panes either side of a fold (prototype `.foldsplit`): the area below the top bar is split into
+ * two equal halves, along the fold's direction, and each pane's content starts at its top, centred
+ * across (`.center` = place-items:center on a top-aligned column). With top-aligned content, nothing
+ * sits on the fold line.
  */
 @Composable
 fun FoldPanes(layout: ShellLayout, modifier: Modifier = Modifier, first: @Composable () -> Unit, second: @Composable () -> Unit) {
-    val density = LocalDensity.current
-    var originInWindow by remember { mutableStateOf(Offset.Zero) }
-    BoxWithConstraints(modifier.onGloballyPositioned { originInWindow = it.positionInWindow() }) {
-        when (layout) {
-            is ShellLayout.SplitVertical -> {
-                val firstWidth = with(density) { (layout.foldXDp.dp.toPx() - originInWindow.x).toDp() }.coerceIn(0.dp, maxWidth)
-                Row(Modifier.fillMaxSize()) {
-                    Box(Modifier.width(firstWidth).fillMaxHeight(), contentAlignment = Alignment.Center) { first() }
-                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { second() }
-                }
-            }
-            is ShellLayout.SplitHorizontal -> {
-                val firstHeight = with(density) { (layout.foldYDp.dp.toPx() - originInWindow.y).toDp() }.coerceIn(0.dp, maxHeight)
-                Column(Modifier.fillMaxSize()) {
-                    Box(Modifier.height(firstHeight).fillMaxWidth(), contentAlignment = Alignment.Center) { first() }
-                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { second() }
-                }
-            }
-            else -> Column(Modifier.fillMaxSize()) { first(); second() }
+    when (layout) {
+        is ShellLayout.SplitHorizontal -> Column(modifier) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) { first() }
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) { second() }
+        }
+        else -> Row(modifier) {
+            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) { first() }
+            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) { second() }
         }
     }
 }
@@ -186,16 +169,20 @@ fun MessageScreen(
     onBack: () -> Unit,
 ) {
     val colors = lightlyColors
+    // Prototype: the text block is at most 380 dp wide, or 360 dp in a fold pane.
+    val headMaxWidth = if (layout.isSplit) 360.dp else 380.dp
     val head: @Composable () -> Unit = {
-        Column(Modifier.widthIn(max = 380.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // As approved: the icon sits at the start of the text block (a block-level icon in the
+        // prototype), the title and body are centred lines.
+        Column(Modifier.widthIn(max = headMaxWidth)) {
             LightlyIcon(LightlyIcons.Photo, size = 44.dp, tint = colors.ink)
             Text(
                 title,
                 style = lightlyTextStyle(20.sp, FontWeight.SemiBold, colors.ink),
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp).semantics { heading() },
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp).semantics { heading() },
             )
-            Text(body, style = lightlyTextStyle(color = colors.ink2), textAlign = TextAlign.Center)
+            Text(body, style = lightlyTextStyle(color = colors.ink2), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
     val actions: @Composable () -> Unit = {

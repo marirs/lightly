@@ -190,7 +190,8 @@ fun ListRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+        // No vertical padding: `.listrow` is min-height 52 with the text centred (prototype).
+        Column(Modifier.weight(1f)) {
             Text(label, style = lightlyTextStyle(color = ink))
             if (sub != null) Text(sub, style = lightlyTextStyle(13.sp, color = colors.ink3))
         }

@@ -229,7 +229,7 @@ private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalo
                     .semantics { contentDescription = "Reorder" },
                 contentAlignment = Alignment.Center,
             ) { LightlyIcon(LightlyIcons.Grip, size = 18.dp, tint = colors.ink3) }
-            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+            Column(Modifier.weight(1f)) {
                 Text(name, style = lightlyTextStyle(color = colors.ink))
                 preset?.categoryName?.let { Text(it, style = lightlyTextStyle(13.sp, color = colors.ink3)) }
             }

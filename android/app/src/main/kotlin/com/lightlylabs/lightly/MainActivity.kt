@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -82,7 +83,11 @@ class MainActivity : ComponentActivity() {
         captures = CameraCaptures(this)
         val graph = AppGraph.get(this)
         val metrics = WindowInfoTracker.getOrCreate(this).windowLayoutInfo(this)
-        val folds = metrics.map { info -> info.displayFeatures.filterIsInstance<FoldingFeature>() }
+        val folds = metrics.map { info ->
+            // Debug builds log what WindowManager reports, for the fold/hinge comparison runs.
+            if (BuildConfig.DEBUG) Log.d(LOG_TAG, "display features: ${info.displayFeatures}")
+            info.displayFeatures.filterIsInstance<FoldingFeature>()
+        }
         // Same owner and default keys as `viewModel()` would use, so these survive recreation.
         val shell = ViewModelProvider(this, AppViewModel.factory)[AppViewModel::class.java]
         val editor = ViewModelProvider(this, EditorViewModel.factory(graph.editorEnvironment))[EditorViewModel::class.java]
@@ -215,6 +220,10 @@ class MainActivity : ComponentActivity() {
         } catch (noHandler: ActivityNotFoundException) {
             // Nothing can open it; the Support page stays as it is.
         }
+    }
+
+    private companion object {
+        const val LOG_TAG = "LightlyShell"
     }
 
     private fun versionLabel() = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
