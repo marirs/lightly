@@ -1,0 +1,58 @@
+#!/bin/bash
+# Run one heavy job (build, test run, simulator or emulator session) while
+# holding the machine-wide heavy-job lock. Only one heavy job may run at a
+# time; a second caller waits here until the first finishes.
+#
+# Usage: scripts/heavy <label> <command> [args...]
+#   scripts/heavy ios-unit xcodebuild test -project ...
+#   scripts/heavy android-captures bash -c 'boot emulator; capture batch'
+#
+# Why the cleanup: a simulator or emulator left running after its job keeps
+# consuming CPU outside the lock, which is how the machine reached a load of 60
+# on 10 cores. A session must boot, capture and finish inside one invocation.
+# Anything still booted when the lock is taken, or when the job ends, belongs
+# to no running job and is shut down.
+#
+# The PreToolUse hook scripts/hooks/require_heavy_lock.py refuses heavy
+# commands that do not go through this wrapper.
+set -u
+LOCK_FILE=/tmp/lightly-heavy.lock
+LOG_FILE=/tmp/lightly-heavy.log
+
+if [ $# -lt 2 ]; then
+  echo "usage: scripts/heavy <label> <command> [args...]" >&2
+  exit 64
+fi
+label=$1; shift
+
+shutdown_devices() {
+  xcrun simctl shutdown all >/dev/null 2>&1
+  if command -v adb >/dev/null 2>&1; then
+    for serial in $(adb devices 2>/dev/null | awk '/^emulator-/{print $1}'); do
+      adb -s "$serial" emu kill >/dev/null 2>&1
+    done
+  fi
+  pkill -f qemu-system >/dev/null 2>&1
+  return 0
+}
+
+if [ "${LIGHTLY_HEAVY_LOCK_HELD:-}" = "1" ]; then
+  # Nested call inside a job that already holds the lock.
+  exec "$@"
+fi
+
+requested=$(date +%s)
+echo "$(date '+%F %T') WAIT  pid=$$ label=$label" >> "$LOG_FILE"
+export LIGHTLY_HEAVY_LOCK_HELD=1
+export LIGHTLY_HEAVY_LABEL="$label"
+export LIGHTLY_HEAVY_REQUESTED="$requested"
+export -f shutdown_devices
+exec lockf -k "$LOCK_FILE" bash -c '
+  started=$(date +%s)
+  echo "$(date "+%F %T") START pid=$$ label=$LIGHTLY_HEAVY_LABEL waited=$((started-LIGHTLY_HEAVY_REQUESTED))s" >> '"$LOG_FILE"'
+  shutdown_devices
+  "$@"; status=$?
+  shutdown_devices
+  echo "$(date "+%F %T") END   pid=$$ label=$LIGHTLY_HEAVY_LABEL ran=$(( $(date +%s)-started ))s status=$status" >> '"$LOG_FILE"'
+  exit $status
+' heavy-job "$@"
