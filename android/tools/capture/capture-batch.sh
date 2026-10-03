@@ -26,7 +26,8 @@ TOOL_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$TOOL_DIR/../../.." && pwd)
 SDK=$HOME/Library/Android/sdk
 PKG=com.lightlylabs.lightly
-APK=$REPO/android/app/build/outputs/apk/debug/app-debug.apk
+# CAPTURE_APK pins a recorded APK (BUILD_RECORD) so later builds cannot change a running matrix.
+APK=${CAPTURE_APK:-$REPO/android/app/build/outputs/apk/debug/app-debug.apk}
 DEFAULT_SCREENS="loading developing developed model-unavailable develop-failed dev-preset dev-original dev-dragging dev-browse dev-large dev-long-name dev-amount dev-starred dev-favourites dev-fav-full dev-fav-replace dev-bw dev-landscape-photo dev-portrait-photo compare saving saved leave-unsaved more"
 
 AVD= PORT= DEV= ORIENT= POSTURE=as-is THEME= TEXT= MODE= OUT= DISP=
