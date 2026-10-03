@@ -1,0 +1,51 @@
+[
+  {
+    "stem": "portrait_deep_02",
+    "focal_disparity_near_far": [
+      0.854,
+      0.007
+    ]
+  },
+  {
+    "stem": "portrait_medium_02",
+    "focal_disparity_near_far": [
+      0.455,
+      0.01
+    ]
+  },
+  {
+    "stem": "portrait_light_01",
+    "focal_disparity_near_far": [
+      0.674,
+      0.311
+    ]
+  },
+  {
+    "stem": "backlit_02",
+    "focal_disparity_near_far": [
+      0.574,
+      0.0
+    ]
+  },
+  {
+    "stem": "night_01",
+    "focal_disparity_near_far": [
+      0.838,
+      0.123
+    ]
+  },
+  {
+    "stem": "wellexposed_03",
+    "focal_disparity_near_far": [
+      0.871,
+      0.043
+    ]
+  },
+  {
+    "stem": "landscape_01",
+    "focal_disparity_near_far": [
+      0.843,
+      0.025
+    ]
+  }
+]

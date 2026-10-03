@@ -1,0 +1,42 @@
+{
+  "518x392": {
+    "converter": "litert_torch 0.9.4",
+    "torch": "2.13.0",
+    "fp32": {
+      "bytes": 99451624,
+      "convert_s": 333.9,
+      "mac_m4_xnnpack_4threads_ms": 745.8,
+      "vs_pytorch_corr": 1.0
+    },
+    "wi8_afp32": {
+      "bytes": 27650576,
+      "mac_m4_xnnpack_4threads_ms": 811.0,
+      "vs_pytorch_corr": 0.99996
+    },
+    "load_average": [
+      25.1,
+      51.1,
+      161.7
+    ]
+  },
+  "518x518": {
+    "converter": "litert_torch 0.9.4",
+    "torch": "2.13.0",
+    "fp32": {
+      "bytes": 99436272,
+      "convert_s": 435.2,
+      "mac_m4_xnnpack_4threads_ms": 4660.3,
+      "vs_pytorch_corr": 1.0
+    },
+    "wi8_afp32": {
+      "bytes": 27635392,
+      "mac_m4_xnnpack_4threads_ms": 4112.5,
+      "vs_pytorch_corr": 0.99996
+    },
+    "load_average": [
+      449.8,
+      565.9,
+      543.6
+    ]
+  }
+}

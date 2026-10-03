@@ -1,0 +1,12 @@
+{
+  "portrait_deep_02": {
+    "naive_per_pixel": 10.89,
+    "layered_depth_only": 3.14,
+    "spec": 0.04
+  },
+  "portrait_medium_02": {
+    "naive_per_pixel": 7.71,
+    "layered_depth_only": 4.26,
+    "spec": 0.18
+  }
+}

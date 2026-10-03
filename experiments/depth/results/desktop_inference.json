@@ -1,0 +1,26 @@
+{
+  "machine": "arm",
+  "omp_threads": "4",
+  "candidates": {
+    "da2_small": {
+      "median_latency_ms": 226.3,
+      "runtime": "TorchCandidate"
+    },
+    "da1_small": {
+      "median_latency_ms": 220.8,
+      "runtime": "TorchCandidate"
+    },
+    "midas31_swin2_tiny": {
+      "median_latency_ms": 176.0,
+      "runtime": "TorchCandidate"
+    },
+    "midas21_small": {
+      "median_latency_ms": 68.4,
+      "runtime": "OnnxCandidate"
+    },
+    "apple_coreml_da2_small": {
+      "median_latency_ms": 27.1,
+      "runtime": "AppleCoreMLCandidate"
+    }
+  }
+}

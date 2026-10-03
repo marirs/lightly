@@ -1,0 +1,52 @@
+{
+  "da2_small": {
+    "subject_in_front_margin": [
+      0.772,
+      0.528,
+      0.46,
+      0.474
+    ],
+    "subject_in_front_pass": 4,
+    "edge_alignment_mean": 37.11
+  },
+  "apple_coreml_da2_small": {
+    "subject_in_front_margin": [
+      0.771,
+      0.668,
+      0.646,
+      0.466
+    ],
+    "subject_in_front_pass": 4,
+    "edge_alignment_mean": 37.51
+  },
+  "da1_small": {
+    "subject_in_front_margin": [
+      0.873,
+      0.7,
+      0.707,
+      0.511
+    ],
+    "subject_in_front_pass": 4,
+    "edge_alignment_mean": 38.0
+  },
+  "midas31_swin2_tiny": {
+    "subject_in_front_margin": [
+      0.891,
+      0.804,
+      0.752,
+      0.419
+    ],
+    "subject_in_front_pass": 4,
+    "edge_alignment_mean": 28.33
+  },
+  "midas21_small": {
+    "subject_in_front_margin": [
+      0.726,
+      0.55,
+      0.797,
+      0.357
+    ],
+    "subject_in_front_pass": 4,
+    "edge_alignment_mean": 8.27
+  }
+}

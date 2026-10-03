@@ -1,0 +1,250 @@
+{
+  "source": "depth-anything/Depth-Anything-V2-Small-hf@5426e4f0f36572d16453bbda7a8389317b1bef99",
+  "load_average_at_start": [
+    15.3,
+    67.0,
+    123.5
+  ],
+  "params_million": 24.79,
+  "coreml": {
+    "518x392_fp16": {
+      "bytes": 53179430,
+      "mac_m4_ALL": {
+        "ms": 93.5,
+        "load_ms": 33004,
+        "vs_pytorch_corr": 1.0,
+        "vs_pytorch_mean_abs_norm": 0.00048,
+        "peak_rss_mb": 601.7
+      },
+      "mac_m4_CPU_AND_NE": {
+        "ms": 226.9,
+        "load_ms": 40057,
+        "vs_pytorch_corr": 1.0,
+        "vs_pytorch_mean_abs_norm": 0.0005,
+        "peak_rss_mb": 439.7
+      },
+      "mac_m4_CPU_AND_GPU": {
+        "ms": 59.2,
+        "load_ms": 5154,
+        "vs_pytorch_corr": 1.0,
+        "vs_pytorch_mean_abs_norm": 0.00025,
+        "peak_rss_mb": 489.0
+      },
+      "mac_m4_CPU_ONLY": {
+        "ms": 253.8,
+        "load_ms": 3830,
+        "vs_pytorch_corr": 0.99999,
+        "vs_pytorch_mean_abs_norm": 0.00195,
+        "peak_rss_mb": 445.5
+      }
+    },
+    "518x392_w8": {
+      "bytes": 28417857,
+      "mac_m4_ALL": {
+        "ms": 96.4,
+        "load_ms": 49348,
+        "vs_pytorch_corr": 0.99998,
+        "vs_pytorch_mean_abs_norm": 0.0019,
+        "peak_rss_mb": 414.7
+      },
+      "mac_m4_CPU_AND_NE": {
+        "ms": 113.0,
+        "load_ms": 42333,
+        "vs_pytorch_corr": 0.99998,
+        "vs_pytorch_mean_abs_norm": 0.00188,
+        "peak_rss_mb": 472.2
+      },
+      "mac_m4_CPU_AND_GPU": {
+        "failed": "/AppleInternal/Library/BuildRoots/4~CNqQugA4wWgXhDI3BNEvlckr_SRKSjcWvh2y3e0/Library/Caches/com.apple.xbs/TemporaryDirectory.LbyYqJ/Sources/MetalPerformanceShadersGraph/mpsgraph/MetalPerformanceShadersGraph/Core/Files/MPSGraphExecutable.mm:5070: failed assertion `Error: MLIR pass manager failed'"
+      },
+      "mac_m4_CPU_ONLY": {
+        "ms": 120.2,
+        "load_ms": 1869,
+        "vs_pytorch_corr": 0.99995,
+        "vs_pytorch_mean_abs_norm": 0.00285,
+        "peak_rss_mb": 559.8
+      }
+    },
+    "apple_DepthAnythingV2SmallF16": {
+      "bytes": 49819122,
+      "mac_m4_ALL": {
+        "ms": 37.7,
+        "load_ms": 15842,
+        "vs_pytorch_corr": 0.99999,
+        "vs_pytorch_mean_abs_norm": 0.00118,
+        "peak_rss_mb": 413.5
+      },
+      "mac_m4_CPU_AND_NE": {
+        "ms": 24.8,
+        "load_ms": 8949,
+        "vs_pytorch_corr": 0.99999,
+        "vs_pytorch_mean_abs_norm": 0.00118,
+        "peak_rss_mb": 357.2
+      },
+      "mac_m4_CPU_AND_GPU": {
+        "ms": 45.9,
+        "load_ms": 2090,
+        "vs_pytorch_corr": 0.99999,
+        "vs_pytorch_mean_abs_norm": 0.00073,
+        "peak_rss_mb": 420.7
+      },
+      "mac_m4_CPU_ONLY": {
+        "ms": 152.0,
+        "load_ms": 1131,
+        "vs_pytorch_corr": 0.99996,
+        "vs_pytorch_mean_abs_norm": 0.00259,
+        "peak_rss_mb": 379.7
+      }
+    },
+    "518x518_fp16": {
+      "bytes": 54319312,
+      "mac_m4_ALL": {
+        "ms": 149.0,
+        "load_ms": 136719,
+        "vs_pytorch_corr": 1.0,
+        "vs_pytorch_mean_abs_norm": 0.00054,
+        "peak_rss_mb": 265.9
+      },
+      "mac_m4_CPU_AND_NE": {
+        "ms": 1447.2,
+        "load_ms": 146878,
+        "vs_pytorch_corr": 1.0,
+        "vs_pytorch_mean_abs_norm": 0.00054,
+        "peak_rss_mb": 505.2
+      },
+      "mac_m4_CPU_AND_GPU": {
+        "ms": 184.4,
+        "load_ms": 24709,
+        "vs_pytorch_corr": 1.0,
+        "vs_pytorch_mean_abs_norm": 0.00017,
+        "peak_rss_mb": 274.3
+      },
+      "mac_m4_CPU_ONLY": {
+        "ms": 1732.3,
+        "load_ms": 13099,
+        "vs_pytorch_corr": 0.99998,
+        "vs_pytorch_mean_abs_norm": 0.00144,
+        "peak_rss_mb": 360.6
+      }
+    },
+    "518x518_p8": {
+      "bytes": 29527713,
+      "mac_m4_ALL": {
+        "ms": 213.1,
+        "load_ms": 87255,
+        "vs_pytorch_corr": 0.99998,
+        "vs_pytorch_mean_abs_norm": 0.002,
+        "peak_rss_mb": 403.6
+      },
+      "mac_m4_CPU_AND_NE": {
+        "ms": 437.9,
+        "load_ms": 77034,
+        "vs_pytorch_corr": 0.99998,
+        "vs_pytorch_mean_abs_norm": 0.00203,
+        "peak_rss_mb": 505.6
+      },
+      "mac_m4_CPU_AND_GPU": {
+        "ms": 102.2,
+        "load_ms": 8472,
+        "vs_pytorch_corr": 0.99998,
+        "vs_pytorch_mean_abs_norm": 0.00216,
+        "peak_rss_mb": 437.7
+      },
+      "mac_m4_CPU_ONLY": {
+        "ms": 848.6,
+        "load_ms": 7836,
+        "vs_pytorch_corr": 0.99996,
+        "vs_pytorch_mean_abs_norm": 0.00268,
+        "peak_rss_mb": 447.8
+      }
+    },
+    "apple_DepthAnythingV2SmallF16P8": {
+      "bytes": 25247952,
+      "mac_m4_ALL": {
+        "ms": 50.0,
+        "load_ms": 13334,
+        "vs_pytorch_corr": 0.99997,
+        "vs_pytorch_mean_abs_norm": 0.00302,
+        "peak_rss_mb": 395.3
+      },
+      "mac_m4_CPU_AND_NE": {
+        "ms": 58.6,
+        "load_ms": 12032,
+        "vs_pytorch_corr": 0.99997,
+        "vs_pytorch_mean_abs_norm": 0.00311,
+        "peak_rss_mb": 401.3
+      },
+      "mac_m4_CPU_AND_GPU": {
+        "ms": 186.3,
+        "load_ms": 3811,
+        "vs_pytorch_corr": 0.99998,
+        "vs_pytorch_mean_abs_norm": 0.00224,
+        "peak_rss_mb": 344.5
+      },
+      "mac_m4_CPU_ONLY": {
+        "ms": 760.2,
+        "load_ms": 4048,
+        "vs_pytorch_corr": 0.99996,
+        "vs_pytorch_mean_abs_norm": 0.00198,
+        "peak_rss_mb": 373.8
+      }
+    },
+    "apple_DepthAnythingV2SmallF16INT8": {
+      "bytes": 25395628,
+      "mac_m4_ALL": {
+        "ms": 46.2,
+        "load_ms": 31716,
+        "vs_pytorch_corr": -0.01095,
+        "vs_pytorch_mean_abs_norm": 0.41141,
+        "peak_rss_mb": 401.5
+      },
+      "mac_m4_CPU_AND_NE": {
+        "ms": 46.8,
+        "load_ms": 32638,
+        "vs_pytorch_corr": -0.01095,
+        "vs_pytorch_mean_abs_norm": 0.41141,
+        "peak_rss_mb": 378.1
+      },
+      "mac_m4_CPU_AND_GPU": {
+        "ms": 98.3,
+        "load_ms": 3012,
+        "vs_pytorch_corr": 0.99996,
+        "vs_pytorch_mean_abs_norm": 0.0025,
+        "peak_rss_mb": 407.2
+      },
+      "mac_m4_CPU_ONLY": {
+        "ms": 367.1,
+        "load_ms": 2243,
+        "vs_pytorch_corr": 0.99992,
+        "vs_pytorch_mean_abs_norm": 0.00369,
+        "peak_rss_mb": 394.1
+      }
+    }
+  },
+  "onnx": {
+    "fp32": {
+      "bytes": 99196591,
+      "mac_m4_cpu4_ms": 421.8,
+      "vs_pytorch_corr": 1.0,
+      "vs_pytorch_mean_abs_norm": 0.0
+    },
+    "fp16": {
+      "skipped": "AttributeError(\"'list' object has no attribute 'input'\")"
+    },
+    "int8_dynamic": {
+      "bytes": 27382486,
+      "mac_m4_cpu4_ms": 420.6,
+      "vs_pytorch_corr": 0.9997,
+      "vs_pytorch_mean_abs_norm": 0.0085
+    }
+  },
+  "peak_rss_delta_mb": {
+    "onnx_fp32_cpu": 294.1,
+    "onnx_int8_cpu": 234.7
+  },
+  "load_average_at_square_run": [
+    421.4,
+    498.5,
+    519.0
+  ]
+}

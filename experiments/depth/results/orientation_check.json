@@ -1,0 +1,50 @@
+{
+  "portrait_deep_02": {
+    "portrait": false,
+    "square": 0.9984
+  },
+  "portrait_medium_02": {
+    "portrait": true,
+    "square": 0.998,
+    "stretch": 0.9945,
+    "rotate_apple": 0.984
+  },
+  "portrait_light_01": {
+    "portrait": true,
+    "square": 0.9913,
+    "stretch": 0.9652,
+    "rotate_apple": 0.9213
+  },
+  "backlit_02": {
+    "portrait": false,
+    "square": 0.9888
+  },
+  "night_01": {
+    "portrait": true,
+    "square": 0.9994,
+    "stretch": 0.9979,
+    "rotate_apple": 0.9947
+  },
+  "wellexposed_03": {
+    "portrait": true,
+    "square": 0.9966,
+    "stretch": 0.9926,
+    "rotate_apple": 0.9889
+  },
+  "landscape_01": {
+    "portrait": true,
+    "square": 0.9995,
+    "stretch": 0.9992,
+    "rotate_apple": 0.9329
+  },
+  "landscape_02": {
+    "portrait": true,
+    "square": 0.9819,
+    "stretch": 0.9752,
+    "rotate_apple": 0.9512
+  },
+  "wellexposed_02": {
+    "portrait": false,
+    "square": 0.9965
+  }
+}

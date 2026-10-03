@@ -1,0 +1,7 @@
+# Model weights and converted artefacts are fetched/regenerated (see fetch_models.py, convert.py).
+models/
+# Cached depth maps, intermediate renders, embedded-depth fixtures.
+cache/
+out/
+embedded/fixtures/
+__pycache__/
