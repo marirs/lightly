@@ -179,7 +179,15 @@ struct OnDeviceSceneAnalyser: SceneAnalysing {
             let qualities = quality.results ?? []
             let detected: [DetectedFace] = (faces.results ?? []).filter { $0.confidence >= 0.5 }.map { face in
                 let match = qualities.first { $0.boundingBox.intersects(face.boundingBox) }
+                #if targetEnvironment(simulator)
+                // The capture-quality request runs on the CPU here and is not reliable: the same
+                // clear face scored 0.52, 1.00 and 0.00 across one capture session (macOS: 0.71).
+                // Quality is left unknown in the Simulator; devices use it.
+                _ = match
+                return Self.detectedFace(face, quality: nil)
+                #else
                 return Self.detectedFace(face, quality: match?.faceCaptureQuality)
+                #endif
             }
             // Order left to right, so "Face 1, 2, 3" read as the photo does.
             let ordered = detected.sorted { $0.box.x < $1.box.x }
