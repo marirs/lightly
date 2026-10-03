@@ -42,7 +42,7 @@ The measured coverage per preset is in `docs/v1/preset-pack.md` (pack format 3, 
 
 | # | Dependency | Blocks | Meanwhile |
 |---|---|---|---|
-| D1 | **Auto model**: rights-cleared training/evaluation photos (see docs/m3/auto-progress.md) | Real Auto | Approved "Automatic correction unavailable" state |
+| D1 | **Auto model**: unresolved release requirement. Experiment 1 (`photo_a_001`) is closed and will not ship (report: docs/v1/auto-experiment-1-report.md). Next steps depend on the proposed study parameters and dataset assessment in that report | Real Auto (1.0 release) | Approved "Automatic correction unavailable" state as error handling only. No fixed filter may stand in for Auto |
 | D2 | **Release text**: Privacy Policy, Terms of Use, Support destination, version/build scheme | Release; no placeholders may ship | Screens and navigation built; text loaded from a content file left empty |
 | D3 | **On-device vision on Android**: subject segmentation and face detection need a third-party SDK (e.g. ML Kit bundled models or MediaPipe), which means downloading and bundling it | Background and Portrait on Android | iOS uses built-in Vision (no download) |
 | D4 | **Object removal (inpainting) model**: neither platform has a public on-device inpainting API | Edit › Remove on both | Remove shows the approved unavailable/failed state |
