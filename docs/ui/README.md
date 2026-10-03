@@ -13,3 +13,5 @@ Open http://127.0.0.1:8765/docs/ui/app/index.html. The review site includes the 
 Photos are included in `assets/photos/`. The fixed preset names and category/stop catalogue are versioned at `presets/develop-design-ui.json` and `presets/DEVELOP-PRESET-LIST.md`; the raw preset library remains local. Serve the repository root so the catalogue resolves.
 
 The implementation checklist and plan are in `docs/v1/`. `tools/` contains the screen export and design checks. `app/coverage.json` is an earlier recorded check result, not a claim of verification of subsequent changes. Prototype image effects are visual simulations, not the native rendering implementation.
+
+Every implementation review must follow [the exact-design review rules](REVIEW-RULES.md). UX deviations require explicit user approval.
