@@ -14,16 +14,39 @@ Status: **in progress.** The sections below are written as the work lands; anyth
 | SHA-256 | `Data/com.apple.CoreML/weights/weight.bin` = `660a57cf7becfeac080a9bb02a263be59fd57b5c4d17ff8912833bc8b6edae04` (matches `experiments/depth/MODEL_SOURCES.csv`) |
 | Download | none in this slice: the package was already fetched for the depth evaluation (`experiments/depth/models/apple_coreml_da2_small`, git-ignored); its hash was re-checked |
 | Bundling | `ios/Tools/bundle_depth_model.sh` (LookPack aggregate target) verifies the hash, compiles with `coremlcompiler` and copies `DepthAnythingV2SmallF16P8.mlmodelc` into the app. A wrong hash fails the build |
-| **Release gate** | **"pending legal sign-off (training data)"**: build setting `LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF` (default `NO`). Release builds bundle and load the model only when it is `YES`; Debug builds always do, for development. With the gate closed, photos without embedded depth show the approved "Couldn't separate the subject" state in Background (never a faked mask-only blur) |
+| **Release gate** | **"pending legal sign-off (training data)"**: build setting `LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF` (default `NO`). Release builds bundle and load the model only when it is `YES`; Debug builds always do, for development. With the gate closed, photos without embedded depth show the approved "Couldn't separate the subject" state in Background (never a mask-only blur) |
 | "Focus depth" | depth of field (decision T3), as the specification defines it |
 
-## Contract gaps (reported; `shared/` not edited)
+## Contract (rendering-v2 revision 1, contract fixes 1)
 
-1. **Max blur radius:** rendering-v2.json `maxBlurRadius` 0.03 of the long edge; the refocus specification gives 0.035 [contract]. This port uses 0.035, as the reference renders.
-2. **Swirl half-angle:** the specification prose says 6·r·s/diagonal; `refocus.py` uses 12·r·s/diagonal. This port follows the reference code.
-3. **`depth.replacementDepth`** (recipe, 0…1, default 1) has no mapping onto the specification's replacement placement (§R2.4: a plane at the old background's disparity, capped behind the subject). Recorded, not used.
-4. **Portrait has no equations** in rendering-v2 (parameters and the "never change eye colour or skin tone" rule only). The operators here are this port's provisional ones (see `PortraitRenderer`).
-5. **Subject-matte depth source:** the recipe allows `subject-matte` (two planes), but the specification's §R8 says depth must never be faked by a matte. This port uses `subject-matte` only when a recipe records it; new edits record `embedded` or `estimated`, and with no depth the failure state is shown.
+The first port's gaps (max radius 0.03 vs 0.035, swirl half-angle, `replacementDepth`, subject-matte depth) were resolved upstream by rendering-v2 revision 1 (fea63fb, docs/v1/contract-fixes-1.md). Ported on iOS:
+
+- **Focus & Blur:**
+  - R_max = 0.06 of the long edge;
+  - h = 0.5·focusDepth/100;
+  - CoC scaled by max(d_f, 1 − d_f) − h;
+  - the subject plane is held sharp when the focus is on it (M(target) ≥ 0.5, or a null target with a subject).
+- **Pull-push:** pulls to 1×1 with an exact 2×2 mean and pushes back half-pixel bilinear, so large holes no longer fill toward black.
+- **No depth means no blur (§R8).** `BackgroundStage` no longer builds a two-plane blur from the matte. The codec rejects `blur > 0` with `depth.source = subject-matte`.
+- **Stored focal plane.** A tap stores `depth.focusDepth = 1 − d_f`, and rendering uses the stored value (G4). `replacementDepth` is not read; replacements use §R2.4 "plane" placement (G6).
+- **Matching the reference's numerical details.** These were needed for the golden tests:
+  - kernels are convolved (flipped), with numpy-reflect borders;
+  - morphology uses OpenCV's elliptic element;
+  - medians follow numpy;
+  - the glow Gaussian uses BORDER_REFLECT_101.
+- **Grain:**
+  - lightness changes keep chromaticity (a and b scale with L);
+  - when there are fewer than 2 pixels per grain cell, the grain is supersampled and box-averaged.
+  - The grain constants are unchanged and still uncalibrated (M9 stays a deviation).
+- **Contract check.** `DevelopModel` refuses a contract whose revision is not 1 or whose focus constants differ from the renderer's.
+- **Tests.** `RenderingGoldenTests` checks against `shared/fixtures/rendering`: constants, signed CoC, highlights, ten kernels, pull-push, nine whole renders (ΔE00 mean ≤ 1, p99 ≤ 4) and four grain cases.
+
+Still open (owner decisions, contract-fixes-1 §1):
+- the tablet blur strength differs from the prototype, whose blur is in CSS pixels;
+- the styles' textures differ from the prototype's single Gaussian;
+- the prototype's subject-edge halo.
+
+Portrait's operators are still provisional, because the contract gives no equations for them.
 
 ## What is built
 

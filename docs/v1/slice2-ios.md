@@ -115,169 +115,178 @@ No shippable model exists (D1). The build ships `ModelNotBundledAutoEnhancer`; t
 
 **Reference variant used for the Develop screens.** Every approved Develop screen is drawn with Auto *applied* (`newSession` sets `auto: 'applied'`). No Auto model ships (D1), so the build can only show the approved unavailable state. The references for `model-unavailable`, `dev-*`, `compare`, `saving` and `saved` were therefore rendered with the approved renderer and the screen's own setup plus `s.auto = 'unavailable'` (the approved combination of "presets still work" with that screen). The screens exactly as registered (Auto applied, no notice) are **blocked by D1** in every cell. `loading`, `developing` and `develop-failed` are compared as registered.
 
-**Status of the 24 cells.** All 504 screens (21 × 24) were captured and every one was reviewed side by side against its reference (all screens of every cell, no sampling). Each entry gives the result and the commit the capture was taken at (`@commit`):
+**Status of the 24 cells: complete, current.**
+- **Capture.** All 504 screens (21 × 24) were captured with the validated one-launch runner, one cell per heavy-lock acquisition, from one build at `ea75592` (clean working tree).
+- **Grain recapture.** The two grain screens (`dev-favourites` and `dev-portrait-photo`, Portrait 13 "Glow") were captured again in every cell after the rendering-v2 revision 1 port, from a build at `ec1df87`. The other 19 screens do not use grain or Focus & Blur, so the port does not affect them.
+- **References.** All come from `scripts/reference_cache.py`: variant `auto-unavailable` for the Develop screens, none for `loading`, `developing` and `develop-failed`.
+- **Review.** Every screen of every cell was reviewed side by side, against `docs/ui/REVIEW-RULES.md`.
+- **Records.** Each capture's JSON record (in `~/.codex/artifacts/lightly/v1/slice2/ios/runner/{native,grain}/<cell>/`) gives its revision, local-change fingerprint, device, orientation, theme, text size and tool version.
 
-- **V**: exact match in layout, controls, copy, hierarchy, colours, icons and state.
-- **Mn / Xn**: a recorded deviation or defect (table below). No screen was left unreviewed.
-- Every capture also carries D1 (Auto blocked), M1 (status bar) and M7 (real versus simulated rendering); these three are not repeated per screen.
+Each entry gives the result and the revision of the capture (`@revision`):
+- **V** means an exact match in layout, controls, copy, hierarchy, colours, icons and state.
+- **Mn** is a recorded deviation (table below).
+- Every capture also carries D1 (Auto blocked), M1 (status bar) and M7 (real versus simulated rendering); these are not repeated per screen.
+- M8 (the spinner turns in the app) stays recorded for the owner, even though the runner's still ring matches the prototype.
 
-**These results are stale, not current verification.** They describe the build at `1a4503c` (slice-2 final) and `7356591` (the second batch, which recaptured `loading`, `developing` and `dev-fav-replace` after 7278bfc and 7356591). Later editor changes (slice 3 in `EditorScreen`, `EditorSession` and `EditorChrome`, the X2 fix, the capture driver) affect every screen, so each capture is marked `STALE.json` in its cell folder. They must be recaptured with the validated one-launch runner (below) before any cell is accepted. The four `ipadpro11-landscape` recaptures of `loading` and `developing` taken at `25f47bf+wip` used the first, unvalidated driver and are not evidence.
+In total: 72 screens V, and 432 carry one or more of M2, M3, M4, M5 and M9. Every iPad capture carries M2, and every Large cell carries M3 on its text screens. No screen is unverified and no defect (X) is open: X1 and X2 (loading box) and M6 (Replace Cancel) are fixed and verified in every cell.
+
+The earlier captures (`native/` at 1a4503c and 7356591) are superseded and stay marked STALE.
 
 #### iPhone 17, portrait
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
-| `developing` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
-| `model-unavailable` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `develop-failed` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-original` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-preset` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-dragging` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-browse` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-large` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-long-name` | M4 @1a4503c | M3 @1a4503c | M4 @1a4503c | M3 @1a4503c |
-| `dev-amount` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-starred` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-favourites` | M9 @1a4503c | M3, M9 @1a4503c | M9 @1a4503c | M3, M9 @1a4503c |
-| `dev-fav-full` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-fav-replace` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
-| `dev-bw` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-landscape-photo` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-portrait-photo` | M9 @1a4503c | M3, M9 @1a4503c | M9 @1a4503c | M3, M9 @1a4503c |
-| `compare` | M5 @1a4503c | M3, M5 @1a4503c | M5 @1a4503c | M3, M5 @1a4503c |
-| `saving` | M5 @1a4503c | M3, M5 @1a4503c | M5 @1a4503c | M3, M5 @1a4503c |
-| `saved` | M5 @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
+| `loading` | V @ea75592 | V @ea75592 | V @ea75592 | V @ea75592 |
+| `developing` | V @ea75592 | V @ea75592 | V @ea75592 | V @ea75592 |
+| `model-unavailable` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `develop-failed` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-original` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-preset` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-dragging` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-browse` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-large` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-long-name` | M4 @ea75592 | M3 @ea75592 | M4 @ea75592 | M3 @ea75592 |
+| `dev-amount` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-starred` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-favourites` | V, M9 @ec1df87 | M3, M9 @ec1df87 | V, M9 @ec1df87 | M3, M9 @ec1df87 |
+| `dev-fav-full` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-fav-replace` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-bw` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-landscape-photo` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-portrait-photo` | V, M9 @ec1df87 | M3, M9 @ec1df87 | V, M9 @ec1df87 | M3, M9 @ec1df87 |
+| `compare` | V, M5 @ea75592 | M3, M5 @ea75592 | V, M5 @ea75592 | M3, M5 @ea75592 |
+| `saving` | V, M5 @ea75592 | M3, M5 @ea75592 | V, M5 @ea75592 | M3, M5 @ea75592 |
+| `saved` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
 
 #### iPhone 17 Pro Max, portrait
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
-| `developing` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
-| `model-unavailable` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `develop-failed` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-original` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-preset` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-dragging` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-browse` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-large` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-long-name` | M4 @1a4503c | M3 @1a4503c | M4 @1a4503c | M3 @1a4503c |
-| `dev-amount` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-starred` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-favourites` | M9 @1a4503c | M3, M9 @1a4503c | M9 @1a4503c | M3, M9 @1a4503c |
-| `dev-fav-full` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-fav-replace` | V @7356591 | V @7356591 | V @7356591 | V @7356591 |
-| `dev-bw` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-landscape-photo` | V @1a4503c | M3 @1a4503c | V @1a4503c | M3 @1a4503c |
-| `dev-portrait-photo` | M9 @1a4503c | M3, M9 @1a4503c | M9 @1a4503c | M3, M9 @1a4503c |
-| `compare` | M5 @1a4503c | M3, M5 @1a4503c | M5 @1a4503c | M3, M5 @1a4503c |
-| `saving` | M5 @1a4503c | M3, M5 @1a4503c | M5 @1a4503c | M3, M5 @1a4503c |
-| `saved` | M5 @1a4503c | M3 @1a4503c | M5 @1a4503c | M3 @1a4503c |
+| `loading` | V @ea75592 | V @ea75592 | V @ea75592 | V @ea75592 |
+| `developing` | V @ea75592 | V @ea75592 | V @ea75592 | V @ea75592 |
+| `model-unavailable` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `develop-failed` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-original` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-preset` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-dragging` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-browse` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-large` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-long-name` | M4 @ea75592 | M3 @ea75592 | M4 @ea75592 | M3 @ea75592 |
+| `dev-amount` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-starred` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-favourites` | V, M9 @ec1df87 | M3, M9 @ec1df87 | V, M9 @ec1df87 | M3, M9 @ec1df87 |
+| `dev-fav-full` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-fav-replace` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-bw` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-landscape-photo` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `dev-portrait-photo` | V, M9 @ec1df87 | M3, M9 @ec1df87 | V, M9 @ec1df87 | M3, M9 @ec1df87 |
+| `compare` | V, M5 @ea75592 | M3, M5 @ea75592 | V, M5 @ea75592 | M3, M5 @ea75592 |
+| `saving` | V, M5 @ea75592 | M3, M5 @ea75592 | V, M5 @ea75592 | M3, M5 @ea75592 |
+| `saved` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
 
 #### iPad Pro 11-inch, portrait
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2 @7356591 |
-| `developing` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2 @7356591 |
-| `model-unavailable` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `develop-failed` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-original` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-preset` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-dragging` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-browse` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-large` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-long-name` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-amount` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-starred` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-favourites` | M2, M9 @1a4503c | M2, M3, M9 @1a4503c | M2, M9 @1a4503c | M2, M3, M9 @7356591 |
-| `dev-fav-full` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-fav-replace` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-bw` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-landscape-photo` | M2 @1a4503c | M2, M3 @1a4503c | M2 @1a4503c | M2, M3 @7356591 |
-| `dev-portrait-photo` | M2, M9 @1a4503c | M2, M3, M9 @1a4503c | M2, M9 @1a4503c | M2, M3, M9 @7356591 |
-| `compare` | M2, M5 @1a4503c | M2, M3, M5 @1a4503c | M2, M5 @1a4503c | M2, M3, M5 @7356591 |
-| `saving` | M2, M5 @1a4503c | M2, M3, M5 @1a4503c | M2, M5 @1a4503c | M2, M3, M5 @7356591 |
-| `saved` | M2, M5 @1a4503c | M2, M3, M5 @1a4503c | M2, M5 @1a4503c | M2, M3, M5 @7356591 |
+| `loading` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `developing` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `model-unavailable` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `develop-failed` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-original` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-preset` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-dragging` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-browse` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-large` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-long-name` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-amount` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-starred` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-favourites` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
+| `dev-fav-full` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-fav-replace` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-bw` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-landscape-photo` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-portrait-photo` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
+| `compare` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `saving` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `saved` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
 
 #### iPad Pro 11-inch, landscape
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | M2 @25f47bf+wip | M2 @25f47bf+wip | M2 @25f47bf+wip | M2 @25f47bf+wip |
-| `developing` | X2 @25f47bf+wip | X2 @25f47bf+wip | X2 @25f47bf+wip | X2 @25f47bf+wip |
-| `model-unavailable` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `develop-failed` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-original` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-preset` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-dragging` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-browse` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-large` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-long-name` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-amount` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-starred` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-favourites` | M2, M9 @7356591 | M2, M3, M9 @7356591 | M2, M9 @7356591 | M2, M3, M9 @7356591 |
-| `dev-fav-full` | M2, M4 @7356591 | M2, M3 @7356591 | M2, M4 @7356591 | M2, M3 @7356591 |
-| `dev-fav-replace` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-bw` | M2, M4 @7356591 | M2, M3 @7356591 | M2, M4 @7356591 | M2, M3 @7356591 |
-| `dev-landscape-photo` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-portrait-photo` | M2, M4, M9 @7356591 | M2, M3, M9 @7356591 | M2, M4, M9 @7356591 | M2, M3, M9 @7356591 |
-| `compare` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
-| `saving` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
-| `saved` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
+| `loading` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `developing` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `model-unavailable` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `develop-failed` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-original` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-preset` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-dragging` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-browse` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-large` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-long-name` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-amount` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-starred` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-favourites` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
+| `dev-fav-full` | M2, M4 @ea75592 | M2, M3 @ea75592 | M2, M4 @ea75592 | M2, M3 @ea75592 |
+| `dev-fav-replace` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-bw` | M2, M4 @ea75592 | M2, M3 @ea75592 | M2, M4 @ea75592 | M2, M3 @ea75592 |
+| `dev-landscape-photo` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-portrait-photo` | M2, M4, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M4, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
+| `compare` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `saving` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `saved` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
 
 #### iPad Pro 13-inch, portrait
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `developing` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `model-unavailable` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `develop-failed` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-original` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-preset` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-dragging` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-browse` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-large` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-long-name` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-amount` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-starred` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-favourites` | M2, M9 @7356591 | M2, M9 @7356591 | M2, M9 @7356591 | M2, M9 @7356591 |
-| `dev-fav-full` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-fav-replace` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-bw` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-landscape-photo` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-portrait-photo` | M2, M9 @7356591 | M2, M9 @7356591 | M2, M9 @7356591 | M2, M9 @7356591 |
-| `compare` | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 |
-| `saving` | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 |
-| `saved` | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 | M2, M5 @7356591 |
+| `loading` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `developing` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `model-unavailable` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `develop-failed` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-original` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-preset` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-dragging` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-browse` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-large` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-long-name` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-amount` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-starred` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-favourites` | M2, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M9 @ec1df87 |
+| `dev-fav-full` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-fav-replace` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-bw` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-landscape-photo` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-portrait-photo` | M2, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M9 @ec1df87 |
+| `compare` | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 |
+| `saving` | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 |
+| `saved` | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 |
 
 #### iPad Pro 13-inch, landscape
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `developing` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `model-unavailable` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `develop-failed` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-original` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-preset` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-dragging` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-browse` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-large` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-long-name` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-amount` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-starred` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-favourites` | M2, M9 @7356591 | M2, M3, M9 @7356591 | M2, M9 @7356591 | M2, M3, M9 @7356591 |
-| `dev-fav-full` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-fav-replace` | M2 @7356591 | M2 @7356591 | M2 @7356591 | M2 @7356591 |
-| `dev-bw` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-landscape-photo` | M2 @7356591 | M2, M3 @7356591 | M2 @7356591 | M2, M3 @7356591 |
-| `dev-portrait-photo` | M2, M9 @7356591 | M2, M3, M9 @7356591 | M2, M9 @7356591 | M2, M3, M9 @7356591 |
-| `compare` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
-| `saving` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
-| `saved` | M2, M5 @7356591 | M2, M3, M5 @7356591 | M2, M5 @7356591 | M2, M3, M5 @7356591 |
+| `loading` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `developing` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `model-unavailable` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `develop-failed` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-original` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-preset` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-dragging` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-browse` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-large` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-long-name` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-amount` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-starred` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-favourites` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
+| `dev-fav-full` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-fav-replace` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
+| `dev-bw` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-landscape-photo` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
+| `dev-portrait-photo` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
+| `compare` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `saving` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `saved` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
 
 
 ### Capture runner (one launch per cell)
@@ -323,12 +332,12 @@ Since validation, the capture test gained one argument: in the Simulator, Backgr
 | M3 | large text cells | Text at ×1.24 with the browser's metrics | Same point sizes (Dynamic Type XXL, ×1.235) but SF's optical tracking makes lines ~4 % narrower, so some wraps differ: "The Walking Dead 03" fits on one line (Pro Max large), notices wrap one word later | `compare/iphone17promax-portrait-light-large/dev-large.png`, `compare/iphone17-portrait-light-large/dev-fav-full.png` | Text rendering; needs a decision (matching would mean overriding iOS's system tracking) |
 | M4 | default text: iPhone 17 (`dev-long-name`); iPad 11-inch landscape (`dev-fav-full`, `dev-bw`, `dev-portrait-photo`) | "Landscape 15 - Winter / Wonderland" | "Landscape 15 - / Winter Wonderland" | `compare/iphone17-portrait-light-default/dev-long-name.png` | Same text-metric cause as M3 at default size |
 | M5 | `compare`, `saving`, `saved` (all) | Effects tool shows the "used" dot (the screen's setup turns a vignette on) | No dot | `compare/*/compare.png` | The Effects tool is slice 4; the state cannot be set up yet |
-| M6 | `dev-fav-replace` (all captured cells) | "Cancel" in the sheet head at 17 pt (`.sheethead` font inherited) | 15 pt | `compare/iphone17-portrait-light-large/dev-fav-replace.png` | Fixed in 7278bfc; the recaptures at 7356591 match in every cell |
+| M6 | `dev-fav-replace` (all cells) | "Cancel" in the sheet head at 17 pt (`.sheethead` font inherited) | 15 pt | `compare/iphone17-portrait-light-large/dev-fav-replace.png` | Fixed in 7278bfc; the runner captures at ea75592 match in every cell |
 | M7 | all photo screens | The prototype simulates each Look with a CSS filter | The real preset rendered from the pack recipe | every `dev-*` capture | Expected: the reference does not process photographs |
 | M8 | `loading`, `developing`, `saving` | `.spinner` drawn still | The same ring, turning | — | See UX conflict 3 |
-| M9 | `dev-favourites`, `dev-portrait-photo` (all) | The prototype's CSS stand-in for "5 - (Portrait) - Glow" | Coarse, coloured grain over the whole photo | `compare/*/dev-portrait-photo.png` | The preset's grain (55) through the uncalibrated `GRAIN_K`; `reference_model.apply_grain` gives the same result, so it is the contract issue reported under Spatial and finishing operators, not the port |
+| M9 | `dev-favourites`, `dev-portrait-photo` (all) | The prototype's CSS stand-in for "5 - (Portrait) - Glow" | Coarse, coloured grain over the whole photo | `compare/*/dev-portrait-photo.png` | The preset's grain (55) with the uncalibrated `GRAIN_K` and `GRAIN_REF_LONG`. Rendering-v2 revision 1 (ported in ec1df87) removed the colour noise and the small-preview aliasing; the strength remains until Lightroom references exist (contract-fixes-1 §3). Recaptured at ec1df87 in every cell |
 | X1 | `loading`, `developing` (Pro Max and iPad) | `.progress` shrinks to its content | The box was as wide as its maximum | earlier captures | Defect, fixed in 7356591; the recaptures match |
-| X2 | `developing` on iPad 11-inch landscape (4 cells) | `.progress` is a mark inside `.imgbox`, so it is at most half the *photo's* width | The box was capped at half the screen's width, so it was wider than the prototype's and its subtitle did not wrap | `compare/ipadpro11-landscape-*/developing.png` | Defect, fixed in the working tree (the box is laid out over the fitted photo); recapture pending with the validated runner |
+| X2 | `developing` on iPad 11-inch landscape (4 cells) | `.progress` is a mark inside `.imgbox`, so it is at most half the *photo's* width | The box was capped at half the screen's width, so it was wider than the prototype's and its subtitle did not wrap | runner captures at ea75592 | Defect, fixed in 5976127; the runner captures match in all four cells |
 
 ## Tests
 
