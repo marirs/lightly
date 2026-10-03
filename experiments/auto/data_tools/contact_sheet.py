@@ -69,9 +69,18 @@ def main(argv=None):
     parser.add_argument("--candidates", required=True)
     parser.add_argument("--nominated", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--phones-only", action="store_true")
+    parser.add_argument("--max", type=int, default=0, help="review at most N candidates (deterministic order)")
     args = parser.parse_args(argv)
-    records = [r for r in json.load(open(os.path.join(AUTO_ROOT, args.candidates))) if args.nominated in r["nominated_classes"]]
-    records.sort(key=lambda r: r["sha1"])
+    records = [r for r in json.load(open(os.path.join(AUTO_ROOT, args.candidates)))
+               if args.nominated in r["nominated_classes"] and (r["is_phone"] or not args.phones_only)]
+    # Phones first, then camera fallbacks; stable order so sheet indices are reproducible.
+    records.sort(key=lambda r: (not r["is_phone"], r["sha1"]))
+    if args.max:
+        records = records[:args.max]
+    index_path = os.path.join(AUTO_ROOT, args.out + "_index.json")
+    os.makedirs(os.path.dirname(index_path), exist_ok=True)
+    json.dump([r["sha1"] for r in records], open(index_path, "w"))
     for path in make_sheets(records, os.path.join(AUTO_ROOT, args.out)):
         print(path)
 

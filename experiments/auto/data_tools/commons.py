@@ -31,7 +31,7 @@ CC0_OR_PD_QUERY = "haswbstatement:P275=Q6938433|P6216=Q19652"
 # contact details in its User-Agent gets ~10 API requests/minute. We stay under that, serially, and honour
 # Retry-After on 429. Media (upload.wikimedia.org) is fetched at a gentler but separate pace.
 API_MIN_INTERVAL_S = 6.5
-MEDIA_MIN_INTERVAL_S = 1.0
+MEDIA_MIN_INTERVAL_S = 7.5  # measured: ~7-8 requests/minute admitted by upload.wikimedia.org (HTTP 429 above)
 ACCEPTED_LICENCE_PATTERNS = [r"^CC0$", r"^CC0 1\.0$", r"^Public domain$", r"^PD-self$", r"^PD-user$", r"^PD-author$",
                              r"^PD-USGov.*", r"^PD US Government$"]
 EXCLUDED_SOURCE_PATTERN = re.compile(r"unsplash|pexels|pixabay|stocksnap|burst\.shopify", re.I)
@@ -70,7 +70,8 @@ def polite_get(session: requests.Session, url: str, kind: str, params: dict | No
             return response
         if response.status_code in (429, 500, 502, 503, 504):
             retry_after = response.headers.get("Retry-After", "")
-            time.sleep(float(retry_after) if retry_after.isdigit() else min(30 * 2 ** attempt, 600))
+            print(f"HTTP {response.status_code} on {kind} request (Retry-After {response.headers.get('Retry-After')!r}); backing off", flush=True)
+            time.sleep(max(float(retry_after) if retry_after.isdigit() else 0.0, min(20 * 2 ** attempt, 160)))
             continue
         break
     response.raise_for_status()
@@ -162,7 +163,9 @@ def search(query: str, limit: int, cache_dir: str, thumb_width: int | None = Non
     return records
 
 
-def eligible(record: dict, require_phone: bool) -> tuple[bool, str]:
+def eligible(record: dict, require_phone: bool, allow_edited: bool = False) -> tuple[bool, str]:
+    """allow_edited: training REFERENCES may be finished (post-processed) photos - they are the clean target
+    the degradations start from. Evaluation INPUTS must be unedited captures, so they keep the default."""
     if record.get("mime") not in ("image/jpeg", "image/png", "image/webp", "image/heic"):
         return False, "mime"
     if not licence_accepted(record.get("licence_short", "")):
@@ -170,7 +173,7 @@ def eligible(record: dict, require_phone: bool) -> tuple[bool, str]:
     provenance = " ".join(str(record.get(k, "")) for k in ("title", "credit", "artist", "categories", "description"))
     if EXCLUDED_SOURCE_PATTERN.search(provenance):
         return False, "stock-site import"
-    if EDIT_SOFTWARE.search(record.get("software", "")):
+    if not allow_edited and EDIT_SOFTWARE.search(record.get("software", "")):
         return False, "edited in " + record["software"]
     if require_phone and not phone_brand(record.get("make", ""), record.get("model", "")):
         return False, "not a phone capture"

@@ -5,7 +5,8 @@ built on a CC0 source).
 
 Source: Wikimedia Commons "Quality images" (community-reviewed for exposure, colour and sharpness), CC0 or
 public domain, any camera, excluding stock-site imports and post-processed files we can detect. These are the
-"clean" targets; the degradation sampler makes the inputs. Thumbnails (960 px wide, upright, as Commons
+"clean" targets; the degradation sampler makes the inputs. Post-processed files are allowed here (a finished
+photo is a fine target), unlike evaluation inputs, which must be unedited captures. Thumbnails (960 px wide, upright, as Commons
 renders them) are enough: training runs at <= 512 px.
 
 Separation from evaluation (plan section 3.4): every photographer (Artist field) who appears in an
@@ -37,9 +38,14 @@ def main(argv=None):
     for term in TRAIN_QUERIES:
         for query in (f"{CC0_OR_PD_QUERY} filetype:bitmap {term}",):
             for record in search(query, args.per_query, cache, thumb_width=960):
-                ok, why = eligible(record, require_phone=False)
+                ok, why = eligible(record, require_phone=False, allow_edited=True)
                 if not ok:
                     rejections[why.split(" ")[0]] += 1
+                    continue
+                if not record.get("make"):
+                    # No camera EXIF: likely a scan, an artwork reproduction or a historical print, which are
+                    # poor colour references for phone photos.
+                    rejections["no-camera-exif"] += 1
                     continue
                 if not record.get("thumburl"):
                     rejections["no-thumb"] += 1

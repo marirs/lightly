@@ -28,6 +28,7 @@ import numpy as np
 from PIL import Image, ImageCms, ImageOps
 
 from data_tools.commons import download
+from data_tools.fetch_review_pool import original_path as review_original_path
 from lightly_auto.manifest import file_sha256, manifest_hash, write_manifest
 
 AUTO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -104,8 +105,7 @@ def main(argv=None):
     rows, provenance = [], []
     for index, item in enumerate(sorted(selection, key=lambda s: (s["rubric_class"], s["sha1"]))):
         record = candidates[item["sha1"]]
-        extension = os.path.splitext(record["url"])[1].lower()
-        original_path = os.path.join(data_dir, "originals", record["sha1"] + extension)
+        original_path = review_original_path(record)  # shared with the review pool, fetched once
         original_sha256 = download(record["url"], original_path, record["sha1"])
         image_id = f"{args.set_id}_{item['rubric_class']}_{record['sha1'][:10]}"
         proxy_path = os.path.join(data_dir, "proxy", image_id + ".png")

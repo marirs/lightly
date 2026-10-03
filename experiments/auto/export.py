@@ -54,6 +54,7 @@ def main(run_dir: str) -> dict:
     inputs = np.stack([ia.prepare_256_antialiased(synthetic.procedural_scene(rng)) for _ in range(PARITY_IMAGES)]).astype(np.float32)
     with torch.no_grad():
         reference = classifier(torch.from_numpy(inputs)).numpy()
+    np.save(os.path.join(out_dir, "parity_inputs.npy"), inputs)  # reused by export_tflite.py (separate venv)
 
     onnx_path = os.path.join(out_dir, "auto_classifier.onnx")
     torch.onnx.export(classifier, torch.from_numpy(inputs[:1]), onnx_path, input_names=["image"], output_names=["weights"],

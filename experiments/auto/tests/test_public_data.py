@@ -65,3 +65,29 @@ def test_heldout_degradation_is_frozen_by_file_hash():
     hashes = [hashlib.sha256(str(i).encode()).hexdigest() for i in range(40)]
     identity_share = np.mean([frozen_degradation(h).identity for h in hashes])
     assert 0.05 < identity_share < 0.5  # about the sampler's 25% identity share
+
+
+def test_manifest_training_uses_only_train_and_validation_rows(tmp_path):
+    from PIL import Image
+
+    import train
+    from lightly_auto.manifest import file_sha256, write_manifest
+
+    rng = np.random.default_rng(0)
+    rows = []
+    for index, split in enumerate(["train"] * 4 + ["validation"] * 2 + ["public_holdout_syn"]):
+        path = tmp_path / f"img{index}.png"
+        Image.fromarray(rng.integers(0, 256, (90, 120, 3), dtype=np.uint8)).save(path)
+        rows.append({"image_id": f"img{index}", "source_path": str(path), "sha256": file_sha256(str(path)),
+                     "rubric_class": "", "skin_bucket": "", "labels": "", "split": split,
+                     "source_tier": "T2_public_cc0_pd", "contributor_id": "a", "session_id": "", "device_brand": "",
+                     "device_model": "", "rights_doc_id": "https://commons.wikimedia.org/wiki/File:X.jpg",
+                     "permitted_uses": "eval" if split == "public_holdout_syn" else "train;eval", "notes": ""})
+    manifest = tmp_path / "m.csv"
+    write_manifest(str(manifest), rows)
+    card = train.main(["--run-id", "t", "--data", f"manifest:{manifest}", "--steps", "4", "--batch", "2",
+                       "--val-every", "2", "--loss-pixels", "256", "--runs-dir", str(tmp_path / "runs"), "--threads", "2"])
+    assert card["kind"] == "candidate" and card["shippable"] is False
+    assert card["data"]["n_train"] == 4 and card["data"]["n_validation"] == 2
+    assert card["data"]["ignored_rows_other_splits"] == 1
+    assert (tmp_path / "runs" / "t" / "classifier.pt").exists()
