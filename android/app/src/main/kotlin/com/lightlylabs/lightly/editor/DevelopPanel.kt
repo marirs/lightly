@@ -277,7 +277,8 @@ internal fun Notice(icon: androidx.compose.ui.graphics.vector.ImageVector, text:
             .clip(RoundedCornerShape(10.dp))
             .background(colors.bg2)
             .border(1.dp, colors.hair, RoundedCornerShape(10.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            // CSS border-box: the 1px border takes layout space inside the box (Compose's border does not).
+            .padding(horizontal = 12.dp + 1.dp, vertical = 10.dp + 1.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         LightlyIcon(icon, size = 18.dp, tint = colors.ink2)

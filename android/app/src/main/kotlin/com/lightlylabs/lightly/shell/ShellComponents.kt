@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -209,16 +210,27 @@ fun ListRow(
 
 /** `.seg`: the segmented control (Appearance). Each segment is a radio for accessibility. */
 @Composable
-fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier, icons: Map<T, ImageVector> = emptyMap()) {
+fun <T> SegmentedControl(
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    icons: Map<T, ImageVector> = emptyMap(),
+    marginTop: Dp = 8.dp,
+    marginBottom: Dp = 4.dp,
+) {
     val colors = lightlyColors
     Row(
         modifier
-            .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 4.dp)
+            // `.seg { margin: 8px 18px 4px }`. Vertical CSS margins collapse with a neighbour's, so a caller
+            // whose neighbour already provides margin passes the remainder (see PreferencesBody).
+            .padding(start = 18.dp, end = 18.dp, top = marginTop, bottom = marginBottom)
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(colors.bg2)
             .border(1.dp, colors.hair, RoundedCornerShape(10.dp))
-            .padding(2.dp),
+            // The 1px CSS border takes layout space (Compose's border does not), then `padding: 2px`.
+            .padding(1.dp + 2.dp),
     ) {
         options.forEach { (value, label) ->
             val on = value == selected

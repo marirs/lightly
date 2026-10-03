@@ -129,7 +129,11 @@ fun MorePageView(page: MorePage, content: MoreContent, actions: MoreActions, mod
 @Composable
 private fun PreferencesBody(preferences: UserPreferences, actions: MoreActions) {
     GroupLabel(MoreCopy.APPEARANCE)
+    // CSS margin collapsing: `.group` margin-bottom 4 and `.seg` margin-top 8 give 8 (4 here, after the
+    // label's 4); `.seg` margin-bottom 4 and the next `.group` margin-top 14 give 14 (0 here).
     SegmentedControl(
+        marginTop = 4.dp,
+        marginBottom = 0.dp,
         options = listOf(Appearance.SYSTEM to MoreCopy.SYSTEM, Appearance.LIGHT to MoreCopy.LIGHT, Appearance.DARK to MoreCopy.DARK),
         selected = preferences.appearance,
         onSelect = { appearance -> actions.updatePreferences { it.copy(appearance = appearance) } },
