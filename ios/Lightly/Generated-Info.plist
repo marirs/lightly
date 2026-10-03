@@ -20,6 +20,8 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>LightlyDepthModelTrainingDataSignedOff</key>
+	<string>$(LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF)</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

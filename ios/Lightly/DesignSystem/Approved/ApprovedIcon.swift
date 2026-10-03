@@ -9,6 +9,8 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
     case more, close, back, chevron, photo, camera, grip, trash, check
     // Editor (slice 2): top bar, tool navigation, Develop and the save sheets.
     case undo, redo, compare, develop, background, portrait, edit, effects, watermark, border, star, info, warn, share
+    // Background (slice 3): refine brush, add, bokeh shapes.
+    case brush, erase, plus, circle, hex, heart, starShape
 
     /// One drawing primitive in the 24×24 view box.
     enum Element: Sendable {
@@ -70,6 +72,20 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
             [.circle(cx: 12, cy: 12, r: 8.5, filled: false), .path("M12 11v5M12 8v.5")]
         case .warn:
             [.path("M12 4l9 16H3z"), .path("M12 10v4M12 17v.5")]
+        case .brush:
+            [.path("M14.5 4.5l5 5-8 8H6.5v-5z"), .path("M4 20h7")]
+        case .erase:
+            [.path("M8 20h12M5.5 14.5l7-7 5 5-5.5 5.5H9z")]
+        case .plus:
+            [.path("M12 5v14M5 12h14")]
+        case .circle:
+            [.circle(cx: 12, cy: 12, r: 7, filled: false)]
+        case .hex:
+            [.path("M12 4.5l6.5 3.75v7.5L12 19.5l-6.5-3.75v-7.5z")]
+        case .heart:
+            [.path("M12 19s-7-4.4-7-9.5A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7 2.5C19 14.6 12 19 12 19z")]
+        case .starShape:
+            [.path("M12 5l2 4.6 5 .4-3.8 3.3 1.2 4.9L12 15.6 7.6 18.2l1.2-4.9L5 10l5-.4z")]
         case .share:
             [.path("M12 3v12M7.5 7.5 12 3l4.5 4.5"), .path("M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12")]
         }

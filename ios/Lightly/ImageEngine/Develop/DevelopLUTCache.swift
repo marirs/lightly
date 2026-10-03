@@ -15,10 +15,10 @@ final class DevelopLUTCache: @unchecked Sendable {
     let model: DevelopModel
     let capacity: Int
 
-    private let lock = NSLock()
-    private var entries: [String: LUT3D] = [:]
-    private var recency: [String] = []
-    private var bakeDurations: [Duration] = []
+    fileprivate let lock = NSLock()
+    fileprivate var entries: [String: LUT3D] = [:]
+    fileprivate var recency: [String] = []
+    fileprivate var bakeDurations: [Duration] = []
 
     init(model: DevelopModel, capacity: Int = 24) {
         self.model = model
@@ -64,3 +64,16 @@ final class DevelopLUTCache: @unchecked Sendable {
         recency.append(key)
     }
 }
+
+#if DEBUG
+extension DevelopLUTCache {
+    /// Capture sessions: every screen starts with the cache a fresh launch has (empty).
+    func debugRemoveAll() {
+        lock.withLock {
+            entries.removeAll()
+            recency.removeAll()
+            bakeDurations.removeAll()
+        }
+    }
+}
+#endif

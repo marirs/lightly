@@ -17,6 +17,9 @@ settings:
     # The Xcode project lives in ios/; shared scripts, docs and experiments (Look pack, golden set)
     # sit at the repository root next to android/.
     LIGHTLY_REPO_ROOT: $(SRCROOT)/..
+    # Release gate: "pending legal sign-off (training data)" for the depth model. Set to YES only
+    # after the sign-off (docs/v1/depth-evaluation.md T1).
+    LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF: "NO"
 
 targets:
   Lightly:
@@ -38,6 +41,24 @@ targets:
       # preset LUTs with. Read at launch by DevelopModel; the preset pack is refused if it was built
       # against other constants.
       - path: ../shared/contracts/rendering-v2.json
+        buildPhase: resources
+      # The approved bundled backgrounds for Change background › Image (prototype BACKGROUNDS,
+      # docs/ui/assets/photos, Unsplash License; sources and hashes in that folder's SOURCES.csv).
+      - path: ../docs/ui/assets/photos/landscape_01.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/landscape_01_thumb.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/sunset_03.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/sunset_03_thumb.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/wellexposed_02.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/wellexposed_02_thumb.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/backlit_02.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/backlit_02_thumb.jpg
         buildPhase: resources
     settings:
       base:
@@ -72,6 +93,8 @@ targets:
       path: Lightly/Generated-Info.plist
       properties:
         CFBundleDisplayName: Lightly
+        # Release gate for the depth model (ios/Tools/bundle_depth_model.sh).
+        LightlyDepthModelTrainingDataSignedOff: $(LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF)
         # Approved Launch: the eight-ray mark alone, centred, on the background colour. The
         # system shows it until the first frame; Welcome follows. No timer holds it on screen.
         UILaunchScreen:
@@ -128,6 +151,9 @@ aggregateTargets:
       - name: Bundle Look pack
         script: '"${LIGHTLY_REPO_ROOT}/scripts/bundle_look_pack.sh"'
         # Always run: the pack can change without any build input changing.
+        basedOnDependencyAnalysis: false
+      - name: Bundle depth model
+        script: '"${SRCROOT}/Tools/bundle_depth_model.sh"'
         basedOnDependencyAnalysis: false
     settings:
       base:

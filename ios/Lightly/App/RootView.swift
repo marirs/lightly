@@ -75,7 +75,8 @@ struct RootView: View {
     /// open path, so UI tests and design captures reach "This photo can’t be opened" without a
     /// broken asset in the simulator's library.
     private static func runDebugLaunchActions(on appState: AppState) async {
-        let arguments = CommandLine.arguments
+        DebugCaptureTiming.mark("launched")
+        let arguments = DebugArguments.current
         if arguments.contains("--open-unreadable-photo") {
             await appState.openPhoto(source: .photoLibrary) { Data("not an image".utf8) }
         }
@@ -85,6 +86,9 @@ struct RootView: View {
             let url = URL(fileURLWithPath: arguments[flag + 1])
             await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
         }
+        // `--capture-commands <file>`: design captures step through a cell's screens in this one
+        // launch (DebugCaptureDriver); runs until the app quits.
+        await DebugCaptureDriver.runIfRequested(appState: appState)
     }
     #endif
 

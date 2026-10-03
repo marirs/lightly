@@ -83,8 +83,15 @@ struct DevelopFrameRenderer: Sendable {
     /// - Parameter includePixelStages: false renders the global stage only. Used for the first,
     ///   fast frame of a preview while the person scrubs; the full frame follows (see
     ///   `EditorSession`). Export always includes them.
+    /// - Parameter includeFinishing: false leaves out the preset's vignette and grain, which belong
+    ///   to stage 10 (Effects): when Background or Portrait edits exist they run in between, and
+    ///   `finish(_:pixels:width:height:)` applies the finishing afterwards.
     func render(_ plan: DevelopRenderPlan, pixels: [UInt8], width: Int, height: Int,
-                includePixelStages: Bool = true, tileSide: Int = DevelopFrameRenderer.tileSide) throws -> [UInt8] {
+                includePixelStages: Bool = true, includeFinishing: Bool = true,
+                tileSide: Int = DevelopFrameRenderer.tileSide) throws -> [UInt8] {
+        var plan = plan
+        if !includeFinishing { plan = DevelopRenderPlan(lookLUT: plan.lookLUT, spatial: plan.spatial, finishing: .init(),
+                                                        presetID: plan.presetID, finishingStrength: plan.finishingStrength) }
         guard !plan.isIdentity else { return pixels }
         let passes = plan.lookLUT.map { [$0] } ?? []
         guard includePixelStages, plan.hasPixelStages else {
@@ -149,6 +156,31 @@ struct DevelopFrameRenderer: Sendable {
                             base[offset + 3] = 255
                         }
                     }
+                }
+            }
+        }
+        return output
+    }
+
+    /// Stage 10's preset finishing (vignette, then grain) on an already-developed frame.
+    func finish(_ plan: DevelopRenderPlan, pixels: [UInt8], width: Int, height: Int) -> [UInt8] {
+        let vignette = plan.finishing.vignette.flatMap {
+            DevelopPixelOperators.VignetteEvaluator($0, strength: plan.finishingStrength, frameWidth: width, frameHeight: height, model: model)
+        }
+        let grain = plan.finishing.grain.flatMap {
+            DevelopPixelOperators.GrainEvaluator($0, strength: plan.finishingStrength, frameWidth: width, frameHeight: height, model: model)
+        }
+        guard vignette != nil || grain != nil else { return pixels }
+        var output = pixels
+        output.withUnsafeMutableBufferPointer { buffer in
+            let base = buffer.baseAddress!
+            DispatchQueue.concurrentPerform(iterations: height) { y in
+                for x in 0..<width {
+                    let o = (y * width + x) * 4
+                    var colour = SIMD3<Float>(Float(base[o]) / 255, Float(base[o + 1]) / 255, Float(base[o + 2]) / 255)
+                    if let vignette { colour = vignette.apply(colour, x: x, y: y) }
+                    if let grain { colour = grain.apply(colour, x: x, y: y) }
+                    base[o] = Self.encode8(colour.x); base[o + 1] = Self.encode8(colour.y); base[o + 2] = Self.encode8(colour.z)
                 }
             }
         }

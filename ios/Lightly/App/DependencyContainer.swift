@@ -32,12 +32,13 @@ struct DependencyContainer {
     private static func makeLibraryWriter() -> any PhotoLibraryWriting {
         #if DEBUG
         // UI tests and design captures exercise Save copy without touching the simulator's library
-        // or the system permission prompt.
-        if CommandLine.arguments.contains("--fake-library-writer") { return DebugInertLibraryWriter(delay: .milliseconds(600)) }
-        // Holds "Saving a copy…" on screen for a capture.
-        if CommandLine.arguments.contains("--slow-library-writer") { return DebugInertLibraryWriter(delay: .seconds(600)) }
-        #endif
+        // or the system permission prompt (`--fake-library-writer`), or hold "Saving a copy…" on
+        // screen (`--slow-library-writer`). Read at each save: a capture session changes them
+        // between screens (DebugCaptureDriver).
+        return DebugArgumentsLibraryWriter(fallback: PhotoKitLibraryWriter())
+        #else
         return PhotoKitLibraryWriter()
+        #endif
     }
 
     /// No production Auto model exists, so Auto is explicitly unavailable.
@@ -45,15 +46,12 @@ struct DependencyContainer {
     private static func makeAutoEnhancer() -> any AutoEnhancing {
         let enhancer = ModelNotBundledAutoEnhancer()
         #if DEBUG
-        let arguments = CommandLine.arguments
-        // Design captures and UI tests reach the approved "didn't finish" state (develop-failed).
-        if arguments.contains("--auto-fails") { return DebugFailingAutoEnhancer() }
-        if let flag = arguments.firstIndex(of: "--auto-delay-seconds"),
-           arguments.indices.contains(flag + 1), let seconds = Double(arguments[flag + 1]) {
-            return DelayedAutoEnhancer(wrapped: enhancer, delay: .seconds(seconds))
-        }
-        #endif
+        // Design captures and UI tests reach the approved "didn't finish" state (`--auto-fails`)
+        // or a slow Auto (`--auto-delay-seconds`); read at each run (DebugCaptureDriver).
+        return DebugArgumentsAutoEnhancer(fallback: enhancer)
+        #else
         return enhancer
+        #endif
     }
 
     /// Builds the root state from this container.
@@ -67,6 +65,7 @@ struct DependencyContainer {
             photoLoader: photoLoader,
             libraryWriter: libraryWriter,
             autoEnhancer: autoEnhancer,
+            sceneAnalyser: OnDeviceSceneAnalyser(depthEstimators: DepthEstimatorProvider()),
             developLibrary: developLibrary,
             preferences: PreferencesStore(defaults: defaults),
             favourites: FavouritePresetsStore(defaults: defaults, catalogue: catalogue),
@@ -83,7 +82,7 @@ struct DependencyContainer {
     ///   (prototype `PRIVATE_FAVS`: Portrait 13, Landscape 37, Film 12, Golden Hour 4,
     ///   Black & White 3), so a capture shows the same rows as the reference.
     private static func applyDebugArguments(to defaults: UserDefaults, catalogue: DevelopPresetCatalogue) {
-        let arguments = CommandLine.arguments
+        let arguments = DebugArguments.current
         if arguments.contains("--reset-preferences") {
             PreferencesStore.removeAll(from: defaults)
             defaults.removeObject(forKey: FavouritePresetsStore.storageKey)

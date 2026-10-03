@@ -95,11 +95,12 @@ final class AppState {
     /// SwiftUI may re-evaluate `body` many times; building the session inline would discard the
     /// edit history on every re-render. It is kept here for as long as the photo is open, and
     /// closed (all work for it invalidated) when another photo is opened or the editor closes.
-    private var editorSessions: [UUID: EditorSession] = [:]
+    fileprivate var editorSessions: [UUID: EditorSession] = [:]
 
     private let libraryWriter: any PhotoLibraryWriting
     private let autoEnhancer: any AutoEnhancing
     private let personDetector: any PersonDetecting
+    private let sceneAnalyser: (any SceneAnalysing)?
     /// Model, preset pack, bake cache and renderer, loaded once per launch.
     let developLibrary: DevelopLibrary
 
@@ -111,6 +112,7 @@ final class AppState {
         libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
         autoEnhancer: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
         personDetector: any PersonDetecting = VisionPersonDetector(),
+        sceneAnalyser: (any SceneAnalysing)? = nil,
         // The composition root passes a library that is loading the bundled pack; the default (an
         // empty, never-loaded library) keeps entry-screen tests from compiling a GPU kernel.
         developLibrary: DevelopLibrary? = nil,
@@ -125,6 +127,7 @@ final class AppState {
         self.libraryWriter = libraryWriter
         self.autoEnhancer = autoEnhancer
         self.personDetector = personDetector
+        self.sceneAnalyser = sceneAnalyser
         self.developLibrary = developLibrary ?? DevelopLibrary()
         self.cameraAccess = cameraAccess
         // Default stores are built here, not in the signature: default arguments are evaluated
@@ -143,7 +146,7 @@ final class AppState {
         let preferences = preferences
         let session = EditorSession(
             photo: photo, library: developLibrary, autoEnhancer: autoEnhancer, personDetector: personDetector,
-            libraryWriter: libraryWriter,
+            sceneAnalyser: sceneAnalyser, libraryWriter: libraryWriter,
             // Read at each save, so a switch changed in More applies to the next copy.
             saveSettings: { preferences.saveCopySettings })
         editorSessions[photo.id] = session
@@ -268,3 +271,21 @@ final class AppState {
     func openPrivacyPolicyFromWelcome() { moreEntry = .privacyPolicyFromWelcome }
     func closeMore() { moreEntry = nil }
 }
+
+#if DEBUG
+extension AppState {
+    /// Capture sessions (DebugCaptureDriver): close everything a screen left behind and wait
+    /// until its background work has stopped, so the next screen starts as a fresh launch does.
+    func debugResetForNextScreen(resetPreferences: Bool) async {
+        let previous = selectedPhoto.flatMap { editorSessions[$0.id] }
+        closeMore()
+        returnToWelcome()
+        await previous?.debugAwaitQuiescence()
+        if resetPreferences {
+            preferences.debugResetToDefaults()
+            favourites.replaceAll(with: [])
+        }
+        developLibrary.cache?.debugRemoveAll()
+    }
+}
+#endif

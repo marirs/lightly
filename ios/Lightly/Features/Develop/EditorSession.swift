@@ -64,6 +64,26 @@ final class EditorSession {
     /// Edits made since the last saved copy (the approved `dirty`).
     private(set) var hasUnsavedEdits = false
 
+    /// Subject separation for Background (approved `bg-separating`, `bg-failed`, `bg-no-subject`).
+    enum SubjectState: Equatable {
+        case notStarted
+        /// "Finding the subject…", cancellable.
+        case separating
+        case ready
+        /// No clear subject; depth-only blur is still offered.
+        case noSubject
+        /// "Couldn't separate the subject." (also when depth is unavailable: never faked).
+        case failed
+    }
+
+    private(set) var subjectState: SubjectState = .notStarted
+    /// Faces and people (Portrait), once analysed.
+    private(set) var people: PeopleAnalysis?
+    /// The subject matte as an image, for the refine-edges tint.
+    private(set) var matteImage: CGImage?
+    /// Where focus sits until the person taps: the subject's centroid (§R3), source coordinates.
+    private(set) var defaultFocusTarget: (x: Double, y: Double)?
+
     static let historyCapacity = 50
 
     var recipe: EditRecipe { history[historyIndex] }
@@ -85,6 +105,8 @@ final class EditorSession {
     let library: DevelopLibrary
     private let autoEnhancer: any AutoEnhancing
     private let personDetector: any PersonDetecting
+    /// Vision and the depth model (slice 3). nil in tests that do not exercise them.
+    private let sceneAnalyser: (any SceneAnalysing)?
     private let libraryWriter: any PhotoLibraryWriting
     private let exporter: any PhotoExporting
     private let saveSettings: @MainActor () -> ExportSettings
@@ -96,6 +118,9 @@ final class EditorSession {
     @ObservationIgnored private var autoLUT: LUT3D?
     /// Per-preset Amount the person chose in this session, so re-selecting a preset restores it.
     @ObservationIgnored private var amountMemory: [String: Double] = [:]
+    /// Model results for Background and Portrait, at the preview resolution.
+    @ObservationIgnored private var sceneCache = SceneCache()
+    @ObservationIgnored private var subjectTask: Task<Void, Never>?
     @ObservationIgnored private var isClosed = false
     @ObservationIgnored private var startTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -118,6 +143,7 @@ final class EditorSession {
          library: DevelopLibrary,
          autoEnhancer: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
          personDetector: any PersonDetecting = VisionPersonDetector(),
+         sceneAnalyser: (any SceneAnalysing)? = nil,
          libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
          exporter: any PhotoExporting = ImageIOPhotoExporter(),
          saveSettings: @escaping @MainActor () -> ExportSettings = { .default },
@@ -126,6 +152,7 @@ final class EditorSession {
         self.library = library
         self.autoEnhancer = autoEnhancer
         self.personDetector = personDetector
+        self.sceneAnalyser = sceneAnalyser
         self.libraryWriter = libraryWriter
         self.exporter = exporter
         self.saveSettings = saveSettings
@@ -163,6 +190,11 @@ final class EditorSession {
             displayedImage = prepared.image
         }
         async let person = personDetector.containsPerson(prepared?.image ?? image)
+        if let sceneAnalyser {
+            let analysed = await sceneAnalyser.people(in: prepared?.image ?? image)
+            people = analysed
+            sceneCache.people = analysed
+        }
         // The renderer and bake cache exist only once the library has loaded (it loads in the
         // background from launch), so the preview scheduler is made after that.
         await library.waitUntilLoaded()
@@ -303,6 +335,148 @@ final class EditorSession {
 
     static func strength(forAmount amount: Double) -> Double { min(max(amount.rounded(), 0), 100) / 100 }
 
+    // MARK: - Background (slice 3)
+
+    /// Runs subject separation and depth once for this photo ("Finding the subject…").
+    func analyseSubjectIfNeeded() {
+        guard subjectState == .notStarted else { return }
+        startSubjectSeparation()
+    }
+
+    func retrySubjectSeparation() {
+        guard subjectState == .failed else { return }
+        startSubjectSeparation()
+    }
+
+    /// Cancel: nothing changes ("Cancelled · nothing changed"); the next use starts again.
+    func cancelSubjectSeparation() {
+        guard subjectState == .separating else { return }
+        subjectTask?.cancel()
+        subjectTask = nil
+        subjectState = .notStarted
+        showToast("Cancelled · nothing changed")
+    }
+
+    private func startSubjectSeparation() {
+        guard let sceneAnalyser else { subjectState = .failed; return }
+        subjectState = .separating
+        let image = originalPreview
+        let data = photo.originalData
+        subjectTask = Task { [weak self] in
+            do {
+                async let matte = sceneAnalyser.subjectMatte(for: image)
+                async let depth = sceneAnalyser.disparity(for: image, originalData: data)
+                async let personMatte = sceneAnalyser.personMatte(for: image)
+                let (m, d, p) = try await (matte, depth, personMatte)
+                try Task.checkCancellation()
+                self?.finishSubjectSeparation(matte: m, disparity: d, personMatte: p)
+            } catch {
+                guard !Task.isCancelled else { return }
+                self?.subjectState = .failed
+            }
+        }
+    }
+
+    private func finishSubjectSeparation(matte: SubjectMatte?, disparity: DisparityMap, personMatte: FloatImage?) {
+        guard !isClosed else { return }
+        sceneCache.subject = matte
+        sceneCache.subjectAnalysed = true
+        sceneCache.disparity = disparity
+        sceneCache.personMatte = personMatte
+        for name in BackgroundPanelModel.bundledImages where sceneCache.replacementImages[name] == nil {
+            sceneCache.replacementImages[name] = BundledBackgrounds.image(name)
+        }
+        matteImage = matte.flatMap { Self.maskImage($0.matte) }
+        if let matte {
+            let centroid = RefocusRenderer.defaultTarget(matte: matte.matte)
+            defaultFocusTarget = (Double(centroid.x), Double(centroid.y))
+        }
+        subjectState = matte == nil ? .noSubject : .ready
+        renderCommitted()
+    }
+
+    /// A slider moving: preview only.
+    func previewBackground(_ change: (inout EditRecipe.Background) -> Void) {
+        var next = recipe
+        change(&next.tools.background)
+        render(next, final: false)
+    }
+
+    /// One undo step. The first Background edit records which model results it was made with.
+    func commitBackground(_ change: (inout EditRecipe.Background) -> Void) {
+        var next = recipe
+        change(&next.tools.background)
+        recordDerivedResults(in: &next.tools.background)
+        commit(next)
+    }
+
+    /// Tap the photo to set focus (source coordinates).
+    func setFocusTarget(x: Double, y: Double) {
+        commitBackground { $0.focus.target = .init(x: min(max(x, 0), 1), y: min(max(y, 0), 1)) }
+    }
+
+    /// Refine edges: one brush stroke, one undo step.
+    func addRefinement(_ stroke: EditRecipe.RefineStroke) {
+        commitBackground { $0.subject.refinements.append(stroke) }
+    }
+
+    private func recordDerivedResults(in background: inout EditRecipe.Background) {
+        if background.subject.matte == nil, let matte = sceneCache.subject {
+            background.subject.matte = Self.derivedRef(matte.matte, model: matte.model)
+        }
+        if let disparity = sceneCache.disparity, background.focus.depth.map == nil {
+            background.focus.depth.source = disparity.source
+            background.focus.depth.map = Self.derivedRef(disparity.disparity, model: disparity.model)
+        }
+    }
+
+    private static func derivedRef(_ image: FloatImage, model: EditRecipe.ModelRef) -> EditRecipe.DerivedRef {
+        let bytes = image.data.withUnsafeBufferPointer { Data(buffer: $0) }
+        let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        return EditRecipe.DerivedRef(sha256: digest, model: model, width: image.width, height: image.height)
+    }
+
+    /// A matte as an alpha image (for SwiftUI masking).
+    static func maskImage(_ matte: FloatImage) -> CGImage? {
+        var bytes = [UInt8](repeating: 0, count: matte.pixelCount * 4)
+        for i in 0..<matte.pixelCount {
+            let a = UInt8(min(max(matte.data[i], 0), 1) * 255)
+            bytes[i * 4] = a; bytes[i * 4 + 1] = a; bytes[i * 4 + 2] = a; bytes[i * 4 + 3] = a
+        }
+        guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
+        return CGImage(width: matte.width, height: matte.height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: matte.width * 4,
+                       space: ColorPipeline.sRGB, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+    }
+
+    // MARK: - Portrait (slice 3)
+
+    func previewPortrait(_ change: (inout EditRecipe.Portrait) -> Void) {
+        var next = recipe
+        change(&next.tools.portrait)
+        ensurePersonMatte()
+        render(next, final: false)
+    }
+
+    func commitPortrait(_ change: (inout EditRecipe.Portrait) -> Void) {
+        var next = recipe
+        change(&next.tools.portrait)
+        ensurePersonMatte()
+        commit(next)
+    }
+
+    /// Hair edits use the person matte; computed once when Portrait is first used.
+    private func ensurePersonMatte() {
+        guard sceneCache.personMatte == nil, let sceneAnalyser, subjectState != .separating else { return }
+        let image = originalPreview
+        Task { [weak self] in
+            let matte = await sceneAnalyser.personMatte(for: image)
+            guard let self, !self.isClosed, self.sceneCache.personMatte == nil else { return }
+            self.sceneCache.personMatte = matte
+            self.renderCommitted()
+        }
+    }
+
     // MARK: - History
 
     func undo() {
@@ -360,6 +534,10 @@ final class EditorSession {
         /// frame is requested. Queuing both at once would let the full frame replace the waiting
         /// fast one, and the photo would lag the release by a whole spatial render.
         var followUpWithFullFrame = false
+        /// Background and Portrait (stages 7–9), when the recipe uses them.
+        var layered: LayeredStages.Inputs?
+        /// Working-resolution cap for Focus & Blur (LayeredStages).
+        var layeredCap = LayeredStages.previewCap
     }
 
     private func makeScheduler() {
@@ -380,9 +558,28 @@ final class EditorSession {
                                                    toRGBA8: pixels, width: width, height: height,
                                                    maximumTileSide: MetalLUTRenderer.defaultMaximumTileSide)
         }
-        guard let look = job.look else { return pixels }
-        let plan = DevelopRenderPlan.look(look, strength: job.strength, cache: cache)
-        return try renderer.render(plan, pixels: pixels, width: width, height: height, includePixelStages: job.includePixelStages)
+        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache) }
+        guard var layered = job.layered, LayeredStages.isActive(layered) else {
+            guard let plan else { return pixels }
+            return try renderer.render(plan, pixels: pixels, width: width, height: height, includePixelStages: job.includePixelStages)
+        }
+        // Stages 2–3, then 7–9, then the preset's finishing in stage 10.
+        if let plan {
+            pixels = try renderer.render(plan, pixels: pixels, width: width, height: height,
+                                         includePixelStages: job.includePixelStages, includeFinishing: false)
+        }
+        layered.developLUT = plan?.lookLUT
+        layered.autoLUT = job.autoLUT.map { $0.blendedTowardIdentity(strength: Float(job.autoStrength)) }
+        pixels = try LayeredStages.render(pixels, width: width, height: height, inputs: layered, cap: job.layeredCap,
+                                          lutApplier: renderer.lutApplier)
+        if let plan, job.includePixelStages { pixels = renderer.finish(plan, pixels: pixels, width: width, height: height) }
+        return pixels
+    }
+
+    private func layeredInputs(for target: EditRecipe) -> LayeredStages.Inputs? {
+        let inputs = LayeredStages.Inputs(background: target.tools.background, portrait: target.tools.portrait,
+                                          cache: sceneCache, developLUT: nil, autoLUT: nil)
+        return LayeredStages.isActive(inputs) ? inputs : nil
     }
 
     private func renderCommitted() { render(recipe, final: true) }
@@ -402,10 +599,20 @@ final class EditorSession {
             strength = ref.strength
         }
         let auto = autoState == .applied ? autoLUT : nil
-        let hasPixelStages = look.map { !$0.recipe.spatial.isEmpty || !$0.recipe.finishing.isEmpty } ?? false
+        let layered = layeredInputs(for: target)
+        let hasPixelStages = (look.map { !$0.recipe.spatial.isEmpty || !$0.recipe.finishing.isEmpty } ?? false) || layered != nil
         var job = RenderJob(look: look, strength: strength, autoLUT: auto, autoStrength: target.auto.strength,
                             includePixelStages: !hasPixelStages, generation: current)
         job.followUpWithFullFrame = final && hasPixelStages
+        if let layered {
+            // While a slider moves, the interactive frame already includes Background and
+            // Portrait at a small working size, so the photo follows the control.
+            job.layered = layered
+            // The fast frame (and every frame while dragging) at the interactive size; a final
+            // render's follow-up frame at the preview size.
+            job.layeredCap = LayeredStages.interactiveCap
+            if !final { job.includePixelStages = true }
+        }
         submit(job)
     }
 
@@ -426,6 +633,7 @@ final class EditorSession {
             var full = job
             full.includePixelStages = true
             full.followUpWithFullFrame = false
+            full.layeredCap = LayeredStages.previewCap
             submit(full)
         }
         guard case .rendered(let image) = outcome else { return }
@@ -512,8 +720,11 @@ final class EditorSession {
             look = preset
             strength = ref.strength
         }
-        return RenderJob(look: look, strength: strength, autoLUT: autoState == .applied ? autoLUT : nil,
-                         autoStrength: recipe.auto.strength, includePixelStages: true, generation: 0)
+        var job = RenderJob(look: look, strength: strength, autoLUT: autoState == .applied ? autoLUT : nil,
+                            autoStrength: recipe.auto.strength, includePixelStages: true, generation: 0)
+        job.layered = layeredInputs(for: recipe)
+        job.layeredCap = LayeredStages.exportCap
+        return job
     }
 
     /// Saving › Cancel: nothing is written ("Save cancelled · nothing was written").
@@ -570,6 +781,9 @@ final class EditorSession {
         isClosed = true
         startTask?.cancel()
         saveTask?.cancel()
+        // Subject separation and depth run for seconds on the CPU; a closed session's result
+        // has nowhere to go.
+        subjectTask?.cancel()
         let scheduler = scheduler
         Task { await scheduler?.close() }
     }
@@ -591,6 +805,42 @@ final class EditorSession {
     }
 
     #if DEBUG
+    /// A scenario's recipe as the session's initial state (not an undo step), like `stateFor`.
+    func debugSetInitial(_ change: (inout EditRecipe) -> Void) {
+        var next = recipe
+        change(&next)
+        recordDerivedResults(in: &next.tools.background)
+        history = [next]
+        historyIndex = 0
+        renderCommitted()
+    }
+
+    /// Waits until `condition` holds (capture sessions; polled on the main actor).
+    func debugWait(until condition: () -> Bool) async {
+        while !condition(), !Task.isCancelled { try? await Task.sleep(for: .milliseconds(30)) }
+    }
+
+    /// Capture sessions: after `close()`, waits until nothing this session started is still
+    /// running (open, subject separation and depth, Save copy, renders), so its CPU work cannot
+    /// slow or touch the next screen.
+    func debugAwaitQuiescence() async {
+        await startTask?.value
+        await subjectTask?.value
+        await saveTask?.value
+        await settleRendering()
+    }
+
+    /// Holds an approved Background state for a capture (`bg-separating`, `bg-failed`).
+    func debugHoldSubjectState(_ state: SubjectState) {
+        subjectTask?.cancel()
+        subjectState = state
+    }
+
+    /// Waits until subject separation has finished (captures of Background screens).
+    func debugWaitForSubject() async {
+        while subjectState == .separating || subjectState == .notStarted { try? await Task.sleep(for: .milliseconds(50)) }
+    }
+
     /// Design captures and UI tests: put the session in an approved state directly.
     func debugSetAutoState(_ state: AutoState) { autoState = state }
     /// Sets up a scenario's starting recipe the way the prototype's `stateFor` does: as the

@@ -174,10 +174,12 @@ struct CompareButton: View {
 
 /// `.stage`: the canvas colour with the photo contain-fitted, never cropped. While comparing, the
 /// original carries the "Original" badge (`.badge`).
-struct PhotoStage<Overlay: View>: View {
+struct PhotoStage<Overlay: View, Marks: View>: View {
     let image: CGImage
     var showsOriginalBadge = false
     @ViewBuilder var overlay: () -> Overlay
+    /// Marks laid over the fitted photo itself (prototype `marks` inside `.imgbox`).
+    @ViewBuilder var marks: () -> Marks
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -203,6 +205,7 @@ struct PhotoStage<Overlay: View>: View {
                     .accessibilityElement()
                     .accessibilityLabel(Text(showsOriginalBadge ? "Photo, original" : "Photo"))
                     .accessibilityIdentifier("editor.photo")
+                    .overlay { marks() }
                 overlay()
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -220,9 +223,15 @@ struct PhotoStage<Overlay: View>: View {
     }
 }
 
-extension PhotoStage where Overlay == EmptyView {
+extension PhotoStage where Overlay == EmptyView, Marks == EmptyView {
     init(image: CGImage, showsOriginalBadge: Bool = false) {
-        self.init(image: image, showsOriginalBadge: showsOriginalBadge, overlay: { EmptyView() })
+        self.init(image: image, showsOriginalBadge: showsOriginalBadge, overlay: { EmptyView() }, marks: { EmptyView() })
+    }
+}
+
+extension PhotoStage where Marks == EmptyView {
+    init(image: CGImage, showsOriginalBadge: Bool = false, @ViewBuilder overlay: @escaping () -> Overlay) {
+        self.init(image: image, showsOriginalBadge: showsOriginalBadge, overlay: overlay, marks: { EmptyView() })
     }
 }
 

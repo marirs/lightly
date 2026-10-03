@@ -60,7 +60,7 @@ final class PreferencesStore {
         static let all = [appearance, keepsPhotoMetadata, includesLocation, preferredBorder]
     }
 
-    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored fileprivate let defaults: UserDefaults
 
     var appearance: AppearancePreference {
         didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
@@ -103,3 +103,16 @@ final class PreferencesStore {
         Key.all.forEach(defaults.removeObject(forKey:))
     }
 }
+
+#if DEBUG
+extension PreferencesStore {
+    /// Capture sessions: back to what a fresh launch with `--reset-preferences` reads.
+    func debugResetToDefaults() {
+        appearance = .system
+        keepsPhotoMetadata = ExportMetadataPolicy.default.keepsCaptureMetadata
+        includesLocation = ExportMetadataPolicy.default.includesLocation
+        preferredBorder = .none
+        Self.removeAll(from: defaults)
+    }
+}
+#endif
