@@ -44,6 +44,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core-background"))
     implementation(project(":core-session"))
     implementation(project(":core-develop"))
     implementation(project(":core-model"))
@@ -230,6 +231,30 @@ abstract class BundlePresetCatalogueTask : DefaultTask() {
     }
 }
 
+// --- Bundled background photos (Background › Change background › Image) -------------------------
+//
+// The approved prototype offers four bundled background photos (docs/ui/app/data.js BACKGROUNDS) from
+// the licensed sample set. Their licence for redistribution in a released app is not confirmed, so they
+// are packaged into DEBUG builds only (release builds show the same row without them, reported as a
+// blocker in docs/v1/slice3-android.md). Read in place from docs/ui/assets/photos; never copied into git.
+abstract class BundleBackgroundPhotosTask : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val photos: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    fun bundle() {
+        val root = assetsDirectory.get().asFile
+        root.deleteRecursively()
+        photos.files.forEach { it.copyTo(root.resolve("backgrounds/${it.name}")) }
+    }
+}
+
+val backgroundPhotoNames = listOf("landscape_01", "sunset_03", "wellexposed_02", "backlit_02")
+
 // --- Launcher icon packaging check ----------------------------------------------------------------
 //
 // Inspects the BUILT apk, not the sources: an icon that exists in res/ but is dropped by the
@@ -341,6 +366,14 @@ androidComponents {
             catalogueFile.set(presetCatalogueFile)
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleCatalogue, BundlePresetCatalogueTask::assetsDirectory)
+
+        if (variant.buildType == "debug") {
+            val bundleBackgrounds = tasks.register<BundleBackgroundPhotosTask>("bundle${variantName}BackgroundPhotos") {
+                val folder = rootDir.parentFile.resolve("docs/ui/assets/photos")
+                photos.from(backgroundPhotoNames.flatMap { listOf(folder.resolve("$it.jpg"), folder.resolve("${it}_thumb.jpg")) })
+            }
+            variant.sources.assets?.addGeneratedSourceDirectory(bundleBackgrounds, BundleBackgroundPhotosTask::assetsDirectory)
+        }
 
         val verifyIcon = tasks.register<VerifyLauncherIconTask>("verify${variantName}LauncherIcon") {
             apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))

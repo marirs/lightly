@@ -94,9 +94,37 @@ object AndroidEditorEnvironment {
             favourites = favourites,
             debugBuild = BuildConfig.DEBUG,
             exportTileEdge = exportTileEdge,
+            depthImageDecoder = { bytes -> if (com.lightlylabs.lightly.background.PngGrayDecoder.isPng(bytes)) com.lightlylabs.lightly.background.PngGrayDecoder.decode(bytes) else decodeJpegDepth(bytes) },
+            exifOrientation = { bytes ->
+                runCatching { android.media.ExifInterface(java.io.ByteArrayInputStream(bytes)).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1) }.getOrDefault(1).coerceIn(1, 8)
+            },
+            bundledBackground = { id -> loadBundledBackground(app, id) },
             onPreviewRendered = { millis, globalOnly -> Log.i(LOG_TAG, "preview ${if (globalOnly) "drag" else "committed"}: ${"%.1f".format(millis)} ms") },
             newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },
         )
+    }
+
+    /** An 8-bit JPEG depth image (Dynamic Depth allows JPEG items): the first channel in [0, 1]. */
+    private fun decodeJpegDepth(bytes: ByteArray): com.lightlylabs.lightly.background.FloatPlane {
+        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw IllegalArgumentException("depth image cannot be decoded")
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        return com.lightlylabs.lightly.background.FloatPlane(bitmap.width, bitmap.height, FloatArray(pixels.size) { ((pixels[it] shr 16) and 0xff) / 255f })
+    }
+
+    /**
+     * The approved bundled background photos (docs/ui/app/data.js `BACKGROUNDS`), packaged in DEBUG builds
+     * only: their redistribution licence for release is unconfirmed (docs/v1/slice3-android.md › Blockers).
+     */
+    private fun loadBundledBackground(context: Context, id: String): com.lightlylabs.lightly.render.image.Rgba8Image? {
+        val name = BackgroundOptions.IMAGES.firstOrNull { it.first == id }?.second ?: return null
+        val bitmap = runCatching { context.assets.open("backgrounds/$name.jpg").use { android.graphics.BitmapFactory.decodeStream(it) } }.getOrNull() ?: return null
+        val scale = minOf(1f, PREVIEW_LONG_EDGE_PX.toFloat() / maxOf(bitmap.width, bitmap.height))
+        val scaled = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true) else bitmap
+        val argb = scaled.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+        val buffer = java.nio.ByteBuffer.allocate(argb.byteCount)
+        argb.copyPixelsToBuffer(buffer)
+        return com.lightlylabs.lightly.render.image.Rgba8Image(argb.width, argb.height, buffer.array())
     }
 
     /** EXIF copy for Save copy; the editor keys photos by URI string, the platform reader by Uri. */

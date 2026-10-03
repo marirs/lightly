@@ -21,6 +21,8 @@ class LoadedPhoto(
     val display: Rgba8Image,
     /** Full-resolution decode for Save copy, run only when exporting. */
     val fullResolution: FullResolutionSource,
+    /** The original file's bytes (embedded depth lives in them). */
+    val readOriginal: suspend () -> ByteArray = { ByteArray(0) },
 )
 
 fun interface PhotoLoader {
@@ -79,6 +81,18 @@ class EditorEnvironment(
     /** Export tile edge: spatial operators keep float planes per tile, so tiles stay small. */
     val exportTileEdge: Int = 1024,
     val newImageSpec: (SourceRef) -> NewImageSpec = { NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg") },
+    /** Background › subject separation (DEFERRED D3: pending until the device evaluation). */
+    val segmenter: com.lightlylabs.lightly.background.SubjectSegmenter = com.lightlylabs.lightly.background.PendingSubjectSegmenter,
+    val segmenterModelRef: com.lightlylabs.lightly.session.ModelRef? = null,
+    /** Background › monocular depth (DEFERRED: LiteRT runtime pending approval; model pending legal sign-off). */
+    val depthEstimator: com.lightlylabs.lightly.background.DepthEstimator = com.lightlylabs.lightly.background.UnavailableDepthEstimator,
+    val depthModelRef: com.lightlylabs.lightly.session.ModelRef? = null,
+    /** Decodes an embedded depth image (PNG in core-background; JPEG needs the platform). */
+    val depthImageDecoder: com.lightlylabs.lightly.background.DepthImageDecoder = com.lightlylabs.lightly.background.DepthImageDecoder.PNG_ONLY,
+    /** EXIF orientation (1–8) of the original's bytes, to align embedded depth with the decoded photo. */
+    val exifOrientation: (ByteArray) -> Int = { 1 },
+    /** A bundled background photo by recipe id (`background.landscape_01` …), or null if this build has none. */
+    val bundledBackground: (String) -> Rgba8Image? = { null },
     /** Called after each preview render with its milliseconds and whether it was the drag (global-only) render. */
     val onPreviewRendered: (millis: Double, globalOnly: Boolean) -> Unit = { _, _ -> },
 )

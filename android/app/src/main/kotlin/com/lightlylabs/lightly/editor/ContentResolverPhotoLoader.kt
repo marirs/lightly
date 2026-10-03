@@ -54,6 +54,7 @@ class ContentResolverPhotoLoader(
             source = SourceRef(assetId = uri.toString(), fingerprint = fingerprint, orientation = 1),
             analysis = analysis.image,
             display = display.image,
+            readOriginal = { withContext(Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0) } },
             fullResolution = FullResolutionSource {
                 withContext(Dispatchers.IO) {
                     decoder.decode(ImageDecoder.createSource(resolver, uri)) { original -> original.also(DecodeTargets::requireDecodable) }.image

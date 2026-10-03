@@ -77,6 +77,9 @@ data class EditorUiState(
     val preview: Rgba8Image? = null,
     /** The saved copy's content URI, for Share in the Saved sheet. */
     val savedAsset: String? = null,
+    /** Background tool UI and the photo's subject separation / depth (slice 3). */
+    val background: BackgroundUi = BackgroundUi(),
+    val separation: SeparationState = SeparationState.NotStarted,
 ) {
     val showsOriginal: Boolean get() = compareHeld || compareToggled
     val canUndo: Boolean get() = session?.canUndo == true
@@ -106,6 +109,12 @@ class EditorViewModel(
     private var prefetchJob: Job? = null
     private var toastJob: Job? = null
     private var photoGeneration = 0L
+
+    private val backgroundSession = BackgroundSession(env)
+    private var separationJob: Job? = null
+
+    /** Notified when Change background › "+" asks for a photo (the Activity launches the picker). */
+    var onChooseBackgroundPhoto: () -> Unit = {}
 
     /** The recipe as last saved (or as first developed): "dirty" means the edit differs from it. */
     private var cleanState: EditState? = null
@@ -160,6 +169,8 @@ class EditorViewModel(
         schedulerCollector?.cancel()
         photo = null
         cleanState = null
+        separationJob?.cancel()
+        backgroundSession.reset()
         val generation = ++photoGeneration
         state.value = EditorUiState(phase = EditorPhase.Loading)
         loadJob = scope.launch {
@@ -263,8 +274,135 @@ class EditorViewModel(
     fun selectTool(tool: EditorTool) {
         if (tool !in state.value.tools) return
         if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
-        state.update { it.copy(tool = tool, develop = DevelopUi()) }
+        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi()) }
+        if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
     }
+
+    // --- Background (slice 3) -------------------------------------------------------------------
+
+    /** Depth and subject separation, once per photo, behind the approved cancellable "Finding the subject…". */
+    private fun startSeparation() {
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
+        separationJob?.cancel()
+        state.update { it.copy(separation = SeparationState.Separating) }
+        separationJob = scope.launch(env.prefetchDispatcher) {
+            val finished = backgroundSession.analyse(current.loaded)
+            if (!isCurrent(current.generation)) return@launch
+            state.update { it.copy(separation = finished) }
+            state.value.session?.let { requestPreview(it.current, globalOnly = false) }
+        }
+    }
+
+    fun cancelSeparation() {
+        separationJob?.cancel()
+        state.update { it.copy(separation = SeparationState.NotStarted) }
+        showToast(OPERATION_CANCELLED)
+    }
+
+    fun retrySeparation() = startSeparation()
+
+    fun selectBackgroundSub(sub: BackgroundSub) {
+        state.update { it.copy(background = it.background.copy(sub = sub, sliderDrag = null)) }
+        if (state.value.separation == SeparationState.NotStarted) startSeparation()
+    }
+
+    fun selectReplacementKind(kind: ReplacementKind) = state.update { it.copy(background = it.background.copy(kind = kind)) }
+
+    fun setBrushMode(mode: BrushMode) = state.update { it.copy(background = it.background.copy(brush = mode)) }
+
+    fun setBrushSize(size: Int) = state.update { it.copy(background = it.background.copy(brushSize = size.coerceIn(0, 100))) }
+
+    private fun commitBackground(change: (com.lightlylabs.lightly.session.BackgroundTool) -> com.lightlylabs.lightly.session.BackgroundTool) {
+        val session = state.value.session ?: return
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(background = backgroundSession.withDerivedRefs(change(s.tools.background)))) }, state.value.auto)
+    }
+
+    private fun withSlider(tool: com.lightlylabs.lightly.session.BackgroundTool, field: String, value: Double) = when (field) {
+        "blur" -> tool.copy(focus = tool.focus.copy(blur = value.coerceIn(0.0, 100.0)))
+        "depthOfField" -> tool.copy(focus = tool.focus.copy(depthOfField = value.coerceIn(0.0, 100.0)))
+        "styleAmount" -> tool.copy(focus = tool.focus.copy(styleAmount = value.coerceIn(0.0, 100.0)))
+        "scale" -> tool.copy(replacement = (tool.replacement as? com.lightlylabs.lightly.session.Replacement.Image)?.copy(scale = value.coerceIn(100.0, 200.0)) ?: tool.replacement)
+        else -> tool
+    }
+
+    /** A Background slider moving: transient preview only. */
+    fun onBackgroundSlider(field: String, value: Double) {
+        val session = state.value.session ?: return
+        state.update { it.copy(background = it.background.copy(sliderDrag = field to value)) }
+        val edited = session.current.copy(tools = session.current.tools.copy(background = withSlider(session.current.tools.background, field, value)))
+        requestPreview(edited, globalOnly = true)
+    }
+
+    /** Slider release: one undo step. */
+    fun onBackgroundSliderRelease(field: String, value: Double) {
+        state.update { it.copy(background = it.background.copy(sliderDrag = null)) }
+        commitBackground { withSlider(it, field, value) }
+    }
+
+    fun setFocusStyle(style: com.lightlylabs.lightly.session.FocusStyle) = commitBackground { it.copy(focus = it.focus.copy(style = style)) }
+
+    fun setBokeh(bokeh: com.lightlylabs.lightly.session.Bokeh) = commitBackground { it.copy(focus = it.focus.copy(bokeh = bokeh)) }
+
+    /** Tap on the photo in Focus & Blur: the target and the depth under it, resolved now and stored (one step). */
+    fun setFocusTarget(x: Double, y: Double) {
+        val nearness = backgroundSession.focalNearnessAt(x, y) ?: return
+        commitBackground {
+            it.copy(focus = it.focus.copy(target = com.lightlylabs.lightly.session.NormalisedPoint(x.coerceIn(0.0, 1.0), y.coerceIn(0.0, 1.0)),
+                depth = it.focus.depth.copy(focusDepth = (1.0 - nearness).coerceIn(0.0, 1.0))))
+        }
+    }
+
+    /** Where the focus ring is drawn: the stored target, else the default (subject centroid or centre). */
+    val focusTarget: Pair<Double, Double>
+        get() = state.value.session?.current?.tools?.background?.focus?.target?.let { it.x to it.y } ?: backgroundSession.defaultTarget()
+
+    fun chooseBackgroundColour(hex: String) = commitBackground { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour(hex)) }
+
+    fun chooseBackgroundGradient(index: Int) {
+        val (angle, stops) = BackgroundOptions.GRADIENTS[index]
+        commitBackground {
+            it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Gradient(angle, listOf(
+                com.lightlylabs.lightly.session.GradientStop(stops[0], 0.0), com.lightlylabs.lightly.session.GradientStop(stops[1], 1.0))))
+        }
+    }
+
+    fun chooseBackgroundImage(id: String) = commitBackground {
+        val previous = it.replacement as? com.lightlylabs.lightly.session.Replacement.Image
+        it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Image(com.lightlylabs.lightly.session.AssetRef.Bundled(id), previous?.x ?: 50.0, previous?.y ?: 50.0, previous?.scale ?: 100.0))
+    }
+
+    fun chooseBackgroundPhoto() = onChooseBackgroundPhoto()
+
+    /** The photo picked for Change background › "+": decoded once, referenced by its fingerprint. */
+    fun useBackgroundPhoto(assetId: String) {
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
+        scope.launch {
+            val picked = runCatching { env.photoLoader.load(assetId) }.getOrNull() ?: return@launch
+            if (!isCurrent(current.generation)) return@launch
+            val asset = com.lightlylabs.lightly.session.AssetRef.Photo(assetId, picked.source.fingerprint)
+            backgroundSession.rememberReplacementPhoto(asset, picked.display)
+            env.photoAccess.retain(assetId)
+            commitBackground { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Image(asset, 50.0, 50.0, 100.0)) }
+        }
+    }
+
+    fun removeBackgroundChange() = commitBackground { it.copy(replacement = null) }
+
+    /**
+     * Refine edges: one brushed stroke (normalised photo points), one undo step. The radius follows the
+     * Brush size control (0–100 → up to 5 % of the long edge).
+     */
+    fun addRefineStroke(points: List<Pair<Double, Double>>) {
+        if (points.isEmpty() || state.value.background.sub != BackgroundSub.REFINE) return
+        val radius = (state.value.background.brushSize / 100.0 * 0.05).coerceIn(0.002, 0.5)
+        val mode = if (state.value.background.brush == BrushMode.ADD) com.lightlylabs.lightly.session.RefineMode.ADD else com.lightlylabs.lightly.session.RefineMode.ERASE
+        val stroke = com.lightlylabs.lightly.session.RefineStroke(mode, radius, points.map { (x, y) -> com.lightlylabs.lightly.session.NormalisedPoint(x.coerceIn(0.0, 1.0), y.coerceIn(0.0, 1.0)) })
+        commitBackground { it.copy(subject = it.subject.copy(refinements = it.subject.refinements + stroke)) }
+    }
+
+    /** The refined matte at the analysis size, for the Refine edges tint (null without a matte). */
+    fun refinedMatte(): com.lightlylabs.lightly.background.FloatPlane? =
+        state.value.session?.current?.tools?.background?.let { backgroundSession.refined(it)?.matte }
 
     // --- Develop --------------------------------------------------------------------------------
 
@@ -417,11 +555,23 @@ class EditorViewModel(
         if (state.value.phase != EditorPhase.Ready) return
         val committed = session.current
         val plan = library.planFor(committed)
+        val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer)
         val exportPlan = ExportRenderPlan { frame ->
             // One renderer and clarity base per frame; tiles read their apron from the full frame.
             val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
             val base = renderer.clarityBase(frame, plan)
-            ExportTileRenderer { source, tile -> renderer.renderTile(source, PixelRect(tile.x, tile.y, tile.width, tile.height), plan, base) }
+            // Background renders once at the analysis size (K = 8), then each full-resolution tile keeps its
+            // in-focus pixels and takes the defocused or replaced ones from that render (BackgroundStage.composeTile).
+            val background = backgroundPlan?.let { bp ->
+                val analysis = backgroundSession.analysis!!
+                val small = BackgroundSession.resize(frame, analysis.width, analysis.height)
+                backgroundSession.render(renderer.render(small, plan), bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background)
+            }
+            ExportTileRenderer { source, tile ->
+                val developed = renderer.renderTile(source, PixelRect(tile.x, tile.y, tile.width, tile.height), plan, base)
+                if (background == null) developed else Rgba8Image(tile.width, tile.height,
+                    com.lightlylabs.lightly.background.BackgroundStage.composeTile(developed.pixels, tile.x, tile.y, tile.width, tile.height, frame.width, frame.height, background.first.pixels, background.second))
+            }
         }
         val job = ExportJob(sourceHandle = loaded.source.assetId, original = loaded.fullResolution, plan = exportPlan, spec = env.newImageSpec(loaded.source))
         if (env.exporter.start(job) is ExportStart.Started) {
@@ -502,8 +652,11 @@ class EditorViewModel(
                 val edit = request.payload.state ?: return@PreviewRenderer display
                 val start = System.nanoTime()
                 val plan = library.planFor(edit, request.payload.globalOnly)
-                val source = if (request.payload.globalOnly) dragProxy else display
-                val image = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
+                val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer)
+                // With Background active the drag preview keeps the full proxy: the stage works at the analysis size.
+                val source = if (request.payload.globalOnly && backgroundPlan == null) dragProxy else display
+                val developed = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
+                val image = if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first
                 val millis = (System.nanoTime() - start) / 1e6
                 renderMillis += millis
                 env.onPreviewRendered(millis, request.payload.globalOnly)
@@ -653,6 +806,9 @@ class EditorViewModel(
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
         const val SAVE_CANCELLED = "Save cancelled · nothing was written"
+
+        /** Prototype `cancelOp` toast. */
+        const val OPERATION_CANCELLED = "Cancelled · nothing changed"
         private const val TOAST_MILLIS = 1400L
 
         /** Marks "Continue with original" in the saved recipe; never resolved against a model. */

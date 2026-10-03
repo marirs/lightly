@@ -201,7 +201,7 @@ fun ListRow(
 
 /** `.seg`: the segmented control (Appearance). Each segment is a radio for accessibility. */
 @Composable
-fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
+fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier, icons: Map<T, ImageVector> = emptyMap()) {
     val colors = lightlyColors
     Row(
         modifier
@@ -224,7 +224,10 @@ fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: 
                     .testTagResource("segment-$label"),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, style = lightlyTextStyle(14.sp, FontWeight.Medium, if (on) colors.ink else colors.ink2), maxLines = 1)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    icons[value]?.let { LightlyIcon(it, size = 16.dp, tint = if (on) colors.ink else colors.ink2); Spacer(Modifier.size(4.dp)) }
+                    Text(label, style = lightlyTextStyle(14.sp, FontWeight.Medium, if (on) colors.ink else colors.ink2), maxLines = 1)
+                }
             }
         }
     }

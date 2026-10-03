@@ -138,6 +138,13 @@ class MainActivity : ComponentActivity() {
                 if (granted) launchCamera() else shell.navigate(AppNavigator.showCameraDenied())
             }
             val choosePhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+            // Background › Change background › "+": a photo for the new background (cancel changes nothing).
+            val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                if (uri != null) editor.useBackgroundPhoto(uri.toString())
+            }
+            androidx.compose.runtime.SideEffect {
+                editor.onChooseBackgroundPhoto = { backgroundPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+            }
 
             LightlyTheme(dark) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {

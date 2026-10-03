@@ -21,6 +21,8 @@ include(":core-session")
 include(":core-render")
 // Develop (rendering contract v2): pack reader, develop.global port and bake, spatial operators. Pure JVM.
 include(":core-develop")
+// Background (Focus & Blur, replacement, depth): renderer and depth readers. Pure JVM.
+include(":core-background")
 include(":core-render-gl")
 include(":core-decode")
 include(":core-model")

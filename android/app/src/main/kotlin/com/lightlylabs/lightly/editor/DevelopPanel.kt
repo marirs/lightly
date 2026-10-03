@@ -289,13 +289,20 @@ internal fun Notice(icon: androidx.compose.ui.graphics.vector.ImageVector, text:
     }
 }
 
-/** `.btn.quiet.small`: min-height 44, padding 0 12, 14.5 sp semibold in the selection colour. */
+/**
+ * `.btn.quiet.small`: min-height 44, padding 0 12, 14.5 sp semibold in the selection colour, an
+ * optional leading icon (gap 8). [large] is `.btn.quiet` (15 sp).
+ */
 @Composable
-internal fun QuietSmallButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
+internal fun QuietSmallButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, large: Boolean = false) {
+    Row(
         modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, style = lightlyTextStyle(14.5.sp, FontWeight.SemiBold, lightlyColors.sel), maxLines = 1) }
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) LightlyIcon(icon, size = 17.dp, tint = lightlyColors.sel)
+        Text(label, style = lightlyTextStyle(if (large) 15.sp else 14.5.sp, FontWeight.SemiBold, lightlyColors.sel), maxLines = 1)
+    }
 }
 
 /** `.namerow`: star, the preset name (wrapping), "stop / count", "Amount N". */

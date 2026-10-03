@@ -2,9 +2,11 @@ package com.lightlylabs.lightly.editor
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -136,7 +139,7 @@ data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, va
 @Composable
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
-    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier) }
+    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui) }) }
     val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
     val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
     Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
@@ -344,7 +347,7 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
 
 /** `.progress`: the dark box centred on the photo with a spinner, the label and a progress bar. */
 @Composable
-internal fun ProgressBox(label: String, detail: String?, barFraction: Float, cancel: (() -> Unit)? = null) {
+internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, cancel: (() -> Unit)? = null) {
     // Content-sized (min 200 dp): the bar spans the box, not the photo.
     Column(
         Modifier.width(IntrinsicSize.Max).widthIn(min = 200.dp).background(Color(0xB8141416), RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -358,8 +361,10 @@ internal fun ProgressBox(label: String, detail: String?, barFraction: Float, can
         })
         Text(label, style = lightlyTextStyle(14.sp, color = Color.White))
         if (detail != null) Text(detail, style = lightlyTextStyle(13.sp, color = Color.White.copy(alpha = 0.75f)))
-        Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF))) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(barFraction).background(Color.White))
+        if (barFraction != null) {
+            Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF))) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(barFraction).background(Color.White))
+            }
         }
         if (cancel != null) {
             Box(Modifier.padding(top = 6.dp).heightIn(min = 44.dp).widthIn(min = 64.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = cancel).padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
@@ -407,10 +412,10 @@ private fun LoadingScreen(vm: EditorViewModel, ui: EditorUiState, frame: EditorF
 
 @Composable
 private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, roomy: Boolean, wrapped: Boolean) {
-    if (ui.tool == EditorTool.DEVELOP) {
-        if (model != null) DevelopPanel(vm, model, roomy, wrapped)
-    } else {
-        ToolStub(ui.tool, roomy)
+    when (ui.tool) {
+        EditorTool.DEVELOP -> if (model != null) DevelopPanel(vm, model, roomy, wrapped)
+        EditorTool.BACKGROUND -> BackgroundPanel(vm, ui, roomy)
+        else -> ToolStub(ui.tool, roomy)
     }
 }
 
@@ -419,9 +424,15 @@ enum class DockKind { SCROLLS, FITS, RAIL }
 @Composable
 private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
     val colors = lightlyColors
-    val used = ui.session?.current?.look != null
+    val recipe = ui.session?.current
+    // Prototype `toolUsed`: Develop when a Look is applied, Background when replaced or blurred.
+    fun used(tool: EditorTool) = when (tool) {
+        EditorTool.DEVELOP -> recipe?.look != null
+        EditorTool.BACKGROUND -> recipe?.tools?.background?.let { it.replacement != null || it.focus.blur > 0 } == true
+        else -> false
+    }
     val items: @Composable () -> Unit = {
-        ui.tools.forEach { tool -> ToolItem(tool, selected = tool == ui.tool, used = tool == EditorTool.DEVELOP && used, rail = kind == DockKind.RAIL) { vm.selectTool(tool) } }
+        ui.tools.forEach { tool -> ToolItem(tool, selected = tool == ui.tool, used = used(tool), rail = kind == DockKind.RAIL) { vm.selectTool(tool) } }
     }
     when (kind) {
         DockKind.RAIL -> Column(
@@ -486,4 +497,61 @@ private fun Modifier.fadeEnd() = graphicsLayer(compositingStrategy = Compositing
 @Composable
 internal fun ColumnScope.PanelTitle(text: String) {
     Text(text, style = lightlyTextStyle(13.sp, FontWeight.SemiBold, lightlyColors.ink2), modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 4.dp))
+}
+
+
+/**
+ * Background's marks on the photo (prototype `marksFor`): the focus target ring and tap-to-focus in
+ * Focus & Blur, and the "Finding the subject…" box while separating. Drawn inside the photo box.
+ */
+@Composable
+private fun BackgroundMarks(vm: EditorViewModel, ui: EditorUiState) {
+    if (ui.tool != EditorTool.BACKGROUND || ui.showsOriginal) return
+    val tool = ui.session?.current?.tools?.background ?: return
+    when (val state = BackgroundPanelState.of(ui.background, ui.separation, tool.replacement)) {
+        BackgroundPanelState.Separating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            ProgressBox("Finding the subject…", null, null, cancel = vm::cancelSeparation)
+        }
+        BackgroundPanelState.Focus, BackgroundPanelState.NoSubject -> BoxWithConstraints(
+            Modifier.fillMaxSize().pointerInput(Unit) {
+                detectTapGestures { offset -> vm.setFocusTarget(offset.x.toDouble() / size.width, offset.y.toDouble() / size.height) }
+            }.semantics { contentDescription = "Tap the photo to set focus" },
+        ) {
+            // The prototype shows the target only when the photo has a subject.
+            if (state == BackgroundPanelState.Focus) {
+                val (tx, ty) = vm.focusTarget
+                Box(
+                    Modifier
+                        .offset(x = maxWidth * tx.toFloat() - 26.dp, y = maxHeight * ty.toFloat() - 26.dp)
+                        .size(52.dp)
+                        .drawBehind {
+                            drawCircle(Color(0x40000000), size.minDimension / 2 + 1.dp.toPx() - 0.75.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+                            drawCircle(Color.White, size.minDimension / 2 - 0.75.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+                            drawCircle(Color.White, 3.dp.toPx())
+                        },
+                )
+            }
+        }
+        BackgroundPanelState.Refine -> {
+            // `.maskTint`: the subject tinted rgba(47,107,235,.32); brushing adds to or erases from it.
+            val matte = vm.refinedMatte()
+            val tint = remember(matte) { matte?.let { m ->
+                val pixels = IntArray(m.width * m.height) { p -> val a = (m.values[p].coerceIn(0f, 1f) * 0.32f * 255).toInt(); (a shl 24) or (47 shl 16) or (107 shl 8) or 235 }
+                android.graphics.Bitmap.createBitmap(pixels, m.width, m.height, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+            } }
+            Box(
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    val points = ArrayList<Pair<Double, Double>>()
+                    detectDragGestures(
+                        onDragStart = { o -> points.clear(); points += o.x.toDouble() / size.width to o.y.toDouble() / size.height },
+                        onDrag = { change, _ -> points += change.position.x.toDouble() / size.width to change.position.y.toDouble() / size.height },
+                        onDragEnd = { vm.addRefineStroke(points.toList()) },
+                    )
+                }.semantics { contentDescription = "Brush over the edge to refine the subject" },
+            ) {
+                if (tint != null) Image(tint, null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
+            }
+        }
+        else -> Unit
+    }
 }

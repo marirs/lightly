@@ -86,6 +86,13 @@ object LightlyIcons {
     val Info = lineIcon("info", circle(12f, 12f, 8.5f), "M12 11v5M12 8v.5")
     val Warn = lineIcon("warn", "M12 4l9 16H3z", "M12 10v4M12 17v.5")
     val Share = lineIcon("share", "M12 3v12M7.5 7.5 12 3l4.5 4.5", "M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12")
+    val Brush = lineIcon("brush", "M14.5 4.5l5 5-8 8H6.5v-5z", "M4 20h7")
+    val Erase = lineIcon("erase", "M8 20h12M5.5 14.5l7-7 5 5-5.5 5.5H9z")
+    val Plus = lineIcon("plus", "M12 5v14M5 12h14")
+    val Circle = lineIcon("circle", circle(12f, 12f, 7f))
+    val Hex = lineIcon("hex", "M12 4.5l6.5 3.75v7.5L12 19.5l-6.5-3.75v-7.5z")
+    val Heart = lineIcon("heart", "M12 19s-7-4.4-7-9.5A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7 2.5C19 14.6 12 19 12 19z")
+    val StarShape = lineIcon("starShape", "M12 5l2 4.6 5 .4-3.8 3.3 1.2 4.9L12 15.6 7.6 18.2l1.2-4.9L5 10l5-.4z")
     val Camera = lineIcon(
         "camera",
         "M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z",
