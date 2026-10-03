@@ -19,6 +19,8 @@ rootProject.name = "Lightly"
 // (see docs/m2/android-foundation.md); the editor shell lives in :app until then.
 include(":core-session")
 include(":core-render")
+// Develop (rendering contract v2): pack reader, develop.global port and bake, spatial operators. Pure JVM.
+include(":core-develop")
 include(":core-render-gl")
 include(":core-decode")
 include(":core-model")
