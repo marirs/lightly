@@ -8,7 +8,8 @@ struct FocusTargetMark: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Circle().stroke(Color.black.opacity(0.25), lineWidth: 1).frame(width: 54, height: 54)
+                // `box-shadow: 0 0 0 1px`: a 1 pt ring just outside the 52 pt border box.
+                Circle().strokeBorder(Color.black.opacity(0.25), lineWidth: 1).frame(width: 54, height: 54)
                 Circle().strokeBorder(.white, lineWidth: 1.5).frame(width: 52, height: 52)
                 Circle().fill(.white).frame(width: 6, height: 6)
             }
@@ -81,7 +82,8 @@ struct FaceRingsMark: View {
 
     private func ring(dim: Bool) -> some View {
         ZStack {
-            Ellipse().stroke(Color.black.opacity(0.2), lineWidth: 1).padding(-1)
+            // `box-shadow: 0 0 0 1px`: 1 pt just outside the ring's border box.
+            Ellipse().strokeBorder(Color.black.opacity(0.2), lineWidth: 1).padding(-1)
             Ellipse().strokeBorder(Color.white.opacity(0.95), style: StrokeStyle(lineWidth: 1.5, dash: dim ? [5, 4] : []))
         }
         .opacity(dim ? 0.75 : 1)
