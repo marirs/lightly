@@ -177,7 +177,8 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
                 Spacer(Modifier.height(frame.top))
                 // Top bar split at the fold: history and compare over the photo, Save copy and ⋮ over the panel.
                 Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.width(half).padding(start = 6.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // Prototype: the left group is a plain row (no gap) of width half with 6 dp start padding.
+                    Row(Modifier.width(half).padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         TopBarLeft(vm, ui)
                     }
                     Spacer(Modifier.weight(1f))
@@ -199,12 +200,15 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
                 }
                 Column(Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp)) {
                     EditorTopBar(vm, ui, actions)
-                    Column(Modifier.weight(1f).fillMaxWidth()) {
+                    // Prototype `.panel.grow`: `.panel` (flex 0 0 auto) wins over `.grow`, so the panel is as
+                    // tall as its content and the tools sit right under it; the rest of the pane stays empty.
+                    Column(Modifier.fillMaxWidth().weight(1f, fill = false)) {
                         Column(
-                            Modifier.align(Alignment.CenterHorizontally).widthIn(max = layout.contentWidthDp.dp).fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                            Modifier.align(Alignment.CenterHorizontally).widthIn(max = layout.contentWidthDp.dp).fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()),
                         ) { panel(false, false) }
                         tools(DockKind.FITS)
                     }
+                    Spacer(Modifier.weight(0.001f))
                     Spacer(Modifier.height(frame.bottom))
                 }
             }

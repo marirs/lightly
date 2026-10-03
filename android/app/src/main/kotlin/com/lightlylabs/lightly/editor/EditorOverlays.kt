@@ -180,7 +180,7 @@ private fun Dialog(pane: Pane, frame: EditorFrame, title: String, body: String, 
             ) {
                 Text(title, style = lightlyTextStyle(20.sp, FontWeight.Normal, colors.ink), modifier = Modifier.padding(bottom = 10.dp).semantics { heading() })
                 Text(body, style = lightlyTextStyle(13.5.sp, color = colors.ink2), modifier = Modifier.padding(bottom = 16.dp))
-                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     buttons.forEach { (label, action) ->
                         Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = action).padding(horizontal = 12.dp).testTagResource("dialog-$label"), contentAlignment = Alignment.Center) {
                             Text(label, style = lightlyTextStyle(15.sp, FontWeight.Medium, colors.sel))

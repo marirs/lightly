@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -170,18 +171,19 @@ private fun Modifier.tab(entry: CategoryEntry, onSelect: (String) -> Unit) = thi
 @Composable
 private fun ScrollingTabs(model: DevelopPanelModel, onSelect: (String) -> Unit, modifier: Modifier) {
     val scroll = rememberScrollState()
-    var selectedX by remember { mutableFloatStateOf(-1f) }
-    var rowX by remember { mutableFloatStateOf(0f) }
+    // The selected tab's left edge in window coordinates, as currently scrolled.
+    var selectedWindowX by remember { mutableFloatStateOf(Float.NaN) }
     val density = LocalDensity.current
     // Prototype buildRulers: scrollLeft = max(0, on.offsetLeft - 120), where offsetLeft is measured from
     // the screen's left edge (the device frame is the offset parent), so the selected tab lands 120 dp in.
-    LaunchedEffect(model.categoryId, selectedX, rowX) {
-        if (selectedX >= 0f && scroll.maxValue > 0) scroll.scrollTo((selectedX + rowX - with(density) { 120.dp.toPx() }).roundToInt().coerceAtLeast(0))
+    LaunchedEffect(model.categoryId, selectedWindowX) {
+        if (selectedWindowX.isNaN() || scroll.maxValue == 0) return@LaunchedEffect
+        val target = (scroll.value + selectedWindowX - with(density) { 120.dp.toPx() }).roundToInt().coerceIn(0, scroll.maxValue)
+        if (abs(target - scroll.value) > 1) scroll.scrollTo(target)
     }
     Row(
         modifier
             .heightIn(min = 44.dp)
-            .onGloballyPositioned { rowX = it.positionInWindow().x }
             .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
             .drawWithContent {
                 drawContent()
@@ -197,7 +199,7 @@ private fun ScrollingTabs(model: DevelopPanelModel, onSelect: (String) -> Unit, 
     ) {
         model.categories.forEach { entry ->
             Box(
-                Modifier.tab(entry, onSelect).then(if (entry.selected) Modifier.onGloballyPositioned { selectedX = it.positionInParent().x } else Modifier).padding(horizontal = 0.dp),
+                Modifier.tab(entry, onSelect).then(if (entry.selected) Modifier.onGloballyPositioned { selectedWindowX = it.positionInWindow().x } else Modifier),
                 contentAlignment = Alignment.Center,
             ) { TabLabel(entry) }
         }
@@ -424,6 +426,7 @@ private fun Ruler(model: DevelopPanelModel, vm: EditorViewModel) {
         Modifier
             .fillMaxWidth()
             .height(52.dp)
+            .clipToBounds() // `.rtrack` scrolls inside the panel; ticks never draw over the photo
             .testTagResource(EditorTags.RULER)
             .semantics {
                 contentDescription = "Presets"
