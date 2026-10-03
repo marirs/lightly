@@ -270,54 +270,86 @@ enum DevelopPixelOperators {
     }
 
     /// Per-pixel grain for a W × H frame (`reference_model.apply_grain`, portable random field).
+    ///
+    /// v3 differs from v2 on purpose (rendering-v2 revision 1, contract fixes 1 §3):
+    /// - the lightness change keeps chromaticity: OKLab (L', a·L'/L, b·L'/L), so grain no longer
+    ///   colours skin (fixed a, b made darkened cells more saturated);
+    /// - with fewer than 2 frame pixels per grain cell, the noise is evaluated at s = ceil(2·cells /
+    ///   longEdge) times the size and box-averaged over s × s, as the reference does.
     struct GrainEvaluator: Sendable {
         let amount: Double
         let roughness: Double
         let frameWidth: Int
         let frameHeight: Int
         let grainK: Double
+        let supersampling: Int
         let fine: (field: [Double], rows: Int, cols: Int)
         let coarse: (field: [Double], rows: Int, cols: Int)
 
         init?(_ params: PresetRecipe.Grain, strength: Double, frameWidth: Int, frameHeight: Int, model: DevelopModel) {
-            amount = params.amount / 100 * strength
-            guard amount != 0 else { return nil }
-            self.frameWidth = frameWidth
-            self.frameHeight = frameHeight
-            roughness = params.roughness / 100
-            grainK = model.grainK
-            let size = params.size / 100
-            let longEdge = Double(max(frameWidth, frameHeight))
-            let cellsLong = max(8, Int((model.grainReferenceLongEdge / (1 + 4 * size)).rounded(.toNearestOrEven)))
-            let rows = max(2, Int((Double(cellsLong) * Double(frameHeight) / longEdge).rounded(.toNearestOrEven)))
-            let cols = max(2, Int((Double(cellsLong) * Double(frameWidth) / longEdge).rounded(.toNearestOrEven)))
-            fine = (PortableRandom.gaussianField(seed: params.seed, layer: 0, rows: rows, cols: cols), rows, cols)
-            let coarseRows = max(2, rows / 3), coarseCols = max(2, cols / 3)
-            coarse = (PortableRandom.gaussianField(seed: params.seed, layer: 1, rows: coarseRows, cols: coarseCols), coarseRows, coarseCols)
+            let scaledAmount = params.amount / 100 * strength
+            guard scaledAmount != 0 else { return nil }
+            self.init(seed: params.seed, size: params.size, roughness: params.roughness, amount: scaledAmount,
+                      frameWidth: frameWidth, frameHeight: frameHeight, grainK: model.grainK,
+                      referenceLongEdge: model.grainReferenceLongEdge)
         }
 
-        /// Half-pixel-centre bilinear sample of a field at frame pixel (x, y).
-        private func sample(_ grid: (field: [Double], rows: Int, cols: Int), x: Int, y: Int) -> Double {
+        init(seed: UInt32, size sizePercent: Double, roughness roughnessPercent: Double, amount: Double,
+             frameWidth: Int, frameHeight: Int, grainK: Double, referenceLongEdge: Double) {
+            self.amount = amount
+            self.frameWidth = frameWidth
+            self.frameHeight = frameHeight
+            roughness = roughnessPercent / 100
+            self.grainK = grainK
+            let size = sizePercent / 100
+            let longEdge = Double(max(frameWidth, frameHeight))
+            let cellsLong = max(8, Int((referenceLongEdge / (1 + 4 * size)).rounded(.toNearestOrEven)))
+            let rows = max(2, Int((Double(cellsLong) * Double(frameHeight) / longEdge).rounded(.toNearestOrEven)))
+            let cols = max(2, Int((Double(cellsLong) * Double(frameWidth) / longEdge).rounded(.toNearestOrEven)))
+            supersampling = max(1, Int((2 * Double(cellsLong) / longEdge).rounded(.up)))
+            fine = (PortableRandom.gaussianField(seed: seed, layer: 0, rows: rows, cols: cols), rows, cols)
+            let coarseRows = max(2, rows / 3), coarseCols = max(2, cols / 3)
+            coarse = (PortableRandom.gaussianField(seed: seed, layer: 1, rows: coarseRows, cols: coarseCols), coarseRows, coarseCols)
+        }
+
+        /// Half-pixel-centre bilinear sample of a field at pixel (x, y) of an outW × outH grid.
+        private func sample(_ grid: (field: [Double], rows: Int, cols: Int), x: Int, y: Int, outW: Int, outH: Int) -> Double {
             func axis(_ out: Int, _ inCount: Int, _ position: Int) -> (Int, Int, Double) {
                 let source = min(max((Double(position) + 0.5) * Double(inCount) / Double(out) - 0.5, 0), Double(inCount - 1))
                 let lower = Int(source.rounded(.down))
                 return (lower, min(lower + 1, inCount - 1), source - Double(lower))
             }
-            let (y0, y1, fy) = axis(frameHeight, grid.rows, y)
-            let (x0, x1, fx) = axis(frameWidth, grid.cols, x)
+            let (y0, y1, fy) = axis(outH, grid.rows, y)
+            let (x0, x1, fx) = axis(outW, grid.cols, x)
             let top = grid.field[y0 * grid.cols + x0] * (1 - fx) + grid.field[y0 * grid.cols + x1] * fx
             let bottom = grid.field[y1 * grid.cols + x0] * (1 - fx) + grid.field[y1 * grid.cols + x1] * fx
             return top * (1 - fy) + bottom * fy
         }
 
+        /// The unit grain field n at frame pixel (x, y) (`reference_model.grain_noise`).
+        func noise(x: Int, y: Int) -> Double {
+            let s = supersampling
+            let outW = frameWidth * s, outH = frameHeight * s
+            let norm = ((1 - roughness) * (1 - roughness) + roughness * roughness).squareRoot()
+            var total = 0.0
+            for sy in 0..<s {
+                for sx in 0..<s {
+                    let px = x * s + sx, py = y * s + sy
+                    let fineValue = sample(fine, x: px, y: py, outW: outW, outH: outH) / (2.0 / 3)
+                    let coarseValue = sample(coarse, x: px, y: py, outW: outW, outH: outH) / (2.0 / 3)
+                    total += ((1 - roughness) * fineValue + roughness * coarseValue) / norm
+                }
+            }
+            return total / Double(s * s)
+        }
+
         func apply(_ rgb: SIMD3<Float>, x: Int, y: Int) -> SIMD3<Float> {
-            let fineValue = sample(fine, x: x, y: y) / (2.0 / 3)
-            let coarseValue = sample(coarse, x: x, y: y) / (2.0 / 3)
-            let noise = ((1 - roughness) * fineValue + roughness * coarseValue)
-                / ((1 - roughness) * (1 - roughness) + roughness * roughness).squareRoot()
+            let n = noise(x: x, y: y)
             var lab = ColourMath.oklab(fromEncoded: rgb)
             let l = Double(lab.x)
-            lab.x = Float(min(max(l + grainK * amount * noise * (4 * l * (1 - l) + 0.2), 0), 1))
+            let target = min(max(l + grainK * amount * n * (4 * l * (1 - l) + 0.2), 0), 1)
+            let ratio = Float(target / max(l, 1e-6))
+            lab = SIMD3(Float(target), lab.y * ratio, lab.z * ratio)
             return ColourMath.encoded(fromOKLab: lab)
         }
     }

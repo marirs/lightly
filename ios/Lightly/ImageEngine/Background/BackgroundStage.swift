@@ -32,35 +32,35 @@ enum BackgroundStage {
             applyRefinements(background.subject.refinements, to: &m)
             matte = m
         }
-        // Depth: the recorded map, or (subject-matte source) two planes from the matte.
-        let disparity: FloatImage
-        if let map = cache.disparity, background.focus.depth.source != .subjectMatte {
-            let up = map.disparity.resized(width: linear.width, height: linear.height)
-            let radius = max(2, Int((0.006 * Float(linear.longSide)).rounded()))
-            var guided = FloatImage.guidedFilter(guide: linear.encodedGrey(), source: up, radius: radius, epsilon: 1e-3)
-            for i in 0..<guided.pixelCount { guided.data[i] = min(max(guided.data[i], 0), 1) }
-            disparity = guided
-        } else if let matte {
-            var twoPlanes = matte
-            for i in 0..<twoPlanes.pixelCount { twoPlanes.data[i] = matte.data[i] > 0.5 ? 1 : 0 }
-            disparity = twoPlanes
-        } else {
-            // Neither depth nor a subject: nothing to focus on; the panel offers only Blur over
-            // depth, and without depth there is nothing honest to render.
-            return linear
+        // Depth: the recorded map only. Revision 1 (§R8, G3): a blur is never built from the matte
+        // alone. Without depth there is no blur; a replacement is still composited sharp.
+        guard let map = cache.disparity, background.focus.depth.source != .subjectMatte else {
+            guard hasReplacement, let replacementLinear, let matte else { return linear }
+            var out = replacementLinear
+            for i in 0..<out.pixelCount {
+                let a = matte.data[i]
+                for c in 0..<3 { out.data[i * 3 + c] = linear.data[i * 3 + c] * a + out.data[i * 3 + c] * (1 - a) }
+            }
+            return out
         }
+        let up = map.disparity.resized(width: linear.width, height: linear.height)
+        let radius = max(2, RefocusRenderer.roundHalfEven(0.006 * Float(linear.longSide)))
+        var disparity = FloatImage.guidedFilter(guide: linear.encodedGrey(), source: up, radius: radius, epsilon: 1e-3)
+        for i in 0..<disparity.pixelCount { disparity.data[i] = min(max(disparity.data[i], 0), 1) }
         var scene = RefocusRenderer.buildScene(linear: linear, disparity: disparity, matte: matte)
         if hasReplacement, let replacementLinear {
-            // §R2.4 default placement: a plane where the original background was, behind the
-            // subject. CONTRACT GAP: the recipe's `replacementDepth` (0…1, default 1 = far) is not
-            // mapped to the specification's disparity placement; recorded, not used.
+            // §R2.4 "plane" placement; `replacementDepth` is not read (revision 1, G6).
             scene = RefocusRenderer.replacingBackground(scene, with: replacementLinear, ownDisparity: nil)
         }
         let target = background.focus.target.map { (Float($0.x), Float($0.y)) } ?? RefocusRenderer.defaultTarget(matte: matte)
         let params = RefocusRenderer.Parameters(
             targetX: target.0, targetY: target.1, blur: blur, focusDepth: Float(background.focus.depthOfField),
             style: background.focus.style, bokeh: background.focus.bokeh, styleAmount: Float(background.focus.styleAmount),
-            layersPerSide: interactive ? 4 : RefocusRenderer.layersPerSide)
+            layersPerSide: interactive ? 4 : RefocusRenderer.layersPerSide,
+            // The recipe stores depth (0 near); the renderer works in disparity (G4).
+            focalOverride: background.focus.depth.focusDepth.map { 1 - Float($0) },
+            // A null target with a subject means "focus on the subject" (§R4).
+            subjectFocus: background.focus.target == nil && matte != nil ? true : nil)
         return RefocusRenderer.render(scene, params)
     }
 

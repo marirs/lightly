@@ -167,17 +167,21 @@ struct FloatImage: Sendable {
         return out
     }
 
-    /// Separable Gaussian (single plane or every channel), clamped edges.
-    func gaussianBlurred(sigma: Float) -> FloatImage {
+    /// Separable Gaussian (single plane or every channel). Default: 3σ support, clamped edges.
+    /// `truncation: 4, reflectBorders: true` is cv2.GaussianBlur(ksize 0) on float images: radius
+    /// round(4σ), BORDER_REFLECT_101 (the reference's Soft glow).
+    func gaussianBlurred(sigma: Float, truncation: Float = 3, reflectBorders: Bool = false) -> FloatImage {
         guard sigma >= 0.3 else { return self }
-        let radius = max(1, Int((3 * sigma).rounded(.up)))
+        let radius = reflectBorders ? max(1, Int((truncation * sigma).rounded(.toNearestOrEven)))
+                                    : max(1, Int((truncation * sigma).rounded(.up)))
         var kernel = (-radius...radius).map { exp(-0.5 * pow(Float($0) / sigma, 2)) }
         let total = kernel.reduce(0, +)
         kernel = kernel.map { $0 / total }
-        return Self.convolve1D(Self.convolve1D(self, kernel, vertical: false), kernel, vertical: true)
+        return Self.convolve1D(Self.convolve1D(self, kernel, vertical: false, reflect: reflectBorders), kernel, vertical: true,
+                               reflect: reflectBorders)
     }
 
-    static func convolve1D(_ image: FloatImage, _ kernel: [Float], vertical: Bool) -> FloatImage {
+    static func convolve1D(_ image: FloatImage, _ kernel: [Float], vertical: Bool, reflect: Bool = false) -> FloatImage {
         var out = FloatImage(width: image.width, height: image.height, channels: image.channels)
         let w = image.width, h = image.height, ch = image.channels, r = kernel.count / 2
         out.data.withUnsafeMutableBufferPointer { dst in
@@ -188,8 +192,8 @@ struct FloatImage: Sendable {
                         for c in 0..<ch {
                             var sum: Float = 0
                             for k in -r...r {
-                                let sx = vertical ? x : min(max(x + k, 0), w - 1)
-                                let sy = vertical ? min(max(y + k, 0), h - 1) : y
+                                let sx = vertical ? x : (reflect ? RefocusRenderer.reflect101(x + k, w) : min(max(x + k, 0), w - 1))
+                                let sy = vertical ? (reflect ? RefocusRenderer.reflect101(y + k, h) : min(max(y + k, 0), h - 1)) : y
                                 sum += kernel[k + r] * src[(sy * w + sx) * ch + c]
                             }
                             base[(y * w + x) * ch + c] = sum
@@ -228,14 +232,15 @@ struct FloatImage: Sendable {
     // MARK: - Pull-push fill (§R6, Kraus & Strengert)
 
     /// Normalised fill of premultiplied colour with coverage: defined everywhere; where coverage
-    /// is 0 the colour comes from coarser levels.
+    /// is 0 the colour comes from coarser levels. Rendering-v2 revision 1 (G7): the pyramid is
+    /// pulled to 1×1 with an exact 2×2 mean (odd last row/column repeated), so a large hole fills
+    /// from its surroundings instead of toward black; the push is half-pixel bilinear.
     static func pullPushFill(premultiplied: FloatImage, coverage: FloatImage) -> FloatImage {
         var levels: [(FloatImage, FloatImage)] = [(premultiplied, coverage)]
-        while min(levels.last!.1.width, levels.last!.1.height) > 4 {
+        while max(levels.last!.1.width, levels.last!.1.height) > 1 {
             let (colour, alpha) = levels.last!
-            let w = (alpha.width + 1) / 2, h = (alpha.height + 1) / 2
-            var downColour = colour.resized(width: w, height: h)
-            var downAlpha = alpha.resized(width: w, height: h)
+            var downColour = colour.downsampled2x()
+            var downAlpha = alpha.downsampled2x()
             for i in 0..<downAlpha.pixelCount {
                 let a = downAlpha.data[i]
                 let boosted = min(a * 4, 1)
@@ -252,7 +257,7 @@ struct FloatImage: Sendable {
         }
         coarseAlpha = FloatImage(width: 1, height: 1, channels: 1)
         for (colour, alpha) in levels.reversed() {
-            let up = filled.resized(width: alpha.width, height: alpha.height)
+            let up = filled.upsampledBilinear(width: alpha.width, height: alpha.height)
             var next = colour
             for i in 0..<alpha.pixelCount {
                 let a = min(max(alpha.data[i], 0), 1)
@@ -261,6 +266,45 @@ struct FloatImage: Sendable {
             filled = next
         }
         return filled
+    }
+
+    /// Exact 2×2 box mean; an odd last row or column is repeated first.
+    func downsampled2x() -> FloatImage {
+        let w2 = (width + 1) / 2, h2 = (height + 1) / 2
+        var out = FloatImage(width: w2, height: h2, channels: channels)
+        for y in 0..<h2 {
+            let y0 = 2 * y, y1 = min(2 * y + 1, height - 1)
+            for x in 0..<w2 {
+                let x0 = 2 * x, x1 = min(2 * x + 1, width - 1)
+                for c in 0..<channels {
+                    out.data[(y * w2 + x) * channels + c] = 0.25 * (data[(y0 * width + x0) * channels + c] + data[(y1 * width + x0) * channels + c]
+                        + data[(y0 * width + x1) * channels + c] + data[(y1 * width + x1) * channels + c])
+                }
+            }
+        }
+        return out
+    }
+
+    /// Half-pixel-centre bilinear resize to any size: src = clamp((dst + 0.5)·in/out − 0.5, 0, in − 1).
+    func upsampledBilinear(width newWidth: Int, height newHeight: Int) -> FloatImage {
+        var out = FloatImage(width: newWidth, height: newHeight, channels: channels)
+        func axis(_ out: Int, _ inCount: Int, _ i: Int) -> (Int, Int, Float) {
+            let src = min(max((Float(i) + 0.5) * Float(inCount) / Float(out) - 0.5, 0), Float(inCount - 1))
+            let lo = Int(src.rounded(.down))
+            return (lo, min(lo + 1, inCount - 1), src - Float(lo))
+        }
+        for y in 0..<newHeight {
+            let (y0, y1, fy) = axis(newHeight, height, y)
+            for x in 0..<newWidth {
+                let (x0, x1, fx) = axis(newWidth, width, x)
+                for c in 0..<channels {
+                    let top = data[(y0 * width + x0) * channels + c] * (1 - fx) + data[(y0 * width + x1) * channels + c] * fx
+                    let bottom = data[(y1 * width + x0) * channels + c] * (1 - fx) + data[(y1 * width + x1) * channels + c] * fx
+                    out.data[(y * newWidth + x) * channels + c] = top * (1 - fy) + bottom * fy
+                }
+            }
+        }
+        return out
     }
 
     /// Keeps `self` where `valid` is 1 and fills elsewhere from the valid pixels.

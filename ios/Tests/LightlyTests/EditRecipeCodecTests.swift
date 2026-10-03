@@ -29,7 +29,7 @@ final class EditRecipeCodecTests: XCTestCase {
 
     func testEveryInvalidFixtureIsRejected() throws {
         let invalid = try Self.recipeFixtures().filter { $0.lastPathComponent.hasPrefix("invalid-") }
-        XCTAssertEqual(invalid.count, 7)
+        XCTAssertEqual(invalid.count, 8)  // revision 1 added invalid-blur-without-depth.json
         for file in invalid {
             XCTAssertThrowsError(try EditRecipeCodec.decode(Data(contentsOf: file)), file.lastPathComponent)
         }

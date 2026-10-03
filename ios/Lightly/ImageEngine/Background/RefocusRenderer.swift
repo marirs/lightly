@@ -5,17 +5,16 @@ import Foundation
 /// `experiments/depth/refocus.py` (§R1–§R8). CPU implementation using the §R7 latitude: each
 /// layer is blurred by gathering at a reduced resolution (radius ≥ 6 px there), then upsampled.
 ///
-/// Contract notes (reported, not resolved here):
-/// - rendering-v2.json gives `maxBlurRadius` 0.03 of the long edge; the refocus specification
-///   gives 0.035 and marks it [contract]. This port follows the specification (0.035), which is
-///   what the reference renders, and records the gap in docs/v1/slice3-ios.md.
-/// - Swirl's half-angle: the prose says 6·r·s/diagonal, the reference code uses 12·r·s/diagonal.
-///   This port follows the reference code.
+/// Rendering-v2 revision 1 (docs/v1/contract-fixes-1.md): R_max 0.06 of the long edge,
+/// h = 0.5·focusDepth/100, CoC scaled by max(d_f, 1 − d_f) − h, the subject plane kept sharp when
+/// the focus is on it, and pull-push to 1×1. DevelopModel refuses a contract whose focus
+/// constants differ from these. Kernels are applied as convolutions with reflect borders, as the
+/// reference does. Swirl's half-angle follows the reference code (12·r·s/diagonal).
 enum RefocusRenderer {
 
     // [contract] constants of §R1–§R4.
-    static let maxCoCFractionOfLongSide: Float = 0.035
-    static let maxFocusHalfWidth: Float = 0.30
+    static let maxCoCFractionOfLongSide: Float = 0.06
+    static let focusHalfWidthPerUnit: Float = 0.5
     static let layersPerSide = 8
     static let subjectDepthCompression: Float = 0.5
     static let replacementMinimumGap: Float = 0.10
@@ -33,6 +32,30 @@ enum RefocusRenderer {
         var styleAmount: Float = 50
         /// Layers per side: 8 for export, 4 allowed for interactive preview (§R7).
         var layersPerSide: Int = RefocusRenderer.layersPerSide
+        /// The stored focal disparity (`1 − depth.focusDepth`); nil resolves the target (§R3, G4).
+        var focalOverride: Float?
+        /// nil: decided by the tap (M(target) ≥ 0.5). true for a null recipe target with a subject.
+        var subjectFocus: Bool?
+    }
+
+    static func halfWidth(focusDepth: Float) -> Float {
+        focusHalfWidthPerUnit * min(max(focusDepth, 0), 100) / 100
+    }
+
+    static func radiusMax(blur: Float, longSide: Int) -> Float {
+        min(max(blur, 0), 100) / 100 * maxCoCFractionOfLongSide * Float(longSide)
+    }
+
+    /// S = max(d_f, 1 − d_f): where Blur reaches R_max (§R4, revision 1).
+    static func defocusRange(focal: Float) -> Float { max(focal, 1 - focal) }
+
+    /// Signed CoC in px (§R4): > 0 in front of the focal band, < 0 behind it.
+    @inline(__always)
+    static func signedCoC(disparity: Float, focal: Float, halfWidth: Float, radiusMax: Float) -> Float {
+        let delta = disparity - focal
+        let span = max(defocusRange(focal: focal) - halfWidth, 1e-6)
+        let magnitude = min(max((abs(delta) - halfWidth) / span, 0), 1)
+        return (delta > 0 ? 1 : delta < 0 ? -1 : 0) * magnitude * radiusMax
     }
 
     /// A plane of §R2: linear colour (not premultiplied), coverage, disparity (larger = nearer).
@@ -57,25 +80,33 @@ enum RefocusRenderer {
     // MARK: - §R2 scene
 
     /// Splits the photo into a background plane and, with a matte, a subject plane.
-    static func buildScene(linear: FloatImage, disparity: FloatImage, matte: FloatImage?) -> Scene {
+    /// `includeColour: false` builds only the disparity planes (the colour planes are `linear`
+    /// unchanged), for resolving the focal plane of a tap.
+    static func buildScene(linear: FloatImage, disparity: FloatImage, matte: FloatImage?, includeColour: Bool = true) -> Scene {
         let w = linear.width, h = linear.height, long = Float(max(w, h))
+        let clippedMatte = matte.map { m -> FloatImage in
+            var clipped = m
+            for i in 0..<clipped.data.count { clipped.data[i] = min(max(clipped.data[i], 0), 1) }
+            return clipped
+        }
         let ones = FloatImage(width: w, height: h, channels: 1, repeating: 1)
-        guard let matte else {
+        guard let matte = clippedMatte else {
             return Scene(background: Plane(colour: linear, alpha: ones, disparity: disparity), subject: nil,
                          subjectMedian: nil, originalBackgroundMedian: median(disparity.data), original: linear)
         }
         // Background colour: exclude a band outside the matte, then fill from what remains.
-        let colourBand = matte.dilated(threshold: 0.02, radius: Int((0.004 * long).rounded()))
-        let backgroundColour = linear.filled(valid: inverted(colourBand))
+        let backgroundColour = includeColour
+            ? linear.filled(valid: inverted(ellipseMorphology(matte, threshold: 0.02, radius: roundHalfEven(0.004 * long), dilate: true)))
+            : linear
         // Background disparity: a wider band, because model depth bleeds across outlines.
-        let depthBand = matte.dilated(threshold: 0.02, radius: Int((0.015 * long).rounded()))
+        let depthBand = ellipseMorphology(matte, threshold: 0.02, radius: roundHalfEven(0.015 * long), dilate: true)
         let backgroundDisparity = disparity.filled(valid: inverted(depthBand))
         var outside: [Float] = []
         for i in 0..<depthBand.pixelCount where depthBand.data[i] < 0.5 { outside.append(disparity.data[i]) }
 
         // Subject disparity: eroded interior, filled outward, compressed toward its median.
-        var interior = matte.eroded(threshold: 0.5, radius: Int((0.01 * long).rounded()))
-        if interior.data.reduce(0, +) < 50 { interior = matte.dilated(threshold: 0.5, radius: 0) }
+        var interior = ellipseMorphology(matte, threshold: 0.5, radius: roundHalfEven(0.01 * long), dilate: false)
+        if interior.data.reduce(0, +) < 50 { interior = ellipseMorphology(matte, threshold: 0.5, radius: 0, dilate: true) }
         var inside: [Float] = []
         for i in 0..<interior.pixelCount where interior.data[i] > 0.5 { inside.append(disparity.data[i]) }
         let subjectMedian = inside.isEmpty ? 1 : median(inside)
@@ -84,8 +115,14 @@ enum RefocusRenderer {
             subjectDisparity.data[i] = subjectMedian + subjectDepthCompression * (subjectDisparity.data[i] - subjectMedian)
         }
 
+        guard includeColour else {
+            return Scene(background: Plane(colour: linear, alpha: ones, disparity: backgroundDisparity),
+                         subject: Plane(colour: linear, alpha: matte, disparity: subjectDisparity),
+                         subjectMedian: subjectMedian,
+                         originalBackgroundMedian: outside.isEmpty ? 0 : median(outside), original: nil)
+        }
         // De-contaminated subject colour (I = M·F + (1−M)·B solved where the matte is reliable).
-        let solid = matte.dilated(threshold: 0.95, radius: 0)
+        let solid = ellipseMorphology(matte, threshold: 0.95, radius: 0, dilate: true)
         let interiorFill = linear.filled(valid: solid)
         var subjectColour = linear
         for i in 0..<linear.pixelCount {
@@ -122,18 +159,39 @@ enum RefocusRenderer {
 
     // MARK: - §R3 focus
 
+    private static func tapPixel(_ scene: Scene, x: Float, y: Float) -> (Int, Int) {
+        let w = scene.background.disparity.width, h = scene.background.disparity.height
+        return (Int((min(max(x, 0), 1) * Float(w - 1)).rounded(.down)), Int((min(max(y, 0), 1) * Float(h - 1)).rounded(.down)))
+    }
+
+    /// True when the tap lands on the subject plane (M(tap) ≥ 0.5), the topmost plane there (§R3).
+    static func focusIsOnSubject(_ scene: Scene, x: Float, y: Float) -> Bool {
+        guard let subject = scene.subject else { return false }
+        let (cx, cy) = tapPixel(scene, x: x, y: y)
+        return subject.alpha.data[cy * subject.alpha.width + cx] >= 0.5
+    }
+
     /// Disparity under the tap: median over a small window of the topmost plane there.
     static func focalDisparity(_ scene: Scene, x: Float, y: Float) -> Float {
         let w = scene.background.disparity.width, h = scene.background.disparity.height
-        let cx = Int((min(max(x, 0), 1) * Float(w - 1)).rounded(.down)), cy = Int((min(max(y, 0), 1) * Float(h - 1)).rounded(.down))
+        let (cx, cy) = tapPixel(scene, x: x, y: y)
         var plane = scene.background
-        if let subject = scene.subject, subject.alpha.data[cy * w + cx] >= 0.5 { plane = subject }
-        let radius = max(2, Int((0.01 * Float(max(w, h))).rounded()))
+        if let subject = scene.subject, focusIsOnSubject(scene, x: x, y: y) { plane = subject }
+        let radius = max(2, roundHalfEven(0.01 * Float(max(w, h))))
         var window: [Float] = []
         for yy in max(0, cy - radius)...min(h - 1, cy + radius) {
             for xx in max(0, cx - radius)...min(w - 1, cx + radius) { window.append(plane.disparity.data[yy * w + xx]) }
         }
         return median(window)
+    }
+
+    /// The focal disparity a tap resolves to (§R3) from the photo's depth and matte, for storing as
+    /// `depth.focusDepth = 1 − d_f` (revision 1, G4). Runs on the analysis-resolution maps.
+    static func focalDisparityAtTap(disparity: FloatImage, matte: FloatImage?, x: Float, y: Float) -> Float {
+        let placeholder = FloatImage(width: disparity.width, height: disparity.height, channels: 3)
+        let resizedMatte = matte?.resized(width: disparity.width, height: disparity.height)
+        let scene = buildScene(linear: placeholder, disparity: disparity, matte: resizedMatte, includeColour: false)
+        return focalDisparity(scene, x: x, y: y)
     }
 
     /// The default focus target: the subject's matte centroid, else the image centre.
@@ -156,13 +214,16 @@ enum RefocusRenderer {
     /// Renders the refocused image; returns linear RGB.
     static func render(_ scene: Scene, _ params: Parameters) -> FloatImage {
         let w = scene.background.colour.width, h = scene.background.colour.height
-        let radiusMax = min(max(params.blur, 0), 100) / 100 * maxCoCFractionOfLongSide * Float(max(w, h))
+        let radiusMax = radiusMax(blur: params.blur, longSide: max(w, h))
         if radiusMax < 0.5 {
             // blur = 0: the photo unchanged, or the subject over its replacement.
             return scene.original ?? composite(scene)
         }
-        let halfWidth = maxFocusHalfWidth * pow(min(max(params.focusDepth, 0), 100) / 100, 1.5)
-        let focal = focalDisparity(scene, x: params.targetX, y: params.targetY)
+        let halfWidth = halfWidth(focusDepth: params.focusDepth)
+        let focal = params.focalOverride ?? focalDisparity(scene, x: params.targetX, y: params.targetY)
+        // Revision 1 (§R4): focusing on the subject keeps the whole subject plane sharp.
+        let subjectInFocus = scene.subject != nil
+            && (params.subjectFocus ?? focusIsOnSubject(scene, x: params.targetX, y: params.targetY))
         let useHighlights = params.style != .soft
         let k = max(1, params.layersPerSide)
         let step = radiusMax / Float(k)
@@ -175,10 +236,10 @@ enum RefocusRenderer {
         for (planeIndex, plane) in planes.enumerated() {
             let colour = useHighlights ? expandHighlights(plane.colour) : plane.colour
             var coc = FloatImage(width: w, height: h, channels: 1)
-            for i in 0..<coc.pixelCount {
-                let delta = plane.disparity.data[i] - focal
-                let magnitude = min(max((abs(delta) - halfWidth) / max(1 - halfWidth, 1e-6), 0), 1)
-                coc.data[i] = (delta > 0 ? 1 : delta < 0 ? -1 : 0) * magnitude * radiusMax
+            if !(planeIndex == 1 && subjectInFocus) {
+                for i in 0..<coc.pixelCount {
+                    coc.data[i] = signedCoC(disparity: plane.disparity.data[i], focal: focal, halfWidth: halfWidth, radiusMax: radiusMax)
+                }
             }
             cocMaps.append(coc)
             for layer in -k...k {
@@ -282,6 +343,7 @@ enum RefocusRenderer {
 
     /// The style's kernel at `radius` px (circumscribed), anti-aliased by 4× supersampling.
     static func kernel(style: EditRecipe.Focus.Style, bokeh: EditRecipe.Focus.Bokeh, radius: Float, styleAmount: Float) -> Kernel {
+        guard radius >= 0.5 else { return Kernel(taps: [(0, 0, 1)]) }
         switch style {
         case .soft:
             let half = Int((radius * 1.5).rounded(.up)), sigma = radius / 2
@@ -292,13 +354,7 @@ enum RefocusRenderer {
             } }
             return normalised(taps)
         case .motion:
-            let theta = (styleAmount * 3.6 - 180) * .pi / 180
-            let half = 1.5 * radius
-            return shapeKernel(extent: 1.5 * radius) { x, y in
-                // y up for the angle convention of the reference.
-                let along = x * cos(theta) + (-y) * sin(theta), across = -x * sin(theta) + (-y) * cos(theta)
-                return abs(along) <= half && abs(across) <= 0.5
-            }
+            return motionKernel(radius: radius, directionDegrees: styleAmount * 3.6 - 180)
         case .swirl:
             let r = radius * (1 - 0.5 * styleAmount / 100)
             return shapeKernel(extent: r) { x, y in x * x + y * y <= r * r }
@@ -321,6 +377,27 @@ enum RefocusRenderer {
         }
     }
 
+    /// Motion: a 1 px wide streak of length 3 × radius at the angle (y up, as the reference).
+    static func motionKernel(radius: Float, directionDegrees: Float) -> Kernel {
+        guard radius >= 0.5 else { return Kernel(taps: [(0, 0, 1)]) }
+        let theta = Double(directionDegrees) * .pi / 180
+        let half = 1.5 * Double(radius)
+        return shapeKernel(extent: 1.5 * radius) { x, y in
+            let xd = Double(x), yd = -Double(y)
+            let along = xd * cos(theta) + yd * sin(theta), across = -xd * sin(theta) + yd * cos(theta)
+            return abs(along) <= half && abs(across) <= 0.5
+        }
+    }
+
+    /// The kernel as a dense size × size matrix, row 0 at the top (golden comparisons).
+    static func matrix(_ kernel: Kernel) -> (size: Int, values: [Float]) {
+        let half = Int(kernel.taps.map { max(abs($0.dx), abs($0.dy)) }.max() ?? 0)
+        let size = 2 * half + 1
+        var values = [Float](repeating: 0, count: size * size)
+        for tap in kernel.taps { values[(Int(tap.dy) + half) * size + Int(tap.dx) + half] = tap.w }
+        return (size, values)
+    }
+
     private static func shapeKernel(extent: Float, inside: (Float, Float) -> Bool) -> Kernel {
         let half = Int(extent.rounded(.up))
         var taps: [(Float, Float, Float)] = []
@@ -333,10 +410,11 @@ enum RefocusRenderer {
                     let py = Float(y) - 0.5 + (Float(sy) + 0.5) / Float(ss)
                     if inside(px, py) { hits += 1 }
                 } }
-                if hits > 0 { taps.append((Float(x), Float(y), Float(hits))) }
+                // Zero-weight taps are kept so the kernel's extent is the reference's grid.
+                taps.append((Float(x), Float(y), Float(hits)))
             }
         }
-        if taps.isEmpty { taps = [(0, 0, 1)] }
+        if taps.allSatisfy({ $0.2 == 0 }) { taps = [(0, 0, 1)] }
         return normalised(taps)
     }
 
@@ -386,8 +464,10 @@ enum RefocusRenderer {
         return n == 0 ? blurred : blurred.resized(width: layer.width, height: layer.height)
     }
 
-    /// Kernel gather with clamped (≈ reflect) borders.
+    /// Convolution with the kernel ('same' size, numpy-reflect borders), as the reference's FFT
+    /// convolution: the tap at kernel offset (dx, dy) reads the input at (x − dx, y − dy).
     static func gather(_ image: FloatImage, _ kernel: Kernel) -> FloatImage {
+        let kernel = Kernel(taps: kernel.taps.filter { $0.w != 0 })
         guard kernel.taps.count > 1 else { return image }
         var out = FloatImage(width: image.width, height: image.height, channels: image.channels)
         let w = image.width, h = image.height, ch = image.channels
@@ -400,7 +480,7 @@ enum RefocusRenderer {
                     for x in 0..<w {
                         for c in 0..<ch { acc[c] = 0 }
                         for (dx, dy, weight) in taps {
-                            let sx = min(max(x + dx, 0), w - 1), sy = min(max(y + dy, 0), h - 1)
+                            let sx = reflect101(x - dx, w), sy = reflect101(y - dy, h)
                             let o = (sy * w + sx) * ch
                             for c in 0..<ch { acc[c] += weight * src[o + c] }
                         }
@@ -428,12 +508,45 @@ enum RefocusRenderer {
                     for angle in angles {
                         let dx = Float(x) - cx, dy = Float(y) - cy
                         let sx = cx + dx * cos(angle) - dy * sin(angle), sy = cy + dx * sin(angle) + dy * cos(angle)
-                        for c in 0..<ch { base[(y * w + x) * ch + c] += image.sample(sx, sy, c) / Float(samples) }
+                        for c in 0..<ch { base[(y * w + x) * ch + c] += sampleReflect(image, sx, sy, c) / Float(samples) }
                     }
                 }
             }
         }
         return out
+    }
+
+    /// numpy 'reflect' (OpenCV BORDER_REFLECT_101): … 2 1 | 0 1 2 … n−1 | n−2 …
+    @inline(__always)
+    static func reflect101(_ i: Int, _ n: Int) -> Int {
+        guard n > 1 else { return 0 }
+        let period = 2 * (n - 1)
+        var k = i % period
+        if k < 0 { k += period }
+        return k < n ? k : period - k
+    }
+
+    /// OpenCV BORDER_REFLECT (edge repeated): … 1 0 | 0 1 2 … n−1 | n−1 n−2 …
+    @inline(__always)
+    static func reflectEdge(_ i: Int, _ n: Int) -> Int {
+        let period = 2 * n
+        var k = i % period
+        if k < 0 { k += period }
+        return k < n ? k : period - 1 - k
+    }
+
+    /// Bilinear sample with BORDER_REFLECT outside the image (cv2.warpAffine in rotationalBlur).
+    @inline(__always)
+    static func sampleReflect(_ image: FloatImage, _ x: Float, _ y: Float, _ c: Int) -> Float {
+        let x0f = x.rounded(.down), y0f = y.rounded(.down)
+        let fx = x - x0f, fy = y - y0f
+        let x0 = Int(x0f), y0 = Int(y0f)
+        let xa = reflectEdge(x0, image.width), xb = reflectEdge(x0 + 1, image.width)
+        let ya = reflectEdge(y0, image.height), yb = reflectEdge(y0 + 1, image.height)
+        let w = image.width, ch = image.channels
+        let top = image.data[(ya * w + xa) * ch + c] * (1 - fx) + image.data[(ya * w + xb) * ch + c] * fx
+        let bottom = image.data[(yb * w + xa) * ch + c] * (1 - fx) + image.data[(yb * w + xb) * ch + c] * fx
+        return top * (1 - fy) + bottom * fy
     }
 
     // MARK: - §R5.2 glow
@@ -474,16 +587,56 @@ enum RefocusRenderer {
         while sigma / Float(1 << (n + 1)) >= 3 { n += 1 }
         let scale = 1 << n
         let small = n == 0 ? image : image.resized(width: max(1, image.width / scale), height: max(1, image.height / scale))
-        let blurred = small.gaussianBlurred(sigma: sigma / Float(scale))
+        let blurred = small.gaussianBlurred(sigma: sigma / Float(scale), truncation: 4, reflectBorders: true)
         return n == 0 ? blurred : blurred.resized(width: image.width, height: image.height)
     }
 
     // MARK: - Helpers
 
+    /// numpy median: the mean of the two middle values for an even count.
     static func median(_ values: [Float]) -> Float {
         guard !values.isEmpty else { return 0 }
         let sorted = values.sorted()
-        return sorted[sorted.count / 2]
+        let mid = sorted.count / 2
+        return sorted.count % 2 == 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+    }
+
+    /// Python's round(): halves to even.
+    static func roundHalfEven(_ value: Float) -> Int { Int(value.rounded(.toNearestOrEven)) }
+
+    /// Binary dilation or erosion of `plane > threshold` by OpenCV's elliptic structuring element of
+    /// size 2r+1 (cv2.getStructuringElement(MORPH_ELLIPSE)); pixels outside the image are ignored.
+    static func ellipseMorphology(_ plane: FloatImage, threshold: Float, radius: Int, dilate: Bool) -> FloatImage {
+        let w = plane.width, h = plane.height
+        var binary = FloatImage(width: w, height: h, channels: 1)
+        for i in 0..<binary.pixelCount { binary.data[i] = plane.data[i * plane.channels] > threshold ? 1 : 0 }
+        guard radius > 0 else { return binary }
+        // Row extents of the element: cv2 uses dx = round(c·sqrt((r² − dy²)/r²)) with c = r.
+        let extents: [Int] = (-radius...radius).map { dy in
+            Int((Double(radius) * ((Double(radius * radius - dy * dy)) / Double(radius * radius)).squareRoot()).rounded(.toNearestOrEven))
+        }
+        var out = FloatImage(width: w, height: h, channels: 1)
+        let source = binary
+        out.data.withUnsafeMutableBufferPointer { dst in
+            let base = dst.baseAddress!
+            DispatchQueue.concurrentPerform(iterations: h) { y in
+                for x in 0..<w {
+                    var value: Float = dilate ? 0 : 1
+                    rows: for (index, dy) in (-radius...radius).enumerated() {
+                        let yy = y + dy
+                        guard yy >= 0, yy < h else { continue }
+                        let dx = extents[index]
+                        for xx in max(0, x - dx)...min(w - 1, x + dx) {
+                            let v = source.data[yy * w + xx]
+                            if dilate, v > 0 { value = 1; break rows }
+                            if !dilate, v == 0 { value = 0; break rows }
+                        }
+                    }
+                    base[y * w + x] = value
+                }
+            }
+        }
+        return out
     }
 
     static func inverted(_ mask: FloatImage) -> FloatImage {

@@ -236,6 +236,11 @@ enum EditRecipeCodec {
             blur: try f.number("blur", 0...100), depthOfField: try f.number("depthOfField", 0...100),
             style: try f.enumeration("style"), bokeh: try f.enumeration("bokeh"),
             styleAmount: try f.number("styleAmount", 0...100), target: target, depth: depth)
+        // Rendering-v2 revision 1 (contract fixes 1, G3): `subject-matte` means "no depth", and a
+        // blur must never be built from the matte alone (§R8).
+        guard !(focus.blur > 0 && source == .subjectMatte) else {
+            throw f.error("blur", "must be 0 when depth.source is subject-matte (no depth)")
+        }
         return EditRecipe.Background(subject: EditRecipe.Subject(matte: try subject.optionalObject("matte").map(readDerived),
                                                                  refinements: refinements),
                                      replacement: replacement, focus: focus)

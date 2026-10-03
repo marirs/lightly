@@ -121,6 +121,8 @@ final class EditorSession {
     /// Model results for Background and Portrait, at the preview resolution.
     @ObservationIgnored private var sceneCache = SceneCache()
     @ObservationIgnored private var subjectTask: Task<Void, Never>?
+    /// Resolving a tap's focal plane (setFocusTarget).
+    @ObservationIgnored private var focusTask: Task<Void, Never>?
     @ObservationIgnored private var isClosed = false
     @ObservationIgnored private var startTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -411,8 +413,32 @@ final class EditorSession {
     }
 
     /// Tap the photo to set focus (source coordinates).
+    /// Tap the photo to set focus (source coordinates). The focal plane the tap resolves to is
+    /// stored as `depth.focusDepth = 1 − d_f` (rendering-v2 revision 1, G4), so preview and export
+    /// render the same plane; it is resolved off the main actor, then committed as one step.
     func setFocusTarget(x: Double, y: Double) {
-        commitBackground { $0.focus.target = .init(x: min(max(x, 0), 1), y: min(max(y, 0), 1)) }
+        let point = EditRecipe.Point(x: min(max(x, 0), 1), y: min(max(y, 0), 1))
+        guard let disparity = sceneCache.disparity?.disparity else {
+            commitBackground { $0.focus.target = point }
+            return
+        }
+        var matte = sceneCache.subject?.matte
+        if var m = matte {
+            BackgroundStage.applyRefinements(recipe.tools.background.subject.refinements, to: &m)
+            matte = m
+        }
+        let resolvedMatte = matte
+        focusTask?.cancel()
+        focusTask = Task { [weak self] in
+            let focal = await Task.detached(priority: .userInitiated) {
+                RefocusRenderer.focalDisparityAtTap(disparity: disparity, matte: resolvedMatte, x: Float(point.x), y: Float(point.y))
+            }.value
+            guard let self, !Task.isCancelled, !self.isClosed else { return }
+            self.commitBackground {
+                $0.focus.target = point
+                $0.focus.depth.focusDepth = Double(min(max(1 - focal, 0), 1))
+            }
+        }
     }
 
     /// Refine edges: one brush stroke, one undo step.
@@ -826,6 +852,7 @@ final class EditorSession {
     func debugAwaitQuiescence() async {
         await startTask?.value
         await subjectTask?.value
+        await focusTask?.value
         await saveTask?.value
         await settleRendering()
     }

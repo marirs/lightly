@@ -43,7 +43,14 @@ struct DevelopModel: Sendable, Equatable {
         case missingContract
         case unreadable(String)
         case constantsDigestMismatch(published: String, computed: String)
+        /// The bundled contract is not the revision this build was ported to.
+        case unsupportedRevision(found: Int64?)
+        /// background.focus constants differ from the ones RefocusRenderer implements.
+        case focusConstantsMismatch(String)
     }
+
+    /// Rendering contract v2 revision this build implements (contract fixes 1).
+    static let requiredContractRevision: Int64 = 1
 
     /// The contract bundled with the app (`rendering-v2.json`, copied verbatim by project.yml).
     static func loadBundled(from bundle: Bundle = .main) throws -> DevelopModel {
@@ -55,6 +62,7 @@ struct DevelopModel: Sendable, Equatable {
         let contract: CanonicalJSON
         do { contract = try CanonicalJSON.parse(contractData) } catch { throw LoadError.unreadable("\(error)") }
         guard let model = contract["developModel"] else { throw LoadError.unreadable("no developModel") }
+        try checkRevisionAndFocusConstants(contract)
         return try DevelopModel(json: model)
     }
 
@@ -124,5 +132,28 @@ struct DevelopModel: Sendable, Equatable {
         sharpenEdgeScale = try scalar(provisional, "sharpenEdgeScale")
         noiseLumaRadiusPx = try scalar(provisional, "nrLumaRadiusPx"); noiseDetailScale = try scalar(provisional, "nrDetailScale")
         noiseColourRadiusPx = try scalar(provisional, "nrColourRadiusPx")
+    }
+}
+
+extension DevelopModel {
+    /// Revision 1 moved `maxBlurRadius` from the focus operator's params to its constants and
+    /// changed the focus constants; RefocusRenderer hard-codes them, so a contract that disagrees
+    /// is refused rather than rendered with stale numbers.
+    static func checkRevisionAndFocusConstants(_ contract: CanonicalJSON) throws {
+        let revision = contract["revision"]?.integerLiteralValue
+        guard revision == requiredContractRevision else { throw LoadError.unsupportedRevision(found: revision) }
+        guard let stage = contract["stages"]?.arrayValue?.first(where: { $0["id"]?.stringValue == "background.focus" }),
+              let constants = stage["operators"]?.arrayValue?.first?["constants"] else {
+            throw LoadError.focusConstantsMismatch("background.focus constants missing")
+        }
+        let expected: [(String, Double)] = [
+            ("maxBlurRadius", Double(RefocusRenderer.maxCoCFractionOfLongSide)),
+            ("focusHalfWidthPerUnit", Double(RefocusRenderer.focusHalfWidthPerUnit))
+        ]
+        for (key, value) in expected {
+            guard let found = constants[key]?["value"]?.doubleValue, abs(found - value) < 1e-6 else {
+                throw LoadError.focusConstantsMismatch(key)
+            }
+        }
     }
 }
