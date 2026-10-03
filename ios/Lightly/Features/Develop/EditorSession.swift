@@ -123,6 +123,8 @@ final class EditorSession {
     @ObservationIgnored private var subjectTask: Task<Void, Never>?
     /// Resolving a tap's focal plane (setFocusTarget).
     @ObservationIgnored private var focusTask: Task<Void, Never>?
+    /// Person segmentation for the hair operators (ensurePersonMatte).
+    @ObservationIgnored private var personMatteTask: Task<Void, Never>?
     @ObservationIgnored private var isClosed = false
     @ObservationIgnored private var startTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -495,7 +497,10 @@ final class EditorSession {
     private func ensurePersonMatte() {
         guard sceneCache.personMatte == nil, let sceneAnalyser, subjectState != .separating else { return }
         let image = originalPreview
-        Task { [weak self] in
+        guard personMatteTask == nil else { return }
+        // Tracked so a closed session's segmentation is awaited (capture sessions) and not left
+        // running on the CPU behind the next screen.
+        personMatteTask = Task { [weak self] in
             let matte = await sceneAnalyser.personMatte(for: image)
             guard let self, !self.isClosed, self.sceneCache.personMatte == nil else { return }
             self.sceneCache.personMatte = matte
@@ -841,6 +846,12 @@ final class EditorSession {
         renderCommitted()
     }
 
+    /// Capture sessions: waits for analysis that will re-render the photo when it lands (person
+    /// segmentation for the hair operators), so the captured frame is the final one.
+    func debugAwaitPendingAnalysis() async {
+        await personMatteTask?.value
+    }
+
     /// Waits until `condition` holds (capture sessions; polled on the main actor).
     func debugWait(until condition: () -> Bool) async {
         while !condition(), !Task.isCancelled { try? await Task.sleep(for: .milliseconds(30)) }
@@ -853,6 +864,7 @@ final class EditorSession {
         await startTask?.value
         await subjectTask?.value
         await focusTask?.value
+        await personMatteTask?.value
         await saveTask?.value
         await settleRendering()
     }
