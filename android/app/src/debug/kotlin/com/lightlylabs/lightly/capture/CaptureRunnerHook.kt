@@ -12,6 +12,7 @@ import android.view.Choreographer
 import android.view.FrameMetrics
 import android.view.Window
 import androidx.compose.runtime.Recomposer
+import androidx.compose.ui.platform.findViewTreeCompositionContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -50,7 +51,7 @@ import kotlin.coroutines.resume
  *     the editor idle ([EditorViewModel.debugWorkIdle]: no load, prefetch or separation in flight and
  *     the latest requested preview published), Compose idle (no recomposer with pending work, which
  *     includes animations waiting for frames) on two consecutive vsyncs, and then one frame forced and
- *     confirmed drawn by FrameMetrics (its intended vsync after the idle point);
+ *     confirmed drawn by FrameMetrics (its vsync at or after the idle point);
  *  4. logs `LightlyCapture: ready seq=<n> …` (or `failed seq=<n> …`), which the host waits for with
  *     `adb logcat -m 1 -e` before taking the screenshot.
  *
@@ -66,6 +67,9 @@ internal object CaptureRunnerHook {
     const val ACTION = "com.lightlylabs.lightly.debug.CAPTURE"
     private const val TAG = "LightlyCapture"
     private const val SCREEN_TIMEOUT_MILLIS = 120_000L
+
+    /** Last FrameMetrics seen while waiting for the forced frame; logged on a timeout. */
+    @Volatile private var lastFrameMetrics = "none"
 
     const val EXTRA_SIGNAL = "lightly.capture.signal"
 
@@ -111,12 +115,12 @@ internal object CaptureRunnerHook {
                 withTimeout(SCREEN_TIMEOUT_MILLIS) {
                     launchScenario?.join()
                     val editor = activity.activeEditorForCapture() ?: error("no editor")
-                    val polls = awaitIdle(editor)
+                    val polls = awaitIdle(activity, editor)
                     val drawnVsync = awaitDrawnFrame(activity.window, Handler(thread.looper))
                     Log.i(TAG, "ready seq=$seq screen=$label ms=${SystemClock.elapsedRealtime() - started} idlePolls=$polls vsync=$drawnVsync")
                 }
             } catch (timeout: TimeoutCancellationException) {
-                Log.i(TAG, "failed seq=$seq screen=$label reason=timeout")
+                Log.i(TAG, "failed seq=$seq screen=$label reason=timeout composeIdle=${composeIdle(activity)} frame=$lastFrameMetrics")
             }
         }
     }
@@ -130,12 +134,12 @@ internal object CaptureRunnerHook {
                 // A launch passes favourites (possibly empty) every time; mirror that so none leak between screens.
                 val normalised = request.copy(favourites = request.favourites ?: "")
                 DebugLaunchOptions.apply(normalised, viewModels.shell, preferences, viewModels.editor)?.join()
-                val polls = awaitIdle(viewModels.editor)
+                val polls = awaitIdle(activity, viewModels.editor)
                 val drawnVsync = awaitDrawnFrame(activity.window, metricsHandler)
                 Log.i(TAG, "ready seq=$seq screen=$label ms=${SystemClock.elapsedRealtime() - started} idlePolls=$polls vsync=$drawnVsync")
             }
         } catch (timeout: TimeoutCancellationException) {
-            Log.i(TAG, "failed seq=$seq screen=$label reason=timeout editorIdle=${activity.isEditorIdleForCapture()} composeIdle=${composeIdle()}")
+            Log.i(TAG, "failed seq=$seq screen=$label reason=timeout editorIdle=${activity.isEditorIdleForCapture()} composeIdle=${composeIdle(activity)} frame=$lastFrameMetrics")
         } catch (error: Exception) {
             Log.i(TAG, "failed seq=$seq screen=$label reason=${error.javaClass.simpleName}: ${error.message}")
         }
@@ -144,24 +148,28 @@ internal object CaptureRunnerHook {
     private fun MainActivity.isEditorIdleForCapture(): Boolean = runCatching { activeEditorForCapture()?.debugWorkIdle() }.getOrNull() ?: false
 
     /** Two consecutive vsyncs with the editor and Compose both idle. Returns the vsyncs it took. */
-    private suspend fun awaitIdle(editor: EditorViewModel): Int {
+    private suspend fun awaitIdle(activity: MainActivity, editor: EditorViewModel): Int {
         var stable = 0
         var polls = 0
         while (stable < 2) {
             awaitVsync()
             polls++
-            stable = if (editor.debugWorkIdle() && composeIdle()) stable + 1 else 0
+            stable = if (editor.debugWorkIdle() && composeIdle(activity)) stable + 1 else 0
         }
         return polls
     }
 
     /**
-     * No running recomposer has pending work (invalidations or frame awaiters, i.e. running animations).
-     * An empty set would mean Compose is not tracked at all; treat that as not idle so it fails loudly.
+     * The window's recomposer has no pending work (invalidations or frame awaiters, i.e. running
+     * animations). No recomposer found counts as not idle, so a broken lookup fails loudly.
      */
-    private fun composeIdle(): Boolean {
-        val recomposers = Recomposer.runningRecomposers.value
-        return recomposers.isNotEmpty() && recomposers.none { it.hasPendingWork }
+    private fun composeIdle(activity: MainActivity): Boolean {
+        // Only this Activity's window recomposer: Recomposer.runningRecomposers is process-wide and,
+        // during a CLEAR_TASK launch, still holds the previous (stopped, never-idle) Activity's one,
+        // which made dev-original time out in launch-with-signal captures.
+        val content = activity.findViewById<android.view.ViewGroup>(android.R.id.content)?.getChildAt(0) ?: return false
+        val recomposer = content.findViewTreeCompositionContext() as? Recomposer ?: return false
+        return !recomposer.hasPendingWork
     }
 
     private suspend fun awaitVsync(): Long = suspendCancellableCoroutine { continuation ->
@@ -169,7 +177,7 @@ internal object CaptureRunnerHook {
     }
 
     /**
-     * Forces one frame and waits until FrameMetrics reports a frame intended for a vsync at or after the
+     * Forces one frame and waits until FrameMetrics reports a frame drawn for a vsync at or after the
      * force point, i.e. the idle content has been drawn and handed to the compositor.
      */
     private suspend fun awaitDrawnFrame(window: Window, handler: Handler): Long {
@@ -177,10 +185,15 @@ internal object CaptureRunnerHook {
         return suspendCancellableCoroutine { continuation ->
             val listener = object : Window.OnFrameMetricsAvailableListener {
                 override fun onFrameMetricsAvailable(source: Window, metrics: FrameMetrics, dropCount: Int) {
-                    val intended = metrics.getMetric(FrameMetrics.INTENDED_VSYNC_TIMESTAMP)
-                    if (intended < forcedAt || !continuation.isActive) return
+                    // VSYNC_TIMESTAMP is the frame time Choreographer used (the same clock as forcedAt). When
+                    // frames are skipped, Choreographer moves its frame time forward but
+                    // INTENDED_VSYNC_TIMESTAMP keeps the original, earlier vsync; comparing that made the
+                    // forced frame look old, so the first Fold-inner screen never reported "ready".
+                    val used = metrics.getMetric(FrameMetrics.VSYNC_TIMESTAMP)
+                    lastFrameMetrics = "forcedAt=$forcedAt vsync=$used intended=${metrics.getMetric(FrameMetrics.INTENDED_VSYNC_TIMESTAMP)}"
+                    if (used < forcedAt || !continuation.isActive) return
                     source.decorView.post { source.removeOnFrameMetricsAvailableListener(this) }
-                    continuation.resume(intended)
+                    continuation.resume(used)
                 }
             }
             window.addOnFrameMetricsAvailableListener(listener, handler)

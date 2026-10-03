@@ -143,10 +143,18 @@ Runner against launch + signal, pixel by pixel:
   - one pixel of the gesture-handle edge (Δ 1, region sampling).
 - Demo mode pins the clock and battery, but not the emulator's modem signal.
 
-Not explained yet, and so pending:
-- dev-original timed out in launch + signal mode (120 s).
-- The first Fold-inner runner screen (`loading`) timed out even though both the editor and Compose reported idle, so the forced frame was never reported.
-- One likely cause of the first: `Recomposer.runningRecomposers` is process-wide and still includes the previous Activity during a CLEAR_TASK launch. Using the window's own recomposer would avoid it. This is not changed, because capture-tooling work stopped at the owner's instruction.
+**Decision (coordinator, applying the owner's rule):** the runner is the Android capture path because it showed a correctness benefit. The fixed-wait path is retired (`capture-batch.sh` refuses it). Launch-with-signal remains only for lifecycle and launch checks.
+
+The two timeouts were runner defects. Both are fixed in the commit after fc94c6b and each was shown with one targeted rerun (APK `6894a15c…`):
+- **(a) dev-original timed out in launch-with-signal.**
+  - Cause: the Compose idle check used the process-wide `Recomposer.runningRecomposers`. During a CLEAR_TASK launch that still includes the previous Activity's recomposer, which never goes idle.
+  - Fix: the check now uses only the current Activity's own window recomposer.
+  - Rerun: dev-dragging → dev-original, launch-with-signal on Pixel 9 Pro. Both screens became ready (dev-original in 1.3 s). The app area is identical to the runner captures (0 px); the status-bar icons differ, as before.
+- **(b) The first Fold-inner runner screen (`loading`) never reported its forced frame.**
+  - Cause: the check compared FrameMetrics `INTENDED_VSYNC_TIMESTAMP` with Choreographer's frame time. When frames are skipped, Choreographer moves its frame time forward but the intended vsync keeps the earlier value, so the forced frame looked older than the force point.
+  - Fix: compare `VSYNC_TIMESTAMP`, which is on the same clock as Choreographer's frame time. The last FrameMetrics seen is now logged on any timeout.
+  - Rerun: Fold-inner runner, `loading` only. Ready in 5.8 s.
+  - Caveat: this cause is inferred from the code path. The first run did not log frame data, and the failure has not recurred.
 
 ### Required cells (all pending)
 

@@ -10,10 +10,11 @@
 # --mode runner  persistent session: one app process; the debug-only capture runner
 #                (app/src/debug/.../CaptureRunnerHook.kt) resets all per-screen state, applies the screen
 #                and logs "ready" once the render is complete; no sleeps between screens.
+# --mode runner  the Android capture path (adopted): persistent session, see above.
 # --mode launch  a fresh NEW_TASK|CLEAR_TASK launch per screen, waiting for the same ready signal
-#                (--ei lightly.capture.signal): the baseline the runner is validated against.
-# --mode launch-fixed  the earlier per-launch path with fixed waits (25 s first, then 5/10 s), kept only
-#                to document why it is not valid evidence (it captured previews before they rendered).
+#                (--ei lightly.capture.signal). Only for lifecycle and launch checks.
+# The earlier fixed-wait per-launch path is retired: it captured previews before they had rendered
+# (docs/v1/slice2-android.md, "Comparison matrix").
 # --posture      as-is | fold | unfold | rot0 | rot1 (user rotation with auto-rotate off)
 # --display      screencap display id (two-display AVDs: the Fold)
 #
@@ -39,6 +40,7 @@ while [ $# -gt 0 ]; do
 done
 SCREENS=${*:-$DEFAULT_SCREENS}
 for v in AVD PORT DEV ORIENT THEME TEXT MODE OUT; do [ -n "${!v}" ] || { echo "missing --$(echo $v | tr A-Z a-z)" >&2; exit 64; }; done
+case $MODE in runner|launch) ;; *) echo "--mode must be runner or launch (the fixed-wait path is retired)" >&2; exit 64;; esac
 [ -f "$APK.build-info.json" ] || { echo "no build-info.json next to the APK: build with build-apk.sh" >&2; exit 65; }
 SERIAL=emulator-$PORT
 ADB="$SDK/platform-tools/adb -s $SERIAL"
@@ -140,16 +142,7 @@ elif [ "$MODE" = launch ]; then
     esac
   done
 else
-  WARM=
-  for S in $SCREENS; do
-    F="$OUT/${S}__${DEV}__${ORIENT}__${THEME}__${TEXT}.png"
-    $ADB shell am start -W -f 0x10008000 -n $PKG/.MainActivity --es lightly.debug.appearance $THEME --es lightly.debug.favourites "'$(favs_for $S)'" \
-      --es lightly.debug.photo $FILES/$(photo_for $S).jpg --es lightly.debug.editor $S --es lightly.debug.people $(people_for $S) >/dev/null 2>&1
-    # The per-launch path's fixed waits, unchanged (this mode exists only to validate the runner).
-    if [ -z "$WARM" ]; then sleep 25; WARM=1; fi
-    case $S in loading|developing|model-unavailable|develop-failed|dev-original|bg-separating) sleep 5;; *) sleep 10;; esac
-    screencap "$F"; sidecar "$F" "$S" "launch: fixed waits"; echo "$F"
-  done
+  echo "unknown --mode $MODE (runner | launch)" >&2; exit 64
 fi
 echo "screens $(( $(date +%s) - screens_started ))s for $(echo $SCREENS | wc -w | tr -d ' ') screens, failures=$failures"
 $ADB shell settings put system font_scale 1.0
