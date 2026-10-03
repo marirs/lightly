@@ -16,6 +16,10 @@ robolectric = "4.16.1"
 androidxTestCore = "1.7.0"
 # WindowManager: FoldingFeature (hinge / posture) for the editor layout.
 window = "1.5.0"
+# Standalone LiteRT runtime (Apache-2.0; not Play-services TFLite), Interpreter API, CPU/XNNPACK: the
+# Depth Anything V2 Small depth model. 1.4.2, not 2.x: 2.x adds ai-delivery (AiPack downloads), Guava
+# and foreground-service permissions. Approved by the coordinator for this integration only.
+litert = "1.4.2"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -28,6 +32,7 @@ compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 window = { module = "androidx.window:window", version.ref = "window" }
+litert = { module = "com.google.ai.edge.litert:litert", version.ref = "litert" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
 lifecycle-viewmodel-savedstate = { module = "androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "lifecycle" }

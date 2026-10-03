@@ -24,6 +24,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
@@ -73,31 +75,50 @@ internal object CaptureRunnerHook {
 
     const val EXTRA_SIGNAL = "lightly.capture.signal"
 
+    /**
+     * The process-wide runner, created by the first runner launch. An Activity recreated by the system
+     * (e.g. a theme overlay applied after boot) binds again; the screen in progress is restarted on the
+     * new Activity from a full reset, and its ready line says so (`restarts=`).
+     */
+    private class Runner(val preferences: PreferencesStore) {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val requests = Channel<Pair<Int, DebugLaunchOptions.Request>>(Channel.UNLIMITED)
+        val metricsHandler = Handler(HandlerThread("lightly-capture-metrics").apply { start() }.looper)
+        var activity: MainActivity? = null
+        var screenJob: kotlinx.coroutines.Job? = null
+
+        fun bind(next: MainActivity) {
+            activity = next
+            next.lifecycle.addObserver(object : DefaultLifecycleObserver {
+                override fun onDestroy(owner: LifecycleOwner) {
+                    if (activity === next) activity = null
+                    screenJob?.cancel()
+                }
+            })
+        }
+    }
+
+    private var runner: Runner? = null
+
     fun attach(activity: MainActivity, intent: Intent?, preferences: PreferencesStore, launchScenario: kotlinx.coroutines.Job?) {
         if (intent == null) return
-        if (intent.hasExtra(EXTRA_SIGNAL)) signalLaunch(activity, intent.getIntExtra(EXTRA_SIGNAL, -1), intent.getStringExtra("lightly.debug.editor") ?: "?", launchScenario)
+        if (launchScenario != null || intent.hasExtra(EXTRA_SIGNAL)) {
+            if (intent.hasExtra(EXTRA_SIGNAL)) signalLaunch(activity, intent.getIntExtra(EXTRA_SIGNAL, -1), intent.getStringExtra("lightly.debug.editor") ?: "?", launchScenario)
+        }
         if (!intent.getBooleanExtra(EXTRA_RUNNER, false)) return
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-        // One request at a time, in arrival order: the host waits for each "ready" anyway.
-        val requests = Channel<Pair<Int, DebugLaunchOptions.Request>>(Channel.UNLIMITED)
-        val metricsThread = HandlerThread("lightly-capture-metrics").apply { start() }
+        runner?.let { existing -> existing.bind(activity); Log.i(TAG, "rebound after recreation"); return }
+        val created = Runner(preferences).also { runner = it; it.bind(activity) }
+        // On the application context, so a recreated Activity does not drop requests. Exported so
+        // `adb shell am broadcast` reaches it; it exists only in debug builds and only in a process
+        // launched with the runner extra.
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, received: Intent) {
-                requests.trySend(received.getIntExtra("seq", -1) to DebugLaunchOptions.Request.from(received))
+                created.requests.trySend(received.getIntExtra("seq", -1) to DebugLaunchOptions.Request.from(received))
             }
         }
-        // Exported so `adb shell am broadcast` reaches it; it exists only in debug builds and only in a
-        // process launched with the runner extra.
-        ContextCompat.registerReceiver(activity, receiver, IntentFilter(ACTION), ContextCompat.RECEIVER_EXPORTED)
-        activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onDestroy(owner: LifecycleOwner) {
-                activity.unregisterReceiver(receiver)
-                scope.cancel()
-                metricsThread.quitSafely()
-            }
-        })
-        scope.launch {
-            for ((seq, request) in requests) capture(activity, preferences, seq, request, Handler(metricsThread.looper))
+        ContextCompat.registerReceiver(activity.applicationContext, receiver, IntentFilter(ACTION), ContextCompat.RECEIVER_EXPORTED)
+        created.scope.launch {
+            for ((seq, request) in created.requests) capture(created, seq, request)
         }
         Log.i(TAG, "attached pid=${android.os.Process.myPid()}")
     }
@@ -125,24 +146,53 @@ internal object CaptureRunnerHook {
         }
     }
 
-    private suspend fun capture(activity: MainActivity, preferences: PreferencesStore, seq: Int, request: DebugLaunchOptions.Request, metricsHandler: Handler) {
+    private suspend fun capture(runner: Runner, seq: Int, request: DebugLaunchOptions.Request) {
         val started = SystemClock.elapsedRealtime()
         val label = request.editor ?: request.screen ?: "?"
-        try {
-            withTimeout(SCREEN_TIMEOUT_MILLIS) {
-                val viewModels = activity.resetForCapture()
-                // A launch passes favourites (possibly empty) every time; mirror that so none leak between screens.
-                val normalised = request.copy(favourites = request.favourites ?: "")
-                DebugLaunchOptions.apply(normalised, viewModels.shell, preferences, viewModels.editor)?.join()
-                val polls = awaitIdle(activity, viewModels.editor)
-                val drawnVsync = awaitDrawnFrame(activity.window, metricsHandler)
-                Log.i(TAG, "ready seq=$seq screen=$label ms=${SystemClock.elapsedRealtime() - started} idlePolls=$polls vsync=$drawnVsync")
+        var restarts = 0
+        while (true) {
+            val activity = awaitBoundActivity(runner)
+            val attempt = runner.scope.async { captureOnce(activity, runner, request) }
+            runner.screenJob = attempt
+            val outcome = try {
+                attempt.await()
+            } catch (recreated: kotlinx.coroutines.CancellationException) {
+                if (!runner.scope.isActive) throw recreated
+                restarts++
+                if (restarts <= 2) continue
+                "failed reason=activity recreated $restarts times"
             }
-        } catch (timeout: TimeoutCancellationException) {
-            Log.i(TAG, "failed seq=$seq screen=$label reason=timeout editorIdle=${activity.isEditorIdleForCapture()} composeIdle=${composeIdle(activity)} frame=$lastFrameMetrics")
-        } catch (error: Exception) {
-            Log.i(TAG, "failed seq=$seq screen=$label reason=${error.javaClass.simpleName}: ${error.message}")
+            val line = outcome.replaceFirst(" ", " seq=$seq screen=$label ")
+            Log.i(TAG, "$line ms=${SystemClock.elapsedRealtime() - started} restarts=$restarts")
+            return
         }
+    }
+
+    /** The Activity the runner is bound to (after a recreation, the new one once it is created). */
+    private suspend fun awaitBoundActivity(runner: Runner): MainActivity {
+        while (true) {
+            runner.activity?.let { return it }
+            awaitVsync()
+        }
+    }
+
+    /** One attempt from a full reset; returns "ready …" or "failed …" (without seq/screen). */
+    private suspend fun captureOnce(activity: MainActivity, runner: Runner, request: DebugLaunchOptions.Request): String = try {
+        withTimeout(SCREEN_TIMEOUT_MILLIS) {
+            val viewModels = activity.resetForCapture()
+            // A launch passes favourites (possibly empty) every time; mirror that so none leak between screens.
+            val normalised = request.copy(favourites = request.favourites ?: "")
+            DebugLaunchOptions.apply(normalised, viewModels.shell, runner.preferences, viewModels.editor)?.join()
+            val polls = awaitIdle(activity, viewModels.editor)
+            val drawnVsync = awaitDrawnFrame(activity.window, runner.metricsHandler)
+            "ready idlePolls=$polls vsync=$drawnVsync"
+        }
+    } catch (timeout: TimeoutCancellationException) {
+        "failed reason=timeout editorIdle=${activity.isEditorIdleForCapture()} composeIdle=${composeIdle(activity)} frame=$lastFrameMetrics"
+    } catch (error: kotlinx.coroutines.CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        "failed reason=${error.javaClass.simpleName}: ${error.message}"
     }
 
     private fun MainActivity.isEditorIdleForCapture(): Boolean = runCatching { activeEditorForCapture()?.debugWorkIdle() }.getOrNull() ?: false

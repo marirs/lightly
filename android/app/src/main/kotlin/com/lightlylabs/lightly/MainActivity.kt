@@ -108,7 +108,8 @@ class MainActivity : ComponentActivity() {
         val launchScenario = if (savedInstanceState == null) DebugLaunchOptions.apply(intent, shell, graph.preferences, editor) else null
         // Debug builds only (the release source set's hook does nothing): the persistent capture runner,
         // and the same render-complete signal for a per-launch capture.
-        if (BuildConfig.DEBUG && savedInstanceState == null) com.lightlylabs.lightly.capture.CaptureRunnerHook.attach(this, intent, graph.preferences, launchScenario)
+        // Called on recreation too, so a running capture runner binds to the new Activity.
+        if (BuildConfig.DEBUG) com.lightlylabs.lightly.capture.CaptureRunnerHook.attach(this, intent, graph.preferences, launchScenario)
 
         setContent {
           val viewModels = active ?: return@setContent
@@ -235,6 +236,12 @@ class MainActivity : ComponentActivity() {
         val next = ActiveViewModels((active?.epoch ?: 0) + 1, shell, editor)
         active = next
         return next
+    }
+
+    override fun onDestroy() {
+        // The capture runner's per-screen view models belong to this Activity instance.
+        captureStore.clear()
+        super.onDestroy()
     }
 
     /** Capture runner diagnostics (debug builds only): the editor of the current epoch. */

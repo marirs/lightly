@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 
 /** The session's lifecycle (prototype screens loading → editor; recovery states from slice 1). */
@@ -289,9 +290,15 @@ class EditorViewModel(
             // Capture of the approved "Finding the subject…" state (debug builds only): stays separating.
             if (debugHoldSeparation) return@launch
             val finished = backgroundSession.analyse(current.loaded)
+            // The analysis is long CPU work with no suspension point: if the editor was cleared
+            // meanwhile (left, or recreated), its preview scheduler is closed; stop here.
+            ensureActive()
             if (!isCurrent(current.generation)) return@launch
             state.update { it.copy(separation = finished) }
             state.value.session?.let { requestPreview(it.current, globalOnly = false) }
+            // Debug captures only: commits that need the finished analysis, inside this job so capture
+            // readiness (no separation in flight) covers them.
+            debugAfterSeparation?.let { action -> debugAfterSeparation = null; action() }
         }
     }
 
@@ -712,6 +719,9 @@ class EditorViewModel(
     /** Debug captures only: separation never finishes, so "Finding the subject…" can be captured. */
     internal var debugHoldSeparation: Boolean = false
 
+    /** Debug captures only: run once when separation finishes (e.g. the prototype screen's blur). */
+    internal var debugAfterSeparation: (() -> Unit)? = null
+
     /** Capture-only: sets the phase (the loading capture shows "Developing…", which no model triggers here). */
     internal fun debugSetPhase(phase: EditorPhase) = state.update { it.copy(phase = phase) }
 
@@ -782,9 +792,16 @@ class EditorViewModel(
         fun setUi(change: (EditorUiState) -> EditorUiState) = state.update(change)
 
         /** Opens Background on [sub] as the user would (starts separation). */
-        fun openBackground(sub: BackgroundSub) {
+        fun openBackground(sub: BackgroundSub, afterSeparation: (() -> Unit)? = null) {
+            debugAfterSeparation = afterSeparation
             selectTool(EditorTool.BACKGROUND)
             selectBackgroundSub(sub)
+        }
+
+        /** The prototype screen's Focus & Blur settings, committed as the user would (one step each). */
+        fun focus(blur: Double, style: com.lightlylabs.lightly.session.FocusStyle?) {
+            onBackgroundSliderRelease("blur", blur)
+            style?.let { setFocusStyle(it) }
         }
 
         /**

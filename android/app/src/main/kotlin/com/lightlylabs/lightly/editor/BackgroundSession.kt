@@ -65,8 +65,13 @@ class BackgroundSession(private val env: EditorEnvironment) {
             try {
                 val raw = env.depthEstimator.estimate(DepthModelInput.fromRgba8(display.pixels, display.width, display.height))
                 depth = DepthMaps.normalised(DepthOrigin.ESTIMATED, raw, grey)
+                logDepthSummary(raw, depth.nearness)
                 depthModel = env.depthModelRef
             } catch (unavailable: DepthUnavailableException) {
+                depth = null
+            } catch (failure: RuntimeException) {
+                // A runtime failure of the model is the approved unavailable state too, never a crash.
+                diagnostic("depth estimate failed: $failure")
                 depth = null
             }
         }
@@ -80,6 +85,19 @@ class BackgroundSession(private val env: EditorEnvironment) {
         }
         analysis = BackgroundAnalysis(display.width, display.height, depth, matte)
         return SeparationState.Finished(depthAvailable = depth != null, matteAvailable = matte != null, noClearSubject = noClearSubject)
+    }
+
+    /** Logcat (tag LightlyDepth); a no-op where android.util.Log is not available (JVM unit tests). */
+    private fun diagnostic(message: String) { runCatching { android.util.Log.i("LightlyDepth", message) } }
+
+    /** Diagnostics (logcat tag LightlyDepth): raw model output range and nearness at a few points. */
+    private fun logDepthSummary(raw: FloatPlane, nearness: FloatPlane) {
+        val sorted = raw.values.sortedArray()
+        fun at(x: Double, y: Double) = "%.2f".format(nearness[((nearness.width - 1) * x).toInt(), ((nearness.height - 1) * y).toInt()])
+        diagnostic(
+            "raw min=%.3f p1=%.3f p50=%.3f p99=%.3f max=%.3f; nearness centre=${at(0.5, 0.5)} (0.40,0.48)=${at(0.40, 0.48)} (0.1,0.1)=${at(0.1, 0.1)} (0.9,0.3)=${at(0.9, 0.3)} (0.5,0.95)=${at(0.5, 0.95)}"
+                .format(sorted.first(), sorted[sorted.size / 100], sorted[sorted.size / 2], sorted[sorted.size * 99 / 100], sorted.last()),
+        )
     }
 
     fun reset() {

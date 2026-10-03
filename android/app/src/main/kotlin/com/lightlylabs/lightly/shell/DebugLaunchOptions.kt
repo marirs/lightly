@@ -163,7 +163,17 @@ object DebugLaunchOptions {
                 // Slice 3: real separation on this build (no depth model, no segmenter: D3 / LiteRT
                 // pending), so bg-failed is the state a user actually sees, not an injected one.
                 "bg-separating", "bg-failed" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.CHANGE)
-                "bg-focus", "bg-no-subject" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
+                "bg-no-subject" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
+                // docs/ui/app/screens.js: blur 55, and the style for bg-soft / bg-swirl / bg-motion.
+                "bg-focus", "bg-soft", "bg-swirl", "bg-motion" -> {
+                    val style = when (screen) {
+                        "bg-soft" -> com.lightlylabs.lightly.session.FocusStyle.SOFT
+                        "bg-swirl" -> com.lightlylabs.lightly.session.FocusStyle.SWIRL
+                        "bg-motion" -> com.lightlylabs.lightly.session.FocusStyle.MOTION
+                        else -> null
+                    }
+                    api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) { api.focus(55.0, style); api.rebaseHistory() }
+                }
             }
         }
     }

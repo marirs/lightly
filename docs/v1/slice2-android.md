@@ -214,6 +214,7 @@ Each cell is one screen in one layout and covers its four variants (light/dark �
 | S4 | compare, saving, saved, leave-unsaved, more | Effects carries the "used" dot (the prototype's `edited()` turns a vignette on) | No dot: Effects is not implemented in this slice | `side-by-side/compare__fold-inner__portrait__light__default.png` | Deviation until slice 4 |
 | S5 | every screen, large text | Text ×1.24 linear | Android 14+ non-linear font scaling (headings grow less) | `native/*__large.png` | Platform (slice-1 M5); needs approval |
 | S7 | text set in CSS weight 600 | Roboto 700 (the prototype loads 400/500/700 only, so 600 falls back to 700) | Roboto SemiBold 600: narrower text, different wrapping | stale Fold-inner captures | Needs owner decision |
+| S8 | Portrait 13 (dev-portrait-photo, and bg-failed in slice 3) | No grain: the prototype simulates looks | Very coarse, strong grain at preview size, first visible in the signal-based captures | `captures/android/validation/runner-p9/dev-portrait-photo__*` | Pending: check F2 grain at preview scale against parity |
 | S6 | undo/redo on every captured screen | Prototype screens open with Undo disabled | Same (capture route rebases history); in real use Undo is enabled after any commit | — | Capture method, no deviation |
 
 ### Slice-1 cells re-captured with this build

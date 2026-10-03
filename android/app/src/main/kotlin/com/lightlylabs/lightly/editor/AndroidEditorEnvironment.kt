@@ -94,6 +94,14 @@ object AndroidEditorEnvironment {
             favourites = favourites,
             debugBuild = BuildConfig.DEBUG,
             exportTileEdge = exportTileEdge,
+            // Release gate "pending legal sign-off (training data)": see LiteRtDepthEstimator. Loaded on
+            // first use (Background), never at app start.
+            depthEstimator = lazy { LiteRtDepthEstimator.create(app, com.lightlylabs.lightly.BuildConfig.DEPTH_MODEL_ENABLED) }.let { model ->
+                com.lightlylabs.lightly.background.DepthEstimator { input ->
+                    (model.value ?: throw com.lightlylabs.lightly.background.DepthUnavailableException("No depth model in this build")).estimate(input)
+                }
+            },
+            depthModelRef = if (com.lightlylabs.lightly.BuildConfig.DEPTH_MODEL_ENABLED) LiteRtDepthEstimator.MODEL_REF else null,
             depthImageDecoder = { bytes -> if (com.lightlylabs.lightly.background.PngGrayDecoder.isPng(bytes)) com.lightlylabs.lightly.background.PngGrayDecoder.decode(bytes) else decodeJpegDepth(bytes) },
             exifOrientation = { bytes ->
                 runCatching { android.media.ExifInterface(java.io.ByteArrayInputStream(bytes)).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1) }.getOrDefault(1).coerceIn(1, 8)

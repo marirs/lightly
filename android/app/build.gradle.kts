@@ -1,6 +1,7 @@
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.BuiltArtifactsLoader
 import java.io.ByteArrayOutputStream
+import java.security.MessageDigest
 import java.util.zip.ZipFile
 import javax.inject.Inject
 import org.gradle.process.ExecOperations
@@ -10,6 +11,19 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// --- Depth model release gate -----------------------------------------------------------------
+//
+// "pending legal sign-off (training data)": Depth Anything V2 Small (Apache-2.0 weights,
+// depth-anything/Depth-Anything-V2-Small-hf@5426e4f; our LiteRT conversion, docs/v1/depth-evaluation.md)
+// is packaged into debug builds when the local conversion exists, and into release builds only with
+// -PlightlyDepthLegalSignOff=true. Without it the app wires no estimator and shows the approved
+// unavailable state. The file is git-ignored and checked against its recorded SHA-256 when bundled.
+val depthModelFile: File = (findProperty("lightlyDepthModelFile") as String?)?.let(::File)
+    ?: rootDir.parentFile.resolve("experiments/depth/models/converted/da2_small_518x392_wi8.tflite")
+val depthModelSha256 = "8e719085ce210eb4fb8e737ae9bca4f25e4e35b3aeafb80c468c3ff6c4eb8078"
+val depthLegalSignOff = (findProperty("lightlyDepthLegalSignOff") as String?) == "true"
+fun depthModelEnabled(buildType: String) = depthModelFile.isFile && (buildType == "debug" || depthLegalSignOff)
 
 android {
     namespace = "com.lightlylabs.lightly"
@@ -29,6 +43,14 @@ android {
         // About shows versionName (versionCode); debug-only launch options read BuildConfig.DEBUG.
         buildConfig = true
     }
+
+    buildTypes {
+        getByName("debug") { buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("debug").toString()) }
+        getByName("release") { buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("release").toString()) }
+    }
+
+    // The depth model is memory-mapped from the APK, which needs it stored uncompressed.
+    androidResources { noCompress += "tflite" }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -62,6 +84,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.window)
+    implementation(libs.litert)
 
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.junit)
@@ -253,6 +276,56 @@ abstract class BundleBackgroundPhotosTask : DefaultTask() {
     }
 }
 
+/** Copies the depth model into assets/models/ after checking its SHA-256 (release gate above). */
+abstract class BundleDepthModelTask : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val modelFile: RegularFileProperty
+
+    @get:Input
+    abstract val expectedSha256: Property<String>
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    fun bundle() {
+        val model = modelFile.get().asFile
+        val digest = MessageDigest.getInstance("SHA-256")
+        model.inputStream().use { input -> val buffer = ByteArray(1 shl 16); while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) } }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (actual != expectedSha256.get()) throw GradleException("Depth model ${model.name} has SHA-256 $actual, expected ${expectedSha256.get()}")
+        val root = assetsDirectory.get().asFile
+        root.deleteRecursively()
+        model.copyTo(root.resolve("models/${model.name}"))
+    }
+}
+
+// --- Merged-manifest privacy check ----------------------------------------------------------------
+//
+// LiteRT approval condition: the merged manifest gains no INTERNET permission, no Google datatransport
+// and no telemetry/analytics components. Checks the merged manifest of every variant.
+abstract class VerifyManifestPrivacyTask : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val mergedManifest: RegularFileProperty
+
+    @get:OutputFile
+    abstract val reportFile: RegularFileProperty
+
+    @TaskAction
+    fun verify() {
+        val manifest = mergedManifest.get().asFile.readText()
+        val forbidden = listOf(
+            "android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE", "datatransport",
+            "firebase", "com.google.android.gms.measurement", "analytics", "telemetry", "crashlytics",
+        )
+        val found = forbidden.filter { manifest.contains(it, ignoreCase = true) }
+        if (found.isNotEmpty()) throw GradleException("Merged manifest contains forbidden entries: ${found.joinToString()}")
+        reportFile.get().asFile.writeText("OK: none of ${forbidden.joinToString()}\n")
+    }
+}
+
 val backgroundPhotoNames = listOf("landscape_01", "sunset_03", "wellexposed_02", "backlit_02")
 
 // --- Launcher icon packaging check ----------------------------------------------------------------
@@ -375,6 +448,19 @@ androidComponents {
             variant.sources.assets?.addGeneratedSourceDirectory(bundleBackgrounds, BundleBackgroundPhotosTask::assetsDirectory)
         }
 
+        if (depthModelEnabled(variant.buildType ?: "")) {
+            val bundleDepthModel = tasks.register<BundleDepthModelTask>("bundle${variantName}DepthModel") {
+                modelFile.set(depthModelFile)
+                expectedSha256.set(depthModelSha256)
+            }
+            variant.sources.assets?.addGeneratedSourceDirectory(bundleDepthModel, BundleDepthModelTask::assetsDirectory)
+        }
+
+        val verifyPrivacy = tasks.register<VerifyManifestPrivacyTask>("verify${variantName}ManifestPrivacy") {
+            mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+            reportFile.set(layout.buildDirectory.file("reports/manifest-privacy/${variant.name}.txt"))
+        }
+
         val verifyIcon = tasks.register<VerifyLauncherIconTask>("verify${variantName}LauncherIcon") {
             apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
             builtArtifactsLoader.set(variant.artifacts.getBuiltArtifactsLoader())
@@ -386,6 +472,6 @@ androidComponents {
             builtArtifactsLoader.set(variant.artifacts.getBuiltArtifactsLoader())
             reportFile.set(layout.buildDirectory.file("reports/look-pack/${variant.name}.txt"))
         }
-        tasks.matching { it.name == "assemble$variantName" }.configureEach { dependsOn(verifyIcon, verifyPack) }
+        tasks.matching { it.name == "assemble$variantName" }.configureEach { dependsOn(verifyIcon, verifyPack, verifyPrivacy) }
     }
 }

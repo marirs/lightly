@@ -123,8 +123,15 @@ if [ "$MODE" = runner ]; then
       --es lightly.debug.photo $FILES/$(photo_for $S).jpg --es lightly.debug.editor $S --es lightly.debug.people $(people_for $S) >/dev/null
     line=$(bounded 150 $ADB logcat -s LightlyCapture:I -m 1 -e "(ready|failed) seq=$seq " | tr -d '\r' | tail -1)
     case $line in
-      *"ready seq=$seq "*) screencap "$F"; sidecar "$F" "$S" "$line"; echo "$F ${line##*screen=}";;
-      *) echo "FAILED $S: ${line:-no signal}" >&2; failures=$((failures + 1));;
+      *"ready seq=$seq "*) screencap "$F"; sidecar "$F" "$S" "$line"; echo "$F ${line##*screen=}"
+         # App diagnostics for this screen (small: depth and develop timing tags only).
+         $ADB logcat -d -s LightlyDepth:I LightlyDevelop:I > "${F%.png}.app.log" 2>&1;;
+      *) echo "FAILED $S: ${line:-no signal}" >&2; failures=$((failures + 1))
+         # Keep the evidence: this screen's log (cleared at its start) and the crash buffer.
+         $ADB logcat -d > "$OUT/${S}__${DEV}__${ORIENT}__${THEME}__${TEXT}.failure.log" 2>&1
+         $ADB logcat -d -b crash >> "$OUT/${S}__${DEV}__${ORIENT}__${THEME}__${TEXT}.failure.log" 2>&1
+         # A dead runner process cannot answer later screens: stop instead of timing out on each.
+         if [ -z "$($ADB shell pidof $PKG | tr -d '\r')" ]; then echo "runner process died; batch stopped" >&2; break; fi;;
     esac
   done
 elif [ "$MODE" = launch ]; then
