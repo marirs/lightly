@@ -39,4 +39,7 @@ Scope: Background › Focus & Blur, Change background and Refine edges, with Foc
 
 ## Comparison
 
-Pending (Pixel 9 Pro first, then the layouts the Background panel affects).
+**Pending.** No Background screen has been compared yet.
+- Debug capture states exist for `bg-separating`, `bg-failed`, `bg-focus` and `bg-no-subject` (25f47bf). They open Background with real separation, which in this build always ends in the approved failure state.
+- Of these, only `bg-separating` and `bg-failed` can match their references. `bg-focus`, `bg-no-subject` and every other bg-* screen need depth (LiteRT, blocked) or a matte (D3, blocked), so they are **blocked** rather than pending.
+- References come from `scripts/reference_cache.py`.

@@ -104,6 +104,61 @@ Emulator numbers only; device numbers stay pending. The host was heavily loaded 
 
 ## Comparison matrix
 
+**Status: no cell is exact-match verified; every cell is pending.** The table below is history from the f8a024c captures, and those captures are now **stale** for two reasons:
+
+1. 9cce099 (slice 3) changed EditorScreen, DevelopPanel, ShellComponents and LightlyIcons, which every editor screen uses.
+2. The per-launch capture path waited a fixed time (25 s for the first screen, then 10 s). Measured on Pixel 9 Pro light/default, it captured preset screens **before their preview had rendered**:
+   - On dev-preset, dev-starred and dev-browse, the photo is the undeveloped original. The mean absolute difference from the undeveloped photo is 1.0, against 16.5 once the screen is rendered.
+   - On dev-bw, the photo is still in colour (chroma 17.9, against 0.0 once rendered).
+   - dev-amount, dev-favourites, dev-fav-replace, dev-landscape-photo, dev-long-name, saving, saved, leave-unsaved and more also show an earlier preview. The Develop panel is the same.
+   - Every "S3" photo comparison made from those captures is therefore invalid.
+
+   The evidence is in `~/.codex/artifacts/lightly/v1/captures/android/validation/launch-fixed-p9` and `runner-p9-try1`, with masks in `masks-p9-try1`.
+
+The old images stay in `~/.codex/artifacts/lightly/v1/slice2/android/native` and `slice1-recapture`, each marked with a `STALE.md`. References now come from the shared cache (`scripts/reference_cache.py`). The earlier `shots-batch.js` renders used the same steps as `docs/ui/tools/shot.js`, with no state override.
+
+### Capture with a render-complete signal (fc94c6b)
+
+`android/tools/capture/capture-batch.sh` runs one device/orientation/theme/text batch per lock hold. It does one emulator boot and records a JSON sidecar per PNG with the source revision, local-change fingerprint, APK hash, device, orientation, theme, text size, mode, tool version and the ready line. The debug-only `CaptureRunnerHook`, which has a no-op stub in release, logs `ready` only after all of these hold:
+- the editor is idle (latest preview settled; no load, prefetch or separation in flight);
+- Compose has been idle on two consecutive vsyncs;
+- a forced frame has been confirmed drawn by FrameMetrics.
+
+There are two modes:
+- `--mode launch`: one launch per screen, waiting for that signal. The owner chose this launch-based path.
+- `--mode runner`: a persistent session. Kept for reference only; the owner did not adopt it.
+
+Pixel 9 Pro portrait light/default, 24 slice-2 screens, same APK in both modes (build-info: 2192a6b + local changes `7ea0bb99…`, committed as fc94c6b; APK `c00be728…`):
+
+| | Runner (one process) | Launch + signal | Launch, fixed waits (old) |
+|---|---|---|---|
+| Lock hold (heavy log) | 422 s | 679 s, including one 120 s timeout | 361 s, with stale previews |
+| App launches | 1 | 24 | 24 |
+| Screens captured | 24 | 23 (dev-original timed out; see below) | 24 |
+
+Runner against launch + signal, pixel by pixel:
+- The app area is identical in **23 of 23** screens.
+- The remaining differences are system UI only:
+  - status-bar icons (mobile signal level and the settings/shield notification icons; 0–1,763 px);
+  - one pixel of the gesture-handle edge (Δ 1, region sampling).
+- Demo mode pins the clock and battery, but not the emulator's modem signal.
+
+Not explained yet, and so pending:
+- dev-original timed out in launch + signal mode (120 s).
+- The first Fold-inner runner screen (`loading`) timed out even though both the editor and Compose reported idle, so the forced frame was never reported.
+- One likely cause of the first: `Recomposer.runningRecomposers` is process-wide and still includes the previous Activity during a CLEAR_TASK launch. Using the window's own recomposer would avoid it. This is not changed, because capture-tooling work stopped at the owner's instruction.
+
+### Required cells (all pending)
+
+Every screen × {Pixel 9 Pro, Pixel 10 Pro XL, Fold outer, Fold inner portrait, Fold inner landscape, Pixel Tablet portrait, Pixel Tablet landscape} × {light, dark} × {default, large} is pending. Pixel 9 Pro light/default has current captures at fc94c6b (`validation/runner-p9`, `validation/launch-p9`), but they have not yet been reviewed against the cached references. Slice-1 cells (Pixel 10 Pro XL, Fold outer, Pixel Tablet, and the stale Fold-inner recaptures) are pending as well.
+
+Findings from the stale captures that still have to be confirmed on current captures:
+- **S7**: the prototype loads Roboto at 400/500/700 only, so CSS weight 600 renders as 700 in the references, while native uses 600. Text widths and wrapping differ (e.g. "12 Golden Hour 12" wraps in the reference and not on Fold-inner). This needs the owner's decision.
+- In Fold-inner landscape, the More sheet is about 10 dp taller than the reference. Not yet explained.
+
+<details><summary>History: f8a024c matrix (stale)</summary>
+
+
 Evidence: `~/.codex/artifacts/lightly/v1/slice2/android/` — `reference/` (shot.js renders), `native/` (emulator captures, `<screen>__<device>__<orientation>__<theme>__<text>.png`), `side-by-side/`, `tools/`. Large text is the system `font_scale 1.24`.
 
 Each cell is one screen in one layout and covers its four variants (light/dark × default/large). "mismatch n/4" means n variants were captured from the current build (f8a024c) and each differs from the reference at least by the listed ids; the remaining variants are **unverified-pending**. **No cell is exact-match verified.**
@@ -139,6 +194,8 @@ Each cell is one screen in one layout and covers its four variants (light/dark �
 
 **Earlier evidence from older builds (superseded, kept for reference, not counted above):** `side-by-side/*__pixel9pro__*` (build 490cbee, before the tab-offset, ruler-clip and dialog-gap fixes) for all 22 screens × 4 variants of Pixel 9 Pro except where noted, and spot checks in light/default for Pixel Tablet portrait and landscape, fold-inner landscape and fold-outer (build 490cbee/f8a024c, not saved to the evidence folder). These showed the layouts as in the reference apart from the ids below; the fixes in f8a024c came from them.
 
+</details>
+
 ### Mismatch ids
 
 | Id | Where | Expected (approved) | Observed (native) | Evidence | Status |
@@ -148,11 +205,17 @@ Each cell is one screen in one layout and covers its four variants (light/dark �
 | S3 | every screen showing a preset | The prototype's CSS filter simulation of the preset | The real render of the preset's recipe (develop.global + spatial + finishing); colours differ by design | e.g. `side-by-side/dev-preset__fold-inner__portrait__light__default.png` | Expected: the prototype simulates appearance |
 | S4 | compare, saving, saved, leave-unsaved, more | Effects carries the "used" dot (the prototype's `edited()` turns a vignette on) | No dot: Effects is not implemented in this slice | `side-by-side/compare__fold-inner__portrait__light__default.png` | Deviation until slice 4 |
 | S5 | every screen, large text | Text ×1.24 linear | Android 14+ non-linear font scaling (headings grow less) | `native/*__large.png` | Platform (slice-1 M5); needs approval |
+| S7 | text set in CSS weight 600 | Roboto 700 (the prototype loads 400/500/700 only, so 600 falls back to 700) | Roboto SemiBold 600: narrower text, different wrapping | stale Fold-inner captures | Needs owner decision |
 | S6 | undo/redo on every captured screen | Prototype screens open with Undo disabled | Same (capture route rebases history); in real use Undo is enabled after any commit | — | Capture method, no deviation |
 
 ### Slice-1 cells re-captured with this build
 
-`slice1-recapture/` holds the slice-1 screens on **fold-inner portrait and landscape** (13 screens + launch × 4 variants each, 112 files), which re-captures the cells stale after M9 and M10. They have **not been compared** yet: unverified-pending. Pixel 10 Pro XL, fold-outer and Pixel Tablet (both orientations) slice-1 cells remain **unverified-pending** (not captured).
+`slice1-recapture/` holds 112 Fold-inner slice-1 captures (portrait and landscape, from f8a024c). They were compared against the references:
+- M9 and M10 are fixed.
+- M1, M2, M4 and M8 remain.
+- The light/default launch capture missed the splash.
+
+These captures are now **stale** (see `STALE.md`). Pixel 10 Pro XL, Fold outer and Pixel Tablet slice-1 cells were never captured and are **pending**.
 
 ## Tests
 
