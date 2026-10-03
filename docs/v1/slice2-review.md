@@ -70,7 +70,16 @@
   - on iOS, Saving can be cancelled without writing anything, and Saved has a Share button.
 - **Evidence:** flow captures are in `~/.codex/artifacts/lightly/v1/slice2/{ios,android}/` (Android `flows/`).
 
-## Update: iOS matrix complete (334aa33)
+## Update: iOS slice-2 runner captures are STALE (recapture in progress)
+
+The runner version 5 re-check (iPhone 17 light-default, build 420f429, pixel-diffed against the ea75592 runner captures) found differences:
+- **Photo area:** 8 screens differ: dev-preset, dev-starred, dev-browse, dev-amount, saving, saved, dev-favourites and dev-portrait-photo.
+- **Cause:** the rendering-v2 revision 1 grain port (ec1df87). The earlier grain recapture covered only the two Glow screens and missed every screen showing "05 Hiking 05" (Landscape 37, which has grain).
+- **Not the readiness signal:** a same-build control showed v5 changes no captured state.
+
+All 504 slice-2 runner results below are therefore withdrawn as evidence. The full matrix is being recaptured from one recorded build. The result summary below is kept as history only.
+
+## History: iOS matrix as first reported (334aa33)
 
 These are the iOS agent's results. The coordinator spot-checked one screen; nothing else has been independently verified.
 
