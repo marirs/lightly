@@ -1,0 +1,92 @@
+{
+  "preregistration": "gating/PREREGISTRATION_gate_v1.json",
+  "run_once": true,
+  "hypotheses_supported": {
+    "H1_ph1_already_good": true,
+    "H2_ph1_night": true,
+    "H3_ph1_sunset": true,
+    "H4_ph1_portrait": true,
+    "H5_ph1_backlit_expected_fail": true,
+    "H6_hosyn_identity_le_1_5": true,
+    "H7_hosyn_recovery_ci_below_input": true
+  },
+  "ph1_pass_counts": {
+    "portrait": "56/59",
+    "sunset": "52/54",
+    "night": "60/60",
+    "backlit": "5/54",
+    "already_good": "55/60",
+    "landscape": "39/39",
+    "indoor_mixed": "44/44"
+  },
+  "hosyn": {
+    "degraded_mean_dE00_to_clean": 7.275,
+    "ci95": [
+      6.767,
+      7.817
+    ],
+    "share_improved": 0.457,
+    "share_worse_by_gt_1": 0.057,
+    "identity_mean_dE00_to_input": 1.18,
+    "identity_ci95": [
+      0.63,
+      1.814
+    ],
+    "identity_share_le_1_5": 0.771,
+    "recovery_retained_vs_ungated": 0.695,
+    "comparators": {
+      "input_unchanged": 8.71,
+      "ungated_photo_a_001": 6.644
+    }
+  },
+  "ph1_gate_abstention": {
+    "already_good": {
+      "n": 60,
+      "share_unchanged_s0": 0.85,
+      "n_acted_on": 9,
+      "mean_strength": 0.121
+    },
+    "backlit": {
+      "n": 54,
+      "share_unchanged_s0": 0.833,
+      "n_acted_on": 9,
+      "mean_strength": 0.121
+    },
+    "indoor_mixed": {
+      "n": 44,
+      "share_unchanged_s0": 0.955,
+      "n_acted_on": 2,
+      "mean_strength": 0.026
+    },
+    "landscape": {
+      "n": 39,
+      "share_unchanged_s0": 0.769,
+      "n_acted_on": 9,
+      "mean_strength": 0.214
+    },
+    "night": {
+      "n": 60,
+      "share_unchanged_s0": 0.833,
+      "n_acted_on": 10,
+      "mean_strength": 0.068
+    },
+    "portrait": {
+      "n": 59,
+      "share_unchanged_s0": 0.695,
+      "n_acted_on": 18,
+      "mean_strength": 0.204
+    },
+    "sunset": {
+      "n": 54,
+      "share_unchanged_s0": 0.796,
+      "n_acted_on": 11,
+      "mean_strength": 0.123
+    },
+    "all": {
+      "n": 370,
+      "share_unchanged_s0": 0.816,
+      "n_acted_on": 68
+    }
+  },
+  "reading": "Preservation hypotheses H1-H4, H6 supported; H5 failed as predicted; H7 supported. The gate left 82% of PH-1 photos exactly unchanged, so the preservation passes largely reflect abstention. Nothing here measures improvement; the model is not shipped."
+}

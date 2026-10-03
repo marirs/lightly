@@ -1,0 +1,40 @@
+{
+  "run_name": "hosyn",
+  "kind": "held-out synthetic-degradation evaluation (HO-SYN)",
+  "manifest": {
+    "path": "experiments/auto/manifests/cc0ref_manifest.csv",
+    "split": "public_holdout_syn",
+    "rows_hash": "399e6b8e1dca1b90b222a58397c4658f8134a42d5e2a59ac80e0e4c79bdf6a87",
+    "n_images": 300
+  },
+  "n_identity": 70,
+  "eval_long_edge": 768,
+  "code_commit": "61af3c6e9acf6657062b8134cac5425a9bd3a6d1",
+  "arms": [
+    {
+      "arm": {
+        "name": "candidate:photo_a_001+gate:gate_v1",
+        "label": "Stage (a) research candidate: self-supervised on CC0/PD reference photos - NOT released, NOT validated as AI Auto (ship gates S1-S5 not met) + conservative gate gate_v1",
+        "kind": "candidate",
+        "is_ai_auto": false
+      },
+      "degraded_n": 230,
+      "degraded_mean_dE00_vs_clean": 7.274767826086957,
+      "degraded_mean_ci95": [
+        6.767253749999999,
+        7.817217673913044
+      ],
+      "degraded_median_dE00_vs_clean": 6.4748,
+      "degraded_p90_dE00_vs_clean": 12.24607,
+      "share_improved_vs_input": 0.45652173913043476,
+      "share_worse_by_more_than_1_dE00": 0.05652173913043478,
+      "identity_n": 70,
+      "identity_mean_dE00_vs_input": 1.1795757142857144,
+      "identity_mean_ci95": [
+        0.6303046071428572,
+        1.8137891785714282
+      ],
+      "identity_share_le_1_5": 0.7714285714285715
+    }
+  ]
+}

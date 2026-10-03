@@ -1,0 +1,325 @@
+{
+  "run_name": "ph1",
+  "protocol": {
+    "version": "1.0.0",
+    "files": {
+      "PROTOCOL.json": "aee333fbffe265d2c7a1c66e8e56426965d20229a1754089b116793f605da397",
+      "lightly_auto/rubric.py": "9eb0079d542d0c596354c5db8626c4dedece837fc876524873045c4ba5e5759d",
+      "lightly_auto/stats.py": "5a3fff946c10557c691a771b95469b45e5b4bc78858a42e9d96af52e556d7d29"
+    },
+    "combined_sha256": "e9dec2f5fda1e9bd275e1f0375333e33a3c2b9ec6d8ed05a0e2711a5ba0eb26b"
+  },
+  "manifest": {
+    "path": "experiments/auto/manifests/ph1_manifest.csv",
+    "hash": "241d0f13f47dd94cf9b6b2fa04ed50f105390eefe2ec9e7685440b89625ec7fb",
+    "n_images": 370,
+    "splits": [
+      "public_holdout"
+    ]
+  },
+  "faces_json_sha256": "4bdf39f3bf5f1f091f49f50754d35a47b72a355aaf97134c7c81c99f6c2a10f2",
+  "analysis_long_edge": 2048,
+  "code_commit": "61af3c6e9acf6657062b8134cac5425a9bd3a6d1",
+  "environment": {
+    "python": "3.11.16",
+    "numpy": "2.4.6",
+    "torch": "2.5.1",
+    "skimage": "0.26.0"
+  },
+  "elapsed_s": 514.6,
+  "arms": [
+    {
+      "arm": {
+        "name": "candidate:photo_a_001+gate:gate_v1",
+        "label": "Stage (a) research candidate: self-supervised on CC0/PD reference photos - NOT released, NOT validated as AI Auto (ship gates S1-S5 not met) + conservative gate gate_v1",
+        "kind": "candidate",
+        "is_ai_auto": false
+      },
+      "classes": [
+        {
+          "rubric_class": "portrait",
+          "n_images": 59,
+          "n_scorable": 59,
+          "n_pass": 56,
+          "pass_rate": 0.9491525423728814,
+          "pass_rate_bootstrap_ci": [
+            0.8813559322033898,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.8585127605247451,
+            0.9893887196761202
+          ],
+          "criteria": [
+            {
+              "name": "skin_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 59,
+              "mean": 0.5367293284468819,
+              "ci": [
+                0.27297144629474196,
+                0.8370632319487082
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_chroma_ratio",
+              "bound": {
+                "max": 1.12
+              },
+              "n": 59,
+              "mean": 0.9879842505649251,
+              "ci": [
+                0.9780477846763664,
+                0.9979549274773882
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "sunset",
+          "n_images": 54,
+          "n_scorable": 54,
+          "n_pass": 52,
+          "pass_rate": 0.9629629629629629,
+          "pass_rate_bootstrap_ci": [
+            0.9074074074074074,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.8725282277690526,
+            0.9954827437055395
+          ],
+          "criteria": [
+            {
+              "name": "warm_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 54,
+              "mean": 0.23138196069026276,
+              "ci": [
+                0.06001826677617007,
+                0.4690297541642206
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "warm_chroma_ratio",
+              "bound": {
+                "min": 0.95,
+                "max": 1.1
+              },
+              "n": 54,
+              "mean": 0.996784653129314,
+              "ci": [
+                0.9912946534236045,
+                1.002213975930066
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "night",
+          "n_images": 60,
+          "n_scorable": 60,
+          "n_pass": 60,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.9403705077138331,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "clipLo_pp",
+              "bound": {
+                "max": 0.5
+              },
+              "n": 60,
+              "mean": -1.8078679090354872,
+              "ci": [
+                -3.8517990900472046,
+                -0.3394044834106787
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "night_p50_dL",
+              "bound": {
+                "max": 3.0
+              },
+              "n": 60,
+              "mean": 0.13639987782194615,
+              "ci": [
+                0.02551369247128317,
+                0.26261242167662674
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "backlit",
+          "n_images": 54,
+          "n_scorable": 54,
+          "n_pass": 5,
+          "pass_rate": 0.09259259259259259,
+          "pass_rate_bootstrap_ci": [
+            0.018518518518518517,
+            0.16666666666666666
+          ],
+          "pass_rate_exact_ci": [
+            0.030752785267523036,
+            0.20300154718629004
+          ],
+          "criteria": [
+            {
+              "name": "clipHi_pp",
+              "bound": {
+                "max": 0.5
+              },
+              "n": 54,
+              "mean": -0.4028299013825221,
+              "ci": [
+                -1.1431749271706395,
+                -0.00012125468138927969
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "subject_dL",
+              "bound": {
+                "min_exclusive": 0.0
+              },
+              "n": 54,
+              "mean": -0.3436905425288873,
+              "ci": [
+                -0.8836504713530722,
+                0.07706277322660993
+              ],
+              "mean_meets_target": false
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": false,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "already_good",
+          "n_images": 60,
+          "n_scorable": 60,
+          "n_pass": 55,
+          "pass_rate": 0.9166666666666666,
+          "pass_rate_bootstrap_ci": [
+            0.8333333333333334,
+            0.9833333333333333
+          ],
+          "pass_rate_exact_ci": [
+            0.8161422166234142,
+            0.9723866896625736
+          ],
+          "criteria": [
+            {
+              "name": "dE00_mean",
+              "bound": {
+                "max": 3.0
+              },
+              "n": 60,
+              "mean": 0.6224336363001376,
+              "ci": [
+                0.23395635232589135,
+                1.0869546550484377
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "landscape",
+          "n_images": 39,
+          "n_scorable": 39,
+          "n_pass": 39,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.9097488990396657,
+            1.0
+          ],
+          "criteria": [],
+          "gated": false,
+          "class_passes_S1": null,
+          "unscorable_images": []
+        },
+        {
+          "rubric_class": "indoor_mixed",
+          "n_images": 44,
+          "n_scorable": 44,
+          "n_pass": 44,
+          "pass_rate": 1.0,
+          "pass_rate_bootstrap_ci": [
+            1.0,
+            1.0
+          ],
+          "pass_rate_exact_ci": [
+            0.9195800602364241,
+            1.0
+          ],
+          "criteria": [
+            {
+              "name": "skin_abs_dh_deg",
+              "bound": {
+                "max": 4.0
+              },
+              "n": 4,
+              "mean": 0.0,
+              "ci": [
+                0.0,
+                0.0
+              ],
+              "mean_meets_target": true
+            },
+            {
+              "name": "skin_chroma_ratio",
+              "bound": {
+                "max": 1.12
+              },
+              "n": 4,
+              "mean": 1.0,
+              "ci": [
+                1.0,
+                1.0
+              ],
+              "mean_meets_target": true
+            }
+          ],
+          "gated": true,
+          "class_passes_S1": true,
+          "unscorable_images": []
+        }
+      ]
+    }
+  ]
+}
