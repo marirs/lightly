@@ -1,8 +1,19 @@
 # Auto develop model: progress against the training plan (M3)
 
-Status: 2026-10-02, updated 2026-10-03 (§7: public data, the first photo-trained model, held-out results). This note follows `docs/m1/auto-training-plan.md` in plan order. The code is in `experiments/auto/`, and nothing in it is linked into either app. The apps are unchanged.
+Status: 2026-10-02, updated 2026-10-03 (§7: public data, the first photo-trained model, held-out results; §8: experiment 1 closed, conservative gating). This note follows `docs/m1/auto-training-plan.md` in plan order. The code is in `experiments/auto/`, and nothing in it is linked into either app. The apps are unchanged.
 
-**Update 2026-10-03 (read §7 first).**
+**Experiment 1 is closed (read §8 and `docs/v1/auto-experiment-1-report.md` first).**
+- **Not shipped.** `photo_a_001` is not shipped, and neither is any gated variant of it.
+- **Auto is still an unresolved release requirement.**
+- **Reported separately:**
+  - synthetic recovery;
+  - preservation of already-good photos;
+  - human preference, which is **not measured**.
+- **"Portraits passed" is a preservation result,** not an improvement result.
+- **Gating.** A conservative gate developed on validation was checked once, pre-registered, on PH-1 and HO-SYN. It meets the preservation limits by leaving 82% of PH-1 photos unchanged.
+- **Proposals, not requirements.** Photo, contributor, brand and rater counts are proposed study parameters, with rationale, in `docs/v1/auto-data.md` §3.
+
+**Update 2026-10-03 (§7).**
 - **There is now an image-adaptive model trained on photos**, `photo_a_001`. It is self-supervised on CC0 photos only and does not use FiveK.
 - **It has been scored on two genuinely held-out sets:**
   - PH-1: 370 frozen CC0/PD phone and camera photos, scored with the frozen rubric;
@@ -411,3 +422,67 @@ python run_eval.py --manifest manifests/ph1_manifest.csv --faces manifests/ph1_f
 python export.py runs/photo_a_001 && <venv_tflite>/bin/python export_tflite.py runs/photo_a_001
 ```
 Heavy steps run under `lockf -k /tmp/lightly-heavy.lock` with `OMP_NUM_THREADS=2`, on a shared machine.
+
+## 8. Update 2026-10-03: experiment 1 closed, conservative gating
+
+The full account is `docs/v1/auto-experiment-1-report.md`. This section records the measurements.
+
+### 8.1 Closing the experiment
+
+- **Archived.** The model, exports, configs, manifests, frozen splits, evaluation code, image bytes and before/after sheets are archived outside Git in `~/.codex/artifacts/lightly/v1/auto-experiment-1/`, with `SHA256SUMS` (5,619 files) and `REPRODUCE.txt`.
+- **Training code.** Its fingerprint `58145a11…` equals the committed code.
+- **Three results, kept separate:**
+  - **(a) Synthetic recovery (HO-SYN).** 8.71 → 6.64 mean ΔE00 to clean; 69% of images improved.
+  - **(b) Preservation.** It fails: identity drift 3.31; PH-1 already-good 3.44 (32/60); night 43/60; sunset 36/54.
+  - **(c) Human preference.** Not measured.
+- **"Portraits passed" (53/59).** It checks only skin |Δh| ≤ 4° and skin chroma ≤ 1.12. The face-exposure check never ran, because PH-1 has no `face_underexposed` labels. The model darkened 21 of 59 faces by more than 5 L*, and 17 of those still passed.
+
+### 8.2 Conservative gating
+
+Code: `lightly_auto/gating.py`, `gate_study.py`, the `gated:` arm. Tests: `tests/test_gating.py`; the suite now has 49 tests, all passing.
+
+**Validation split only** (542 CC0REF photos, each clean and degraded). Results are in `results/gating_v1/validation/`.
+- **Separating "needs correction" from "already good".**
+  - The model's predicted change does so poorly (AUC 0.66).
+  - A logistic detector fitted on the train split reaches AUC 0.76.
+- **Scene constraints** removed the night and sunset failures on validation (30% → 0%, 28% → 3%).
+- **Selected gate.** gate_v1 = detector at 0.6 + scene constraints.
+  - Clean photos: 0.78 ΔE00 (91% ≤ 3).
+  - Degraded photos: it keeps 63% of the recovery.
+
+**Pre-registered single frozen-set run.**
+- **Order.** The pre-registration was committed (`61af3c6`) before the run; the run is `c076dd0`.
+
+| Set | Measurement | Result |
+|---|---|---|
+| PH-1 | Already-good | 55/60 (mean ΔE00 0.62) |
+| | Night | 60/60 |
+| | Sunset | 52/54 |
+| | Portrait | 56/59 |
+| | Backlit | 5/54, a fail, as predicted |
+| HO-SYN | Identity drift | 1.18 (CI 0.63–1.81) |
+| | Degraded | 7.27, which keeps 69% of the ungated recovery |
+
+- **The gate left 82% of PH-1 photos unchanged,** so these preservation passes largely reflect abstention.
+- **What it does not show:** improvement.
+- **PH-1 has now scored two candidates.** The next iteration needs a new frozen set.
+
+### 8.3 Next steps
+
+**Engineering (no owner input needed):**
+- train the already-good and night hinges into the model rather than gating after the fact;
+- add a warm-chroma floor;
+- add A3 local exposure for backlit.
+
+All of these are tuned on validation.
+
+**Owner:** decide on the proposed study parameters, then the T1 collection, labels, raters and counsel (`docs/v1/auto-data.md` §3).
+
+### 8.4 Commits
+
+| Commit | Content |
+|---|---|
+| `61af3c6` | Gate code, validation study, detector, gate_v1, pre-registration |
+| `c076dd0` | The pre-registered PH-1 / HO-SYN run |
+| `66c413d` | Archive and before/after sheet tools |
+| this commit | Closing report, rewritten `docs/v1/auto-data.md`, this section |
