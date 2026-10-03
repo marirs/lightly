@@ -1,0 +1,52 @@
+{
+  "run_id": "photo_a_001",
+  "kind": "candidate",
+  "arm_label": "Stage (a) research candidate: self-supervised on CC0/PD reference photos - NOT released, NOT validated as AI Auto (ship gates S1-S5 not met)",
+  "is_ai_auto_candidate": true,
+  "research_only": false,
+  "shippable": false,
+  "modelVersion": "candidate-c8059ab6b59610aa",
+  "contract": {
+    "input": "[1,3,256,256] sRGB [0,1], pinned antialiased resize",
+    "basis_luts": 3,
+    "lut_dim": 33,
+    "precision": "fp32",
+    "classifier_params": 270083
+  },
+  "artifacts": {
+    "auto_classifier_fp32.mlpackage": {
+      "bytes": 1093059,
+      "sha256": "ce7d9e2473e43ba8bec6271934e4939f6f334f7577d18deced723c995f23c898"
+    },
+    "auto_classifier.onnx": {
+      "bytes": 1083908,
+      "sha256": "00b6e75acd2c6ded7ea9ffb57b7394d1edd5db137239382f72d26ac49a1a4f2b"
+    },
+    "auto_basis_luts_f32.bin": {
+      "bytes": 1724976,
+      "sha256": "0e7a5094dc00a7b151576b2a1d0eb4e0ad00931866ca9a5de7a66890cafaa6c6"
+    },
+    "auto_classifier_fp32.tflite": {
+      "bytes": 1103588,
+      "sha256": "1109a6456a4f644f022d361c5d3fe09255e26a6c26a51320d9625bdd31081ce0"
+    }
+  },
+  "parity": {
+    "inputs": "8 procedural validation scenes, pinned 256 resize",
+    "onnx_vs_torch_weights_max_abs": 5.9604644775390625e-06,
+    "coreml_fp32_cpu_vs_torch_weights_max_abs": 1.0132789611816406e-06,
+    "onnx_fused_lut_max_delta_8bit": 0.0015807151794433594,
+    "coreml_fused_lut_max_delta_8bit": 0.0001823902130126953,
+    "basis_lut_bin_round_trip_exact": true,
+    "contract_weight_tolerance": 0.001,
+    "passes": true,
+    "tflite_vs_torch_weights_max_abs": 6.556510925292969e-06,
+    "tflite_fused_lut_max_delta_8bit": 0.001519918441772461
+  },
+  "toolchain": {
+    "torch": "2.5.1",
+    "coremltools": "8.3.0",
+    "onnxruntime": "1.30.0",
+    "tflite": "litert_torch 0.9.4, torch 2.13.0"
+  }
+}

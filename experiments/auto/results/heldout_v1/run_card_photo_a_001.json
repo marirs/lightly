@@ -1,0 +1,238 @@
+{
+  "run_id": "photo_a_001",
+  "kind": "candidate",
+  "arm_label": "Stage (a) research candidate: self-supervised on CC0/PD reference photos - NOT released, NOT validated as AI Auto (ship gates S1-S5 not met)",
+  "is_ai_auto_candidate": true,
+  "why_not_shippable": "Stage (a) only. Ship gates S1-S5 are not met: no T1 frozen set, no preference study, no device parity, and counsel has not confirmed the CC0/PD source (personality rights of people pictured; S5).",
+  "research_only": false,
+  "shippable": false,
+  "data": {
+    "source": "manifest",
+    "path": "experiments/auto/manifests/cc0ref_manifest.csv",
+    "file_sha256": "778cfe258357c69011fa2936932e3d0db47768ca8d2a6cbc5c4c466c63d3e24b",
+    "rows_hash_train_validation": "189a1ba1f0d80da336427622ee5e129687856ae469da62ce1babf101a38c2fcd",
+    "n_train": 4340,
+    "n_validation": 542,
+    "source_tiers": [
+      "T2_public_cc0_pd"
+    ],
+    "ignored_rows_other_splits": 300,
+    "train_size_px": 320,
+    "val_seed": 30001,
+    "rights": "Wikimedia Commons files with CC0 or public-domain status, checked per file (structured data + rendered licence); no FiveK, no Unsplash, no Pexels. See manifests/*_provenance.csv.",
+    "train_scenes_sha256": "d51acb3a4e0c3cc7abb6023a297f9aa0e708d65a5a1fae25308ddac960f1f06a",
+    "identity_sample_probability": 0.25,
+    "degradation_components": [
+      "exposure",
+      "white_balance",
+      "phone_tone_map",
+      "gamma",
+      "contrast",
+      "saturation",
+      "flatten"
+    ]
+  },
+  "contract": {
+    "input": "[1,3,256,256] sRGB [0,1], pinned antialiased resize",
+    "basis_luts": 3,
+    "lut_dim": 33,
+    "precision": "fp32",
+    "classifier_params": 270083
+  },
+  "config": {
+    "run_id": "photo_a_001",
+    "data": "manifest:manifests/cc0ref_manifest.csv",
+    "steps": 6000,
+    "batch": 8,
+    "scenes": 512,
+    "val_scenes": 128,
+    "lr_classifier": 0.0001,
+    "lr_basis": 0.001,
+    "degradations": "all",
+    "seed": 1,
+    "threads": 4,
+    "loss_pixels": 16384,
+    "clip_grad_norm": 1.0,
+    "lambda_smooth": 0.0001,
+    "lambda_monotonic": 10.0,
+    "lambda_endpoint": 1.0,
+    "lambda_warm_hue": 0.01,
+    "identity_prob": 0.25,
+    "val_every": 500,
+    "runs_dir": "/Users/sg/Documents/Dev/Projects/lightly/experiments/auto/runs"
+  },
+  "seeds": {
+    "python_numpy_torch": 1,
+    "degradation_rng": 40001,
+    "order_rng": 50001
+  },
+  "code_commit": "d5002bbe13e4eece7351a23f84510173bdd1ab9b",
+  "code_fingerprint": "58145a11e663d8b50022a8b372b01c71def67e0593467d3599ec46cf2b3dc18d",
+  "environment": {
+    "python": "3.11.16",
+    "torch": "2.5.1",
+    "numpy": "2.4.6",
+    "machine": "arm64",
+    "threads": 4,
+    "device": "cpu"
+  },
+  "timing_s": {
+    "data_generation": 31.3,
+    "training": 1838.6
+  },
+  "validation_history": [
+    {
+      "step": 0,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 7.737874890397714,
+      "output_vs_clean_dE00_p90": 16.341097318696857,
+      "identity_samples_dE00_median": 1.1452480652282113,
+      "identity_samples_dE00_max": 3.7622723325477008,
+      "fraction_improved": 0.43467336683417085
+    },
+    {
+      "step": 500,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 7.718788761759347,
+      "output_vs_clean_dE00_p90": 14.760071608732687,
+      "identity_samples_dE00_median": 2.4224754882288413,
+      "identity_samples_dE00_max": 12.51444830429201,
+      "fraction_improved": 0.4849246231155779
+    },
+    {
+      "step": 1000,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 7.5404932151183885,
+      "output_vs_clean_dE00_p90": 14.606803385683124,
+      "identity_samples_dE00_median": 2.2714786479507048,
+      "identity_samples_dE00_max": 9.16063410608035,
+      "fraction_improved": 0.535175879396985
+    },
+    {
+      "step": 1500,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.75421359934267,
+      "output_vs_clean_dE00_p90": 12.169651193836723,
+      "identity_samples_dE00_median": 3.2453370660236955,
+      "identity_samples_dE00_max": 13.606576375846998,
+      "fraction_improved": 0.6231155778894473
+    },
+    {
+      "step": 2000,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.537108172842313,
+      "output_vs_clean_dE00_p90": 11.977670289299903,
+      "identity_samples_dE00_median": 2.8757241180412594,
+      "identity_samples_dE00_max": 12.62332411260239,
+      "fraction_improved": 0.6532663316582915
+    },
+    {
+      "step": 2500,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.31918113028399,
+      "output_vs_clean_dE00_p90": 11.521704434944025,
+      "identity_samples_dE00_median": 3.1399227142227613,
+      "identity_samples_dE00_max": 11.657114420741747,
+      "fraction_improved": 0.6809045226130653
+    },
+    {
+      "step": 3000,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.394728233048994,
+      "output_vs_clean_dE00_p90": 11.431016508987444,
+      "identity_samples_dE00_median": 2.8233069723650632,
+      "identity_samples_dE00_max": 16.168486122185264,
+      "fraction_improved": 0.6959798994974874
+    },
+    {
+      "step": 3500,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.5204441411639475,
+      "output_vs_clean_dE00_p90": 11.114782348315634,
+      "identity_samples_dE00_median": 4.052304817226437,
+      "identity_samples_dE00_max": 16.782740546164653,
+      "fraction_improved": 0.6608040201005025
+    },
+    {
+      "step": 4000,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.204937708975,
+      "output_vs_clean_dE00_p90": 11.611190384647953,
+      "identity_samples_dE00_median": 2.8984524789518633,
+      "identity_samples_dE00_max": 18.77988328858783,
+      "fraction_improved": 0.6809045226130653
+    },
+    {
+      "step": 4500,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.226136163410166,
+      "output_vs_clean_dE00_p90": 10.66349720639587,
+      "identity_samples_dE00_median": 2.6278776992762465,
+      "identity_samples_dE00_max": 11.697038458075603,
+      "fraction_improved": 0.7085427135678392
+    },
+    {
+      "step": 5000,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.622515315027058,
+      "output_vs_clean_dE00_p90": 11.567831212633452,
+      "identity_samples_dE00_median": 2.6158368895224884,
+      "identity_samples_dE00_max": 11.994156895359236,
+      "fraction_improved": 0.6507537688442211
+    },
+    {
+      "step": 5500,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.7179095913641,
+      "output_vs_clean_dE00_p90": 11.475600444675246,
+      "identity_samples_dE00_median": 3.95156100087122,
+      "identity_samples_dE00_max": 18.740788419143435,
+      "fraction_improved": 0.592964824120603
+    },
+    {
+      "step": 6000,
+      "n_degraded": 398,
+      "n_identity": 144,
+      "degraded_input_dE00_median": 7.652323136130649,
+      "output_vs_clean_dE00_median": 6.284963648670054,
+      "output_vs_clean_dE00_p90": 11.485694398110931,
+      "identity_samples_dE00_median": 2.5569708343475046,
+      "identity_samples_dE00_max": 12.158172345620265,
+      "fraction_improved": 0.6884422110552764
+    }
+  ],
+  "selected_checkpoint_step": 4000,
+  "selection_rule": "lowest validation-split median dE00 (photo runs); final step (smoke runs)",
+  "g1_synthetic_check": {
+    "criterion_degraded_median_dE00_max": 2.0,
+    "criterion_identity_median_dE00_max": 1.5,
+    "degraded_median_dE00": 6.204937708975,
+    "identity_median_dE00": 2.8984524789518633,
+    "passes": false,
+    "note": "Procedural validation only. The real G1 needs a T1 validation split and the 'no class worse than Original' check."
+  }
+}

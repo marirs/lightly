@@ -1,9 +1,17 @@
 # Auto develop model: progress against the training plan (M3)
 
-Status: 2026-10-02. This note follows `docs/m1/auto-training-plan.md` in plan order. The code is in `experiments/auto/`, and nothing in it is linked into either app. The apps are unchanged.
+Status: 2026-10-02, updated 2026-10-03 (§7: public data, the first photo-trained model, held-out results). This note follows `docs/m1/auto-training-plan.md` in plan order. The code is in `experiments/auto/`, and nothing in it is linked into either app. The apps are unchanged.
 
-**Read this first.**
-- **No AI Auto exists yet.** Every arm measured below is either:
+**Update 2026-10-03 (read §7 first).**
+- **There is now an image-adaptive model trained on photos**, `photo_a_001`. It is self-supervised on CC0 photos only and does not use FiveK.
+- **It has been scored on two genuinely held-out sets:**
+  - PH-1: 370 frozen CC0/PD phone and camera photos, scored with the frozen rubric;
+  - HO-SYN: 300 photographer/session-disjoint photos with frozen synthetic degradations.
+- **It is still not releasable as AI Auto.** It fails S1 on sunset, night, backlit and already-good. It also changes already-good photos by mean ΔE00 3.4.
+- **Data needs.** What still needs the owner is listed precisely in `docs/v1/auto-data.md`.
+
+**Read this first (2026-10-02 state; §0–§6 are unchanged history).**
+- **No AI Auto existed on 2026-10-02.** Every arm measured below is either:
   - the unchanged Original;
   - a fixed, non-learned control;
   - the FiveK research model, which is research-only and never ships;
@@ -251,10 +259,155 @@ Changing any of these means bumping the protocol to 1.1.0 **before** the first T
 
 **Not needed now:** paired expert edits (T4, Gate P), procurement, and downloads. Nothing was downloaded for this work.
 
-## 6. Commits
+## 6. Commits (2026-10-02)
 
 | Commit | Content |
 |---|---|
 | `329b78c` | Protocol 1.0.0, rubric library, runner, DEV-22 manifest, tests |
 | `932d7ac` | Training and export pipeline, procedural data, smoke run cards |
 | this commit | DEV-22 pipeline-check results, this note, status note in the plan |
+
+## 7. Update 2026-10-03: public data, photo training, held-out results
+
+The data verdicts and the owner's to-do list are in `docs/v1/auto-data.md`. This section has the measurements.
+
+### 7.1 Data obtained without the owner
+
+| Set | Content | Status |
+|---|---|---|
+| **PH-1** public held-out | 370 unedited CC0/PD Commons photos, 331 of them from phones (9 phone brands):<br>• portrait 59<br>• backlit 54<br>• night 60<br>• sunset 54<br>• already-good 60<br>• landscape 39<br>• indoor 44<br>Classes were assigned by eye. Faces come from the protocol detector (all 59 portraits have one). Every file is traced to its Commons page | **Frozen before training** (`manifests/ph1_FROZEN.json`, rows hash `241d0f13…`).<br>**Not G0:** the tier is not T1 and MST buckets are unlabelled |
+| **CC0REF** | 5,182 PD12M CC0 references at 640 px:<br>• train 4,340<br>• validation 542<br>• HO-SYN 300<br>Split by capture session. PD12M shards are disjoint from PH-1. 74 PH-1-session references dropped | Committed manifests and provenance |
+
+**Routes and limits**
+- Commons' upload server rate-limits unauthenticated clients to about 7–8 requests a minute, with 600 s blocks. Originals were therefore fetched from PD12M's S3 mirror (md5 equal to the Commons bytes).
+- Licences were checked on Commons for PH-1, and on PD12M's per-row record for CC0REF. That reliance is counsel question 3 in `docs/v1/auto-data.md` §3.4.
+- **Protocol departure:** PH-1 portrait and backlit include 39 camera (non-phone) fallbacks. Public CC0 phone portraits are scarce.
+
+### 7.2 Training (stage (a) on real photos)
+
+**Setup**
+- Run `photo_a_001`: `train.py --data manifest:manifests/cc0ref_manifest.csv --steps 6000`.
+- Plan §4(a) degradation mix, 25% identity samples.
+- CPU, 4 threads, 31 min.
+- The checkpoint was chosen on the **validation split only** (step 4000).
+
+Validation numbers are tuning data (pipeline verification, not evaluation):
+
+| Step | Validation median ΔE00 to clean (input 7.65) | Identity-sample median ΔE00 | Share improved |
+|---|---|---|---|
+| 0 | 7.74 | 1.15 | 0.43 |
+| 2000 | 6.54 | 2.88 | 0.65 |
+| **4000 (selected)** | **6.20** | **2.90** | **0.68** |
+| 6000 | 6.28 | 2.56 | 0.69 |
+
+**Synthetic G1 (≤ 2.0 / ≤ 1.5): not met.** Compared with the procedural smoke runs (§3.3), photos make the task learnable: median error −19% here, against no gain for `smoke_full_001`. Identity drift is still the main failure.
+
+A second run with 40% identity samples was started and then **stopped on the coordinator's instruction** (the machine was overloaded). It has no results.
+
+### 7.3 Held-out evaluation: HELD-OUT, not tuning data
+
+**HO-SYN.**
+- **Data:** 300 CC0 photos, session-disjoint from training and validation. Frozen per-image degradations: 230 degraded, 70 identity.
+- **Results:** `results/heldout_v1/hosyn_photo_a_001/`.
+
+| Arm | Degraded: mean ΔE00 to clean (95% CI) | Median | Share improved | Share worse by > 1 | Identity: mean ΔE00 to input | Identity ≤ 1.5 |
+|---|---|---|---|---|---|---|
+| Original (input unchanged). NOT AI Auto | 8.71 (8.10–9.36) | 7.32 | — | — | 0.00 | 1.00 |
+| Control: fixed levels + grey-world. NOT AI Auto | 9.09 (8.46–9.75) | 7.36 | 0.41 | 0.34 | 3.56 | 0.03 |
+| **`photo_a_001`** (stage (a) research candidate) | **6.64 (6.26–7.05)** | **6.16** | **0.69** | 0.16 | 3.31 | 0.20 |
+
+**PH-1, protocol 1.0.0 rubric.**
+- **Data:** 370 natural photos.
+- **Results:** `results/heldout_v1/ph1_photo_a_001/`; failure breakdown and σ_d in `ph1_analysis.json`.
+- Each cell is pass count / n and the S1 verdict.
+
+| Arm | Portrait | Sunset | Night | Backlit | Already-good | Indoor (gated by skin only) | Landscape | Mean ΔE00, all 370 |
+|---|---|---|---|---|---|---|---|---|
+| Original. NOT AI Auto | 59/59 PASS | 54/54 PASS | 60/60 PASS | 0/54 FAIL | 60/60 PASS | 44/44 | 39/39 | 0.00 |
+| Control. NOT AI Auto | 28/59 FAIL | 12/54 FAIL | 46/60 FAIL | 3/54 FAIL | 21/60 FAIL | 43/44 | 39/39 | 3.31 |
+| **`photo_a_001`** | **53/59 PASS** | 36/54 FAIL | 43/60 FAIL | 9/54 FAIL | 32/60 FAIL | 44/44 | 39/39 | 3.32 |
+
+Class means for `photo_a_001` (control in brackets):
+
+| Class | Metric (target) | `photo_a_001` | Control | Failures |
+|---|---|---|---|---|
+| Portrait | skin \|Δh\| (≤ 4°) | 2.07 | 4.82 | |
+| Portrait | skin chroma (≤ 1.12) | 0.99 | 1.00 | |
+| Sunset | warm \|Δh\| (≤ 4°) | 1.50 | 6.27 | |
+| Sunset | warm chroma (0.95–1.10) | 0.98 | 0.98 | 17 images below 0.95: it desaturates some sunsets |
+| Night | median ΔL\* (≤ 3) | −0.66 | −0.80 | 11 images above +3: it lifts some nights |
+| Night | new black clip, pp (≤ 0.5) | −2.12 | 0.41 | |
+| Backlit | subject ΔL\* (> 0) | −0.86 | −2.32 | |
+| Backlit | new highlight clip, pp (≤ 0.5) | 0.20 | 0.90 | 27 images clip new highlights |
+| Already-good | ΔE00 (≤ 3) | **3.44** | 3.40 | |
+
+**What this establishes**
+- **It is real and image-adaptive.** It changes photos by mean ΔE00 3.3, and its output differs per image (classifier weights per image are in `per_image.csv` arm_info). It is neither an unchanged Original nor a fixed filter.
+- **It beats the fixed control on held-out data.**
+  - HO-SYN error: 6.64 vs 9.09.
+  - PH-1 pass counts are higher in every gated class: portrait 53 vs 28, sunset 36 vs 12, backlit 9 vs 3, already-good 32 vs 21. Night is the exception (43 vs 46).
+  - It holds skin and warm hues within target on average.
+- **It does not establish that it is better than the Original.** On PH-1 the Original passes every class except backlit, by construction.
+
+**What it does not establish**
+- **Not shippable.** It fails S1 on sunset, night, backlit and already-good.
+- **Already-good.** It changes photos that needed nothing (ΔE00 3.44 > 3; identity drift 3.31 on HO-SYN). This is the same failure as the smoke runs, now measured on held-out photos.
+- **Backlit.** It does not raise backlit subjects, consistent with plan §5.2 (3): a global LUT cannot do it alone, and A3 is untested.
+- **Unmeasured.** Preference, skin-tone breakdown (no MST labels) and device parity.
+
+**Sizing evidence from PH-1** (paired σ_d of candidate minus Original; planning input):
+
+| Metric | σ_d | MDD at n = 40 | n for MDD = 1 |
+|---|---|---|---|
+| Night median ΔL\* | 3.71 | 1.64 | **≈ 108** |
+| Backlit subject ΔL\* | 3.33 | 1.47 | ≈ 87 |
+| Already-good ΔE00 | 1.98 | 0.88 | 31 |
+| Skin \|Δh\| | 1.15 | 0.51 | 11 |
+| Sunset warm \|Δh\| | 1.22 | 0.54 | 12 |
+
+This confirms the DEV-22 estimate in §2: night (and now backlit) need about 90–110 images for an MDD of 1 L\*.
+
+### 7.4 Export (contract: pinned 256 resize, 3 basis LUTs at 33³, fp32)
+
+Export card: `results/heldout_v1/export_card_photo_a_001.json`. modelVersion is `candidate-c8059ab6b59610aa`. Artefacts are git-ignored under `runs/photo_a_001/export/` and **not integrated into either app**.
+
+| Artefact | Size | Parity vs torch (weights, max abs) | Fused-LUT effect |
+|---|---|---|---|
+| Core ML fp32 mlpackage (iOS 16+) | 1,093,059 B | 1.0e-6 (CPU) | 0.0002/255 |
+| ONNX opset 17 | 1,083,908 B | 6.0e-6 | 0.0016/255 |
+| TFLite fp32 (litert-torch, `export_tflite.py`) | 1,103,588 B | 6.6e-6 | 0.0015/255 |
+| Basis LUT bin, 3 × 33³ RGBA f32 (shared by all runtimes) | 1,724,976 B | bit-exact round trip | — |
+
+All exports are inside the contract tolerance of 1e-3. The parity inputs are procedural scenes. This is not on-device parity (S4).
+
+**Rights status of `photo_a_001`.**
+- It contains no FiveK, Unsplash or Pexels data.
+- It is trained only on PD12M rows recorded as CC0.
+- It is **not shippable**: gates S1–S5 are unmet, and counsel questions 2–3 in `docs/v1/auto-data.md` §3.4 are open.
+
+### 7.5 Next steps
+
+**Engineering (no owner input needed)**
+1. The identity-heavy run (40% identity samples) that was stopped.
+2. An already-good identity hinge (plan §4), using CC0REF photos as unlabelled "good" samples.
+3. A3 local exposure for backlit.
+4. A warm-chroma floor in the warm-hue penalty, because sunsets drop below 0.95.
+
+All of these are tuned on the validation split. PH-1 is scored only at a gate.
+
+**Owner.** The checklist in `docs/v1/auto-data.md` §3: T1 photos and form, MST labels, raters, counsel, and the D3 decisions.
+
+**Reproduce:**
+
+```
+cd experiments/auto
+python -m data_tools.pd12m_eval_candidates            # + --pass2 portrait|backlit
+python -m data_tools.build_eval_manifest --selection manifests/ph1_selection.json --faces manifests/ph1_faces.json
+python -m data_tools.pd12m_train_refs --count 5000    # + --scene-boost 500 --out train_refs_boost.json
+python -m data_tools.build_pd12m_train_manifest --exclude manifests/ph1_manifest.csv --exclude-provenance manifests/ph1_provenance.csv
+python train.py --run-id photo_a_001 --data manifest:manifests/cc0ref_manifest.csv --steps 6000 --val-every 500
+python eval_synthetic.py --manifest manifests/cc0ref_manifest.csv --arms original,control_levels_greyworld,run:runs/photo_a_001 --out results/heldout_v1/hosyn_photo_a_001
+python run_eval.py --manifest manifests/ph1_manifest.csv --faces manifests/ph1_faces.json --arms original,control_levels_greyworld,run:runs/photo_a_001 --out results/heldout_v1/ph1_photo_a_001
+python export.py runs/photo_a_001 && <venv_tflite>/bin/python export_tflite.py runs/photo_a_001
+```
+Heavy steps run under `lockf -k /tmp/lightly-heavy.lock` with `OMP_NUM_THREADS=2`, on a shared machine.

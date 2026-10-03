@@ -1,0 +1,135 @@
+{
+ "original": {
+  "mean_dE00_all": 0.0,
+  "failed_criteria_by_class": {
+   "already_good": {},
+   "backlit": {
+    "subject_dL": 54
+   },
+   "indoor_mixed": {},
+   "landscape": {},
+   "night": {},
+   "portrait": {},
+   "sunset": {}
+  },
+  "mean_dE00_by_class": {
+   "already_good": 0.0,
+   "backlit": 0.0,
+   "indoor_mixed": 0.0,
+   "landscape": 0.0,
+   "night": 0.0,
+   "portrait": 0.0,
+   "sunset": 0.0
+  }
+ },
+ "control_levels_greyworld": {
+  "mean_dE00_all": 3.31,
+  "failed_criteria_by_class": {
+   "already_good": {
+    "dE00_mean": 39
+   },
+   "backlit": {
+    "clipHi_pp": 25,
+    "subject_dL": 46
+   },
+   "indoor_mixed": {
+    "skin_abs_dh_deg": 1
+   },
+   "landscape": {},
+   "night": {
+    "clipLo_pp": 12,
+    "night_p50_dL": 2
+   },
+   "portrait": {
+    "skin_abs_dh_deg": 26,
+    "skin_chroma_ratio": 9
+   },
+   "sunset": {
+    "warm_abs_dh_deg": 31,
+    "warm_chroma_ratio": 31
+   }
+  },
+  "mean_dE00_by_class": {
+   "already_good": 3.4,
+   "backlit": 3.07,
+   "indoor_mixed": 3.24,
+   "landscape": 3.57,
+   "night": 2.68,
+   "portrait": 3.47,
+   "sunset": 3.83
+  }
+ },
+ "candidate:photo_a_001": {
+  "mean_dE00_all": 3.32,
+  "failed_criteria_by_class": {
+   "already_good": {
+    "dE00_mean": 28
+   },
+   "backlit": {
+    "subject_dL": 35,
+    "clipHi_pp": 27
+   },
+   "indoor_mixed": {},
+   "landscape": {},
+   "night": {
+    "night_p50_dL": 11,
+    "clipLo_pp": 6
+   },
+   "portrait": {
+    "skin_chroma_ratio": 2,
+    "skin_abs_dh_deg": 4
+   },
+   "sunset": {
+    "warm_abs_dh_deg": 4,
+    "warm_chroma_ratio": 17
+   }
+  },
+  "mean_dE00_by_class": {
+   "already_good": 3.44,
+   "backlit": 2.86,
+   "indoor_mixed": 3.25,
+   "landscape": 3.33,
+   "night": 2.73,
+   "portrait": 4.08,
+   "sunset": 3.53
+  }
+ },
+ "paired_sigma_candidate_minus_original": {
+  "portrait.skin_abs_dh_deg": {
+   "n": 59,
+   "sigma_d": 1.145,
+   "MDD_n40": 0.507,
+   "n_for_MDD_1": 11
+  },
+  "portrait.skin_chroma_ratio": {
+   "n": 59,
+   "sigma_d": 0.07,
+   "MDD_n40": 0.031,
+   "n_for_MDD_1": 1
+  },
+  "sunset.warm_abs_dh_deg": {
+   "n": 54,
+   "sigma_d": 1.218,
+   "MDD_n40": 0.539,
+   "n_for_MDD_1": 12
+  },
+  "night.night_p50_dL": {
+   "n": 60,
+   "sigma_d": 3.705,
+   "MDD_n40": 1.64,
+   "n_for_MDD_1": 108
+  },
+  "backlit.subject_dL": {
+   "n": 54,
+   "sigma_d": 3.328,
+   "MDD_n40": 1.474,
+   "n_for_MDD_1": 87
+  },
+  "already_good.dE00_mean": {
+   "n": 60,
+   "sigma_d": 1.98,
+   "MDD_n40": 0.876,
+   "n_for_MDD_1": 31
+  }
+ }
+}

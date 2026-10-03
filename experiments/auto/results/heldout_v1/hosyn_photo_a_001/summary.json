@@ -1,0 +1,90 @@
+{
+  "run_name": "hosyn_photo_a_001",
+  "kind": "held-out synthetic-degradation evaluation (HO-SYN)",
+  "manifest": {
+    "path": "experiments/auto/manifests/cc0ref_manifest.csv",
+    "split": "public_holdout_syn",
+    "rows_hash": "399e6b8e1dca1b90b222a58397c4658f8134a42d5e2a59ac80e0e4c79bdf6a87",
+    "n_images": 300
+  },
+  "n_identity": 70,
+  "eval_long_edge": 768,
+  "code_commit": "d5002bbe13e4eece7351a23f84510173bdd1ab9b",
+  "arms": [
+    {
+      "arm": {
+        "name": "original",
+        "label": "Original (unchanged) - NOT AI Auto",
+        "kind": "identity",
+        "is_ai_auto": false
+      },
+      "degraded_n": 230,
+      "degraded_mean_dE00_vs_clean": 8.710164347826089,
+      "degraded_mean_ci95": [
+        8.097930282608695,
+        9.358659597826087
+      ],
+      "degraded_median_dE00_vs_clean": 7.316700000000001,
+      "degraded_p90_dE00_vs_clean": 15.775979999999999,
+      "share_improved_vs_input": 0.0,
+      "share_worse_by_more_than_1_dE00": 0.0,
+      "identity_n": 70,
+      "identity_mean_dE00_vs_input": 0.0,
+      "identity_mean_ci95": [
+        0.0,
+        0.0
+      ],
+      "identity_share_le_1_5": 1.0
+    },
+    {
+      "arm": {
+        "name": "control_levels_greyworld",
+        "label": "Control: fixed auto-levels + grey-world WB (non-learned) - NOT AI Auto",
+        "kind": "control",
+        "is_ai_auto": false
+      },
+      "degraded_n": 230,
+      "degraded_mean_dE00_vs_clean": 9.090442608695653,
+      "degraded_mean_ci95": [
+        8.457562293478261,
+        9.747408391304347
+      ],
+      "degraded_median_dE00_vs_clean": 7.36445,
+      "degraded_p90_dE00_vs_clean": 17.66554,
+      "share_improved_vs_input": 0.40869565217391307,
+      "share_worse_by_more_than_1_dE00": 0.34347826086956523,
+      "identity_n": 70,
+      "identity_mean_dE00_vs_input": 3.5634485714285717,
+      "identity_mean_ci95": [
+        3.366719214285714,
+        3.763204928571428
+      ],
+      "identity_share_le_1_5": 0.02857142857142857
+    },
+    {
+      "arm": {
+        "name": "candidate:photo_a_001",
+        "label": "Stage (a) research candidate: self-supervised on CC0/PD reference photos - NOT released, NOT validated as AI Auto (ship gates S1-S5 not met)",
+        "kind": "candidate",
+        "is_ai_auto": false
+      },
+      "degraded_n": 230,
+      "degraded_mean_dE00_vs_clean": 6.644469130434782,
+      "degraded_mean_ci95": [
+        6.257124184782609,
+        7.051738619565217
+      ],
+      "degraded_median_dE00_vs_clean": 6.164,
+      "degraded_p90_dE00_vs_clean": 10.737699999999998,
+      "share_improved_vs_input": 0.6869565217391305,
+      "share_worse_by_more_than_1_dE00": 0.1565217391304348,
+      "identity_n": 70,
+      "identity_mean_dE00_vs_input": 3.311921428571429,
+      "identity_mean_ci95": [
+        2.7868687857142858,
+        3.897598678571429
+      ],
+      "identity_share_le_1_5": 0.2
+    }
+  ]
+}
