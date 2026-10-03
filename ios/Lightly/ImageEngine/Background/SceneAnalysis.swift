@@ -39,13 +39,18 @@ struct DetectedFace: Sendable, Equatable {
 
     static let detector = EditRecipe.ModelRef(id: "vision-face-landmarks", version: "ios-17-rev3")
 
-    /// The ellipse the face ring follows (prototype `.faceRing`, an upright ellipse on the face).
-    /// Vision's face box spans roughly brows to chin and is square; the ring adds the forehead
-    /// (a fifth of the box above it) and a little below the chin, so it is about 1.25 times as
-    /// tall as wide. Landmarks are not used: in the Simulator their CPU path returned contours
-    /// that moved between runs of the same photo.
+    /// The ellipse the face ring follows: the approved prototype's ring-to-face proportion,
+    /// measured on its four photos with face data (man, smile, woman, blonde) against Vision's
+    /// face box for the same photo (median of the four): 0.86 × the box width, 1.33 × its height,
+    /// same horizontal centre, centre raised by 0.05 × the box height. The prototype's rings are
+    /// hand-placed, so single photos differ from the median (width 0.61–1.10 ×; see
+    /// docs/v1/slice3-ios.md, P1).
+    static let ringWidthScale = 0.86, ringHeightScale = 1.33, ringCentreRaise = 0.05
+
     var ring: EditRecipe.Rect {
-        EditRecipe.Rect(x: box.x, y: box.y - box.height * 0.2, width: box.width, height: box.height * 1.25)
+        let width = box.width * Self.ringWidthScale, height = box.height * Self.ringHeightScale
+        let centreX = box.x + box.width / 2, centreY = box.y + box.height / 2 - box.height * Self.ringCentreRaise
+        return EditRecipe.Rect(x: centreX - width / 2, y: centreY - height / 2, width: width, height: height)
     }
 
     /// Usable for Portrait: big enough, with landmarks, facing the camera well enough. The
