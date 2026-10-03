@@ -3,7 +3,10 @@
 
 Each check exists because a measured verification run failed on it
 (/tmp/lightly-heavy.log, 2026-10-03):
-  - Java: two Android runs died on JDK 26 (Robolectric needs JDK <= 25).
+  - Java: two Android runs died on JDK 26. The supported JDK is the one the
+    project declares in android/gradle/gradle-daemon-jvm.properties
+    (toolchainVersion, currently 25, the JDK every passing run used); an
+    older JDK is not assumed compatible, so the major version must match.
   - Assets: a 6.2-minute iOS unit run failed on the missing, git-ignored LUT
     golden set.
   - Source identity: one Android run built the moving working folder, which
@@ -31,7 +34,7 @@ from pathlib import Path
 
 MAIN_CHECKOUT = Path(__file__).resolve().parent.parent
 SOURCE_MARKER = ".lightly-source"
-MAXIMUM_ROBOLECTRIC_JAVA = 25
+DAEMON_JVM_PROPERTIES = "android/gradle/gradle-daemon-jvm.properties"
 ANDROID_STUDIO_JDK = Path("/Applications/Android Studio.app/Contents/jbr/Contents/Home")
 IOS_TEST_SIMULATOR = "iPhone 17"
 
@@ -123,17 +126,35 @@ def java_major_version(java_home: Path) -> int:
     return int(match.group(1))
 
 
-def choose_android_java_home() -> Path:
+def supported_java_major(source: Path) -> int:
+    properties = source / DAEMON_JVM_PROPERTIES
+    if not properties.exists():
+        raise PreflightFailure(f"the project declares no supported JDK ({DAEMON_JVM_PROPERTIES} missing)")
+    for line in properties.read_text().splitlines():
+        if line.startswith("toolchainVersion="):
+            return int(line.split("=", 1)[1].strip())
+    raise PreflightFailure(f"no toolchainVersion in {properties}")
+
+
+def choose_android_java_home(required_major: int) -> Path:
     candidates = [Path(os.environ["JAVA_HOME"])] if os.environ.get("JAVA_HOME") else []
     candidates.append(ANDROID_STUDIO_JDK)
+    located = subprocess.run(["/usr/libexec/java_home", "-v", str(required_major)], capture_output=True, text=True)
+    if located.returncode == 0 and located.stdout.strip():
+        candidates.append(Path(located.stdout.strip()))
+    tried = []
     for candidate in candidates:
-        if candidate.exists() and java_major_version(candidate) <= MAXIMUM_ROBOLECTRIC_JAVA:
+        if not candidate.exists():
+            continue
+        major = java_major_version(candidate)
+        if major == required_major:
             return candidate
-    raise PreflightFailure(f"no JDK <= {MAXIMUM_ROBOLECTRIC_JAVA} found (tried {', '.join(map(str, candidates))})")
+        tried.append(f"{candidate} (JDK {major})")
+    raise PreflightFailure(f"the project requires JDK {required_major}; found only: {', '.join(tried) or 'none'}")
 
 
 def check_android(source: Path) -> list[str]:
-    java_home = choose_android_java_home()
+    java_home = choose_android_java_home(supported_java_major(source))
     sdk_properties = source / "android/local.properties"
     if not sdk_properties.exists():
         sdk_properties = MAIN_CHECKOUT / "android/local.properties"
