@@ -1,0 +1,64 @@
+{
+ "generator": "generate.py",
+ "nr": {
+  "luminance": 60,
+  "luminanceDetail": 40,
+  "luminanceContrast": 20,
+  "color": 50,
+  "colorDetail": 50,
+  "colorSmoothness": 60
+ },
+ "sharpening": {
+  "amount": 80,
+  "radius": 1.2,
+  "detail": 30,
+  "edgeMasking": 40
+ },
+ "vignette": {
+  "amount": -35,
+  "midpoint": 40,
+  "feather": 60,
+  "roundness": 20,
+  "highlightContrast": 30
+ },
+ "grain": {
+  "amount": 40,
+  "size": 30,
+  "roughness": 45,
+  "seed": 1571121214
+ },
+ "images": [
+  {
+   "width": 96,
+   "height": 64,
+   "cases": [
+    "noise-reduction",
+    "clarity-texture",
+    "clarity-negative",
+    "sharpening",
+    "vignette-style1",
+    "vignette-style2",
+    "vignette-style3",
+    "vignette-lighten",
+    "grain",
+    "combined-strength-0.7"
+   ]
+  },
+  {
+   "width": 192,
+   "height": 128,
+   "cases": [
+    "noise-reduction",
+    "clarity-texture",
+    "clarity-negative",
+    "sharpening",
+    "vignette-style1",
+    "vignette-style2",
+    "vignette-style3",
+    "vignette-lighten",
+    "grain",
+    "combined-strength-0.7"
+   ]
+  }
+ ]
+}
