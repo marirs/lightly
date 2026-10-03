@@ -1,6 +1,6 @@
 # Lightly 1.0: implementation plan, dependencies and conflicts
 
-The approved UX is `docs/ui/app/` at revision **ff5c5ae**. A read-only copy and SHA-256 hashes are in `~/.codex/artifacts/lightly/approved-design-ff5c5ae/`. Every screen and behaviour is tracked in `docs/v1/implementation-checklist.md`.
+The approved UX is `docs/ui/app/` at revision **ff5c5ae**, now canonical under `docs/ui/` (0352972; content identical apart from photo paths). A read-only copy and SHA-256 hashes are in `~/.codex/artifacts/lightly/approved-design-ff5c5ae/`. Every screen and behaviour is tracked in `docs/v1/implementation-checklist.md`.
 
 To render any approved screen at a reference device size, theme and text size for a side-by-side comparison:
 
