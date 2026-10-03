@@ -49,17 +49,30 @@ From `docs/ui/assets/photos/SOURCES.csv`. All are under the Unsplash License, an
 | wellexposed_02.jpg | https://unsplash.com/photos/a-street-with-houses-and-trees-on-both-sides-rlxo_XrKb6k | Mykyta Kravčenko |
 | backlit_02.jpg | https://unsplash.com/photos/a-woman-standing-in-a-field-looking-at-the-sun-9nmReTKwQ3U | Alice Kotlyarenko |
 
-## Contract gaps (reported, shared/ not edited)
+## Contract gaps: resolved by rendering-v2 revision 1
 
-| # | Gap | Implemented |
-|---|---|---|
-| G1 | Maximum blur radius: rendering-v2.json `maxBlurRadius` 0.03 of the long edge; depth-evaluation §R4 says 0.035 | 0.03 (the contract) |
-| G2 | Depth of field: rendering-v2.md §7 "half-width depthOfField/100·0.5 around focusDepth"; §R4 says `h = 0.30·(focusDepth/100)^1.5` in disparity units | the contract's; both constants are in `Refocus.FocusConstants` only |
-| G3 | rendering-v2 allows `depth.source = subject-matte` (two planes, no depth); §R8 says never fake depth with a mask-only blur | `subject-matte` is never written with blur; blur needs depth |
-| G4 | Depth direction: the recipe stores depth 0 near / 1 far, the renderer works in disparity (1 near) | `focusDepth = 1 − nearness`, documented in `NormalisedDepth` |
-| G5 | No parity goldens for the renderer in `shared/fixtures` (§R9 asks for them) | kernel/CoC/highlight vectors only, generated locally |
-| G7 | Pull-push in `refocus.py` stops when the short side is ≤ 4 px and leaves uncovered cells of that coarsest level at 0, so large disocclusions fill toward black instead of from neighbours (Kraus & Strengert continue until the top level is covered) | ported as in the reference and pinned by a test; a fix belongs in the reference/spec first |
-| G6 | `replacementDepth` (recipe) vs §R2.4 placement rule (median of the original background, capped behind the subject) | §R2.4 rule; `replacementDepth` is carried but not used |
+`docs/v1/contract-fixes-1.md` resolves the earlier gaps G1–G7, and the Android port follows its §4:
+- **CoC, G1/G2/B1:**
+  - `R_max = blur/100·0.06·longEdge`;
+  - `h = 0.5·dof/100`;
+  - the divisor is `max(S − h, 1e-6)`, with `S = max(d_f, 1 − d_f)`;
+  - the subject plane's CoC is 0 when the focus is on the subject. That means a tap on the matte, or a null target when there is a subject (`BackgroundPlan.focusTarget`).
+- **G3:** `Focus` rejects `blur > 0` with `depth.source = subject-matte`. The editor never commits blur without depth.
+- **G4:** a stored `focusDepth` is rendered as `d_f = 1 − focusDepth`.
+- **G5:** `RenderingGoldensTest` covers the constants against the contract, the CoC scalars, highlights, kernels, pull-push and the nine whole renders. `GrainGoldensTest` covers the grain cases.
+- **G6:** `replacementDepth` is not read; it is written as 1.
+- **G7:** pull-push now runs down to 1×1, with an exact 2×2 mean.
+- **Contract revision:** the build (`RenderingContractFacts`) and the app (`DevelopLibrary`) require rendering-v2 revision 1.
+- **Grain (S8 port):** grain keeps chromaticity and is supersampled below two pixels per cell. Its constants are still uncalibrated, so grain presets stay deviation S8 until Lightroom references exist.
+
+Measured against the goldens:
+
+| Check | Result |
+|---|---|
+| Whole renders, ΔE00 mean | 0.000–0.023 |
+| Whole renders, ΔE00 p99 | 0.000–0.706 (swirl is the largest) |
+| Grain noise | within 1.2e-7 |
+| Grain pixels | within 6e-8 |
 
 ## Comparison (Pixel 9 Pro portrait, light/default, runner)
 

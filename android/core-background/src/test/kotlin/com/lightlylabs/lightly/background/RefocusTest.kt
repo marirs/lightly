@@ -46,35 +46,6 @@ class RefocusTest {
     }
 
     @Test
-    fun `signed circle of confusion equals refocus py`() {
-        val section = vectors.substring(vectors.indexOf("\"coc\""))
-        val rows = Regex("\\{\"disparity\": ([^,]+), \"focal\": ([^,]+), \"halfWidth\": ([^,]+), \"radiusMax\": ([^,]+), \"coc\": ([^}]+)\\}").findAll(section)
-        var count = 0
-        for (m in rows) {
-            val (d, f, h, r, coc) = m.groupValues.drop(1).map { it.toDouble() }
-            assertEquals(coc, Refocus.signedCoc(d.toFloat(), f, h, r), 1e-4)
-            count++
-        }
-        assertEquals(4, count)
-    }
-
-    private fun twoPlaneScene(): Pair<FloatImage, FloatPlane> {
-        // Left half near (nearness 0.9), right half far (0.1); a fine checker so blur is measurable.
-        val w = 64
-        val h = 48
-        val colour = FloatImage(w, h, 3, FloatArray(w * h * 3) { i -> val p = i / 3; val x = p % w; val y = p / w; if ((x + y) % 2 == 0) 0.6f else 0.2f })
-        val nearness = FloatPlane(w, h, FloatArray(w * h) { if (it % w < w / 2) 0.9f else 0.1f })
-        return colour to nearness
-    }
-
-    private fun variance(image: FloatImage, fromX: Int, toX: Int): Double {
-        val values = ArrayList<Float>()
-        for (y in 8 until image.height - 8) for (x in fromX until toX) values += image.data[(y * image.width + x) * 3]
-        val mean = values.average()
-        return values.sumOf { (it - mean) * (it - mean) } / values.size
-    }
-
-    @Test
     fun `blur zero is the identity`() {
         val (colour, nearness) = twoPlaneScene()
         val scene = Refocus.buildScene(colour, nearness, null)
@@ -136,12 +107,9 @@ class RefocusTest {
         full.data.forEach { assertEquals(0.7f, it, 1e-5f) }
         val coverage = FloatPlane(w, h, FloatArray(w * h) { if (it % w < 10) 1f else 0f })
         val premultiplied = FloatImage(w, h, 1, FloatArray(w * h) { 0.7f * coverage.values[it] })
-        // Covered pixels keep their colour; holes take it from coarser levels. Expected row computed with
-        // refocus.py's algorithm (cv2 INTER_AREA / INTER_LINEAR semantics, emulated in numpy): its coarsest
-        // level (3 × 3 here) keeps an uncovered cell at 0, so far holes fall toward 0 (reported as G7).
-        val expectedRow = floatArrayOf(0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.621f, 0.542f, 0.437f, 0.341f, 0.254f, 0.175f, 0.105f, 0.052f, 0.017f, 0f)
-        val filled = Refocus.pullPushFill(premultiplied, coverage)
-        for (y in 0 until h) for (x in 0 until w) assertEquals(expectedRow[x], filled.data[y * w + x], 1.5e-3f, "x=$x y=$y")
+        // Revision 1 (contract fixes 1, G7): the pyramid is pulled to 1 × 1, so every hole takes the
+        // covered colour; the earlier reference filled far holes toward black (that pin is gone).
+        Refocus.pullPushFill(premultiplied, coverage).data.forEach { assertEquals(0.7f, it, 1e-4f) }
     }
 
     @Test
@@ -154,4 +122,21 @@ class RefocusTest {
         assertEquals(0f, erased[20, 10], 1e-6f)
         assertEquals(1f, erased[22, 10], 1e-6f, "outside the eraser (2 px) the added area stays")
     }
+
+    private fun twoPlaneScene(): Pair<FloatImage, FloatPlane> {
+        // Left half near (nearness 0.9), right half far (0.1); a fine checker so blur is measurable.
+        val w = 64
+        val h = 48
+        val colour = FloatImage(w, h, 3, FloatArray(w * h * 3) { i -> val p = i / 3; val x = p % w; val y = p / w; if ((x + y) % 2 == 0) 0.6f else 0.2f })
+        val nearness = FloatPlane(w, h, FloatArray(w * h) { if (it % w < w / 2) 0.9f else 0.1f })
+        return colour to nearness
+    }
+
+    private fun variance(image: FloatImage, fromX: Int, toX: Int): Double {
+        val values = ArrayList<Float>()
+        for (y in 8 until image.height - 8) for (x in fromX until toX) values += image.data[(y * image.width + x) * 3]
+        val mean = values.average()
+        return values.sumOf { (it - mean) * (it - mean) } / values.size
+    }
+
 }

@@ -153,7 +153,10 @@ class BackgroundSession(private val env: EditorEnvironment) {
         val focal = focus.depth.focusDepth?.let { 1.0 - it }
             ?: focus.target?.let { focalNearnessAt(it.x, it.y) }
             ?: defaultTarget().let { (x, y) -> focalNearnessAt(x, y) } ?: 0.5
-        return BackgroundPlan(replacement, FocusParams(blur, focus.depthOfField, focus.style.name.lowercase(), focus.bokeh.name.lowercase(), focus.styleAmount), focal)
+        // Revision 1 (G4): a stored focusDepth is used as d_f = 1 − focusDepth and never re-resolved.
+        // replacementDepth is not read (G6): placement is §R2.4 "plane".
+        return BackgroundPlan(replacement, FocusParams(blur, focus.depthOfField, focus.style.name.lowercase(), focus.bokeh.name.lowercase(), focus.styleAmount), focal,
+            focusTarget = focus.target?.let { it.x to it.y })
     }
 
     private fun replacementImage(r: Replacement, w: Int, h: Int, developPlan: DevelopRenderPlan, renderer: DevelopRenderer): FloatImage? {

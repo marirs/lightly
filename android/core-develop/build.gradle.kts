@@ -35,10 +35,12 @@ val builtPackManifest: File = repoRoot.resolve("shared/look-pack/out/manifest.js
 tasks.withType<Test>().configureEach {
     systemProperty("lightly.lookPackFixturesDir", lookPackFixturesDir.absolutePath)
     systemProperty("lightly.renderingContract", renderingContractFile.absolutePath)
+    systemProperty("lightly.renderingGoldensDir", repoRoot.resolve("shared/fixtures/rendering").absolutePath)
     systemProperty("lightly.builtPackManifest", builtPackManifest.absolutePath)
     systemProperty("lightly.spatialFixturesDir", projectDir.resolve("src/test/resources/spatial").absolutePath)
     inputs.dir(lookPackFixturesDir).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("lookPackFixtures")
     inputs.file(renderingContractFile).withPathSensitivity(PathSensitivity.NONE).withPropertyName("renderingContract")
+    inputs.dir(repoRoot.resolve("shared/fixtures/rendering")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("renderingGoldens")
     // The full pack is git-ignored and large: record its path, not its contents.
     inputs.property("builtPackManifest", builtPackManifest.absolutePath)
 }

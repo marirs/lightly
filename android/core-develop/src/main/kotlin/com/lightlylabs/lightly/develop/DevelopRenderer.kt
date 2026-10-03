@@ -356,11 +356,19 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
  * absolute frame coordinates. Stage effects runs after edit.geometry; until the Edit tool exists the
  * frame is the source frame.
  */
-internal class FinishingPass(plan: DevelopRenderPlan, private val width: Int, private val height: Int) {
-    private val vignette = plan.finishing.vignette?.takeIf { it.amount != 0.0 }
-    private val grain = plan.finishing.grain?.takeIf { it.amount != 0.0 }
-    private val vignetteK = plan.model.experimental.vignetteK
-    private val grainK = plan.model.experimental.grainK
+internal class FinishingPass(
+    vignette: Vignette?,
+    grain: Grain?,
+    private val experimental: ExperimentalConstants,
+    private val width: Int,
+    private val height: Int,
+) {
+    constructor(plan: DevelopRenderPlan, width: Int, height: Int) : this(plan.finishing.vignette, plan.finishing.grain, plan.model.experimental, width, height)
+
+    private val vignette = vignette?.takeIf { it.amount != 0.0 }
+    private val grain = grain?.takeIf { it.amount != 0.0 }
+    private val vignetteK = experimental.vignetteK
+    private val grainK = experimental.grainK
 
     // Grain fields (rows × cols cells), sampled bilinearly per pixel.
     private val grainRows: Int
@@ -370,20 +378,28 @@ internal class FinishingPass(plan: DevelopRenderPlan, private val width: Int, pr
     private val fine: DoubleArray?
     private val coarse: DoubleArray?
 
+    /**
+     * Revision 1 supersampling factor s = max(1, ceil(2·cells/longEdge)): the field is interpolated at
+     * s·H × s·W and each output pixel is the mean of its s × s block, so a render with fewer than two
+     * pixels per grain cell gets what downscaling the export would give it (no point-sampled 1.5× grain).
+     */
+    private val grainSupersampling: Int
+
     init {
         val g = grain
         if (g != null) {
             val longEdge = max(width, height)
             val size = g.size / 100
-            val cellsLong = max(8, Math.rint(plan.model.experimental.grainRefLong / (1 + 4 * size)).toInt()) // Python round(): half to even
+            val cellsLong = max(8, Math.rint(experimental.grainRefLong / (1 + 4 * size)).toInt()) // Python round(): half to even
             grainRows = max(2, Math.rint(cellsLong.toDouble() * height / longEdge).toInt())
             grainCols = max(2, Math.rint(cellsLong.toDouble() * width / longEdge).toInt())
             coarseRows = max(2, grainRows / 3)
             coarseCols = max(2, grainCols / 3)
             fine = PortableRandom.field(g.seed, 0, grainRows, grainCols)
             coarse = PortableRandom.field(g.seed, 1, coarseRows, coarseCols)
+            grainSupersampling = max(1, kotlin.math.ceil(2.0 * cellsLong / longEdge).toInt())
         } else {
-            grainRows = 0; grainCols = 0; coarseRows = 0; coarseCols = 0; fine = null; coarse = null
+            grainRows = 0; grainCols = 0; coarseRows = 0; coarseCols = 0; fine = null; coarse = null; grainSupersampling = 1
         }
     }
 
@@ -436,19 +452,29 @@ internal class FinishingPass(plan: DevelopRenderPlan, private val width: Int, pr
     }
 
     private fun applyGrain(rgb: FloatArray, x: Int, y: Int, g: Grain, work: DoubleArray) {
-        val roughness = g.roughness / 100
-        val fineValue = bilinear(fine!!, grainRows, grainCols, x, y) / (2.0 / 3)
-        val coarseValue = bilinear(coarse!!, coarseRows, coarseCols, x, y) / (2.0 / 3)
-        val noise = ((1 - roughness) * fineValue + roughness * coarseValue) / sqrt((1 - roughness) * (1 - roughness) + roughness * roughness)
+        val noise = grainNoise(x, y, g.roughness / 100)
         ColourMath.linearToOklab(srgbToLinear(rgb[0].toDouble()), srgbToLinear(rgb[1].toDouble()), srgbToLinear(rgb[2].toDouble()), work)
         val l = work[0]
-        withLightness(rgb, l + grainK * (g.amount / 100) * noise * (4 * l * (1 - l) + 0.2), work[1], work[2], work)
+        withLightnessKeepChromaticity(rgb, l + grainK * (g.amount / 100) * noise * (4 * l * (1 - l) + 0.2), l, work[1], work[2], work)
     }
 
-    /** bilinear_upsample at one output pixel (half-pixel centres), from a rows × cols field to height × width. */
-    private fun bilinear(field: DoubleArray, rows: Int, cols: Int, x: Int, y: Int): Double {
-        val sy = ((y + 0.5) * rows / height - 0.5).coerceIn(0.0, (rows - 1).toDouble())
-        val sx = ((x + 0.5) * cols / width - 0.5).coerceIn(0.0, (cols - 1).toDouble())
+    /** reference `grain_noise` at one output pixel: the s × s block mean of the supersampled mixed field. */
+    internal fun grainNoise(x: Int, y: Int, roughness: Double): Double {
+        val s = grainSupersampling
+        val norm = sqrt((1 - roughness) * (1 - roughness) + roughness * roughness)
+        var sum = 0.0
+        for (j in 0 until s) for (i in 0 until s) {
+            val fineValue = bilinear(fine!!, grainRows, grainCols, x * s + i, y * s + j, width * s, height * s) / (2.0 / 3)
+            val coarseValue = bilinear(coarse!!, coarseRows, coarseCols, x * s + i, y * s + j, width * s, height * s) / (2.0 / 3)
+            sum += ((1 - roughness) * fineValue + roughness * coarseValue) / norm
+        }
+        return sum / (s * s)
+    }
+
+    /** bilinear_upsample at one output pixel (half-pixel centres), from a rows × cols field to outHeight × outWidth. */
+    private fun bilinear(field: DoubleArray, rows: Int, cols: Int, x: Int, y: Int, outWidth: Int, outHeight: Int): Double {
+        val sy = ((y + 0.5) * rows / outHeight - 0.5).coerceIn(0.0, (rows - 1).toDouble())
+        val sx = ((x + 0.5) * cols / outWidth - 0.5).coerceIn(0.0, (cols - 1).toDouble())
         val y0 = sy.toInt()
         val x0 = sx.toInt()
         val y1 = min(y0 + 1, rows - 1)
@@ -458,6 +484,17 @@ internal class FinishingPass(plan: DevelopRenderPlan, private val width: Int, pr
         val top = field[y0 * cols + x0] * (1 - fx) + field[y0 * cols + x1] * fx
         val bottom = field[y1 * cols + x0] * (1 - fx) + field[y1 * cols + x1] * fx
         return top * (1 - fy) + bottom * fy
+    }
+
+    /**
+     * reference `_with_lightness_keep_chromaticity` (revision 1): L clipped to [0, 1], a and b scaled by
+     * L'/L so hue and saturation are kept (linear RGB scales by (L'/L)³); output clipped to [0, 1].
+     */
+    private fun withLightnessKeepChromaticity(rgb: FloatArray, lightness: Double, original: Double, a: Double, b: Double, work: DoubleArray) {
+        val target = lightness.coerceIn(0.0, 1.0)
+        val ratio = target / max(original, 1e-6)
+        ColourMath.oklabToLinear(target, a * ratio, b * ratio, work)
+        for (c in 0 until 3) rgb[c] = linearToSrgb(work[c]).coerceIn(0.0, 1.0).toFloat()
     }
 
     /** reference `_with_lightness`: L clipped to [0, 1], a and b kept, output clipped to [0, 1]. */

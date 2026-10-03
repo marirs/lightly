@@ -32,7 +32,7 @@ class SessionSerializationTest {
     @Test
     fun `the shared fixture set is complete`() {
         assertEquals(24, validRecipeFixtures.size, "valid edit-recipe fixtures: $validRecipeFixtures")
-        assertEquals(7, invalidRecipeFixtures.size, "invalid edit-recipe fixtures: $invalidRecipeFixtures")
+        assertEquals(8, invalidRecipeFixtures.size, "invalid edit-recipe fixtures: $invalidRecipeFixtures")
     }
 
     @Test

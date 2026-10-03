@@ -73,8 +73,17 @@ class DevelopLibrary(
         const val ASSET_MANIFEST = "lookpack/manifest.json"
         const val ASSET_CONTRACT = "lookpack/rendering-v2.json"
 
+        /** The rendering-v2 revision this app implements. */
+        const val SUPPORTED_CONTRACT_REVISION = 1
+
         /** Parses the bundled files; [parseMillis] receives the manifest parse + index time. */
         fun load(manifest: String, contract: String, bakePool: ExecutorService, parallelism: Int, parseMillis: (Double) -> Unit = {}, onBake: (Double) -> Unit = {}): DevelopLibrary {
+            // rendering-v2 revision 1 (contract fixes 1): the background.focus constants this app renders
+            // with (Refocus.FocusConstants) are that revision's; the build checks the same (RenderingContractFacts).
+            val revision = kotlinx.serialization.json.Json.parseToJsonElement(contract).let { root ->
+                (root as? kotlinx.serialization.json.JsonObject)?.get("revision")?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() }
+            }
+            require(revision == SUPPORTED_CONTRACT_REVISION) { "rendering-v2 revision $revision; this app implements $SUPPORTED_CONTRACT_REVISION" }
             val model = DevelopModel.parse(contract)
             val start = System.nanoTime()
             val pack = LookPack.parse(manifest, model)

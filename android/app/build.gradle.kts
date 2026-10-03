@@ -171,6 +171,27 @@ object LookPackFacts {
     }
 }
 
+/**
+ * rendering-v2 revision this app implements (contract fixes 1): revision 1 moved background.focus
+ * `maxBlurRadius` from `params` to `constants` (0.06). Bundling or shipping any other revision fails.
+ */
+object RenderingContractFacts {
+    const val SUPPORTED_REVISION = 1
+
+    @Suppress("UNCHECKED_CAST")
+    fun problems(contractText: String): List<String> {
+        val contract = groovy.json.JsonSlurper().parseText(contractText) as Map<String, Any?>
+        val out = ArrayList<String>()
+        val revision = (contract["revision"] as? Number)?.toInt()
+        if (revision != SUPPORTED_REVISION) out += "rendering-v2 revision $revision, this app implements $SUPPORTED_REVISION"
+        val focus = (contract["stages"] as? List<Map<String, Any?>>)?.firstOrNull { it["id"] == "background.focus" }
+        val constants = ((focus?.get("operators") as? List<Map<String, Any?>>)?.firstOrNull()?.get("constants")) as? Map<String, Any?>
+        val maxBlur = ((constants?.get("maxBlurRadius") as? Map<String, Any?>)?.get("value") as? Number)?.toDouble()
+        if (maxBlur != 0.06) out += "background.focus constants.maxBlurRadius is $maxBlur, expected 0.06"
+        return out
+    }
+}
+
 /** Copies manifest.json and the rendering contract into a generated assets root, after checking them. */
 abstract class BundleLookPackTask : DefaultTask() {
     @get:Optional
@@ -193,6 +214,7 @@ abstract class BundleLookPackTask : DefaultTask() {
         val (format, digestMatches) = LookPackFacts.read(manifest.readText(), contract.readText())
         if (format != 3) throw GradleException("$manifest is look-pack format $format; this app reads format 3 only")
         if (!digestMatches) throw GradleException("$manifest was built for other Develop model constants than $contract")
+        RenderingContractFacts.problems(contract.readText()).takeIf { it.isNotEmpty() }?.let { throw GradleException("$contract: ${it.joinToString("; ")}") }
         val assetsRoot = assetsDirectory.get().asFile
         assetsRoot.deleteRecursively()
         manifest.copyTo(assetsRoot.resolve("lookpack/manifest.json"))
@@ -224,7 +246,8 @@ abstract class VerifyLookPackTask : DefaultTask() {
                 val contract = text("assets/lookpack/rendering-v2.json")
                 val (format, digestMatches) = LookPackFacts.read(manifest, contract)
                 if (format != 3 || !digestMatches) throw GradleException("Look pack check failed for ${apk.name}: format $format, model digest matches: $digestMatches")
-                "${apk.name}: look pack format 3, ${manifest.length} bytes, model digest OK"
+                RenderingContractFacts.problems(contract).takeIf { it.isNotEmpty() }?.let { throw GradleException("Contract check failed for ${apk.name}: ${it.joinToString("; ")}") }
+                "${apk.name}: look pack format 3, ${manifest.length} bytes, model digest OK, rendering-v2 revision ${RenderingContractFacts.SUPPORTED_REVISION}"
             }
         }
         reportFile.get().asFile.writeText(report + "\n")

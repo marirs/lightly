@@ -20,6 +20,8 @@ kotlin {
 dependencies {
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.junit)
+    // Reads shared/fixtures/rendering/index.json and shared/contracts/rendering-v2.json in tests only.
+    testImplementation(libs.kotlinx.serialization.json)
 }
 
 // The embedded-depth fixtures of the depth evaluation are read in place (git-ignored photos are not needed).
@@ -27,5 +29,10 @@ val depthFixturesDir: File = rootDir.parentFile.resolve("experiments/depth/embed
 tasks.withType<Test>().configureEach {
     systemProperty("lightly.depthFixturesDir", depthFixturesDir.absolutePath)
     systemProperty("lightly.refocusVectorsDir", projectDir.resolve("src/test/resources/refocus").absolutePath)
+    // Shared parity goldens (rendering-v2 revision 1, contract fixes 1 G5) and the contract they belong to.
+    systemProperty("lightly.renderingGoldensDir", rootDir.parentFile.resolve("shared/fixtures/rendering").absolutePath)
+    systemProperty("lightly.renderingContract", rootDir.parentFile.resolve("shared/contracts/rendering-v2.json").absolutePath)
+    inputs.dir(rootDir.parentFile.resolve("shared/fixtures/rendering"))
+    inputs.file(rootDir.parentFile.resolve("shared/contracts/rendering-v2.json"))
     inputs.property("depthFixturesDir", depthFixturesDir.absolutePath)
 }

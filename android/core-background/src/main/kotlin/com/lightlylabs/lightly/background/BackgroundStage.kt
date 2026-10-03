@@ -59,6 +59,11 @@ class BackgroundPlan(
     val focus: FocusParams,
     /** Focal nearness (1 = near): resolved from the stored focusDepth, else from the target / subject. */
     val focalNearness: Double,
+    /**
+     * The recipe's focus target, null when the recipe has none. Decides revision 1's subject-in-focus rule:
+     * a null target with a subject, or a target on the matte (M ≥ 0.5), keeps the subject plane sharp.
+     */
+    val focusTarget: Pair<Double, Double>? = null,
 ) {
     val isIdentity: Boolean get() = replacement == null && focus.blur <= 0.0
 }
@@ -87,7 +92,9 @@ object BackgroundStage {
             FloatPlane.filled(w, h, 0.5f)
         }
         val scene = Refocus.buildScene(photo, nearness, matte, replacementLinear)
-        val rendered = Refocus.render(scene, plan.focus, plan.focalNearness, layersPerSide)
+        val subjectInFocus = scene.subject != null &&
+            (plan.focusTarget?.let { (x, y) -> Refocus.focusIsOnSubject(scene, x, y) } ?: true)
+        val rendered = Refocus.render(scene, plan.focus, plan.focalNearness, layersPerSide, subjectInFocus)
         val out = ByteArray(w * h * 4)
         for (p in 0 until w * h) {
             for (c in 0 until 3) out[p * 4 + c] = encode(Refocus.linearToSrgb(rendered.data[p * 3 + c]))

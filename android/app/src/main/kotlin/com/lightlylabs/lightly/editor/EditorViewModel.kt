@@ -323,11 +323,15 @@ class EditorViewModel(
 
     private fun commitBackground(change: (com.lightlylabs.lightly.session.BackgroundTool) -> com.lightlylabs.lightly.session.BackgroundTool) {
         val session = state.value.session ?: return
-        commit(session.commit { s -> s.copy(tools = s.tools.copy(background = backgroundSession.withDerivedRefs(change(s.tools.background)))) }, state.value.auto)
+        // Derived references (the depth source and map) go in before the change too: a first blur commit
+        // must not build a Focus with blur > 0 and source subject-matte, which the recipe rejects.
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(background = backgroundSession.withDerivedRefs(change(backgroundSession.withDerivedRefs(s.tools.background))))) }, state.value.auto)
     }
 
     private fun withSlider(tool: com.lightlylabs.lightly.session.BackgroundTool, field: String, value: Double) = when (field) {
-        "blur" -> tool.copy(focus = tool.focus.copy(blur = value.coerceIn(0.0, 100.0)))
+        // No depth: blur stays 0 (the panel shows the approved failure state; §R8, contract fixes 1 G3).
+        "blur" -> if (tool.focus.depth.source == com.lightlylabs.lightly.session.DepthSource.SUBJECT_MATTE) tool
+            else tool.copy(focus = tool.focus.copy(blur = value.coerceIn(0.0, 100.0)))
         "depthOfField" -> tool.copy(focus = tool.focus.copy(depthOfField = value.coerceIn(0.0, 100.0)))
         "styleAmount" -> tool.copy(focus = tool.focus.copy(styleAmount = value.coerceIn(0.0, 100.0)))
         "scale" -> tool.copy(replacement = (tool.replacement as? com.lightlylabs.lightly.session.Replacement.Image)?.copy(scale = value.coerceIn(100.0, 200.0)) ?: tool.replacement)
@@ -338,7 +342,7 @@ class EditorViewModel(
     fun onBackgroundSlider(field: String, value: Double) {
         val session = state.value.session ?: return
         state.update { it.copy(background = it.background.copy(sliderDrag = field to value)) }
-        val edited = session.current.copy(tools = session.current.tools.copy(background = withSlider(session.current.tools.background, field, value)))
+        val edited = session.current.copy(tools = session.current.tools.copy(background = withSlider(backgroundSession.withDerivedRefs(session.current.tools.background), field, value)))
         requestPreview(edited, globalOnly = true)
     }
 

@@ -167,7 +167,12 @@ data class Focus(
     val target: NormalisedPoint?,
     val depth: Depth,
 ) {
-    init { requirePercent(blur, "blur"); requirePercent(depthOfField, "depthOfField"); requirePercent(styleAmount, "styleAmount") }
+    init {
+        requirePercent(blur, "blur"); requirePercent(depthOfField, "depthOfField"); requirePercent(styleAmount, "styleAmount")
+        // rendering-v2 revision 1 (contract fixes 1, G3): subject-matte means "no depth", and blur needs
+        // depth; a mask-only blur is never rendered (depth-evaluation §R8). The reader rejects the pair.
+        require(!(blur > 0 && depth.source == DepthSource.SUBJECT_MATTE)) { "blur > 0 needs a depth map (source subject-matte has none)" }
+    }
 }
 
 @Serializable enum class DepthSource { @SerialName("embedded") EMBEDDED, @SerialName("estimated") ESTIMATED, @SerialName("subject-matte") SUBJECT_MATTE }

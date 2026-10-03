@@ -53,8 +53,11 @@ class FocusScene(val background: ScenePlane, val subject: ScenePlane?) {
  */
 object Refocus {
     object FocusConstants {
-        /** rendering-v2.json background.focus maxBlurRadius. */
-        const val MAX_BLUR_FRACTION_OF_LONG_EDGE = 0.03
+        /**
+         * rendering-v2.json revision 1 `constants.maxBlurRadius` (contract fixes 1): the radius at blur 100
+         * for the depth farthest from the focal plane. Was 0.03, which barely blurred the background.
+         */
+        const val MAX_BLUR_FRACTION_OF_LONG_EDGE = 0.06
 
         /** rendering-v2.md §7: half-width of the sharp band = depthOfField/100·0.5. */
         const val DOF_HALF_WIDTH_SCALE = 0.5
@@ -174,17 +177,36 @@ object Refocus {
         return PlaneOps.median(window.toFloatArray())
     }
 
-    /** §R4: signed CoC in px, positive in front of the sharp band, negative behind it. */
+    /** Defocus range S = max(d_f, 1 − d_f): the disparity distance to the farther end of [0, 1] (revision 1). */
+    fun defocusRange(focal: Double) = max(focal, 1 - focal)
+
+    /** True when the tap lands on the subject plane (M(tap) ≥ 0.5), the topmost plane there (§R3). */
+    fun focusIsOnSubject(scene: FocusScene, targetX: Double, targetY: Double): Boolean {
+        val subject = scene.subject ?: return false
+        val cx = (targetX.coerceIn(0.0, 1.0) * (scene.width - 1)).toInt()
+        val cy = (targetY.coerceIn(0.0, 1.0) * (scene.height - 1)).toInt()
+        return subject.alpha[cx, cy] >= 0.5f
+    }
+
+    /**
+     * §R4 (revision 1): signed CoC in px, positive in front of the sharp band, negative behind it. The
+     * distance beyond the band is scaled by S − h, so the farthest depth gets [radiusMax] whatever the
+     * focal plane; one scale for both sides keeps the thin-lens ratio between depths.
+     */
     fun signedCoc(nearness: Float, focal: Double, halfWidth: Double, radiusMax: Double): Double {
         val delta = nearness - focal
-        val magnitude = max(abs(delta) - halfWidth, 0.0) / max(1 - halfWidth, 1e-6)
+        val magnitude = max(abs(delta) - halfWidth, 0.0) / max(defocusRange(focal) - halfWidth, 1e-6)
         return sign(delta) * magnitude.coerceIn(0.0, 1.0) * radiusMax
     }
 
     // ------------------------------------------------------------------ render (§R4–R6)
 
-    /** The refocused frame, linear RGB. [layersPerSide] is 8 for export and may be 4 for previews (§R7). */
-    fun render(scene: FocusScene, params: FocusParams, focal: Double, layersPerSide: Int = FocusConstants.LAYERS_PER_SIDE_EXPORT): FloatImage {
+    /**
+     * The refocused frame, linear RGB. [layersPerSide] is 8 for export and may be 4 for previews (§R7).
+     * [subjectInFocus]: revision 1's subject-in-focus rule — when the focus is on the subject (the tap on
+     * the matte, or a null target with a subject), the subject plane's CoC is 0, also for Soft's glow.
+     */
+    fun render(scene: FocusScene, params: FocusParams, focal: Double, layersPerSide: Int = FocusConstants.LAYERS_PER_SIDE_EXPORT, subjectInFocus: Boolean = false): FloatImage {
         val w = scene.width
         val h = scene.height
         val radiusMax = maxRadiusPx(params.blur, max(w, h))
@@ -197,7 +219,8 @@ object Refocus {
         val cocMaps = ArrayList<FloatPlane>()
         planes.forEachIndexed { planeIndex, plane ->
             val colour = plane.colour.copy().also { if (highlights) expandHighlights(it) }
-            val coc = FloatPlane(w, h, FloatArray(w * h) { signedCoc(plane.nearness.values[it], focal, half, radiusMax).toFloat() })
+            val coc = if (planeIndex == 1 && subjectInFocus && scene.subject != null) FloatPlane(w, h)
+                else FloatPlane(w, h, FloatArray(w * h) { signedCoc(plane.nearness.values[it], focal, half, radiusMax).toFloat() })
             cocMaps += coc
             for (layer in -layersPerSide..layersPerSide) {
                 val premultiplied = FloatImage(w, h, 4)
@@ -377,16 +400,17 @@ object Refocus {
      * and [coverage] in [0, 1]. Returns un-premultiplied colour defined everywhere.
      */
     fun pullPushFill(premultipliedColour: FloatImage, coverage: FloatPlane): FloatImage {
+        // Revision 1 (contract fixes 1, G7): pulled all the way to 1 × 1 with an exact 2 × 2 box mean
+        // (an odd last row or column repeated), so a hole is filled from covered pixels anywhere instead
+        // of from an uncovered coarse cell at 0.
         val levels = ArrayList<Pair<FloatImage, FloatPlane>>()
         levels += premultipliedColour to coverage
-        while (min(levels.last().second.width, levels.last().second.height) > 4) {
+        while (max(levels.last().second.width, levels.last().second.height) > 1) {
             val (colour, alpha) = levels.last()
-            val nw = (alpha.width + 1) / 2
-            val nh = (alpha.height + 1) / 2
-            val downColour = resizeArea(colour, nw, nh)
-            val downAlpha = DepthModelInput.resizeArea(alpha, nw, nh)
+            val downColour = halve(colour)
+            val downAlpha = halve(FloatImage(alpha.width, alpha.height, 1, alpha.values)).let { FloatPlane(it.width, it.height, it.data) }
             val newAlpha = downAlpha.map { min(it * 4f, 1f) }
-            for (p in 0 until nw * nh) {
+            for (p in 0 until newAlpha.width * newAlpha.height) {
                 val gain = newAlpha.values[p] / max(downAlpha.values[p], 1e-6f)
                 for (c in 0 until downColour.channels) downColour.data[p * downColour.channels + c] *= gain
             }
@@ -409,13 +433,20 @@ object Refocus {
         return filled
     }
 
-    /** cv2.INTER_AREA per channel, including fractional footprints (e.g. 5 → 3), as the reference uses. */
-    private fun resizeArea(image: FloatImage, width: Int, height: Int): FloatImage {
-        val out = FloatImage(width, height, image.channels)
-        for (c in 0 until image.channels) {
-            val plane = FloatPlane(image.width, image.height, FloatArray(image.width * image.height) { image.data[it * image.channels + c] })
-            val resized = DepthModelInput.resizeArea(plane, width, height)
-            for (p in 0 until width * height) out.data[p * image.channels + c] = resized.values[p]
+    /** Exact 2 × 2 box mean; an odd last row or column is repeated first (revision 1 pull-push step). */
+    private fun halve(image: FloatImage): FloatImage {
+        val w = (image.width + 1) / 2
+        val h = (image.height + 1) / 2
+        val out = FloatImage(w, h, image.channels)
+        for (y in 0 until h) for (x in 0 until w) {
+            val y0 = 2 * y
+            val y1 = min(2 * y + 1, image.height - 1)
+            val x0 = 2 * x
+            val x1 = min(2 * x + 1, image.width - 1)
+            for (c in 0 until image.channels) {
+                fun at(xx: Int, yy: Int) = image.data[(yy * image.width + xx) * image.channels + c]
+                out.data[(y * w + x) * image.channels + c] = 0.25f * (at(x0, y0) + at(x0, y1) + at(x1, y0) + at(x1, y1))
+            }
         }
         return out
     }
