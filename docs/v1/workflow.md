@@ -32,3 +32,15 @@ A heavy job is any build or test run, and any simulator or emulator session. Onl
   - never alter the references;
   - never regenerate baselines to hide a difference;
   - never waive a mismatch to meet a deadline.
+
+## Verification preflight
+
+Before taking the lock for a verification run, export the commit under test and check it. The preflight takes seconds and fails immediately on the three causes of today's wasted runs: the Java version, missing git-ignored assets, and source identity.
+
+```bash
+scripts/verify_preflight.py snapshot <commit> <empty-dir>
+eval "$(scripts/verify_preflight.py check android <empty-dir> <commit>)" && scripts/heavy verify-android-<commit> ...
+```
+
+- **What a handoff submits:** the exact tested commit and the results already recorded for it.
+- **When to re-run:** only the checks needed to investigate a finding or establish confidence, not every full suite automatically.
