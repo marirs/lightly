@@ -198,25 +198,41 @@ def download(url: str, destination: str, expected_sha1: str | None) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def trace_sha1(sha1: str, cache_dir: str) -> dict | None:
-    """Find the Commons file whose bytes have this sha1 and return its full record (licence, author, EXIF).
-    Two API requests (allimages by sha1, then imageinfo by title); cached per sha1."""
+def trace_sha1_title(sha1: str, cache_dir: str) -> str | None:
+    """Commons file title whose bytes have this sha1 (list=allimages&aisha1), cached per sha1."""
     os.makedirs(cache_dir, exist_ok=True)
-    cache_path = os.path.join(cache_dir, sha1 + ".json")
+    cache_path = os.path.join(cache_dir, sha1 + ".title.json")
     if os.path.exists(cache_path):
-        return json.load(open(cache_path))["record"]
-    session = _session()
-    found = polite_get(session, API, "api", params={"action": "query", "list": "allimages", "aisha1": sha1,
-                                                    "format": "json"}).json()
+        return json.load(open(cache_path))["title"]
+    found = polite_get(_session(), API, "api", params={"action": "query", "list": "allimages", "aisha1": sha1,
+                                                       "format": "json"}).json()
     hits = (found.get("query") or {}).get("allimages") or []
-    record = None
-    if hits:
+    title = hits[0]["title"] if hits else None
+    json.dump({"sha1": sha1, "title": title}, open(cache_path, "w"))
+    return title
+
+
+def records_for_titles(titles: list[str], cache_dir: str) -> dict[str, dict]:
+    """Full Commons records (licence, author, EXIF) for up to 50 titles per API request, cached per title."""
+    os.makedirs(cache_dir, exist_ok=True)
+
+    def cache_path(title):
+        return os.path.join(cache_dir, hashlib.sha1(title.encode()).hexdigest() + ".record.json")
+
+    out = {t: json.load(open(cache_path(t))) for t in titles if os.path.exists(cache_path(t))}
+    missing = [t for t in titles if t not in out]
+    session = _session()
+    for start in range(0, len(missing), 50):
+        chunk = missing[start:start + 50]
         data = polite_get(session, API, "api", params={
-            "action": "query", "format": "json", "titles": hits[0]["title"], "prop": "imageinfo",
+            "action": "query", "format": "json", "titles": "|".join(chunk), "prop": "imageinfo",
             "iiprop": "url|size|sha1|mime|extmetadata|metadata",
             "iiextmetadatafilter": "LicenseShortName|LicenseUrl|UsageTerms|Artist|Credit|Categories|Restrictions|ImageDescription"}).json()
-        page = next(iter(data["query"]["pages"].values()))
-        page.setdefault("pageid", page.get("pageid"))
-        record = record_from_page(page)
-    json.dump({"sha1": sha1, "record": record}, open(cache_path, "w"))
-    return record
+        normalized = {n["from"]: n["to"] for n in (data["query"].get("normalized") or [])}
+        by_title = {p["title"]: p for p in data["query"]["pages"].values()}
+        for title in chunk:
+            page = by_title.get(normalized.get(title, title))
+            record = record_from_page(page) if page and "pageid" in page else None
+            json.dump(record, open(cache_path(title), "w"))
+            out[title] = record
+    return out

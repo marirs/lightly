@@ -3,6 +3,7 @@ shards), keep unedited phone captures (camera fallback for portrait/backlit), do
 review thumbnails.
 
   python -m data_tools.pd12m_eval_candidates
+  python -m data_tools.pd12m_eval_candidates --pass2 portrait|backlit   # appends stricter-pattern candidates
 
 Output: data/pd12m/eval_candidates.json (row + header EXIF + nominated classes), originals under
 data/pd12m/eval_originals/, review thumbnails under data/commons/thumbs/<id>.jpg.
@@ -27,14 +28,34 @@ HEADER_SAMPLE = {"portrait": 4000, "landscape": 1500, "indoor_mixed": 2000, "nig
 DOWNLOAD_CAP = {"portrait": 160, "backlit": 140, "night": 140, "sunset": 110, "landscape": 80, "indoor_mixed": 110}
 CAMERA_FALLBACK = {"portrait", "backlit"}
 THUMB_DIR = os.path.join(AUTO_ROOT, "data", "commons", "thumbs")
+# Second pass for portraits: the broad pattern yielded ~15 real portraits in 160 phone downloads, because
+# captions mention people in street scenes. This stricter pattern targets people posing / facing the camera.
+BACKLIT_STRICT = (r"\bsilhouett|\bbacklit\b|\bsun (?:is )?(?:shining|setting|rising|peeking) (?:behind|through)\b|"
+                  r"\bsunlight (?:is )?(?:streaming|shining|filtering) through\b|\bagainst (?:a|the) (?:bright|setting|evening) sky\b|"
+                  r"\bsun (?:is )?(?:visible )?in the background\b|\bthrough the window\b")
+PORTRAIT_STRICT = (r"\bposing\b|\blooking (?:at|into) the camera\b|\bselfie\b|\bportrait of (?:a|an|the) "
+                   r"(?:young |old |smiling |middle-aged )?(?:woman|man|girl|boy|person|child|couple)\b|"
+                   r"\bsmiling (?:woman|man|girl|boy|person)\b|\b(?:woman|man|girl|boy) (?:is )?smiling\b")
 
 
-def main():
+def main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pass2", choices=["portrait", "backlit"], help="append strict-pattern candidates for one class")
+    args = parser.parse_args(argv)
+    out_path = os.path.join(PD12M_DIR, "eval_candidates.json")
+    previous = json.load(open(out_path)) if args.pass2 else []
+    previous_ids = {e["id"] for e in previous}
     rows = [r for r in load_rows(EVAL_SHARDS, ("Wikimedia Commons",))
-            if not NOT_A_PHOTO.search(r["caption"] or "") and min(r["width"], r["height"]) >= 1000]
+            if not NOT_A_PHOTO.search(r["caption"] or "") and min(r["width"], r["height"]) >= 1000
+            and r["id"] not in previous_ids]
     rng = random.Random(20261003)
     nominated: dict[str, list[dict]] = {}
-    for rubric_class, pattern in NOMINATION_PATTERNS.items():
+    strict = {"portrait": PORTRAIT_STRICT, "backlit": BACKLIT_STRICT}
+    patterns = {args.pass2: strict[args.pass2]} if args.pass2 else NOMINATION_PATTERNS
+    if args.pass2:
+        HEADER_SAMPLE[args.pass2], DOWNLOAD_CAP[args.pass2] = 100000, 400
+    for rubric_class, pattern in patterns.items():
         matches = [r for r in rows if re.search(pattern, r["caption"] or "", re.I)]
         matches.sort(key=lambda r: r["id"])
         rng.shuffle(matches)
@@ -85,8 +106,8 @@ def main():
 
     with ThreadPoolExecutor(max_workers=S3_WORKERS) as pool:
         done = list(pool.map(fetch, candidates.values()))
-    good = [e for e in done if "sha1" in e]
-    json.dump(good, open(os.path.join(PD12M_DIR, "eval_candidates.json"), "w"), indent=1)
+    good = previous + [e for e in done if "sha1" in e]
+    json.dump(good, open(out_path, "w"), indent=1)
     print("downloaded", len(good), "failed", len(done) - len(good))
 
 

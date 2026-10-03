@@ -44,14 +44,21 @@ def phash_of(path: str) -> int:
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--refs", default="data/pd12m/train_refs.json")
+    parser.add_argument("--refs", action="append", default=None,
+                        help="reference lists from pd12m_train_refs (default: base + scene-boost lists)")
     parser.add_argument("--exclude", action="append", default=[], help="evaluation manifests (pHash exclusion)")
     parser.add_argument("--exclude-provenance", action="append", default=[], help="eval provenance (session exclusion)")
     parser.add_argument("--dev-manifest", default="eval/dev22_manifest.csv")
     parser.add_argument("--holdout-cap", type=int, default=300)
     parser.add_argument("--set-id", default="cc0ref")
     args = parser.parse_args(argv)
-    refs = sorted((r for r in json.load(open(os.path.join(AUTO_ROOT, args.refs))) if r.get("kept")), key=lambda r: r["id"])
+    ref_lists = args.refs or ["data/pd12m/train_refs.json", "data/pd12m/train_refs_boost.json"]
+    unique = {}
+    for ref_list in ref_lists:
+        for ref in json.load(open(os.path.join(AUTO_ROOT, ref_list))):
+            if ref.get("kept"):
+                unique.setdefault(ref["id"], ref)
+    refs = sorted(unique.values(), key=lambda r: r["id"])
 
     eval_phashes = {}
     for manifest_path in args.exclude + [args.dev_manifest]:

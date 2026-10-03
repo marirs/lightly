@@ -73,6 +73,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--count", type=int, default=4000, help="rows to try (kept count is lower after screens)")
     parser.add_argument("--inat-share", type=float, default=0.3)
+    parser.add_argument("--scene-boost", type=int, default=0,
+                        help="extra Commons rows per caption class (night, sunset, backlit, portrait, indoor_mixed) so "
+                             "the clean-reference prior is not almost all daylight nature")
+    parser.add_argument("--out", default="train_refs.json")
     args = parser.parse_args(argv)
     rows = [r for r in load_rows(TRAIN_SHARDS, ("Wikimedia Commons", "iNaturalist"))
             if not NOT_A_PHOTO.search(r["caption"] or "") and min(r["width"], r["height"]) >= 800]
@@ -83,6 +87,16 @@ def main(argv=None):
     rng.shuffle(inat)
     n_inat = int(args.count * args.inat_share)
     chosen = commons[:args.count - n_inat] + inat[:n_inat]
+    if args.scene_boost:
+        import re
+        from data_tools.pd12m import NOMINATION_PATTERNS
+        already = {r["id"] for r in chosen}
+        chosen = []  # boost run: only the scene-targeted rows (the base run's results are kept separately)
+        for scene in ("night", "sunset", "backlit", "portrait", "indoor_mixed"):
+            matches = [r for r in commons[args.count:] if r["id"] not in already
+                       and re.search(NOMINATION_PATTERNS[scene], r["caption"] or "", re.I)]
+            chosen += matches[:args.scene_boost]
+            already |= {r["id"] for r in matches[:args.scene_boost]}
     print("rows available", len(commons), "commons", len(inat), "inat; trying", len(chosen), flush=True)
     session = _session()
     results = []
@@ -91,7 +105,7 @@ def main(argv=None):
             results.append(result)
             if (index + 1) % 250 == 0:
                 print(f"[{index + 1}/{len(chosen)}] kept {sum(r['kept'] for r in results)}", flush=True)
-    json.dump(results, open(os.path.join(PD12M_DIR, "train_refs.json"), "w"), indent=1)
+    json.dump(results, open(os.path.join(PD12M_DIR, args.out), "w"), indent=1)
     print("kept", sum(r["kept"] for r in results), "of", len(results))
 
 

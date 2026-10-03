@@ -28,7 +28,7 @@ import os
 import numpy as np
 from PIL import Image, ImageCms, ImageOps
 
-from data_tools.commons import eligible, phone_brand, trace_sha1
+from data_tools.commons import eligible, phone_brand, records_for_titles, trace_sha1_title
 from lightly_auto.manifest import file_sha256, manifest_hash, write_manifest
 
 AUTO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -104,13 +104,20 @@ def main(argv=None):
     data_dir = os.path.join(AUTO_ROOT, "data", args.set_id)
     trace_dir = os.path.join(AUTO_ROOT, "data", "pd12m", "commons_trace")
     rows, provenance, refused = [], [], []
-    for index, item in enumerate(sorted(selection, key=lambda s: (s["rubric_class"], s["id"]))):
+    ordered = sorted(selection, key=lambda s: (s["rubric_class"], s["id"]))
+    # Same per-file evidence as a direct Commons download: trace the bytes to their Commons page and apply
+    # the Commons licence / provenance / unedited rules there, not only PD12M's record.
+    sha1_of = {}
+    for item in ordered:
+        path = os.path.join(AUTO_ROOT, "data", "pd12m", "eval_originals", item["id"] + ".jpg")
+        sha1_of[item["id"]] = hashlib.sha1(open(path, "rb").read()).hexdigest()
+    titles = {item_id: trace_sha1_title(sha1, trace_dir) for item_id, sha1 in sha1_of.items()}
+    records = records_for_titles(sorted({t for t in titles.values() if t}), trace_dir)
+    for index, item in enumerate(ordered):
         candidate = candidates[item["id"]]
         original_path = os.path.join(AUTO_ROOT, "data", "pd12m", "eval_originals", candidate["id"] + ".jpg")
-        original_sha1 = hashlib.sha1(open(original_path, "rb").read()).hexdigest()
-        # Same per-file evidence as a direct Commons download: trace the bytes to their Commons page and apply
-        # the Commons licence / provenance / unedited rules there, not only PD12M's record.
-        record = trace_sha1(original_sha1, trace_dir)
+        original_sha1 = sha1_of[item["id"]]
+        record = records.get(titles[item["id"]]) if titles[item["id"]] else None
         if record is None:
             refused.append((item["id"], "no Commons file with these bytes"))
             continue
