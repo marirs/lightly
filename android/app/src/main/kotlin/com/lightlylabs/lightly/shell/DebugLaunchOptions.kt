@@ -74,6 +74,7 @@ object DebugLaunchOptions {
             else -> null
         }
         editor.debugHoldLoading = screen == "loading" || screen == "developing"
+        editor.debugHoldSeparation = screen == "bg-separating"
         editor.openPhoto("file://" + File(path).absolutePath)
         shell.navigate(if (screen == "more") AppNavigator.openMore(AppNavigator.openEditor()) else AppNavigator.openEditor())
         if (screen == "developing") {
@@ -115,7 +116,7 @@ object DebugLaunchOptions {
                 "dev-fav-replace" -> { preset("travel", 5); api.setUi { it.copy(overlay = EditorOverlay.FAVOURITE_REPLACE) } }
                 "dev-bw" -> preset("black-white", 8)
                 "dev-landscape-photo" -> preset("golden-hour", 12)
-                "dev-portrait-photo" -> preset("portrait", 13)
+                "dev-portrait-photo", "bg-failed" -> preset("portrait", 13)
             }
             // History starts at the configured recipe (Undo disabled, as on the prototype's screens);
             // "Leaving with unsaved changes" keeps the recipe unsaved.
@@ -125,6 +126,10 @@ object DebugLaunchOptions {
                 "saving" -> api.setUi { it.copy(overlay = EditorOverlay.SAVING) }
                 "saved" -> api.setUi { it.copy(overlay = EditorOverlay.SAVED) }
                 "leave-unsaved" -> api.setUi { it.copy(overlay = EditorOverlay.LEAVE) }
+                // Slice 3: real separation on this build (no depth model, no segmenter: D3 / LiteRT
+                // pending), so bg-failed is the state a user actually sees, not an injected one.
+                "bg-separating", "bg-failed" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.CHANGE)
+                "bg-focus", "bg-no-subject" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
             }
         }
     }

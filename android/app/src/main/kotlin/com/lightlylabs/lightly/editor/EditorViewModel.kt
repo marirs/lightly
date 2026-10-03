@@ -286,6 +286,8 @@ class EditorViewModel(
         separationJob?.cancel()
         state.update { it.copy(separation = SeparationState.Separating) }
         separationJob = scope.launch(env.prefetchDispatcher) {
+            // Capture of the approved "Finding the subject…" state (debug builds only): stays separating.
+            if (debugHoldSeparation) return@launch
             val finished = backgroundSession.analyse(current.loaded)
             if (!isCurrent(current.generation)) return@launch
             state.update { it.copy(separation = finished) }
@@ -695,6 +697,9 @@ class EditorViewModel(
     /** Capture-only: stop after decoding, so the approved "Opening photo…" screen can be captured. */
     internal var debugHoldLoading: Boolean = false
 
+    /** Debug captures only: separation never finishes, so "Finding the subject…" can be captured. */
+    internal var debugHoldSeparation: Boolean = false
+
     /** Capture-only: sets the phase (the loading capture shows "Developing…", which no model triggers here). */
     internal fun debugSetPhase(phase: EditorPhase) = state.update { it.copy(phase = phase) }
 
@@ -764,6 +769,12 @@ class EditorViewModel(
         }
 
         fun setUi(change: (EditorUiState) -> EditorUiState) = state.update(change)
+
+        /** Opens Background on [sub] as the user would (starts separation). */
+        fun openBackground(sub: BackgroundSub) {
+            selectTool(EditorTool.BACKGROUND)
+            selectBackgroundSub(sub)
+        }
 
         /**
          * Makes the configured recipe the start of history, as the prototype's directly opened screens
