@@ -62,6 +62,14 @@ private val cssLineBox = androidx.compose.ui.text.style.LineHeightStyle(
     trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.None,
 )
 
+/**
+ * A prototype font size written as plain px (no `calc(… * var(--ts))`): the approved design keeps it
+ * the same at every system text size (the progress box, the photo badge, the ruler labels), so it is
+ * converted from dp and does not follow the font scale.
+ */
+@Composable
+fun fixedTextSize(px: Float): TextUnit = with(androidx.compose.ui.platform.LocalDensity.current) { px.dp.toSp() }
+
 fun lightlyTextStyle(size: TextUnit = 15.sp, weight: FontWeight = FontWeight.Normal, color: Color = Color.Unspecified) =
     TextStyle(fontSize = size, fontWeight = weight, color = color, lineHeight = size * 1.35f, lineHeightStyle = cssLineBox)
 

@@ -327,7 +327,8 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                 if (ui.showsOriginal) {
                     Text(
                         "Original",
-                        style = lightlyTextStyle(12.5.sp, FontWeight.SemiBold, Color.White),
+                        // `.badge { font-size:12.5px }`: fixed, not scaled with the text size.
+                        style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(12.5f), FontWeight.SemiBold, Color.White),
                         modifier = Modifier.padding(10.dp).background(Color(0x8C000000), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 3.dp),
                     )
                 }
@@ -363,8 +364,9 @@ internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, ca
             drawArc(Color.White, -135f, 90f, useCenter = false, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
                 topLeft = Offset(stroke / 2, stroke / 2), size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke))
         })
-        Text(label, style = lightlyTextStyle(14.sp, color = Color.White), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        if (detail != null) Text(detail, style = lightlyTextStyle(13.sp, color = Color.White.copy(alpha = 0.75f)), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        // `.progress { font-size:14px }` and the detail's 13px are fixed: they do not follow the text size.
+        Text(label, style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(14f), color = Color.White), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        if (detail != null) Text(detail, style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(13f), color = Color.White.copy(alpha = 0.75f)), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         if (barFraction != null) {
             Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF))) {
                 Box(Modifier.fillMaxHeight().fillMaxWidth(barFraction).background(Color.White))
@@ -372,7 +374,8 @@ internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, ca
         }
         if (cancel != null) {
             Box(Modifier.padding(top = 6.dp).heightIn(min = 44.dp).widthIn(min = 64.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = cancel).padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-                Text("Cancel", style = lightlyTextStyle(15.sp, FontWeight.SemiBold, Color.White))
+                // `.progress .btn` inherits the box's fixed 14px.
+                Text("Cancel", style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(14f), FontWeight.SemiBold, Color.White))
             }
         }
     }

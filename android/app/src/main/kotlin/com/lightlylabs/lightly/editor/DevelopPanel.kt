@@ -429,8 +429,9 @@ private fun Ruler(model: DevelopPanelModel, vm: EditorViewModel) {
         if (!dragging && (fling?.isActive != true)) offset.snapTo(model.stop * step)
     }
     val measurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(fontSize = 9.5.sp, color = colors.ink3)
-    val fineStyle = TextStyle(fontSize = 11.sp, color = colors.sel, fontWeight = FontWeight.SemiBold)
+    // `.tk span` 9.5px and `.fine` 11px are fixed sizes in the prototype: they do not follow the text size.
+    val labelStyle = TextStyle(fontSize = com.lightlylabs.lightly.shell.fixedTextSize(9.5f), color = colors.ink3)
+    val fineStyle = TextStyle(fontSize = com.lightlylabs.lightly.shell.fixedTextSize(11f), color = colors.sel, fontWeight = FontWeight.SemiBold)
     fun stopAt(value: Float) = (value / step).roundToInt().coerceIn(0, currentCount)
 
     Box(
