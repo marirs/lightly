@@ -10,23 +10,34 @@ struct DependencyContainer {
     let photoLoader: any PhotoLoading
     let libraryWriter: any PhotoLibraryWriting
     let autoEnhancer: any AutoEnhancing
-    let lookBook: LUTLookBook
-    /// nil when Metal is unavailable; the editor then reports a failure.
-    let lutRenderer: (any LUTRendering)?
+    /// Develop's model, preset pack and renderer; starts loading in the background at launch.
+    let developLibrary: DevelopLibrary
 
-    /// The current composition: the M2 LUT editor (`LUTEditSession`).
+    /// The current composition: the slice-2 editor (`EditorSession`) over the format-3 preset pack.
     ///
-    /// v3 differs: the recipe Develop engine (`AnalysingDeveloper`, or
-    /// `DebugFixedRecipeDeveloper` behind `--fixed-recipe`) is no longer
-    /// composed; the editor screen no longer has a recipe path.
+    /// v3 differs: the M2 LUT editor and its format-2 Look pack (one LUT file per Look) are gone;
+    /// presets are recipes baked on the device.
     static func live() -> DependencyContainer {
-        DependencyContainer(
+        let library = DevelopLibrary()
+        let renderer = try? MetalLUTRenderer()
+        Task { await library.loadBundled(lutApplier: renderer) }
+        return DependencyContainer(
             photoLoader: ImageIOPhotoLoader(),
-            libraryWriter: PhotoKitLibraryWriter(),
+            libraryWriter: makeLibraryWriter(),
             autoEnhancer: makeAutoEnhancer(),
-            lookBook: makeLookBook(),
-            lutRenderer: try? MetalLUTRenderer()
+            developLibrary: library
         )
+    }
+
+    private static func makeLibraryWriter() -> any PhotoLibraryWriting {
+        #if DEBUG
+        // UI tests and design captures exercise Save copy without touching the simulator's library
+        // or the system permission prompt.
+        if CommandLine.arguments.contains("--fake-library-writer") { return DebugInertLibraryWriter(delay: .milliseconds(600)) }
+        // Holds "Saving a copy…" on screen for a capture.
+        if CommandLine.arguments.contains("--slow-library-writer") { return DebugInertLibraryWriter(delay: .seconds(600)) }
+        #endif
+        return PhotoKitLibraryWriter()
     }
 
     /// No production Auto model exists, so Auto is explicitly unavailable.
@@ -35,20 +46,14 @@ struct DependencyContainer {
         let enhancer = ModelNotBundledAutoEnhancer()
         #if DEBUG
         let arguments = CommandLine.arguments
+        // Design captures and UI tests reach the approved "didn't finish" state (develop-failed).
+        if arguments.contains("--auto-fails") { return DebugFailingAutoEnhancer() }
         if let flag = arguments.firstIndex(of: "--auto-delay-seconds"),
            arguments.indices.contains(flag + 1), let seconds = Double(arguments[flag + 1]) {
             return DelayedAutoEnhancer(wrapped: enhancer, delay: .seconds(seconds))
         }
         #endif
         return enhancer
-    }
-
-    /// The Looks come from the Look pack bundled at build time
-    /// (`scripts/bundle_look_pack.sh`), in DEBUG and release alike: there are
-    /// no code-defined Looks. Without a pack the book is empty and the editor
-    /// says "No Looks are available in this build."
-    private static func makeLookBook() -> LUTLookBook {
-        LookPackLoader.loadBundled().book
     }
 
     /// Builds the root state from this container.
@@ -62,8 +67,7 @@ struct DependencyContainer {
             photoLoader: photoLoader,
             libraryWriter: libraryWriter,
             autoEnhancer: autoEnhancer,
-            lookBook: lookBook,
-            lutRenderer: lutRenderer,
+            developLibrary: developLibrary,
             preferences: PreferencesStore(defaults: defaults),
             favourites: FavouritePresetsStore(defaults: defaults, catalogue: catalogue),
             presetCatalogue: catalogue,
@@ -92,3 +96,13 @@ struct DependencyContainer {
     }
     #endif
 }
+
+#if DEBUG
+/// Accepts every save and writes nothing (DEBUG `--fake-library-writer`).
+struct DebugInertLibraryWriter: PhotoLibraryWriting {
+    let delay: Duration
+    func save(_ data: Data, fileExtension: String) async throws {
+        try await Task.sleep(for: delay)
+    }
+}
+#endif

@@ -43,20 +43,11 @@ final class ExportColorPipelineTests: XCTestCase {
         )
         let exporter = CountingExporter()
         let writer = SpyLibraryWriter()
-        let viewModel = ExportViewModel(
-            originalImage: photo.image,
-            recipe: .unmodified,
-            originalData: photo.originalData,
-            exporter: exporter,
-            libraryWriter: writer,
-            entitlements: FreeTierEntitlementResolver()
-        )
-
-        // Default settings, so this also covers D8 (JPEG by default).
-        viewModel.export(to: .photoLibrary)
-        await viewModel.inFlightExport?.value
-
-        XCTAssertEqual(viewModel.outcome, .savedToLibrary)
+        // Save copy through the editor session (the only save path), with no Look applied.
+        let session = try await EditorTestSupport.readySession(photo: photo, writer: writer, exporter: exporter)
+        session.saveCopy()
+        await EditorTestSupport.waitForSave(session)
+        if case .saved = session.saveState {} else { XCTFail("not saved: \(session.saveState)") }
         let saved = await writer.lastSave()
         return ExportResult(
             data: try XCTUnwrap(saved.data),

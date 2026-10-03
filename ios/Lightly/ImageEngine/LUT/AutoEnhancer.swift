@@ -84,4 +84,9 @@ struct DelayedAutoEnhancer: AutoEnhancing {
         return await wrapped.autoLUT(forAnalysisProxy: proxy)
     }
 }
+
+/// A model run that fails (DEBUG `--auto-fails`): the retryable failure a real model could report.
+struct DebugFailingAutoEnhancer: AutoEnhancing {
+    func autoLUT(forAnalysisProxy proxy: CGImage) async -> AutoResult { .unavailable(.analysisFailed) }
+}
 #endif

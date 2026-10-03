@@ -69,253 +69,155 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertFalse(app.buttons["more.row.preferences"].exists)
     }
 
-    // MARK: - Full flow
+    // MARK: - Editor (slice 2)
 
-    /// The whole primary flow on the real app with the real Look pack (spec
-    /// §2): choose a photo → it develops by itself → Auto is reported
-    /// unavailable → presets from two categories → Strength → Compare (the
-    /// photo says "Original") → Undo → Redo → Reset (undoable) → Save copy
-    /// adds a new photo.
-    ///
-    /// Categories and preset names are read from the same pack the build
-    /// bundled (`BundledLookPack`), never hard-coded: the catalog is data.
-    ///
-    /// `--auto-delay-seconds` (DEBUG only) holds Auto back briefly so the
-    /// developing state is observable; without a bundled model it would
-    /// otherwise resolve instantly.
-    func testEditAndSaveCopyEndToEnd() throws {
-        relaunch(arguments: ["--auto-delay-seconds", "2"])
-        try openFirstLibraryPhoto()
-
-        // Developing: the photo is visible, a progress row, no edit controls.
-        XCTAssertTrue(app.descendants(matching: .any)["editor.developing"].waitForExistence(timeout: timeout),
-                      "Selecting a photo should start developing by itself (no Develop button).")
-        XCTAssertFalse(app.buttons["action.develop"].exists, "There is no Develop button (spec D2).")
-        XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].exists, "The photo stays visible while developing.")
-        capture(named: "03-developing")
-
-        // Auto: explicitly unavailable, straight to editing (no futile Retry), nothing blocked.
-        let autoNotice = app.descendants(matching: .any)["editor.autoUnavailableNotice"]
-        XCTAssertTrue(autoNotice.waitForExistence(timeout: timeout), "Auto must say it is unavailable.")
-        XCTAssertTrue(autoNotice.label.contains("Auto is unavailable"), autoNotice.label)
-        XCTAssertFalse(app.buttons["action.retryAuto"].exists, "No Retry when no model exists.")
-        let pack = try requireBundledPack()
-        if pack.hasApproximateLooks {
-            let approximate = app.descendants(matching: .any)["editor.approximateLooksNotice"]
-            XCTAssertTrue(approximate.exists, "Looks that are not validated must be labelled as such.")
-            XCTAssertTrue(approximate.label.contains("approximate"), approximate.label)
-        }
-        capture(named: "04-auto-unavailable")
-
-        // First category: its first two presets, each a real thumb drag
-        // (previews while moving, commits on lift). The name and position show.
-        let categories = pack.categories.filter { !$0.names.isEmpty }
-        let first = try XCTUnwrap(categories.first { $0.names.count >= 2 }, "Pack has no category with two presets")
-        let second = try XCTUnwrap(categories.first { $0.id != first.id }, "Pack has only one category")
-        app.buttons["editor.category.\(first.id)"].tap()
-        let slider = app.descendants(matching: .any)["editor.lookSlider"]
-        XCTAssertTrue(slider.waitForExistence(timeout: timeout))
-        XCTAssertTrue(waitForValue(of: slider, toEqual: first.value(atStop: 0)), "\(slider.value ?? "nil")")
-        XCTAssertFalse(app.descendants(matching: .any)["editor.strengthSlider"].exists, "No Look, no Strength")
-        dragSlider(slider, from: 0, to: 1, stopCount: first.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: first.value(atStop: 1)), "\(slider.value ?? "nil")")
-        capture(named: "05-look-first-preset")
-        dragSlider(slider, from: 1, to: 2, stopCount: first.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: first.value(atStop: 2)), "\(slider.value ?? "nil")")
-        XCTAssertEqual(photoValue(), first.names[1], "Looks replace each other; the photo reports the one applied.")
-        capture(named: "06-look-second-preset")
-
-        // Strength: secondary, only with a Look; a drag then release is one step.
-        let strength = app.descendants(matching: .any)["editor.strengthSlider"]
-        XCTAssertTrue(strength.waitForExistence(timeout: timeout))
-        XCTAssertEqual(strength.value as? String, "100%")
-        dragStrength(strength, toFraction: 0.4)
-        XCTAssertTrue(waitForValue(of: strength, toMatch: "^[3-4][0-9]%$"), "\(strength.value ?? "nil")")
-        let reducedStrength = strength.value as? String
-        capture(named: "07-strength")
-
-        // Agreed Strength rule: settling on the stop that is already committed changes nothing —
-        // the Strength stays reduced (and no step is added: the Undo below lands on this state).
-        tapStop(slider, 2, stopCount: first.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: first.value(atStop: 2)), "\(slider.value ?? "nil")")
-        XCTAssertEqual(strength.value as? String, reducedStrength, "Same stop keeps the Strength")
-        capture(named: "07b-same-stop-keeps-strength")
-
-        // Second category: a preset there replaces the first category's Look.
-        app.buttons["editor.category.\(second.id)"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 0)), "\(slider.value ?? "nil")")
-        dragSlider(slider, from: 0, to: 1, stopCount: second.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 1)), "\(slider.value ?? "nil")")
-        XCTAssertEqual(photoValue(), second.names[0])
-        capture(named: "08-second-category-preset")
-
-        // Compare, by the toggle (the accessible alternative to holding).
-        let compare = app.buttons["action.compare"]
-        compare.tap()
-        XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your original photograph",
-                       "Compare must show the original.")
-        XCTAssertTrue(compare.isSelected, "The toggle reports its state.")
-        capture(named: "09-compare-original")
-        compare.tap()
-        XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your photograph")
-
-        // Compare, by press and hold on the photo: back to the edit on release.
-        app.descendants(matching: .any)["editor.photo"].press(forDuration: 0.8)
-        XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].label, "Your photograph")
-
-        // Undo returns to the first category's preset at the reduced Strength; Redo comes back.
-        app.buttons["action.undo"].tap()
-        XCTAssertTrue(waitForPhotoValue(first.names[1]), "\(photoValue() ?? "nil")")
-        XCTAssertEqual(app.descendants(matching: .any)["editor.strengthSlider"].value as? String, reducedStrength)
-        capture(named: "10-after-undo")
-        XCTAssertTrue(app.buttons["action.redo"].isEnabled)
-        app.buttons["action.redo"].tap()
-        XCTAssertTrue(waitForPhotoValue(second.names[0]), "\(photoValue() ?? "nil")")
-        XCTAssertFalse(app.buttons["action.redo"].isEnabled, "Nothing left to redo.")
-        capture(named: "11-after-redo")
-
-        // Reset to Auto clears the Look; Undo brings it back (Reset is a step).
-        app.buttons["action.reset"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 0)), "\(slider.value ?? "nil")")
-        XCTAssertFalse(app.buttons["action.reset"].isEnabled, "Nothing left to reset.")
-        capture(named: "12-after-reset")
-        app.buttons["action.undo"].tap()
-        XCTAssertTrue(waitForValue(of: slider, toEqual: second.value(atStop: 1)), "\(slider.value ?? "nil")")
-
-        try saveCopyAndConfirm(captureAs: "13-save-copy-confirmed")
+    private func photoPath(_ name: String) -> String {
+        "\(EditorCaptureUITests.repositoryRoot)/docs/ui/assets/photos/\(name).jpg"
     }
 
-    /// Every category of the real pack, in pack order, shows its presets as
-    /// discrete stops named verbatim from the manifest; the VoiceOver
-    /// increment moves exactly one stop. Screenshots go to
-    /// `LIGHTLY_UI_TEST_OUTPUT` (the demo).
-    func testEveryCategoryOffersItsPresetsAsStops() throws {
-        try openFirstLibraryPhoto()
-        XCTAssertTrue(app.descendants(matching: .any)["editor.autoUnavailableNotice"].waitForExistence(timeout: timeout))
-        let pack = try requireBundledPack()
-        let slider = app.descendants(matching: .any)["editor.lookSlider"]
-
-        let chips = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'editor.category.'"))
-        XCTAssertEqual(chips.count, pack.categories.count, "One chip per pack category, no built-in ones")
-        for (index, category) in pack.categories.enumerated() {
-            let chip = app.buttons["editor.category.\(category.id)"]
-            XCTAssertEqual(chip.label, category.label, "Labels come from the pack")
-            chip.tap()
-            XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 0)), "\(slider.value ?? "nil")")
-            dragSlider(slider, from: 0, to: 1, stopCount: category.stopCount)
-            XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
-            capture(named: "a\(index + 1)-\(category.id)-first-preset")
-        }
-
-        // The category with the most presets, stepped through every stop one
-        // drag at a time. The Look slider is a custom adjustable control, not a
-        // UISlider, so XCUIElement.adjust(toNormalizedSliderPosition:) throws on
-        // it; dragging between adjacent detents is what a user does.
-        let longest = try XCTUnwrap(pack.categories.max { $0.names.count < $1.names.count })
-        app.buttons["editor.category.\(longest.id)"].tap()
-        dragSlider(slider, from: 1, to: 0, stopCount: longest.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: longest.value(atStop: 0)), "\(slider.value ?? "nil")")
-        capture(named: "b0-\(longest.id)-stop-0")
-        for stop in 1..<longest.stopCount {
-            dragSlider(slider, from: stop - 1, to: stop, stopCount: longest.stopCount)
-            XCTAssertTrue(waitForValue(of: slider, toEqual: longest.value(atStop: stop)), "\(slider.value ?? "nil")")
-            capture(named: "b\(stop)-\(longest.id)-stop-\(stop)")
-        }
-        slider.swipeRight()
-        XCTAssertTrue(waitForValue(of: slider, toEqual: longest.value(atStop: longest.stopCount - 1)),
-                      "Clamped at the last preset; \(slider.value ?? "nil")")
-
-        try saveCopyAndConfirm(captureAs: "d-save-copy-confirmed")
+    /// Opens a prototype photograph straight into the editor (DEBUG `--open-photo`).
+    private func openEditor(_ photo: String = "landscape_02", extra: [String] = []) {
+        relaunch(arguments: ["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath(photo)] + extra)
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
     }
 
-    /// The wired editor at an accessibility text size with the pack's
-    /// longest preset name: everything reachable, the name readable, the
-    /// photo still visible.
-    func testEditorAtAccessibilityTextSize() throws {
-        relaunch(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
-        try openFirstLibraryPhoto()
-        XCTAssertTrue(app.descendants(matching: .any)["editor.autoUnavailableNotice"].waitForExistence(timeout: timeout))
-        let pack = try requireBundledPack()
-        let (category, stop) = try XCTUnwrap(pack.longestName, "Pack has no presets")
-
-        // At this size the bottom panel scrolls; bring each control into
-        // view the way a user would before using it.
-        let chip = app.buttons["editor.category.\(category.id)"]
-        scrollPanelUntilHittable(chip)
-        chip.tap()
-        let slider = app.descendants(matching: .any)["editor.lookSlider"]
-        scrollPanelUntilHittable(slider)
-        capture(named: "11a-large-text-controls")
-        dragSlider(slider, from: 0, to: stop, stopCount: category.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: stop)), "\(slider.value ?? "nil")")
-        XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].isHittable, "The photo stays visible at large text.")
-        capture(named: "c-large-text-long-name")
+    private func element(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier].firstMatch
     }
-
-    /// Photo first in every orientation: on a phone (portrait only) the controls sit below the
-    /// photo; on iPad in landscape they move beside it. Screenshots
-    /// of each orientation go to `LIGHTLY_UI_TEST_OUTPUT`.
-    func testLayoutFollowsOrientation() throws {
-        XCUIDevice.shared.orientation = .portrait
-        try openFirstLibraryPhoto()
-        XCTAssertTrue(app.descendants(matching: .any)["editor.autoUnavailableNotice"].waitForExistence(timeout: timeout))
-        let pack = try requireBundledPack()
-        let category = try XCTUnwrap(pack.categories.first { !$0.names.isEmpty })
-        app.buttons["editor.category.\(category.id)"].tap()
-        let slider = app.descendants(matching: .any)["editor.lookSlider"]
-        dragSlider(slider, from: 0, to: 1, stopCount: category.stopCount)
-        XCTAssertTrue(waitForValue(of: slider, toEqual: category.value(atStop: 1)), "\(slider.value ?? "nil")")
-        let isPad = UIDevice.current.userInterfaceIdiom == .pad
-        let device = isPad ? "ipad" : "iphone"
-
-        defer { XCUIDevice.shared.orientation = .portrait }
-        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
-            if orientation.isLandscape && !isPad {
-                // Approved layouts: iPhone is portrait only, so turning the phone keeps the app
-                // (and the controls below the photo) in portrait.
-                XCUIDevice.shared.orientation = orientation
-                let rotated = NSPredicate { _, _ in self.app.windows.firstMatch.frame.width > self.app.windows.firstMatch.frame.height }
-                XCTAssertFalse(waitForRotation(rotated), "iPhone must stay in portrait")
-                XCTAssertTrue(slider.frame.minY >= app.descendants(matching: .any)["editor.photo"].frame.maxY, "Controls stay below the photo")
-                capture(named: "layout-iphone-turned-stays-portrait")
-                continue
-            }
-            XCUIDevice.shared.orientation = orientation
-            let photo = app.descendants(matching: .any)["editor.photo"]
-            // Rotation animates; wait until the layout settles on the expected arrangement. The
-            // editor picks the arrangement that shows the photo larger (EditorLayoutPolicy):
-            // landscape → side panel; phone portrait → below; iPad portrait → below for a
-            // landscape photo. A portrait photo on iPad portrait is close to a tie, so either
-            // arrangement is accepted there as long as the controls do not overlap the photo.
-            let predicate = NSPredicate { _, _ in
-                let beside = slider.frame.minX >= photo.frame.maxX
-                let below = slider.frame.minY >= photo.frame.maxY
-                if orientation.isLandscape { return beside }
-                if !isPad { return below }
-                return photo.frame.width > photo.frame.height ? below : (beside || below)
-            }
-            let settled = XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 10) == .completed
-            XCTAssertTrue(settled, "\(device) \(orientation.rawValue): photo \(photo.frame), slider \(slider.frame)")
-            XCTAssertTrue(photo.isHittable, "The photo stays visible")
-            XCTAssertTrue(app.buttons["action.saveCopy"].isHittable, "Save copy stays reachable")
-            capture(named: "layout-\(device)-\(orientation.isLandscape ? "landscape" : "portrait")")
-        }
-    }
-
-    private func waitForRotation(_ predicate: NSPredicate) -> Bool {
-        XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: nil)], timeout: 5) == .completed
-    }
-
-    private var springboard: XCUIApplication {
-        XCUIApplication(bundleIdentifier: "com.apple.springboard")
-    }
-
-    // MARK: - Helpers
 
     private func relaunch(arguments: [String]) {
         app.terminate()
         app.launchArguments = arguments
         app.launch()
+    }
+
+    private func label(_ identifier: String) -> String { element(identifier).label }
+
+    /// Drags the ruler by `stops` (positive = towards higher stops) and releases.
+    private func dragRuler(by stops: Int) {
+        let ruler = element("develop.ruler")
+        let start = ruler.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let end = start.withOffset(CGVector(dx: -CGFloat(stops) * 12, dy: 0))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+    }
+
+    func testPickedPhotoDevelopsByItselfIntoTheApprovedUnavailableState() throws {
+        try openFirstLibraryPhoto()
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.staticTexts["Automatic correction isn't available on this device. Presets still work."].exists)
+        XCTAssertEqual(label("develop.name"), "Original")
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled)
+        for tool in ["develop", "background", "edit", "effects", "watermark", "border"] {
+            XCTAssertTrue(element("tool.\(tool)").exists, "\(tool) is listed")
+        }
+        capture(named: "s2-01-opened")
+    }
+
+    func testOpeningShowsThePhotoWhileLoading() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02"), "--hold-phase", "opening"])
+        XCTAssertTrue(element("loading.opening").waitForExistence(timeout: timeout))
+        XCTAssertTrue(element("editor.photo").exists, "The photo stays visible")
+        element("loading.cancel").tap()
+        XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
+    }
+
+    func testRulerPreviewsWhileDraggingAndReleaseIsOneUndoStep() {
+        openEditor()
+        XCTAssertEqual(label("develop.position"), "0 / 518")
+        dragRuler(by: 5)
+        XCTAssertTrue(waitFor { self.label("develop.position") != "0 / 518" })
+        let applied = label("develop.name")
+        XCTAssertNotEqual(applied, "Original")
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Original" })
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Exactly one step")
+        app.buttons["editor.redo"].tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == applied })
+        capture(named: "s2-02-preset")
+    }
+
+    func testBrowsingAnotherCategoryKeepsTheLookAndShowsTheContextLine() {
+        openEditor(extra: ["--scenario", "dev-preset"])
+        XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
+        element("develop.category.cinematic").tap()
+        XCTAssertTrue(waitFor { self.label("develop.context") == "Applied: 05 Hiking 05" })
+        XCTAssertEqual(label("develop.position"), "0 / 564")
+        XCTAssertEqual(label("develop.name"), "Original")
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { self.label("develop.context").isEmpty }, "Undo removes the Look, not the browsing")
+    }
+
+    func testAmountOpensTheSliderWithDone() {
+        openEditor(extra: ["--scenario", "dev-preset"])
+        XCTAssertTrue(waitFor { self.element("develop.amount").label == "Amount 100" })
+        element("develop.amount").tap()
+        XCTAssertTrue(element("slider.amount").waitForExistence(timeout: timeout))
+        element("slider.amount").adjust(toNormalizedSliderPosition: 0.3)
+        element("slider.amount").swipeLeft()
+        element("develop.amount.done").tap()
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
+        XCTAssertNotEqual(element("develop.amount").label, "Amount 100")
+    }
+
+    func testFavouritesStarFullNoticeAndReplace() {
+        openEditor(extra: ["--scenario", "dev-fav-full"])
+        XCTAssertTrue(element("develop.favourites.replace").waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Favourites holds five presets.'")).firstMatch.exists)
+        element("develop.favourites.replace").tap()
+        XCTAssertTrue(element("replace.cancel").waitForExistence(timeout: timeout))
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'replace.row.'")).element(boundBy: 0).tap()
+        XCTAssertFalse(element("replace.cancel").exists)
+        XCTAssertTrue(element("develop.category.favourites").label.contains("5 of 5"))
+    }
+
+    func testSaveCopyShowsSavingThenSavedAndKeepEditing() {
+        openEditor(extra: ["--scenario", "dev-preset"])
+        XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
+        app.buttons["editor.saveCopy"].tap()
+        XCTAssertTrue(element("saved.keepEditing").waitForExistence(timeout: 60))
+        XCTAssertTrue(app.staticTexts["Saved as a new photo"].exists)
+        XCTAssertTrue(app.staticTexts["The original is unchanged."].exists)
+        element("saved.keepEditing").tap()
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
+        // Saved: Close needs no confirmation.
+        app.buttons["editor.close"].tap()
+        XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
+    }
+
+    func testClosingWithUnsavedEditsAsks() {
+        openEditor(extra: ["--scenario", "dev-preset"])
+        XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
+        app.buttons["editor.close"].tap()
+        XCTAssertTrue(app.alerts["Leave without saving?"].waitForExistence(timeout: timeout))
+        app.alerts.buttons["Keep editing"].tap()
+        XCTAssertTrue(element("develop.ruler").exists)
+        app.buttons["editor.close"].tap()
+        app.alerts.buttons["Discard edits"].tap()
+        XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
+    }
+
+    func testPortraitIsOfferedOnlyForAPhotoWithAPerson() {
+        openEditor("landscape_02")
+        XCTAssertFalse(element("tool.portrait").exists, "No person: Portrait hidden")
+        openEditor("portrait_deep_03")
+        XCTAssertTrue(element("tool.portrait").waitForExistence(timeout: timeout), "A person: Portrait offered")
+    }
+
+    func testUnbuiltToolsOpenAMarkedDevelopmentStub() {
+        openEditor()
+        element("tool.effects").tap()
+        XCTAssertTrue(element("tool.stub.effects").waitForExistence(timeout: timeout))
+        element("tool.develop").tap()
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
+    }
+
+    func testFailedAutoOffersRetryAndContinueWithOriginal() {
+        openEditor(extra: ["--auto-fails"])
+        XCTAssertTrue(element("develop.auto.retry").waitForExistence(timeout: timeout))
+        element("develop.auto.original").tap()
+        XCTAssertFalse(element("develop.auto.retry").exists)
+        XCTAssertEqual(label("develop.name"), "Original")
     }
 
     private func openFirstLibraryPhoto() throws {
@@ -324,119 +226,15 @@ final class EditorFlowUITests: XCTestCase {
         try selectFirstPhotoFromSystemPicker()
     }
 
-    /// The add-only prompt is a system alert. Tapping it from a UI test is
-    /// the fallback for a simulator that has not been granted `photos-add`.
-    ///
-    /// `BEGINSWITH` rather than `CONTAINS`: the prompt's other button is
-    /// "Don't Allow", which a contains-match also selects.
-    private func allowAddOnlyPhotosAccessIfAsked() {
-        let allow = springboard.buttons
-            .matching(NSPredicate(format: "label BEGINSWITH[c] 'Allow' OR label ==[c] 'OK'"))
-            .firstMatch
-        if allow.waitForExistence(timeout: 5) {
-            allow.tap()
+    private func waitFor(timeout: TimeInterval = 10, _ condition: @escaping () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            Thread.sleep(forTimeInterval: 0.2)
         }
+        return condition()
     }
 
-    /// Drags the slider thumb from one stop to another, like a finger.
-    ///
-    /// The thumb's centre travels inset by its radius from the track ends
-    /// (UISlider geometry), so stop `i` of `n` sits at that fraction of the
-    /// inset width.
-    private func dragSlider(_ slider: XCUIElement, from startStop: Int, to endStop: Int, stopCount: Int) {
-        let thumbRadius: CGFloat = 14
-        let frame = slider.frame
-        func point(forStop stop: Int) -> XCUICoordinate {
-            let fraction = CGFloat(stop) / CGFloat(stopCount - 1)
-            let x = thumbRadius + fraction * (frame.width - 2 * thumbRadius)
-            return slider.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: frame.height / 2))
-        }
-        point(forStop: startStop).press(forDuration: 0.3, thenDragTo: point(forStop: endStop))
-    }
-
-    /// Taps stop `stop` of the slider (a tap settles the stop under the finger).
-    private func tapStop(_ slider: XCUIElement, _ stop: Int, stopCount: Int) {
-        let thumbRadius: CGFloat = 14
-        let frame = slider.frame
-        let x = thumbRadius + CGFloat(stop) / CGFloat(stopCount - 1) * (frame.width - 2 * thumbRadius)
-        slider.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: frame.height / 2)).tap()
-    }
-
-    /// Drags the Strength slider's thumb from 100% to `fraction` of the track, like a finger.
-    private func dragStrength(_ slider: XCUIElement, toFraction fraction: CGFloat) {
-        let frame = slider.frame
-        let start = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5))
-        let end = slider.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: frame.width * fraction, dy: frame.height / 2))
-        start.press(forDuration: 0.3, thenDragTo: end)
-    }
-
-    private func waitForPhotoValue(_ value: String) -> Bool {
-        waitForValue(of: app.descendants(matching: .any)["editor.photo"], toEqual: value)
-    }
-
-    private func waitForValue(of element: XCUIElement, toMatch pattern: String, timeout: TimeInterval = 10) -> Bool {
-        let predicate = NSPredicate(format: "value MATCHES %@", pattern)
-        return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
-    }
-
-    /// Scrolls the panel until `element` is hittable and clear of the bottom edge (the home
-    /// indicator's gesture area would otherwise take a drag that starts there).
-    private func scrollPanelUntilHittable(_ element: XCUIElement, attempts: Int = 6) {
-        var remaining = attempts
-        let safeBottom = app.windows.firstMatch.frame.maxY - 60
-        while (!element.isHittable || element.frame.maxY > safeBottom) && remaining > 0 {
-            app.scrollViews.firstMatch.swipeUp(velocity: .slow)
-            remaining -= 1
-        }
-    }
-
-    private func photoValue() -> String? {
-        app.descendants(matching: .any)["editor.photo"].value as? String
-    }
-
-    private func waitForValue(of element: XCUIElement, toEqual value: String, timeout: TimeInterval = 10) -> Bool {
-        let predicate = NSPredicate(format: "value == %@", value)
-        return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
-    }
-
-    /// The pack this build bundled, or a skip when the build has none: the
-    /// pack is git-ignored, so a checkout without it still has a passing suite.
-    private func requireBundledPack() throws -> BundledLookPack {
-        if app.descendants(matching: .any)["editor.looks.none"].exists {
-            throw XCTSkip("This build has no Look pack (the app shows \"No Looks are available in this build.\"). "
-                          + "Build experiments/presets/look_pack/out or set LIGHTLY_LOOK_PACK_DIR, then rebuild.")
-        }
-        return try XCTUnwrap(BundledLookPack.locate(),
-                             "The app shows Looks but the test cannot find the pack; searched \(BundledLookPack.searchedPaths)")
-    }
-
-    private func saveCopyAndConfirm(captureAs name: String) throws {
-        app.buttons["action.saveCopy"].tap()
-        allowAddOnlyPhotosAccessIfAsked()
-        if app.staticTexts["Lightly needs permission to add photos to your library. You can grant it in Settings."]
-            .waitForExistence(timeout: 3) {
-            throw XCTSkip("Simulator declined add-only Photos access; the write could not be exercised.")
-        }
-        let saved = app.descendants(matching: .any)["editor.saveStatus"]
-        XCTAssertTrue(saved.waitForExistence(timeout: 30))
-        XCTAssertTrue(waitForLabel(of: saved, toContain: "Saved as a new photo. Original unchanged.", timeout: 60),
-                      "Save copy should confirm; got '\(saved.label)'.")
-        capture(named: name)
-    }
-
-    private func waitForLabel(of element: XCUIElement, toContain text: String, timeout: TimeInterval) -> Bool {
-        let predicate = NSPredicate(format: "label CONTAINS %@", text)
-        return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
-    }
-
-    /// Taps the first photo in Apple's system photo picker.
-    ///
-    /// The picker presents as a remote view inside the app's element tree, but
-    /// its thumbnail grid is drawn as a single layer — the individual photos are
-    /// not exposed as queryable cells or images. Selection therefore has to go
-    /// through a coordinate tap. `PickerDiagnostics` dumps the live hierarchy if
-    /// this ever needs revisiting.
     private func selectFirstPhotoFromSystemPicker() throws {
         let grid = app.scrollViews["photosView_content_scroll_view"]
         guard grid.waitForExistence(timeout: timeout) else {

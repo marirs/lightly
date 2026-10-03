@@ -84,7 +84,7 @@ struct DevelopFrameRenderer: Sendable {
     ///   fast frame of a preview while the person scrubs; the full frame follows (see
     ///   `EditorSession`). Export always includes them.
     func render(_ plan: DevelopRenderPlan, pixels: [UInt8], width: Int, height: Int,
-                includePixelStages: Bool = true) throws -> [UInt8] {
+                includePixelStages: Bool = true, tileSide: Int = DevelopFrameRenderer.tileSide) throws -> [UInt8] {
         guard !plan.isIdentity else { return pixels }
         let passes = plan.lookLUT.map { [$0] } ?? []
         guard includePixelStages, plan.hasPixelStages else {
@@ -105,7 +105,9 @@ struct DevelopFrameRenderer: Sendable {
         }
 
         var output = [UInt8](repeating: 255, count: width * height * 4)
-        for tile in MetalLUTRenderer.tiles(width: width, height: height, maximumSide: Self.tileSide) {
+        for tile in MetalLUTRenderer.tiles(width: width, height: height, maximumSide: tileSide) {
+            // Export runs in a task that Save copy › Cancel cancels: stop between tiles.
+            try Task.checkCancellation()
             // The region is the tile plus the halo, clipped to the frame.
             let x0 = max(tile.x - halo, 0), y0 = max(tile.y - halo, 0)
             let x1 = min(tile.x + tile.width + halo, width), y1 = min(tile.y + tile.height + halo, height)
@@ -126,7 +128,7 @@ struct DevelopFrameRenderer: Sendable {
 
             var colours = floats.map { DevelopPixelOperators.simdClamp(SIMD3($0.x, $0.y, $0.z)) }
             if !plan.spatial.isEmpty {
-                colours = try applySpatial(plan.spatial, floats: floats, regionOrigin: (x0, y0), regionSize: (regionWidth, regionHeight),
+                colours = applySpatial(plan.spatial, floats: floats, regionOrigin: (x0, y0), regionSize: (regionWidth, regionHeight),
                                            frameSize: (width, height), clarityProxy: clarityProxy)
             }
             // Finishing and encoding, inner tile only.
@@ -169,7 +171,7 @@ struct DevelopFrameRenderer: Sendable {
 
     // swiftlint:disable:next function_parameter_count
     private func applySpatial(_ spatial: PresetRecipe.Spatial, floats: [SIMD4<Float>], regionOrigin: (Int, Int),
-                              regionSize: (Int, Int), frameSize: (Int, Int), clarityProxy: ClarityProxy?) throws -> [SIMD3<Float>] {
+                              regionSize: (Int, Int), frameSize: (Int, Int), clarityProxy: ClarityProxy?) -> [SIMD3<Float>] {
         let (regionWidth, regionHeight) = regionSize
         let frameLongEdge = max(frameSize.0, frameSize.1)
         var region = floats.withUnsafeBufferPointer {

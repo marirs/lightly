@@ -7,10 +7,14 @@ import SwiftUI
 /// and weights differ visibly at these sizes.
 enum ApprovedIcon: String, CaseIterable, Sendable {
     case more, close, back, chevron, photo, camera, grip, trash, check
+    // Editor (slice 2): top bar, tool navigation, Develop and the save sheets.
+    case undo, redo, compare, develop, background, portrait, edit, effects, watermark, border, star, info, warn, share
 
     /// One drawing primitive in the 24×24 view box.
     enum Element: Sendable {
         case path(String, strokeWidth: CGFloat = ApprovedIcon.strokeWidth)
+        /// `fill="currentColor" stroke="none"` (the filled half of Compare).
+        case filledPath(String)
         case rect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, cornerRadius: CGFloat)
         case circle(cx: CGFloat, cy: CGFloat, r: CGFloat, filled: Bool)
     }
@@ -38,6 +42,36 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
             [.path("M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13")]
         case .check:
             [.path("M5 12.5l4.5 4.5L19 7.5")]
+        case .undo:
+            [.path("M9 7H5V3"), .path("M5.5 7.5A8 8 0 1 1 4 13")]
+        case .redo:
+            [.path("M15 7h4V3"), .path("M18.5 7.5A8 8 0 1 0 20 13")]
+        case .compare:
+            [.rect(x: 4.5, y: 4.5, width: 15, height: 15, cornerRadius: 2.5), .path("M12 4.5v15"),
+             .filledPath("M12 4.5h5a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5h-5z")]
+        case .develop:
+            [.path("M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1")]
+        case .background:
+            [.rect(x: 3.5, y: 5, width: 17, height: 14, cornerRadius: 2.5), .circle(cx: 12, cy: 11, r: 2.6, filled: false),
+             .path("M7 19c.8-2.6 2.8-4 5-4s4.2 1.4 5 4")]
+        case .portrait:
+            [.circle(cx: 12, cy: 8.5, r: 3.6, filled: false), .path("M5 20c1.2-3.8 4-5.6 7-5.6s5.8 1.8 7 5.6")]
+        case .edit:
+            [.path("M5 7h9M18 7h1M5 17h1M10 17h9"), .circle(cx: 16, cy: 7, r: 2, filled: false), .circle(cx: 8, cy: 17, r: 2, filled: false)]
+        case .effects:
+            [.path("M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z")]
+        case .watermark:
+            [.path("M4 17c2.5-4 4.5-9 7-9 1.6 0 1 4 2.6 4 1.3 0 1.7-2 3-2 1 0 1.6 1 3.4 2"), .path("M4 20h16")]
+        case .border:
+            [.rect(x: 3.5, y: 3.5, width: 17, height: 17, cornerRadius: 1.5), .rect(x: 7, y: 7, width: 10, height: 8, cornerRadius: 0.5)]
+        case .star:
+            [.path("M12 4.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 9.8l5-.7z")]
+        case .info:
+            [.circle(cx: 12, cy: 12, r: 8.5, filled: false), .path("M12 11v5M12 8v.5")]
+        case .warn:
+            [.path("M12 4l9 16H3z"), .path("M12 10v4M12 17v.5")]
+        case .share:
+            [.path("M12 3v12M7.5 7.5 12 3l4.5 4.5"), .path("M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12")]
         }
     }
 }
@@ -46,6 +80,8 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
 struct ApprovedIconView: View {
     let icon: ApprovedIcon
     var size: CGFloat = 22
+    /// CSS `fill: currentColor` on the whole icon (the starred star, `.star.on .icon`).
+    var filled = false
 
     var body: some View {
         Canvas { context, canvasSize in
@@ -54,7 +90,11 @@ struct ApprovedIconView: View {
             for element in icon.elements {
                 switch element {
                 case .path(let data, let width):
-                    context.stroke(SVGPathParser.path(data).applying(transform), with: .foreground, style: Self.style(width * scale))
+                    let path = SVGPathParser.path(data).applying(transform)
+                    if filled { context.fill(path, with: .foreground) }
+                    context.stroke(path, with: .foreground, style: Self.style(width * scale))
+                case .filledPath(let data):
+                    context.fill(SVGPathParser.path(data).applying(transform), with: .foreground)
                 case .rect(let x, let y, let width, let height, let radius):
                     let rect = Path(roundedRect: CGRect(x: x, y: y, width: width, height: height), cornerRadius: radius)
                     context.stroke(rect.applying(transform), with: .foreground, style: Self.style(ApprovedIcon.strokeWidth * scale))

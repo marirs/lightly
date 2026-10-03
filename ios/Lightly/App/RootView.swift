@@ -75,8 +75,16 @@ struct RootView: View {
     /// open path, so UI tests and design captures reach "This photo can’t be opened" without a
     /// broken asset in the simulator's library.
     private static func runDebugLaunchActions(on appState: AppState) async {
-        guard CommandLine.arguments.contains("--open-unreadable-photo") else { return }
-        await appState.openPhoto(source: .photoLibrary) { Data("not an image".utf8) }
+        let arguments = CommandLine.arguments
+        if arguments.contains("--open-unreadable-photo") {
+            await appState.openPhoto(source: .photoLibrary) { Data("not an image".utf8) }
+        }
+        // `--open-photo <path>`: a file on the host (the simulator reads it directly), opened through
+        // the real open path, so captures show the prototype's own photographs.
+        if let flag = arguments.firstIndex(of: "--open-photo"), arguments.indices.contains(flag + 1) {
+            let url = URL(fileURLWithPath: arguments[flag + 1])
+            await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
+        }
     }
     #endif
 
@@ -94,10 +102,12 @@ struct RootView: View {
                 // Identified by the photo so that selecting a different
                 // photograph builds a fresh editor rather than reusing the
                 // previous one's history.
-                EditorView(
-                    viewModel: appState.makeEditorViewModel(for: photo),
-                    onBack: { appState.returnToWelcome() },
-                    onMore: { appState.openMore() }
+                EditorScreen(
+                    session: appState.editorSession(for: photo),
+                    favourites: appState.favourites,
+                    onClose: { appState.returnToWelcome() },
+                    onMore: { appState.openMore() },
+                    onChooseAnotherPhoto: { appState.chooseFromLibrary() }
                 )
                 .id(photo.id)
             }

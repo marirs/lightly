@@ -90,18 +90,18 @@ final class AppState {
     private let photoLoader: any PhotoLoading
     private let cameraAccess: any CameraAccessing
 
-    /// Editor view models, retained per photograph.
+    /// The editing session of the photo being edited: one continuous session per photo.
     ///
-    /// SwiftUI may re-evaluate `body` many times; building the editor inline
-    /// would discard the edit history on every re-render. Caching by photo
-    /// identity means the history survives for as long as the photograph is
-    /// loaded, which is what spec §27 requires.
-    private var editorViewModels: [UUID: LUTEditorViewModel] = [:]
+    /// SwiftUI may re-evaluate `body` many times; building the session inline would discard the
+    /// edit history on every re-render. It is kept here for as long as the photo is open, and
+    /// closed (all work for it invalidated) when another photo is opened or the editor closes.
+    private var editorSessions: [UUID: EditorSession] = [:]
 
     private let libraryWriter: any PhotoLibraryWriting
     private let autoEnhancer: any AutoEnhancing
-    private let lookBook: LUTLookBook
-    private let lutRenderer: (any LUTRendering)?
+    private let personDetector: any PersonDetecting
+    /// Model, preset pack, bake cache and renderer, loaded once per launch.
+    let developLibrary: DevelopLibrary
 
     /// The last photo request, for "Try again".
     @ObservationIgnored private var lastPhotoRequest: (source: PhotoSource, provider: PhotoDataProvider)?
@@ -110,11 +110,10 @@ final class AppState {
         photoLoader: any PhotoLoading,
         libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
         autoEnhancer: any AutoEnhancing = ModelNotBundledAutoEnhancer(),
-        lookBook: LUTLookBook = .empty,
-        // nil makes the editor report a failure. The composition root passes
-        // the Metal renderer; the default keeps previews and entry-screen
-        // tests from compiling a GPU kernel they never use.
-        lutRenderer: (any LUTRendering)? = nil,
+        personDetector: any PersonDetecting = VisionPersonDetector(),
+        // The composition root passes a library that is loading the bundled pack; the default (an
+        // empty, never-loaded library) keeps entry-screen tests from compiling a GPU kernel.
+        developLibrary: DevelopLibrary? = nil,
         cameraAccess: any CameraAccessing = SystemCameraAccess(),
         preferences: PreferencesStore? = nil,
         favourites: FavouritePresetsStore? = nil,
@@ -125,8 +124,8 @@ final class AppState {
         self.photoLoader = photoLoader
         self.libraryWriter = libraryWriter
         self.autoEnhancer = autoEnhancer
-        self.lookBook = lookBook
-        self.lutRenderer = lutRenderer
+        self.personDetector = personDetector
+        self.developLibrary = developLibrary ?? DevelopLibrary()
         self.cameraAccess = cameraAccess
         // Default stores are built here, not in the signature: default arguments are evaluated
         // outside the main actor, and both stores are main-actor isolated.
@@ -137,26 +136,18 @@ final class AppState {
         self.appVersion = appVersion
     }
 
-    /// Returns the editor for a photograph, creating it on first request.
-    ///
-    /// Creating it starts Auto at once: selecting a photo develops it
-    /// (spec D2).
-    func makeEditorViewModel(for photo: SelectedPhoto) -> LUTEditorViewModel {
-        if let existing = editorViewModels[photo.id] {
-            return existing
-        }
+    /// The editing session for a photograph, created on first request. Creating it opens the
+    /// photo and runs automatic Develop at once: selecting a photo develops it.
+    func editorSession(for photo: SelectedPhoto) -> EditorSession {
+        if let existing = editorSessions[photo.id] { return existing }
         let preferences = preferences
-        let viewModel = LUTEditorViewModel(
-            photo: photo,
-            autoEnhancer: autoEnhancer,
-            lookBook: lookBook,
-            renderer: lutRenderer,
+        let session = EditorSession(
+            photo: photo, library: developLibrary, autoEnhancer: autoEnhancer, personDetector: personDetector,
             libraryWriter: libraryWriter,
             // Read at each save, so a switch changed in More applies to the next copy.
-            saveCopySettings: { preferences.saveCopySettings }
-        )
-        editorViewModels[photo.id] = viewModel
-        return viewModel
+            saveSettings: { preferences.saveCopySettings })
+        editorSessions[photo.id] = session
+        return session
     }
 
     // MARK: - Intents: choosing a photo
@@ -165,6 +156,12 @@ final class AppState {
     ///
     /// Apple's picker needs no Photos permission, so there is nothing to ask first.
     func chooseFromLibrary() {
+        // From the editor (Saved › Choose another photo) this ends the photo's session: the picker
+        // sits over Welcome, and whatever is chosen next starts a new session.
+        if let photo = selectedPhoto {
+            closeEditor(for: photo.id)
+            selectedPhoto = nil
+        }
         route = .welcome
         activeSource = .photoLibrary
     }
@@ -262,7 +259,7 @@ final class AppState {
     }
 
     private func closeEditor(for photoID: UUID) {
-        editorViewModels.removeValue(forKey: photoID)?.close()
+        editorSessions.removeValue(forKey: photoID)?.close()
     }
 
     // MARK: - Intents: More
