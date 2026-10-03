@@ -162,13 +162,20 @@ struct OnDeviceSceneAnalyser: SceneAnalysing {
 
     func people(in image: CGImage) async -> PeopleAnalysis {
         await Task.detached(priority: .userInitiated) {
-            let faces = VNDetectFaceLandmarksRequest()
-            let quality = VNDetectFaceCaptureQualityRequest()
-            let humans = VNDetectHumanRectanglesRequest()
-            humans.upperBodyOnly = false
-            for request in [faces, quality, humans] as [VNRequest] { Self.preferCPUInSimulator(request) }
-            let handler = VNImageRequestHandler(cgImage: image, options: [:])
-            try? handler.perform([faces, humans, quality])
+            // A failed perform leaves partial results (a face without landmarks reads as "no usable
+            // face"), so one failure is retried with fresh requests before the result is used.
+            func run() -> (VNDetectFaceLandmarksRequest, VNDetectFaceCaptureQualityRequest, VNDetectHumanRectanglesRequest, Bool) {
+                let faces = VNDetectFaceLandmarksRequest()
+                let quality = VNDetectFaceCaptureQualityRequest()
+                let humans = VNDetectHumanRectanglesRequest()
+                humans.upperBodyOnly = false
+                for request in [faces, quality, humans] as [VNRequest] { Self.preferCPUInSimulator(request) }
+                let handler = VNImageRequestHandler(cgImage: image, options: [:])
+                let succeeded = (try? handler.perform([faces, humans, quality])) != nil
+                return (faces, quality, humans, succeeded)
+            }
+            var (faces, quality, humans, succeeded) = run()
+            if !succeeded { (faces, quality, humans, succeeded) = run() }
             let qualities = quality.results ?? []
             let detected: [DetectedFace] = (faces.results ?? []).filter { $0.confidence >= 0.5 }.map { face in
                 let match = qualities.first { $0.boundingBox.intersects(face.boundingBox) }
