@@ -59,3 +59,7 @@ cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/
 
 - **Look pack:** it is copied into the APK's `assets/lookpack/`. Override its location with `-PlightlyLookPackDir`.
 - **Launcher icon:** every `assemble<Variant>` runs `verify<Variant>LauncherIcon`. It fails if the built APK lacks its launcher icon.
+
+## Approved UI
+
+The complete interactive design reference is in [docs/ui](docs/ui/README.md). Serve the repository root and open `/docs/ui/app/index.html` to review the screens and layouts.

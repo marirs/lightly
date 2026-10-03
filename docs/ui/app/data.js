@@ -40,7 +40,7 @@ function layoutFor(device, orientation) {
 
 /* Real photographs (licensed sample set, experiments/lut3d/photos). Faces are fractions of the image.
    `subject` approximates the person as head + body ellipses: the illustration of subject separation. */
-const P = (n) => `/design/assets/photos/${n}.jpg`;
+const P = (n) => `/docs/ui/assets/photos/${n}.jpg`;
 const PHOTOS = {
   lake:     { src:P('landscape_02'), thumb:P('landscape_02_thumb'), ratio:1067/1600, name:'Mountain lake', faces:[] },
   field:    { src:P('landscape_03'), thumb:P('landscape_03_thumb'), ratio:1600/1067, name:'Field and sky', faces:[] },

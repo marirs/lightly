@@ -1,11 +1,11 @@
 # Lightly 1.0: implementation plan, dependencies and conflicts
 
-The approved UX is `design/app/` at revision **ff5c5ae**. A read-only copy and SHA-256 hashes are in `~/.codex/artifacts/lightly/approved-design-ff5c5ae/`. Every screen and behaviour is tracked in `docs/v1/implementation-checklist.md`.
+The approved UX is `docs/ui/app/` at revision **ff5c5ae**. A read-only copy and SHA-256 hashes are in `~/.codex/artifacts/lightly/approved-design-ff5c5ae/`. Every screen and behaviour is tracked in `docs/v1/implementation-checklist.md`.
 
 To render any approved screen at a reference device size, theme and text size for a side-by-side comparison:
 
 ```bash
-NODE_PATH=<playwright-core node_modules> node design/tools/shot.js <screenId> <deviceId> <orientation> <theme> <text> out.png
+NODE_PATH=<playwright-core node_modules> node docs/ui/tools/shot.js <screenId> <deviceId> <orientation> <theme> <text> out.png
 ```
 
 ## Architecture decisions (engineering, within the approved UX)

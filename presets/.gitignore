@@ -6,3 +6,6 @@ browse-catalog.json
 develop-design-*.json
 develop-design-*.csv
 DEVELOP-PRESET-LIST.md
+
+!develop-design-ui.json
+!DEVELOP-PRESET-LIST.md

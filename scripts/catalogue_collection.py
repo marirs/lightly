@@ -38,7 +38,7 @@ def main(source):
     source = Path(source).resolve()
     dest = ROOT / 'presets'
     dest.mkdir(exist_ok=True)
-    (dest / '.gitignore').write_text('library/\nmanifest.json\ncatalog.json\nsummary.json\nbrowse-catalog.json\n')
+    (dest / '.gitignore').write_text('library/\nmanifest.json\ncatalog.json\nsummary.json\nbrowse-catalog.json\ndevelop-design-*.json\ndevelop-design-*.csv\nDEVELOP-PRESET-LIST.md\n\n!develop-design-ui.json\n!DEVELOP-PRESET-LIST.md\n')
     records = {}
     occurrences = 0
 

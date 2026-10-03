@@ -1,6 +1,6 @@
 # Lightly 1.0 implementation checklist
 
-Generated from the frozen prototype (design/app/screens.js, revision ff5c5ae). One row per approved screen or state.
+Generated from the frozen prototype (docs/ui/app/screens.js, revision ff5c5ae). One row per approved screen or state.
 Status values: **missing**, **partial** (exists but differs from the approved UX or lacks real processing), **reuse** (existing code matches and is reused), **done** (implemented, compared side by side with the prototype at the reference sizes, behaviour tested), **blocked** (needs the dependency named in Notes).
 Slice: delivery order (1 entry/More/Preferences · 2 session/Develop/pack · 3 Background/Portrait · 4 Edit/Effects · 5 Watermark/Border/export · 6 recovery/accessibility/devices/release).
 

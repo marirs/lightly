@@ -6,7 +6,7 @@ const { chromium } = require('playwright-core');
   const [base, dev = 'iphone17', orient = 'portrait'] = process.argv.slice(2);
   const b = await chromium.launch(); const p = await b.newPage({ viewport:{ width:1700, height:1200 } });
   const errors = []; p.on('pageerror', e => errors.push(e.message));
-  await p.goto(`${base}/design/app/index.html#dev=${dev}&orient=${orient}&tab=prototype&screen=launch`, { waitUntil:'networkidle' });
+  await p.goto(`${base}/docs/ui/app/index.html#dev=${dev}&orient=${orient}&tab=prototype&screen=launch`, { waitUntil:'networkidle' });
   await p.waitForFunction(() => window.READY);
   const log = [], step = async (name, fn, expect) => { await fn(); await p.waitForTimeout(250); const got = await p.evaluate(() => ({ screen:proto.spec.id, tool:proto.ui.tool, overlay:proto.ui.overlay, applied:proto.s.dev.applied && proto.s.dev.applied.name, bg:!!proto.s.bg.replaced, blur:proto.s.bg.blur, skin:proto.s.faces[0] && proto.s.faces[0].skin.smooth, vig:proto.s.fx.vig.on, wm:proto.s.wm.type, border:proto.s.border.type, saved:proto.s.saved, hist:proto.hist.length }));
     const ok = expect(got); log.push(`${ok ? 'ok ' : 'FAIL'} ${name} → ${JSON.stringify(got)}`); if (!ok) throw new Error(name); };

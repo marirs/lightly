@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lightly · Two directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+  /* ---------- Board (presentation chrome, not product UI) ---------- */
+  :root { --board-bg:#E9E7E2; --board-ink:#1B1B1D; --board-muted:#6B6A67; --sim:#B4471E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--board-bg); color:var(--board-ink); font:15px/1.45 Inter, -apple-system, system-ui, sans-serif; }
+  .board { padding:40px 48px 80px; max-width:1900px; margin:0 auto; }
+  .board h1 { font:500 34px/1.1 Newsreader, Georgia, serif; margin:0 0 6px; }
+  .board .lede { color:var(--board-muted); max-width:980px; margin:0 0 6px; }
+  .sim-note { display:inline-block; font-size:12.5px; color:var(--sim); border:1px solid color-mix(in srgb,var(--sim) 40%,transparent); border-radius:6px; padding:3px 8px; margin:8px 0 0; }
+  .direction { margin-top:44px; }
+  .direction header { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; margin-bottom:6px; }
+  .direction h2 { font:500 26px/1.1 Newsreader, Georgia, serif; margin:0; }
+  .direction .tag { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--board-muted); }
+  .principles { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px 28px; margin:10px 0 22px; padding:0; list-style:none; color:#3a3a3c; font-size:13.5px; }
+  .principles b { color:var(--board-ink); }
+  .row { display:flex; gap:34px; align-items:flex-start; overflow-x:auto; padding-bottom:12px; }
+  figure.screen { margin:0; flex:0 0 auto; }
+  figure.screen figcaption { width:390px; margin-top:12px; font-size:13px; color:#3a3a3c; }
+  figure.screen figcaption b { display:block; color:var(--board-ink); font-size:14px; margin-bottom:2px; }
+  figure.screen figcaption .sim { color:var(--sim); font-size:12px; display:block; margin-top:4px; }
+  .recommend { margin-top:48px; background:#fff; border-radius:16px; padding:22px 26px; max-width:1100px; }
+  .recommend h2 { font:500 24px/1.2 Newsreader, Georgia, serif; margin:0 0 8px; }
+  .compare-table { border-collapse:collapse; width:100%; font-size:13.5px; margin-top:10px; }
+  .compare-table th, .compare-table td { text-align:left; padding:8px 10px; border-top:1px solid #e4e2dd; vertical-align:top; }
+  .compare-table th { color:var(--board-muted); font-weight:500; width:22%; }
+
+  /* ---------- Device (iPhone-class frame, 390 x 844 pt) ---------- */
+  .device { width:390px; height:844px; border-radius:54px; position:relative; overflow:hidden;
+            box-shadow:0 0 0 10px #111, 0 0 0 11px #3a3a3a, 0 30px 60px -20px rgba(0,0,0,.45); isolation:isolate; }
+  .statusbar { position:absolute; top:0; left:0; right:0; height:50px; display:flex; justify-content:space-between; align-items:center;
+               padding:6px 34px 0 42px; font:600 16px -apple-system, Inter, sans-serif; z-index:30; pointer-events:none; }
+  .island { position:absolute; top:11px; left:50%; transform:translateX(-50%); width:124px; height:36px; background:#000; border-radius:20px; z-index:31; }
+  .homebar { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:136px; height:5px; border-radius:3px; z-index:31; }
+  .sb-icons { display:flex; gap:6px; align-items:center; }
+  .sb-icons svg { display:block; }
+
+  /* ---------- Shared product pieces ---------- */
+  /* Illustrative subject mask for the blur mockups (not segmentation). */
+  .device { --subject-mask: radial-gradient(ellipse 36% 58% at 47% 58%, transparent 66%, #000 80%); }
+  .photo { position:absolute; inset:0; background-size:cover; background-position:center; }
+  .icon { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .icon.sm { width:18px; height:18px; }
+  button { font:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer; }
+
+  /* =========================================================================
+     DIRECTION A — "Darkroom": full-bleed photo, persistent tool dock,
+     contextual panel; preset stops on a scrolling detent ruler.
+     ========================================================================= */
+  .A { --bg:#0C0C0D; --ink:#F4F2EE; --muted:#9C9A96; --line:#2A2A2C; --panel:rgba(18,18,19,.92); --accent:#E8C79A; --chip:#1E1E20;
+       background:var(--bg); color:var(--ink); font-family:-apple-system, "SF Pro Text", Inter, sans-serif; }
+  .A .statusbar { color:#fff; } .A .homebar { background:#fff; }
+  .A .topbar { position:absolute; top:52px; left:14px; right:14px; display:flex; align-items:center; gap:8px; z-index:20; }
+  .A .glass { background:rgba(20,20,22,.55); backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%); border:1px solid rgba(255,255,255,.08); }
+  .A .round { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; }
+  .A .spacer { flex:1; }
+  .A .group { display:flex; border-radius:20px; height:40px; align-items:center; padding:0 4px; }
+  .A .group button { width:38px; height:40px; display:grid; place-items:center; }
+  .A .group button[disabled] { opacity:.35; }
+  .A .save { white-space:nowrap; flex:0 0 auto; height:40px; padding:0 14px; border-radius:20px; background:var(--ink); color:#111; font-weight:600; font-size:15px; display:flex; gap:7px; align-items:center; }
+  .A .stage { position:absolute; left:0; right:0; top:0; display:grid; place-items:center; overflow:hidden; }
+  .A .stage img { width:100%; height:100%; object-fit:cover; display:block; }
+  .A .panel { position:absolute; left:0; right:0; bottom:0; background:var(--panel); border-top:1px solid rgba(255,255,255,.06); z-index:15; }
+  .A .dock { display:flex; gap:2px; overflow-x:auto; scrollbar-width:none; padding:6px 8px 26px; border-top:1px solid var(--line);
+             mask-image:linear-gradient(90deg,#000 86%,transparent); -webkit-mask-image:linear-gradient(90deg,#000 86%,transparent); }
+  .A .dock::-webkit-scrollbar { display:none; }
+  .A .tool { flex:0 0 74px; display:flex; flex-direction:column; align-items:center; gap:5px; padding:8px 0 4px; color:var(--muted); font-size:11.5px; font-weight:500; border-radius:12px; }
+  .A .tool.on { color:var(--ink); }
+  .A .tool.on .dot { background:var(--accent); }
+  .A .tool .dot { width:4px; height:4px; border-radius:2px; background:transparent; }
+  .A .chips { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:12px 16px 2px; }
+  .A .chips::-webkit-scrollbar { display:none; }
+  .A .chip { flex:0 0 auto; height:34px; padding:0 13px; border-radius:17px; background:var(--chip); color:#D9D6D0; font-size:14px; display:flex; align-items:center; gap:6px; white-space:nowrap; border:1px solid transparent; }
+  .A .chip .n { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
+  .A .chip.on { background:var(--ink); color:#111; } .A .chip.on .n { color:#555; }
+  .A .chip.has-applied::after { content:""; width:5px; height:5px; border-radius:3px; background:var(--accent); margin-left:2px; }
+  .A .chip.auto { border-color:rgba(232,199,154,.45); color:var(--accent); background:rgba(232,199,154,.08); }
+  .A .namebar { display:flex; align-items:flex-end; justify-content:space-between; padding:14px 18px 4px; gap:12px; }
+  .A .pname { font-size:20px; font-weight:600; letter-spacing:-.01em; line-height:1.15; }
+  .A .ppos { color:var(--muted); font-size:13px; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .A .amount { flex:0 0 auto; height:30px; padding:0 11px; border-radius:15px; border:1px solid var(--line); color:#CFCBC4; font-size:13px; display:flex; align-items:center; gap:6px; }
+  .A .ruler { position:relative; height:62px; margin:4px 0 4px; }
+  .A .ruler-track { position:absolute; inset:0; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x mandatory; display:flex; align-items:flex-end; }
+  .A .ruler-track::-webkit-scrollbar { display:none; }
+  .A .tick { flex:0 0 12px; height:100%; position:relative; scroll-snap-align:center; }
+  .A .tick::before { content:""; position:absolute; bottom:14px; left:50%; width:1.5px; height:12px; background:#4a4946; transform:translateX(-50%); border-radius:1px; }
+  .A .tick.major::before { height:20px; background:#7d7a75; }
+  .A .tick.base::before { height:24px; background:var(--accent); width:2px; }
+  .A .tick span { position:absolute; bottom:0; left:50%; transform:translateX(-50%); font-size:10px; color:#6f6d69; font-variant-numeric:tabular-nums; }
+  .A .needle { position:absolute; left:50%; bottom:10px; width:2.5px; height:34px; background:var(--ink); transform:translateX(-50%); border-radius:2px; pointer-events:none; box-shadow:0 0 0 3px rgba(12,12,13,.85); }
+  .A .ruler-fade { position:absolute; inset:0; pointer-events:none; background:linear-gradient(90deg,var(--bg) 0, transparent 22%, transparent 78%, var(--bg) 100%); opacity:.9; }
+  .A .subtabs { display:flex; gap:18px; padding:12px 18px 0; font-size:14.5px; color:var(--muted); overflow-x:auto; scrollbar-width:none; }
+  .A .subtabs .on { color:var(--ink); font-weight:600; box-shadow:inset 0 -2px 0 var(--accent); padding-bottom:7px; }
+  .A .sliders { padding:10px 18px 6px; display:grid; gap:12px; }
+  .A .sl { display:grid; grid-template-columns:118px 1fr 34px; align-items:center; gap:10px; font-size:14px; color:#DAD6CF; }
+  .A .sl .v { text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; font-size:13px; }
+  .A .bar { height:4px; border-radius:2px; background:#333236; position:relative; }
+  .A .bar i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:#E9E5DE; }
+  .A .bar b { position:absolute; top:50%; width:18px; height:18px; border-radius:9px; background:#fff; transform:translate(-50%,-50%); box-shadow:0 1px 4px rgba(0,0,0,.5); }
+  .A .note { font-size:12.5px; color:var(--muted); padding:2px 18px 10px; display:flex; gap:6px; align-items:center; }
+  .A .seg { display:flex; margin:12px 16px 0; background:#1E1E20; border-radius:11px; padding:3px; }
+  .A .seg button { flex:1; height:32px; border-radius:9px; font-size:14px; color:var(--muted); font-weight:500; }
+  .A .seg button.on { background:#3A3A3D; color:var(--ink); }
+  .A .facering { position:absolute; border:2px solid rgba(255,255,255,.9); border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,.25); }
+  .A .facelabel { position:absolute; font-size:12px; padding:3px 8px; border-radius:10px; background:rgba(15,15,16,.7); color:#fff; transform:translateX(-50%); white-space:nowrap; }
+  .A .focusmark { position:absolute; width:58px; height:58px; border-radius:50%; border:2px solid var(--accent); transform:translate(-50%,-50%); }
+  .A .focusmark::after { content:""; position:absolute; left:50%; top:50%; width:6px; height:6px; border-radius:3px; background:var(--accent); transform:translate(-50%,-50%); }
+  .A .shapes { display:flex; gap:10px; padding:4px 18px 0; align-items:center; font-size:13px; color:var(--muted); }
+  .A .shape { width:36px; height:36px; border-radius:10px; background:#1E1E20; display:grid; place-items:center; border:1px solid transparent; }
+  .A .shape.on { border-color:var(--accent); background:rgba(232,199,154,.1); }
+  .A .refine { margin:2px 18px 10px; height:38px; border-radius:12px; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; color:#DAD6CF; width:calc(100% - 36px); }
+  /* Welcome A */
+  .A.welcome { display:flex; flex-direction:column; align-items:center; }
+  .A .mark-wrap { margin-top:200px; display:flex; flex-direction:column; align-items:center; }
+  .A .wordmark { font:300 46px/1 -apple-system, Inter, sans-serif; letter-spacing:-.01em; margin-top:18px; }
+  .A .labs { font-size:12px; letter-spacing:.55em; margin:10px 0 0 .55em; color:#cfcac2; }
+  .A .tagline { color:#A8A49D; font-size:17px; margin-top:34px; text-align:center; line-height:1.4; }
+  .A .mountains { position:absolute; left:0; width:100%; bottom:214px; height:150px; opacity:.9; }
+  .A .cta { position:absolute; left:20px; right:20px; bottom:46px; display:grid; gap:10px; }
+  .A .primary { height:56px; border-radius:28px; background:var(--ink); color:#111; font-size:17px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:10px; }
+  .A .secondary { height:52px; border-radius:26px; border:1px solid #3a3a3c; color:var(--ink); font-size:16px; display:flex; align-items:center; justify-content:center; gap:10px; }
+  .A .privacy { text-align:center; font-size:12.5px; color:#8b8883; margin-top:4px; }
+  .A .more-top { position:absolute; top:56px; right:18px; z-index:20; }
+
+  /* =========================================================================
+     DIRECTION B — "Gallery": photo as a framed print on paper; a camera-style
+     mode carousel switches tools; preset stops on a precision scrubber.
+     ========================================================================= */
+  .B { --paper:#F3F0E9; --card:#FFFFFF; --ink:#1A1918; --muted:#77736B; --line:#E2DDD3; --accent:#1A1918; --warm:#B5793A;
+       background:var(--paper); color:var(--ink); font-family:Inter, -apple-system, system-ui, sans-serif; }
+  .B .statusbar { color:#111; } .B .homebar { background:#111; }
+  .B .serif { font-family:Newsreader, Georgia, serif; }
+  .B .top { position:absolute; top:52px; left:16px; right:16px; height:44px; display:flex; align-items:center; gap:10px; z-index:20; }
+  .B .ibtn { width:40px; height:40px; border-radius:20px; display:grid; place-items:center; color:var(--ink); }
+  .B .title { flex:1; text-align:center; font-weight:600; font-size:16px; }
+  .B .save { height:38px; padding:0 15px; border-radius:19px; background:var(--ink); color:#fff; font-weight:600; font-size:14.5px; display:flex; align-items:center; gap:6px; }
+  .B .print { position:absolute; left:14px; right:14px; top:102px; border-radius:20px; overflow:hidden; background:#ddd; box-shadow:0 10px 30px -14px rgba(60,45,20,.45); }
+  .B .print img { width:100%; height:100%; object-fit:cover; display:block; }
+  .B .canvas-actions { position:absolute; left:12px; bottom:12px; display:flex; gap:8px; }
+  .B .pill { height:34px; min-width:34px; padding:0 10px; border-radius:17px; background:rgba(255,255,255,.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:#111; display:flex; align-items:center; gap:6px; font-size:13px; font-weight:500; }
+  .B .pill[disabled] { opacity:.45; }
+  .B .sheet { position:absolute; left:0; right:0; bottom:74px; overflow-y:auto; scrollbar-width:none; padding-bottom:10px;
+              mask-image:linear-gradient(#000 88%,transparent); -webkit-mask-image:linear-gradient(#000 88%,transparent); }
+  .B .sheet::-webkit-scrollbar { display:none; }
+  .B .modes { position:absolute; left:0; right:0; bottom:22px; height:44px; display:flex; justify-content:center; align-items:center; gap:22px; font-size:15px; color:var(--muted); white-space:nowrap; z-index:5;
+              mask-image:linear-gradient(90deg,transparent 0,#000 18%,#000 82%,transparent); -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 18%,#000 82%,transparent); }
+  .B .modes .on { color:var(--ink); font-weight:600; position:relative; }
+  .B .modes .on::after { content:""; position:absolute; left:50%; bottom:-9px; width:5px; height:5px; border-radius:3px; background:var(--warm); transform:translateX(-50%); }
+  .B .cats { display:flex; gap:20px; overflow-x:auto; scrollbar-width:none; padding:0 20px; font-size:14.5px; color:var(--muted); white-space:nowrap; }
+  .B .cats::-webkit-scrollbar { display:none; }
+  .B .cats .on { color:var(--ink); font-weight:600; }
+  .B .cats sup { font-size:10.5px; margin-left:3px; color:#a29d93; font-weight:500; }
+  .B .cats .applied::before { content:"●"; color:var(--warm); font-size:8px; margin-right:5px; vertical-align:2px; }
+  .B .lookname { padding:12px 20px 0; display:flex; align-items:flex-end; gap:12px; }
+  .B .lookname .n { font:500 27px/1.12 Newsreader, Georgia, serif; flex:1; letter-spacing:-.01em; }
+  .B .lookname .p { color:var(--muted); font-size:13px; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .B .amt { flex:0 0 auto; width:48px; height:48px; border-radius:24px; border:1.5px solid var(--line); display:grid; place-items:center; font-size:13px; font-weight:600; position:relative; }
+  .B .amt small { position:absolute; bottom:-15px; font-size:10px; color:var(--muted); font-weight:500; }
+  .B .scrub { position:relative; height:86px; margin:6px 20px 0; touch-action:none; cursor:ew-resize; user-select:none; }
+  .B .scrub canvas { position:absolute; left:0; right:0; bottom:20px; width:100%; height:26px; }
+  .B .thumb { position:absolute; bottom:12px; width:4px; height:42px; background:var(--ink); border-radius:2px; transform:translateX(-50%); box-shadow:0 0 0 4px var(--paper); }
+  .B .loupe { position:absolute; bottom:60px; transform:translateX(-50%); background:var(--ink); color:#fff; border-radius:12px; padding:7px 10px; font-size:12px; line-height:1.35; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s; }
+  .B .loupe.show { opacity:1; }
+  .B .loupe .dim { opacity:.5; } .B .loupe .cur { font-weight:600; }
+  .B .scrub .ends { position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-between; font-size:11px; color:#a29d93; font-variant-numeric:tabular-nums; }
+  .B .hint { font-size:12px; color:var(--muted); padding:2px 20px 0; display:flex; align-items:center; gap:6px; }
+  .B .rowlist { margin:6px 16px 0; background:var(--card); border-radius:16px; overflow:hidden; }
+  .B .rowitem { display:flex; align-items:center; padding:13px 14px; border-top:1px solid #EEEAE2; font-size:15px; gap:10px; }
+  .B .rowitem:first-child { border-top:0; }
+  .B .rowitem .val { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; font-size:14px; }
+  .B .rowitem.open { flex-wrap:wrap; }
+  .B .mini { width:100%; display:grid; grid-template-columns:100px 1fr 30px; gap:10px; align-items:center; font-size:13.5px; color:#3c3a36; padding:6px 0 0; }
+  .B .mini .v { text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .B .track { height:4px; border-radius:2px; background:#E7E2D8; position:relative; }
+  .B .track i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:var(--ink); }
+  .B .track b { position:absolute; top:50%; width:16px; height:16px; border-radius:8px; background:#fff; border:1.5px solid var(--ink); transform:translate(-50%,-50%); }
+  .B .faces { display:flex; gap:10px; padding:0 16px; align-items:center; }
+  .B .face { width:52px; height:52px; border-radius:26px; background-size:cover; border:2px solid transparent; box-shadow:0 0 0 2px var(--paper); position:relative; }
+  .B .face.on { border-color:var(--ink); }
+  .B .face .ok { position:absolute; right:-3px; bottom:-3px; width:18px; height:18px; border-radius:9px; background:var(--ink); color:#fff; display:grid; place-items:center; font-size:11px; box-shadow:0 0 0 2px var(--paper); }
+  .B .facehint { font-size:13px; color:var(--muted); line-height:1.35; }
+  .B .segB { display:flex; gap:6px; padding:0 16px; }
+  .B .segB button { height:34px; padding:0 14px; border-radius:17px; font-size:14px; border:1px solid var(--line); color:#3c3a36; }
+  .B .segB button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .B .styles { display:flex; gap:10px; padding:0 16px; overflow-x:auto; scrollbar-width:none; }
+  .B .style { flex:0 0 76px; }
+  .B .style .im { width:76px; height:76px; border-radius:14px; background-size:cover; background-position:center; border:2px solid transparent; }
+  .B .style.on .im { border-color:var(--ink); }
+  .B .style span { display:block; font-size:12.5px; text-align:center; margin-top:5px; color:#3c3a36; }
+  .B .depth { position:absolute; right:10px; top:18%; bottom:18%; width:34px; border-radius:17px; background:rgba(255,255,255,.78); backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:10px 0; font-size:10px; color:#333; }
+  .B .depth .rail { flex:1; width:3px; background:#d6d1c6; border-radius:2px; margin:8px 0; position:relative; }
+  .B .depth .rail b { position:absolute; left:50%; top:38%; width:18px; height:18px; border-radius:9px; background:#fff; border:1.5px solid #111; transform:translate(-50%,-50%); }
+  .B .target { position:absolute; width:92px; height:92px; border-radius:50%; border:1.5px dashed rgba(255,255,255,.95); transform:translate(-50%,-50%); }
+  .B .target::after { content:"Focus"; position:absolute; left:50%; bottom:-24px; transform:translateX(-50%); font-size:11.5px; color:#fff; background:rgba(20,20,20,.55); padding:2px 8px; border-radius:9px; }
+  /* Welcome B */
+  .B .wtop { position:absolute; top:58px; left:24px; right:16px; display:flex; align-items:center; justify-content:space-between; }
+  .B .brand { display:flex; align-items:center; gap:8px; font-weight:600; font-size:16px; letter-spacing:.01em; }
+  .B .headline { position:absolute; top:128px; left:24px; right:24px; font:400 50px/1.02 Newsreader, Georgia, serif; letter-spacing:-.02em; }
+  .B .headline em { font-style:italic; color:#6d5a3f; }
+  .B .fan { position:absolute; top:330px; left:0; right:0; height:300px; }
+  .B .fan div { position:absolute; width:168px; height:224px; border-radius:16px; background-size:cover; background-position:center; box-shadow:0 14px 30px -14px rgba(50,40,20,.5); border:5px solid #fff; }
+  .B .wcards { position:absolute; left:16px; right:16px; bottom:70px; display:grid; grid-template-columns:1.35fr 1fr; gap:10px; }
+  .B .wcard { height:108px; border-radius:20px; padding:14px 16px; text-align:left; display:flex; flex-direction:column; justify-content:space-between; }
+  .B .wcard.primary { background:var(--ink); color:#fff; }
+  .B .wcard.secondary { background:var(--card); color:var(--ink); }
+  .B .wcard b { font-size:17px; font-weight:600; } .B .wcard span { font-size:12.5px; opacity:.7; }
+  .B .wprivacy { position:absolute; left:0; right:0; bottom:40px; text-align:center; font-size:12.5px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div style="background:#111;color:#fff;padding:12px 20px;font:15px Inter,system-ui,sans-serif">This early board is superseded. The complete design, with prototype, screen index, overview and coverage, is at <a href="/docs/ui/app/index.html" style="color:#9fc0ff">/docs/ui/app/</a>.</div>
+<div class="board">
+  <h1>Lightly — two visual directions</h1>
+  <p class="lede">Each direction uses the same photos and the same four screens: Welcome, the Develop editor on a landscape, the contextual Portrait editor, and Background › Focus &amp; Blur. The directions differ in layout and in how you move between tools and presets, not only in colour. The preset sliders are live: they load all 2,591 presets in the fixed nine-category catalogue, with every stop in its fixed order.</p>
+  <span class="sim-note">Simulated: photo appearance in these mockups (preset looks, Auto, blur, skin) is an illustration made with simple filters. Lightly's real rendering is not shown and is not validated.</span>
+
+  <!-- ===================== DIRECTION A ===================== -->
+  <section class="direction" id="dirA">
+    <header><span class="tag">Direction A</span><h2>Darkroom — full-bleed photo, tool dock, detent ruler</h2></header>
+    <ul class="principles">
+      <li><b>Photo edge to edge.</b> Controls float in dark glass over the photo, so it keeps the full screen height.</li>
+      <li><b>One persistent tool dock.</b> Seven labelled tools in a scrolling dock at the bottom, about 4½ visible. The active tool's controls open in a panel just above it.</li>
+      <li><b>Presets on a detent ruler.</b> Every stop is a tick, 12 pt apart. You scroll the ruler under a fixed needle; it previews while moving and commits when it settles. Long categories are a fast fling plus a precise snap.</li>
+      <li><b>Sub-tools as tabs.</b> Inside a tool, options are text tabs (Skin · Under-eye · …), each showing only its own sliders.</li>
+    </ul>
+    <div class="row" id="rowA"></div>
+  </section>
+
+  <!-- ===================== DIRECTION B ===================== -->
+  <section class="direction" id="dirB">
+    <header><span class="tag">Direction B</span><h2>Gallery — framed print, mode carousel, precision scrubber</h2></header>
+    <ul class="principles">
+      <li><b>Photo as a print.</b> An inset, rounded photo on warm paper, with Undo, Redo and Compare placed on the photo itself. A calm, editorial feel.</li>
+      <li><b>Tools as a camera-style mode carousel.</b> Swipe the tool names at the bottom, as in the Camera app's modes. There is no row of buttons, and one tool fills the panel at a time.</li>
+      <li><b>Presets on a precision scrubber.</b> The full category is drawn as one band of stops. Drag sideways to move quickly; slide your finger up while dragging for fine, one-stop control. A loupe names the neighbouring presets.</li>
+      <li><b>Sub-tools as an accordion.</b> Every option shows its current value at a glance; one row opens at a time. Faces appear as round crops of the photo.</li>
+    </ul>
+    <div class="row" id="rowB"></div>
+  </section>
+
+  <section class="recommend" id="recommend"></section>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------------
+   Data: the fixed design catalogue, loaded as-is (no reordering, renaming or
+   sampling). The prototype only reads ids, display names and stop numbers.
+--------------------------------------------------------------------------- */
+const PHOTO = {
+  landscape: '/docs/ui/assets/photos/landscape_02.jpg',
+  portrait:  '/docs/ui/assets/photos/portrait_deep_03.jpg',
+  focus:     '/docs/ui/assets/photos/portrait_medium_02.jpg',
+  fan1: '/docs/ui/assets/photos/landscape_01.jpg', fan2: '/docs/ui/assets/photos/sunset_02.jpg', fan3: '/docs/ui/assets/photos/wellexposed_03.jpg',
+};
+let CATALOGUE = null;
+
+/** Simulated look: a deterministic CSS filter derived from the preset id. Illustration only. */
+function simulatedFilter(categoryId, presetId, amount = 1) {
+  if (!presetId) return 'none';
+  let h = 0; for (const c of presetId) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const r = (k) => ((h >>> k) & 255) / 255;
+  const mono = categoryId === 'black-white' || categoryId === 'black-and-white' || /white/.test(categoryId);
+  const warm = categoryId === 'golden-hour' ? 0.22 : categoryId === 'film' ? 0.12 : 0.06;
+  const f = [
+    mono ? `grayscale(${amount})` : `saturate(${1 + (r(0) - .45) * .6 * amount})`,
+    `contrast(${1 + (r(8) - .5) * .3 * amount})`,
+    `brightness(${1 + (r(16) - .5) * .14 * amount})`,
+    mono ? '' : `sepia(${(warm * r(4)) * amount})`,
+    mono ? '' : `hue-rotate(${(r(24) - .5) * 14 * amount}deg)`,
+  ];
+  return f.join(' ');
+}
+
+const ICON = {
+  back:'<path d="M15 5l-7 7 7 7"/>', close:'<path d="M6 6l12 12M18 6L6 18"/>',
+  undo:'<path d="M9 7H5V3"/><path d="M5.5 7.5A8 8 0 1 1 4 13"/>', redo:'<path d="M15 7h4V3"/><path d="M18.5 7.5A8 8 0 1 0 20 13"/>',
+  compare:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 4v16"/><path d="M12 4h5a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3h-5z" fill="currentColor" stroke="none" opacity=".9"/>',
+  save:'<path d="M12 4v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19h14"/>',
+  more:'<circle cx="12" cy="5.5" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="18.5" r="1.4" fill="currentColor"/>',
+  develop:'<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  background:'<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="12" cy="11" r="2.6"/><path d="M7 19c.8-2.6 2.8-4 5-4s4.2 1.4 5 4"/>',
+  portrait:'<circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c1.2-3.8 4-5.6 7-5.6s5.8 1.8 7 5.6"/>',
+  edit:'<path d="M5 7h9M18 7h1M5 17h1M10 17h9"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+  effects:'<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+  watermark:'<path d="M4 17c2.5-4 4.5-9 7-9 1.6 0 1 4 2.6 4 1.3 0 1.7-2 3-2 1 0 1.6 1 3.4 2"/><path d="M4 20h16"/>',
+  border:'<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><rect x="7" y="7" width="10" height="8" rx=".5"/>',
+  camera:'<path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.4"/>',
+  photo:'<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l4.5-4.5 4 4 2.5-2.5 5 5"/>',
+  star:'<path d="M12 4l2.3 4.8 5.2.7-3.8 3.6.9 5.2L12 15.9l-4.6 2.4.9-5.2-3.8-3.6 5.2-.7z"/>',
+  brush:'<path d="M14.5 4.5l5 5-8 8H6.5v-5z"/><path d="M4 20h7"/>',
+  lock:'<rect x="6" y="11" width="12" height="9" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/>',
+  hand:'<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11V5a1.5 1.5 0 0 1 3 0v6M14 11V6.5a1.5 1.5 0 0 1 3 0V14c0 3.5-2.4 6-5.7 6-2.3 0-3.7-1-5-2.9L4.6 14a1.4 1.4 0 0 1 2.3-1.6L8 14"/>',
+};
+const icon = (n, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24">${ICON[n]}</svg>`;
+const TOOLS = [['develop','Develop'],['background','Background'],['portrait','Portrait'],['edit','Edit'],['effects','Effects'],['watermark','Watermark'],['border','Border']];
+
+function lightlyMark(size, color, stroke = 1.6) {
+  // Eight-ray aperture mark (same geometry as ios/Lightly/DesignSystem/Components/BrandMark.swift).
+  const c = size / 2, r = size / 2, inner = r * .3; let p = '';
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, o = i % 2 ? r * .86 : r;
+    p += `M${c + Math.cos(a) * inner} ${c + Math.sin(a) * inner}L${c + Math.cos(a) * o} ${c + Math.sin(a) * o}`; }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><path d="${p}" stroke="${color}" stroke-width="${Math.max(stroke, size * .035)}" stroke-linecap="round" fill="none"/></svg>`;
+}
+const statusbar = () => `<div class="island"></div><div class="statusbar"><span>9:41</span><span class="sb-icons">
+  <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="currentColor"/><rect x="10" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>
+  <svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3.5" stroke="currentColor" fill="none" opacity=".45"/><rect x="2" y="2" width="17" height="8" rx="2" fill="currentColor"/><rect x="23.5" y="4" width="1.8" height="4" rx=".9" fill="currentColor" opacity=".45"/></svg></span></div><div class="homebar"></div>`;
+const shot = (inner, cls, caption) => `<figure class="screen"><div class="device ${cls}">${statusbar()}${inner}</div><figcaption>${caption}</figcaption></figure>`;
+
+/* ----------------------------- Direction A ----------------------------- */
+function welcomeA() {
+  // Clean line-art ridges: straight segments between peaks and saddles, like the original mockup.
+  const ridge = (pts) => 'M' + pts.map(([x, y]) => `${x} ${y}`).join(' L');
+  const far = [[0,150],[40,128],[70,138],[112,92],[138,112],[170,70],[196,96],[228,58],[262,100],[300,84],[338,118],[390,104]];
+  const near = [[0,168],[52,140],[86,156],[130,118],[168,150],[214,112],[250,140],[292,108],[330,146],[390,132]];
+  return shot(`
+    <button class="more-top glass round" aria-label="More">${icon('more')}</button>
+    <div class="mark-wrap">${lightlyMark(64, '#F4F2EE', 1.8)}<div class="wordmark">Lightly</div><div class="labs">LABS</div>
+      <div class="tagline">See it as<br>you remember it.</div></div>
+    <svg class="mountains" viewBox="0 0 390 180" preserveAspectRatio="none"><path d="${ridge(far)}" stroke="#6a6762" fill="none" stroke-width="1.1" stroke-linejoin="round"/><path d="${ridge(near)}" stroke="#3d3c39" fill="none" stroke-width="1.1" stroke-linejoin="round"/><path d="M170 70 L182 96 L176 120 M228 58 L240 88 L232 112 M112 92 L122 116" stroke="#4b4945" fill="none" stroke-width=".9" stroke-linecap="round"/></svg>
+    <div class="cta"><button class="primary">${icon('photo')}Choose a photo</button><button class="secondary">${icon('camera')}Camera</button>
+      <div class="privacy">Your photos stay on your device by default.</div></div>`,
+    'A welcome', `<b>A1 · Welcome</b>Dark and still, with the mark and the mountain line art. Choose a photo opens the system photo picker; Camera opens the system camera. More (⋮) is the only other control. No account and no onboarding.`);
+}
+
+function topbarA({ undo = true, redo = false } = {}) {
+  return `<div class="topbar"><button class="glass round" aria-label="Close">${icon('close')}</button>
+    <div class="glass group"><button aria-label="Undo" ${undo ? '' : 'disabled'}>${icon('undo')}</button><button aria-label="Redo" ${redo ? '' : 'disabled'}>${icon('redo')}</button><button aria-label="Hold to compare">${icon('compare')}</button></div>
+    <div class="spacer"></div><button class="save">${icon('save', 'sm')}Save copy</button><button class="glass round" aria-label="More">${icon('more')}</button></div>`;
+}
+function dockA(active) {
+  return `<nav class="dock">${TOOLS.map(([k, l]) => `<button class="tool ${k === active ? 'on' : ''}">${icon(k)}<span>${l}</span><span class="dot"></span></button>`).join('')}</nav>`;
+}
+function developA() {
+  return shot(`
+    <div class="stage" style="bottom:306px"><img id="A-img" src="${PHOTO.landscape}" alt="Mountain lake"></div>
+    ${topbarA({ undo: true })}
+    <div class="panel" style="height:306px">
+      <div class="chips" id="A-cats"></div>
+      <div class="namebar"><div><div class="pname" id="A-name">—</div><div class="ppos" id="A-pos"></div></div>
+        <button class="amount" id="A-amt">Amount <b>100</b></button></div>
+      <div class="ruler"><div class="ruler-track" id="A-ruler"></div><div class="ruler-fade"></div><div class="needle"></div></div>
+      ${dockA('develop')}
+    </div>`,
+    'A dev', `<b>A2 · Develop on a landscape (live)</b>Scroll the ruler: it previews while it moves and commits once when it settles, which adds one undo step. Every tick is one preset in fixed order, and stop 0 reads Auto. Changing category moves the ruler but keeps the applied Look; the dot marks the category that holds it. Amount sits beside the name.<span class="sim">Simulated: the look and "Auto" on this photo are illustrations.</span>`);
+}
+function portraitA() {
+  return shot(`
+    <div class="stage" style="top:96px;bottom:322px;background:#111"><img src="${PHOTO.portrait}" style="object-fit:cover;object-position:50% 30%" alt="Man with a beard, dark background">
+      <div class="facering" style="left:133px;top:24px;width:128px;height:200px"></div><div class="facelabel" style="left:197px;top:234px">Face selected</div></div>
+    ${topbarA({ undo: true })}
+    <div class="panel" style="height:322px">
+      <div class="subtabs"><span class="on">Skin</span><span>Under-eye</span><span>Eyes</span><span>Teeth</span><span>Hair &amp; Beard</span></div>
+      <div class="sliders">
+        ${slA('Smoothing', 24)}${slA('Blemishes', 40)}${slA('Even tone', 18)}${slA('Texture kept', 85)}
+      </div>
+      <div class="note">${icon('lock', 'sm')}Pores and features are kept. Face shape is never changed.</div>
+      ${dockA('portrait')}
+    </div>`,
+    'A por', `<b>A3 · Portrait (only shown when a usable face is found)</b>One face, so it's selected automatically; the ring confirms which one. With several faces, you tap a ring to choose. Each sub-tool is a tab with its own few sliders, and every adjustment is gentle by default.<span class="sim">Simulated: the skin effect is not shown.</span>`);
+}
+function slA(label, v) { return `<div class="sl"><span>${label}</span><div class="bar"><i style="width:${v}%"></i><b style="left:${v}%"></b></div><span class="v">${v}</span></div>`; }
+function focusA() {
+  return shot(`
+    <div class="stage" style="bottom:356px"><img src="${PHOTO.focus}" style="filter:blur(0)" alt="Woman by a wall">
+      <img src="${PHOTO.focus}" style="position:absolute;inset:0;filter:blur(9px) brightness(.96);-webkit-mask-image:var(--subject-mask);mask-image:var(--subject-mask)">
+      <div class="focusmark" style="left:42%;top:59%"></div></div>
+    ${topbarA({ undo: true })}
+    <div class="panel" style="height:356px">
+      <div class="seg"><button class="on">Focus &amp; Blur</button><button>Change background</button></div>
+      <div class="chips" style="padding-top:12px"><button class="chip on">Lens</button><button class="chip">Soft</button><button class="chip">Swirl</button><button class="chip">Motion</button></div>
+      <div class="shapes">Bokeh <span class="shape on"><svg class="icon sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></span><span class="shape"><svg class="icon sm" viewBox="0 0 24 24"><path d="M12 4.5l6.5 3.75v7.5L12 19.5l-6.5-3.75v-7.5z"/></svg></span><span class="shape"><svg class="icon sm" viewBox="0 0 24 24"><path d="M12 5l2 4.6 5 .4-3.8 3.3 1.2 4.9L12 15.6 7.6 18.2l1.2-4.9L5 10l5-.4z"/></svg></span></div>
+      <div class="sliders">${slA('Blur', 62)}${slA('Focus depth', 34)}</div>
+      <button class="refine">${icon('brush', 'sm')}Refine edges</button>
+      ${dockA('background')}
+    </div>`,
+    'A bg', `<b>A4 · Background › Focus &amp; Blur</b>Tap the photo to move the focus target. Lens style offers bokeh shapes; Soft, Swirl and Motion replace that row with their own settings. Refine edges opens a brush. After you change the background, this same tab still blurs the new one.<span class="sim">Simulated: a radial blur stands in for subject separation.</span>`);
+}
+
+/* ----------------------------- Direction B ----------------------------- */
+function welcomeB() {
+  return shot(`
+    <div class="wtop"><div class="brand">${lightlyMark(22, '#1A1918', 1.6)}Lightly</div><button class="ibtn" aria-label="More">${icon('more')}</button></div>
+    <div class="headline">See it as you <em>remember</em> it.</div>
+    <div class="fan"><div style="left:36px;top:40px;transform:rotate(-7deg);background-image:url(${PHOTO.fan1})"></div>
+      <div style="left:186px;top:18px;transform:rotate(6deg);background-image:url(${PHOTO.fan3})"></div>
+      <div style="left:108px;top:70px;transform:rotate(-1deg);background-image:url(${PHOTO.fan2});width:178px"></div></div>
+    <div class="wcards"><button class="wcard primary">${icon('photo')}<div><b>Choose a photo</b><br><span>From your library</span></div></button>
+      <button class="wcard secondary">${icon('camera')}<div><b>Camera</b><br><span>Take a new photo</span></div></button></div>
+    <div class="wprivacy">Your photos stay on your device by default.</div>`,
+    'B welcome', `<b>B1 · Welcome</b>Light and editorial, with the headline set as a title and real photos shown as prints. Two large cards, Choose a photo and Camera, both hand off to the system picker or camera. More (⋮) sits top-right.<span class="sim">The three prints are sample photos, not the user's library.</span>`);
+}
+function topB(title) {
+  return `<div class="top"><button class="ibtn" aria-label="Close">${icon('close')}</button><div class="title">${title}</div><button class="save">${icon('save', 'sm')}Save copy</button><button class="ibtn" aria-label="More">${icon('more')}</button></div>`;
+}
+function canvasActionsB() {
+  return `<div class="canvas-actions"><button class="pill" aria-label="Undo">${icon('undo', 'sm')}</button><button class="pill" aria-label="Redo" disabled>${icon('redo', 'sm')}</button><button class="pill">${icon('compare', 'sm')}Hold to compare</button></div>`;
+}
+function modesB(active) {
+  const i = TOOLS.findIndex(([k]) => k === active), w = 0; // centred on the active mode
+  const items = TOOLS.map(([k, l], j) => `<span class="${k === active ? 'on' : ''}">${l}</span>`).join('');
+  return `<div class="modes" style="justify-content:flex-start;padding-left:${195 - [0, 0, 0, 0, 0, 0, 0][i]}px"><div id="modes-${active}" style="display:flex;gap:22px;transform:translateX(var(--shift))">${items}</div></div>`;
+}
+function developB() {
+  return shot(`
+    ${topB('Develop')}
+    <div class="print" style="height:452px"><img id="B-img" src="${PHOTO.landscape}" alt="Mountain lake">${canvasActionsB()}</div>
+    <div class="sheet" style="top:572px">
+      <div class="cats" id="B-cats"></div>
+      <div class="lookname"><div style="flex:1"><div class="n" id="B-name">—</div><div class="p" id="B-pos"></div></div>
+        <button class="amt" id="B-amt">100<small>Amount</small></button></div>
+      <div class="scrub" id="B-scrub"><canvas id="B-band"></canvas><div class="thumb" id="B-thumb"></div><div class="loupe" id="B-loupe"></div><div class="ends"><span id="B-end0">Auto</span><span id="B-end1"></span></div></div>
+      <div class="hint">${icon('hand', 'sm')}Slide up while dragging for one-stop precision</div>
+    </div>
+    ${modesB('develop')}`,
+    'B dev', `<b>B2 · Develop on a landscape (live)</b>The whole category is one band of stops. Drag to scrub; it previews as you go and commits on release, which adds one undo step. While dragging, slide up for fine control: one stop per finger-width. The loupe names the neighbouring presets. Categories are text tabs with their counts. Tools change with the mode carousel at the bottom.<span class="sim">Simulated: the looks are illustrations.</span>`);
+}
+function portraitB() {
+  return shot(`
+    ${topB('Portrait')}
+    <div class="print" style="height:282px;background:#222"><img src="${PHOTO.portrait}" style="object-fit:cover;object-position:50% 30%" alt="Man with a beard, dark background">${canvasActionsB()}</div>
+    <div class="sheet" style="top:396px">
+      <div class="faces"><div class="face on" style="background-image:url(${PHOTO.portrait});background-size:385%;background-position:51% 18.5%"><span class="ok">✓</span></div>
+        <div class="facehint">One face found and selected.<br>Edits apply only to this face.</div></div>
+      <div class="rowlist">
+        <div class="rowitem open"><b>Skin</b><span class="val">3 changes</span>
+          <div class="mini"><span>Smoothing</span><div class="track"><i style="width:24%"></i><b style="left:24%"></b></div><span class="v">24</span></div>
+          <div class="mini"><span>Blemishes</span><div class="track"><i style="width:40%"></i><b style="left:40%"></b></div><span class="v">40</span></div>
+          <div class="mini"><span>Even tone</span><div class="track"><i style="width:18%"></i><b style="left:18%"></b></div><span class="v">18</span></div>
+          <div class="mini"><span>Texture kept</span><div class="track"><i style="width:85%"></i><b style="left:85%"></b></div><span class="v">85</span></div></div>
+        <div class="rowitem">Under-eye<span class="val">Off</span></div>
+        <div class="rowitem">Eyes<span class="val">Off</span></div>
+        <div class="rowitem">Teeth<span class="val">Off</span></div>
+        <div class="rowitem">Hair &amp; Beard<span class="val">Off</span></div>
+      </div>
+    </div>
+    ${modesB('portrait')}`,
+    'B por', `<b>B3 · Portrait (only shown when a usable face is found)</b>Faces appear as round crops of the photo, and a single face is selected automatically. Each option row shows its state, so you can see what changed without opening it. The open row shows its few gentle sliders. Nothing reshapes the face.<span class="sim">Simulated: the skin effect is not shown.</span>`);
+}
+function focusB() {
+  const st = (n, f, on) => `<div class="style ${on ? 'on' : ''}"><div class="im" style="background-image:url(${PHOTO.focus});filter:${f}"></div><span>${n}</span></div>`;
+  return shot(`
+    ${topB('Background')}
+    <div class="print" style="height:430px"><img src="${PHOTO.focus}" alt="Woman by a wall">
+      <img src="${PHOTO.focus}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(9px);-webkit-mask-image:var(--subject-mask);mask-image:var(--subject-mask)">
+      <div class="target" style="left:38%;top:51%"></div>
+      <div class="depth"><span>Near</span><div class="rail"><b></b></div><span>Far</span></div>
+      ${canvasActionsB()}</div>
+    <div class="sheet" style="top:546px">
+      <div class="segB"><button class="on">Focus &amp; Blur</button><button>Change background</button></div>
+      <div class="styles" style="margin-top:12px">${st('Lens', 'blur(1.4px)', true)}${st('Soft', 'blur(2.6px) brightness(1.05)')}${st('Swirl', 'blur(1.6px) contrast(1.1)')}${st('Motion', 'blur(1px) saturate(.9)')}</div>
+      <div style="display:flex;gap:10px;padding:12px 16px 0;align-items:center"><div style="flex:1" class="mini"><span>Blur</span><div class="track"><i style="width:62%"></i><b style="left:62%"></b></div><span class="v">62</span></div></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 16px 0;font-size:13px;color:#6f6a61"><span>Bokeh: Round ▾</span><span>${icon('brush', 'sm')} Refine edges</span></div>
+    </div>
+    ${modesB('background')}`,
+    'B bg', `<b>B4 · Background › Focus &amp; Blur</b>You work directly on the photo: drag the dashed target onto the subject, and drag the Near/Far rail on the photo to set focus depth. Blur styles are preview cards. Bokeh shape and Refine edges sit in one compact row. Change background keeps this tab available.<span class="sim">Simulated: a radial blur stands in for subject separation.</span>`);
+}
+
+/* ----------------------------- Interaction ----------------------------- */
+const state = { A: null, B: null };
+function mkState(prefix) {
+  const cats = CATALOGUE.categories;
+  return { prefix, cat: cats[1], applied: { catId: cats[1].id, presetId: cats[1].presets[36].id, name: cats[1].presets[36].displayName, stop: 37 }, amountByLook: {}, undo: 1, auto: true };
+}
+function labelFor(st, cat, stop) {
+  // While browsing a category that does not hold the applied Look, say which Look is still applied:
+  // choosing a category alone never changes the edit.
+  const elsewhere = st.applied && st.applied.catId !== cat.id ? ` · Applied: ${st.applied.name}` : '';
+  if (stop === 0) return { name: st.auto ? 'Auto' : 'Original', pos: `${cat.name} · 0 of ${cat.presets.length}${elsewhere}` };
+  const p = cat.presets[stop - 1]; return { name: p.displayName, pos: `${cat.name} · ${stop} of ${cat.presets.length}` };
+}
+function render(st, cat, stop, img) {
+  const l = labelFor(st, cat, stop);
+  document.getElementById(`${st.prefix}-name`).textContent = l.name;
+  document.getElementById(`${st.prefix}-pos`).textContent = l.pos;
+  const pid = stop ? cat.presets[stop - 1].id : null;
+  const amount = pid ? (st.amountByLook[pid] ?? 1) : 1;
+  document.getElementById(img).style.filter = (st.auto ? 'contrast(1.04) saturate(1.06) ' : '') + simulatedFilter(cat.id, pid, amount);
+  const amt = document.getElementById(`${st.prefix}-amt`);
+  amt.style.visibility = pid ? 'visible' : 'hidden';
+  if (st.prefix === 'A') amt.innerHTML = `Amount <b>${Math.round(amount * 100)}</b>`; else amt.innerHTML = `${Math.round(amount * 100)}<small>Amount</small>`;
+}
+function commit(st, cat, stop) {
+  if (stop === 0) { if (st.applied) { st.applied = null; st.undo++; } return; }  // back to the base: one undo step
+  const p = cat.presets[stop - 1];
+  // Returning to the committed Look is a no-op (Amount and history unchanged).
+  if (st.applied && st.applied.presetId === p.id) return;
+  st.applied = { catId: cat.id, presetId: p.id, name: p.displayName, stop };
+  st.undo++;
+}
+
+/* A: detent ruler */
+function setupA() {
+  const st = state.A = mkState('A');
+  const cats = document.getElementById('A-cats'), ruler = document.getElementById('A-ruler');
+  const drawCats = () => {
+    cats.innerHTML = `<button class="chip auto">${icon('develop', 'sm')}Auto</button><button class="chip">${icon('star', 'sm')}Favourites <span class="n">5</span></button>` +
+      CATALOGUE.categories.map(c => `<button class="chip ${c === st.cat ? 'on' : ''} ${st.applied && st.applied.catId === c.id ? 'has-applied' : ''}" data-id="${c.id}">${c.name} <span class="n">${c.presets.length}</span></button>`).join('');
+    cats.querySelectorAll('[data-id]').forEach(b => b.onclick = () => { st.cat = CATALOGUE.categories.find(c => c.id === b.dataset.id); drawRuler(); drawCats(); });
+  };
+  const SP = 12;
+  let settle;
+  const drawRuler = () => {
+    const n = st.cat.presets.length;
+    const pad = `<div style="flex:0 0 ${195 - 6}px"></div>`;
+    ruler.innerHTML = pad + Array.from({ length: n + 1 }, (_, i) => `<div class="tick ${i === 0 ? 'base' : i % 10 === 0 ? 'major' : ''}">${i % 50 === 0 && i ? `<span>${i}</span>` : ''}</div>`).join('') + pad;
+    const start = st.applied && st.applied.catId === st.cat.id ? st.applied.stop : 0;
+    programmatic = true;                      // positioning the ruler is not a user edit
+    ruler.scrollLeft = start * SP;
+    showApplied();
+  };
+  // What the photo shows when nothing is being dragged: the committed edit, whatever category is open.
+  const showApplied = () => {
+    const ac = st.applied && CATALOGUE.categories.find(c => c.id === st.applied.catId);
+    const stop = st.applied && st.applied.catId === st.cat.id ? st.applied.stop : 0;
+    render(st, st.cat, stop, 'A-img');
+    if (ac && ac !== st.cat) document.getElementById('A-img').style.filter = (st.auto ? 'contrast(1.04) saturate(1.06) ' : '') + simulatedFilter(ac.id, st.applied.presetId, st.amountByLook[st.applied.presetId] ?? 1);
+  };
+  let programmatic = false;
+  ruler.addEventListener('scroll', () => {
+    const stop = Math.max(0, Math.min(st.cat.presets.length, Math.round(ruler.scrollLeft / SP)));
+    if (programmatic) { clearTimeout(settle); settle = setTimeout(() => { programmatic = false; }, 120); return; }
+    render(st, st.cat, stop, 'A-img');        // preview while moving
+    clearTimeout(settle); settle = setTimeout(() => { commit(st, st.cat, stop); drawCats(); }, 180); // commit on settle
+  });
+  drawCats(); drawRuler();
+}
+
+/* B: precision scrubber */
+function setupB() {
+  const st = state.B = mkState('B');
+  const cats = document.getElementById('B-cats'), scrub = document.getElementById('B-scrub'), band = document.getElementById('B-band');
+  const thumb = document.getElementById('B-thumb'), loupe = document.getElementById('B-loupe');
+  let stop = 0;
+  const drawCats = () => {
+    cats.innerHTML = `<span>★ Favourites<sup>5</sup></span>` + CATALOGUE.categories.map(c => `<span data-id="${c.id}" class="${c === st.cat ? 'on' : ''} ${st.applied && st.applied.catId === c.id ? 'applied' : ''}">${c.name}<sup>${c.presets.length}</sup></span>`).join('');
+    cats.querySelectorAll('[data-id]').forEach(b => b.onclick = () => { st.cat = CATALOGUE.categories.find(c => c.id === b.dataset.id); place(st.applied && st.applied.catId === st.cat.id ? st.applied.stop : 0, true); drawBand(); drawCats(); });
+    const on = cats.querySelector('.on'); if (on) cats.scrollLeft = on.offsetLeft - 120;
+  };
+  const drawBand = () => {
+    const n = st.cat.presets.length, w = band.clientWidth, h = 26, dpr = 2; band.width = w * dpr; band.height = h * dpr;
+    const g = band.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, w, h);
+    for (let i = 0; i <= n; i++) { const x = i / n * w; g.fillStyle = i === 0 ? '#B5793A' : i % 10 === 0 ? '#8d877c' : '#cfc9bd'; const hh = i === 0 ? 26 : i % 10 === 0 ? 20 : 12; g.fillRect(x - .5, h - hh, n > 300 ? .8 : 1.2, hh); }
+    document.getElementById('B-end1').textContent = `${n}`;
+    document.getElementById('B-end0').textContent = st.auto ? 'Auto' : 'Original';
+  };
+  const place = (s, browsingOnly = false) => {
+    stop = s; const n = st.cat.presets.length; thumb.style.left = `${s / n * 100}%`; loupe.style.left = `${Math.min(80, Math.max(20, s / n * 100))}%`;
+    render(st, st.cat, s, 'B-img');
+    // Opening another category only moves the scrubber; the photo keeps the applied Look.
+    const ac = st.applied && CATALOGUE.categories.find(c => c.id === st.applied.catId);
+    if (browsingOnly && ac && ac !== st.cat) document.getElementById('B-img').style.filter = (st.auto ? 'contrast(1.04) saturate(1.06) ' : '') + simulatedFilter(ac.id, st.applied.presetId, st.amountByLook[st.applied.presetId] ?? 1);
+  };
+  const name = (s) => s === 0 ? (st.auto ? 'Auto' : 'Original') : st.cat.presets[s - 1].displayName;
+  let drag = null;
+  scrub.addEventListener('pointerdown', e => { scrub.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, s: stop }; loupe.classList.add('show'); move(e); });
+  const move = (e) => {
+    if (!drag) return;
+    const n = st.cat.presets.length, w = scrub.clientWidth;
+    const lift = Math.max(0, drag.y - e.clientY);            // finger raised above the band
+    const fine = lift > 40;                                   // fine mode: one stop per ~14 px
+    const delta = e.clientX - drag.x;
+    let s = fine ? drag.s + Math.round(delta / 14) : Math.round((e.clientX - scrub.getBoundingClientRect().left) / w * n);
+    if (fine !== drag.fine) { drag.fine = fine; drag.x = e.clientX; drag.s = stop; s = stop; }
+    s = Math.max(0, Math.min(n, s)); place(s);
+    const nb = [s - 1, s, s + 1].filter(i => i >= 0 && i <= n);
+    loupe.innerHTML = (fine ? '<div class="dim">Fine · one stop at a time</div>' : '') + nb.map(i => `<div class="${i === s ? 'cur' : 'dim'}">${i === s ? '› ' : ''}${name(i)}</div>`).join('');
+  };
+  scrub.addEventListener('pointermove', move);
+  scrub.addEventListener('pointerup', () => { drag = null; loupe.classList.remove('show'); commit(st, st.cat, stop); drawCats(); });
+  drawCats(); requestAnimationFrame(() => { drawBand(); place(st.applied.stop); });
+}
+
+function centreModes() {
+  document.querySelectorAll('.modes > div').forEach(row => {
+    const on = row.querySelector('.on'); row.style.setProperty('--shift', `${-((on.offsetLeft - row.offsetLeft) + on.offsetWidth / 2)}px`);
+  });
+}
+
+function recommendation() {
+  document.getElementById('recommend').innerHTML = `<h2>Recommendation: Direction A, with one feature from B</h2>
+  <p>A gives the photo the most room and suits every tool. The dock keeps all seven tools one tap away, labelled, without crowding them. The detent ruler scales to 564 presets, because you control fling speed directly and every stop snaps. A also handles landscape, foldable and tablet layouts naturally: the dock becomes a vertical rail beside the photo.</p>
+  <p>The one thing worth taking from B is fine scrubbing. Hold still on the ruler for half a second and it slows to one stop per finger-width. That helps in the largest categories (Cinematic 564, Landscape 518).</p>
+  <table class="compare-table">
+    <tr><th></th><th>A · Darkroom</th><th>B · Gallery</th></tr>
+    <tr><th>Photo size</th><td>Edge to edge; the panel covers only the bottom 36–42%.</td><td>Inset print with margins: smaller, but calm and premium.</td></tr>
+    <tr><th>Moving between 7 tools</th><td>Labelled dock: tap any tool directly; the dock scrolls.</td><td>Mode carousel: one swipe per neighbouring tool, so tools further away are slower to reach.</td></tr>
+    <tr><th>Very large categories</th><td>Fling the ruler, then it snaps to exact stops.</td><td>Coarse drag plus fine lift-up mode; harder to discover.</td></tr>
+    <tr><th>Sub-tools (Portrait)</th><td>Tabs: quick to switch, one set of sliders at a time.</td><td>Accordion: you see every value at once, but the panel is taller.</td></tr>
+    <tr><th>Direct manipulation</th><td>Tap to set the focus target; sliders in the panel.</td><td>Focus target and depth rail sit on the photo itself.</td></tr>
+    <tr><th>Reachability</th><td>Undo, Redo and Compare at the top (reach); Save copy top-right.</td><td>Undo, Redo and Compare on the photo, near the thumb; Save copy at the top.</td></tr>
+    <tr><th>Risk</th><td>Dark glass over bright photos needs contrast checks.</td><td>On a phone, an inset photo loses about 15% of its area.</td></tr>
+  </table>`;
+}
+
+fetch('/presets/develop-design-ui.json').then(r => r.json()).then(data => {
+  CATALOGUE = data;
+  const total = data.categories.reduce((n, c) => n + c.presets.length, 0);
+  document.querySelector('.lede').innerHTML = document.querySelector('.lede').innerHTML.replace('2,591', total.toLocaleString());
+  document.getElementById('rowA').innerHTML = welcomeA() + developA() + portraitA() + focusA();
+  document.getElementById('rowB').innerHTML = welcomeB() + developB() + portraitB() + focusB();
+  setupA(); setupB(); centreModes(); recommendation();
+}).catch(e => { document.body.insertAdjacentHTML('afterbegin', `<p style="color:red;padding:20px">Could not load presets/develop-design-ui.json: ${e}. Serve the repository root (python3 -m http.server).</p>`); });
+</script>
+</body>
+</html>

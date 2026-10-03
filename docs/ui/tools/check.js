@@ -1,12 +1,12 @@
-// Runs every screen × layout × theme × text-size check in the review site and writes design/app/coverage.json.
-// Usage: NODE_PATH=<playwright-core node_modules> node design/tools/check.js http://127.0.0.1:8765
+// Runs every screen × layout × theme × text-size check in the review site and writes docs/ui/app/coverage.json.
+// Usage: NODE_PATH=<playwright-core node_modules> node docs/ui/tools/check.js http://127.0.0.1:8765
 const { chromium } = require('playwright-core');
 const fs = require('fs'), path = require('path');
 (async () => {
   const base = process.argv[2] || 'http://127.0.0.1:8765';
   const b = await chromium.launch(); const p = await b.newPage({ viewport:{ width:1600, height:1000 } });
   const errors = []; p.on('pageerror', e => errors.push(e.message)); p.on('console', m => m.type() === 'error' && errors.push(m.text()));
-  await p.goto(`${base}/design/app/index.html#tab=notes`, { waitUntil:'networkidle' });
+  await p.goto(`${base}/docs/ui/app/index.html#tab=notes`, { waitUntil:'networkidle' });
   await p.waitForFunction(() => window.READY === true);
   await p.evaluate(() => document.fonts.ready);
   const results = await p.evaluate(async () => await runAllChecks());
