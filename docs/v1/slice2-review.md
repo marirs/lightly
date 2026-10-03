@@ -70,6 +70,25 @@
   - on iOS, Saving can be cancelled without writing anything, and Saved has a Share button.
 - **Evidence:** flow captures are in `~/.codex/artifacts/lightly/v1/slice2/{ios,android}/` (Android `flows/`).
 
+## Update: iOS matrix complete (334aa33)
+
+These are the iOS agent's results. The coordinator spot-checked one screen; nothing else has been independently verified.
+
+- **Coverage:** all 24 cells × 21 screens (504) were captured with the validated runner, one cell per lock, from one recorded build at ea75592 with a clean tree.
+  - The two grain screens were recaptured at ec1df87, after the rendering-v2 revision 1 port.
+  - References come from `scripts/reference_cache.py`.
+  - Each PNG has a JSON record of its revision, local-change fingerprint, cell and tool version, in `~/.codex/artifacts/lightly/v1/slice2/ios/runner/`.
+- **Result:**
+  - 72 screens match exactly, apart from the always-present D1, M1 and M7.
+  - 432 carry only recorded deviations: M2 (iPad status bar), M3 (Large text metrics), M4 (default-size wrapping on dev-long-name and three iPad 11" landscape screens), M5 (Effects dot, slice 4) and M9 (grain strength, uncalibrated).
+  - No screen is unverified and no defect is open: X1, X2 and M6 are fixed and verified in every cell.
+- **Coordinator spot check:** `iphone17-portrait-dark-default/dev-amount` against the cached reference, PNG hash matching its record.
+  - The layout, controls, copy, colours and state match.
+  - Differences: the status bar (M1), the real versus simulated preset render (M7), and the home indicator, which the simulator screenshot doesn't draw. That is system chrome, now noted under M1.
+- **Old evidence:** the earlier iOS evidence (1a4503c, 7356591) is superseded and marked STALE. The table further down is kept as history.
+- **Android:** the matrix is being recaptured with its validated runner; still pending.
+- **Status:** slice 2 is still not accepted. Owner review and decisions on M2, M3, M4, M8 and M9 (and Android's S1, S5, S7, S8) are outstanding.
+
 ## Comparison results
 
 The evidence is in `~/.codex/artifacts/lightly/v1/slice2/ios/compare/<cell>/<screen>.png` and `…/android/side-by-side/`. There are 21–24 screens per cell.
