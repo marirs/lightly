@@ -267,6 +267,34 @@ final class AppStateTests: XCTestCase {
         XCTAssertNil(state.selectedPhoto)
     }
 
+    /// One session per photo: opening another photo ends the previous photo's session, so no work
+    /// for it can land later; the new photo gets a fresh session.
+    func testSwitchingPhotosInvalidatesThePreviousSession() async {
+        let state = makeState()
+        await state.loadPhoto(from: Data(), source: .camera)
+        let first = state.editorSession(for: state.selectedPhoto!)
+        XCTAssertTrue(state.editorSession(for: state.selectedPhoto!) === first, "Kept for as long as the photo is open")
+
+        await state.loadPhoto(from: Data(), source: .camera)
+        let second = state.editorSession(for: state.selectedPhoto!)
+        XCTAssertTrue(first.isSessionClosed)
+        XCTAssertFalse(second.isSessionClosed)
+        XCTAssertFalse(first === second)
+
+        state.returnToWelcome()
+        XCTAssertTrue(second.isSessionClosed)
+    }
+
+    func testChoosingAnotherPhotoFromTheEditorEndsItsSession() async {
+        let state = makeState()
+        await state.loadPhoto(from: Data(), source: .camera)
+        let session = state.editorSession(for: state.selectedPhoto!)
+        state.chooseFromLibrary()
+        XCTAssertTrue(session.isSessionClosed)
+        XCTAssertNil(state.selectedPhoto)
+        XCTAssertEqual(state.activeSource, .photoLibrary)
+    }
+
     // MARK: - More
 
     func testMoreAndThePrivacyLinkOpenTheirEntries() {

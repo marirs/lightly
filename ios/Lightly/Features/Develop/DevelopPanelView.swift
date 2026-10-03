@@ -93,35 +93,8 @@ struct DevelopPanelView: View {
         .accessibilityIdentifier("develop.auto")
     }
 
-    /// One `.tabs` item: label and count, the selected one bold, the applied one dotted.
-    @ViewBuilder
     func categoryTab(_ item: DevelopPanelModel.CategoryItem) -> some View {
-        let isOn = item.id == model.currentCategoryID
-        Button {
-            model.selectCategory(item.id)
-        } label: {
-            HStack(spacing: 4) {
-                if item.isFavourites { ApprovedIconView(icon: .star, size: 15) }
-                Text(item.name).approvedText(15, weight: isOn ? .semibold : .regular)
-                Text(item.count)
-                    .approvedText(12)
-                    .monospacedDigit()
-                    .foregroundStyle(c(ApprovedColor.inkTertiary))
-                    .padding(.leading, 3)
-                if item.holdsAppliedPreset {
-                    Circle().fill(c(ApprovedColor.selection)).frame(width: 5, height: 5).padding(.leading, 3)
-                }
-            }
-            .lineLimit(1)
-            .fixedSize()
-            .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkSecondary))
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("\(item.name), \(item.isFavourites ? "\(model.favourites.presetIDs.count) of 5" : "\(item.count) presets")"))
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-        .accessibilityIdentifier("develop.category.\(item.id)")
+        CategoryTab(model: model, item: item)
     }
 
     /// The side panel's `.catlist`.
@@ -411,5 +384,44 @@ struct FlowLayout: Layout {
         }
         if !current.indices.isEmpty { rows.append(current) }
         return rows
+    }
+}
+
+/// One `.tabs` item: label and count, the selected one bold, the applied one dotted. Its own view so
+/// it reads the colour scheme where it is shown (the phone strip builds tabs outside the panel).
+struct CategoryTab: View {
+    let model: DevelopPanelModel
+    let item: DevelopPanelModel.CategoryItem
+    @Environment(\.colorScheme) private var colorScheme
+
+    private func c(_ token: ApprovedColor.Token) -> Color { token.resolved(colorScheme) }
+
+    var body: some View {
+        let isOn = item.id == model.currentCategoryID
+        Button {
+            model.selectCategory(item.id)
+        } label: {
+            HStack(spacing: 4) {
+                if item.isFavourites { ApprovedIconView(icon: .star, size: 15) }
+                Text(item.name).approvedText(15, weight: isOn ? .semibold : .regular)
+                Text(item.count)
+                    .approvedText(12)
+                    .monospacedDigit()
+                    .foregroundStyle(c(ApprovedColor.inkTertiary))
+                    .padding(.leading, 3)
+                if item.holdsAppliedPreset {
+                    Circle().fill(c(ApprovedColor.selection)).frame(width: 5, height: 5).padding(.leading, 3)
+                }
+            }
+            .lineLimit(1)
+            .fixedSize()
+            .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkSecondary))
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("\(item.name), \(item.isFavourites ? "\(model.favourites.presetIDs.count) of 5" : "\(item.count) presets")"))
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier("develop.category.\(item.id)")
     }
 }

@@ -118,6 +118,7 @@
 		A914D5B7FCCF1AE08F0DD187 /* RecipeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D50B6F71288983AD9DEE26 /* RecipeRenderer.swift */; };
 		AAF610509B2E837FB28CA666 /* SnapshotAssertion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98808A5F4DDED70E40233B3A /* SnapshotAssertion.swift */; };
 		ABF41ACB403B2485A5C75CB9 /* DeferredWorkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */; };
+		AD4F98F6D516A96A427596A1 /* DevelopCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30399DDAFAB7D7778EC75FB3 /* DevelopCoverage.swift */; };
 		AE0E7CB53F91809EE21186B4 /* EditRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = C092F78F78AADE2912CBC1C4 /* EditRecipe.swift */; };
 		AEC0A17586E7CD2A92D0BE05 /* ExportSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7553992B4FF0E80A7AD06E1 /* ExportSettings.swift */; };
 		B4EB867E80655134C201B76C /* LookThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0649541002DE319818590B79 /* LookThumbnailRenderer.swift */; };
@@ -218,6 +219,7 @@
 		2E612A25382C38752BDE760B /* EditorTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTestSupport.swift; sourceTree = "<group>"; };
 		2E914E9E5E062EE6588DA665 /* PresetCatalogLoadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetCatalogLoadingTests.swift; sourceTree = "<group>"; };
 		2EE5EE464F743D47AC6D87BA /* SliceOneSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SliceOneSnapshotTests.swift; sourceTree = "<group>"; };
+		30399DDAFAB7D7778EC75FB3 /* DevelopCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopCoverage.swift; sourceTree = "<group>"; };
 		303D2F877C8163D67446F93E /* DevelopLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopLibrary.swift; sourceTree = "<group>"; };
 		35BE71B0D623CB01C0D3E079 /* AutoEnhancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoEnhancer.swift; sourceTree = "<group>"; };
 		36C7D6A77D28F78630D1A2BD /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
@@ -399,6 +401,7 @@
 		2DB126438BEBF6EB97092042 /* Develop */ = {
 			isa = PBXGroup;
 			children = (
+				30399DDAFAB7D7778EC75FB3 /* DevelopCoverage.swift */,
 				C5DD12C2B7F61F9980536B3B /* DevelopFrameRenderer.swift */,
 				CCAA8E209F7A9AFD95871328 /* DevelopGlobal.swift */,
 				303D2F877C8163D67446F93E /* DevelopLibrary.swift */,
@@ -1110,6 +1113,7 @@
 				62962F950C63ED926A5A97DC /* DebugFixedRecipeDeveloper.swift in Sources */,
 				C53D3F5636EB0DDA85B8EB9A /* DebugScenario.swift in Sources */,
 				9C11BD76AC19F12371701526 /* DependencyContainer.swift in Sources */,
+				AD4F98F6D516A96A427596A1 /* DevelopCoverage.swift in Sources */,
 				708937C01064262D33953294 /* DevelopFrameRenderer.swift in Sources */,
 				CDC4D8883D229222357F7307 /* DevelopGlobal.swift in Sources */,
 				54423FBA99D8C8480878F6A6 /* DevelopLUTCache.swift in Sources */,

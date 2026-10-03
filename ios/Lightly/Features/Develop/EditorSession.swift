@@ -2,6 +2,7 @@ import CoreGraphics
 import CryptoKit
 import Foundation
 import Observation
+import OSLog
 
 /// One continuous editing session for one photo (approved prototype `newSession` / `Prototype`).
 ///
@@ -251,7 +252,22 @@ final class EditorSession {
     /// Re-selecting the applied preset changes nothing, so its Amount is kept.
     func applyLook(_ preset: PresetPack.Preset?) {
         guard preset?.id != recipe.look?.lookId else { return renderCommitted() }
+        if let preset { Self.logRenderingCoverage(of: preset) }
         commit(recipeWithLook(preset))
+    }
+
+    private static let coverageLogger = Logger(subsystem: "com.lightlylabs.lightly", category: "DevelopCoverage")
+
+    /// Review evidence, not UI: what the applied preset renders, what the pack records as
+    /// approximated or not rendered, and this port's own approximations of its operators.
+    static func logRenderingCoverage(of preset: PresetPack.Preset) {
+        let notes = DevelopCoverage.portApproximations(for: preset.recipe)
+        coverageLogger.info("""
+            \(preset.id, privacy: .public) "\(preset.displayName, privacy: .public)": operators \(preset.operators, privacy: .public); \
+            completeness \(preset.completeness, privacy: .public); approximated \(preset.approximated, privacy: .public); \
+            unsupported \(preset.unsupported, privacy: .public); notApplied \(preset.notApplied, privacy: .public); \
+            iOS port \(notes, privacy: .public)
+            """)
     }
 
     private func recipeWithLook(_ preset: PresetPack.Preset?) -> EditRecipe {
