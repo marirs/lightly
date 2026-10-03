@@ -14,11 +14,22 @@
 # Anything still booted when the lock is taken, or when the job ends, belongs
 # to no running job and is shut down.
 #
+# Turn reservation. Capture jobs run 5-10 minutes, longer than the wait
+# limit, so a caller that arrives mid-job always gets BUSY. A caller that
+# chains its next job straight after the last one then always finds the
+# lock free (measured 2026-10-04: every Android batch started with waited=0s
+# while four iOS jobs got BUSY). So a BUSY caller reserves the next turn: for
+# up to 10 minutes, a job with a different label waits (within its own wait
+# limit) instead of taking a free lock, and the reserving caller goes first
+# when it resubmits with the same label. Only the first reservation counts.
+#
 # The PreToolUse hook scripts/hooks/require_heavy_lock.py refuses heavy
 # commands that do not go through this wrapper.
 set -u
 LOCK_FILE=/tmp/lightly-heavy.lock
 LOG_FILE=/tmp/lightly-heavy.log
+RESERVATION_FILE=/tmp/lightly-heavy.reservation
+RESERVATION_SECONDS=600
 
 if [ $# -lt 2 ]; then
   echo "usage: scripts/heavy <label> <command> [args...]" >&2
@@ -48,6 +59,36 @@ fi
 
 requested=$(date +%s)
 echo "$(date '+%F %T') WAIT  pid=$$ label=$label" >> "$LOG_FILE"
+
+# Prints the label holding an unexpired reservation, or nothing.
+reserved_label() {
+  local reserved_at reserved_for
+  [ -f "$RESERVATION_FILE" ] || return 0
+  read -r reserved_at reserved_for < "$RESERVATION_FILE" || return 0
+  if [ $(( $(date +%s) - reserved_at )) -lt "$RESERVATION_SECONDS" ]; then
+    printf '%s' "$reserved_for"
+  fi
+}
+
+log_busy_and_reserve() {
+  echo "$(date '+%F %T') BUSY  pid=$$ label=$label waited=$(( $(date +%s)-requested ))s" >> "$LOG_FILE"
+  if [ -z "$(reserved_label)" ]; then
+    echo "$(date +%s) $label" > "$RESERVATION_FILE"
+    echo "$(date '+%F %T') RESERVE pid=$$ label=$label" >> "$LOG_FILE"
+  fi
+}
+
+while holder=$(reserved_label) && [ -n "$holder" ] && [ "$holder" != "$label" ]; do
+  if [ $(( $(date +%s) - requested )) -ge "$wait_seconds" ]; then
+    # Yielding to a reservation is not a reason to reserve over it.
+    echo "$(date '+%F %T') BUSY  pid=$$ label=$label waited=$(( $(date +%s)-requested ))s yielded-to=$holder" >> "$LOG_FILE"
+    exit 75
+  fi
+  sleep 2
+done
+remaining_wait=$(( wait_seconds - ($(date +%s) - requested) ))
+[ "$remaining_wait" -lt 0 ] && remaining_wait=0
+export RESERVATION_FILE
 export LIGHTLY_HEAVY_LOCK_HELD=1
 export LIGHTLY_HEAVY_LABEL="$label"
 export LIGHTLY_HEAVY_REQUESTED="$requested"
@@ -58,9 +99,13 @@ rm -f "$LIGHTLY_HEAVY_STARTED_MARKER"
 export -f shutdown_devices
 # Not exec: the wrapper must outlive lockf to log a busy refusal, so the
 # time callers spend waiting for a lock they never get is measured too.
-lockf -t "$wait_seconds" -k "$LOCK_FILE" bash -c '
+lockf -t "$remaining_wait" -k "$LOCK_FILE" bash -c '
   started=$(date +%s)
   : > "$LIGHTLY_HEAVY_STARTED_MARKER"
+  # Taking the turn uses up the reservation held for this label.
+  if [ -f "$RESERVATION_FILE" ] && [ "$(cut -d" " -f2- "$RESERVATION_FILE")" = "$LIGHTLY_HEAVY_LABEL" ]; then
+    rm -f "$RESERVATION_FILE"
+  fi
   echo "$(date "+%F %T") START pid=$$ label=$LIGHTLY_HEAVY_LABEL waited=$((started-LIGHTLY_HEAVY_REQUESTED))s" >> '"$LOG_FILE"'
   shutdown_devices
   "$@"; status=$?
@@ -70,7 +115,7 @@ lockf -t "$wait_seconds" -k "$LOCK_FILE" bash -c '
 ' heavy-job "$@"
 status=$?
 if [ "$status" -eq 75 ] && [ ! -e "$LIGHTLY_HEAVY_STARTED_MARKER" ]; then
-  echo "$(date '+%F %T') BUSY  pid=$$ label=$label waited=$(( $(date +%s)-requested ))s" >> "$LOG_FILE"
+  log_busy_and_reserve
 fi
 rm -f "$LIGHTLY_HEAVY_STARTED_MARKER"
 exit "$status"
