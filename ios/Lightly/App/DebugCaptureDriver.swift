@@ -62,13 +62,16 @@ enum DebugCaptureDriver {
     /// Lets the frame the screen just committed reach the display: two main-queue turns, each
     /// flushing Core Animation, after the render and the scenario have finished.
     static func awaitScreenCommit() async {
-        for _ in 0..<2 {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                DispatchQueue.main.async {
-                    CATransaction.flush()
-                    continuation.resume()
-                }
-            }
+        await awaitDisplayFrames(3)
+    }
+
+    /// Waits for `count` display refreshes (CADisplayLink), so a render pass SwiftUI has already
+    /// committed reaches the screen. Main-queue turns alone were not enough: a tool switch made
+    /// just before was sometimes not on the display 60 ms later (measured in the slice-3 run).
+    static func awaitDisplayFrames(_ count: Int) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let ticker = DisplayFrameTicker(remaining: count) { continuation.resume() }
+            ticker.start()
         }
     }
 
@@ -153,6 +156,38 @@ struct DebugArgumentsAutoEnhancer: AutoEnhancing {
             return await DelayedAutoEnhancer(wrapped: fallback, delay: .seconds(seconds)).autoLUT(forAnalysisProxy: proxy)
         }
         return await fallback.autoLUT(forAnalysisProxy: proxy)
+    }
+}
+#endif
+
+#if DEBUG
+/// Counts display refreshes for DebugCaptureDriver, then calls back once.
+@MainActor
+private final class DisplayFrameTicker: NSObject {
+    private var remaining: Int
+    private let done: () -> Void
+    private var link: CADisplayLink?
+    private var keepAlive: DisplayFrameTicker?
+
+    init(remaining: Int, done: @escaping () -> Void) {
+        self.remaining = remaining
+        self.done = done
+    }
+
+    func start() {
+        keepAlive = self
+        let link = CADisplayLink(target: self, selector: #selector(tick))
+        link.add(to: .main, forMode: .common)
+        self.link = link
+    }
+
+    @objc private func tick() {
+        remaining -= 1
+        guard remaining <= 0 else { return }
+        link?.invalidate()
+        link = nil
+        done()
+        keepAlive = nil
     }
 }
 #endif

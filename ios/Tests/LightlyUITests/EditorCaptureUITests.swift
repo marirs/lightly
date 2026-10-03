@@ -123,7 +123,7 @@ final class EditorCaptureUITests: XCTestCase {
     }
 
     /// The tool version recorded with every capture (bump when the capture method changes).
-    static let toolVersion = "editor-capture-4 (one launch per cell, app ready signal, macOS matte fixtures in the Simulator)"
+    static let toolVersion = "editor-capture-5 (one launch per cell, app ready signal, macOS matte fixtures in the Simulator)"
 
     func testCaptureEditorScreens() throws {
         let only = ProcessInfo.processInfo.environment["LIGHTLY_CAPTURE_ONLY"].flatMap { $0.isEmpty ? nil : Set($0.split(separator: ",").map(String.init)) }

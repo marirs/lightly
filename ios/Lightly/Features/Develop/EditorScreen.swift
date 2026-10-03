@@ -62,6 +62,7 @@ struct EditorScreen: View {
                     .accessibilityElement()
                     .accessibilityLabel(Text(verbatim: "capture ready"))
                     .accessibilityIdentifier("capture.ready.\(captureReadySequence)")
+                    .task(id: captureReadySequence) { await captureMarkerAppeared(captureReadySequence) }
             }
         }
         .transaction { transaction in
@@ -194,10 +195,20 @@ struct EditorScreen: View {
         }
         await session.settleRendering()
         DebugCaptureTiming.mark("rendered")
+        guard DebugCaptureDriver.isActive, let sequence = DebugCaptureDriver.sequence else {
+            await DebugCaptureDriver.awaitScreenCommit()
+            DebugCaptureTiming.mark("committed")
+            return
+        }
+        // The marker view appears in the same render pass as every state change made before it
+        // (tool, panel, marks, photo); its onAppear then waits for display refreshes and only then
+        // reports ready (captureMarkerAppeared).
+        captureReadySequence = sequence
+    }
+
+    private func captureMarkerAppeared(_ sequence: String) async {
         await DebugCaptureDriver.awaitScreenCommit()
         DebugCaptureTiming.mark("committed")
-        guard DebugCaptureDriver.isActive, let sequence = DebugCaptureDriver.sequence else { return }
-        captureReadySequence = sequence
         DebugCaptureDriver.reportReady(sequence)
     }
     #endif
