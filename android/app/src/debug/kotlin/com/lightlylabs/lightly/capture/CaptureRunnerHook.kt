@@ -73,6 +73,9 @@ internal object CaptureRunnerHook {
     /** Last FrameMetrics seen while waiting for the forced frame; logged on a timeout. */
     @Volatile private var lastFrameMetrics = "none"
 
+    /** The step a screen is in (reset, apply, idle, frame); logged on a timeout. */
+    @Volatile private var phase = "none"
+
     const val EXTRA_SIGNAL = "lightly.capture.signal"
 
     /**
@@ -179,16 +182,20 @@ internal object CaptureRunnerHook {
     /** One attempt from a full reset; returns "ready …" or "failed …" (without seq/screen). */
     private suspend fun captureOnce(activity: MainActivity, runner: Runner, request: DebugLaunchOptions.Request): String = try {
         withTimeout(SCREEN_TIMEOUT_MILLIS) {
+            phase = "reset"
             val viewModels = activity.resetForCapture()
+            phase = "apply"
             // A launch passes favourites (possibly empty) every time; mirror that so none leak between screens.
             val normalised = request.copy(favourites = request.favourites ?: "")
             DebugLaunchOptions.apply(normalised, viewModels.shell, runner.preferences, viewModels.editor)?.join()
+            phase = "idle"
             val polls = awaitIdle(activity, viewModels.editor)
+            phase = "frame"
             val drawnVsync = awaitDrawnFrame(activity.window, runner.metricsHandler)
             "ready idlePolls=$polls vsync=$drawnVsync"
         }
     } catch (timeout: TimeoutCancellationException) {
-        "failed reason=timeout editorIdle=${activity.isEditorIdleForCapture()} composeIdle=${composeIdle(activity)} frame=$lastFrameMetrics"
+        "failed reason=timeout phase=$phase editorIdle=${activity.isEditorIdleForCapture()} composeIdle=${composeIdle(activity)} frame=$lastFrameMetrics"
     } catch (error: kotlinx.coroutines.CancellationException) {
         throw error
     } catch (error: Exception) {
@@ -232,23 +239,30 @@ internal object CaptureRunnerHook {
      */
     private suspend fun awaitDrawnFrame(window: Window, handler: Handler): Long {
         val forcedAt = awaitVsync()
-        return suspendCancellableCoroutine { continuation ->
-            val listener = object : Window.OnFrameMetricsAvailableListener {
-                override fun onFrameMetricsAvailable(source: Window, metrics: FrameMetrics, dropCount: Int) {
-                    // VSYNC_TIMESTAMP is the frame time Choreographer used (the same clock as forcedAt). When
-                    // frames are skipped, Choreographer moves its frame time forward but
-                    // INTENDED_VSYNC_TIMESTAMP keeps the original, earlier vsync; comparing that made the
-                    // forced frame look old, so the first Fold-inner screen never reported "ready".
-                    val used = metrics.getMetric(FrameMetrics.VSYNC_TIMESTAMP)
-                    lastFrameMetrics = "forcedAt=$forcedAt vsync=$used intended=${metrics.getMetric(FrameMetrics.INTENDED_VSYNC_TIMESTAMP)}"
-                    if (used < forcedAt || !continuation.isActive) return
-                    source.decorView.post { source.removeOnFrameMetricsAvailableListener(this) }
-                    continuation.resume(used)
-                }
+        lastFrameMetrics = "none since forcedAt=$forcedAt"
+        val drawn = kotlinx.coroutines.CompletableDeferred<Long>()
+        var framesSeen = 0
+        val listener = Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
+            // VSYNC_TIMESTAMP is the frame time Choreographer used (the same clock as forcedAt). When
+            // frames are skipped, Choreographer moves its frame time forward but
+            // INTENDED_VSYNC_TIMESTAMP keeps the original, earlier vsync; comparing that made the
+            // forced frame look old, so the first Fold-inner screen never reported "ready".
+            val used = metrics.getMetric(FrameMetrics.VSYNC_TIMESTAMP)
+            framesSeen++
+            lastFrameMetrics = "forcedAt=$forcedAt vsync=$used frames=$framesSeen"
+            if (used >= forcedAt) drawn.complete(used)
+        }
+        window.addOnFrameMetricsAvailableListener(listener, handler)
+        try {
+            // Invalidate on every vsync until a frame at or after the force point is reported: a single
+            // invalidate can be absorbed without a new frame (seen on `saving`), never reporting.
+            while (!drawn.isCompleted) {
+                window.decorView.invalidate()
+                awaitVsync()
             }
-            window.addOnFrameMetricsAvailableListener(listener, handler)
-            continuation.invokeOnCancellation { window.decorView.post { window.removeOnFrameMetricsAvailableListener(listener) } }
-            window.decorView.invalidate()
+            return drawn.await()
+        } finally {
+            window.removeOnFrameMetricsAvailableListener(listener)
         }
     }
 }
