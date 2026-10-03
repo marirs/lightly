@@ -96,8 +96,9 @@ struct ReplaceFavouriteSheetContent: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
+                // `.sheethead` sets 17 pt semibold and `.btn` inherits it.
                 Button("Cancel") { model.isReplaceSheetShown = false }
-                    .buttonStyle(ApprovedButtonStyle(kind: .quiet))
+                    .buttonStyle(SheetHeadQuietButtonStyle())
                     .accessibilityIdentifier("replace.cancel")
                 Text("Replace a favourite")
                     .approvedText(17, weight: .semibold)
@@ -121,5 +122,19 @@ struct ReplaceFavouriteSheetContent: View {
                 }
             }
         }
+    }
+}
+
+/// `.btn.quiet` inside `.sheethead`: the head's 17 pt semibold, selection colour, 12 pt padding.
+struct SheetHeadQuietButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .approvedText(17, weight: .semibold)
+            .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
