@@ -254,8 +254,7 @@ struct ProgressBox<Extra: View>: View {
         .multilineTextAlignment(.center)
         .foregroundStyle(.white)
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .frame(minWidth: 200, maxWidth: maximumWidth.map { max(200, $0) })
-        .fixedSize(horizontal: maximumWidth == nil, vertical: true)
+        .modifier(ShrinkToFitWidth(minimum: 200, maximum: maximumWidth.map { max(200, $0) }))
         .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 20 / 255, green: 20 / 255, blue: 22 / 255).opacity(0.72)))
         .accessibilityElement(children: .contain)
     }
@@ -390,4 +389,35 @@ struct CappedScrollView<Content: View>: View {
 private struct CappedScrollHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// CSS shrink-to-fit width: the content's own (single-line) width, at least `minimum`, at most
+/// `maximum` (wrapping beyond it). An absolutely positioned box with `min-width` behaves so.
+struct ShrinkToFitWidth: ViewModifier {
+    let minimum: CGFloat
+    let maximum: CGFloat?
+    func body(content: Content) -> some View {
+        ShrinkToFitLayout(minimum: minimum, maximum: maximum) { content }
+    }
+}
+
+private struct ShrinkToFitLayout: Layout {
+    let minimum: CGFloat
+    let maximum: CGFloat?
+
+    private func width(_ subview: LayoutSubview) -> CGFloat {
+        let natural = subview.sizeThatFits(.unspecified).width
+        return max(minimum, min(natural, maximum ?? .infinity))
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let subview = subviews.first else { return .zero }
+        let w = width(subview)
+        return CGSize(width: w, height: subview.sizeThatFits(ProposedViewSize(width: w, height: nil)).height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let subview = subviews.first else { return }
+        subview.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
 }
