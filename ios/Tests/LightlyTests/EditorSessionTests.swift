@@ -372,6 +372,12 @@ final class EditorSessionTests: XCTestCase {
             let lastSave = await writer.lastSave()
             let data = try XCTUnwrap(lastSave.data)
             ExportMetadataPolicyTests.assertPolicy(combination, on: try ExportMetadataPolicyTests.WrittenFile(data), width: 240, height: 180)
+            // Share (approved `share`): the saved copy's own bytes, so the same render and the same
+            // metadata policy, checked on the shared file itself.
+            guard case .saved(let savedData) = session.saveState else { return XCTFail("not saved") }
+            let shared = try Data(contentsOf: ShareItem(data: savedData).url)
+            XCTAssertEqual(shared, data, "Share hands over exactly the saved copy")
+            ExportMetadataPolicyTests.assertPolicy(combination, on: try ExportMetadataPolicyTests.WrittenFile(shared), width: 240, height: 180)
             XCTAssertEqual(session.photo.originalData, original, "The original is never modified")
         }
     }
