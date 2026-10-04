@@ -85,15 +85,16 @@ object AndroidEditorEnvironment {
             photoAccess = ContentResolverPhotoAccessGrants(resolver),
             // DEFERRED(D1): no production Auto model or inference engine is bundled; research weights must never ship.
             autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
-            personDetector = vision?.let { models -> PersonDetector { image -> withContext(Dispatchers.Default) { models.peopleAnalyser()?.analyse(image.toVision()) } } } ?: PendingPersonDetector,
+            // Model results are cached per exact input for the process (AnalysisCache): reopening a photo reuses them.
+            personDetector = vision?.let { models -> AnalysisCache.people(PersonDetector { image -> withContext(Dispatchers.Default) { models.peopleAnalyser()?.analyse(image.toVision()) } }) } ?: PendingPersonDetector,
             segmenter = vision?.let { models ->
-                com.lightlylabs.lightly.vision.VisionSubjectSegmenter(
+                AnalysisCache.subject(com.lightlylabs.lightly.vision.VisionSubjectSegmenter(
                     // Only presence matters here: the landmark model is not needed to know a person is there.
                     people = { image -> models.peopleAnalyser()?.withoutLandmarks()?.analyse(image) ?: com.lightlylabs.lightly.vision.PeopleAnalysis.NONE },
                     personSegmenter = { models.personSegmenter() },
                     // DEFERRED(subject model): the class-agnostic model awaits the owner's approval (evaluation §5).
                     subjectSaliency = { null },
-                )
+                ))
             } ?: com.lightlylabs.lightly.background.PendingSubjectSegmenter,
             segmenterModelRef = vision?.let { LiteRtVisionModels.PERSON_MATTE_MODEL },
             personMatte = { image -> vision?.personSegmenter()?.let { segmenter -> withContext(Dispatchers.Default) { segmenter.segment(image.toVision()) } } },
@@ -113,9 +114,9 @@ object AndroidEditorEnvironment {
             // Release gate "pending legal sign-off (training data)": see LiteRtDepthEstimator. Loaded on
             // first use (Background), never at app start.
             depthEstimator = lazy { LiteRtDepthEstimator.create(app, com.lightlylabs.lightly.BuildConfig.DEPTH_MODEL_ENABLED) }.let { model ->
-                com.lightlylabs.lightly.background.DepthEstimator { input ->
+                AnalysisCache.depth(com.lightlylabs.lightly.background.DepthEstimator { input ->
                     (model.value ?: throw com.lightlylabs.lightly.background.DepthUnavailableException("No depth model in this build")).estimate(input)
-                }
+                })
             },
             depthModelRef = if (com.lightlylabs.lightly.BuildConfig.DEPTH_MODEL_ENABLED) LiteRtDepthEstimator.MODEL_REF else null,
             depthImageDecoder = { bytes -> if (com.lightlylabs.lightly.background.PngGrayDecoder.isPng(bytes)) com.lightlylabs.lightly.background.PngGrayDecoder.decode(bytes) else decodeJpegDepth(bytes) },

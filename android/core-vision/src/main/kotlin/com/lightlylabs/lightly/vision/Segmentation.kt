@@ -38,14 +38,62 @@ object MatteRefiner {
  * them, so it can never decide that a photo has no subject (evaluation §4).
  */
 class PersonSegmenter(private val model: TensorModel) {
-    fun segment(image: RgbaImage): FloatPlane {
+    /**
+     * The person matte at [image]'s size. With [people] (normalised face and person boxes), only regions
+     * of the matte that touch a detected person are kept: the segmenter also lights up bright streaks and
+     * furniture (a window reflection on portrait_light_01: IoU against Vision 0.940 → 0.966), and Vision's
+     * matte holds only the subject.
+     */
+    fun segment(image: RgbaImage, people: List<com.lightlylabs.lightly.session.NormalisedRect> = emptyList()): FloatPlane {
         val output = model.run(TensorSampler.nhwc(image, TensorSampler.stretched(image), INPUT, INPUT, ValueRange.UNIT))[0]
         require(output.size == INPUT * INPUT) { "expected a 256 × 256 confidence mask, got ${output.size} values" }
-        return MatteRefiner.refine(FloatPlane(INPUT, INPUT, output.copyOf()), image)
+        val low = FloatPlane(INPUT, INPUT, output.copyOf())
+        return MatteRefiner.refine(if (people.isEmpty()) low else keepTouching(low, people), image)
     }
 
     companion object {
         const val INPUT = 256
+        /** Soft edges next to a kept region survive within this many model pixels. */
+        private const val EDGE_KEEP_PX = 3
+
+        /** Zeroes the confident regions (> 0.5, 4-connected) that touch none of [boxes], and their soft edges. */
+        fun keepTouching(matte: FloatPlane, boxes: List<com.lightlylabs.lightly.session.NormalisedRect>): FloatPlane {
+            val w = matte.width
+            val h = matte.height
+            val labels = IntArray(w * h)
+            var count = 0
+            val queue = IntArray(w * h)
+            for (start in labels.indices) {
+                if (labels[start] != 0 || matte.values[start] <= 0.5f) continue
+                count++
+                var head = 0
+                var tail = 0
+                queue[tail++] = start
+                labels[start] = count
+                while (head < tail) {
+                    val p = queue[head++]
+                    val x = p % w
+                    val y = p / w
+                    for ((nx, ny) in arrayOf(x - 1 to y, x + 1 to y, x to y - 1, x to y + 1)) {
+                        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
+                        val n = ny * w + nx
+                        if (labels[n] == 0 && matte.values[n] > 0.5f) { labels[n] = count; queue[tail++] = n }
+                    }
+                }
+            }
+            val kept = BooleanArray(count + 1)
+            for (box in boxes) {
+                val x0 = (box.x * w).toInt().coerceIn(0, w - 1)
+                val x1 = ((box.x + box.width) * w).toInt().coerceIn(0, w - 1)
+                val y0 = (box.y * h).toInt().coerceIn(0, h - 1)
+                val y1 = ((box.y + box.height) * h).toInt().coerceIn(0, h - 1)
+                for (y in y0..y1) for (x in x0..x1) kept[labels[y * w + x]] = true
+            }
+            kept[0] = false
+            val keptMask = FloatPlane(w, h, FloatArray(w * h) { if (kept[labels[it]]) 1f else 0f })
+            val near = com.lightlylabs.lightly.background.PlaneOps.dilateDisc(keptMask, 0.5f, EDGE_KEEP_PX)
+            return FloatPlane(w, h, FloatArray(w * h) { if (near[it]) matte.values[it] else 0f })
+        }
     }
 }
 
@@ -114,7 +162,8 @@ class VisionSubjectSegmenter(
         val image = RgbaImage(width, height, rgba)
         val analysis = people(image)
         val personMatte = if (analysis.hasPerson) {
-            (personSegmenter() ?: throw SegmentationUnavailableException("No person segmenter in this build")).segment(image)
+            val boxes = analysis.faces.map { it.box } + analysis.people
+            (personSegmenter() ?: throw SegmentationUnavailableException("No person segmenter in this build")).segment(image, boxes)
         } else null
         val saliency = subjectSaliency()
         if (saliency == null) {

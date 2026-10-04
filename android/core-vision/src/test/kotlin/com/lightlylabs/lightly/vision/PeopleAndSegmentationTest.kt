@@ -104,6 +104,15 @@ class PeopleAndSegmentationTest {
     }
 
     @Test
+    fun `regions of the person matte that touch no detected person are dropped`() {
+        // Two confident blobs: one under the face box, one (a bright streak) elsewhere.
+        val matte = FloatPlane(20, 20, FloatArray(400) { i -> val x = i % 20; val y = i / 20; if ((x in 2..6 && y in 2..8) || (x in 14..15 && y in 3..17)) 0.9f else 0f })
+        val kept = PersonSegmenter.keepTouching(matte, listOf(NormalisedRect(0.15, 0.15, 0.1, 0.1)))
+        assertTrue(kept[4, 5] > 0.8f, "the person stays")
+        assertEquals(0f, kept[14, 10], "the streak goes")
+    }
+
+    @Test
     fun `the refined matte stays within 0 and 1 and follows the low-resolution matte`() {
         val low = FloatPlane(4, 4, FloatArray(16) { if (it % 4 < 2) 1f else 0f })
         val refined = MatteRefiner.refine(low, blank)
