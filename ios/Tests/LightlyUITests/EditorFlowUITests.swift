@@ -215,13 +215,22 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(element("tool.portrait").waitForExistence(timeout: timeout), "A person: Portrait offered")
     }
 
-    func testUnbuiltToolsOpenAMarkedDevelopmentStub() {
+    /// Watermark in the same session: Text marks the tool used, the Position row cycles the
+    /// anchors, and Undo walks back one whole step at a time.
+    func testWatermarkTextPositionAndUndo() {
         openEditor()
-        // Slice 5's tools are still stubs; Edit and Effects are built (slice 4).
         element("tool.watermark").tap()
-        XCTAssertTrue(element("tool.stub.watermark").waitForExistence(timeout: timeout))
-        element("tool.develop").tap()
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
+        XCTAssertTrue(element("watermark.type.Text").waitForExistence(timeout: timeout))
+        element("watermark.type.Text").tap()
+        XCTAssertTrue(element("watermark.font.Caveat").waitForExistence(timeout: timeout))
+        XCTAssertEqual(element("tool.watermark").value as? String, "Edited")
+        XCTAssertTrue(app.staticTexts["Bottom right"].exists)
+        element("watermark.position").tap()
+        XCTAssertTrue(app.staticTexts["Top left"].waitForExistence(timeout: timeout))
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(app.staticTexts["Bottom right"].waitForExistence(timeout: timeout))
+        app.buttons["editor.undo"].tap()
+        XCTAssertNotEqual(element("tool.watermark").value as? String, "Edited")
     }
 
     /// Edit and Effects in the same session as Develop: an effect switched on marks Effects

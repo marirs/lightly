@@ -1,6 +1,6 @@
 import XCTest
 
-/// Captures every slice-2 editor screen of the running app for side-by-side comparison with the
+/// Captures every editor screen (slices 2–5, and the Saved signature page) of the running app for side-by-side comparison with the
 /// approved prototype (`docs/ui/tools/shot.js`). It asserts nothing about pixels; in one launch it
 /// opens the prototype's own photograph for each screen, applies the screen's state through the
 /// DEBUG `--scenario` argument (DebugCaptureDriver) and saves a screenshot named after the screen id.
@@ -87,7 +87,16 @@ final class EditorCaptureUITests: XCTestCase {
         ("bd-none", "lake", [], "border.type.None"),
         ("bd-solid", "lake", [], "slider.width"),
         ("bd-frame", "sunset", [], "slider.spacing"),
-        ("bd-polaroid", "man", [], "border.polaroid.signature")
+        ("bd-polaroid", "man", [], "border.polaroid.signature"),
+        // Slice 5: Watermark, and the Saved signature page (opened by the capture driver).
+        ("wm-none", "sunset", [], "watermark.type.None"),
+        ("wm-signature", "sunset", [], "watermark.signature.draw"),
+        ("wm-sig-draw", "sunset", [], "signature.draw.save"),
+        ("wm-sig-import", "sunset", [], "signature.import.use"),
+        ("wm-text", "sunset", [], "watermark.font.Caveat"),
+        ("wm-logo", "lake", [], "watermark.logo.replace"),
+        ("wm-on-border", "lake", [], "watermark.place.border"),
+        ("pref-signature", "", ["--more-page", "savedSignature", "--seed-signature"], "signature.delete")
     ]
 
     static var repositoryRoot: String {
@@ -171,9 +180,10 @@ final class EditorCaptureUITests: XCTestCase {
         app.launch()
         mark("launch-end", "-")
         for (sequence, screen) in screens.enumerated() {
-            let photo = "\(Self.repositoryRoot)/\(Self.photoFiles[screen.photo]!).jpg"
-            let arguments = ["--reset-preferences", "--open-photo", photo, "--scenario", screen.id] + screen.arguments
-                + Self.matteFixtureArguments(screen.photo)
+            // A screen without a photo (a More page) is opened by the driver from Welcome.
+            let photoArguments = screen.photo.isEmpty ? [] : ["--open-photo", "\(Self.repositoryRoot)/\(Self.photoFiles[screen.photo]!).jpg"]
+            let arguments = ["--reset-preferences"] + photoArguments + ["--scenario", screen.id] + screen.arguments
+                + (screen.photo.isEmpty ? [] : Self.matteFixtureArguments(screen.photo))
             mark("command-sent", screen.id)
             try ([String(sequence)] + arguments).joined(separator: "\t").write(to: commandFile, atomically: true, encoding: .utf8)
             XCTAssertTrue(Self.waitForFile(acknowledgement, toContain: String(sequence), timeout: 60),

@@ -121,6 +121,18 @@ enum DebugCaptureDriver {
             await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
         }
         DebugCaptureTiming.mark("opened")
+        // A More page (`pref-signature`): Preferences opened at that page over Welcome. There is
+        // no editor to report readiness, so the driver does once the sheet is on the display.
+        if let flag = arguments.firstIndex(of: "--more-page"), arguments.indices.contains(flag + 1) {
+            if arguments.contains("--seed-signature") {
+                appState.signatures.debugReplace(drawn: DrawnSignature.prototypeSample, importedPNG: nil)
+            }
+            let page: MorePage = arguments[flag + 1] == "preferredBorder" ? .preferredBorder : .savedSignature
+            appState.debugOpenMore(path: [.menu, .preferences, page])
+            try? await Task.sleep(for: .milliseconds(700))
+            await awaitScreenCommit()
+            reportReady(sequence)
+        }
     }
 }
 
