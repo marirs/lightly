@@ -124,7 +124,7 @@ struct PreferredBorderPage: View {
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .accessibilityIdentifier("border.\(border.rawValue)")
             }
-            ApprovedNote(text: Text("border.note", bundle: .main))
+            ApprovedNote("border.note")
         }
     }
 }
@@ -145,7 +145,7 @@ struct FavouritePresetsPage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ApprovedNote(text: Text("favourites.note", bundle: .main))
+            ApprovedNote("favourites.note")
             VStack(spacing: 0) {
                 ForEach(Array(favourites.presetIDs.enumerated()), id: \.element) { index, presetID in
                     row(presetID: presetID, index: index)
@@ -153,7 +153,7 @@ struct FavouritePresetsPage: View {
             }
             .coordinateSpace(name: "favourites")
             if favourites.freeSlots > 0 {
-                ApprovedNote(text: Text("favourites.free \(favourites.freeSlots)", bundle: .main))
+                ApprovedNote("favourites.free \(favourites.freeSlots)")
             }
         }
     }
@@ -304,7 +304,7 @@ struct SavedSignaturePage: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("signature.delete")
             }
-            ApprovedNote(text: Text("signature.note", bundle: .main))
+            ApprovedNote("signature.note")
         }
         .photosPicker(isPresented: $isPickingPhoto, selection: $photo, matching: .images)
         .onChange(of: photo) { _, item in

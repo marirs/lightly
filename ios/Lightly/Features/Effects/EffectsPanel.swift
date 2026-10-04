@@ -90,7 +90,7 @@ struct EffectsPanelView: View {
         }
         slider("Intensity", \.lightLeak.intensity, 0...100)
         slider("Rotation", \.lightLeak.rotation, -180...180)
-        ApprovedNote(text: Text("Drag on the photo to move the leak."))
+        ApprovedNote("Drag on the photo to move the leak.")
     }
 
     static let leakStyles: [(style: EditRecipe.Effects.LightLeak.Style, label: String)] = [

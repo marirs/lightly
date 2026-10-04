@@ -156,7 +156,7 @@ struct BackgroundPanelView: View {
 
     @ViewBuilder
     private var refine: some View {
-        ApprovedNote(text: Text("Brush over the edge to add to or remove from the subject."))
+        ApprovedNote("Brush over the edge to add to or remove from the subject.")
         IconSegmentedControl(options: [(EditRecipe.RefineStroke.Mode.add, ApprovedIcon.brush, "Add", "background.brush.add"),
                                        (.erase, .erase, "Remove", "background.brush.erase")],
                              selection: $model.brush)
@@ -216,7 +216,7 @@ struct BackgroundPanelView: View {
             PanelSlider(label: "Scale", value: scale, range: 100...200, identifier: "slider.scale",
                         onChange: { v in session.previewBackground { Self.setScale(&$0, v.rounded()) } },
                         onEnd: { v in session.commitBackground { Self.setScale(&$0, v.rounded()) } })
-            ApprovedNote(text: Text("Drag the photo to position the background."))
+            ApprovedNote("Drag the photo to position the background.")
         }
         if model.background.replacement != nil {
             HStack(spacing: 0) {
@@ -226,7 +226,7 @@ struct BackgroundPanelView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 6)
-            ApprovedNote(text: Text("Focus & Blur still works on the new background."))
+            ApprovedNote("Focus & Blur still works on the new background.")
         }
     }
 

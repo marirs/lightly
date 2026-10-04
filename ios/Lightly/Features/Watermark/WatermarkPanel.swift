@@ -233,7 +233,7 @@ struct WatermarkPanelView: View {
                               (.text, "Text", false), (.logo, "Logo", false)],
                       selected: model.selectedType, wraps: wraps, identifierPrefix: "watermark.type") { model.choose($0) }
             switch model.selectedType {
-            case .none: ApprovedNote(text: Text("No watermark. Choose Signature, Text or Logo to add one."))
+            case .none: ApprovedNote("No watermark. Choose Signature, Text or Logo to add one.")
             case .signature: signature
             case .text: text
             case .logo: logo
@@ -276,8 +276,9 @@ struct WatermarkPanelView: View {
                 ApprovedIconView(icon: .photo, size: 18); Text("Import").approvedText(15)
             }
         }
-        ApprovedNote(text: Text("Saved signatures keep their own look. ")
-            + Text(model.signatureKind == .drawn ? "You can change the ink colour of a drawn signature." : "An imported signature keeps its own ink."))
+        ApprovedNote(verbatim: String(localized: "Saved signatures keep their own look. ")
+            + (model.signatureKind == .drawn ? String(localized: "You can change the ink colour of a drawn signature.")
+                                             : String(localized: "An imported signature keeps its own ink.")))
         commonControls(colours: model.signatureKind == .drawn)
     }
 
@@ -353,7 +354,7 @@ struct WatermarkPanelView: View {
                 selection: Binding(get: { watermark.placement }, set: { model.setPlacement($0) }))
                 .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 4)
         } else {
-            ApprovedNote(text: Text("Add a border to place the watermark on it."))
+            ApprovedNote("Add a border to place the watermark on it.")
         }
         if !model.isOnBorder {
             Button(action: model.cyclePosition) {
@@ -373,7 +374,7 @@ struct WatermarkPanelView: View {
             .buttonStyle(.plain)
             .accessibilityHint(Text("Moves the watermark to the next position."))
             .accessibilityIdentifier("watermark.position")
-            ApprovedNote(text: Text("Or drag the watermark on the photo."), topPadding: 0)
+            ApprovedNote("Or drag the watermark on the photo.", topPadding: 0)
         }
         PanelSlider(label: "Size", value: watermark.size, range: 10...80, identifier: "slider.size",
                     onChange: { v in session.previewWatermark { $0.size = v.rounded() } },

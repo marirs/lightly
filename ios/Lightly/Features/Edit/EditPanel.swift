@@ -80,7 +80,7 @@ struct EditPanelView: View {
                 }
             }
         }
-        ApprovedNote(text: Text("Drag the corners to crop. Pinch to zoom."))
+        ApprovedNote("Drag the corners to crop. Pinch to zoom.")
     }
 
     private var rotate: some View {
@@ -105,7 +105,7 @@ struct EditPanelView: View {
         PanelSlider(label: "Angle", value: geometry.straighten, range: -45...45, identifier: "slider.angle",
                     onChange: { v in session.previewEdit { $0.geometry.straighten = v.rounded() } },
                     onEnd: { v in session.commitEdit { $0.geometry.straighten = v.rounded() } })
-        ApprovedNote(text: Text("The photo is zoomed slightly so no empty corners show."))
+        ApprovedNote("The photo is zoomed slightly so no empty corners show.")
     }
 
     @ViewBuilder
@@ -170,8 +170,9 @@ struct EditPanelView: View {
                     .disabled(!canUndo)
                     .opacity(canUndo ? 1 : 0.4)
                     .accessibilityIdentifier("edit.remove.undoStroke")
-                Text("Brush over anything you want removed.").approvedText(13)
-                    .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
+                ApprovedParagraph(text: String(localized: "Brush over anything you want removed."), pointSize: 13,
+                                  colour: ApprovedColor.inkTertiary.resolved(colorScheme))
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding).padding(.vertical, 6)
             }
             .padding(.horizontal, 6)

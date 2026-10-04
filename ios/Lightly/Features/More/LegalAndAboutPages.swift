@@ -29,7 +29,7 @@ struct ReleaseDocumentPage: View {
             .padding(.top, 8)
             .accessibilityIdentifier("legal.document")
         } else {
-            ApprovedNote(text: Text("legal.unavailable", bundle: .main), topPadding: 14)
+            ApprovedNote("legal.unavailable", topPadding: 14)
                 .accessibilityIdentifier("legal.unavailable")
         }
     }
@@ -80,7 +80,7 @@ struct SupportPage: View {
     var body: some View {
         VStack(spacing: 0) {
             if let supportURL {
-                ApprovedNote(text: Text("support.note", bundle: .main), topPadding: 14)
+                ApprovedNote("support.note", topPadding: 14)
                 HStack {
                     Button { openURL(supportURL) } label: { Text("support.contact", bundle: .main) }
                         .buttonStyle(ApprovedButtonStyle(kind: .primary))
@@ -90,7 +90,7 @@ struct SupportPage: View {
                 .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
                 .padding(.vertical, 8)
             } else {
-                ApprovedNote(text: Text("support.unavailable", bundle: .main), topPadding: 14)
+                ApprovedNote("support.unavailable", topPadding: 14)
                     .accessibilityIdentifier("support.unavailable")
             }
             ApprovedListRow(title: Text("support.version", bundle: .main)) {

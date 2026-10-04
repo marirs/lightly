@@ -101,17 +101,17 @@ struct PortraitPanelView: View {
             slider("Blemishes", e.skin.blemishes) { $0.skin.blemishes = $1 }
             slider("Even tone", e.skin.evenTone) { $0.skin.evenTone = $1 }
             slider("Keep texture", e.skin.keepTexture) { $0.skin.keepTexture = $1 }
-            ApprovedNote(text: Text("Blemish reduction is temporary marks only. Pores, freckles, moles and skin tone colour stay."))
+            ApprovedNote("Blemish reduction is temporary marks only. Pores, freckles, moles and skin tone colour stay.")
         case .under:
             slider("Brighten", e.underEye.brighten) { $0.underEye.brighten = $1 }
             slider("Soften lines", e.underEye.softenLines) { $0.underEye.softenLines = $1 }
         case .eyes:
             slider("Brighten", e.eyes.brighten) { $0.eyes.brighten = $1 }
             slider("Clarity", e.eyes.clarity) { $0.eyes.clarity = $1 }
-            ApprovedNote(text: Text("Eye colour and shape are never changed."))
+            ApprovedNote("Eye colour and shape are never changed.")
         case .teeth:
             slider("Brighten", e.teeth.brighten) { $0.teeth.brighten = $1 }
-            ApprovedNote(text: Text("Stays within a natural range. There is no automatic whitening."))
+            ApprovedNote("Stays within a natural range. There is no automatic whitening.")
         case .hair:
             slider("Definition", e.hair.definition) { $0.hair.definition = $1 }
             slider("Flyaways", e.hair.flyaways) { $0.hair.flyaways = $1 }

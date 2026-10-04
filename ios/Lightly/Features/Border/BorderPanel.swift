@@ -139,7 +139,7 @@ struct BorderPanelView: View {
 
     // The prototype's `${'None'}` is a placeholder for the Preferences value (None by default).
     private var none: some View {
-        ApprovedNote(text: Text("No border. Your preferred border in Preferences is \(model.preferredBorderName); it is never added automatically."))
+        ApprovedNote("No border. Your preferred border in Preferences is \(model.preferredBorderName); it is never added automatically.")
     }
 
     @ViewBuilder
@@ -169,7 +169,7 @@ struct BorderPanelView: View {
         swatches(BorderPanelModel.polaroidColours, selected: border.colour, identifier: "border.colour") { c in
             model.commit { $0.colour = c }
         }
-        ApprovedNote(text: Text("A wider bottom margin, as on an instant print."))
+        ApprovedNote("A wider bottom margin, as on an instant print.")
         // `.listrow` with `border:0;width:100%`, the switch at the trailing edge.
         Toggle(isOn: Binding(get: { model.signatureOnMargin }, set: { _ in model.toggleSignatureOnMargin() })) {
             Text("Signature on the margin").approvedText(15).foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
@@ -183,7 +183,7 @@ struct BorderPanelView: View {
 
     /// `.note` with `padding-bottom:0`: a section caption above a swatch row.
     private func sectionLabel(_ text: String) -> some View {
-        ApprovedNote(text: Text(text), bottomPadding: 0)
+        ApprovedNote(verbatim: text, bottomPadding: 0)
     }
 
     private func swatches(_ colours: [String], selected: String, identifier: String,

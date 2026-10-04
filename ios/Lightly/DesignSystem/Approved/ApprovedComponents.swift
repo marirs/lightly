@@ -135,18 +135,28 @@ struct ApprovedGroupLabel: View {
     }
 }
 
-/// `.note`: secondary explanatory text.
+/// `.note`: secondary explanatory text, with the reference's line breaks (`ApprovedParagraph`).
 struct ApprovedNote: View {
-    let text: Text
+    let text: String
     var topPadding: CGFloat = 6
     /// `.note` pads 6 below; captions above a swatch row use `padding-bottom:0`.
     var bottomPadding: CGFloat = 6
     @Environment(\.colorScheme) private var colorScheme
 
+    /// `text` is a key or English source string in Localizable.xcstrings, as `Text("…")` was.
+    init(_ text: String.LocalizationValue, topPadding: CGFloat = 6, bottomPadding: CGFloat = 6) {
+        self.init(verbatim: String(localized: text), topPadding: topPadding, bottomPadding: bottomPadding)
+    }
+
+    /// Already-localised text, for notes put together from several strings.
+    init(verbatim text: String, topPadding: CGFloat = 6, bottomPadding: CGFloat = 6) {
+        self.text = text
+        self.topPadding = topPadding
+        self.bottomPadding = bottomPadding
+    }
+
     var body: some View {
-        text
-            .approvedText(13)
-            .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
+        ApprovedParagraph(text: text, pointSize: 13, colour: ApprovedColor.inkTertiary.resolved(colorScheme))
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)

@@ -36,6 +36,7 @@
 		0CABFF2795A6A2F012337923 /* Caveat-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C9956A1D2A5FC4A685745292 /* Caveat-Variable.ttf */; };
 		0D703337A8F6E3DEB620F8A8 /* LightlyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB27B0075E46FA35005361C /* LightlyApp.swift */; };
 		105664300C1659C451366018 /* DevelopModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CED17D8B860F0BC0686CB84 /* DevelopModel.swift */; };
+		12B0484A4C3D449C458E280F /* ApprovedParagraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7621C40A49DABB41C7C86EB /* ApprovedParagraph.swift */; };
 		137015641D19BBBB847E42B5 /* PreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1DFDEAFE007E9240023A097 /* PreferencesStoreTests.swift */; };
 		146ECE05051436FBE5F7F24F /* PortraitPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9499399968062A4FBF28E2F /* PortraitPanel.swift */; };
 		149E951527C7FA06D09BBF1C /* CameraCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE9214BBAE723CD04BB2700 /* CameraCaptureView.swift */; };
@@ -404,6 +405,7 @@
 		D493885E7EDF092F019E29B5 /* FavouritePresetsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavouritePresetsStore.swift; sourceTree = "<group>"; };
 		D5B6949D79F191E031FD950B /* LightlyError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyError.swift; sourceTree = "<group>"; };
 		D6E2A8CE87D87EA973EB3F0F /* ImageAnalysisTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAnalysisTests.swift; sourceTree = "<group>"; };
+		D7621C40A49DABB41C7C86EB /* ApprovedParagraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovedParagraph.swift; sourceTree = "<group>"; };
 		D76A7AAE94D2D487DA845CFD /* EditorFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFlowUITests.swift; sourceTree = "<group>"; };
 		D966F6DE946474C26273E04A /* LUTKernelSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTKernelSource.swift; sourceTree = "<group>"; };
 		DB6A5ADEBB04E7E46973DA42 /* Lightly.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Lightly.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -887,6 +889,7 @@
 				BDF8A8521A6B83641A10C005 /* ApprovedColor.swift */,
 				BD4A10733669174E8BA4FFEA /* ApprovedComponents.swift */,
 				9F0D0BF55963E55A9E29E3D3 /* ApprovedIcon.swift */,
+				D7621C40A49DABB41C7C86EB /* ApprovedParagraph.swift */,
 				C38E4C5A46B206A828572648 /* ApprovedType.swift */,
 			);
 			path = Approved;
@@ -1484,6 +1487,7 @@
 				75852201265537C4085AD00D /* ApprovedColor.swift in Sources */,
 				B701785EB4C4C65E0B938740 /* ApprovedComponents.swift in Sources */,
 				961371F77E214EB2D58262FE /* ApprovedIcon.swift in Sources */,
+				12B0484A4C3D449C458E280F /* ApprovedParagraph.swift in Sources */,
 				4A0BB875167BB8C778F24FA2 /* ApprovedType.swift in Sources */,
 				5B12738736814CCF3720CBC3 /* AutoEnhancer.swift in Sources */,
 				EB01E6E826C9A796F3FC48B7 /* BackgroundPanel.swift in Sources */,

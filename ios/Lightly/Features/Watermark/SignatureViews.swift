@@ -181,7 +181,7 @@ struct ImportSignatureSheetContent: View {
             }
             .frame(height: 170)
             .padding(.horizontal, 18).padding(.vertical, 10)
-            ApprovedNote(text: Text("The paper is removed. The ink keeps its original colour and texture."))
+            ApprovedNote("The paper is removed. The ink keeps its original colour and texture.")
         }
     }
 }
