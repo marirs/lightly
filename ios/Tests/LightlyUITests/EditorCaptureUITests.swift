@@ -46,6 +46,7 @@ final class EditorCaptureUITests: XCTestCase {
         ("compare", "lake", [], "editor.originalBadge"),
         ("saving", "lake", ["--slow-library-writer"], "saving.cancel"),
         ("saved", "lake", ["--fake-library-writer"], "saved.keepEditing"),
+        ("share", "lake", ["--fake-library-writer"], "saved.share"),
         // Slice 3.
         ("bg-focus", "woman", [], "slider.blur"),
         ("bg-soft", "woman", [], "slider.glow"),

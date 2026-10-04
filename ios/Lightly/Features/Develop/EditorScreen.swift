@@ -214,6 +214,12 @@ struct EditorScreen: View {
         // one-launch runner waits for this before it photographs the screen.
         switch scenario.screenID {
         case "saved": await session.debugWait { if case .saved = session.saveState { true } else { false } }
+        case "share":
+            // Saved › Share: the system share sheet with the saved copy (approved `share`).
+            await session.debugWait { if case .saved = session.saveState { true } else { false } }
+            if case .saved(let data) = session.saveState { shareItem = ShareItem(data: data) }
+            // The system share sheet loads its share services the first time it opens (seconds in the Simulator).
+            try? await Task.sleep(for: .seconds(5))
         case "saving": await session.debugWait { session.saveState == .saving }
         default: break
         }

@@ -215,6 +215,33 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(element("tool.portrait").waitForExistence(timeout: timeout), "A person: Portrait offered")
     }
 
+    /// Restore after the system ends the app: an edit, the app in the background, the process
+    /// killed (as the system does), then a plain launch reopens the same edit in the editor.
+    /// Screenshots go to `LIGHTLY_VERIFY_DIR` when set (focused verification).
+    func testTheSessionComesBackAfterTheSystemEndsTheApp() {
+        openEditor()
+        element("tool.effects").tap()
+        element("effects.sub.Vignette").tap()
+        element("effects.vignette.toggle").tap()
+        XCTAssertEqual(element("tool.effects").value as? String, "Edited")
+        saveScreenshot("restore-1-before")
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 2)
+        relaunch(arguments: [])
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "the editor reopens")
+        XCTAssertEqual(element("tool.effects").value as? String, "Edited", "with the same edit")
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "and its history")
+        saveScreenshot("restore-2-after-relaunch")
+        app.buttons["editor.undo"].tap()
+        XCTAssertNotEqual(element("tool.effects").value as? String, "Edited")
+    }
+
+    private func saveScreenshot(_ name: String) {
+        guard let directory = ProcessInfo.processInfo.environment["LIGHTLY_VERIFY_DIR"] else { return }
+        try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        try? XCUIScreen.main.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: directory).appendingPathComponent("\(name).png"))
+    }
+
     /// Watermark in the same session: Text marks the tool used, the Position row cycles the
     /// anchors, and Undo walks back one whole step at a time.
     func testWatermarkTextPositionAndUndo() {

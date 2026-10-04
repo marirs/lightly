@@ -67,6 +67,22 @@ final class WelcomeAndMoreUITests: XCTestCase {
 
     // MARK: - More pages and Back
 
+    /// Preferences › Saved signature › Draw a new signature replaces the More page with the Draw
+    /// signature sheet (prototype `overlay:sigDraw`); Cancel returns to the screen beneath More.
+    func testDrawFromPreferencesReplacesTheMorePage() {
+        openPreferences()
+        tap("preferences.signature"); assertOnPage("savedSignature")
+        tap("signature.draw")
+        XCTAssertTrue(app.buttons["signature.draw.save"].waitForExistence(timeout: timeout), "Draw signature sheet")
+        XCTAssertFalse(element("more.page.savedSignature").exists, "More is replaced, not covered")
+        if let directory = ProcessInfo.processInfo.environment["LIGHTLY_VERIFY_DIR"] {
+            try? XCUIScreen.main.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: directory).appendingPathComponent("pref-sig-draw.png"))
+        }
+        tap("sheet.cancel")
+        waitForWelcome()
+        XCTAssertFalse(element("more.page.menu").exists)
+    }
+
     func testEveryMorePageGoesBackToItsParent() {
         waitForWelcome()
         tap("welcome.more")

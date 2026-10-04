@@ -291,7 +291,7 @@ struct DebugScenario {
             apply("landscape", 37)
             session.debugSetInitial { $0.tools.effects.vignette.enabled = true }
             session.toggleCompare()
-        case "saving", "saved":
+        case "saving", "saved", "share":
             apply("landscape", 37)
             session.debugSetInitial { $0.tools.effects.vignette.enabled = true }
             session.saveCopy()
