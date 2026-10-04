@@ -308,18 +308,25 @@ final class AppState {
 
     private static let restoreLog = Logger(subsystem: "com.lightlylabs.lightly", category: "restore")
 
-    /// At launch: when the system ended the app while a photo was open (`sceneWasEditing`, kept by
-    /// SwiftUI scene storage, which iOS drops when the person force-quits), the stored session
-    /// reopens in the editor exactly as it was, with no prompt, as the system restores apps. Otherwise
-    /// whatever is stored is discarded, Remove patches included.
+    /// At launch: a stored session (there is one only while an edit has unsaved changes, Save copy
+    /// included and later edits too) reopens in the editor exactly as it was, with no prompt, when
+    /// the scene session it was made in is still among the app's open scene sessions:
+    /// - the system ended the app (memory pressure, update, reboot is handled as a cold start):
+    ///   iOS keeps the scene session, so its id is in `openSceneSessionIDs` → restored;
+    /// - the person removed the app in the app switcher (force-quit): iOS discards that scene
+    ///   session (`application(_:didDiscardSceneSessions:)`), so its id is missing → discarded,
+    ///   Remove patches included;
+    /// - Discard, close, another photo or Save copy without later edits already cleared it.
+    /// v3 differs: a SwiftUI scene-storage flag was used first; it did not reliably survive the
+    /// background-and-kill (restore UI test R2), and it tracked the route rather than the edit.
     // Owner question W9: an explicit "Resume editing?" prompt would need an approved design.
-    func restoreInterruptedSession(sceneWasEditing: Bool) async {
+    func restoreInterruptedSession(openSceneSessionIDs: Set<String>) async {
         guard let saved = sessionStore.load() else {
             Self.restoreLog.notice("restore: no stored session")
             return
         }
-        Self.restoreLog.notice("restore: stored session with \(saved.history.count, privacy: .public) steps; scene was editing \(sceneWasEditing, privacy: .public)")
-        guard sceneWasEditing, selectedPhoto == nil,
+        Self.restoreLog.notice("restore: stored session with \(saved.history.count, privacy: .public) steps; its scene session is open: \(saved.sceneSessionID.map(openSceneSessionIDs.contains) ?? false, privacy: .public)")
+        guard let scene = saved.sceneSessionID, openSceneSessionIDs.contains(scene), selectedPhoto == nil,
               let photo = try? await photoLoader.loadPhoto(from: saved.original, source: .photoLibrary),
               EditorSession.sourceReference(for: photo).fingerprint == saved.history.first?.source.fingerprint
         else {

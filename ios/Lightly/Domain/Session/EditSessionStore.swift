@@ -23,6 +23,10 @@ struct PersistedEditSession: Sendable {
     var index: Int
     /// `EditorSession.AutoState` by name (applied, off, unavailable, failed).
     var autoState: String
+    /// The UIKit scene session the edit was made in (`UISceneSession.persistentIdentifier`).
+    /// iOS keeps a scene session when it ends the app itself and discards it when the person
+    /// removes the app in the app switcher, so this tells a system kill from a force-quit.
+    var sceneSessionID: String?
     var analysis: PersistedAnalysis
 }
 
@@ -54,9 +58,12 @@ final class EditSessionStore: @unchecked Sendable {
         write { directory in try self.writeFile(data, named: "original.bin", in: directory) }
     }
 
-    func saveHistory(_ history: [EditRecipe], index: Int, autoState: String) {
+    func saveHistory(_ history: [EditRecipe], index: Int, autoState: String, sceneSessionID: String?) {
         // JSON Lines: a header line, then one canonical recipe per line (canonical JSON is compact).
-        var data = Data("{\"format\":1,\"index\":\(index),\"autoState\":\"\(autoState)\"}\n".utf8)
+        var header: [String: Any] = ["format": 1, "index": index, "autoState": autoState]
+        if let sceneSessionID { header["scene"] = sceneSessionID }
+        var data = (try? JSONSerialization.data(withJSONObject: header, options: [.sortedKeys])) ?? Data()
+        data.append(0x0A)
         for recipe in history {
             data.append(EditRecipeCodec.encode(recipe))
             data.append(0x0A)
@@ -144,7 +151,8 @@ final class EditSessionStore: @unchecked Sendable {
                     (try? Data(contentsOf: directory.appendingPathComponent(name))).flatMap(Self.decodeImage)
                 }) ?? PersistedAnalysis()
             }
-            return PersistedEditSession(original: original, history: history, index: index, autoState: auto, analysis: analysis)
+            return PersistedEditSession(original: original, history: history, index: index, autoState: auto,
+                                        sceneSessionID: header["scene"] as? String, analysis: analysis)
         }
     }
 

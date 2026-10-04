@@ -2,6 +2,7 @@ import CoreGraphics
 import CryptoKit
 import Foundation
 import Observation
+import UIKit
 import OSLog
 
 /// One continuous editing session for one photo (approved prototype `newSession` / `Prototype`).
@@ -1257,6 +1258,12 @@ final class EditorSession {
     /// Keeps the stored session in step: written while there are unsaved edits, cleared once there
     /// are none. The original's bytes are written once; the history on every change; the model
     /// results when they changed.
+    /// The scene session the editor is shown in (one scene: Lightly does not open extra windows).
+    @ObservationIgnored var sceneSessionID: () -> String? = {
+        UIApplication.shared.connectedScenes.first(where: { $0.activationState != .unattached })?.session.persistentIdentifier
+            ?? UIApplication.shared.connectedScenes.first?.session.persistentIdentifier
+    }
+
     private func persistSession() {
         guard let sessionStore, !isClosed else { return }
         guard hasUnsavedEdits else {
@@ -1269,7 +1276,7 @@ final class EditorSession {
             sessionStore.saveOriginal(photo.originalData)
             sessionPersisted = true
         }
-        sessionStore.saveHistory(history, index: historyIndex, autoState: autoState.rawValue)
+        sessionStore.saveHistory(history, index: historyIndex, autoState: autoState.rawValue, sceneSessionID: sceneSessionID())
         if analysisPersistedRevision != analysisRevision {
             sessionStore.saveAnalysis(PersistedAnalysis(hasPerson: hasPerson, people: people, subjectAnalysed: sceneCache.subjectAnalysed,
                                                         subject: sceneCache.subject, disparity: sceneCache.disparity,

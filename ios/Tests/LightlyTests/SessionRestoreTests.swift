@@ -41,6 +41,7 @@ final class SessionRestoreTests: XCTestCase {
         let session = try await EditorTestSupport.readySession(library: library, inpainter: FlatInpainter(),
                                                                removePatches: RemovePatchStore(directory: patchDirectory),
                                                                sessionStore: store)
+        session.sceneSessionID = { "scene-A" }
         session.applyLook(library.pack.categories[0].presets[0])
         session.removeStroke(points: [.init(x: 0.5, y: 0.5), .init(x: 0.55, y: 0.5)], radius: 0.03)
         await session.debugAwaitQuiescence()
@@ -122,9 +123,9 @@ final class SessionRestoreTests: XCTestCase {
         let session = try await editedSession(store: store)
         session.close()
 
-        // A force-quit: scene storage is gone, so the stored session is discarded.
+        // A force-quit: iOS discarded the scene session, so the stored session is discarded.
         let quit = AppState(photoLoader: ImageIOPhotoLoader(), removePatches: RemovePatchStore(directory: patchDirectory), sessionStore: store)
-        await quit.restoreInterruptedSession(sceneWasEditing: false)
+        await quit.restoreInterruptedSession(openSceneSessionIDs: ["scene-B"])
         store.flush()
         XCTAssertEqual(quit.route, .welcome)
         XCTAssertNil(store.load())
@@ -134,7 +135,7 @@ final class SessionRestoreTests: XCTestCase {
         again.close()
         let state = AppState(photoLoader: ImageIOPhotoLoader(), developLibrary: library,
                              removePatches: RemovePatchStore(directory: patchDirectory), sessionStore: store)
-        await state.restoreInterruptedSession(sceneWasEditing: true)
+        await state.restoreInterruptedSession(openSceneSessionIDs: ["scene-A", "scene-B"])
         let photo = try XCTUnwrap(state.selectedPhoto)
         XCTAssertEqual(state.route, .editor(SelectedPhotoReference(id: photo.id)))
         let restored = state.editorSession(for: photo)
@@ -145,5 +146,34 @@ final class SessionRestoreTests: XCTestCase {
         state.returnToWelcome()
         store.flush()
         XCTAssertNil(store.load())
+    }
+
+    /// R2: Save copy, then more edits, then the system ends the app: the post-save edits come back.
+    func testEditsAfterSaveCopyAreRestoredAfterAKill() async throws {
+        let store = EditSessionStore(directory: sessionDirectory)
+        let session = try await EditorTestSupport.readySession(library: library, writer: SpyLibraryWriter(), sessionStore: store)
+        session.sceneSessionID = { "scene-A" }
+        session.commitEffects { $0.vignette.enabled = true }
+        session.saveCopy()
+        await EditorTestSupport.waitForSave(session)
+        store.flush()
+        XCTAssertNil(store.load(), "saved: nothing to recover yet")
+        session.commitEffects { $0.grain.enabled = true }
+        session.commitBorder { $0.type = .solid }
+        let after = session.recipe
+        await session.settleRendering()
+        store.flush()
+        session.close()
+
+        let state = AppState(photoLoader: ImageIOPhotoLoader(), developLibrary: library,
+                             removePatches: RemovePatchStore(directory: patchDirectory), sessionStore: store)
+        await state.restoreInterruptedSession(openSceneSessionIDs: ["scene-A"])
+        let photo = try XCTUnwrap(state.selectedPhoto, "restored after the system ended the app")
+        let restored = state.editorSession(for: photo)
+        restored.start()
+        await restored.waitUntilReady()
+        XCTAssertEqual(restored.recipe.tools, after.tools, "with the edits made after Save copy")
+        XCTAssertTrue(restored.recipe.tools.effects.grain.enabled)
+        XCTAssertTrue(restored.hasUnsavedEdits)
     }
 }
