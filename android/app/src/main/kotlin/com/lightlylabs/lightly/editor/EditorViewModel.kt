@@ -1317,13 +1317,17 @@ class EditorViewModel(
         }
     }
 
+    /** The Save-copy Background working resolution; debug builds may override it for a controlled comparison. */
+    private val exportCap: Int
+        get() = if (env.debugBuild) env.debugExportCapOverride() ?: BackgroundSession.EXPORT_CAP else BackgroundSession.EXPORT_CAP
+
     /** How many exports passed the preview wait and began preparing (tests). */
     @Volatile internal var exportPreparationsStarted = 0
 
     /** Builds the export plans and starts the export; false when the exporter refused. */
     private fun startExport(loaded: LoadedPhoto, library: DevelopLibrary, committed: EditState): Boolean {
         val plan = library.planFor(committed)
-        val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer, maxBlurFraction(committed), BackgroundSession.EXPORT_CAP)
+        val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer, maxBlurFraction(committed), exportCap)
         val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, backgroundPlan) else ExportRenderPlan { frame ->
             // One renderer and clarity base per frame; tiles read their apron from the full frame.
             val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
@@ -1331,8 +1335,8 @@ class EditorViewModel(
             // Background: Focus & Blur once at the working resolution (K = 8, BackgroundSession.EXPORT_CAP), then
             // applied to each full-resolution tile as iOS LayeredStages does (BackgroundStage.applyRegion).
             val background = backgroundPlan?.let { bp ->
-                val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, BackgroundSession.EXPORT_CAP)
-                backgroundSession.working(renderer.render(BackgroundSession.resize(frame, ww, wh), plan), bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, BackgroundSession.EXPORT_CAP)
+                val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, exportCap)
+                backgroundSession.working(renderer.render(BackgroundSession.resize(frame, ww, wh), plan), bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, exportCap)
             }
             fun renderRegion(source: Rgba8Image, region: PixelRect): Rgba8Image {
                 val developed = renderer.renderTile(source, region, plan, base)
@@ -1362,10 +1366,10 @@ class EditorViewModel(
             { frame: Rgba8Image ->
                 // Focus & Blur once at the working resolution (K = 8) from Develop + Adjust, then applied to each
                 // full-resolution source region as iOS LayeredStages does.
-                val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, BackgroundSession.EXPORT_CAP)
+                val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, exportCap)
                 val developed = renderer.render(BackgroundSession.resize(frame, ww, wh), plan.withoutFinishing())
                 val adjusted = com.lightlylabs.lightly.develop.AdjustStage.plan(EditMapping.adjust(committed), library.model)?.let { renderer.render(developed, it) } ?: developed
-                val working = backgroundSession.working(adjusted, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, BackgroundSession.EXPORT_CAP)
+                val working = backgroundSession.working(adjusted, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, exportCap)
                 val compose: (ByteArray, PixelRect, Int, Int) -> ByteArray = { pixels, region, fw, fh ->
                     com.lightlylabs.lightly.background.BackgroundStage.applyRegion(pixels, region.x, region.y, region.width, region.height, fw, fh, working, bp.replacementFull)
                 }

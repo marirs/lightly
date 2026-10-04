@@ -112,6 +112,10 @@ object AndroidEditorEnvironment {
             ),
             favourites = favourites,
             debugBuild = BuildConfig.DEBUG,
+            debugExportCapOverride = {
+                if (!BuildConfig.DEBUG) null
+                else java.io.File(app.filesDir, "debug-export-cap.txt").takeIf { it.isFile }?.readText()?.trim()?.toIntOrNull()
+            },
             exportTileEdge = exportTileEdge,
             // Release gate "pending legal sign-off (training data)": see LiteRtDepthEstimator. Loaded on
             // first use (Background), never at app start.
