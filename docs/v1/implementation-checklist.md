@@ -106,6 +106,14 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Combined effects | `fx-combined` | 4 | missing | missing |  |
 | Preset already contains grain · shown, not doubled silently | `fx-preset-conflict` | 4 | missing | missing |  |
 
+**Requested addition (owner, 2026-10-04): Effects › Selective Colour.** Not in the approved prototype yet. The design goes into `docs/ui/` first, and the UI is wired only after the owner approves it. The colour-matching engine may be built in the meantime.
+
+| Screen / state | id | Slice | iOS | Android | Notes |
+|---|---|---|---|---|---|
+| Selective Colour · tap photo to pick, removable swatches, multiple picks, Range, Strength, Clear selection | `fx-selective` (proposed) | 4 | missing | missing | Design pending approval |
+| Scope: Matching colours (default) / Selected area | `fx-selective-scope` (proposed) | 4 | missing | missing | Area selection must not be claimed as object selection if it only matches colour |
+| Temporary overlay of what stays coloured; area Add/Remove refinement | `fx-selective-refine` (proposed) | 4 | missing | missing | Selections stored in photo coordinates; one drag = one undo step; Compare, restore, export |
+
 ## Watermark
 
 | Screen / state | id | Slice | iOS | Android | Notes |
