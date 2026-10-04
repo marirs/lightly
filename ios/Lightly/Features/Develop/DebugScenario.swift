@@ -67,6 +67,7 @@ struct DebugScenario {
         case "fx-leak": return EditorUI(tool: .effects, effectsSub: .leak)
         case "fx-grain", "fx-preset-conflict": return EditorUI(tool: .effects, effectsSub: .grain)
         case "fx-vignette", "fx-combined": return EditorUI(tool: .effects, effectsSub: .vignette)
+        case "bd-none", "bd-solid", "bd-frame", "bd-polaroid": return EditorUI(tool: .border)
         default: return EditorUI()
         }
     }
@@ -169,6 +170,15 @@ struct DebugScenario {
             // its own grain, so the approved state can be shown (deviation F1, owner decision).
             preset("film", 3)
             effects { $0.grain.enabled = true }
+        case "bd-solid": session.debugSetInitial { $0.tools.border.type = .solid; $0.tools.border.width = 5 }
+        case "bd-frame":
+            session.debugSetInitial { r in
+                r.tools.border.type = .frame; r.tools.border.colour = "#111111"; r.tools.border.width = 3; r.tools.border.spacing = 5
+            }
+        case "bd-polaroid":
+            // DEFERRED(Watermark): the approved setup also puts the saved signature on the margin
+            // (`s.wm.type = 'signature'; s.wm.place = 'border'`); that needs the signature store.
+            session.debugSetInitial { $0.tools.border.type = .polaroid }
         default: break
         }
     }

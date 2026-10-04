@@ -83,7 +83,11 @@ final class EditorCaptureUITests: XCTestCase {
         ("fx-grain", "lake", [], "effects.grain.film"),
         ("fx-vignette", "lake", [], "slider.softness"),
         ("fx-combined", "sunset", [], "slider.softness"),
-        ("fx-preset-conflict", "lake", [], "develop.notice")
+        ("fx-preset-conflict", "lake", [], "develop.notice"),
+        ("bd-none", "lake", [], "border.type.None"),
+        ("bd-solid", "lake", [], "slider.width"),
+        ("bd-frame", "sunset", [], "slider.spacing"),
+        ("bd-polaroid", "man", [], "border.polaroid.signature")
     ]
 
     static var repositoryRoot: String {
