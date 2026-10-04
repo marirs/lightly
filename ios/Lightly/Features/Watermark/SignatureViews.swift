@@ -149,8 +149,8 @@ struct DrawSignatureSheetContent: View {
 /// `sigImport`: Cancel · "Import signature" · Use; the signature on paper colour with the dashed
 /// selection; the note.
 struct ImportSignatureSheetContent: View {
-    /// The extracted signature (PNG with the paper removed); nil when no ink was found.
-    let extracted: Data?
+    /// The signature to use: PNG with the paper removed, or the photo as it is when no ink was found.
+    let extracted: Data
     let onCancel: () -> Void
     let onUse: (Data) -> Void
 
@@ -159,17 +159,20 @@ struct ImportSignatureSheetContent: View {
     var body: some View {
         VStack(spacing: 0) {
             SheetHead(title: "Import signature", trailing: "Use", trailingIdentifier: "signature.import.use", onCancel: onCancel) {
-                if let extracted { onUse(extracted) }
+                onUse(extracted)
             }
             // `margin:10px 18px;height:170px;border-radius:12px;background:#F7F4EE`, the signature
             // 70 pt tall centred, the dashed selection inset 14 pt (1.5 px, drawn 1 px as rendered).
             ZStack {
                 RoundedRectangle(cornerRadius: 12).fill(Color(red: 0xF7 / 255, green: 0xF4 / 255, blue: 0xEE / 255))
-                if let extracted, let image = WatermarkStage.image(from: extracted) {
+                if let image = WatermarkStage.image(from: extracted) {
+                    // 70 pt tall as the prototype's sample; a wide photo is fitted inside the selection.
                     Image(decorative: image, scale: 1)
                         .resizable()
                         .interpolation(.high)
-                        .frame(width: 70 * CGFloat(image.width) / CGFloat(max(image.height, 1)), height: 70)
+                        .scaledToFit()
+                        .frame(maxWidth: 70 * CGFloat(image.width) / CGFloat(max(image.height, 1)), maxHeight: 70)
+                        .padding(.horizontal, 15)
                         .accessibilityLabel(Text("Imported signature"))
                 }
                 RoundedRectangle(cornerRadius: 8)

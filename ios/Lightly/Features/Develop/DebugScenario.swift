@@ -210,7 +210,7 @@ struct DebugScenario {
             panel.pad.debugFillWithPrototypeSample(padHeight: Double(DrawSignatureSheetContent.padHeight))
         case "wm-sig-import":
             watermark { signature(&$0) }
-            panel.sheet = .importSignature(SignatureInkExtractor.prototypeImportedSample())
+            if let sample = SignatureInkExtractor.prototypeImportedSample() { panel.sheet = .importSignature(sample) }
         case "wm-text": watermark { text(&$0, .cormorantGaramond) }
         case "wm-logo":
             watermark { r in

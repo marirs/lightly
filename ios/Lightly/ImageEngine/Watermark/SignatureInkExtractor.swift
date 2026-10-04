@@ -83,6 +83,16 @@ enum SignatureInkExtractor {
         return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 
+    /// Import signature (owner ruling W6): the paper removed when ink is found; otherwise the
+    /// photo as it is (no paper removal), downscaled to 1,600 px on its long edge, so Use always
+    /// works (the prototype's Use always saves). nil only when the image cannot be read.
+    static func importPNG(from image: CGImage) -> Data? {
+        if let extracted = extract(from: image) { return extracted }
+        guard let decoded = rgba8(image, maximumLongEdge: maximumLongEdge),
+              let scaled = Self.image(rgba: decoded.0, width: decoded.1, height: decoded.2) else { return nil }
+        return png(scaled)
+    }
+
     /// A chosen logo as PNG (downscaled to 1024 on its long edge), keeping its own colours.
     static func logoPNG(from image: CGImage) -> Data? {
         guard let decoded = rgba8(image, maximumLongEdge: 1_024),

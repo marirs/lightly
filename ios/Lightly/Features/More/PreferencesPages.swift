@@ -311,9 +311,9 @@ struct SavedSignaturePage: View {
                 let data = try? await item.loadTransferable(type: Data.self)
                 let extracted = await Task.detached(priority: .userInitiated) { () -> Data? in
                     guard let data, let image = WatermarkPanelModel.uprightImage(data) else { return nil }
-                    return SignatureInkExtractor.extract(from: image)
+                    return SignatureInkExtractor.importPNG(from: image)
                 }.value
-                openSheet(.importSignature(extracted))
+                if let extracted { openSheet(.importSignature(extracted)) }
             }
         }
     }

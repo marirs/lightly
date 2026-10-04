@@ -367,7 +367,15 @@ final class SignatureStoreTests: XCTestCase {
                                 space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
                                 provider: CGDataProvider(data: Data([UInt8](repeating: 240, count: 50 * 50 * 4)) as CFData)!,
                                 decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
-        XCTAssertNil(SignatureInkExtractor.extract(from: paperOnly), "no ink: nothing to import")
+        XCTAssertNil(SignatureInkExtractor.extract(from: paperOnly), "no ink found")
+        // Owner ruling W6: Use still works, with the photo as it is (no paper removal).
+        let asIs = try XCTUnwrap(SignatureInkExtractor.importPNG(from: paperOnly))
+        let asIsImage = try XCTUnwrap(WatermarkStage.image(from: asIs))
+        XCTAssertEqual(asIsImage.width, 50); XCTAssertEqual(asIsImage.height, 50)
+        let store = SignatureStore(directory: nil)
+        let saved = store.saveImported(png: asIs)
+        XCTAssertEqual(store.resolve(saved.reference), .available(saved), "Use saves it like any import")
+        XCTAssertEqual(try XCTUnwrap(SignatureInkExtractor.importPNG(from: image)), png, "with ink, the paper is removed as before")
     }
 }
 

@@ -335,8 +335,8 @@ final class AppState {
     /// sheet shows over the screen beneath More, and closing it returns to that screen.
     enum SignatureSheet: Equatable {
         case draw
-        /// The extracted signature (nil: no ink found in the photo).
-        case importSignature(Data?)
+        /// The signature to use (paper removed, or the photo as it is).
+        case importSignature(Data)
     }
 
     var signatureSheet: SignatureSheet?

@@ -14,8 +14,8 @@ final class WatermarkPanelModel {
 
     enum Sheet: Equatable {
         case draw
-        /// The import sheet, with the extracted signature (nil: no ink found in the photo).
-        case importSignature(Data?)
+        /// The import sheet, with the signature to use (paper removed, or the photo as it is).
+        case importSignature(Data)
     }
 
     var sheet: Sheet?
@@ -125,8 +125,10 @@ final class WatermarkPanelModel {
             let data = try? await item.loadTransferable(type: Data.self)
             let extracted = await Task.detached(priority: .userInitiated) { () -> Data? in
                 guard let data, let image = Self.uprightImage(data) else { return nil }
-                return SignatureInkExtractor.extract(from: image)
+                return SignatureInkExtractor.importPNG(from: image)
             }.value
+            // An unreadable photo opens nothing (there is nothing to use).
+            guard let extracted else { return }
             self?.sheet = .importSignature(extracted)
         }
     }
