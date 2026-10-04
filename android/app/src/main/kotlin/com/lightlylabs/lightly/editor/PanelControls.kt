@@ -177,8 +177,7 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
                 drawRoundRect(colors.ink, Offset(size.width * from, y - track / 2), Size(size.width * (to - from), track), CornerRadius(2.dp.toPx()))
                 val knob = 9.dp.toPx()
                 drawCircle(if (colors.isDark) colors.ink else colors.bg, knob, Offset(size.width * f, y))
-                // `.trk b { border:1.5px }` renders as 1px (Chrome floors fractional borders).
-                drawCircle(colors.ink, knob - 0.5.dp.toPx(), Offset(size.width * f, y), style = Stroke(1.dp.toPx()))
+                drawCircle(colors.ink, knob - 0.75.dp.toPx(), Offset(size.width * f, y), style = Stroke(1.5.dp.toPx()))
             }
         }
         val shown = value.roundToInt()

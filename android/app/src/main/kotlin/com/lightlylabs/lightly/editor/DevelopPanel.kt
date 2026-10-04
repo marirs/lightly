@@ -140,14 +140,13 @@ private fun AutoSwitchButton(state: AutoSwitch, onToggle: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        // `.autoT::before`: 9px wide plus a border, content-box (`.dv * { box-sizing: border-box }` does
-        // not match pseudo-elements), corner radius 5px. The CSS border is 1.5px, but the approved renders
-        // (Chrome) floor fractional border widths: computed 1px, so the box is 11 dp with a 1 dp ring.
+        // `.autoT::before`: 9px wide plus a 1.5px border. `.dv * { box-sizing: border-box }` does not
+        // match pseudo-elements, so the box is content-box: 12 dp outside, corner radius 5px.
         val dotShape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
         Box(
-            Modifier.size(11.dp).then(
-                if (state == AutoSwitch.ON) Modifier.background(colors.sel, dotShape).border(1.dp, colors.sel, dotShape)
-                else Modifier.border(1.dp, colors.ink3, dotShape),
+            Modifier.size(12.dp).then(
+                if (state == AutoSwitch.ON) Modifier.background(colors.sel, dotShape).border(1.5.dp, colors.sel, dotShape)
+                else Modifier.border(1.5.dp, colors.ink3, dotShape),
             ),
         )
         Text("Auto", style = lightlyTextStyle(color = text))
@@ -400,8 +399,7 @@ private fun AmountRow(amount: Int, vm: EditorViewModel) {
                     val knob = 9.dp.toPx()
                     val x = size.width * f
                     drawCircle(if (colors.isDark) colors.ink else colors.bg, knob, Offset(x, y))
-                    // `.trk b { border:1.5px }` renders as 1px (Chrome floors fractional borders).
-                    drawCircle(colors.ink, knob - 0.5.dp.toPx(), Offset(x, y), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+                    drawCircle(colors.ink, knob - 0.75.dp.toPx(), Offset(x, y), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
                 }
             }
             Text("$shown", style = lightlyTextStyle(13.sp, color = colors.ink3), modifier = Modifier.width(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 1)

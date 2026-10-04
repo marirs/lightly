@@ -373,8 +373,7 @@ internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, ca
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.padding(bottom = 8.dp).size(22.dp).drawBehind {
-            // `.spinner { border:2.5px }` renders as 2px (Chrome floors fractional borders).
-            val stroke = 2.dp.toPx()
+            val stroke = 2.5.dp.toPx()
             drawCircle(Color(0x59FFFFFF), radius = size.minDimension / 2 - stroke / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
             drawArc(Color.White, -135f, 90f, useCenter = false, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
                 topLeft = Offset(stroke / 2, stroke / 2), size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke))
@@ -562,10 +561,8 @@ private fun BackgroundMarks(vm: EditorViewModel, ui: EditorUiState) {
                         .offset(x = maxWidth * tx.toFloat() - 26.dp, y = maxHeight * ty.toFloat() - 26.dp)
                         .size(52.dp)
                         .drawBehind {
-                            // `box-shadow: 0 0 0 1px rgba(0,0,0,.25)`: a 1 dp ring just outside the 52 dp box.
-                            drawCircle(Color(0x40000000), size.minDimension / 2 + 0.5.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
-                            // `.target { border:1.5px }` renders as 1px (Chrome floors fractional borders).
-                            drawCircle(Color.White, size.minDimension / 2 - 0.5.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+                            drawCircle(Color(0x40000000), size.minDimension / 2 + 1.dp.toPx() - 0.75.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+                            drawCircle(Color.White, size.minDimension / 2 - 0.75.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
                             drawCircle(Color.White, 3.dp.toPx())
                         },
                 )
