@@ -147,3 +147,94 @@ Files: `~/.codex/artifacts/lightly/v1/slice4/android/699087b/export-check/` (`s4
 - LaMa fp16 LiteRT conversion; Remove patch persistence.
 - Owner decisions: E1, E2, F1, G2, M9, Q1.
 - For later slices (noted, not built): watermark heights from the revision-2 constants; deviation W4 (Cormorant Garamond rendered, not the prototype's fallback); the 1 pt bordered-canvas outline.
+
+---
+
+# Follow-ups after acceptance as progress (9f413cf): Remove persistence, Border, Watermark
+
+Status: **progress, not accepted.** Built and tested. Captures and review cover Pixel 9 Pro portrait, light, default text only (bulk capture paused); every other cell is pending. This section lives here because this file is the one I am assigned.
+
+## Commits
+
+| Commit | What |
+|---|---|
+| be881d7 | Remove patches persist with the edit (recipe `derivedRef`) and survive process death |
+| 6f24c35 | Border: the approved panel and stage 11 |
+| 090817a | Watermark: the approved panel, saved signatures, Preferences › Saved signature and stage 12 |
+| 63bd68a | P1: from Preferences, the signature sheets replace a More sheet, as the prototype's `sigDraw` does |
+| 7ce562d | The signature sheets' dashed borders at Chrome's 3/2 dp pattern; the `s5-export` check scenario |
+
+Tests at 7ce562d: app **99/99**; core-develop 37/37 at 6f24c35. New tests:
+- `BorderStageTest`: insets, frame mat, tiles equal the whole, image box.
+- The Border session test: one step per tab, Polaroid resets to white, Save copy writes the canvas size.
+- The kill-and-recover Remove test, and the corrupt-patch skip.
+- `SignatureStoreTest`.
+- `WatermarkTest`: contract sizes, layout rules, session flows (W7).
+- `WatermarkRenderTest` (Robolectric native graphics): the ink lands in the box, and tiles equal the whole.
+
+## Remove patch persistence
+
+- Each patch is written atomically to `filesDir/remove-patches/<sha256>.patch` and its digest is checked when read back.
+- A recovered session renders the same fills without the model.
+- A missing or corrupt patch is skipped and never recomputed silently.
+- Choosing a new photo deletes the stored patches.
+- v3 differs from iOS: its patch store is memory only, so iOS loses fills on kill.
+
+## Border (stage 11)
+
+- Tabs: None, Solid, Photo Frame, Polaroid, with the approved swatches, sliders and captions.
+- Polaroid resets the colour to white. Border opens on Preferences' preferred border without applying it.
+- The used dot shows when a border is set.
+- Insets per rendering-v2 §7, in preview and in every Save copy tile; the output is the canvas.
+- The 1 dp rgba(0,0,0,.12) ring shows except while comparing.
+- Marks and touches sit on the image box inside the border.
+
+## Watermark (stage 12) and saved signatures
+
+- **Panel and stage:** a port of iOS 1e2d1d5.
+  - Heights come from the bundled revision-2 constants.
+  - Text uses the four fonts from `shared/fonts` (SHA256SUMS checked, OFL texts bundled).
+  - Position is a row that cycles the anchors, plus drag on the photo.
+  - On a border the watermark is centred 1 % above the canvas bottom (6 % on a polaroid), in #222222 on a polaroid.
+  - The `.wm` strut and the text shadow follow iOS.
+- **Signature store:**
+  - A drawn signature is stored as canonical strokes; an imported one as a PNG with the paper removed.
+  - Ids are stable; the version is the first 12 hex digits of the SHA-256.
+  - A missing or changed signature renders nothing, never a substitute.
+  - Logos are stored by digest.
+- **Preferences › Saved signature:** shows the signature, with Draw, Import and Delete.
+
+## Visual check (Pixel 9 Pro portrait, light, default text)
+
+APK 63bd68a: 12 screens in 52 s. wm-sig-draw and wm-sig-import were recaptured at 7ce562d. Evidence is in `~/.codex/artifacts/lightly/v1/slice5/android/<commit>/`.
+
+| Screen | Result |
+|---|---|
+| bd-none, bd-solid, bd-frame, bd-polaroid (signature on the margin), wm-none, wm-signature, wm-logo, wm-on-border, pref-signature | V |
+| wm-sig-draw, wm-sig-import | V at 7ce562d (X3 fixed: the dashes were 3/3 dp and 4.5/4.5 dp, now 3/2 dp as rendered) |
+| wm-text | **W4**: Cormorant Garamond renders in the real font, as the owner decided; the prototype falls back to the system font |
+
+Every screen also carries S1 (status bar).
+
+**Saved-JPEG check** (`s5-export`: lake photo, Photo Frame #111111 width 3 spacing 5, text "A. Rivera" in Caveat, white, bottom right). Saved file: **1237 × 1770**, the 1067 × 1600 photo plus 8 % of its width (85 px) on each side. It has:
+- the #111111 band (sampled 17, 17, 17) and the #F4F1EC mat (244, 241, 236);
+- the watermark at the bottom right, with its shadow.
+
+Files: `…/slice5/android/7ce562d/export-check/`.
+- The first two runs of this check were environment failures, not app failures: an emulator "System UI isn't responding" dialog, then the screen off. The script now hides error dialogs and wakes the device.
+
+## Deviations and decisions
+
+| Id | Status |
+|---|---|
+| W1 | Tablets keep the phone watermark ratios (contract). Tablet check pending |
+| W4 | Real Cormorant Garamond (owner decision) |
+| W5 | The default text "A. Rivera" (open owner question, as iOS) |
+| W7 | With no saved signature, the Signature tab and "Signature on the margin" cannot set a signature watermark; the margin toggle opens Draw signature (as iOS) |
+| P1 | Fixed (63bd68a). Where More is a sheet (tablets, folds), Draw and Import replace it. On phones the Preferences pages are full screen (the prototype's `page` screens), so the sheet opens over the page |
+| Gap | A watermark whose saved signature is missing or changed renders without it. The recipe also says a notice is shown, but no approved copy exists for it; raised for the owner |
+
+## Pending
+
+- Every other matrix cell (bulk capture paused). Border and Watermark have no layout-specific code beyond the roomy panel titles. Tablet (W1) and Fold-inner checks were not run.
+- A release build. Border and Watermark are now offered in release builds.
