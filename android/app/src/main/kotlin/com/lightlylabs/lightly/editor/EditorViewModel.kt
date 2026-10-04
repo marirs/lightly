@@ -88,6 +88,9 @@ data class EditorUiState(
     /** Border tool UI (slice 5). */
     val border: BorderUi = BorderUi(),
     val watermark: WatermarkUi = WatermarkUi(),
+    /** Portrait (slice 3): the people analysis of this photo (null until it ran, or no detector) and the panel state. */
+    val people: com.lightlylabs.lightly.vision.PeopleAnalysis? = null,
+    val portrait: PortraitUi = PortraitUi(),
 ) {
     val showsOriginal: Boolean get() = compareHeld || compareToggled
     val canUndo: Boolean get() = session?.canUndo == true
@@ -120,6 +123,10 @@ class EditorViewModel(
 
     private val backgroundSession = BackgroundSession(env)
     private var separationJob: Job? = null
+
+    /** Portrait: the people analysis, the person matte and stage 9 (slice 3). */
+    private val portraitSession = PortraitSession()
+    private var personMatteJob: Job? = null
 
     /** Edit › Remove: the session's patches, the running removal, and the model (loaded on first stroke). */
     private val removePatches = RemovePatchStore(env.removePatchDirectory)
@@ -189,6 +196,8 @@ class EditorViewModel(
         cleanState = null
         separationJob?.cancel()
         backgroundSession.reset()
+        personMatteJob?.cancel()
+        portraitSession.reset()
         removeJob?.cancel()
         // Memory only: a restore of this photo reads its patches back from disk.
         removePatches.clearMemory()
@@ -215,9 +224,15 @@ class EditorViewModel(
             if (debugHoldLoading) return@launch // capture of the approved loading screen (debug builds only)
             val library = env.library.await()
             if (!isCurrent(generation)) return@launch
-            val presence = env.personDetector.detect(loaded.analysis)
+            // Faces, landmarks and people, once per photo, off the main thread (the detector dispatches).
+            val people = env.personDetector.analyse(loaded.analysis)
             if (!isCurrent(generation)) return@launch
-            state.update { it.copy(tools = EditorTools.visible(debugPresence ?: presence, env.debugBuild)) }
+            portraitSession.setPeople(people)
+            backgroundSession.setFaces(people?.faces.orEmpty())
+            val presence = PersonPresence.of(people)
+            // The capture-only override stands in only where this build has no detector (PENDING).
+            val shown = if (presence == PersonPresence.PENDING) debugPresence ?: presence else presence
+            state.update { it.copy(tools = EditorTools.visible(shown, env.debugBuild), people = people) }
             if (restoredSession != null && restoredSession.current.source.fingerprint == loaded.source.fingerprint) {
                 // Restore: replay the saved recipe; Auto is not re-run (spec §4.6).
                 cleanState = restoredSession.history.entries.first()
@@ -297,7 +312,7 @@ class EditorViewModel(
         if (tool !in state.value.tools) return
         if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
         // Prototype `tool`: sub, op and group reset; a removal already running keeps running.
-        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi()) }
+        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi(), portrait = PortraitUi(selectedFace = it.portrait.selectedFace)) }
         if (tool == EditorTool.BORDER) openBorderOnPreferredType()
         if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
     }
@@ -439,6 +454,59 @@ class EditorViewModel(
     /** The refined matte at the analysis size, for the Refine edges tint (null without a matte). */
     fun refinedMatte(): com.lightlylabs.lightly.background.FloatPlane? =
         state.value.session?.current?.tools?.background?.let { backgroundSession.refined(it)?.matte }
+
+    // --- Portrait (slice 3) -----------------------------------------------------------------------
+
+    /** The faces Portrait can edit, left to right (iOS `usableFaces`). */
+    val usableFaces: List<com.lightlylabs.lightly.vision.DetectedFace> get() = portraitSession.usableFaces
+
+    fun selectPortraitFace(index: Int) {
+        if (index !in usableFaces.indices) return
+        state.update { it.copy(portrait = it.portrait.copy(selectedFace = index, sliderDrag = null)) }
+    }
+
+    fun selectPortraitTab(tab: PortraitTab) = state.update { it.copy(portrait = it.portrait.copy(tab = tab, sliderDrag = null)) }
+
+    /** The dragged value of [field], while that slider moves. */
+    fun portraitDragValue(field: String): Double? = state.value.portrait.sliderDrag?.takeIf { it.first == field }?.second
+
+    private fun selectedFace(): com.lightlylabs.lightly.vision.DetectedFace? = usableFaces.getOrNull(state.value.portrait.selectedFace.coerceIn(0, (usableFaces.size - 1).coerceAtLeast(0)))
+
+    private fun withPortrait(edit: EditState, field: String, value: Double): EditState? {
+        val face = selectedFace() ?: return null
+        val portrait = PortraitEdits.updated(edit.tools.portrait, face) { PortraitEdits.with(it, field, value) }
+        return edit.copy(tools = edit.tools.copy(portrait = portrait))
+    }
+
+    /** A Portrait slider moving: transient preview only. */
+    fun onPortraitSlider(field: String, value: Double) {
+        val session = state.value.session ?: return
+        state.update { it.copy(portrait = it.portrait.copy(sliderDrag = field to value)) }
+        withPortrait(session.current, field, value)?.let { requestPreview(it, globalOnly = false) }
+    }
+
+    /** Slider release: one undo step (prototype `commit`). */
+    fun onPortraitSliderRelease(field: String, value: Double) {
+        state.update { it.copy(portrait = it.portrait.copy(sliderDrag = null)) }
+        val session = state.value.session ?: return
+        val edited = withPortrait(session.current, field, value) ?: return
+        if (edited.tools.portrait == session.current.tools.portrait) return
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(portrait = edited.tools.portrait)) }, state.value.auto)
+        ensurePersonMatte(edited.tools.portrait)
+    }
+
+    /** Hair & Beard limits itself to the person matte: computed once, the first time it is needed (iOS `ensurePersonMatte`). */
+    private fun ensurePersonMatte(tool: com.lightlylabs.lightly.session.PortraitTool) {
+        if (!portraitSession.needsPersonMatte(tool) || personMatteJob?.isActive == true) return
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
+        personMatteJob = scope.launch(env.prefetchDispatcher) {
+            val matte = runCatching { env.personMatte(current.loaded.analysis) }.getOrNull()
+            ensureActive()
+            if (!isCurrent(current.generation)) return@launch
+            portraitSession.setPersonMatte(matte)
+            state.value.session?.let { requestPreview(it.current, globalOnly = false) }
+        }
+    }
 
     // --- Edit (slice 4) ---------------------------------------------------------------------------
 
@@ -1237,10 +1305,16 @@ class EditorViewModel(
                 val small = BackgroundSession.resize(frame, analysis.width, analysis.height)
                 backgroundSession.render(renderer.render(small, plan), bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background)
             }
+            fun renderRegion(source: Rgba8Image, region: PixelRect): Rgba8Image {
+                val developed = renderer.renderTile(source, region, plan, base)
+                return if (background == null) developed else Rgba8Image(region.width, region.height,
+                    com.lightlylabs.lightly.background.BackgroundStage.composeTile(developed.pixels, region.x, region.y, region.width, region.height, frame.width, frame.height, background.first.pixels, background.second))
+            }
+            // Stage 9: each changed face retouched once at full resolution (PortraitSession.exportPatches).
+            val portraitPatches = if (portraitSession.isActive(committed.tools.portrait)) portraitSession.exportPatches(committed.tools.portrait, frame.width, frame.height) { region -> renderRegion(frame, region) } else emptyList()
             ExportTileRenderer { source, tile ->
-                val developed = renderer.renderTile(source, PixelRect(tile.x, tile.y, tile.width, tile.height), plan, base)
-                if (background == null) developed else Rgba8Image(tile.width, tile.height,
-                    com.lightlylabs.lightly.background.BackgroundStage.composeTile(developed.pixels, tile.x, tile.y, tile.width, tile.height, frame.width, frame.height, background.first.pixels, background.second))
+                val rect = PixelRect(tile.x, tile.y, tile.width, tile.height)
+                renderRegion(source, rect).also { PortraitSession.applyPatches(it.pixels, rect, portraitPatches) }
             }
         }
         val job = ExportJob(sourceHandle = loaded.source.assetId, original = loaded.fullResolution, plan = exportPlan, spec = env.newImageSpec(loaded.source))
@@ -1271,7 +1345,25 @@ class EditorViewModel(
                 compose
             }
         }
-        return pipeline.exportPlan(committed, plan, patches, background)
+        // Stage 9 after Background, in source coordinates: the changed faces' crops are developed (Develop,
+        // Adjust without its Clarity base, Background) and retouched once, then written into each region.
+        val portrait = committed.tools.portrait.takeIf(portraitSession::isActive)
+        val composed: ((Rgba8Image) -> ((ByteArray, PixelRect, Int, Int) -> ByteArray)?)? = if (portrait == null) background else { frame: Rgba8Image ->
+            val backgroundCompose = background?.invoke(frame)
+            val adjustPlan = com.lightlylabs.lightly.develop.AdjustStage.plan(EditMapping.adjust(committed), library.model)
+            val faces = portraitSession.exportPatches(portrait, frame.width, frame.height) { region ->
+                val developed = renderer.renderTile(frame, region, plan.withoutFinishing(), null)
+                val adjusted = adjustPlan?.let { renderer.render(developed, it) } ?: developed
+                backgroundCompose?.let { Rgba8Image(region.width, region.height, it(adjusted.pixels, region, frame.width, frame.height)) } ?: adjusted
+            }
+            val compose: (ByteArray, PixelRect, Int, Int) -> ByteArray = { pixels, region, fw, fh ->
+                val out = backgroundCompose?.invoke(pixels, region, fw, fh) ?: pixels.copyOf()
+                PortraitSession.applyPatches(out, region, faces)
+                out
+            }
+            compose
+        }
+        return pipeline.exportPlan(committed, plan, patches, composed)
     }
 
     /** [display] with the recipe's applied Remove patches composited (cached for the current list). */
@@ -1359,13 +1451,19 @@ class EditorViewModel(
                 val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer, maxBlurFraction(edit))
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
-                    val compose = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first } }
+                    val background = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first } }
+                    // Stage 9 (Portrait) follows Background (7–8), in source coordinates, before geometry.
+                    val portrait = edit.tools.portrait.takeIf(portraitSession::isActive)
+                    val compose = if (portrait == null) background else { developed: Rgba8Image -> portraitSession.render(background?.invoke(developed) ?: developed, portrait) }
                     EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit, library)).renderPreview(patched(display, edit), edit, plan, compose)
                 } else {
                     // With Background active the drag preview keeps the full proxy: the stage works at the analysis size.
-                    val source = if (request.payload.globalOnly && backgroundPlan == null) dragProxy else display
+                    // Portrait works on the full proxy too: its regions come from landmarks at that size.
+                    val portraitActive = portraitSession.isActive(edit.tools.portrait)
+                    val source = if (request.payload.globalOnly && backgroundPlan == null && !portraitActive) dragProxy else display
                     val developed = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
-                    if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first
+                    val composed = if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first
+                    if (portraitActive) portraitSession.render(composed, edit.tools.portrait) else composed
                 }
                 val millis = (System.nanoTime() - start) / 1e6
                 renderMillis += millis
@@ -1406,7 +1504,7 @@ class EditorViewModel(
      * because their jobs return immediately.
      */
     internal fun debugWorkIdle(): Boolean =
-        listOf(loadJob, prefetchJob, separationJob, removeJob).none { it?.isActive == true } && settledRevision >= requestedRevision
+        listOf(loadJob, prefetchJob, separationJob, removeJob, personMatteJob).none { it?.isActive == true } && settledRevision >= requestedRevision
     internal val renderMillis: MutableList<Double> = java.util.Collections.synchronizedList(mutableListOf())
 
     // --- debug launch state (debug builds only; see DebugLaunchOptions) --------------------------
@@ -1561,6 +1659,19 @@ class EditorViewModel(
             selectTool(EditorTool.BACKGROUND)
             selectBackgroundSub(sub)
         }
+
+        /** A Background change committed as the user would (one step), after separation has finished. */
+        fun background(change: (com.lightlylabs.lightly.session.BackgroundTool) -> com.lightlylabs.lightly.session.BackgroundTool) = commitBackground(change)
+
+        /** Opens Portrait on [tab] with face [face] chosen, as the user would. */
+        fun openPortrait(tab: PortraitTab, face: Int = 0) {
+            selectTool(EditorTool.PORTRAIT)
+            selectPortraitFace(face)
+            selectPortraitTab(tab)
+        }
+
+        /** One Portrait slider released at [value] on the chosen face (one step). */
+        fun portrait(field: String, value: Double) = onPortraitSliderRelease(field, value)
 
         /** The prototype screen's Focus & Blur settings, committed as the user would (one step each). */
         fun focus(blur: Double, style: com.lightlylabs.lightly.session.FocusStyle?) {

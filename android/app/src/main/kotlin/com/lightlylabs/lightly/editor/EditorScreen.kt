@@ -139,7 +139,7 @@ data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, va
 @Composable
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
-    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); EditMarks(vm, ui) }, onPhotoBox = vm::onStagePhotoMeasured) }
+    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, onPhotoBox = vm::onStagePhotoMeasured) }
     val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
     val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
     Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
@@ -445,6 +445,7 @@ private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPane
     when (ui.tool) {
         EditorTool.DEVELOP -> if (model != null) DevelopPanel(vm, model, roomy, wrapped)
         EditorTool.BACKGROUND -> BackgroundPanel(vm, ui, roomy)
+        EditorTool.PORTRAIT -> PortraitPanel(vm, ui, roomy, wrapped)
         EditorTool.EDIT -> EditPanel(vm, ui, roomy)
         EditorTool.EFFECTS -> EffectsPanel(vm, ui, roomy)
         EditorTool.BORDER -> BorderPanel(vm, ui, roomy)
@@ -464,6 +465,8 @@ private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
     fun used(tool: EditorTool) = when (tool) {
         EditorTool.DEVELOP -> recipe?.look != null
         EditorTool.BACKGROUND -> recipe?.tools?.background?.let { it.replacement != null || it.focus.blur > 0 } == true
+        // Prototype `toolUsed`: any face with a change.
+        EditorTool.PORTRAIT -> recipe?.tools?.portrait?.faces?.any { PortraitEdits.changeCount(it) > 0 } == true
         EditorTool.EDIT -> recipe != null && ToolUsed.edit(recipe, pendingStroke = ui.edit.pendingStroke != null)
         EditorTool.EFFECTS -> recipe != null && ToolUsed.effects(recipe)
         EditorTool.BORDER -> recipe?.tools?.border?.type?.let { it != com.lightlylabs.lightly.session.BorderType.NONE } == true

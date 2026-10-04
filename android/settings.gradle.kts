@@ -23,6 +23,9 @@ include(":core-render")
 include(":core-develop")
 // Background (Focus & Blur, replacement, depth): renderer and depth readers. Pure JVM.
 include(":core-background")
+// Vision (faces, landmarks, people, subject and person mattes) and Portrait's operators. Pure JVM; the
+// models run on LiteRT in :app (docs/v1/android-vision-evaluation.md).
+include(":core-vision")
 include(":core-render-gl")
 include(":core-decode")
 include(":core-model")

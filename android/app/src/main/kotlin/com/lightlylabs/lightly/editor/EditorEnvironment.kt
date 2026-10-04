@@ -81,9 +81,14 @@ class EditorEnvironment(
     /** Export tile edge: spatial operators keep float planes per tile, so tiles stay small. */
     val exportTileEdge: Int = 1024,
     val newImageSpec: (SourceRef) -> NewImageSpec = { NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg") },
-    /** Background › subject separation (DEFERRED D3: pending until the device evaluation). */
+    /**
+     * Background › subject separation: the person matte for people, plus the class-agnostic subject model
+     * once it is approved (docs/v1/android-vision-evaluation.md §5); pending when the build has neither.
+     */
     val segmenter: com.lightlylabs.lightly.background.SubjectSegmenter = com.lightlylabs.lightly.background.PendingSubjectSegmenter,
     val segmenterModelRef: com.lightlylabs.lightly.session.ModelRef? = null,
+    /** Portrait › Hair & Beard: the person matte of an image (null when this build has no person segmenter). */
+    val personMatte: suspend (Rgba8Image) -> com.lightlylabs.lightly.background.FloatPlane? = { null },
     /** Background › monocular depth (DEFERRED: LiteRT runtime pending approval; model pending legal sign-off). */
     val depthEstimator: com.lightlylabs.lightly.background.DepthEstimator = com.lightlylabs.lightly.background.UnavailableDepthEstimator,
     val depthModelRef: com.lightlylabs.lightly.session.ModelRef? = null,

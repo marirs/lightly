@@ -40,6 +40,31 @@ val removeModelSha256 = "39fa82d6a2b576de99b30481c85d73d48955f126deb7bea8504e58b
 val removeLegalSignOff = (findProperty("lightlyRemoveLegalSignOff") as String?) == "true"
 fun removeModelEnabled(buildType: String) = removeModelFile.isFile && (buildType == "debug" || removeLegalSignOff)
 
+// --- Vision models (faces, landmarks, people, person matte) ---------------------------------------
+//
+// MediaPipe .tflite models (Apache-2.0, consented training data per their model cards) run on the LiteRT
+// runtime above, without MediaPipe Tasks and its Firelog telemetry (docs/v1/android-vision-evaluation.md
+// §1–§3). They are read from experiments/android-vision/models (git-ignored; scripts/prepare_assets.sh
+// fetches and verifies them), each checked against its SHA-256; the landmark and pose models are
+// extracted from their .task bundles and checked again. Debug builds package them when present.
+// Release builds package them only with -PlightlyVisionModels=true: the D3 resolution in
+// docs/v1/release/dependencies.md item 3 is the owner's to record. Without them Portrait stays
+// hidden in release and Background shows the approved failure state for subjects.
+val visionModelsDirectory: File = (findProperty("lightlyVisionModelsDir") as String?)?.let(::File)
+    ?: rootDir.parentFile.resolve("experiments/android-vision/models")
+/** Asset name → (source file, its SHA-256, entry inside a .task zip or null, the entry's SHA-256). */
+val visionModels = mapOf(
+    "blaze_face_full_range.tflite" to listOf("blaze_face_full_range.tflite", "3698b18f063835bc609069ef052228fbe86d9c9a6dc8dcb7c7c2d69aed2b181b", "", ""),
+    "face_landmarks_detector.tflite" to listOf("face_landmarker.task", "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+        "face_landmarks_detector.tflite", "c7d54204ce0448474c7f3fa9af494787c0965cbdd6f20fc72867e43046bd43d5"),
+    "pose_detector.tflite" to listOf("pose_landmarker_lite.task", "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a",
+        "pose_detector.tflite", "46837eb883e6ec75b52c5f5ff6a9b78bd35e66c13f95e8c3566c582d146cb1d9"),
+    "selfie_segmenter.tflite" to listOf("selfie_segmenter.tflite", "191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b", "", ""),
+)
+val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) == "true"
+fun visionModelsEnabled(buildType: String) =
+    visionModels.values.all { visionModelsDirectory.resolve(it[0]).isFile } && (buildType == "debug" || visionModelsRelease)
+
 android {
     namespace = "com.lightlylabs.lightly"
     compileSdk = 36
@@ -63,10 +88,12 @@ android {
         getByName("debug") {
             buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("debug").toString())
             buildConfigField("boolean", "REMOVE_MODEL_ENABLED", removeModelEnabled("debug").toString())
+            buildConfigField("boolean", "VISION_MODELS_ENABLED", visionModelsEnabled("debug").toString())
         }
         getByName("release") {
             buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("release").toString())
             buildConfigField("boolean", "REMOVE_MODEL_ENABLED", removeModelEnabled("release").toString())
+            buildConfigField("boolean", "VISION_MODELS_ENABLED", visionModelsEnabled("release").toString())
         }
     }
 
@@ -88,6 +115,7 @@ android {
 
 dependencies {
     implementation(project(":core-background"))
+    implementation(project(":core-vision"))
     implementation(project(":core-session"))
     implementation(project(":core-develop"))
     implementation(project(":core-model"))
@@ -346,6 +374,47 @@ abstract class BundleDepthModelTask : DefaultTask() {
     }
 }
 
+/**
+ * The vision models into assets/vision: each source file's SHA-256 is checked, .task bundles are opened
+ * and only the named entry is copied, after checking its own SHA-256. A mismatch fails the build.
+ */
+abstract class BundleVisionModelsTask : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val modelsDirectory: DirectoryProperty
+
+    /** asset name → "source|sha256|entry|entrySha256" (entry empty for a plain .tflite). */
+    @get:Input
+    abstract val models: MapProperty<String, String>
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    fun bundle() {
+        val root = assetsDirectory.get().asFile
+        root.deleteRecursively()
+        val target = root.resolve("vision").apply { mkdirs() }
+        for ((asset, spec) in models.get()) {
+            val (source, sha, entry, entrySha) = spec.split("|")
+            val file = modelsDirectory.get().asFile.resolve(source)
+            check(file.name, sha256(file.readBytes()), sha)
+            val bytes = if (entry.isEmpty()) file.readBytes() else ZipFile(file).use { zip ->
+                val found = zip.getEntry(entry) ?: throw GradleException("${file.name} has no entry $entry")
+                zip.getInputStream(found).use { it.readBytes() }
+            }
+            if (entry.isNotEmpty()) check("${file.name}!$entry", sha256(bytes), entrySha)
+            target.resolve(asset).writeBytes(bytes)
+        }
+    }
+
+    private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+    private fun check(name: String, actual: String, expected: String) {
+        if (actual != expected) throw GradleException("Vision model $name has SHA-256 $actual, expected $expected")
+    }
+}
+
 // --- Merged-manifest privacy check ----------------------------------------------------------------
 //
 // LiteRT approval condition: the merged manifest gains no INTERNET permission, no Google datatransport
@@ -545,6 +614,14 @@ androidComponents {
                 expectedSha256.set(removeModelSha256)
             }
             variant.sources.assets?.addGeneratedSourceDirectory(bundleRemoveModel, BundleDepthModelTask::assetsDirectory)
+        }
+
+        if (visionModelsEnabled(variant.buildType ?: "")) {
+            val bundleVisionModels = tasks.register<BundleVisionModelsTask>("bundle${variantName}VisionModels") {
+                modelsDirectory.set(visionModelsDirectory)
+                models.set(visionModels.mapValues { (_, v) -> v.joinToString("|") })
+            }
+            variant.sources.assets?.addGeneratedSourceDirectory(bundleVisionModels, BundleVisionModelsTask::assetsDirectory)
         }
 
         val verifyPrivacy = tasks.register<VerifyManifestPrivacyTask>("verify${variantName}ManifestPrivacy") {

@@ -68,6 +68,8 @@ object DebugLaunchOptions {
 
     fun apply(intent: Intent?, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel): kotlinx.coroutines.Job? {
         if (!BuildConfig.DEBUG || intent == null) return null
+        // D3 functional check: `--es lightly.debug.visionProbe <folder>` (see VisionProbe).
+        intent.getStringExtra("lightly.debug.visionProbe")?.let { folder -> return com.lightlylabs.lightly.editor.VisionProbe.run(File(folder)) }
         return apply(Request.from(intent), shell, preferences, editor)
     }
 
@@ -185,7 +187,58 @@ object DebugLaunchOptions {
                     }
                     api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) { api.focus(55.0, style); api.rebaseHistory() }
                 }
+                else -> applySubjectAndPortrait(api, screen)
             }
+        }
+    }
+
+    /**
+     * docs/ui/app/screens.js, the `bg-*` screens that need a subject matte and the `pt-*` setups, applied as
+     * the user would once the real separation and people analysis have run (D3, the vision models).
+     */
+    private fun applySubjectAndPortrait(api: EditorViewModel.DebugEditorApi, screen: String) {
+        val bg = com.lightlylabs.lightly.editor.BackgroundOptions
+        val firstImage = { tool: com.lightlylabs.lightly.session.BackgroundTool ->
+            tool.copy(replacement = com.lightlylabs.lightly.session.Replacement.Image(com.lightlylabs.lightly.session.AssetRef.Bundled(bg.IMAGES[0].first), 50.0, 50.0, 120.0))
+        }
+        fun change(kind: com.lightlylabs.lightly.editor.ReplacementKind, replace: (com.lightlylabs.lightly.session.BackgroundTool) -> com.lightlylabs.lightly.session.BackgroundTool) =
+            api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.CHANGE) {
+                api.background(replace)
+                api.setUi { it.copy(background = it.background.copy(kind = kind)) }
+                api.rebaseHistory()
+            }
+        val face = { tab: com.lightlylabs.lightly.editor.PortraitTab, settings: List<Pair<String, Double>> ->
+            api.openPortrait(tab)
+            settings.forEach { (field, value) -> api.portrait(field, value) }
+            api.rebaseHistory()
+        }
+        when (screen) {
+            "bg-refine" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
+                api.focus(55.0, null)
+                api.setUi { it.copy(background = it.background.copy(sub = com.lightlylabs.lightly.editor.BackgroundSub.REFINE)) }
+                api.rebaseHistory()
+            }
+            "bg-change-image" -> change(com.lightlylabs.lightly.editor.ReplacementKind.IMAGE, firstImage)
+            "bg-change-colour" -> change(com.lightlylabs.lightly.editor.ReplacementKind.COLOUR) { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour(bg.SWATCHES[3])) }
+            "bg-change-gradient" -> change(com.lightlylabs.lightly.editor.ReplacementKind.GRADIENT) {
+                val (angle, stops) = bg.GRADIENTS[0]
+                it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Gradient(angle, listOf(
+                    com.lightlylabs.lightly.session.GradientStop(stops[0], 0.0), com.lightlylabs.lightly.session.GradientStop(stops[1], 1.0))))
+            }
+            "bg-replaced-blur" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
+                api.background(firstImage)
+                api.focus(60.0, null)
+                api.rebaseHistory()
+            }
+            "pt-skin" -> face(com.lightlylabs.lightly.editor.PortraitTab.SKIN, listOf("skin.smoothing" to 24.0, "skin.blemishes" to 40.0, "skin.evenTone" to 18.0))
+            "pt-under" -> face(com.lightlylabs.lightly.editor.PortraitTab.UNDER, listOf("underEye.brighten" to 20.0, "underEye.softenLines" to 15.0))
+            "pt-eyes" -> face(com.lightlylabs.lightly.editor.PortraitTab.EYES, listOf("eyes.brighten" to 15.0))
+            "pt-teeth" -> face(com.lightlylabs.lightly.editor.PortraitTab.TEETH, listOf("teeth.brighten" to 20.0))
+            "pt-hair" -> face(com.lightlylabs.lightly.editor.PortraitTab.HAIR, listOf("hair.definition" to 30.0))
+            "pt-landscape-photo", "pt-multi" -> face(com.lightlylabs.lightly.editor.PortraitTab.SKIN, listOf("skin.smoothing" to 20.0))
+            "pt-no-usable-face" -> api.openPortrait(com.lightlylabs.lightly.editor.PortraitTab.SKIN)
+            // pt-hidden: field with Landscape 120 on Develop (Portrait is not offered).
+            "pt-hidden" -> { api.applyPreset("landscape", 120); api.rebaseHistory() }
         }
     }
 

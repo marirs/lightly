@@ -17,38 +17,47 @@ enum class EditorTool(val label: String) {
 }
 
 /**
- * Whether the photo shows a person, which decides if Portrait is offered (prototype `toolsFor`).
- * [PENDING]: no on-device person detector is wired yet (dependency D3, ML Kit / MediaPipe evaluation
- * pending a device run). It is never guessed as present or absent.
+ * Whether the photo shows a person, which decides if Portrait is offered (prototype `toolsFor`: a face,
+ * or people without a usable face). [PENDING] means this build has no person detector (the vision
+ * models are not packaged): it is never guessed as present or absent.
  */
-enum class PersonPresence { PRESENT, ABSENT, PENDING }
+enum class PersonPresence {
+    PRESENT, ABSENT, PENDING;
 
-fun interface PersonDetector {
-    suspend fun detect(analysis: com.lightlylabs.lightly.render.image.Rgba8Image): PersonPresence
+    companion object {
+        fun of(people: com.lightlylabs.lightly.vision.PeopleAnalysis?): PersonPresence = when {
+            people == null -> PENDING
+            people.hasPerson -> PRESENT
+            else -> ABSENT
+        }
+    }
 }
 
-/** DEFERRED(D3): the detector is a pending dependency; this one always answers [PersonPresence.PENDING]. */
+/**
+ * Faces with landmarks and people (docs/v1/android-vision-evaluation.md): BlazeFace full range, Face Mesh
+ * V2 and the pose detector on LiteRT. Null = no detector in this build ([PersonPresence.PENDING]).
+ */
+fun interface PersonDetector {
+    suspend fun analyse(analysis: com.lightlylabs.lightly.render.image.Rgba8Image): com.lightlylabs.lightly.vision.PeopleAnalysis?
+}
+
+/** A build without the vision models: presence stays [PersonPresence.PENDING]. */
 object PendingPersonDetector : PersonDetector {
-    override suspend fun detect(analysis: com.lightlylabs.lightly.render.image.Rgba8Image) = PersonPresence.PENDING
+    override suspend fun analyse(analysis: com.lightlylabs.lightly.render.image.Rgba8Image): com.lightlylabs.lightly.vision.PeopleAnalysis? = null
 }
 
 object EditorTools {
     /**
-     * Portrait appears only when the photo has a person. While detection is [PersonPresence.PENDING],
-     * debug builds offer it on every photo (its panel is a marked development stub) and release
-     * builds leave it out, so a release never claims a person it has not found.
+     * Portrait appears only when the photo has a person. While detection is [PersonPresence.PENDING]
+     * (no vision models in this build), debug builds offer it on every photo and release builds leave
+     * it out, so a release never claims a person it has not found.
      */
     fun visible(presence: PersonPresence, debugBuild: Boolean): List<EditorTool> = EditorTool.entries.filter { tool ->
         tool != EditorTool.PORTRAIT || presence == PersonPresence.PRESENT || (presence == PersonPresence.PENDING && debugBuild)
     }
 
-    /**
-     * Tools a release build lets the person open: every tool but Portrait, which is blocked on D3 (no face
-     * detector) and stays a debug-only development stub. Background is offered so a release without the
-     * gated depth model shows the approved unavailable and failure states (docs/v1/slice3-android.md)
-     * instead of a tab that does nothing.
-     */
-    fun isImplemented(tool: EditorTool) = tool != EditorTool.PORTRAIT
+    /** Every tool is implemented; Portrait is offered only where [visible] allows it. */
+    fun isImplemented(tool: EditorTool) = true
 }
 
 /** Prototype `s.auto`: what stage `auto` is doing for this photo. */

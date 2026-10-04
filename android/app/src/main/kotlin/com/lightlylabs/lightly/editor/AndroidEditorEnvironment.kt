@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.OutputStream
 import java.util.concurrent.Executors
@@ -35,7 +36,9 @@ import java.util.concurrent.Executors
  *   on the full-resolution decode for Save copy. The GLES path (:core-render-gl) is not wired: it
  *   implements only LUT passes and has not been validated on a GPU (PENDING), while Develop also
  *   needs its spatial operators.
- * - **Portrait visibility:** the person detector is a pending dependency (D3) — see [PendingPersonDetector].
+ * - **Portrait and subjects (D3):** faces, landmarks, people and the person matte come from the MediaPipe
+ *   models on LiteRT ([LiteRtVisionModels], docs/v1/android-vision-evaluation.md). Builds without them
+ *   use [PendingPersonDetector] and the pending segmenter.
  */
 object AndroidEditorEnvironment {
     private const val LOG_TAG = "LightlyDevelop"
@@ -75,12 +78,25 @@ object AndroidEditorEnvironment {
             )
         }
         val exportTileEdge = 1024
+        // Loaded on first use (the first photo's people analysis), never at app start.
+        val vision = LiteRtVisionModels.get(app, BuildConfig.VISION_MODELS_ENABLED)
         return EditorEnvironment(
             photoLoader = ContentResolverPhotoLoader(resolver, ProxyDecoder(), minOf(screenLongestPx, PREVIEW_LONG_EDGE_PX), allowFileUris = BuildConfig.DEBUG),
             photoAccess = ContentResolverPhotoAccessGrants(resolver),
             // DEFERRED(D1): no production Auto model or inference engine is bundled; research weights must never ship.
             autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
-            personDetector = PendingPersonDetector,
+            personDetector = vision?.let { models -> PersonDetector { image -> withContext(Dispatchers.Default) { models.peopleAnalyser()?.analyse(image.toVision()) } } } ?: PendingPersonDetector,
+            segmenter = vision?.let { models ->
+                com.lightlylabs.lightly.vision.VisionSubjectSegmenter(
+                    // Only presence matters here: the landmark model is not needed to know a person is there.
+                    people = { image -> models.peopleAnalyser()?.withoutLandmarks()?.analyse(image) ?: com.lightlylabs.lightly.vision.PeopleAnalysis.NONE },
+                    personSegmenter = { models.personSegmenter() },
+                    // DEFERRED(subject model): the class-agnostic model awaits the owner's approval (evaluation §5).
+                    subjectSaliency = { null },
+                )
+            } ?: com.lightlylabs.lightly.background.PendingSubjectSegmenter,
+            segmenterModelRef = vision?.let { LiteRtVisionModels.PERSON_MATTE_MODEL },
+            personMatte = { image -> vision?.personSegmenter()?.let { segmenter -> withContext(Dispatchers.Default) { segmenter.segment(image.toVision()) } } },
             library = library,
             previewRenderer = DevelopRenderer(workerPool, parallelism),
             renderDispatcher = renderDispatcher,
@@ -119,6 +135,8 @@ object AndroidEditorEnvironment {
             newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },
         )
     }
+
+    private fun com.lightlylabs.lightly.render.image.Rgba8Image.toVision() = com.lightlylabs.lightly.vision.RgbaImage(width, height, pixels)
 
     @Volatile private var shares: com.lightlylabs.lightly.export.ShareCopies? = null
 

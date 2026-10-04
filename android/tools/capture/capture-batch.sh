@@ -55,7 +55,10 @@ bounded() { local seconds=$1; shift; perl -e 'alarm shift; exec @ARGV' "$seconds
 FAVS=look-d8704f3622765f1c77c4,look-617ee7c8edcb1bad9c35,look-5c41fdbeb28f5f83f0d0,look-5b83aa782a1e85276462,look-a2ea17e735e9957ee464
 HIKING=look-617ee7c8edcb1bad9c35
 FILES=/data/user/0/$PKG/files
-photo_for() { case $1 in bg-no-subject) echo landscape_02;; bg-*) echo portrait_medium_02;; dev-long-name) echo landscape_03;;
+photo_for() { case $1 in bg-no-subject) echo landscape_02;; bg-*) echo portrait_medium_02;;
+  # Slice 3 Portrait (screens.js): man = portrait_deep_03, smile = portrait_deep_02, bar = night_03, field = landscape_03;
+  # pt-multi uses the licensed group photo, as iOS (deviation P2: the prototype could show only one face).
+  pt-teeth|pt-landscape-photo) echo portrait_deep_02;; pt-multi) echo group_three_01;; pt-no-usable-face) echo night_03;; pt-hidden) echo landscape_03;; pt-*) echo portrait_deep_03;; dev-long-name) echo landscape_03;;
   # Slice 4 (screens.js): field = landscape_03, street = wellexposed_03, sunset = sunset_02, lake = landscape_02.
   ed-rotate|ed-straighten|ed-remove|ed-removing|ed-remove-failed|s4-export) echo landscape_03;; ed-perspective) echo wellexposed_03;; fx-leak|fx-combined|bd-frame|wm-none|wm-signature|wm-sig-draw|wm-sig-import|wm-text) echo sunset_02;; bd-polaroid) echo portrait_deep_03;; dev-favourites|dev-bw|dev-portrait-photo) echo portrait_deep_03;; dev-landscape-photo) echo sunset_02;; *) echo landscape_02;; esac; }
 people_for() { case $(photo_for $1) in portrait_deep_03|portrait_medium_02) echo present;; *) echo absent;; esac; }
@@ -92,8 +95,9 @@ demo network -e wifi show -e level 4 -e fully true; demo network -e mobile show 
 demo notifications -e visible false
 # Text size is a system setting read when the process starts: set before the app launches.
 if [ "$TEXT" = large ]; then $ADB shell settings put system font_scale 1.24; else $ADB shell settings put system font_scale 1.0; fi
-for p in landscape_02 landscape_03 sunset_02 portrait_deep_03 portrait_medium_02 wellexposed_03; do
-  $ADB push -q "$REPO/docs/ui/assets/photos/$p.jpg" /data/local/tmp/$p.jpg >/dev/null
+for p in landscape_02 landscape_03 sunset_02 portrait_deep_03 portrait_medium_02 wellexposed_03 portrait_deep_02 night_03 group_three_01; do
+  src="$REPO/docs/ui/assets/photos/$p.jpg"; [ -f "$src" ] || src="$REPO/experiments/test-photos/$p.jpg"
+  $ADB push -q "$src" /data/local/tmp/$p.jpg >/dev/null
   $ADB shell run-as $PKG sh -c "'mkdir -p files && cp /data/local/tmp/$p.jpg files/$p.jpg'"
 done
 echo "boot+setup $(( $(date +%s) - boot_started ))s"

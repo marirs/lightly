@@ -7,6 +7,8 @@ MODELS="$HERE/models"
 ASSETS="$HERE/VisionEval/app/src/all/assets"
 
 tail -n +2 "$MODELS/MODELS.csv" | while IFS=, read -r file url sha _rest; do
+  # Only MediaPipe bucket rows are fetched here; extracted entries and U2-Netp (evaluation §5) are not.
+  [[ "$url" == https://storage.googleapis.com/* ]] || continue
   if [[ ! -f "$MODELS/$file" ]]; then curl -sSfL -o "$MODELS/$file" "$url"; fi
   actual="$(shasum -a 256 "$MODELS/$file" | cut -d' ' -f1)"
   [[ "$actual" == "$sha" ]] || { echo "sha256 mismatch for $file: $actual" >&2; exit 1; }

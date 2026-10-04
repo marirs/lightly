@@ -102,6 +102,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
 
     fun reset() {
         analysis = null
+        faces = emptyList()
         noClearSubject = false
         replacementPhotos.clear()
     }
@@ -131,12 +132,32 @@ class BackgroundSession(private val env: EditorEnvironment) {
         return com.lightlylabs.lightly.background.Refocus.focalNearness(scene, x, y)
     }
 
-    /** Default focus: the subject's centroid when there is a matte, else the image centre. */
+    /** The photo's detected faces (Portrait's analysis), for the default focus. */
+    @Volatile private var faces: List<com.lightlylabs.lightly.vision.DetectedFace> = emptyList()
+
+    fun setFaces(detected: List<com.lightlylabs.lightly.vision.DetectedFace>) { faces = detected }
+
+    /**
+     * Default focus (iOS `RefocusRenderer.defaultTarget(matte:faces:)`): the first usable face's centre
+     * when it lies on the subject (matte ≥ 0.5 there), else the centroid of the subject (matte > 0.5),
+     * else the image centre.
+     */
     fun defaultTarget(): Pair<Double, Double> {
         val matte = analysis?.matte ?: return 0.5 to 0.5
+        faces.firstOrNull { it.isUsable }?.let { face ->
+            val x = face.box.x + face.box.width / 2
+            val y = face.box.y + face.box.height / 2
+            val mx = (x.coerceIn(0.0, 1.0) * (matte.width - 1)).toInt()
+            val my = (y.coerceIn(0.0, 1.0) * (matte.height - 1)).toInt()
+            if (matte[mx, my] >= 0.5f) return x to y
+        }
         var sx = 0.0; var sy = 0.0; var sw = 0.0
-        for (y in 0 until matte.height) for (x in 0 until matte.width) { val m = matte[x, y].toDouble(); sx += m * x; sy += m * y; sw += m }
-        return if (sw > 0) (sx / sw / (matte.width - 1)) to (sy / sw / (matte.height - 1)) else 0.5 to 0.5
+        for (y in 0 until matte.height) for (x in 0 until matte.width) {
+            val m = matte[x, y].toDouble()
+            if (m <= 0.5) continue
+            sx += m * x; sy += m * y; sw += m
+        }
+        return if (sw > 0) (sx / sw / maxOf(matte.width - 1, 1)) to (sy / sw / maxOf(matte.height - 1, 1)) else 0.5 to 0.5
     }
 
     /**

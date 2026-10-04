@@ -142,13 +142,13 @@ class EditorScreenTest {
     }
 
     @Test
-    fun `an unimplemented tool opens a marked development stub in debug builds`() {
+    fun `without a person detector, debug builds offer Portrait with the approved no-face state`() {
         val vm = editor()
         show(vm)
-        // Portrait is blocked on D3 (a debug-only development stub); every other tool is implemented.
+        // PendingPersonDetector: presence is unknown, so debug builds offer Portrait; nothing was found.
         compose.onNodeWithTag(EditorTags.tool(EditorTool.PORTRAIT)).performClick()
         compose.waitForIdle()
-        compose.onNodeWithText("Development stub (debug build only).", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("No face can be edited in this photo.", substring = true).assertIsDisplayed()
     }
 
     @Test
