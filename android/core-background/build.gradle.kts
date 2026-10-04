@@ -36,3 +36,17 @@ tasks.withType<Test>().configureEach {
     inputs.file(rootDir.parentFile.resolve("shared/contracts/rendering-v2.json"))
     inputs.property("depthFixturesDir", depthFixturesDir.absolutePath)
 }
+
+// Peak-heap bound (BackgroundMemoryTest): Background with a subject matte in a 150 MB JVM heap, so an
+// allocation regression fails the build instead of an OutOfMemoryError on a phone (192 MB app heap).
+val backgroundMemoryTest = tasks.register<Test>("backgroundMemoryTest") {
+    description = "Background rendering within a 150 MB heap"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    filter { includeTestsMatching("*BackgroundMemoryTest") }
+    maxHeapSize = "150m"
+}
+tasks.named<Test>("test") {
+    filter { excludeTestsMatching("*BackgroundMemoryTest") }
+    dependsOn(backgroundMemoryTest)
+}

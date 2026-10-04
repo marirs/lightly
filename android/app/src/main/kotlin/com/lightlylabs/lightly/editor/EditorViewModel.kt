@@ -1296,22 +1296,21 @@ class EditorViewModel(
         if (state.value.phase != EditorPhase.Ready) return
         val committed = session.current
         val plan = library.planFor(committed)
-        val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer, maxBlurFraction(committed))
+        val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer, maxBlurFraction(committed), BackgroundSession.EXPORT_CAP)
         val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, backgroundPlan) else ExportRenderPlan { frame ->
             // One renderer and clarity base per frame; tiles read their apron from the full frame.
             val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
             val base = renderer.clarityBase(frame, plan)
-            // Background renders once at the analysis size (K = 8), then each full-resolution tile keeps its
-            // in-focus pixels and takes the defocused or replaced ones from that render (BackgroundStage.composeTile).
+            // Background: Focus & Blur once at the working resolution (K = 8, BackgroundSession.EXPORT_CAP), then
+            // applied to each full-resolution tile as iOS LayeredStages does (BackgroundStage.applyRegion).
             val background = backgroundPlan?.let { bp ->
-                val analysis = backgroundSession.analysis!!
-                val small = BackgroundSession.resize(frame, analysis.width, analysis.height)
-                backgroundSession.render(renderer.render(small, plan), bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background)
+                val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, BackgroundSession.EXPORT_CAP)
+                backgroundSession.working(renderer.render(BackgroundSession.resize(frame, ww, wh), plan), bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, BackgroundSession.EXPORT_CAP)
             }
             fun renderRegion(source: Rgba8Image, region: PixelRect): Rgba8Image {
                 val developed = renderer.renderTile(source, region, plan, base)
                 return if (background == null) developed else Rgba8Image(region.width, region.height,
-                    com.lightlylabs.lightly.background.BackgroundStage.composeTile(developed.pixels, region.x, region.y, region.width, region.height, frame.width, frame.height, background.first.pixels, background.second))
+                    com.lightlylabs.lightly.background.BackgroundStage.applyRegion(developed.pixels, region.x, region.y, region.width, region.height, frame.width, frame.height, background, backgroundPlan.replacementFull))
             }
             // Stage 9: each changed face retouched once at full resolution (PortraitSession.exportPatches).
             val portraitPatches = if (portraitSession.isActive(committed.tools.portrait)) portraitSession.exportPatches(committed.tools.portrait, frame.width, frame.height) { region -> renderRegion(frame, region) } else emptyList()
@@ -1335,15 +1334,14 @@ class EditorViewModel(
         val patches = EditMapping.patchDigests(committed).mapNotNull { removePatches[it] }
         val background = backgroundPlan?.let { bp ->
             { frame: Rgba8Image ->
-                // Background renders once at the analysis size (K = 8) from Develop + Adjust, then each
-                // source region keeps its in-focus pixels and takes the rest from that render.
-                val analysis = backgroundSession.analysis!!
-                val small = BackgroundSession.resize(frame, analysis.width, analysis.height)
-                val developed = renderer.render(small, plan.withoutFinishing())
+                // Focus & Blur once at the working resolution (K = 8) from Develop + Adjust, then applied to each
+                // full-resolution source region as iOS LayeredStages does.
+                val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, BackgroundSession.EXPORT_CAP)
+                val developed = renderer.render(BackgroundSession.resize(frame, ww, wh), plan.withoutFinishing())
                 val adjusted = com.lightlylabs.lightly.develop.AdjustStage.plan(EditMapping.adjust(committed), library.model)?.let { renderer.render(developed, it) } ?: developed
-                val rendered = backgroundSession.render(adjusted, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background)
+                val working = backgroundSession.working(adjusted, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, BackgroundSession.EXPORT_CAP)
                 val compose: (ByteArray, PixelRect, Int, Int) -> ByteArray = { pixels, region, fw, fh ->
-                    com.lightlylabs.lightly.background.BackgroundStage.composeTile(pixels, region.x, region.y, region.width, region.height, fw, fh, rendered.first.pixels, rendered.second)
+                    com.lightlylabs.lightly.background.BackgroundStage.applyRegion(pixels, region.x, region.y, region.width, region.height, fw, fh, working, bp.replacementFull)
                 }
                 compose
             }
@@ -1451,10 +1449,12 @@ class EditorViewModel(
                 val edit = request.payload.state ?: return@PreviewRenderer display
                 val start = System.nanoTime()
                 val plan = library.planFor(edit, request.payload.globalOnly)
-                val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer, maxBlurFraction(edit))
+                // iOS LayeredStages: Focus & Blur at 640 px while a slider moves, 1024 px settled.
+                val backgroundCap = if (request.payload.globalOnly) BackgroundSession.INTERACTIVE_CAP else BackgroundSession.PREVIEW_CAP
+                val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer, maxBlurFraction(edit), backgroundCap)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
-                    val background = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first } }
+                    val background = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap) } }
                     // Stage 9 (Portrait) follows Background (7–8), in source coordinates, before geometry.
                     val portrait = edit.tools.portrait.takeIf(portraitSession::isActive)
                     val compose = if (portrait == null) background else { developed: Rgba8Image -> portraitSession.render(background?.invoke(developed) ?: developed, portrait) }
@@ -1465,7 +1465,7 @@ class EditorViewModel(
                     val portraitActive = portraitSession.isActive(edit.tools.portrait)
                     val source = if (request.payload.globalOnly && backgroundPlan == null && !portraitActive) dragProxy else display
                     val developed = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
-                    val composed = if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first
+                    val composed = if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap)
                     if (portraitActive) portraitSession.render(composed, edit.tools.portrait) else composed
                 }
                 val millis = (System.nanoTime() - start) / 1e6
@@ -1481,7 +1481,15 @@ class EditorViewModel(
             newScheduler.published.collect { result ->
                 if (result != null && result.sessionId == "photo-$photoGeneration") settledRevision = result.revision
                 // A failed render keeps the last preview; say why in logcat (tag LightlyDevelop), never silently.
-                (result?.outcome as? RenderOutcome.Failed)?.let { failed -> runCatching { android.util.Log.w("LightlyDevelop", "preview render failed", failed.error) } }
+                (result?.outcome as? RenderOutcome.Failed)?.let { failed ->
+                    runCatching { android.util.Log.w("LightlyDevelop", "preview render failed", failed.error) }
+                    // The photo would stay unblurred and unreplaced while the panel claims the effect: show the
+                    // approved Background failure state instead ("Couldn't separate the subject", Try again).
+                    val background = state.value.session?.current?.tools?.background
+                    if (result.sessionId == "photo-$photoGeneration" && background != null && (background.replacement != null || background.focus.blur > 0)) {
+                        state.update { it.copy(separation = SeparationState.Finished(depthAvailable = false, matteAvailable = false, noClearSubject = false)) }
+                    }
+                }
                 val rendered = (result?.outcome as? RenderOutcome.Rendered)?.value ?: return@collect
                 if (result.sessionId == "photo-$photoGeneration") {
                     state.update { it.copy(preview = rendered) }

@@ -64,8 +64,66 @@ class BackgroundPlan(
      * a null target with a subject, or a target on the matte (M ≥ 0.5), keeps the subject plane sharp.
      */
     val focusTarget: Pair<Double, Double>? = null,
+    /** The replacement at the analysis size (graded), sampled for the full-resolution composite; null = none. */
+    val replacementFull: ReplacementPixels? = null,
 ) {
     val isIdentity: Boolean get() = replacement == null && focus.blur <= 0.0
+}
+
+/**
+ * A replacement background that can be sampled at any frame position: sRGB RGBA8 pixels drawn for the
+ * whole frame at some resolution (the frame's own, or a capped one), sampled bilinearly.
+ */
+class ReplacementPixels(val width: Int, val height: Int, val rgba: ByteArray) {
+    init { require(rgba.size == width * height * 4) }
+
+    /** Linear RGB at normalised frame position (u, v) into [out]. */
+    fun sampleLinear(u: Double, v: Double, out: FloatArray) {
+        val x = (u * width - 0.5).coerceIn(0.0, (width - 1).toDouble())
+        val y = (v * height - 0.5).coerceIn(0.0, (height - 1).toDouble())
+        val x0 = x.toInt()
+        val y0 = y.toInt()
+        val x1 = minOf(x0 + 1, width - 1)
+        val y1 = minOf(y0 + 1, height - 1)
+        val fx = (x - x0).toFloat()
+        val fy = (y - y0).toFloat()
+        for (c in 0 until 3) {
+            fun at(xx: Int, yy: Int) = Refocus.srgbToLinear((rgba[(yy * width + xx) * 4 + c].toInt() and 0xff) / 255f)
+            out[c] = (at(x0, y0) * (1 - fx) + at(x1, y0) * fx) * (1 - fy) + (at(x0, y1) * (1 - fx) + at(x1, y1) * fx) * fy
+        }
+    }
+}
+
+/**
+ * Focus & Blur and the replacement resolved at the working resolution, ready to be applied to the frame at
+ * any larger size by [BackgroundStage.applyRegion] (iOS `LayeredStages.render`): the refocused result
+ * ([blurred], null without blur), the sharp composite it was made from ([sharp]) and the defocus weight
+ * (1 where the blur clearly departs from the sharp composite), all linear, plus the refined matte.
+ */
+class WorkingBackground(
+    val width: Int,
+    val height: Int,
+    val matte: FloatPlane?,
+    /** Linear RGB, interleaved. */
+    val blurred: FloatImage?,
+    val sharp: FloatImage?,
+    val weight: FloatPlane?,
+) {
+    /** Bilinear sample of channel [c] of an interleaved RGB image at working-pixel coordinates, edges clamped. */
+    fun sample(image: FloatImage, x: Double, y: Double, c: Int): Float {
+        val sx = x.coerceIn(0.0, (width - 1).toDouble())
+        val sy = y.coerceIn(0.0, (height - 1).toDouble())
+        val x0 = sx.toInt()
+        val y0 = sy.toInt()
+        val x1 = minOf(x0 + 1, width - 1)
+        val y1 = minOf(y0 + 1, height - 1)
+        val fx = (sx - x0).toFloat()
+        val fy = (sy - y0).toFloat()
+        val d = image.data
+        val top = d[(y0 * width + x0) * 3 + c] * (1 - fx) + d[(y0 * width + x1) * 3 + c] * fx
+        val bottom = d[(y1 * width + x0) * 3 + c] * (1 - fx) + d[(y1 * width + x1) * 3 + c] * fx
+        return top * (1 - fy) + bottom * fy
+    }
 }
 
 /**
@@ -73,6 +131,19 @@ class BackgroundPlan(
  * and to a full-resolution frame by [composeFullResolution].
  */
 object BackgroundStage {
+    /** iOS LayeredStages working caps (long edge): a slider moving, and the settled preview. */
+    const val INTERACTIVE_CAP = 640
+    const val PREVIEW_CAP = 1024
+
+    /**
+     * v3 differs: iOS renders Save copy's Focus & Blur at 2048 px. Android's 192 MB app heap cannot hold the
+     * layered renderer's planes at that size next to the decoded full-resolution frame (a 12 MP frame is
+     * 49 MB as RGBA8): at 1024 px it already exceeded a 150 MB budget (BackgroundMemoryTest). Save copy
+     * renders at 768 px; full-resolution detail is kept wherever the result is sharp ([applyRegion]), and
+     * defocused areas have no detail to lose.
+     */
+    const val EXPORT_CAP = 768
+
     /**
      * @return the rendered RGBA8 frame and the per-pixel "defocus" of what is visible (0 sharp … 1 at
      *   the maximum blur, 1 also wherever the replacement shows), used to rebuild full resolution.
@@ -112,6 +183,83 @@ object BackgroundStage {
             }
         })
         return out to defocus
+    }
+
+    /**
+     * The working-resolution part of iOS `LayeredStages.render`: [developed] (RGBA8 sRGB) and [analysis]
+     * are already at the working size; [plan]'s replacement too. The layered renderer runs only here;
+     * [applyRegion] then brings the result to the frame at any size.
+     */
+    fun renderWorking(developed: ByteArray, analysis: BackgroundAnalysis, plan: BackgroundPlan, layersPerSide: Int): WorkingBackground {
+        val w = analysis.width
+        val h = analysis.height
+        require(developed.size == w * h * 4) { "frame is not ${w}x$h" }
+        val matte = analysis.matte
+        val blur = if (analysis.depth == null) 0.0 else plan.focus.blur
+        if (blur <= 0.0) return WorkingBackground(w, h, matte, null, null, null)
+        require(plan.replacement == null || matte != null) { "a replacement needs a subject matte" }
+        // Memory: the linear photo and replacement exist only inside renderScene; the scene's colours are expanded in place.
+        val blurred = renderScene(developed, w, h, analysis.depth!!.nearness, matte, plan, blur, layersPerSide)
+        // The sharp composite at the working size (the subject over the replaced background), made after the
+        // scene is gone, from the bytes and the plan's (unexpanded) replacement.
+        val replacementSrgb = plan.replacement
+        val sharp = FloatImage(w, h, 3, FloatArray(w * h * 3) { i ->
+            val p = i / 3
+            val photo = Refocus.srgbToLinear((developed[p * 4 + i % 3].toInt() and 0xff) / 255f)
+            if (replacementSrgb == null) photo else { val a = matte!!.values[p].coerceIn(0f, 1f); photo * a + Refocus.srgbToLinear(replacementSrgb.data[i]) * (1 - a) }
+        })
+        // iOS: how far the blurred result departs from the sharp composite, relative to 0.02; softened.
+        val weight = PlaneOps.gaussianBlur(FloatPlane(w, h, FloatArray(w * h) { p ->
+            var d = 0f
+            for (c in 0 until 3) d = max(d, abs(blurred.data[p * 3 + c] - sharp.data[p * 3 + c]))
+            minOf(d / 0.02f, 1f)
+        }), 1.5)
+        return WorkingBackground(w, h, matte, blurred, sharp, weight)
+    }
+
+    private fun renderScene(developed: ByteArray, w: Int, h: Int, nearness: FloatPlane, matte: FloatPlane?, plan: BackgroundPlan, blur: Double, layersPerSide: Int): FloatImage {
+        val scene = Refocus.buildScene(
+            FloatImage(w, h, 3, FloatArray(w * h * 3) { Refocus.srgbToLinear((developed[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f) }), nearness, matte,
+            plan.replacement?.let { r -> FloatImage(w, h, 3, FloatArray(w * h * 3) { Refocus.srgbToLinear(r.data[it]) }) })
+        val subjectInFocus = scene.subject != null && (plan.focusTarget?.let { (x, y) -> Refocus.focusIsOnSubject(scene, x, y) } ?: true)
+        return Refocus.render(scene, plan.focus.copy(blur = blur), plan.focalNearness, layersPerSide, subjectInFocus, consumeScene = true)
+    }
+
+    /**
+     * iOS `LayeredStages.render`, at the frame's resolution, for one region [x, y, width, height] of a
+     * frameWidth × frameHeight frame whose developed pixels are [region]: the subject over the replacement
+     * at full resolution (matte upsampled), then, with a blur, full detail plus the working-resolution change
+     * where the result is sharp and the working-resolution blur where it is defocused.
+     */
+    fun applyRegion(region: ByteArray, x: Int, y: Int, width: Int, height: Int, frameWidth: Int, frameHeight: Int, working: WorkingBackground, replacement: ReplacementPixels?): ByteArray {
+        val out = ByteArray(region.size)
+        val sx = working.width.toDouble() / frameWidth
+        val sy = working.height.toDouble() / frameHeight
+        val repl = FloatArray(3)
+        for (row in 0 until height) {
+            val fy = y + row
+            val wy = (fy + 0.5) * sy - 0.5
+            for (column in 0 until width) {
+                val fx = x + column
+                val wx = (fx + 0.5) * sx - 0.5
+                val i = (row * width + column) * 4
+                val a = if (replacement != null && working.matte != null) working.matte.sample(wx, wy).coerceIn(0f, 1f) else 1f
+                if (replacement != null && a < 1f) replacement.sampleLinear((fx + 0.5) / frameWidth, (fy + 0.5) / frameHeight, repl)
+                val w = working.weight?.sample(wx, wy) ?: 0f
+                for (c in 0 until 3) {
+                    val full = Refocus.srgbToLinear((region[i + c].toInt() and 0xff) / 255f)
+                    var v = if (replacement != null && a < 1f) full * a + repl[c] * (1 - a) else full
+                    if (working.blurred != null) {
+                        val b = working.sample(working.blurred, wx, wy, c)
+                        val keep = v + (b - working.sample(working.sharp!!, wx, wy, c))
+                        v = keep * (1 - w) + b * w
+                    }
+                    out[i + c] = encode(Refocus.linearToSrgb(v))
+                }
+                out[i + 3] = region[i + 3]
+            }
+        }
+        return out
     }
 
     /**

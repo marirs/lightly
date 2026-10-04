@@ -168,22 +168,37 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * or blur without depth: the panel then shows the approved failure state, never a substitute).
      * [developPlan] grades the replacement with the photo's global colour (rendering-v2 §1).
      */
-    fun planFor(tool: BackgroundTool, developPlan: DevelopRenderPlan, renderer: DevelopRenderer, maxBlurFraction: Double = com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE): BackgroundPlan? {
+    fun planFor(
+        tool: BackgroundTool,
+        developPlan: DevelopRenderPlan,
+        renderer: DevelopRenderer,
+        maxBlurFraction: Double = com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE,
+        /** The working resolution's long edge (iOS LayeredStages caps: [INTERACTIVE_CAP], [PREVIEW_CAP], [EXPORT_CAP]). */
+        cap: Int = PREVIEW_CAP,
+    ): BackgroundPlan? {
         val a = refined(tool) ?: return null
         val focus = tool.focus
         val blur = if (a.depth == null) 0.0 else focus.blur
-        val replacement = tool.replacement?.takeIf { a.matte != null }?.let { r -> replacementImage(r, a.width, a.height, developPlan, renderer) }
-        if (replacement == null && blur <= 0.0) return null
+        // The replacement twice: at the analysis size, sampled for the full-resolution composite, and at the
+        // working size, where Focus & Blur places it behind the subject.
+        val full = tool.replacement?.takeIf { a.matte != null }?.let { r -> replacementPixels(r, a.width, a.height, developPlan, renderer) }
+        if (full == null && blur <= 0.0) return null
+        val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
+        val replacement = full?.let { r ->
+            val small = if (ww == r.width && wh == r.height) Rgba8Image(r.width, r.height, r.rgba) else resize(Rgba8Image(r.width, r.height, r.rgba), ww, wh)
+            FloatImage(ww, wh, 3, FloatArray(ww * wh * 3) { (small.pixels[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f })
+        }
         val focal = focus.depth.focusDepth?.let { 1.0 - it }
             ?: focus.target?.let { focalNearnessAt(it.x, it.y) }
             ?: defaultTarget().let { (x, y) -> focalNearnessAt(x, y) } ?: 0.5
         // Revision 1 (G4): a stored focusDepth is used as d_f = 1 − focusDepth and never re-resolved.
         // replacementDepth is not read (G6): placement is §R2.4 "plane".
         return BackgroundPlan(replacement, FocusParams(blur, focus.depthOfField, focus.style.name.lowercase(), focus.bokeh.name.lowercase(), focus.styleAmount, maxBlurFraction), focal,
-            focusTarget = focus.target?.let { it.x to it.y })
+            focusTarget = focus.target?.let { it.x to it.y }, replacementFull = full)
     }
 
-    private fun replacementImage(r: Replacement, w: Int, h: Int, developPlan: DevelopRenderPlan, renderer: DevelopRenderer): FloatImage? {
+    /** The replacement drawn at w × h, graded with the photo's global colour, as sRGB RGBA8. */
+    private fun replacementPixels(r: Replacement, w: Int, h: Int, developPlan: DevelopRenderPlan, renderer: DevelopRenderer): com.lightlylabs.lightly.background.ReplacementPixels? {
         val srgb = when (r) {
             is Replacement.Colour -> ReplacementImage.colour(w, h, r.colour)
             is Replacement.Gradient -> ReplacementImage.gradient(w, h, r.angle, r.stops.map { it.colour to it.position })
@@ -195,7 +210,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
         // The replacement receives the photo's global colour (Auto, develop.global at Amount); no spatial operator.
         val bytes = ByteArray(w * h * 4) { i -> if (i % 4 == 3) -1 else (srgb.data[(i / 4) * 3 + i % 4] * 255f + 0.5f).toInt().coerceIn(0, 255).toByte() }
         val graded = renderer.render(Rgba8Image(w, h, bytes), developPlan.globalOnly())
-        return FloatImage(w, h, 3, FloatArray(w * h * 3) { (graded.pixels[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f })
+        return com.lightlylabs.lightly.background.ReplacementPixels(w, h, graded.pixels)
     }
 
     /** The analysis with the recipe's Refine edges strokes applied to the matte. */
@@ -209,12 +224,27 @@ class BackgroundSession(private val env: EditorEnvironment) {
         return BackgroundAnalysis(a.width, a.height, a.depth, com.lightlylabs.lightly.background.MatteRefinement.apply(matte, strokes))
     }
 
-    /** Background stage on a developed frame at the analysis size. */
-    fun render(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool): Pair<Rgba8Image, FloatPlane> {
+    /**
+     * Focus & Blur at the working resolution [cap] (iOS LayeredStages): [developed] at any size is brought
+     * to the working size with the refined matte and depth, and rendered there. [plan] must come from
+     * [planFor] with the same [cap].
+     */
+    fun working(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool, cap: Int): com.lightlylabs.lightly.background.WorkingBackground {
         val a = refined(tool)!!
-        val frame = if (developed.width == a.width && developed.height == a.height) developed else resize(developed, a.width, a.height)
-        val (bytes, defocus) = BackgroundStage.render(frame.pixels, a, plan, layersPerSide)
-        return Rgba8Image(a.width, a.height, bytes) to defocus
+        val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
+        val frame = if (developed.width == ww && developed.height == wh) developed else resize(developed, ww, wh)
+        val ops = com.lightlylabs.lightly.background.PlaneOps
+        val small = if (ww == a.width && wh == a.height) a else BackgroundAnalysis(ww, wh,
+            a.depth?.let { d -> com.lightlylabs.lightly.background.NormalisedDepth(d.origin, ops.resizeBilinear(d.nearness, ww, wh)) },
+            a.matte?.let { ops.resizeBilinear(it, ww, wh) })
+        return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide)
+    }
+
+    /** Background stage on a developed frame (the display proxy in previews): rendered at [cap], applied at the frame's size. */
+    fun render(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool, cap: Int): Rgba8Image {
+        val working = working(developed, plan, layersPerSide, tool, cap)
+        return Rgba8Image(developed.width, developed.height,
+            BackgroundStage.applyRegion(developed.pixels, 0, 0, developed.width, developed.height, developed.width, developed.height, working, plan.replacementFull))
     }
 
     private fun digest(plane: FloatPlane): String {
@@ -259,12 +289,64 @@ class BackgroundSession(private val env: EditorEnvironment) {
             return ops.median(window.toFloatArray())
         }
 
-        /** Area-average resize of RGBA8 (used to bring a full frame to the analysis size for Save copy). */
+        /** The working caps (BackgroundStage: iOS LayeredStages' 640 and 1024; Save copy 768, see there). */
+        const val INTERACTIVE_CAP = BackgroundStage.INTERACTIVE_CAP
+        const val PREVIEW_CAP = BackgroundStage.PREVIEW_CAP
+        const val EXPORT_CAP = BackgroundStage.EXPORT_CAP
+
+        /**
+         * Area-average resize of RGBA8 (cv2 INTER_AREA for downscaling), streamed from the bytes: no
+         * float copy of the source (a 12 MP frame as four float planes was 192 MB).
+         */
         fun resize(image: Rgba8Image, width: Int, height: Int): Rgba8Image {
-            val planes = (0 until 4).map { c ->
-                DepthModelInput.resizeArea(FloatPlane(image.width, image.height, FloatArray(image.pixelCount) { (image.pixels[it * 4 + c].toInt() and 0xff).toFloat() }), width, height)
+            if (width >= image.width || height >= image.height) return resizeBilinear(image, width, height)
+            val out = ByteArray(width * height * 4)
+            val sx = image.width.toDouble() / width
+            val sy = image.height.toDouble() / height
+            val acc = DoubleArray(4)
+            for (y in 0 until height) {
+                val y0 = y * sy
+                val y1 = (y + 1) * sy
+                for (x in 0 until width) {
+                    val x0 = x * sx
+                    val x1 = (x + 1) * sx
+                    java.util.Arrays.fill(acc, 0.0)
+                    var total = 0.0
+                    for (yy in y0.toInt() until minOf(kotlin.math.ceil(y1).toInt(), image.height)) {
+                        val wy = minOf(yy + 1.0, y1) - maxOf(yy.toDouble(), y0)
+                        if (wy <= 0) continue
+                        for (xx in x0.toInt() until minOf(kotlin.math.ceil(x1).toInt(), image.width)) {
+                            val wx = minOf(xx + 1.0, x1) - maxOf(xx.toDouble(), x0)
+                            if (wx <= 0) continue
+                            val weight = wx * wy
+                            val o = (yy * image.width + xx) * 4
+                            for (c in 0 until 4) acc[c] += (image.pixels[o + c].toInt() and 0xff) * weight
+                            total += weight
+                        }
+                    }
+                    for (c in 0 until 4) out[(y * width + x) * 4 + c] = (acc[c] / total + 0.5).toInt().coerceIn(0, 255).toByte()
+                }
             }
-            return Rgba8Image(width, height, ByteArray(width * height * 4) { i -> planes[i % 4].values[i / 4].toInt().coerceIn(0, 255).toByte() })
+            return Rgba8Image(width, height, out)
+        }
+
+        private fun resizeBilinear(image: Rgba8Image, width: Int, height: Int): Rgba8Image {
+            val out = ByteArray(width * height * 4)
+            val sx = image.width.toDouble() / width
+            val sy = image.height.toDouble() / height
+            for (y in 0 until height) for (x in 0 until width) {
+                val fx = ((x + 0.5) * sx - 0.5).coerceIn(0.0, image.width - 1.0)
+                val fy = ((y + 0.5) * sy - 0.5).coerceIn(0.0, image.height - 1.0)
+                val x0 = fx.toInt(); val y0 = fy.toInt()
+                val x1 = minOf(x0 + 1, image.width - 1); val y1 = minOf(y0 + 1, image.height - 1)
+                val ax = fx - x0; val ay = fy - y0
+                for (c in 0 until 4) {
+                    fun at(xx: Int, yy: Int) = (image.pixels[(yy * image.width + xx) * 4 + c].toInt() and 0xff).toDouble()
+                    val v = (at(x0, y0) * (1 - ax) + at(x1, y0) * ax) * (1 - ay) + (at(x0, y1) * (1 - ax) + at(x1, y1) * ax) * ay
+                    out[(y * width + x) * 4 + c] = (v + 0.5).toInt().coerceIn(0, 255).toByte()
+                }
+            }
+            return Rgba8Image(width, height, out)
         }
     }
 }

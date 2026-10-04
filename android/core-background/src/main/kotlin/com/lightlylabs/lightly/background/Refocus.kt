@@ -212,7 +212,15 @@ object Refocus {
      * [subjectInFocus]: revision 1's subject-in-focus rule — when the focus is on the subject (the tap on
      * the matte, or a null target with a subject), the subject plane's CoC is 0, also for Soft's glow.
      */
-    fun render(scene: FocusScene, params: FocusParams, focal: Double, layersPerSide: Int = FocusConstants.LAYERS_PER_SIDE_EXPORT, subjectInFocus: Boolean = false): FloatImage {
+    fun render(
+        scene: FocusScene,
+        params: FocusParams,
+        focal: Double,
+        layersPerSide: Int = FocusConstants.LAYERS_PER_SIDE_EXPORT,
+        subjectInFocus: Boolean = false,
+        /** True when the caller discards [scene] afterwards: its colours are expanded in place, not copied. */
+        consumeScene: Boolean = false,
+    ): FloatImage {
         val w = scene.width
         val h = scene.height
         val radiusMax = maxRadiusPx(params.blur, max(w, h), params.maxBlurFraction)
@@ -220,48 +228,43 @@ object Refocus {
         val highlights = params.style == "lens" || params.style == "swirl" || params.style == "motion"
         val planes = listOfNotNull(scene.background, scene.subject)
         val step = if (radiusMax > 0) radiusMax / layersPerSide else 1.0
-        val behind = ArrayList<Triple<Int, Int, FloatImage>>()
-        val frontSums = planes.map { FloatImage(w, h, 4) }
-        val cocMaps = ArrayList<FloatPlane>()
-        planes.forEachIndexed { planeIndex, plane ->
-            val colour = plane.colour.copy().also { if (highlights) expandHighlights(it) }
-            val coc = if (planeIndex == 1 && subjectInFocus && scene.subject != null) FloatPlane(w, h)
-                else FloatPlane(w, h, FloatArray(w * h) { signedCoc(plane.nearness.values[it], focal, half, radiusMax).toFloat() })
-            cocMaps += coc
-            for (layer in -layersPerSide..layersPerSide) {
-                val premultiplied = FloatImage(w, h, 4)
-                var any = false
-                for (p in 0 until w * h) {
-                    val position = coc.values[p] / step
-                    val weight = (max(0.0, 1 - abs(position - layer)) * plane.alpha.values[p]).toFloat()
-                    if (weight < 1e-6f) continue
-                    any = any || weight > 1e-4f
-                    premultiplied.data[p * 4] = colour.data[p * 3] * weight
-                    premultiplied.data[p * 4 + 1] = colour.data[p * 3 + 1] * weight
-                    premultiplied.data[p * 4 + 2] = colour.data[p * 3 + 2] * weight
-                    premultiplied.data[p * 4 + 3] = weight
-                }
-                if (!any) continue
-                val blurred = blurLayer(premultiplied, abs(layer) * step, params, radiusMax)
-                if (layer < 0) behind += Triple(layer, planeIndex, blurred) else {
-                    val sum = frontSums[planeIndex].data
-                    for (i in sum.indices) sum[i] += blurred.data[i]
-                }
+        val colours = planes.map { plane ->
+            when {
+                !highlights -> plane.colour
+                consumeScene -> plane.colour.also { expandHighlights(it) }
+                else -> plane.colour.copy().also { expandHighlights(it) }
             }
         }
+        val cocMaps = planes.mapIndexed { planeIndex, plane ->
+            if (planeIndex == 1 && subjectInFocus && scene.subject != null) FloatPlane(w, h)
+            else FloatPlane(w, h, FloatArray(w * h) { signedCoc(plane.nearness.values[it], focal, half, radiusMax).toFloat() })
+        }
+        // Memory (Android heap): every layer is blurred and used at once, never kept. Behind layers are
+        // composited as they are made, in the contract's order (far to near, background before subject
+        // within a layer), so the arithmetic is unchanged; a plane's in-front layers are summed in a
+        // buffer that lives only while that plane is composited. Before, all 2·K behind layers per plane
+        // were held at the working size (64 floats per pixel at K = 8), which exhausted a 192 MB heap.
         // §R6.1–2: far to near "over", background before subject within a layer, then pull-push normalise.
         val behindColour = FloatImage(w, h, 3)
         val behindAlpha = FloatPlane(w, h)
-        for ((_, _, blurred) in behind.sortedWith(compareBy({ it.first }, { it.second }))) {
-            for (p in 0 until w * h) {
-                val a = blurred.data[p * 4 + 3]
-                for (c in 0 until 3) behindColour.data[p * 3 + c] = blurred.data[p * 4 + c] + (1 - a) * behindColour.data[p * 3 + c]
-                behindAlpha.values[p] = a + (1 - a) * behindAlpha.values[p]
+        for (layer in -layersPerSide..-1) {
+            for (planeIndex in planes.indices) {
+                val blurred = layerBlurred(planes[planeIndex], colours[planeIndex], cocMaps[planeIndex], layer, step, params, radiusMax) ?: continue
+                for (p in 0 until w * h) {
+                    val a = blurred.data[p * 4 + 3]
+                    for (c in 0 until 3) behindColour.data[p * 3 + c] = blurred.data[p * 4 + c] + (1 - a) * behindColour.data[p * 3 + c]
+                    behindAlpha.values[p] = a + (1 - a) * behindAlpha.values[p]
+                }
             }
         }
         val result = if (behindAlpha.values.any { it > 0f }) pullPushFill(behindColour, behindAlpha.map { it.coerceIn(0f, 1f) }) else FloatImage(w, h, 3)
         // §R6.3: focal + in-front layers of a plane are summed, then planes layered subject over background.
-        for (front in frontSums) {
+        for (planeIndex in planes.indices) {
+            val front = FloatImage(w, h, 4)
+            for (layer in 0..layersPerSide) {
+                val blurred = layerBlurred(planes[planeIndex], colours[planeIndex], cocMaps[planeIndex], layer, step, params, radiusMax) ?: continue
+                for (i in front.data.indices) front.data[i] += blurred.data[i]
+            }
             for (p in 0 until w * h) {
                 val coverage = front.data[p * 4 + 3]
                 val overflow = max(coverage, 1f)
@@ -272,6 +275,26 @@ object Refocus {
         if (highlights) compressHighlights(result)
         if (params.style == "soft") addGlow(result, cocMaps, scene, params, radiusMax)
         return result
+    }
+
+    /** One tent layer of a plane (§R4), premultiplied and blurred; null when the layer is empty. */
+    private fun layerBlurred(plane: ScenePlane, colour: FloatImage, coc: FloatPlane, layer: Int, step: Double, params: FocusParams, radiusMax: Double): FloatImage? {
+        val w = colour.width
+        val h = colour.height
+        val premultiplied = FloatImage(w, h, 4)
+        var any = false
+        for (p in 0 until w * h) {
+            val position = coc.values[p] / step
+            val weight = (max(0.0, 1 - abs(position - layer)) * plane.alpha.values[p]).toFloat()
+            if (weight < 1e-6f) continue
+            any = any || weight > 1e-4f
+            premultiplied.data[p * 4] = colour.data[p * 3] * weight
+            premultiplied.data[p * 4 + 1] = colour.data[p * 3 + 1] * weight
+            premultiplied.data[p * 4 + 2] = colour.data[p * 3 + 2] * weight
+            premultiplied.data[p * 4 + 3] = weight
+        }
+        if (!any) return null
+        return blurLayer(premultiplied, abs(layer) * step, params, radiusMax)
     }
 
     private fun blurLayer(layer: FloatImage, radius: Double, params: FocusParams, radiusMax: Double): FloatImage {
@@ -428,13 +451,15 @@ object Refocus {
         })
         for (index in levels.size - 2 downTo 0) {
             val (colour, alpha) = levels[index]
+            // The upsampled level is combined in place (same values as a separate output buffer, one image less).
             val up = upsample(filled, alpha.width, alpha.height)
-            val next = FloatImage(alpha.width, alpha.height, colour.channels)
             for (p in 0 until alpha.width * alpha.height) {
                 val a = alpha.values[p].coerceIn(0f, 1f)
-                for (c in 0 until colour.channels) next.data[p * colour.channels + c] = colour.data[p * colour.channels + c] + (1 - a) * up.data[p * colour.channels + c]
+                for (c in 0 until colour.channels) up.data[p * colour.channels + c] = colour.data[p * colour.channels + c] + (1 - a) * up.data[p * colour.channels + c]
             }
-            filled = next
+            filled = up
+            // Finer levels no longer need the coarser ones.
+            if (index + 1 < levels.size) levels[index + 1] = levels[index + 1].first.let { FloatImage(1, 1, it.channels) } to FloatPlane(1, 1)
         }
         return filled
     }
@@ -461,10 +486,12 @@ object Refocus {
     fun fillMasked(values: FloatImage, weight: FloatPlane): FloatImage {
         val premultiplied = FloatImage(values.width, values.height, values.channels, FloatArray(values.data.size) { values.data[it] * weight.values[it / values.channels] })
         val filled = pullPushFill(premultiplied, weight)
-        return FloatImage(values.width, values.height, values.channels, FloatArray(values.data.size) { i ->
+        // Written into the fill's own buffer (same values; one image less at the peak).
+        for (i in filled.data.indices) {
             val wgt = weight.values[i / values.channels]
-            values.data[i] * wgt + filled.data[i] * (1 - wgt)
-        })
+            filled.data[i] = values.data[i] * wgt + filled.data[i] * (1 - wgt)
+        }
+        return filled
     }
 
     fun fillMaskedPlane(values: FloatPlane, weight: FloatPlane): FloatPlane {
