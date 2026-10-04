@@ -327,6 +327,9 @@ class EditorViewModel(
         separationJob = scope.launch(env.prefetchDispatcher) {
             // Capture of the approved "Finding the subject…" state (debug builds only): stays separating.
             if (debugHoldSeparation) return@launch
+            // Capture of the approved "Couldn't separate the subject" state (debug builds only, injected:
+            // with the vision models this photo separates, so the failure is no longer what a user sees).
+            if (debugFailSeparation) { state.update { it.copy(separation = SeparationState.Finished(depthAvailable = false, matteAvailable = false, noClearSubject = false)) }; return@launch }
             val finished = backgroundSession.analyse(current.loaded)
             // The analysis is long CPU work with no suspension point: if the editor was cleared
             // meanwhile (left, or recreated), its preview scheduler is closed; stop here.
@@ -1517,6 +1520,9 @@ class EditorViewModel(
 
     /** Debug captures only: separation never finishes, so "Finding the subject…" can be captured. */
     internal var debugHoldSeparation: Boolean = false
+
+    /** Debug captures only: separation ends in the approved failure state without running (bg-failed). */
+    internal var debugFailSeparation: Boolean = false
 
     /**
      * Debug captures only: the prototype's sample signatures (its drawn `SIG_DRAWN` and the imported version

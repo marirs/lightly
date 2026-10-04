@@ -113,6 +113,7 @@ object DebugLaunchOptions {
         }
         editor.debugHoldLoading = screen == "loading" || screen == "developing"
         editor.debugHoldSeparation = screen == "bg-separating"
+        editor.debugFailSeparation = screen == "bg-failed"
         editor.debugHoldRemove = screen == "ed-removing"
         editor.openPhoto("file://" + File(path).absolutePath)
         shell.navigate(if (screen == "more") AppNavigator.openMore(AppNavigator.openEditor()) else AppNavigator.openEditor())
@@ -173,8 +174,8 @@ object DebugLaunchOptions {
                 "saving" -> api.setUi { it.copy(overlay = EditorOverlay.SAVING) }
                 "saved" -> api.setUi { it.copy(overlay = EditorOverlay.SAVED) }
                 "leave-unsaved" -> api.setUi { it.copy(overlay = EditorOverlay.LEAVE) }
-                // Slice 3: real separation on this build (no depth model, no segmenter: D3 / LiteRT
-                // pending), so bg-failed is the state a user actually sees, not an injected one.
+                // Slice 3: bg-separating holds the real separation; bg-failed injects its failure (debugFailSeparation),
+                // because with the vision models the woman photo now separates.
                 "bg-separating", "bg-failed" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.CHANGE)
                 "bg-no-subject" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
                 // docs/ui/app/screens.js: blur 55, and the style for bg-soft / bg-swirl / bg-motion.
