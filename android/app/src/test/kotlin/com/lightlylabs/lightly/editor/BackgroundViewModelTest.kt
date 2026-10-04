@@ -102,6 +102,52 @@ class BackgroundViewModelTest {
         }
     }
 
+    @Test
+    fun `the replacement cache holds at most two backgrounds and reloads an evicted one`() = runTest {
+        val bundledLoads = mutableMapOf<String, Int>()
+        var photoLoads = 0
+        val env = EditorEnvironment(
+            photoLoader = PhotoLoader { asset ->
+                photoLoads++
+                LoadedPhoto(SourceRef(asset, SourceFingerprint("ab".repeat(32), 1000, 48, 32), 1), image(24, 16), image(48, 32), FullResolutionSource { image(96, 64) })
+            },
+            photoAccess = object : PhotoAccessGrants {
+                override fun retain(assetId: String) = true
+                override fun release(assetId: String) = Unit
+            },
+            autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
+            personDetector = PendingPersonDetector,
+            library = CompletableDeferred(library),
+            previewRenderer = DevelopRenderer(),
+            renderDispatcher = StandardTestDispatcher(testScheduler),
+            prefetchDispatcher = StandardTestDispatcher(testScheduler),
+            exporter = ExportCoordinator(SaveCopyExporter(Gateway(), JpegEncoder<Rgba8ExportFrame> { f, _, sink -> sink.write(f.pixels) }), Rgba8ExportFrame.factory, StandardTestDispatcher(testScheduler), maxTileEdge = 32),
+            favourites = object : FavouritesStore {
+                override val favourites: StateFlow<List<String>> = MutableStateFlow(emptyList())
+                override fun update(change: (List<String>) -> List<String>) = Unit
+            },
+            debugBuild = true,
+            bundledBackground = { id -> bundledLoads[id] = (bundledLoads[id] ?: 0) + 1; image(40, 30) },
+        )
+        val session = BackgroundSession(env)
+        val a = com.lightlylabs.lightly.session.AssetRef.Bundled("landscape_01")
+        val b = com.lightlylabs.lightly.session.AssetRef.Bundled("sunset_03")
+        val c = com.lightlylabs.lightly.session.AssetRef.Bundled("wellexposed_02")
+        val picked = com.lightlylabs.lightly.session.AssetRef.Photo("content://picked/1", SourceFingerprint("ab".repeat(32), 1000, 48, 32))
+        // Switching backgrounds repeatedly never holds more than two converted photos.
+        repeat(3) { for (asset in listOf(a, b, c, picked)) { assertNotNull(session.replacementPlanesFor(asset)); assertTrue(session.cachedReplacementCount <= 2) } }
+        // Undo to the first background after it was evicted reloads it from its reference.
+        val before = bundledLoads[a.id] ?: 0
+        val planes = assertNotNull(session.replacementPlanesFor(a))
+        assertEquals(before + 1, bundledLoads[a.id])
+        assertEquals(40, planes[0].width)
+        // A cached one is not reloaded.
+        session.replacementPlanesFor(a)
+        assertEquals(before + 1, bundledLoads[a.id])
+        // A picked photo evicted from the cache is reloaded through the photo loader.
+        assertTrue(photoLoads >= 3)
+    }
+
     /** Left half near, right half far, at the model's output size. */
     private val depthDouble = DepthEstimator { FloatPlane(518, 392, FloatArray(518 * 392) { if (it % 518 < 259) 3f else 1f }) }
 

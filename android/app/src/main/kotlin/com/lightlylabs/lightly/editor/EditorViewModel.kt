@@ -1320,9 +1320,12 @@ class EditorViewModel(
             }
         }
         val job = ExportJob(sourceHandle = loaded.source.assetId, original = loaded.fullResolution, plan = exportPlan, spec = env.newImageSpec(loaded.source))
+        beginExportHoldingPreviews()
         if (env.exporter.start(job) is ExportStart.Started) {
             savingRecipe = committed
             state.update { it.copy(overlay = EditorOverlay.SAVING) }
+        } else {
+            endExportReleasingPreviews()
         }
     }
 
@@ -1388,14 +1391,17 @@ class EditorViewModel(
     private fun onExportState(export: ExportState<*>) {
         when (export) {
             is ExportState.Saved<*> -> {
+                endExportReleasingPreviews()
                 cleanState = savingRecipe ?: cleanState
                 state.update { it.copy(overlay = EditorOverlay.SAVED, savedAsset = export.newAsset.toString()) }
             }
             is ExportState.Failed -> {
+                endExportReleasingPreviews()
                 val overlay = if (export.error is SaveCopyFailure.OutOfStorage) EditorOverlay.STORAGE_FULL else EditorOverlay.EXPORT_FAILED
                 state.update { it.copy(overlay = overlay) }
             }
             is ExportState.Cancelled -> {
+                endExportReleasingPreviews()
                 if (userCancelledSave) showToast(SAVE_CANCELLED)
                 userCancelledSave = false
                 state.update { if (it.overlay == EditorOverlay.SAVING) it.copy(overlay = null) else it }
@@ -1475,6 +1481,9 @@ class EditorViewModel(
             },
             parentScope = scope,
             renderDispatcher = env.renderDispatcher,
+            onUnpublishedFailure = { request, error ->
+                runCatching { android.util.Log.w("LightlyDevelop", "superseded preview render failed (revision ${request.revision})", error) }
+            },
         )
         scheduler = newScheduler
         schedulerCollector = scope.launch {
@@ -1501,7 +1510,37 @@ class EditorViewModel(
 
     /** Latest-wins: every call replaces the pending request; at most one render is in flight. */
     private fun requestPreview(edit: EditState, globalOnly: Boolean) {
+        // While Save copy runs, its full-resolution render needs the heap: a Background preview at the
+        // same time ran the 192 MB heap out of memory (Refocus.fillMasked, 12 MP replacement + blur on
+        // the Pixel 9 Pro emulator). Keep the latest request and submit it when the export ends; the
+        // screen keeps its last preview under the approved Saving state meanwhile.
+        lastPreviewRequest = edit to globalOnly
+        if (exportRunning) {
+            heldPreview = edit to globalOnly
+            return
+        }
         requestedRevision = scheduler?.submit(PreviewRequest(edit, globalOnly)) ?: requestedRevision
+    }
+
+    private var lastPreviewRequest: Pair<EditState, Boolean>? = null
+
+    @Volatile private var exportRunning = false
+    private var heldPreview: Pair<EditState, Boolean>? = null
+
+    private fun beginExportHoldingPreviews() {
+        exportRunning = true
+        // A preview already rendering would still compete with the export: cancel it (the screen keeps
+        // its last published preview) and render the latest request again once the export ends.
+        if (requestedRevision > publishedRevision) heldPreview = lastPreviewRequest
+        scheduler?.cancel(requestedRevision)
+    }
+
+    private fun endExportReleasingPreviews() {
+        exportRunning = false
+        heldPreview?.let { (edit, globalOnly) ->
+            heldPreview = null
+            requestPreview(edit, globalOnly)
+        }
     }
 
     // Debug benchmark bookkeeping (docs/v1/slice2-android.md › Performance).

@@ -31,6 +31,9 @@ import java.security.MessageDigest
  * into a [BackgroundPlan] (rendering-v2 stages background.replace and background.focus).
  * Analysis runs once per photo, at the display proxy's resolution.
  */
+/** Replacement assets kept converted: the current one and the previous one (A/B toggling stays cheap). */
+private const val REPLACEMENT_CACHE_SIZE = 2
+
 class BackgroundSession(private val env: EditorEnvironment) {
     @Volatile var analysis: BackgroundAnalysis? = null
         private set
@@ -41,12 +44,41 @@ class BackgroundSession(private val env: EditorEnvironment) {
     private var depthModel: ModelRef? = null
     private var matteModel: ModelRef? = null
 
-    /** Replacement photos decoded at the analysis size, by AssetRef. */
-    private val replacementPhotos = mutableMapOf<AssetRef, Rgba8Image>()
-    // The replacement photo as sRGB [0,1] R, G, B planes, converted once per asset. Converting it on
-    // every render (preview, each drag frame and each Save-copy tile) allocated ~22 MB each time and ran
-    // the 192 MB heap out of memory with a subject matte (measured on the Pixel 9 Pro emulator).
-    private val replacementFloats = mutableMapOf<AssetRef, List<com.lightlylabs.lightly.background.FloatPlane>>()
+    /**
+     * Replacement photos as sRGB [0,1] R, G, B planes, by AssetRef, holding at most
+     * [REPLACEMENT_CACHE_SIZE] assets (least recently used evicted).
+     *
+     * Converting a photo on every render (preview, each drag frame, each Save-copy tile) allocated
+     * ~22 MB per call and ran the 192 MB heap out of memory with a subject matte (Pixel 9 Pro
+     * emulator). An unbounded cache would instead grow with every background tried. An evicted
+     * asset is reloaded from its reference, so Undo to an earlier background still renders:
+     * bundled backgrounds from the app, picked photos through the photo loader (access retained
+     * when picked).
+     */
+    private val replacementPlanes = object : LinkedHashMap<AssetRef, List<com.lightlylabs.lightly.background.FloatPlane>>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<AssetRef, List<com.lightlylabs.lightly.background.FloatPlane>>?) =
+            size > REPLACEMENT_CACHE_SIZE
+    }
+
+    /** The planes for [asset], converting or reloading it when not cached; null when it can't be read. */
+    internal fun replacementPlanesFor(asset: AssetRef): List<com.lightlylabs.lightly.background.FloatPlane>? {
+        synchronized(replacementPlanes) { replacementPlanes[asset]?.let { return it } }
+        val photo = when (asset) {
+            is AssetRef.Bundled -> env.bundledBackground(asset.id)
+            // Renders run off the main thread; the loader decodes at the display proxy size.
+            is AssetRef.Photo -> runCatching { kotlinx.coroutines.runBlocking { env.photoLoader.load(asset.assetId).display } }.getOrNull()
+            is AssetRef.File -> null
+        } ?: return null
+        return toPlanes(photo).also { planes -> synchronized(replacementPlanes) { replacementPlanes[asset] = planes } }
+    }
+
+    /** How many replacement assets are held (for tests). */
+    internal val cachedReplacementCount: Int get() = synchronized(replacementPlanes) { replacementPlanes.size }
+
+    private fun toPlanes(photo: Rgba8Image): List<com.lightlylabs.lightly.background.FloatPlane> = (0 until 3).map { c ->
+        com.lightlylabs.lightly.background.FloatPlane(photo.width, photo.height,
+            FloatArray(photo.pixelCount) { (photo.pixels[it * 4 + c].toInt() and 0xff) / 255f })
+    }
 
     /**
      * Embedded depth first (Dynamic Depth, GDepth), else the depth estimator; then the segmenter.
@@ -109,13 +141,13 @@ class BackgroundSession(private val env: EditorEnvironment) {
         analysis = null
         faces = emptyList()
         noClearSubject = false
-        replacementPhotos.clear()
-        replacementFloats.clear()
+        synchronized(replacementPlanes) { replacementPlanes.clear() }
     }
 
+    /** A photo just picked for Change background: converted now, so the first render needn't reload it. */
     fun rememberReplacementPhoto(asset: AssetRef, image: Rgba8Image) {
-        replacementPhotos[asset] = image
-        replacementFloats.remove(asset)
+        val planes = toPlanes(image)
+        synchronized(replacementPlanes) { replacementPlanes[asset] = planes }
     }
 
     /** The recipe's derived references for what the analysis produced (digest of the map's float bytes). */
@@ -211,14 +243,8 @@ class BackgroundSession(private val env: EditorEnvironment) {
             is Replacement.Colour -> ReplacementImage.colour(w, h, r.colour)
             is Replacement.Gradient -> ReplacementImage.gradient(w, h, r.angle, r.stops.map { it.colour to it.position })
             is Replacement.Image -> {
-                val floats = replacementFloats[r.image] ?: run {
-                    val photo = replacementPhotos[r.image] ?: (r.image as? AssetRef.Bundled)?.let { env.bundledBackground(it.id) }?.also { replacementPhotos[r.image] = it } ?: return null
-                    (0 until 3).map { c ->
-                        com.lightlylabs.lightly.background.FloatPlane(photo.width, photo.height,
-                            FloatArray(photo.pixelCount) { (photo.pixels[it * 4 + c].toInt() and 0xff) / 255f })
-                    }.also { replacementFloats[r.image] = it }
-                }
-                ReplacementImage.photo(floats, w, h, r.scale, r.x, r.y)
+                val planes = replacementPlanesFor(r.image) ?: return null
+                ReplacementImage.photo(planes, w, h, r.scale, r.x, r.y)
             }
         }
         // The replacement receives the photo's global colour (Auto, develop.global at Amount); no spatial operator.

@@ -62,6 +62,12 @@ class RenderScheduler<P : Any, R : Any>(
     private val renderer: PreviewRenderer<P, R>,
     parentScope: CoroutineScope,
     renderDispatcher: CoroutineDispatcher,
+    /**
+     * Told about a render that FAILED but is not published because a newer request superseded it.
+     * Without this such failures vanished: a burst of out-of-memory failures during a Background
+     * Save copy left no trace except the runtime's own "Throwing OutOfMemoryError" lines.
+     */
+    private val onUnpublishedFailure: (RenderRequest<P>, Throwable) -> Unit = { _, _ -> },
 ) {
     private class InFlight<P>(val request: RenderRequest<P>, val job: Job)
 
@@ -145,11 +151,12 @@ class RenderScheduler<P : Any, R : Any>(
         } catch (failure: Throwable) {
             RenderOutcome.Failed(failure)
         }
-        synchronized(lock) {
-            if (isPublishableLocked(request)) {
-                publishedResult.value = RenderResult(request.sessionId, request.revision, outcome)
+        val published = synchronized(lock) {
+            isPublishableLocked(request).also { publishable ->
+                if (publishable) publishedResult.value = RenderResult(request.sessionId, request.revision, outcome)
             }
         }
+        if (!published && outcome is RenderOutcome.Failed) onUnpublishedFailure(request, outcome.error)
     }
 
     private fun isPublishableLocked(request: RenderRequest<P>): Boolean =
