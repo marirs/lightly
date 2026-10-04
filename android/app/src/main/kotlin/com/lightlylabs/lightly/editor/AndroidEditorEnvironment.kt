@@ -112,10 +112,19 @@ object AndroidEditorEnvironment {
             // App-private files (never cache: the system may evict it under the restored session).
             removePatchDirectory = java.io.File(app.filesDir, "remove-patches"),
             preferredBorder = preferredBorder,
+            signatures = signatureStore(app),
+            watermarkFonts = WatermarkFonts(app.assets),
             inpainter = lazy { LiteRtLamaInpainter.create(app, com.lightlylabs.lightly.BuildConfig.REMOVE_MODEL_ENABLED) }.let { model -> { model.value } },
             onPreviewRendered = { millis, globalOnly -> Log.i(LOG_TAG, "preview ${if (globalOnly) "drag" else "committed"}: ${"%.1f".format(millis)} ms") },
             newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },
         )
+    }
+
+    @Volatile private var signatures: com.lightlylabs.lightly.signatures.SignatureStore? = null
+
+    /** One store per process (the editor and Preferences › Saved signature share it), in app-private files. */
+    fun signatureStore(context: Context): com.lightlylabs.lightly.signatures.SignatureStore = synchronized(this) {
+        signatures ?: com.lightlylabs.lightly.signatures.SignatureStore(File(context.applicationContext.filesDir, "signatures")).also { signatures = it }
     }
 
     /** An 8-bit JPEG depth image (Dynamic Depth allows JPEG items): the first channel in [0, 1]. */

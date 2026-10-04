@@ -55,7 +55,7 @@ sealed interface EditorPhase {
 }
 
 /** Sheets and dialogs over the editor (prototype `overlayHTML`). */
-enum class EditorOverlay { FAVOURITE_REPLACE, SAVING, SAVED, LEAVE, EXPORT_FAILED, STORAGE_FULL }
+enum class EditorOverlay { FAVOURITE_REPLACE, SAVING, SAVED, LEAVE, EXPORT_FAILED, STORAGE_FULL, SIGNATURE_DRAW, SIGNATURE_IMPORT }
 
 /** What the preview shows: an exact render of a recipe, the transient drag render, or the original. */
 private data class PreviewRequest(val state: EditState?, val globalOnly: Boolean)
@@ -87,6 +87,7 @@ data class EditorUiState(
     val effects: EffectsUi = EffectsUi(),
     /** Border tool UI (slice 5). */
     val border: BorderUi = BorderUi(),
+    val watermark: WatermarkUi = WatermarkUi(),
 ) {
     val showsOriginal: Boolean get() = compareHeld || compareToggled
     val canUndo: Boolean get() = session?.canUndo == true
@@ -296,7 +297,7 @@ class EditorViewModel(
         if (tool !in state.value.tools) return
         if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
         // Prototype `tool`: sub, op and group reset; a removal already running keeps running.
-        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi()) }
+        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi()) }
         if (tool == EditorTool.BORDER) openBorderOnPreferredType()
         if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
     }
@@ -719,19 +720,229 @@ class EditorViewModel(
      * Prototype `polaroidSig`: with no watermark, the saved signature is chosen; then the watermark flips
      * between the photo and the margin. One step.
      */
-    // DEFERRED(watermark): with no watermark and no saved signature, the signature store (slice 5 Watermark)
-    // must supply one; until it exists the toggle only flips an existing watermark's placement.
     fun toggleSignatureOnMargin() {
         val session = state.value.session ?: return
         val type = borderTab()
         val w = session.current.tools.watermark
         val flipped = if (w.placement == com.lightlylabs.lightly.session.WatermarkPlacement.BORDER) com.lightlylabs.lightly.session.WatermarkPlacement.PHOTO else com.lightlylabs.lightly.session.WatermarkPlacement.BORDER
-        val signed = if (w.type != com.lightlylabs.lightly.session.WatermarkType.NONE) w else (signatureForMargin()?.let { ref -> w.copy(type = com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, signature = ref) } ?: return)
+        val ref = signatureForMargin()
+        if (w.type == com.lightlylabs.lightly.session.WatermarkType.NONE && ref == null) {
+            // v3 differs (as iOS, owner question W7): no saved signature exists, so Draw signature opens and
+            // the drawing saved there goes on the margin. The border type is committed first.
+            commitBorder { withType(it, type) }
+            state.update { it.copy(watermark = it.watermark.copy(placesNextOnBorder = true)) }
+            openDrawSignature()
+            return
+        }
+        val signed = if (w.type != com.lightlylabs.lightly.session.WatermarkType.NONE) w else w.copy(type = com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, signature = ref)
         commit(session.commit { s -> s.copy(tools = s.tools.copy(border = withType(s.tools.border, type), watermark = signed.copy(placement = flipped))) }, state.value.auto)
     }
 
-    /** The saved signature a margin toggle uses when no watermark is set (null until the signature store exists). */
-    internal var signatureForMargin: () -> com.lightlylabs.lightly.session.SignatureRef? = { null }
+    /** The saved signature a margin toggle uses when no watermark is set. */
+    private fun signatureForMargin(): com.lightlylabs.lightly.session.SignatureRef? = (signatures.value.drawn ?: signatures.value.imported)?.reference
+
+    // --- Watermark (slice 5) ----------------------------------------------------------------------
+
+    val signatures: StateFlow<com.lightlylabs.lightly.signatures.SignatureStore.Contents> get() = env.signatures.contents
+
+    /** Notified when Signature › Import or Logo › Replace logo asks for a photo (the Activity launches the picker). */
+    var onChooseSignaturePhoto: () -> Unit = {}
+    var onChooseLogo: () -> Unit = {}
+
+    /** The last text and logo used in this session, so switching tabs and back keeps them (the recipe holds only the matching part). */
+    private var lastText = com.lightlylabs.lightly.session.WatermarkText(WatermarkOptions.DEFAULT_TEXT, com.lightlylabs.lightly.session.WatermarkFont.ALLURA)
+    private var lastLogo: com.lightlylabs.lightly.session.AssetRef = com.lightlylabs.lightly.session.AssetRef.Bundled(WatermarkStage.SAMPLE_LOGO_ID)
+
+    /** Draws signature and logo glyphs in the panel exactly as the stage draws them. */
+    val watermarkGlyphs: WatermarkStage by lazy { WatermarkStage(WatermarkSizes.REVISION_2, env.watermarkFonts) }
+
+    fun logoBytes(sha256: String): ByteArray? = env.signatures.logo(sha256)
+
+    private val composeFonts = java.util.concurrent.ConcurrentHashMap<String, androidx.compose.ui.text.font.FontFamily>()
+
+    /** The approved font as a Compose family (the font chips), or the default without bundled assets (JVM tests). */
+    fun composeFont(font: com.lightlylabs.lightly.session.WatermarkFont, weight: Int? = null): androidx.compose.ui.text.font.FontFamily {
+        val assets = env.watermarkFonts.assets ?: return androidx.compose.ui.text.font.FontFamily.Default
+        return composeFonts.getOrPut("$font|$weight") { watermarkFontFamily(assets, font, weight) }
+    }
+
+    fun watermarkTab(ui: EditorUiState = state.value): com.lightlylabs.lightly.session.WatermarkType =
+        ui.watermark.shown ?: ui.session?.current?.tools?.watermark?.type ?: com.lightlylabs.lightly.session.WatermarkType.NONE
+
+    /** Stage 12 for [edit]: its content resolved against the store (missing or changed → nothing, never substituted). */
+    private fun watermarkPainter(edit: EditState, library: DevelopLibrary): WatermarkPainter? {
+        val w = edit.tools.watermark
+        if (w.type == com.lightlylabs.lightly.session.WatermarkType.NONE) return null
+        val content = watermarkContent(w) ?: return null
+        val stage = WatermarkStage(library.watermarkSizes, env.watermarkFonts)
+        return WatermarkPainter { cw, ch, rect -> stage.layer(w, content, cw, ch, rect, edit.tools.border.type) }
+    }
+
+    private fun watermarkContent(w: com.lightlylabs.lightly.session.WatermarkTool): WatermarkContent? = when (w.type) {
+        com.lightlylabs.lightly.session.WatermarkType.NONE -> null
+        com.lightlylabs.lightly.session.WatermarkType.TEXT -> w.text?.let { WatermarkContent.Text(it.text, it.font) }
+        com.lightlylabs.lightly.session.WatermarkType.SIGNATURE -> w.signature?.let(env.signatures::resolve)?.let { saved ->
+            saved.drawn?.let { WatermarkContent.Drawn(it) } ?: if (saved.kind == com.lightlylabs.lightly.session.SignatureKind.IMPORTED) WatermarkContent.Imported(saved.data) else null
+        }
+        com.lightlylabs.lightly.session.WatermarkType.LOGO -> when (val image = w.logo?.image) {
+            is com.lightlylabs.lightly.session.AssetRef.File -> env.signatures.logo(image.sha256)?.let { WatermarkContent.LogoImage(it) }
+            is com.lightlylabs.lightly.session.AssetRef.Bundled -> if (image.id == WatermarkStage.SAMPLE_LOGO_ID) WatermarkContent.SampleLogo else null
+            else -> null
+        }
+    }
+
+    private fun commitWatermark(change: (com.lightlylabs.lightly.session.WatermarkTool) -> com.lightlylabs.lightly.session.WatermarkTool) {
+        val session = state.value.session ?: return
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(watermark = change(s.tools.watermark))) }, state.value.auto)
+    }
+
+    /** The reader rule: exactly the part matching the type is set. */
+    private fun withType(w: com.lightlylabs.lightly.session.WatermarkTool, type: com.lightlylabs.lightly.session.WatermarkType, signature: com.lightlylabs.lightly.session.SignatureRef? = null,
+                         text: com.lightlylabs.lightly.session.WatermarkText? = null, logo: com.lightlylabs.lightly.session.WatermarkLogo? = null) =
+        w.copy(type = type, signature = signature, text = text, logo = logo)
+
+    /** Prototype `wmType`: choosing a tab sets the type (one step). Signature needs a saved one; without it the tab only shows. */
+    fun chooseWatermark(type: com.lightlylabs.lightly.session.WatermarkType) {
+        state.update { it.copy(watermark = it.watermark.copy(shown = type)) }
+        val w = state.value.session?.current?.tools?.watermark ?: return
+        when (type) {
+            com.lightlylabs.lightly.session.WatermarkType.NONE -> commitWatermark { withType(it, type) }
+            com.lightlylabs.lightly.session.WatermarkType.SIGNATURE -> {
+                if (w.type == type) return
+                // v3 differs (as iOS, owner question W7): with no saved signature the recipe cannot hold a
+                // signature watermark; the tab shows Draw and Import until one is saved.
+                val saved = signatures.value.drawn ?: signatures.value.imported ?: return
+                commitWatermark { withType(it, type, signature = saved.reference) }
+            }
+            com.lightlylabs.lightly.session.WatermarkType.TEXT -> commitWatermark { withType(it, type, text = w.text ?: lastText) }
+            com.lightlylabs.lightly.session.WatermarkType.LOGO -> commitWatermark { withType(it, type, logo = w.logo ?: com.lightlylabs.lightly.session.WatermarkLogo(lastLogo)) }
+        }
+    }
+
+    fun chooseSignature(kind: com.lightlylabs.lightly.session.SignatureKind) {
+        val saved = signatures.value.of(kind) ?: return
+        commitWatermark { withType(it, com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, signature = saved.reference) }
+    }
+
+    fun openDrawSignature() = state.update { it.copy(overlay = EditorOverlay.SIGNATURE_DRAW, watermark = it.watermark.copy(pad = emptyList(), fromPreferences = false)) }
+
+    // --- Preferences › Saved signature (the same sheets and store; the recipe is not changed) ---
+
+    fun preferencesDrawSignature() = state.update { it.copy(overlay = EditorOverlay.SIGNATURE_DRAW, watermark = it.watermark.copy(pad = emptyList(), fromPreferences = true)) }
+
+    fun preferencesImportSignature() {
+        state.update { it.copy(watermark = it.watermark.copy(fromPreferences = true)) }
+        onChooseSignaturePhoto()
+    }
+
+    /** Delete saved signature: the one the page shows. An edit that used it then renders without it (never substituted). */
+    fun deleteShownSignature() { signatures.value.shown?.let { env.signatures.delete(it.kind) } }
+
+    /** The sheet is the Preferences page's (rendered over the More page, not by the editor). */
+    fun preferencesSheetOpen(ui: EditorUiState = state.value) = ui.watermark.fromPreferences && (ui.overlay == EditorOverlay.SIGNATURE_DRAW || ui.overlay == EditorOverlay.SIGNATURE_IMPORT)
+
+    fun closeSignatureSheet() = state.update { it.copy(overlay = null, watermark = it.watermark.copy(fromPreferences = false, imported = null)) }
+
+    fun padStroke(strokes: List<List<com.lightlylabs.lightly.signatures.DrawnSignature.Point>>) = state.update { it.copy(watermark = it.watermark.copy(pad = strokes)) }
+
+    fun clearPad() = padStroke(emptyList())
+
+    /** `saveSig`: the drawing becomes the saved drawn signature and the watermark uses it (one step); toast "Signature saved for reuse". */
+    fun saveDrawnSignature() {
+        val drawing = com.lightlylabs.lightly.signatures.DrawnSignature.fromPad(state.value.watermark.pad, WatermarkOptions.PEN_WIDTH) ?: return
+        val saved = env.signatures.saveDrawn(drawing)
+        val fromPreferences = state.value.watermark.fromPreferences
+        state.update { it.copy(overlay = null, watermark = it.watermark.copy(fromPreferences = false)) }
+        if (!fromPreferences) useSignature(saved)
+        showToast(SIGNATURE_SAVED)
+    }
+
+    /** A photo chosen for Import: the paper is removed off the main thread, then the sheet shows. */
+    fun importSignaturePhoto(assetId: String) {
+        scope.launch {
+            val extracted = kotlinx.coroutines.withContext(env.prefetchDispatcher) {
+                runCatching { env.photoLoader.load(assetId).display }.getOrNull()?.let(com.lightlylabs.lightly.signatures.SignatureInkExtractor::extract)
+                    ?.let(com.lightlylabs.lightly.signatures.SignatureImages::png)
+            }
+            state.update { it.copy(overlay = EditorOverlay.SIGNATURE_IMPORT, watermark = it.watermark.copy(imported = extracted)) }
+        }
+    }
+
+    /** `saveSigImported` (Use): the extracted signature becomes the saved imported one, and is used. */
+    fun useImportedSignature() {
+        val png = state.value.watermark.imported ?: return
+        val saved = env.signatures.saveImported(png)
+        val fromPreferences = state.value.watermark.fromPreferences
+        state.update { it.copy(overlay = null, watermark = it.watermark.copy(imported = null, fromPreferences = false)) }
+        if (!fromPreferences) useSignature(saved)
+    }
+
+    private fun useSignature(saved: com.lightlylabs.lightly.signatures.SavedSignature) {
+        val toBorder = state.value.watermark.placesNextOnBorder && state.value.session?.current?.tools?.border?.type != com.lightlylabs.lightly.session.BorderType.NONE
+        state.update { it.copy(watermark = it.watermark.copy(shown = com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, placesNextOnBorder = false)) }
+        commitWatermark { w ->
+            val signed = withType(w, com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, signature = saved.reference)
+            if (toBorder) signed.copy(placement = com.lightlylabs.lightly.session.WatermarkPlacement.BORDER) else signed
+        }
+    }
+
+    /** Replace logo: the chosen image (its own colours) becomes the logo, stored by digest. */
+    fun replaceLogo(assetId: String) {
+        scope.launch {
+            val png = kotlinx.coroutines.withContext(env.prefetchDispatcher) {
+                runCatching { env.photoLoader.load(assetId).display }.getOrNull()?.let(com.lightlylabs.lightly.signatures.SignatureImages::logoPng)
+            } ?: return@launch
+            val digest = env.signatures.saveLogo(png)
+            lastLogo = com.lightlylabs.lightly.session.AssetRef.File(digest)
+            commitWatermark { withType(it, com.lightlylabs.lightly.session.WatermarkType.LOGO, logo = com.lightlylabs.lightly.session.WatermarkLogo(lastLogo)) }
+        }
+    }
+
+    fun setWatermarkText(value: String) {
+        val trimmed = value.take(80)
+        val text = state.value.session?.current?.tools?.watermark?.text ?: return
+        if (trimmed.isBlank() || trimmed == text.text) return
+        lastText = text.copy(text = trimmed)
+        commitWatermark { it.copy(text = lastText) }
+    }
+
+    fun chooseFont(font: com.lightlylabs.lightly.session.WatermarkFont) {
+        val text = state.value.session?.current?.tools?.watermark?.text ?: return
+        lastText = text.copy(font = font)
+        commitWatermark { it.copy(text = lastText) }
+    }
+
+    fun setWatermarkPlacement(placement: com.lightlylabs.lightly.session.WatermarkPlacement) = commitWatermark { it.copy(placement = placement) }
+
+    /** The Position row cycles the nine anchors (`set:wm.pos=(pos+1)%9`); a dragged offset gives way to the anchor. */
+    fun cycleWatermarkPosition() = commitWatermark { it.copy(position = (it.position + 1) % 9, offset = null) }
+
+    fun setWatermarkColour(hex: String) = commitWatermark { it.copy(colour = hex) }
+
+    private fun withWatermarkSlider(w: com.lightlylabs.lightly.session.WatermarkTool, field: String, value: Double) = when (field) {
+        "size" -> w.copy(size = value.coerceIn(10.0, 80.0))
+        "opacity" -> w.copy(opacity = value.coerceIn(0.0, 100.0))
+        else -> w
+    }
+
+    fun onWatermarkSlider(field: String, value: Double) {
+        val session = state.value.session ?: return
+        state.update { it.copy(watermark = it.watermark.copy(sliderDrag = field to value)) }
+        requestPreview(session.current.copy(tools = session.current.tools.copy(watermark = withWatermarkSlider(session.current.tools.watermark, field, value))), globalOnly = false)
+    }
+
+    fun onWatermarkSliderRelease(field: String, value: Double) {
+        state.update { it.copy(watermark = it.watermark.copy(sliderDrag = null)) }
+        commitWatermark { withWatermarkSlider(it, field, value) }
+    }
+
+    /** Dragging the watermark on the photo: its anchor follows the finger (photo fractions); preview, one step at the end. */
+    fun dragWatermark(start: Pair<Double, Double>, dx: Double, dy: Double, release: Boolean) {
+        val session = state.value.session ?: return
+        val point = com.lightlylabs.lightly.session.NormalisedPoint((start.first + dx).coerceIn(0.0, 1.0), (start.second + dy).coerceIn(0.0, 1.0))
+        if (release) commitWatermark { it.copy(offset = point) }
+        else requestPreview(session.current.copy(tools = session.current.tools.copy(watermark = session.current.tools.watermark.copy(offset = point))), globalOnly = false)
+    }
 
     // --- Effects (slice 4) ------------------------------------------------------------------------
 
@@ -983,7 +1194,7 @@ class EditorViewModel(
     private fun editExportPlan(committed: EditState, plan: com.lightlylabs.lightly.develop.DevelopRenderPlan, backgroundPlan: com.lightlylabs.lightly.background.BackgroundPlan?): ExportRenderPlan {
         val library = library ?: error("no library")
         val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
-        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM)
+        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library))
         val patches = EditMapping.patchDigests(committed).mapNotNull { removePatches[it] }
         val background = backgroundPlan?.let { bp ->
             { frame: Rgba8Image ->
@@ -1089,7 +1300,7 @@ class EditorViewModel(
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
                     val compose = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first } }
-                    EditPipeline(library.model, env.previewRenderer).renderPreview(patched(display, edit), edit, plan, compose)
+                    EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit, library)).renderPreview(patched(display, edit), edit, plan, compose)
                 } else {
                     // With Background active the drag preview keeps the full proxy: the stage works at the analysis size.
                     val source = if (request.payload.globalOnly && backgroundPlan == null) dragProxy else display
@@ -1148,6 +1359,13 @@ class EditorViewModel(
 
     /** Debug captures only: separation never finishes, so "Finding the subject…" can be captured. */
     internal var debugHoldSeparation: Boolean = false
+
+    /**
+     * Debug captures only: the prototype's sample signatures (its drawn `SIG_DRAWN` and the imported version
+     * of it) as the saved ones, in memory, as the approved Watermark and Saved signature screens show.
+     */
+    internal fun debugSeedSignatures() = env.signatures.debugReplace(com.lightlylabs.lightly.signatures.DrawnSignature.PROTOTYPE_SAMPLE,
+        com.lightlylabs.lightly.signatures.SignatureImages.prototypeImportedSample())
 
     /** Debug captures only: Remove stays "Removing…", so the approved state can be captured. */
     internal var debugHoldRemove: Boolean = false
@@ -1233,6 +1451,11 @@ class EditorViewModel(
         fun effects(change: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool) = commitEffects(change)
 
         fun border(change: (com.lightlylabs.lightly.session.BorderTool) -> com.lightlylabs.lightly.session.BorderTool) = commitBorder(change)
+
+        fun watermark(change: (com.lightlylabs.lightly.session.WatermarkTool) -> com.lightlylabs.lightly.session.WatermarkTool) = commitWatermark(change)
+
+        /** The saved drawn signature's reference (seeded by [seedSignatures]). */
+        fun drawnSignature(): com.lightlylabs.lightly.session.SignatureRef? = signatures.value.drawn?.reference
 
         fun cropAspect(aspect: com.lightlylabs.lightly.session.CropAspect) = setCropAspect(aspect)
 
@@ -1326,6 +1549,9 @@ class EditorViewModel(
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
         const val SAVE_CANCELLED = "Save cancelled · nothing was written"
+
+        /** Prototype `saveSig` toast. */
+        const val SIGNATURE_SAVED = "Signature saved for reuse"
 
         /** The uncropped rect, and the smallest crop side (fraction of the frame) a gesture can leave. */
         private val FULL_RECT = com.lightlylabs.lightly.session.NormalisedRect(0.0, 0.0, 1.0, 1.0)

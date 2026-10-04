@@ -38,6 +38,36 @@ enum class EffectsSub(val label: String) { LEAK("Light Leaks"), GRAIN("Grain"), 
  */
 data class BorderUi(val shown: com.lightlylabs.lightly.session.BorderType? = null, val sliderDrag: Pair<String, Double>? = null)
 
+/** Watermark tool UI (prototype `ui.sub || s.wm.type`) and its sheets' state. Never in history. */
+data class WatermarkUi(
+    /** The tab shown; null follows the recipe. Signature can be shown while no signature is saved. */
+    val shown: com.lightlylabs.lightly.session.WatermarkType? = null,
+    val sliderDrag: Pair<String, Double>? = null,
+    /** The Draw signature pad's strokes (pad dp coordinates). */
+    val pad: List<List<com.lightlylabs.lightly.signatures.DrawnSignature.Point>> = emptyList(),
+    /** The Import signature sheet's extracted signature (PNG); null when no ink was found. */
+    val imported: ByteArray? = null,
+    /** "Signature on the margin" with no saved signature: the drawing saved next goes on the margin. */
+    val placesNextOnBorder: Boolean = false,
+    /** The open Draw or Import sheet came from Preferences › Saved signature: saving stores it, the recipe is unchanged. */
+    val fromPreferences: Boolean = false,
+)
+
+object WatermarkOptions {
+    val TABS = listOf(com.lightlylabs.lightly.session.WatermarkType.NONE to "None", com.lightlylabs.lightly.session.WatermarkType.SIGNATURE to "Signature",
+        com.lightlylabs.lightly.session.WatermarkType.TEXT to "Text", com.lightlylabs.lightly.session.WatermarkType.LOGO to "Logo")
+    val COLOURS = listOf("#FFFFFF", "#111111", "#C9A27E", "#8A8A8F")
+    val POSITIONS = listOf("Top left", "Top", "Top right", "Left", "Centre", "Right", "Bottom left", "Bottom", "Bottom right")
+    val FONTS = listOf(com.lightlylabs.lightly.session.WatermarkFont.ALLURA to "Allura", com.lightlylabs.lightly.session.WatermarkFont.CORMORANT_GARAMOND to "Cormorant Garamond",
+        com.lightlylabs.lightly.session.WatermarkFont.INTER to "Inter", com.lightlylabs.lightly.session.WatermarkFont.CAVEAT to "Caveat")
+
+    /** The prototype's sample text (`newSession`: `text:'A. Rivera'`; owner question W5, as iOS). */
+    const val DEFAULT_TEXT = "A. Rivera"
+
+    /** The pad's pen: the prototype draws its sample 70 px tall, so the pen is 70 × 2.4/50. */
+    const val PEN_WIDTH = 70 * com.lightlylabs.lightly.signatures.DrawnSignature.STROKE_WIDTH_PER_HEIGHT
+}
+
 data class EffectsUi(val sub: EffectsSub = EffectsSub.LEAK, val sliderDrag: Pair<String, Double>? = null)
 
 object EditOptions {

@@ -441,6 +441,7 @@ private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPane
         EditorTool.EDIT -> EditPanel(vm, ui, roomy)
         EditorTool.EFFECTS -> EffectsPanel(vm, ui, roomy)
         EditorTool.BORDER -> BorderPanel(vm, ui, roomy)
+        EditorTool.WATERMARK -> WatermarkPanel(vm, ui, roomy)
         else -> ToolStub(ui.tool, roomy)
     }
 }
@@ -459,6 +460,7 @@ private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
         EditorTool.EDIT -> recipe != null && ToolUsed.edit(recipe, pendingStroke = ui.edit.pendingStroke != null)
         EditorTool.EFFECTS -> recipe != null && ToolUsed.effects(recipe)
         EditorTool.BORDER -> recipe?.tools?.border?.type?.let { it != com.lightlylabs.lightly.session.BorderType.NONE } == true
+        EditorTool.WATERMARK -> recipe?.tools?.watermark?.type?.let { it != com.lightlylabs.lightly.session.WatermarkType.NONE } == true
         else -> false
     }
     val items: @Composable () -> Unit = {

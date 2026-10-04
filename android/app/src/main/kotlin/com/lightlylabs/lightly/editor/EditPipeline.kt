@@ -55,18 +55,19 @@ object EditMapping {
         state.tools.edit.remove.strokes.filter { it.result.status == RemoveStatus.APPLIED }.mapNotNull { it.result.patch?.sha256 }
 
     /**
-     * True when a slice-4 or slice-5 stage changes pixels (Edit, Effects, Border). Otherwise the slice-2/3
+     * True when a slice-4 or slice-5 stage changes pixels (Edit, Effects, Border, Watermark). Otherwise the slice-2/3
      * path runs unchanged (the preset's finishing inside the Develop pass), so their renders and captures
      * stay valid.
      */
     fun usesEditOrEffects(state: EditState): Boolean =
-        !geometry(state).isIdentity || !adjust(state).isNeutral || patchDigests(state).isNotEmpty() || effects(state).anyEnabled || !border(state).isNone
+        !geometry(state).isIdentity || !adjust(state).isNeutral || patchDigests(state).isNotEmpty() || effects(state).anyEnabled || !border(state).isNone ||
+            state.tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE
 }
 
 /**
  * Every stage of a recipe that uses Edit or Effects, in this order:
  * Remove patches → Auto (1) → Look (2, 3) → Adjust (5) → Background (7, 8) → geometry (4) → Effects with
- * the preset's finishing (10) → Border (11, frame → canvas).
+ * the preset's finishing (10) → Border (11, frame → canvas) → Watermark (12, canvas).
  */
 // CONTRACT GAP (reported, as iOS C1/C2): rendering-v2 §1 orders geometry (4) before Adjust (5), Remove
 // (6) and Background (7–8). This port, like iOS:
@@ -76,11 +77,20 @@ object EditMapping {
 // - runs Adjust and Background in source coordinates, then geometry: the subject matte and depth are
 //   in source coordinates. Colour is per pixel, so only resolution-relative radii differ: Detail's and
 //   Focus & Blur's radii follow the uncropped long edge instead of the cropped frame's.
+/**
+ * Stage 12: the watermark for a canvas of this size with the photo at [imageRect] (canvas pixels), or null
+ * when there is none (or its saved signature is missing or changed: never substituted).
+ */
+fun interface WatermarkPainter {
+    fun layer(canvasWidth: Int, canvasHeight: Int, imageRect: PixelRect): WatermarkLayer?
+}
+
 class EditPipeline(
     private val model: DevelopModel,
     private val renderer: DevelopRenderer,
     private val executor: ExecutorService? = null,
     private val parallelism: Int = 1,
+    private val watermark: WatermarkPainter? = null,
 ) {
     /**
      * The whole frame from a preview-size [source] (patches already composited). [developPlan] is the
@@ -94,7 +104,11 @@ class EditPipeline(
         background?.let { image = it(image) }
         image = GeometryTransform(EditMapping.geometry(state), image.width, image.height).render(image)
         image = EffectsStage(EditMapping.effects(state), developPlan.finishing, model, image.width, image.height).apply(image)
-        return BorderStage.apply(EditMapping.border(state), image)
+        val border = EditMapping.border(state)
+        val placement = BorderStage.placement(border, image.width, image.height)
+        val canvas = BorderStage.apply(border, image)
+        // Stage 12, on the canvas after the border.
+        return watermark?.layer(canvas.width, canvas.height, PixelRect(placement.side, placement.top, image.width, image.height))?.compositeOnto(canvas) ?: canvas
     }
 
     /**
@@ -134,9 +148,13 @@ class EditPipeline(
             // Stage 11 makes the canvas: the frame plus the border.
             override fun outputSize(source: Rgba8Image) = placement.canvasWidth to placement.canvasHeight
 
+            // Stage 12: rendered once for the whole canvas (it is only the watermark's box), composited per tile.
+            private val layer = watermark?.layer(placement.canvasWidth, placement.canvasHeight, PixelRect(placement.side, placement.top, placement.frameWidth, placement.frameHeight))
+
             override fun renderTile(frame: Rgba8Image, tile: Tile): Rgba8Image {
                 val out = PixelRect(tile.x, tile.y, tile.width, tile.height)
-                return if (border.isNone) frameTile(frame, out) else BorderStage.renderTile(border, placement, out) { region -> frameTile(frame, region) }
+                val canvas = if (border.isNone) frameTile(frame, out) else BorderStage.renderTile(border, placement, out) { region -> frameTile(frame, region) }
+                return layer?.compositeOnto(canvas, out.x, out.y) ?: canvas
             }
         }
     }

@@ -26,6 +26,8 @@ class DevelopLibrary(
     private val capacity: Int = 32,
     /** Called with each bake's wall-clock milliseconds (logged by the app for the performance record). */
     private val onBake: (Double) -> Unit = {},
+    /** rendering-v2 `stages[watermark]` size constants (revision 2), read from the bundled contract. */
+    val watermarkSizes: WatermarkSizes = WatermarkSizes.REVISION_2,
 ) {
     private val cache = object : LinkedHashMap<String, Lut3D>(capacity, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Lut3D>?) = size > capacity
@@ -89,7 +91,8 @@ class DevelopLibrary(
             val start = System.nanoTime()
             val pack = LookPack.parse(manifest, model)
             parseMillis((System.nanoTime() - start) / 1e6)
-            return DevelopLibrary(model, pack, bakePool, parallelism, onBake = onBake)
+            val watermarkSizes = requireNotNull(WatermarkSizes.fromContract(contract)) { "rendering-v2 has no watermark size constants" }
+            return DevelopLibrary(model, pack, bakePool, parallelism, onBake = onBake, watermarkSizes = watermarkSizes)
         }
     }
 }

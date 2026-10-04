@@ -78,6 +78,8 @@ object DebugLaunchOptions {
      */
     fun apply(request: Request, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel): kotlinx.coroutines.Job? {
         if (!BuildConfig.DEBUG) return null
+        // Watermark and Saved signature screens show the prototype's sample signature as saved.
+        if (request.screen == "signature" || request.editor?.startsWith("wm-") == true || request.editor == "bd-polaroid") editor.debugSeedSignatures()
         val editorJob = applyEditor(request, shell, editor)
         request.favourites?.let { ids ->
             preferences.update { it.copy(favouritePresetIds = ids.split(",").filter(String::isNotBlank).take(5)) }
@@ -158,6 +160,7 @@ object DebugLaunchOptions {
             }
             applySlice4(api, screen)
             applyBorder(api, screen)
+            applyWatermark(api, screen)
             // ed-remove rebases once the real removal has finished (see applySlice4).
             if (screen == "ed-remove" || screen == "s4-export") return@applyDebugState
             // History starts at the configured recipe (Undo disabled, as on the prototype's screens);
@@ -261,11 +264,47 @@ object DebugLaunchOptions {
             when (screen) {
                 "bd-solid" -> it.copy(type = type, width = 5.0)
                 "bd-frame" -> it.copy(type = type, colour = "#111111", width = 3.0, spacing = 5.0)
-                // Prototype `bd-polaroid` also puts the saved signature on the margin (Watermark, slice 5).
                 "bd-polaroid" -> it.copy(type = type)
                 else -> it
             }
         }
+        // Prototype `bd-polaroid`: the saved signature on the margin.
+        if (screen == "bd-polaroid") api.drawnSignature()?.let { ref ->
+            api.watermark { it.copy(type = com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, signature = ref, placement = com.lightlylabs.lightly.session.WatermarkPlacement.BORDER) }
+        }
         api.openTool(com.lightlylabs.lightly.editor.EditorTool.BORDER) { it.copy(border = it.border.copy(shown = type)) }
+    }
+
+    /** docs/ui/app/screens.js, the `wm-*` setups (Watermark, slice 5). */
+    private fun applyWatermark(api: EditorViewModel.DebugEditorApi, screen: String) {
+        if (!screen.startsWith("wm-")) return
+        val signature = api.drawnSignature()
+        fun text(font: com.lightlylabs.lightly.session.WatermarkFont) = { w: com.lightlylabs.lightly.session.WatermarkTool ->
+            w.copy(type = com.lightlylabs.lightly.session.WatermarkType.TEXT, signature = null, logo = null, text = com.lightlylabs.lightly.session.WatermarkText(com.lightlylabs.lightly.editor.WatermarkOptions.DEFAULT_TEXT, font))
+        }
+        val shown = when (screen) {
+            "wm-signature", "wm-sig-draw", "wm-sig-import" -> {
+                signature?.let { ref -> api.watermark { it.copy(type = com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, signature = ref) } }
+                com.lightlylabs.lightly.session.WatermarkType.SIGNATURE
+            }
+            "wm-text" -> { api.watermark(text(com.lightlylabs.lightly.session.WatermarkFont.CORMORANT_GARAMOND)); com.lightlylabs.lightly.session.WatermarkType.TEXT }
+            "wm-logo" -> {
+                api.watermark { it.copy(type = com.lightlylabs.lightly.session.WatermarkType.LOGO, logo = com.lightlylabs.lightly.session.WatermarkLogo(com.lightlylabs.lightly.session.AssetRef.Bundled(com.lightlylabs.lightly.editor.WatermarkStage.SAMPLE_LOGO_ID)), position = 2) }
+                com.lightlylabs.lightly.session.WatermarkType.LOGO
+            }
+            "wm-on-border" -> {
+                api.border { it.copy(type = com.lightlylabs.lightly.session.BorderType.SOLID, width = 8.0) }
+                api.watermark { text(com.lightlylabs.lightly.session.WatermarkFont.CAVEAT)(it).copy(placement = com.lightlylabs.lightly.session.WatermarkPlacement.BORDER) }
+                com.lightlylabs.lightly.session.WatermarkType.TEXT
+            }
+            else -> com.lightlylabs.lightly.session.WatermarkType.NONE
+        }
+        api.openTool(com.lightlylabs.lightly.editor.EditorTool.WATERMARK) { it.copy(watermark = it.watermark.copy(shown = shown)) }
+        when (screen) {
+            // The prototype's sample in the pad (`sigSvg(70)` at left 24, bottom 34).
+            "wm-sig-draw" -> api.setUi { it.copy(overlay = com.lightlylabs.lightly.editor.EditorOverlay.SIGNATURE_DRAW, watermark = it.watermark.copy(pad = com.lightlylabs.lightly.editor.prototypePadStrokes())) }
+            // The import sheet with the prototype's imported signature as the extracted one.
+            "wm-sig-import" -> api.setUi { it.copy(overlay = com.lightlylabs.lightly.editor.EditorOverlay.SIGNATURE_IMPORT, watermark = it.watermark.copy(imported = com.lightlylabs.lightly.signatures.SignatureImages.prototypeImportedSample())) }
+        }
     }
 }

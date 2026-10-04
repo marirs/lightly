@@ -57,7 +57,7 @@ HIKING=look-617ee7c8edcb1bad9c35
 FILES=/data/user/0/$PKG/files
 photo_for() { case $1 in bg-no-subject) echo landscape_02;; bg-*) echo portrait_medium_02;; dev-long-name) echo landscape_03;;
   # Slice 4 (screens.js): field = landscape_03, street = wellexposed_03, sunset = sunset_02, lake = landscape_02.
-  ed-rotate|ed-straighten|ed-remove|ed-removing|ed-remove-failed|s4-export) echo landscape_03;; ed-perspective) echo wellexposed_03;; fx-leak|fx-combined|bd-frame) echo sunset_02;; bd-polaroid) echo portrait_deep_03;; dev-favourites|dev-bw|dev-portrait-photo) echo portrait_deep_03;; dev-landscape-photo) echo sunset_02;; *) echo landscape_02;; esac; }
+  ed-rotate|ed-straighten|ed-remove|ed-removing|ed-remove-failed|s4-export) echo landscape_03;; ed-perspective) echo wellexposed_03;; fx-leak|fx-combined|bd-frame|wm-none|wm-signature|wm-sig-draw|wm-sig-import|wm-text) echo sunset_02;; bd-polaroid) echo portrait_deep_03;; dev-favourites|dev-bw|dev-portrait-photo) echo portrait_deep_03;; dev-landscape-photo) echo sunset_02;; *) echo landscape_02;; esac; }
 people_for() { case $(photo_for $1) in portrait_deep_03|portrait_medium_02) echo present;; *) echo absent;; esac; }
 # Slice-1 screens (no photo): file id → debug navigation route (DebugLaunchOptions screen names).
 SLICE1_SCREENS="welcome welcome-more camera-denied load-failed preferences pref-favourites pref-signature pref-border legal privacy terms about support"

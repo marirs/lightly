@@ -175,7 +175,7 @@ fun Note(text: String, modifier: Modifier = Modifier) {
 }
 
 /** Bottom hairline of a `.listrow`. */
-private fun Modifier.hairlineBelow(color: Color) = drawBehind {
+internal fun Modifier.hairlineBelow(color: Color) = drawBehind {
     drawLine(color, Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), strokeWidth = 1.dp.toPx())
 }
 

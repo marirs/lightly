@@ -121,6 +121,7 @@ class MainActivity : ComponentActivity() {
             val nav by shell.nav.collectAsStateWithLifecycle()
             val currentFolds by folds.collectAsStateWithLifecycle(initialValue = emptyList())
             val editorUi by editor.uiState.collectAsStateWithLifecycle()
+            val savedSignatures by editor.signatures.collectAsStateWithLifecycle()
 
             val dark = isDarkAppearance(preferences.appearance)
             LaunchedEffect(dark) { applySystemBars(dark) }
@@ -163,8 +164,17 @@ class MainActivity : ComponentActivity() {
             val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
                 if (uri != null) editor.useBackgroundPhoto(uri.toString())
             }
+            // Watermark › Signature › Import and Logo › Replace logo (cancel changes nothing).
+            val signaturePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                if (uri != null) editor.importSignaturePhoto(uri.toString())
+            }
+            val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                if (uri != null) editor.replaceLogo(uri.toString())
+            }
             androidx.compose.runtime.SideEffect {
                 editor.onChooseBackgroundPhoto = { backgroundPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                editor.onChooseSignaturePhoto = { signaturePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                editor.onChooseLogo = { logoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
             }
 
             LightlyTheme(dark) {
@@ -179,7 +189,7 @@ class MainActivity : ComponentActivity() {
                     LightlyAppContent(
                         state = nav,
                         layout = layout,
-                        content = MoreContent(preferences, catalogue, graph.releaseText, versionLabel(), nav.privacyFromWelcome),
+                        content = MoreContent(preferences, catalogue, graph.releaseText, versionLabel(), nav.privacyFromWelcome, savedSignatures.shown),
                         actions = ShellActions(
                             choosePhoto = choosePhoto,
                             camera = {
@@ -197,6 +207,9 @@ class MainActivity : ComponentActivity() {
                                 close = { shell.navigate(AppNavigator.closeMore(nav)) },
                                 updatePreferences = { change -> updatePreferences(graph.preferences, change) },
                                 openSupport = ::openSupportDestination,
+                                drawSignature = editor::preferencesDrawSignature,
+                                importSignature = editor::preferencesImportSignature,
+                                deleteSignature = editor::deleteShownSignature,
                             ),
                         ),
                         editor = {
@@ -210,6 +223,8 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                     )
+                    // Preferences › Saved signature › Draw / Import: over the More page and whatever is under it.
+                    com.lightlylabs.lightly.editor.PreferencesSignatureSheet(editor)
                 }
             }
           }

@@ -44,6 +44,10 @@ fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
             else -> Unit
         }
         EditorTool.EFFECTS -> if (ui.effects.sub == EffectsSub.LEAK) LeakDrag(vm)
+        EditorTool.WATERMARK -> ui.session?.current?.tools?.let { tools ->
+            // "Or drag the watermark on the photo": on the photo only (a watermark on the border is centred).
+            if (tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE && !WatermarkStage.isOnBorder(tools.watermark, tools.border.type)) WatermarkDrag(vm, WatermarkStage.anchor(tools.watermark))
+        }
         else -> Unit
     }
 }
@@ -167,6 +171,29 @@ private suspend fun PointerInputScope.brushGestures(vm: EditorViewModel) = await
         change.consume()
     }
     vm.removeStroke(points.map { (it.x / size.width).toDouble().coerceIn(0.0, 1.0) to (it.y / size.height).toDouble().coerceIn(0.0, 1.0) })
+}
+
+/** The watermark's anchor follows the finger from where it was (photo fractions); one step on release. */
+@Composable
+private fun WatermarkDrag(vm: EditorViewModel, start: Pair<Double, Double>) {
+    Box(
+        Modifier.fillMaxSize().pointerInput(start) {
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                var last = down.position
+                var moved = false
+                while (true) {
+                    val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                    if (!change.pressed) break
+                    last = change.position
+                    moved = true
+                    vm.dragWatermark(start, ((last.x - down.position.x) / size.width).toDouble(), ((last.y - down.position.y) / size.height).toDouble(), release = false)
+                    change.consume()
+                }
+                if (moved) vm.dragWatermark(start, ((last.x - down.position.x) / size.width).toDouble(), ((last.y - down.position.y) / size.height).toDouble(), release = true)
+            }
+        }.semantics { contentDescription = "Drag the watermark on the photo" },
+    )
 }
 
 @Composable

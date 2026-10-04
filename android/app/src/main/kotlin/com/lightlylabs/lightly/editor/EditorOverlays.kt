@@ -57,6 +57,8 @@ private enum class Pane { WHOLE, RIGHT, LOWER }
 @Composable
 fun EditorOverlays(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, favourites: List<String>, actions: EditorActions) {
     val overlay = ui.overlay ?: return
+    // Preferences › Saved signature's sheets are drawn over the More page by the shell (PreferencesSignatureSheet).
+    if (vm.preferencesSheetOpen(ui)) return
     val pane = when (frame.layout.mode) { EditorMode.SPLIT_V -> Pane.RIGHT; EditorMode.SPLIT_H -> Pane.LOWER; else -> Pane.WHOLE }
     val big = frame.layout.widthDp > 700f && pane == Pane.WHOLE
     BackHandler { if (overlay == EditorOverlay.SAVING) vm.cancelSave() else vm.dismiss() }
@@ -95,6 +97,12 @@ fun EditorOverlays(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelMo
             pane, frame, "Couldn’t save the copy", "Something went wrong while saving. Your edits are kept and the original is unchanged.",
             listOf("Try again" to { vm.dismiss(); vm.saveCopy() }, "Keep editing" to vm::dismiss),
         )
+        EditorOverlay.SIGNATURE_DRAW -> Sheet(pane, big, frame) {
+            DrawSignatureSheet(ui.watermark.pad, vm::padStroke, onCancel = vm::dismiss, onSave = vm::saveDrawnSignature, onClear = vm::clearPad)
+        }
+        EditorOverlay.SIGNATURE_IMPORT -> Sheet(pane, big, frame) {
+            ImportSignatureSheet(ui.watermark.imported, onCancel = vm::dismiss, onUse = vm::useImportedSignature)
+        }
         EditorOverlay.STORAGE_FULL -> Dialog(
             pane, frame, "Not enough storage", "Free up some space and try again. Your edits are kept.",
             listOf("Try again" to { vm.dismiss(); vm.saveCopy() }, "OK" to vm::dismiss),

@@ -102,6 +102,10 @@ class EditorEnvironment(
     val removePatchDirectory: java.io.File? = null,
     /** Preferences › Preferred border: which Border tab opens first when the photo has none (never applied). */
     val preferredBorder: () -> com.lightlylabs.lightly.prefs.PreferredBorder = { com.lightlylabs.lightly.prefs.PreferredBorder.NONE },
+    /** The saved signatures and chosen logos (Watermark, Preferences › Saved signature). */
+    val signatures: com.lightlylabs.lightly.signatures.SignatureStore = com.lightlylabs.lightly.signatures.SignatureStore(null),
+    /** The bundled watermark fonts (assets/fonts); null assets = the default typeface (JVM tests). */
+    val watermarkFonts: WatermarkFonts = WatermarkFonts(null),
     /** Called after each preview render with its milliseconds and whether it was the drag (global-only) render. */
     val onPreviewRendered: (millis: Double, globalOnly: Boolean) -> Unit = { _, _ -> },
 )

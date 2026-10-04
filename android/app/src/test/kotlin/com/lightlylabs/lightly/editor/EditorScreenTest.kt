@@ -145,8 +145,8 @@ class EditorScreenTest {
     fun `an unimplemented tool opens a marked development stub in debug builds`() {
         val vm = editor()
         show(vm)
-        // Watermark is slice 5; Edit and Effects are implemented (slice 4).
-        compose.onNodeWithTag(EditorTags.tool(EditorTool.WATERMARK)).performClick()
+        // Portrait is blocked on D3 (a debug-only development stub); every other tool is implemented.
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.PORTRAIT)).performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Development stub (debug build only).", substring = true).assertIsDisplayed()
     }

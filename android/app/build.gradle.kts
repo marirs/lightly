@@ -371,6 +371,39 @@ abstract class VerifyManifestPrivacyTask : DefaultTask() {
     }
 }
 
+/**
+ * The four approved watermark fonts and their OFL licences (shared/fonts; the OFL requires the licence to
+ * ship with the fonts), copied into assets/fonts at build time after checking shared/fonts/SHA256SUMS.
+ * No private copies live under android/.
+ */
+abstract class BundleWatermarkFontsTask : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val fontsDirectory: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    fun bundle() {
+        val source = fontsDirectory.get().asFile
+        val sums = source.resolve("SHA256SUMS").readLines().filter { it.isNotBlank() }.associate { line ->
+            val (digest, name) = line.trim().split(Regex("\\s+"), limit = 2)
+            name.removePrefix("*") to digest
+        }
+        val root = assetsDirectory.get().asFile
+        root.deleteRecursively()
+        source.listFiles { f -> f.name.endsWith(".ttf") || f.name.endsWith("-OFL.txt") }!!.forEach { file ->
+            if (file.name.endsWith(".ttf")) {
+                val expected = sums[file.name] ?: throw GradleException("${file.name} is not in shared/fonts/SHA256SUMS")
+                val actual = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+                if (actual != expected) throw GradleException("${file.name} has SHA-256 $actual, expected $expected")
+            }
+            file.copyTo(root.resolve("fonts/${file.name}"))
+        }
+    }
+}
+
 val backgroundPhotoNames = listOf("landscape_01", "sunset_03", "wellexposed_02", "backlit_02")
 
 // --- Launcher icon packaging check ----------------------------------------------------------------
@@ -479,6 +512,11 @@ androidComponents {
             contractFile.set(renderingContractFile)
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleLookPack, BundleLookPackTask::assetsDirectory)
+
+        val bundleFonts = tasks.register<BundleWatermarkFontsTask>("bundle${variantName}WatermarkFonts") {
+            fontsDirectory.set(rootDir.parentFile.resolve("shared/fonts"))
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleFonts, BundleWatermarkFontsTask::assetsDirectory)
 
         val bundleCatalogue = tasks.register<BundlePresetCatalogueTask>("bundle${variantName}PresetCatalogue") {
             catalogueFile.set(presetCatalogueFile)

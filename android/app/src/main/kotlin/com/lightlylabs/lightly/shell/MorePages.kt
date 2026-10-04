@@ -78,6 +78,10 @@ class MoreActions(
     val close: () -> Unit,
     val updatePreferences: ((UserPreferences) -> UserPreferences) -> Unit,
     val openSupport: (String) -> Unit,
+    /** Preferences › Saved signature (Watermark, slice 5). */
+    val drawSignature: () -> Unit = {},
+    val importSignature: () -> Unit = {},
+    val deleteSignature: () -> Unit = {},
 )
 
 /** Data the pages show. [versionLabel] is "<versionName> (<versionCode>)" from BuildConfig. */
@@ -88,6 +92,8 @@ class MoreContent(
     val versionLabel: String,
     /** True when Privacy Policy was opened from Welcome: its Back returns to Welcome. */
     val privacyFromWelcome: Boolean,
+    /** The saved signature Preferences › Saved signature shows (the one saved last), or null. */
+    val signature: com.lightlylabs.lightly.signatures.SavedSignature? = null,
 )
 
 /**
@@ -111,7 +117,7 @@ fun MorePageView(page: MorePage, content: MoreContent, actions: MoreActions, mod
                 }
                 MorePage.PREFERENCES -> PreferencesBody(content.preferences, actions)
                 MorePage.FAVOURITES -> FavouritesBody(content.preferences, content.catalogue, actions)
-                MorePage.SIGNATURE -> SignatureBody()
+                MorePage.SIGNATURE -> SignatureBody(content.signature, actions)
                 MorePage.PREFERRED_BORDER -> PreferredBorderBody(content.preferences, actions)
                 MorePage.LEGAL -> {
                     ListRow(MorePage.PRIVACY.title, onClick = { actions.openPage(MorePage.PRIVACY) }, tag = "row-privacy")
@@ -245,15 +251,21 @@ private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalo
 }
 
 /**
- * Saved signature: the page structure only. Drawing, importing and deleting arrive with Watermark.
- * DEFERRED(slice 5): signature storage, the preview of the saved signature, Draw (sigDraw) and
- * Import (sigImport) sheets, and Delete (shown only once a signature exists). Until then the two
- * rows are present but disabled rather than leading to a mock.
+ * Saved signature (prototype `signature` page): the saved signature 54 dp tall in ink, centred in a padded
+ * band with a hairline below; Draw a new signature; Import from a photo; Delete saved signature (danger);
+ * the note. With nothing saved there is no signature to show or delete.
  */
 @Composable
-private fun SignatureBody() {
-    ListRow(MoreCopy.DRAW_SIGNATURE, enabled = false, tag = "row-draw-signature")
-    ListRow(MoreCopy.IMPORT_SIGNATURE, enabled = false, tag = "row-import-signature")
+private fun SignatureBody(signature: com.lightlylabs.lightly.signatures.SavedSignature?, actions: MoreActions) {
+    val colors = lightlyColors
+    if (signature != null) {
+        Box(Modifier.fillMaxWidth().hairlineBelow(colors.hair).padding(horizontal = 18.dp, vertical = 24.dp).testTagResource("saved-signature"), contentAlignment = Alignment.Center) {
+            com.lightlylabs.lightly.editor.SavedSignatureGlyph(signature, 54.dp, colors.ink)
+        }
+    }
+    ListRow(MoreCopy.DRAW_SIGNATURE, onClick = actions.drawSignature, tag = "row-draw-signature")
+    ListRow(MoreCopy.IMPORT_SIGNATURE, onClick = actions.importSignature, tag = "row-import-signature")
+    if (signature != null) ListRow(MoreCopy.DELETE_SIGNATURE, onClick = actions.deleteSignature, labelColor = colors.danger, tag = "row-delete-signature", trailing = null)
     Note(MoreCopy.SIGNATURE_NOTE)
 }
 
