@@ -142,6 +142,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
         faces = emptyList()
         noClearSubject = false
         synchronized(replacementPlanes) { replacementPlanes.clear() }
+        workingAnalysis = null
     }
 
     /** A photo just picked for Change background: converted now, so the first render needn't reload it. */
@@ -216,18 +217,23 @@ class BackgroundSession(private val env: EditorEnvironment) {
         /** The working resolution's long edge (iOS LayeredStages caps: [INTERACTIVE_CAP], [PREVIEW_CAP], [EXPORT_CAP]). */
         cap: Int = PREVIEW_CAP,
     ): BackgroundPlan? {
+        val t0 = System.nanoTime()
         val a = refined(tool) ?: return null
+        val tRefined = System.nanoTime()
         val focus = tool.focus
         val blur = if (a.depth == null) 0.0 else focus.blur
         // The replacement twice: at the analysis size, sampled for the full-resolution composite, and at the
         // working size, where Focus & Blur places it behind the subject.
         val full = tool.replacement?.takeIf { a.matte != null }?.let { r -> replacementPixels(r, a.width, a.height, developPlan, renderer) }
+        val tFull = System.nanoTime()
         if (full == null && blur <= 0.0) return null
         val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
         val replacement = full?.let { r ->
             val small = if (ww == r.width && wh == r.height) Rgba8Image(r.width, r.height, r.rgba) else resize(Rgba8Image(r.width, r.height, r.rgba), ww, wh)
             FloatImage(ww, wh, 3, FloatArray(ww * wh * 3) { (small.pixels[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f })
         }
+        val tSmall = System.nanoTime()
+        stageTiming?.invoke("planFor cap=$cap refine=${ms(tRefined - t0)} replacementFull(${a.width}x${a.height})=${ms(tFull - tRefined)} replacementWorking=${ms(tSmall - tFull)}")
         val focal = focus.depth.focusDepth?.let { 1.0 - it }
             ?: focus.target?.let { focalNearnessAt(it.x, it.y) }
             ?: defaultTarget().let { (x, y) -> focalNearnessAt(x, y) } ?: 0.5
@@ -270,21 +276,43 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * [planFor] with the same [cap].
      */
     fun working(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool, cap: Int): com.lightlylabs.lightly.background.WorkingBackground {
+        val t0 = System.nanoTime()
         val a = refined(tool)!!
+        val tRefined = System.nanoTime()
         val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
         val frame = if (developed.width == ww && developed.height == wh) developed else resize(developed, ww, wh)
         val ops = com.lightlylabs.lightly.background.PlaneOps
-        val small = if (ww == a.width && wh == a.height) a else BackgroundAnalysis(ww, wh,
-            a.depth?.let { d -> com.lightlylabs.lightly.background.NormalisedDepth(d.origin, ops.resizeBilinear(d.nearness, ww, wh)) },
-            a.matte?.let { ops.resizeBilinear(it, ww, wh) })
-        return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide)
+        // Depth and matte at the working size depend only on the analysis, the Refine edges strokes and
+        // the cap, not on blur or replacement settings: resized once, not on every preview (0.2–0.3 s).
+        val key = WorkingKey(analysis, tool.subject.refinements, ww, wh)
+        val small = if (ww == a.width && wh == a.height) a else workingAnalysis?.takeIf { it.first == key }?.second
+            ?: BackgroundAnalysis(ww, wh,
+                a.depth?.let { d -> com.lightlylabs.lightly.background.NormalisedDepth(d.origin, ops.resizeBilinear(d.nearness, ww, wh)) },
+                a.matte?.let { ops.resizeBilinear(it, ww, wh) }).also { workingAnalysis = key to it }
+        val tResized = System.nanoTime()
+        return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide).also {
+            stageTiming?.invoke("working ${ww}x$wh refine=${ms(tRefined - t0)} resize=${ms(tResized - tRefined)} renderWorking=${ms(System.nanoTime() - tResized)}")
+        }
     }
+
+    /** Identity of the analysis (by reference), the refinements and the working size. */
+    private data class WorkingKey(val analysis: BackgroundAnalysis?, val refinements: List<Any>, val width: Int, val height: Int) {
+        override fun equals(other: Any?) = other is WorkingKey && other.analysis === analysis && other.refinements == refinements && other.width == width && other.height == height
+        override fun hashCode() = System.identityHashCode(analysis) * 31 + refinements.hashCode() * 17 + width * 7 + height
+    }
+    @Volatile private var workingAnalysis: Pair<WorkingKey, BackgroundAnalysis>? = null
+
+    /** Debug-only per-stage preview timing (set by the app in debug builds; null in release). */
+    @Volatile var stageTiming: ((String) -> Unit)? = null
+    private fun ms(nanos: Long) = "%.0fms".format(nanos / 1e6)
 
     /** Background stage on a developed frame (the display proxy in previews): rendered at [cap], applied at the frame's size. */
     fun render(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool, cap: Int): Rgba8Image {
         val working = working(developed, plan, layersPerSide, tool, cap)
+        val t0 = System.nanoTime()
         return Rgba8Image(developed.width, developed.height,
             BackgroundStage.applyRegion(developed.pixels, 0, 0, developed.width, developed.height, developed.width, developed.height, working, plan.replacementFull))
+            .also { stageTiming?.invoke("applyRegion ${developed.width}x${developed.height}=${ms(System.nanoTime() - t0)}") }
     }
 
     private fun digest(plane: FloatPlane): String {

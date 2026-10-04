@@ -337,18 +337,35 @@ object Refocus {
         val tapX = IntArray(taps.size) { taps[it][0] }
         val tapY = IntArray(taps.size) { taps[it][1] }
         val tapW = FloatArray(taps.size) { weights[it] }
-        val acc = FloatArray(ch)
-        for (y in 0 until h) for (x in 0 until w) {
-            java.util.Arrays.fill(acc, 0f)
-            for (t in tapX.indices) {
-                // Kernel is applied as correlation of the flipped kernel = convolution.
-                val sx = PlaneOps.reflect(x - tapX[t], w)
-                val sy = PlaneOps.reflect(y - tapY[t], h)
-                val base = (sy * w + sx) * ch
-                val wt = tapW[t]
-                for (c in 0 until ch) acc[c] += image.data[base + c] * wt
+        // Same taps, same order, same arithmetic per pixel as before, so the output is identical; two
+        // speed-ups only (measured: this loop was ~4.4 s of a 5–6 s settled Background preview at 682×1024
+        // on the Pixel 9 Pro emulator): rows run in parallel, and pixels whose whole kernel lies inside
+        // the image skip the per-tap border reflection.
+        val data = image.data
+        val dst = out.data
+        java.util.stream.IntStream.range(0, h).parallel().forEach { y ->
+            val acc = FloatArray(ch)
+            val rowInside = y - half >= 0 && y + half < h
+            for (x in 0 until w) {
+                java.util.Arrays.fill(acc, 0f)
+                if (rowInside && x - half >= 0 && x + half < w) {
+                    for (t in tapX.indices) {
+                        // Kernel is applied as correlation of the flipped kernel = convolution.
+                        val base = ((y - tapY[t]) * w + (x - tapX[t])) * ch
+                        val wt = tapW[t]
+                        for (c in 0 until ch) acc[c] += data[base + c] * wt
+                    }
+                } else {
+                    for (t in tapX.indices) {
+                        val sx = PlaneOps.reflect(x - tapX[t], w)
+                        val sy = PlaneOps.reflect(y - tapY[t], h)
+                        val base = (sy * w + sx) * ch
+                        val wt = tapW[t]
+                        for (c in 0 until ch) acc[c] += data[base + c] * wt
+                    }
+                }
+                System.arraycopy(acc, 0, dst, (y * w + x) * ch, ch)
             }
-            System.arraycopy(acc, 0, out.data, (y * w + x) * ch, ch)
         }
         return out
     }

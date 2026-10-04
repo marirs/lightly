@@ -121,7 +121,9 @@ class EditorViewModel(
     private var toastJob: Job? = null
     private var photoGeneration = 0L
 
-    private val backgroundSession = BackgroundSession(env)
+    private val backgroundSession = BackgroundSession(env).also { session ->
+        if (env.debugBuild) session.stageTiming = { line -> runCatching { android.util.Log.i("LightlyBgTime", line) } }
+    }
     private var separationJob: Job? = null
 
     /** Portrait: the people analysis, the person matte and stage 9 (slice 3). */
@@ -1492,7 +1494,9 @@ class EditorViewModel(
                     // Portrait works on the full proxy too: its regions come from landmarks at that size.
                     val portraitActive = portraitSession.isActive(edit.tools.portrait)
                     val source = if (request.payload.globalOnly && backgroundPlan == null && !portraitActive) dragProxy else display
+                        val tDevelop = System.nanoTime()
                     val developed = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
+                    backgroundSession.stageTiming?.invoke("develop ${source.width}x${source.height}=${"%.0f".format((System.nanoTime() - tDevelop) / 1e6)}ms globalOnly=${request.payload.globalOnly}")
                     val composed = if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap)
                     if (portraitActive) portraitSession.render(composed, edit.tools.portrait) else composed
                 }

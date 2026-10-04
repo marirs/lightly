@@ -235,8 +235,10 @@ object BackgroundStage {
         val out = ByteArray(region.size)
         val sx = working.width.toDouble() / frameWidth
         val sy = working.height.toDouble() / frameHeight
-        val repl = FloatArray(3)
-        for (row in 0 until height) {
+        // Rows in parallel (0.6–0.7 s single-threaded for a 1065×1600 preview on the Pixel 9 Pro emulator);
+        // every pixel's arithmetic is unchanged. 8-bit sRGB decodes through a table of the same function.
+        java.util.stream.IntStream.range(0, height).parallel().forEach { row ->
+            val repl = FloatArray(3)
             val fy = y + row
             val wy = (fy + 0.5) * sy - 0.5
             for (column in 0 until width) {
@@ -247,7 +249,7 @@ object BackgroundStage {
                 if (replacement != null && a < 1f) replacement.sampleLinear((fx + 0.5) / frameWidth, (fy + 0.5) / frameHeight, repl)
                 val w = working.weight?.sample(wx, wy) ?: 0f
                 for (c in 0 until 3) {
-                    val full = Refocus.srgbToLinear((region[i + c].toInt() and 0xff) / 255f)
+                    val full = SRGB_TO_LINEAR[region[i + c].toInt() and 0xff]
                     var v = if (replacement != null && a < 1f) full * a + repl[c] * (1 - a) else full
                     if (working.blurred != null) {
                         val b = working.sample(working.blurred, wx, wy, c)
@@ -261,6 +263,9 @@ object BackgroundStage {
         }
         return out
     }
+
+    /** [Refocus.srgbToLinear] of each 8-bit value, exactly as computed per pixel before. */
+    private val SRGB_TO_LINEAR = FloatArray(256) { Refocus.srgbToLinear(it / 255f) }
 
     /**
      * Full-resolution result from a working-resolution render: where the visible content is in focus
