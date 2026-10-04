@@ -70,6 +70,22 @@
   - on iOS, Saving can be cancelled without writing anything, and Saved has a Share button.
 - **Evidence:** flow captures are in `~/.codex/artifacts/lightly/v1/slice2/{ios,android}/` (Android `flows/`).
 
+## Update: Android matrix captured and reviewed (ea45916)
+
+These are the Android agent's results; the coordinator has not independently re-reviewed them.
+
+- **Coverage:** 28 cells (Pixel 9 Pro, Pixel 10 Pro XL, Fold outer, Fold inner portrait and landscape, Pixel Tablet portrait and landscape; light/dark × default/large) × 37 screens (24 slice-2, 13 slice-1), 1,036 screens.
+  - Captured with the validated runner, one cell per lock, one APK per revision.
+  - Each PNG has a JSON record. Evidence is in `~/.codex/artifacts/lightly/v1/captures/android/matrix/`.
+  - Pending: the slice-1 launch splash (a launch test).
+- **Result:** no screen is an exact match. Every screen carries S1 (system bars) and S7 (the prototype loads Roboto only at 400/500/700, so its weight-600 text renders as 700).
+  - Other deviations: S2–S6, S8 (grain constants uncalibrated), S11 (one Preferences line wraps differently), S12 (the prototype draws the Fold hinge), S13 (Fold inner landscape sheets about 9 dp taller, unconfirmed), and M1–M4 and M8 from slice 1.
+- **App bugs the review found and fixed:** 2a4e4e5, e145f70, 73c260f (CSS box, margin and text-scaling details), and 725d117 (a crash when leaving the editor during subject separation).
+- **S9 is withdrawn: it was a reference-tool defect, not an app deviation.**
+  - The category strip sat about 4.5 dp off the prototype's 120 dp scroll rule because Roboto loaded after the reference tool applied the rule.
+  - Fixed in b0de57a, a fonts-first reference render. iOS references are byte-identical; Android strip screens are being re-reviewed against the corrected references.
+  - The same one-line fix would apply to `docs/ui/tools/shot.js`, which is left for the design owner.
+
 ## Update: iOS slice-2 runner captures are STALE (recapture in progress)
 
 The runner version 5 re-check (iPhone 17 light-default, build 420f429, pixel-diffed against the ea75592 runner captures) found differences:
