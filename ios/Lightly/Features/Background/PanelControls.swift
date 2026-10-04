@@ -68,7 +68,13 @@ struct PanelTabs<ID: Hashable>: View {
         guard let index = items.firstIndex(where: { $0.id == selected }), let width = widths[index], viewport.width > width else { return }
         let total = widths.values.reduce(0, +) + CGFloat(max(items.count - 1, 0)) * 20 + 36
         guard total > viewport.width else { return }
-        let fraction = min(max((120 - viewport.minX) / (viewport.width - width), 0), 1)
+        // Prototype: scrollLeft = max(0, tab.offsetLeft − 120), where offsetLeft is measured from
+        // the screen's left edge (the tabs' offsetParent), clamped by the scroll range. In a side
+        // panel the row starts far from the edge, so the selected tab scrolls to the end.
+        let tabOffset = 18 + (0..<index).reduce(CGFloat(0)) { $0 + (widths[$1] ?? 0) + 20 }
+        let maxScroll = max(total - viewport.width, 0)
+        let scroll = min(max(tabOffset + viewport.minX - 120, 0), maxScroll)
+        let fraction = (tabOffset - scroll) / max(viewport.width - width, 1)
         reader.scrollTo(index, anchor: UnitPoint(x: fraction, y: 0.5))
     }
 
