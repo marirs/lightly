@@ -76,15 +76,15 @@ Measured against the goldens:
 
 ## Comparison (Pixel 9 Pro portrait, light/default, runner)
 
-Captures are in `~/.codex/artifacts/lightly/v1/captures/android/slice3-p9-light-default-2`, each with a JSON sidecar. They were taken with APK `a59c2da7…`, which is the tree of the slice-3 commit except for its diagnostic logging. References come from `scripts/reference_cache.py`.
+Captures: `~/.codex/artifacts/lightly/v1/captures/android/matrix/slice3/`, with APK e145f70 (rendering-v2 revision 1 ported in 309a24e) and a sidecar per PNG. References come from `scripts/reference_cache.py`.
 
 | Screen | Status | Notes |
 |---|---|---|
-| bg-separating | **mismatch: S1 only** | Overlay box, panel notice, Cancel, tabs and hierarchy match. The only difference is the system status bar (S1). |
-| bg-failed | **mismatch: S1, S8** | The failure notice, Try again, the selected segment and the Develop "used" dot match. The photo shows Portrait 13's grain far stronger than the reference (S8, below). |
-| bg-focus | **deviation: B1, B2** | Panel layout and copy match: Lens tab, the bokeh row with round selected, Blur 55, Focus depth 40, Refine edges and the hint. **B1:** the background is barely blurred. With the contract's constants, Focus depth 40 gives a sharp band of ±0.20 and a maximum radius of 0.03 of the long edge, so the wall, 0.37 below the face, gets about 22 % of the maximum radius. The spec (§R4: h = 0.076, radius 0.035) would blur it clearly, as the reference shows. This is contract gap G1/G2 and needs a decision; it was not changed. **B2:** the target ring sits at the image centre (§R3's default when there is no matte), whereas the reference puts it on the subject. Without D3 there is no subject; blocked on D3. |
-| bg-soft, bg-swirl, bg-motion | **deviation: B1, B2** | As bg-focus, with the style tab selected and the style's own control row. |
-| bg-no-subject | **blocked (D3)** | "No clear subject found" needs a segmenter to say there is no subject. Without one, the panel shows Focus & Blur with Blur 0. |
+| bg-separating | **deviation: S1** | The overlay box, the panel notice, Cancel, the segment and the hierarchy match. Only the system status bar differs. |
+| bg-failed | **deviation: S1, S8** | The failure notice, Try again, the selected segment and the Develop "used" dot match. Portrait 13 shows strong grain (S8); its constants are still uncalibrated. |
+| bg-focus | **deviation: S1, B2** | Panel layout and copy match. With revision 1 the background blurs. It is still less blurred than the reference, because the focal plane sits at the image centre (hair, nearness 0.39) and not on the face (0.46). Without D3 there is no subject, so the default target is the centre and the subject-in-focus rule cannot apply (B2). The tablet/phone strength and style-texture conflicts in contract-fixes-1 §1 are for the owner. |
+| bg-soft, bg-swirl, bg-motion | **deviation: S1, B2** | As bg-focus, with the style tab and its control row. The native styles differ in texture by design (contract-fixes-1 §1, conflict 2). |
+| bg-no-subject | **blocked (D3)** | "No clear subject found" needs a segmenter to say there is no subject. Without one the panel shows Focus & Blur with Blur 0. |
 | bg-refine, bg-change-*, bg-replaced-blur | **blocked (D3)** | These need a subject matte. |
 
 **S8 (new, slice-2 rendering, pending investigation):** Portrait 13 renders with very coarse, strong grain at preview size. The same grain appears on dev-portrait-photo in the slice-2 runner captures. The earlier fixed-wait captures never showed a rendered preset, so this was hidden until now. The reference shows no grain because the prototype simulates looks (S3). Whether the native grain matches rendering-v2 F2 at preview scale has not yet been checked against the parity fixtures.
