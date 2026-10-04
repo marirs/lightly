@@ -428,6 +428,9 @@ private struct ShrinkToFitLayout: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard let subview = subviews.first else { return }
-        subview.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+        // `.progress { min-width: 200px; text-align: center }`: content narrower than the box is
+        // centred in it, not left at its leading edge.
+        subview.place(at: CGPoint(x: bounds.midX, y: bounds.minY), anchor: .top,
+                      proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
 }
