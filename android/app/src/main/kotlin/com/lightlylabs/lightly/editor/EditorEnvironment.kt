@@ -93,6 +93,11 @@ class EditorEnvironment(
     val exifOrientation: (ByteArray) -> Int = { 1 },
     /** A bundled background photo by recipe id (`background.landscape_01` …), or null if this build has none. */
     val bundledBackground: (String) -> Rgba8Image? = { null },
+    /**
+     * Edit › Remove's model (LaMa), loaded on first use; null when this build does not carry it (release
+     * gate "pending legal sign-off (training data: Places2)") or it cannot load: the approved failure state.
+     */
+    val inpainter: () -> Inpainter? = { null },
     /** Called after each preview render with its milliseconds and whether it was the drag (global-only) render. */
     val onPreviewRendered: (millis: Double, globalOnly: Boolean) -> Unit = { _, _ -> },
 )

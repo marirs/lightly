@@ -25,6 +25,21 @@ val depthModelSha256 = "8e719085ce210eb4fb8e737ae9bca4f25e4e35b3aeafb80c468c3ff6
 val depthLegalSignOff = (findProperty("lightlyDepthLegalSignOff") as String?) == "true"
 fun depthModelEnabled(buildType: String) = depthModelFile.isFile && (buildType == "debug" || depthLegalSignOff)
 
+// --- Remove model release gate ----------------------------------------------------------------
+//
+// "pending legal sign-off (training data: Places2)": LaMa big-lama (Apache-2.0 code and weights,
+// advimman/lama @ 786f593; weights big-lama.zip from the README-linked mirror
+// huggingface.co/smartywu/big-lama @ 05cb2be7, SHA-256 f1b358ca…75f6), our LiteRT fp32 conversion
+// (experiments/inpaint/convert_tflite.py, docs/v1/remove-evaluation.md §6). Packaged into debug builds
+// when the local conversion exists, into release builds only with -PlightlyRemoveLegalSignOff=true.
+// Without it every Remove stroke shows the approved failure state; nothing else fills. The file is
+// git-ignored and checked against its recorded SHA-256 when bundled.
+val removeModelFile: File = (findProperty("lightlyRemoveModelFile") as String?)?.let(::File)
+    ?: rootDir.parentFile.resolve("experiments/inpaint/models/exported/lama_512_fp32.tflite")
+val removeModelSha256 = "39fa82d6a2b576de99b30481c85d73d48955f126deb7bea8504e58b15b43ca0e"
+val removeLegalSignOff = (findProperty("lightlyRemoveLegalSignOff") as String?) == "true"
+fun removeModelEnabled(buildType: String) = removeModelFile.isFile && (buildType == "debug" || removeLegalSignOff)
+
 android {
     namespace = "com.lightlylabs.lightly"
     compileSdk = 36
@@ -45,11 +60,17 @@ android {
     }
 
     buildTypes {
-        getByName("debug") { buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("debug").toString()) }
-        getByName("release") { buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("release").toString()) }
+        getByName("debug") {
+            buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("debug").toString())
+            buildConfigField("boolean", "REMOVE_MODEL_ENABLED", removeModelEnabled("debug").toString())
+        }
+        getByName("release") {
+            buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("release").toString())
+            buildConfigField("boolean", "REMOVE_MODEL_ENABLED", removeModelEnabled("release").toString())
+        }
     }
 
-    // The depth model is memory-mapped from the APK, which needs it stored uncompressed.
+    // The depth and Remove models are memory-mapped from the APK, which needs them stored uncompressed.
     androidResources { noCompress += "tflite" }
 
     compileOptions {
@@ -299,7 +320,7 @@ abstract class BundleBackgroundPhotosTask : DefaultTask() {
     }
 }
 
-/** Copies the depth model into assets/models/ after checking its SHA-256 (release gate above). */
+/** Copies a gated model (depth, Remove) into assets/models/ after checking its SHA-256 (release gates above). */
 abstract class BundleDepthModelTask : DefaultTask() {
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NAME_ONLY)
@@ -317,7 +338,7 @@ abstract class BundleDepthModelTask : DefaultTask() {
         val digest = MessageDigest.getInstance("SHA-256")
         model.inputStream().use { input -> val buffer = ByteArray(1 shl 16); while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) } }
         val actual = digest.digest().joinToString("") { "%02x".format(it) }
-        if (actual != expectedSha256.get()) throw GradleException("Depth model ${model.name} has SHA-256 $actual, expected ${expectedSha256.get()}")
+        if (actual != expectedSha256.get()) throw GradleException("Model ${model.name} has SHA-256 $actual, expected ${expectedSha256.get()}")
         val root = assetsDirectory.get().asFile
         root.deleteRecursively()
         model.copyTo(root.resolve("models/${model.name}"))
@@ -477,6 +498,14 @@ androidComponents {
                 expectedSha256.set(depthModelSha256)
             }
             variant.sources.assets?.addGeneratedSourceDirectory(bundleDepthModel, BundleDepthModelTask::assetsDirectory)
+        }
+
+        if (removeModelEnabled(variant.buildType ?: "")) {
+            val bundleRemoveModel = tasks.register<BundleDepthModelTask>("bundle${variantName}RemoveModel") {
+                modelFile.set(removeModelFile)
+                expectedSha256.set(removeModelSha256)
+            }
+            variant.sources.assets?.addGeneratedSourceDirectory(bundleRemoveModel, BundleDepthModelTask::assetsDirectory)
         }
 
         val verifyPrivacy = tasks.register<VerifyManifestPrivacyTask>("verify${variantName}ManifestPrivacy") {

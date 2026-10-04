@@ -30,8 +30,21 @@ class DevelopRenderPlan private constructor(
      */
     fun globalOnly(): DevelopRenderPlan = DevelopRenderPlan(model, autoLut, lookLut, SpatialRecipe.NEUTRAL, FinishingRecipe.NEUTRAL)
 
+    /**
+     * The same plan with its finishing operators left out: with Edit or Effects in the recipe they run
+     * in the effects stage on the frame, after geometry ([EffectsStage]), not on the source.
+     */
+    fun withoutFinishing(): DevelopRenderPlan = DevelopRenderPlan(model, autoLut, lookLut, spatial, FinishingRecipe.NEUTRAL)
+
     companion object {
         fun original(model: DevelopModel) = DevelopRenderPlan(model, null, null, SpatialRecipe.NEUTRAL, FinishingRecipe.NEUTRAL)
+
+        /**
+         * Stage 5, `edit.adjust`, as a second Develop pass over the developed pixels: [colourLut] is the
+         * Adjust colour bake ([AdjustStage.colourRecipe]), [detail] the Adjust Detail operators
+         * ([AdjustStage.detailSpatial]); neither is scaled by the Look's Amount.
+         */
+        fun adjust(model: DevelopModel, colourLut: Lut3D?, detail: SpatialRecipe) = DevelopRenderPlan(model, null, colourLut, detail, FinishingRecipe.NEUTRAL)
 
         /**
          * @param lookLut the preset's unblended develop.global bake (null = no Look).

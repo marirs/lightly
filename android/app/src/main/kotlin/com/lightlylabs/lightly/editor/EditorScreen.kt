@@ -139,7 +139,7 @@ data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, va
 @Composable
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
-    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui) }) }
+    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); EditMarks(vm, ui) }) }
     val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
     val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
     Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
@@ -424,6 +424,8 @@ private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPane
     when (ui.tool) {
         EditorTool.DEVELOP -> if (model != null) DevelopPanel(vm, model, roomy, wrapped)
         EditorTool.BACKGROUND -> BackgroundPanel(vm, ui, roomy)
+        EditorTool.EDIT -> EditPanel(vm, ui, roomy)
+        EditorTool.EFFECTS -> EffectsPanel(vm, ui, roomy)
         else -> ToolStub(ui.tool, roomy)
     }
 }
@@ -434,10 +436,13 @@ enum class DockKind { SCROLLS, FITS, RAIL }
 private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
     val colors = lightlyColors
     val recipe = ui.session?.current
-    // Prototype `toolUsed`: Develop when a Look is applied, Background when replaced or blurred.
+    // Prototype `toolUsed`: Develop when a Look is applied, Background when replaced or blurred, Edit and
+    // Effects as ToolUsed (exactly the approved rules).
     fun used(tool: EditorTool) = when (tool) {
         EditorTool.DEVELOP -> recipe?.look != null
         EditorTool.BACKGROUND -> recipe?.tools?.background?.let { it.replacement != null || it.focus.blur > 0 } == true
+        EditorTool.EDIT -> recipe != null && ToolUsed.edit(recipe, pendingStroke = ui.edit.pendingStroke != null)
+        EditorTool.EFFECTS -> recipe != null && ToolUsed.effects(recipe)
         else -> false
     }
     val items: @Composable () -> Unit = {
@@ -523,12 +528,17 @@ private fun BackgroundMarks(vm: EditorViewModel, ui: EditorUiState) {
         }
         BackgroundPanelState.Focus, BackgroundPanelState.NoSubject -> BoxWithConstraints(
             Modifier.fillMaxSize().pointerInput(Unit) {
-                detectTapGestures { offset -> vm.setFocusTarget(offset.x.toDouble() / size.width, offset.y.toDouble() / size.height) }
+                detectTapGestures { offset ->
+                    // A tap on the displayed frame, stored in source coordinates (through Edit's geometry).
+                    val (sx, sy) = vm.displayGeometry()?.sourceFromFrame(offset.x.toDouble() / size.width, offset.y.toDouble() / size.height)
+                        ?: (offset.x.toDouble() / size.width to offset.y.toDouble() / size.height)
+                    vm.setFocusTarget(sx, sy)
+                }
             }.semantics { contentDescription = "Tap the photo to set focus" },
         ) {
             // The prototype shows the target only when the photo has a subject.
             if (state == BackgroundPanelState.Focus) {
-                val (tx, ty) = vm.focusTarget
+                val (tx, ty) = vm.focusTarget.let { (x, y) -> vm.displayGeometry(ui)?.frameFromSource(x, y) ?: (x to y) }
                 Box(
                     Modifier
                         .offset(x = maxWidth * tx.toFloat() - 26.dp, y = maxHeight * ty.toFloat() - 26.dp)

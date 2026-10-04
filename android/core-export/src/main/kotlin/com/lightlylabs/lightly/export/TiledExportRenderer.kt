@@ -101,8 +101,14 @@ fun interface ExportRenderPlan {
 }
 
 fun interface ExportTileRenderer {
-    /** The finished pixels of [tile], exactly tile-sized. */
+    /** The finished pixels of [tile] (a tile of the OUTPUT frame), exactly tile-sized. */
     fun renderTile(frame: Rgba8Image, tile: Tile): Rgba8Image
+
+    /**
+     * The output frame's size for this source: the source's size unless the recipe changes it (Edit ›
+     * crop, rotate and straighten change the frame: rendering-v2 stage edit.geometry, source → frame).
+     */
+    fun outputSize(source: Rgba8Image): Pair<Int, Int> = source.width to source.height
 }
 
 /** The per-pixel LUT-pass plan of M2: tiles need no apron. */
@@ -121,10 +127,12 @@ class TiledExportRenderer(
     private val maxTileEdge: Int = TilePlan.SPEC_MAX_TILE_EDGE,
     private val ledger: ExportBufferLedger = ExportBufferLedger(),
 ) {
-    suspend fun render(source: Rgba8Image, plan: ExportRenderPlan, target: ExportFrame) {
-        require(target.width == source.width && target.height == source.height) { "Target frame does not match the source" }
-        val tileRenderer = plan.prepare(source)
-        for (tile in TilePlan.plan(source.width, source.height, maxTileEdge).tiles) {
+    suspend fun render(source: Rgba8Image, plan: ExportRenderPlan, target: ExportFrame) = render(source, plan.prepare(source), target)
+
+    /** Renders with an already prepared [tileRenderer]; [target] has the renderer's output size. */
+    suspend fun render(source: Rgba8Image, tileRenderer: ExportTileRenderer, target: ExportFrame) {
+        require(target.width to target.height == tileRenderer.outputSize(source)) { "Target frame does not match the output size" }
+        for (tile in TilePlan.plan(target.width, target.height, maxTileEdge).tiles) {
             coroutineContext.ensureActive() // cancel is honoured between tiles, before encoding
             val tileBytes = ExportBufferLedger.rgba8Bytes(tile.width, tile.height)
             ledger.acquire(ExportBufferLedger.Kind.TILE, tileBytes) // the plan's working tile (input/apron)

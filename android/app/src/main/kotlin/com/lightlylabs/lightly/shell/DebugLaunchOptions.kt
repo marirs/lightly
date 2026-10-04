@@ -109,6 +109,7 @@ object DebugLaunchOptions {
         }
         editor.debugHoldLoading = screen == "loading" || screen == "developing"
         editor.debugHoldSeparation = screen == "bg-separating"
+        editor.debugHoldRemove = screen == "ed-removing"
         editor.openPhoto("file://" + File(path).absolutePath)
         shell.navigate(if (screen == "more") AppNavigator.openMore(AppNavigator.openEditor()) else AppNavigator.openEditor())
         if (screen == "developing") {
@@ -131,7 +132,10 @@ object DebugLaunchOptions {
             fun preset(category: String, stop: Int, amount: Int = 100) = api.applyPreset(category, stop, amount)
             when (screen) {
                 "developed" -> api.setUi { it.copy(toast = "Developed") }
-                "dev-preset", "compare", "saving", "saved", "leave-unsaved", "more", "dev-starred" -> preset("landscape", 37)
+                "dev-preset", "dev-starred" -> preset("landscape", 37)
+                // Prototype `edited`: Landscape 37 and the Effects vignette on (closes the M5 equivalent:
+                // the Effects dot and the vignette show on these screens, as approved).
+                "compare", "saving", "saved", "leave-unsaved", "more" -> { preset("landscape", 37); api.effects { it.copy(vignette = it.vignette.copy(enabled = true)) } }
                 "dev-dragging" -> {
                     preset("landscape", 37)
                     val target = api.library?.pack?.category("landscape")?.presets?.getOrNull(40)
@@ -152,6 +156,9 @@ object DebugLaunchOptions {
                 "dev-landscape-photo" -> preset("golden-hour", 12)
                 "dev-portrait-photo", "bg-failed" -> preset("portrait", 13)
             }
+            applySlice4(api, screen)
+            // ed-remove rebases once the real removal has finished (see applySlice4).
+            if (screen == "ed-remove") return@applyDebugState
             // History starts at the configured recipe (Undo disabled, as on the prototype's screens);
             // "Leaving with unsaved changes" keeps the recipe unsaved.
             api.rebaseHistory(keepUnsaved = screen == "leave-unsaved")
@@ -174,6 +181,56 @@ object DebugLaunchOptions {
                     }
                     api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) { api.focus(55.0, style); api.rebaseHistory() }
                 }
+            }
+        }
+    }
+
+    /** docs/ui/app/screens.js, the `ed-*` and `fx-*` setups, applied as the user would (one commit each). */
+    private fun applySlice4(api: EditorViewModel.DebugEditorApi, screen: String) {
+        val tool = when {
+            screen.startsWith("ed-") -> com.lightlylabs.lightly.editor.EditorTool.EDIT
+            screen.startsWith("fx-") -> com.lightlylabs.lightly.editor.EditorTool.EFFECTS
+            else -> return
+        }
+        val edit = { sub: com.lightlylabs.lightly.editor.EditSub, group: com.lightlylabs.lightly.editor.AdjustGroup ->
+            api.openTool(tool) { it.copy(edit = it.edit.copy(sub = sub, group = group)) }
+        }
+        val fx = { sub: com.lightlylabs.lightly.editor.EffectsSub -> api.openTool(tool) { it.copy(effects = it.effects.copy(sub = sub)) } }
+        val light = com.lightlylabs.lightly.editor.AdjustGroup.LIGHT
+        when (screen) {
+            "ed-crop" -> { api.cropAspect(com.lightlylabs.lightly.session.CropAspect.FOUR_FIVE); edit(com.lightlylabs.lightly.editor.EditSub.CROP, light) }
+            "ed-rotate" -> { api.edit { it.copy(geometry = it.geometry.copy(flipHorizontal = true)) }; edit(com.lightlylabs.lightly.editor.EditSub.ROTATE, light) }
+            "ed-straighten" -> { api.edit { it.copy(geometry = it.geometry.copy(straighten = -3.0)) }; edit(com.lightlylabs.lightly.editor.EditSub.STRAIGHTEN, light) }
+            "ed-perspective" -> { api.edit { it.copy(geometry = it.geometry.copy(perspective = it.geometry.perspective.copy(vertical = 18.0))) }; edit(com.lightlylabs.lightly.editor.EditSub.PERSPECTIVE, light) }
+            "ed-adjust-light" -> { api.edit { it.copy(adjust = it.adjust.copy(exposure = 12.0, contrast = 10.0, highlights = -20.0, shadows = 25.0)) }; edit(com.lightlylabs.lightly.editor.EditSub.ADJUST, light) }
+            "ed-adjust-colour" -> { api.edit { it.copy(adjust = it.adjust.copy(temp = 15.0, tint = -4.0, vibrance = 12.0)) }; edit(com.lightlylabs.lightly.editor.EditSub.ADJUST, com.lightlylabs.lightly.editor.AdjustGroup.COLOUR) }
+            "ed-adjust-detail" -> { api.edit { it.copy(adjust = it.adjust.copy(sharpness = 30.0, clarity = 15.0, noise = 20.0)) }; edit(com.lightlylabs.lightly.editor.EditSub.ADJUST, com.lightlylabs.lightly.editor.AdjustGroup.DETAIL) }
+            "ed-remove" -> {
+                edit(com.lightlylabs.lightly.editor.EditSub.REMOVE, light)
+                // The real model removes the stroke; then, as `stateFor`, the result is the start of history.
+                api.prototypeStroke()?.let { stroke -> api.remove(stroke) { api.rebaseHistory() } }
+            }
+            "ed-removing" -> { edit(com.lightlylabs.lightly.editor.EditSub.REMOVE, light); api.prototypeStroke()?.let { api.holdRemove(com.lightlylabs.lightly.editor.RemoveOp.REMOVING, it) } }
+            "ed-remove-failed" -> {
+                api.applyPreset("landscape", 37)
+                edit(com.lightlylabs.lightly.editor.EditSub.REMOVE, light)
+                // Injected for the capture: the approved failure state with the stroke the person drew.
+                api.prototypeStroke()?.let { api.holdRemove(com.lightlylabs.lightly.editor.RemoveOp.FAILED, it) }
+            }
+            "fx-leak" -> { api.effects { it.copy(lightLeak = it.lightLeak.copy(enabled = true)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.LEAK) }
+            "fx-grain" -> { api.effects { it.copy(grain = it.grain.copy(enabled = true, amount = 45.0)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.GRAIN) }
+            "fx-vignette" -> { api.effects { it.copy(vignette = it.vignette.copy(enabled = true)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.VIGNETTE) }
+            "fx-combined" -> {
+                api.effects { it.copy(lightLeak = it.lightLeak.copy(enabled = true), grain = it.grain.copy(enabled = true), vignette = it.vignette.copy(enabled = true)) }
+                fx(com.lightlylabs.lightly.editor.EffectsSub.VIGNETTE)
+            }
+            "fx-preset-conflict" -> {
+                // Deviation F1 (as iOS): the prototype picks Film n by its stand-in hash `presetHasEffect`; the
+                // first Film preset whose real recipe has its own grain is applied instead.
+                val stop = api.library?.pack?.category("film")?.presets?.indexOfFirst { (it.recipe.finishing.grain?.amount ?: 0.0) != 0.0 }?.plus(1) ?: 0
+                if (stop > 0) api.applyPreset("film", stop)
+                api.effects { it.copy(grain = it.grain.copy(enabled = true)) }
+                fx(com.lightlylabs.lightly.editor.EffectsSub.GRAIN)
             }
         }
     }

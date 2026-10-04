@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** The session's lifecycle (prototype screens loading → editor; recovery states from slice 1). */
@@ -81,6 +82,9 @@ data class EditorUiState(
     /** Background tool UI and the photo's subject separation / depth (slice 3). */
     val background: BackgroundUi = BackgroundUi(),
     val separation: SeparationState = SeparationState.NotStarted,
+    /** Edit and Effects tool UI (slice 4). */
+    val edit: EditUi = EditUi(),
+    val effects: EffectsUi = EffectsUi(),
 ) {
     val showsOriginal: Boolean get() = compareHeld || compareToggled
     val canUndo: Boolean get() = session?.canUndo == true
@@ -113,6 +117,14 @@ class EditorViewModel(
 
     private val backgroundSession = BackgroundSession(env)
     private var separationJob: Job? = null
+
+    /** Edit › Remove: the session's patches, the running removal, and the model (loaded on first stroke). */
+    private val removePatches = RemovePatchStore()
+    private var removeJob: Job? = null
+    private val inpainter: Inpainter? by lazy { env.inpainter() }
+
+    /** The display proxy with the applied Remove patches composited, keyed by their digests. */
+    @Volatile private var patchedDisplay: Pair<List<String>, Rgba8Image>? = null
 
     /** Notified when Change background › "+" asks for a photo (the Activity launches the picker). */
     var onChooseBackgroundPhoto: () -> Unit = {}
@@ -172,6 +184,9 @@ class EditorViewModel(
         cleanState = null
         separationJob?.cancel()
         backgroundSession.reset()
+        removeJob?.cancel()
+        removePatches.clear()
+        patchedDisplay = null
         val generation = ++photoGeneration
         state.value = EditorUiState(phase = EditorPhase.Loading)
         loadJob = scope.launch {
@@ -275,7 +290,8 @@ class EditorViewModel(
     fun selectTool(tool: EditorTool) {
         if (tool !in state.value.tools) return
         if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
-        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi()) }
+        // Prototype `tool`: sub, op and group reset; a removal already running keeps running.
+        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi()) }
         if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
     }
 
@@ -416,6 +432,281 @@ class EditorViewModel(
     /** The refined matte at the analysis size, for the Refine edges tint (null without a matte). */
     fun refinedMatte(): com.lightlylabs.lightly.background.FloatPlane? =
         state.value.session?.current?.tools?.background?.let { backgroundSession.refined(it)?.matte }
+
+    // --- Edit (slice 4) ---------------------------------------------------------------------------
+
+    fun selectEditSub(sub: EditSub) = state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null)) }
+
+    fun selectAdjustGroup(group: AdjustGroup) = state.update { it.copy(edit = it.edit.copy(group = group)) }
+
+    fun setRemoveBrushSize(size: Int) = state.update { it.copy(edit = it.edit.copy(brushSize = size.coerceIn(0, 100))) }
+
+    private fun commitEdit(change: (com.lightlylabs.lightly.session.EditTool) -> com.lightlylabs.lightly.session.EditTool) {
+        val session = state.value.session ?: return
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(edit = change(s.tools.edit))) }, state.value.auto)
+    }
+
+    /** The source's turned size at the display proxy's resolution (crop rects are fractions of it). */
+    private fun turnedDisplaySize(quarterTurns: Int): Pair<Int, Int> {
+        val display = state.value.original ?: return 1 to 1
+        return com.lightlylabs.lightly.develop.GeometryTransform.turnedSize(quarterTurns, display.width, display.height)
+    }
+
+    private fun centredCrop(aspect: com.lightlylabs.lightly.session.CropAspect, geometry: com.lightlylabs.lightly.session.Geometry): com.lightlylabs.lightly.session.NormalisedRect {
+        val ratio = EditOptions.ratio(aspect) ?: return if (aspect == com.lightlylabs.lightly.session.CropAspect.FREE) geometry.crop.rect else FULL_RECT
+        val (w, h) = turnedDisplaySize(geometry.quarterTurns)
+        val r = com.lightlylabs.lightly.develop.GeometryTransform.centredRect(ratio, w, h)
+        return com.lightlylabs.lightly.session.NormalisedRect(r[0].coerceIn(0.0, 1.0), r[1].coerceIn(0.0, 1.0), r[2].coerceIn(0.0, 1.0 - r[0].coerceIn(0.0, 1.0)), r[3].coerceIn(0.0, 1.0 - r[1].coerceIn(0.0, 1.0)))
+    }
+
+    /** Crop › an aspect: a fixed aspect takes the largest centred rect of that shape; Original resets; Free keeps the rect. One step. */
+    fun setCropAspect(aspect: com.lightlylabs.lightly.session.CropAspect) = commitEdit { e ->
+        e.copy(geometry = e.geometry.copy(crop = com.lightlylabs.lightly.session.Crop(aspect, centredCrop(aspect, e.geometry))))
+    }
+
+    /** Rotate left (−1) or right (+1): one quarter turn; a fixed aspect is laid out again, a free rect turns with the photo. */
+    fun rotate(delta: Int) = commitEdit { e ->
+        val turned = e.geometry.copy(quarterTurns = ((e.geometry.quarterTurns + delta) % 4 + 4) % 4)
+        val r = e.geometry.crop.rect
+        val rect = when {
+            EditOptions.ratio(e.geometry.crop.aspect) != null -> centredCrop(e.geometry.crop.aspect, turned)
+            e.geometry.crop.aspect == com.lightlylabs.lightly.session.CropAspect.FREE ->
+                if (delta > 0) com.lightlylabs.lightly.session.NormalisedRect((1 - r.y - r.height).coerceIn(0.0, 1.0), r.x, r.height, r.width)
+                else com.lightlylabs.lightly.session.NormalisedRect(r.y, (1 - r.x - r.width).coerceIn(0.0, 1.0), r.height, r.width)
+            else -> r
+        }
+        e.copy(geometry = turned.copy(crop = turned.crop.copy(rect = rect)))
+    }
+
+    fun flipHorizontal() = commitEdit { it.copy(geometry = it.geometry.copy(flipHorizontal = !it.geometry.flipHorizontal)) }
+
+    fun flipVertical() = commitEdit { it.copy(geometry = it.geometry.copy(flipVertical = !it.geometry.flipVertical)) }
+
+    private fun withEditSlider(e: com.lightlylabs.lightly.session.EditTool, field: String, value: Double): com.lightlylabs.lightly.session.EditTool {
+        val a = e.adjust
+        val v = value.coerceIn(-100.0, 100.0)
+        val p = value.coerceIn(0.0, 100.0)
+        return when (field) {
+            "straighten" -> e.copy(geometry = e.geometry.copy(straighten = value.coerceIn(-45.0, 45.0)))
+            "perspectiveVertical" -> e.copy(geometry = e.geometry.copy(perspective = e.geometry.perspective.copy(vertical = v)))
+            "perspectiveHorizontal" -> e.copy(geometry = e.geometry.copy(perspective = e.geometry.perspective.copy(horizontal = v)))
+            "exposure" -> e.copy(adjust = a.copy(exposure = v))
+            "contrast" -> e.copy(adjust = a.copy(contrast = v))
+            "highlights" -> e.copy(adjust = a.copy(highlights = v))
+            "shadows" -> e.copy(adjust = a.copy(shadows = v))
+            "temp" -> e.copy(adjust = a.copy(temp = v))
+            "tint" -> e.copy(adjust = a.copy(tint = v))
+            "saturation" -> e.copy(adjust = a.copy(saturation = v))
+            "vibrance" -> e.copy(adjust = a.copy(vibrance = v))
+            "sharpness" -> e.copy(adjust = a.copy(sharpness = p))
+            "clarity" -> e.copy(adjust = a.copy(clarity = v))
+            "noise" -> e.copy(adjust = a.copy(noise = p))
+            else -> e
+        }
+    }
+
+    /** An Edit slider moving: preview only. */
+    fun onEditSlider(field: String, value: Double) {
+        val session = state.value.session ?: return
+        state.update { it.copy(edit = it.edit.copy(sliderDrag = field to value)) }
+        requestPreview(session.current.copy(tools = session.current.tools.copy(edit = withEditSlider(session.current.tools.edit, field, value))), globalOnly = false)
+    }
+
+    /** Slider release: one undo step. */
+    fun onEditSliderRelease(field: String, value: Double) {
+        state.update { it.copy(edit = it.edit.copy(sliderDrag = null)) }
+        commitEdit { withEditSlider(it, field, value) }
+    }
+
+    /**
+     * Crop › a corner dragged by (dx, dy) of the displayed frame (corner 0 top-left, 1 top-right, 2 bottom-left,
+     * 3 bottom-right): one step. A fixed aspect is kept; cropping an uncropped photo makes it Free.
+     */
+    fun dragCropCorner(corner: Int, dx: Double, dy: Double) = commitEdit { e ->
+        val g = e.geometry
+        val r = g.crop.rect
+        val (tw, th) = turnedDisplaySize(g.quarterTurns)
+        var left = r.x; var top = r.y; var right = r.x + r.width; var bottom = r.y + r.height
+        val mx = dx * r.width
+        val my = dy * r.height
+        if (corner % 2 == 0) left += mx else right += mx
+        if (corner < 2) top += my else bottom += my
+        left = left.coerceIn(0.0, right - MIN_CROP); right = right.coerceIn(left + MIN_CROP, 1.0)
+        top = top.coerceIn(0.0, bottom - MIN_CROP); bottom = bottom.coerceIn(top + MIN_CROP, 1.0)
+        val ratio = EditOptions.ratio(g.crop.aspect)
+        if (ratio != null) {
+            // Keep w/h in pixels: shrink the side that is too long, anchored at the opposite corner.
+            val widthPx = (right - left) * tw
+            val heightPx = (bottom - top) * th
+            if (widthPx / heightPx > ratio) {
+                val w = heightPx * ratio / tw
+                if (corner % 2 == 0) left = right - w else right = left + w
+            } else {
+                val h = widthPx / ratio / th
+                if (corner < 2) top = bottom - h else bottom = top + h
+            }
+        }
+        val aspect = if (g.crop.aspect == com.lightlylabs.lightly.session.CropAspect.ORIGINAL) com.lightlylabs.lightly.session.CropAspect.FREE else g.crop.aspect
+        e.copy(geometry = g.copy(crop = com.lightlylabs.lightly.session.Crop(aspect, rectOf(left, top, right, bottom))))
+    }
+
+    /** Crop › pinch: zoom the crop about its centre by [zoom] (> 1 = closer), kept inside the frame and its aspect. One step. */
+    fun pinchCrop(zoom: Double) = commitEdit { e ->
+        val g = e.geometry
+        val r = g.crop.rect
+        val scale = (1 / zoom).coerceIn(MIN_CROP / minOf(r.width, r.height), minOf(1 / r.width, 1 / r.height))
+        val w = r.width * scale
+        val h = r.height * scale
+        val left = (r.x + r.width / 2 - w / 2).coerceIn(0.0, 1.0 - w)
+        val top = (r.y + r.height / 2 - h / 2).coerceIn(0.0, 1.0 - h)
+        val aspect = if (g.crop.aspect == com.lightlylabs.lightly.session.CropAspect.ORIGINAL) com.lightlylabs.lightly.session.CropAspect.FREE else g.crop.aspect
+        e.copy(geometry = g.copy(crop = com.lightlylabs.lightly.session.Crop(aspect, rectOf(left, top, left + w, top + h))))
+    }
+
+    private fun rectOf(left: Double, top: Double, right: Double, bottom: Double): com.lightlylabs.lightly.session.NormalisedRect {
+        val x = left.coerceIn(0.0, 1.0)
+        val y = top.coerceIn(0.0, 1.0)
+        return com.lightlylabs.lightly.session.NormalisedRect(x, y, (right - x).coerceIn(0.0, 1.0 - x), (bottom - y).coerceIn(0.0, 1.0 - y))
+    }
+
+    /** The committed geometry at the display proxy's resolution (marks and touches map through it). */
+    fun displayGeometry(ui: EditorUiState = state.value): com.lightlylabs.lightly.develop.GeometryTransform? {
+        val display = ui.original ?: return null
+        val recipe = ui.session?.current ?: return null
+        return com.lightlylabs.lightly.develop.GeometryTransform(EditMapping.geometry(recipe), display.width, display.height)
+    }
+
+    /**
+     * Remove: a stroke brushed on the photo ([framePoints] normalised on the displayed frame) starts
+     * removing it. It becomes ONE undo step once its patch exists; cancelled or failed, nothing changes.
+     */
+    fun removeStroke(framePoints: List<Pair<Double, Double>>, radius: Double = EditOptions.brushRadius(state.value.edit.brushSize)) {
+        if (framePoints.isEmpty() || state.value.edit.removeOp == RemoveOp.REMOVING) return
+        val geometry = displayGeometry() ?: return
+        val points = framePoints.map { (x, y) -> geometry.sourceFromFrame(x, y).let { (sx, sy) -> sx.coerceIn(0.0, 1.0) to sy.coerceIn(0.0, 1.0) } }
+        runRemove(PendingRemoveStroke(points, radius))
+    }
+
+    /** Remove failed › Try again: the same stroke once more. */
+    fun retryRemove() {
+        val stroke = state.value.edit.pendingStroke?.takeIf { state.value.edit.removeOp == RemoveOp.FAILED } ?: return
+        runRemove(stroke)
+    }
+
+    /** Removing › Cancel: "Cancelled · nothing changed". */
+    fun cancelRemove() {
+        removeJob?.cancel()
+        state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.IDLE, pendingStroke = null)) }
+        showToast(OPERATION_CANCELLED)
+    }
+
+    /** Undo stroke: removes the last applied stroke (one step); redo replays its stored patch. */
+    fun undoStroke() = commitEdit { e -> e.copy(remove = e.remove.copy(strokes = e.remove.strokes.dropLast(1))) }
+
+    private fun runRemove(stroke: PendingRemoveStroke) {
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
+        removeJob?.cancel()
+        state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.REMOVING, pendingStroke = stroke)) }
+        if (debugHoldRemove) return // capture of the approved "Removing…" state (debug builds only)
+        removeJob = scope.launch {
+            val result = runCatching {
+                kotlinx.coroutines.withContext(env.prefetchDispatcher) { // off the main thread; the model call blocks
+                    val model = inpainter ?: throw RemoveUnavailableException("No Remove model in this build")
+                    // Full-resolution source with the earlier strokes' patches (remove-evaluation §7).
+                    val source = current.loaded.fullResolution.decode()
+                    val applied = state.value.session?.current?.let { EditMapping.patchDigests(it) }.orEmpty().mapNotNull { removePatches[it] }
+                    RemoveEngine.composite(applied, source, inPlace = true)
+                    val started = System.nanoTime()
+                    val patch = RemoveEngine.patch(source, stroke.points, stroke.radius, model) { !coroutineContext.isActive }
+                    runCatching { android.util.Log.i("LightlyRemove", "stroke removed in ${(System.nanoTime() - started) / 1_000_000} ms") }
+                    patch to model.model
+                }
+            }
+            if (!isCurrent(current.generation)) return@launch
+            val (patch, modelRef) = result.getOrElse { failure ->
+                if (failure is CancellationException) return@launch
+                runCatching { android.util.Log.w("LightlyRemove", "remove failed: $failure") }
+                state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.FAILED)) }
+                return@launch
+            }
+            removePatches.put(patch)
+            val recorded = com.lightlylabs.lightly.session.RemoveStroke(stroke.radius.coerceIn(1e-6, 0.5), stroke.points.map { (x, y) -> com.lightlylabs.lightly.session.NormalisedPoint(x, y) },
+                com.lightlylabs.lightly.session.RemoveResult(com.lightlylabs.lightly.session.RemoveStatus.APPLIED, patch.derivedRef(modelRef)))
+            state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.IDLE, pendingStroke = null)) }
+            commitEdit { e -> e.copy(remove = e.remove.copy(strokes = e.remove.strokes + recorded)) }
+            debugAfterRemove?.let { action -> debugAfterRemove = null; action() }
+        }
+    }
+
+    // --- Effects (slice 4) ------------------------------------------------------------------------
+
+    fun selectEffectsSub(sub: EffectsSub) = state.update { it.copy(effects = it.effects.copy(sub = sub, sliderDrag = null)) }
+
+    private fun commitEffects(change: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool) {
+        val session = state.value.session ?: return
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(effects = change(s.tools.effects))) }, state.value.auto)
+    }
+
+    /** The On/Off row: one step. */
+    fun toggleEffect(sub: EffectsSub) = commitEffects { e ->
+        when (sub) {
+            EffectsSub.LEAK -> e.copy(lightLeak = e.lightLeak.copy(enabled = !e.lightLeak.enabled))
+            EffectsSub.GRAIN -> e.copy(grain = e.grain.copy(enabled = !e.grain.enabled))
+            EffectsSub.VIGNETTE -> e.copy(vignette = e.vignette.copy(enabled = !e.vignette.enabled))
+        }
+    }
+
+    fun setLeakStyle(style: com.lightlylabs.lightly.session.LeakStyle) = commitEffects { it.copy(lightLeak = it.lightLeak.copy(style = style)) }
+
+    fun setGrainStyle(style: com.lightlylabs.lightly.session.GrainStyle) = commitEffects { it.copy(grain = it.grain.copy(style = style)) }
+
+    private fun withEffectsSlider(e: com.lightlylabs.lightly.session.EffectsTool, field: String, value: Double): com.lightlylabs.lightly.session.EffectsTool {
+        val p = value.coerceIn(0.0, 100.0)
+        return when (field) {
+            "leakIntensity" -> e.copy(lightLeak = e.lightLeak.copy(intensity = p))
+            "leakRotation" -> e.copy(lightLeak = e.lightLeak.copy(rotation = value.coerceIn(-180.0, 180.0)))
+            "grainAmount" -> e.copy(grain = e.grain.copy(amount = p))
+            "grainSize" -> e.copy(grain = e.grain.copy(size = p))
+            "grainRoughness" -> e.copy(grain = e.grain.copy(roughness = p))
+            "vignetteAmount" -> e.copy(vignette = e.vignette.copy(amount = p))
+            "vignetteSize" -> e.copy(vignette = e.vignette.copy(size = p))
+            "vignetteSoftness" -> e.copy(vignette = e.vignette.copy(softness = p))
+            else -> e
+        }
+    }
+
+    fun onEffectsSlider(field: String, value: Double) {
+        val session = state.value.session ?: return
+        state.update { it.copy(effects = it.effects.copy(sliderDrag = field to value)) }
+        requestPreview(session.current.copy(tools = session.current.tools.copy(effects = withEffectsSlider(session.current.tools.effects, field, value))), globalOnly = false)
+    }
+
+    fun onEffectsSliderRelease(field: String, value: Double) {
+        state.update { it.copy(effects = it.effects.copy(sliderDrag = null)) }
+        commitEffects { withEffectsSlider(it, field, value) }
+    }
+
+    /** Light Leaks › drag on the photo: the leak follows the finger (preview); release is one step. */
+    fun moveLeak(x: Double, y: Double, release: Boolean) {
+        val session = state.value.session ?: return
+        val move: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool = { it.copy(lightLeak = it.lightLeak.copy(x = (x * 100).coerceIn(0.0, 100.0), y = (y * 100).coerceIn(0.0, 100.0))) }
+        if (release) commitEffects(move) else requestPreview(session.current.copy(tools = session.current.tools.copy(effects = move(session.current.tools.effects))), globalOnly = false)
+    }
+
+    /**
+     * The approved notice: the applied preset already has its own grain (or vignette) and the person's is on.
+     */
+    // v3 differs (as iOS F1): the prototype decides "has its own grain/vignette" with a stand-in hash of the
+    // preset id (`presetHasEffect`, marked as an open question there); this reads the preset's real
+    // recipe.finishing, so the notice is true for the applied preset.
+    fun presetHasOwn(sub: EffectsSub, ui: EditorUiState = state.value): Boolean {
+        val preset = library?.preset(ui.session?.current?.look) ?: return false
+        return when (sub) {
+            EffectsSub.GRAIN -> (preset.recipe.finishing.grain?.amount ?: 0.0) != 0.0
+            EffectsSub.VIGNETTE -> (preset.recipe.finishing.vignette?.amount ?: 0.0) != 0.0
+            EffectsSub.LEAK -> false
+        }
+    }
 
     // --- Develop --------------------------------------------------------------------------------
 
@@ -569,7 +860,7 @@ class EditorViewModel(
         val committed = session.current
         val plan = library.planFor(committed)
         val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer)
-        val exportPlan = ExportRenderPlan { frame ->
+        val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, backgroundPlan) else ExportRenderPlan { frame ->
             // One renderer and clarity base per frame; tiles read their apron from the full frame.
             val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
             val base = renderer.clarityBase(frame, plan)
@@ -591,6 +882,40 @@ class EditorViewModel(
             savingRecipe = committed
             state.update { it.copy(overlay = EditorOverlay.SAVING) }
         }
+    }
+
+    /** Save copy of a recipe with Edit or Effects (EditPipeline): the same stages as its preview, at full resolution. */
+    private fun editExportPlan(committed: EditState, plan: com.lightlylabs.lightly.develop.DevelopRenderPlan, backgroundPlan: com.lightlylabs.lightly.background.BackgroundPlan?): ExportRenderPlan {
+        val library = library ?: error("no library")
+        val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
+        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM)
+        val patches = EditMapping.patchDigests(committed).mapNotNull { removePatches[it] }
+        val background = backgroundPlan?.let { bp ->
+            { frame: Rgba8Image ->
+                // Background renders once at the analysis size (K = 8) from Develop + Adjust, then each
+                // source region keeps its in-focus pixels and takes the rest from that render.
+                val analysis = backgroundSession.analysis!!
+                val small = BackgroundSession.resize(frame, analysis.width, analysis.height)
+                val developed = renderer.render(small, plan.withoutFinishing())
+                val adjusted = com.lightlylabs.lightly.develop.AdjustStage.plan(EditMapping.adjust(committed), library.model)?.let { renderer.render(developed, it) } ?: developed
+                val rendered = backgroundSession.render(adjusted, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background)
+                val compose: (ByteArray, PixelRect, Int, Int) -> ByteArray = { pixels, region, fw, fh ->
+                    com.lightlylabs.lightly.background.BackgroundStage.composeTile(pixels, region.x, region.y, region.width, region.height, fw, fh, rendered.first.pixels, rendered.second)
+                }
+                compose
+            }
+        }
+        return pipeline.exportPlan(committed, plan, patches, background)
+    }
+
+    /** [display] with the recipe's applied Remove patches composited (cached for the current list). */
+    private fun patched(display: Rgba8Image, edit: EditState): Rgba8Image {
+        val digests = EditMapping.patchDigests(edit)
+        if (digests.isEmpty()) return display
+        patchedDisplay?.takeIf { it.first == digests }?.let { return it.second }
+        val image = RemoveEngine.composite(digests.mapNotNull { removePatches[it] }, display)
+        patchedDisplay = digests to image
+        return image
     }
 
     private var savingRecipe: EditState? = null
@@ -666,10 +991,16 @@ class EditorViewModel(
                 val start = System.nanoTime()
                 val plan = library.planFor(edit, request.payload.globalOnly)
                 val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer)
-                // With Background active the drag preview keeps the full proxy: the stage works at the analysis size.
-                val source = if (request.payload.globalOnly && backgroundPlan == null) dragProxy else display
-                val developed = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
-                val image = if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first
+                val image = if (EditMapping.usesEditOrEffects(edit)) {
+                    // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
+                    val compose = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first } }
+                    EditPipeline(library.model, env.previewRenderer).renderPreview(patched(display, edit), edit, plan, compose)
+                } else {
+                    // With Background active the drag preview keeps the full proxy: the stage works at the analysis size.
+                    val source = if (request.payload.globalOnly && backgroundPlan == null) dragProxy else display
+                    val developed = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
+                    if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first
+                }
                 val millis = (System.nanoTime() - start) / 1e6
                 renderMillis += millis
                 env.onPreviewRendered(millis, request.payload.globalOnly)
@@ -709,7 +1040,7 @@ class EditorViewModel(
      * because their jobs return immediately.
      */
     internal fun debugWorkIdle(): Boolean =
-        listOf(loadJob, prefetchJob, separationJob).none { it?.isActive == true } && settledRevision >= requestedRevision
+        listOf(loadJob, prefetchJob, separationJob, removeJob).none { it?.isActive == true } && settledRevision >= requestedRevision
     internal val renderMillis: MutableList<Double> = java.util.Collections.synchronizedList(mutableListOf())
 
     // --- debug launch state (debug builds only; see DebugLaunchOptions) --------------------------
@@ -722,6 +1053,12 @@ class EditorViewModel(
 
     /** Debug captures only: separation never finishes, so "Finding the subject…" can be captured. */
     internal var debugHoldSeparation: Boolean = false
+
+    /** Debug captures only: Remove stays "Removing…", so the approved state can be captured. */
+    internal var debugHoldRemove: Boolean = false
+
+    /** Debug captures only: run once when a stroke has been removed (the screen's history rebase). */
+    internal var debugAfterRemove: (() -> Unit)? = null
 
     /** Debug captures only: run once when separation finishes (e.g. the prototype screen's blur). */
     internal var debugAfterSeparation: (() -> Unit)? = null
@@ -795,6 +1132,49 @@ class EditorViewModel(
 
         fun setUi(change: (EditorUiState) -> EditorUiState) = state.update(change)
 
+        /** Slice 4: an Edit or Effects change committed as the user would (one step). */
+        fun edit(change: (com.lightlylabs.lightly.session.EditTool) -> com.lightlylabs.lightly.session.EditTool) = commitEdit(change)
+
+        fun effects(change: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool) = commitEffects(change)
+
+        fun cropAspect(aspect: com.lightlylabs.lightly.session.CropAspect) = setCropAspect(aspect)
+
+        /** Opens a tool as the user would (resets its sub-UI), then applies [ui] to the fresh UI. */
+        fun openTool(tool: EditorTool, ui: (EditorUiState) -> EditorUiState = { it }) {
+            selectTool(tool)
+            state.update(ui)
+        }
+
+        /**
+         * The prototype's Remove stroke mark (`.stroke` at left 62 %, top 30 %, 16 % × 5 %, rotate(−12deg)) as a
+         * real stroke: a capsule of the same centre, length, thickness and angle on the displayed frame.
+         */
+        fun prototypeStroke(): Pair<List<Pair<Double, Double>>, Double>? {
+            val display = state.value.original ?: return null
+            val w = display.width.toDouble()
+            val h = display.height.toDouble()
+            val radiusPx = 0.05 * h / 2
+            val half = (0.16 * w - 2 * radiusPx) / 2
+            val angle = Math.toRadians(-12.0)
+            val cx = 0.70 * w
+            val cy = 0.325 * h
+            val points = listOf(-1.0, 1.0).map { sign -> (cx + sign * half * kotlin.math.cos(angle)) / w to (cy + sign * half * kotlin.math.sin(angle)) / h }
+            return points to radiusPx / maxOf(w, h)
+        }
+
+        /** Removes [stroke] with the real model; [after] runs once it is applied (or never, when it fails). */
+        fun remove(stroke: Pair<List<Pair<Double, Double>>, Double>, after: (() -> Unit)? = null) {
+            debugAfterRemove = after
+            removeStroke(stroke.first, stroke.second)
+        }
+
+        /** Holds an approved Remove state for a capture with the stroke the person drew, without running the model. */
+        fun holdRemove(op: RemoveOp, stroke: Pair<List<Pair<Double, Double>>, Double>) {
+            val geometry = displayGeometry() ?: return
+            val points = stroke.first.map { (x, y) -> geometry.sourceFromFrame(x, y) }
+            state.update { it.copy(edit = it.edit.copy(removeOp = op, pendingStroke = PendingRemoveStroke(points, stroke.second))) }
+        }
+
         /** Opens Background on [sub] as the user would (starts separation). */
         fun openBackground(sub: BackgroundSub, afterSeparation: (() -> Unit)? = null) {
             debugAfterSeparation = afterSeparation
@@ -849,6 +1229,10 @@ class EditorViewModel(
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
         const val SAVE_CANCELLED = "Save cancelled · nothing was written"
+
+        /** The uncropped rect, and the smallest crop side (fraction of the frame) a gesture can leave. */
+        private val FULL_RECT = com.lightlylabs.lightly.session.NormalisedRect(0.0, 0.0, 1.0, 1.0)
+        private const val MIN_CROP = 0.1
 
         /** Prototype `cancelOp` toast. */
         const val OPERATION_CANCELLED = "Cancelled · nothing changed"

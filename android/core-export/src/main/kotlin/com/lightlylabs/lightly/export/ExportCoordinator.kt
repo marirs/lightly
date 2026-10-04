@@ -146,17 +146,19 @@ class ExportCoordinator<H, F : ExportFrame>(
      */
     private suspend fun renderThenSave(exportId: Long, job: ExportJob<H>): H {
         var source: Rgba8Image? = job.original.decode()
-        val width = source!!.width
-        val height = source.height
-        val frameBytes = ExportBufferLedger.rgba8Bytes(width, height)
+        val frameBytes = ExportBufferLedger.rgba8Bytes(source!!.width, source.height)
         ledger.acquire(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
         var sourceHeld = true
         try {
             publish(exportId, ExportState.Running(exportId, ExportState.Phase.RENDERING))
+            val tileRenderer = job.plan.prepare(source)
+            // The output may differ from the source in size (Edit › geometry); never larger than the source.
+            val (width, height) = tileRenderer.outputSize(source)
+            val targetBytes = ExportBufferLedger.rgba8Bytes(width, height)
             val target = frameFactory.allocate(width, height)
-            ledger.acquire(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
+            ledger.acquire(ExportBufferLedger.Kind.FULL_FRAME, targetBytes)
             try {
-                tiledRenderer.render(source, job.plan, target)
+                tiledRenderer.render(source, tileRenderer, target)
                 // Drop the source before encoding so the encoder runs with one full frame live.
                 source = null
                 ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
@@ -165,7 +167,7 @@ class ExportCoordinator<H, F : ExportFrame>(
                 publish(exportId, ExportState.Running(exportId, ExportState.Phase.ENCODING_AND_WRITING))
                 return withContext(NonCancellable) { saver.save(job.sourceHandle, job.spec, target) }
             } finally {
-                ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
+                ledger.release(ExportBufferLedger.Kind.FULL_FRAME, targetBytes)
             }
         } finally {
             if (sourceHeld) ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)

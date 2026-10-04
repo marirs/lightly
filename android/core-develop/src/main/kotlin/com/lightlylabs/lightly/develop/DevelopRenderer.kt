@@ -18,6 +18,11 @@ import kotlin.math.sqrt
 /** A rectangle of the full frame, in pixels. */
 data class PixelRect(val x: Int, val y: Int, val width: Int, val height: Int)
 
+/** [image] holds the pixels of a frameWidth × frameHeight frame starting at ([originX], [originY]). */
+class FrameView(val image: Rgba8Image, val originX: Int, val originY: Int, val frameWidth: Int, val frameHeight: Int) {
+    fun alpha(x: Int, y: Int): Byte = image.pixels[((y - originY) * image.width + (x - originX)) * 4 + 3]
+}
+
 /**
  * CPU renderer of a [DevelopRenderPlan] (rendering-v2 stages auto → develop.global → develop.spatial
  * → effects/finishing), whole-frame for previews or tile by tile for Save copy.
@@ -67,6 +72,7 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
         val factor = Planes.lowResFactor(sigma)
         val lowW = (source.width + factor - 1) / factor
         val lowH = (source.height + factor - 1) / factor
+        val view = FrameView(source, 0, 0, source.width, source.height)
         val sums = DoubleArray(lowW * lowH)
         val counts = IntArray(lowW * lowH)
         // Row bands are binned independently (one low-res row per band), so threads never share a bin.
@@ -76,7 +82,7 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
             for (y in firstLow * factor until min(source.height, endLow * factor)) {
                 val lowRow = (y / factor) * lowW
                 for (x in 0 until source.width) {
-                    globalColour(source, x, y, plan, rgb)
+                    globalColour(view, x, y, plan, rgb)
                     ColourMath.linearToOklab(srgbToLinear(rgb[0].toDouble()), srgbToLinear(rgb[1].toDouble()), srgbToLinear(rgb[2].toDouble()), lab)
                     val bin = lowRow + x / factor
                     sums[bin] += lab[0]
@@ -94,10 +100,21 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
         renderTile(source, PixelRect(0, 0, source.width, source.height), plan, clarityBase(source, plan))
 
     /** One tile of the frame; [base] must come from [clarityBase] on the same source and plan. */
-    fun renderTile(source: Rgba8Image, tile: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?): Rgba8Image {
-        require(tile.x >= 0 && tile.y >= 0 && tile.x + tile.width <= source.width && tile.y + tile.height <= source.height) { "Tile $tile outside the frame" }
+    fun renderTile(source: Rgba8Image, tile: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?): Rgba8Image =
+        renderView(FrameView(source, 0, 0, source.width, source.height), tile, plan, base)
+
+    /**
+     * One tile of a frame from a [view] that holds only part of it (a second pass over pixels a first
+     * pass rendered for a region: the Adjust pass in a tiled Save copy). Radii and finishing use the
+     * whole frame's size, and [base] is the whole frame's clarity base; the view must hold the tile and
+     * its [apron] (clamped to the frame), so reflect padding happens only at the frame's own edges.
+     */
+    fun renderView(view: FrameView, tile: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?): Rgba8Image {
+        require(tile.x >= view.originX && tile.y >= view.originY && tile.x + tile.width <= view.originX + view.image.width && tile.y + tile.height <= view.originY + view.image.height) {
+            "Tile $tile outside the view"
+        }
         val out = ByteArray(tile.width * tile.height * Rgba8Image.CHANNELS)
-        val finishing = if (plan.hasFinishing) FinishingPass(plan, source.width, source.height) else null
+        val finishing = if (plan.hasFinishing) FinishingPass(plan, view.frameWidth, view.frameHeight) else null
         if (!plan.hasSpatial) {
             parallel(tile.height) { first, end ->
                 val rgb = FloatArray(3)
@@ -105,22 +122,22 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
                 for (row in first until end) for (column in 0 until tile.width) {
                     val x = tile.x + column
                     val y = tile.y + row
-                    globalColour(source, x, y, plan, rgb)
-                    write(out, (row * tile.width + column) * 4, rgb, finishing, x, y, work, source.pixels[(y * source.width + x) * 4 + 3])
+                    globalColour(view, x, y, plan, rgb)
+                    write(out, (row * tile.width + column) * 4, rgb, finishing, x, y, work, view.alpha(x, y))
                 }
             }
             return Rgba8Image(tile.width, tile.height, out)
         }
-        renderSpatialTile(source, tile, plan, base, finishing, out)
+        renderSpatialTile(view, tile, plan, base, finishing, out)
         return Rgba8Image(tile.width, tile.height, out)
     }
 
-    private fun renderSpatialTile(source: Rgba8Image, tile: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?, finishing: FinishingPass?, out: ByteArray) {
-        val apron = apron(plan, source.width, source.height)
-        val rx = max(0, tile.x - apron)
-        val ry = max(0, tile.y - apron)
-        val rw = min(source.width, tile.x + tile.width + apron) - rx
-        val rh = min(source.height, tile.y + tile.height + apron) - ry
+    private fun renderSpatialTile(view: FrameView, tile: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?, finishing: FinishingPass?, out: ByteArray) {
+        val apron = apron(plan, view.frameWidth, view.frameHeight)
+        val rx = max(view.originX, tile.x - apron)
+        val ry = max(view.originY, tile.y - apron)
+        val rw = min(view.originX + view.image.width, tile.x + tile.width + apron) - rx
+        val rh = min(view.originY + view.image.height, tile.y + tile.height + apron) - ry
         val n = rw * rh
         val lightness = FloatArray(n)
         val chromaA = FloatArray(n)
@@ -129,13 +146,13 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
             val rgb = FloatArray(3)
             val lab = DoubleArray(3)
             for (row in first until end) for (column in 0 until rw) {
-                globalColour(source, rx + column, ry + row, plan, rgb)
+                globalColour(view, rx + column, ry + row, plan, rgb)
                 ColourMath.linearToOklab(srgbToLinear(rgb[0].toDouble()), srgbToLinear(rgb[1].toDouble()), srgbToLinear(rgb[2].toDouble()), lab)
                 val i = row * rw + column
                 lightness[i] = lab[0].toFloat(); chromaA[i] = lab[1].toFloat(); chromaB[i] = lab[2].toFloat()
             }
         }
-        val longEdge = max(source.width, source.height)
+        val longEdge = max(view.frameWidth, view.frameHeight)
         val scale = longEdge / plan.model.provisional.referenceLongEdgePx
         plan.spatial.noiseReduction?.let { noiseReduction(lightness, chromaA, chromaB, rw, rh, it, plan, scale, longEdge) }
         if (plan.spatial.clarity != 0.0 || plan.spatial.texture != 0.0) clarityTexture(lightness, rw, rh, rx, ry, plan, base, longEdge)
@@ -151,7 +168,7 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
                 val i = (y - ry) * rw + (x - rx)
                 ColourMath.oklabToLinear(lightness[i].toDouble(), chromaA[i].toDouble(), chromaB[i].toDouble(), linear)
                 for (c in 0 until 3) rgb[c] = linearToSrgb(linear[c]).coerceIn(0.0, 1.0).toFloat()
-                write(out, (row * tile.width + column) * 4, rgb, finishing, x, y, work, source.pixels[(y * source.width + x) * 4 + 3])
+                write(out, (row * tile.width + column) * 4, rgb, finishing, x, y, work, view.alpha(x, y))
             }
         }
     }
@@ -262,8 +279,9 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
     }
 
     /** Auto then Look, each clamping its input (the Lut3D boundary rule); no 8-bit step between them. */
-    private fun globalColour(source: Rgba8Image, x: Int, y: Int, plan: DevelopRenderPlan, rgb: FloatArray) {
-        val base = (y * source.width + x) * 4
+    private fun globalColour(view: FrameView, x: Int, y: Int, plan: DevelopRenderPlan, rgb: FloatArray) {
+        val source = view.image
+        val base = ((y - view.originY) * source.width + (x - view.originX)) * 4
         rgb[0] = (source.pixels[base].toInt() and 0xff) / 255f
         rgb[1] = (source.pixels[base + 1].toInt() and 0xff) / 255f
         rgb[2] = (source.pixels[base + 2].toInt() and 0xff) / 255f

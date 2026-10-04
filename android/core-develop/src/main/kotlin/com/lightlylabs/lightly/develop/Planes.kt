@@ -96,6 +96,12 @@ object Planes {
 
 /** A blurred plane stored at 1/[factor] resolution of a full image, sampled at full-resolution pixels. */
 class LowResPlane(private val values: FloatArray, val width: Int, val height: Int, private val factor: Double) {
+    /**
+     * The same plane for an image [scale] times larger than the one it was computed from (a base computed
+     * on a downscaled copy, used for a full-resolution frame).
+     */
+    fun rescaled(scale: Double): LowResPlane = LowResPlane(values, width, height, factor * scale)
+
     /** Bilinear sample at full-resolution pixel (x, y), pixel centres at half-integers. */
     fun sample(x: Int, y: Int): Double {
         val sx = ((x + 0.5) / factor - 0.5).coerceIn(0.0, (width - 1).toDouble())

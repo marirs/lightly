@@ -93,6 +93,11 @@ object LightlyIcons {
     val Hex = lineIcon("hex", "M12 4.5l6.5 3.75v7.5L12 19.5l-6.5-3.75v-7.5z")
     val Heart = lineIcon("heart", "M12 19s-7-4.4-7-9.5A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7 2.5C19 14.6 12 19 12 19z")
     val StarShape = lineIcon("starShape", "M12 5l2 4.6 5 .4-3.8 3.3 1.2 4.9L12 15.6 7.6 18.2l1.2-4.9L5 10l5-.4z")
+    /** Edit › Rotate (prototype `rotl`, `rotr`, `fliph`, `flipv`). */
+    val RotateLeft = lineIcon("rotl", "M4 4v5h5", "M4.5 9A8 8 0 1 1 6 16")
+    val RotateRight = lineIcon("rotr", "M20 4v5h-5", "M19.5 9A8 8 0 1 0 18 16")
+    val FlipHorizontal = lineIcon("fliph", "M12 3v18", "M9 7L4 12l5 5z", "M15 7l5 5-5 5z")
+    val FlipVertical = lineIcon("flipv", "M3 12h18", "M7 9l5-5 5 5z", "M7 15l5 5 5-5z")
     val Camera = lineIcon(
         "camera",
         "M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z",
