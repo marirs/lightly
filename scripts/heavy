@@ -53,14 +53,27 @@ case "$wait_seconds" in
   ''|*[!0-9]*) echo "LIGHTLY_HEAVY_WAIT_SECONDS must be a nonnegative integer" >&2; exit 64 ;;
 esac
 
+# Owner review devices (one per line in REVIEW_DEVICES_FILE: a simulator UDID, or "avd:<name>")
+# stay running so the owner can try the app while agents keep working. Every other
+# simulator or emulator is still shut down before and after each job.
+REVIEW_DEVICES_FILE=/tmp/lightly-review-devices
+export REVIEW_DEVICES_FILE
 shutdown_devices() {
-  xcrun simctl shutdown all >/dev/null 2>&1
+  local udid serial avd
+  for udid in $(xcrun simctl list devices booted 2>/dev/null | grep -oE '[0-9A-F-]{36}'); do
+    grep -qx "$udid" "$REVIEW_DEVICES_FILE" 2>/dev/null || xcrun simctl shutdown "$udid" >/dev/null 2>&1
+  done
   if command -v adb >/dev/null 2>&1; then
     for serial in $(adb devices 2>/dev/null | awk '/^emulator-/{print $1}'); do
-      adb -s "$serial" emu kill >/dev/null 2>&1
+      avd=$(adb -s "$serial" emu avd name 2>/dev/null | head -1 | tr -d '\r')
+      grep -qx "avd:$avd" "$REVIEW_DEVICES_FILE" 2>/dev/null || adb -s "$serial" emu kill >/dev/null 2>&1
     done
   fi
-  pkill -f qemu-system >/dev/null 2>&1
+  # Orphaned emulator processes that adb no longer lists, except review AVDs.
+  for pid in $(pgrep -f qemu-system 2>/dev/null); do
+    avd=$(ps -o command= -p "$pid" | grep -oE -- '-avd [^ ]+' | cut -d' ' -f2)
+    grep -qx "avd:$avd" "$REVIEW_DEVICES_FILE" 2>/dev/null || kill "$pid" 2>/dev/null
+  done
   return 0
 }
 
