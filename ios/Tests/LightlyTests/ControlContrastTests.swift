@@ -83,4 +83,36 @@ final class ControlContrastTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(ratio(ApprovedColor.inkTertiary, on: ApprovedColor.background, scheme), 3)
         }
     }
+
+    /// More pages and sheets (`--sheet`): rows, sub-lines, group labels, Delete, quiet buttons.
+    func testTextOnTheSheet() {
+        for scheme in [ColorScheme.light, .dark] {
+            for (token, name) in [(ApprovedColor.ink, "row titles"), (ApprovedColor.inkTertiary, "sub-lines, notes, groups"),
+                                  (ApprovedColor.selection, "Cancel, Save, Use"), (ApprovedColor.danger, "Delete saved signature")] {
+                XCTAssertGreaterThanOrEqual(ratio(token, on: ApprovedColor.sheet, scheme), 4.5, "\(name) in \(scheme)")
+            }
+            XCTAssertGreaterThanOrEqual(ratio(ApprovedColor.danger, on: ApprovedColor.background, scheme), 4.5)
+        }
+    }
+
+    /// `.seg`: the selected label on the raised segment, the others on `--bg2`.
+    func testSegmentedControlLabels() {
+        for scheme in [ColorScheme.light, .dark] {
+            XCTAssertGreaterThanOrEqual(ratio(ApprovedColor.ink, on: ApprovedColor.segmentSelected, scheme), 4.5)
+            XCTAssertGreaterThanOrEqual(ratio(ApprovedColor.inkSecondary, on: ApprovedColor.backgroundSecondary, scheme), 4.5)
+        }
+    }
+
+    /// `.opt.on`: the selection colour on `--selSoft` (8 % light, 14 % dark over the background).
+    func testSelectedChipLabelOnItsSoftFill() {
+        for (scheme, alpha) in [(ColorScheme.light, 0.08), (.dark, 0.14)] {
+            let sel = UIColor(ApprovedColor.selection.resolved(scheme)), bg = UIColor(ApprovedColor.background.resolved(scheme))
+            var s = (CGFloat(0), CGFloat(0), CGFloat(0), CGFloat(0)), b = s
+            sel.getRed(&s.0, green: &s.1, blue: &s.2, alpha: &s.3)
+            bg.getRed(&b.0, green: &b.1, blue: &b.2, alpha: &b.3)
+            func mix(_ x: CGFloat, _ y: CGFloat) -> UInt8 { UInt8(((x * alpha + y * (1 - alpha)) * 255).rounded()) }
+            let soft = WCAG.luminance(mix(s.0, b.0), mix(s.1, b.1), mix(s.2, b.2))
+            XCTAssertGreaterThanOrEqual(WCAG.contrast(WCAG.luminance(of: ApprovedColor.selection.resolved(scheme)), soft), 4.5, "\(scheme)")
+        }
+    }
 }

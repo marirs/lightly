@@ -254,10 +254,12 @@ struct WatermarkPanelView: View {
             if let drawn = model.signatures.drawn {
                 OptionChip(isOn: chosen == .drawn, identifier: "watermark.signature.drawn", minWidth: 120,
                            action: { model.chooseSignature(.drawn) }) { SignatureGlyph(signature: drawn, height: 26) }
+                    .accessibilityLabel(Text("Drawn signature"))
             }
             if let imported = model.signatures.imported {
                 OptionChip(isOn: chosen == .imported, identifier: "watermark.signature.imported", minWidth: 120,
                            action: { model.chooseSignature(.imported) }) { SignatureGlyph(signature: imported, height: 26) }
+                    .accessibilityLabel(Text("Imported signature"))
             }
             OptionChip(isOn: false, identifier: "watermark.signature.draw", action: model.openDraw) {
                 ApprovedIconView(icon: .plus, size: 18); Text("Draw").approvedText(15)
@@ -379,7 +381,8 @@ struct WatermarkPanelView: View {
                         .frame(minWidth: 84, alignment: .leading)
                     ForEach(WatermarkPanelModel.colours, id: \.self) { hex in
                         SwatchButton(fill: Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0), isOn: watermark.colour == hex,
-                                     label: "Colour", identifier: "watermark.colour.\(hex.dropFirst())") { model.setColour(hex) }
+                                     label: "Colour", identifier: "watermark.colour.\(hex.dropFirst())",
+                                     colourName: SwatchButton<Color>.name(ofHex: hex)) { model.setColour(hex) }
                     }
                 }
                 .padding(.horizontal, 18).padding(.vertical, 6)

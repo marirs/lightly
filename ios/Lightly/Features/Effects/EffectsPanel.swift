@@ -64,20 +64,22 @@ struct EffectsPanelView: View {
     }
 
     /// `.listrow` "On"/"Off" with the switch (`onRow`), 44 pt high, no rule.
-    private func onRow(_ isOn: Bool, identifier: String, toggle: @escaping () -> Void) -> some View {
+    /// VoiceOver names the effect ("Vignette, switch, on"); the row itself shows only On/Off.
+    private func onRow(_ isOn: Bool, name: String, identifier: String, toggle: @escaping () -> Void) -> some View {
         Toggle(isOn: Binding(get: { isOn }, set: { _ in toggle() })) {
             Text(isOn ? "On" : "Off").approvedText(15).foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
         }
         .toggleStyle(ApprovedSwitchToggleStyle())
         .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
         .frame(minHeight: 44)
+        .accessibilityLabel(Text(name))
         .accessibilityIdentifier(identifier)
     }
 
     @ViewBuilder
     private var leak: some View {
         let l = effects.lightLeak
-        onRow(l.enabled, identifier: "effects.leak.toggle") { session.commitEffects { $0.lightLeak.enabled.toggle() } }
+        onRow(l.enabled, name: "Light Leaks", identifier: "effects.leak.toggle") { session.commitEffects { $0.lightLeak.enabled.toggle() } }
         ChipRow {
             ForEach(Self.leakStyles, id: \.style) { option in
                 OptionChip(isOn: l.style == option.style, identifier: "effects.leak.\(option.style.rawValue)",
@@ -98,7 +100,7 @@ struct EffectsPanelView: View {
     @ViewBuilder
     private var grain: some View {
         let g = effects.grain
-        onRow(g.enabled, identifier: "effects.grain.toggle") { session.commitEffects { $0.grain.enabled.toggle() } }
+        onRow(g.enabled, name: "Grain", identifier: "effects.grain.toggle") { session.commitEffects { $0.grain.enabled.toggle() } }
         ChipRow {
             ForEach([(EditRecipe.Effects.Grain.Style.fine, "Fine"), (.film, "Film"), (.coarse, "Coarse")], id: \.0) { style, label in
                 OptionChip(isOn: g.style == style, identifier: "effects.grain.\(style.rawValue)",
@@ -114,7 +116,7 @@ struct EffectsPanelView: View {
 
     @ViewBuilder
     private var vignette: some View {
-        onRow(effects.vignette.enabled, identifier: "effects.vignette.toggle") { session.commitEffects { $0.vignette.enabled.toggle() } }
+        onRow(effects.vignette.enabled, name: "Vignette", identifier: "effects.vignette.toggle") { session.commitEffects { $0.vignette.enabled.toggle() } }
         slider("Amount", \.vignette.amount, 0...100)
         slider("Size", \.vignette.size, 0...100)
         slider("Softness", \.vignette.softness, 0...100)

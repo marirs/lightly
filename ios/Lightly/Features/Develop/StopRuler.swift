@@ -25,6 +25,8 @@ struct StopRuler: View {
     @State private var holdTask: Task<Void, Never>?
 
     @Environment(\.colorScheme) private var colorScheme
+    /// Reduce Motion: the ruler lands on its stop without the snap animation.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let count = model.stopCount
@@ -119,7 +121,7 @@ struct StopRuler: View {
                     target -= (value.predictedEndTranslation.width - value.translation.width)
                 }
                 let stop = Int((clampOffset(target, count: count) / Self.tickSpacing).rounded())
-                withAnimation(.easeOut(duration: 0.25)) { visualOffset = CGFloat(stop) * Self.tickSpacing }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { visualOffset = CGFloat(stop) * Self.tickSpacing }
                 model.dragEnded(at: stop)
                 // Hand the position back to the model once the snap has settled.
                 Task { @MainActor in

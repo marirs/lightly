@@ -141,6 +141,7 @@ struct FavouritePresetsPage: View {
     /// Translation already turned into slot moves.
     @State private var dragBase: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -240,7 +241,7 @@ extension FavouritePresetsPage {
     }
 
     func dragEnded() {
-        withAnimation(.snappy(duration: 0.2)) { dragOffset = 0 }
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) { dragOffset = 0 }
         draggedPresetID = nil
         dragBase = 0
     }

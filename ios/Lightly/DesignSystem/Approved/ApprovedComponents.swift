@@ -218,6 +218,8 @@ struct ApprovedHairline: View {
 /// toggle's accessibility (switch trait, value, double-tap to change).
 struct ApprovedSwitchToggleStyle: ToggleStyle {
     @Environment(\.colorScheme) private var colorScheme
+    /// Reduce Motion: the knob moves without sliding.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         Button {
@@ -236,7 +238,7 @@ struct ApprovedSwitchToggleStyle: ToggleStyle {
                             .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
                             .padding(3)
                     }
-                    .animation(.snappy(duration: 0.18), value: configuration.isOn)
+                    .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: configuration.isOn)
                     .accessibilityHidden(true)
             }
             .contentShape(Rectangle())

@@ -219,6 +219,8 @@ struct SwatchButton<Fill: ShapeStyle>: View {
     let isOn: Bool
     let label: String
     let identifier: String
+    /// VoiceOver value: the colour's name (the approved label is only "Colour").
+    var colourName: String?
     let action: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
@@ -238,8 +240,17 @@ struct SwatchButton<Fill: ShapeStyle>: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(label))
+        .accessibilityValue(Text(colourName ?? ""))
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier(identifier)
+    }
+
+    /// Spoken names of the approved swatch colours (Border, Watermark, Change background).
+    static func name(ofHex hex: String) -> String? {
+        [
+            "#FFFFFF": "White", "#F4F1EC": "Warm white", "#111111": "Black", "#3C4A55": "Slate", "#C9A27E": "Tan",
+            "#5A4636": "Brown", "#C9C2B8": "Stone", "#1F2328": "Charcoal", "#8A8A8F": "Grey"
+        ][hex.uppercased()]
     }
 }
 

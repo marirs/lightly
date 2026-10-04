@@ -24,6 +24,8 @@ struct MoreSheet: View {
 
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
+    /// Reduce Motion: pages cross-fade instead of sliding in.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// - Parameter initialPath: Pages already open, first to current (snapshot tests open a page
     ///   directly). By default the entry's own first page.
@@ -37,7 +39,7 @@ struct MoreSheet: View {
     var body: some View {
         page(currentPage)
             .id(currentPage)
-            .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .opacity))
+            .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing), removal: .opacity))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(ApprovedColor.sheet.resolved(colorScheme).ignoresSafeArea())
     }
@@ -45,7 +47,7 @@ struct MoreSheet: View {
     // MARK: - Navigation
 
     private func open(_ page: MorePage) {
-        withAnimation(.snappy(duration: 0.25)) { path.append(page) }
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .snappy(duration: 0.25)) { path.append(page) }
     }
 
     /// Back on a page: its parent, or out of the sheet when the page was the entry point (the
@@ -55,7 +57,7 @@ struct MoreSheet: View {
             appState.closeMore()
             return
         }
-        withAnimation(.snappy(duration: 0.25)) { _ = path.popLast() }
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .snappy(duration: 0.25)) { _ = path.popLast() }
     }
 
     @ViewBuilder

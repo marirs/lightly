@@ -191,7 +191,8 @@ struct BorderPanelView: View {
         ChipRow {
             ForEach(colours, id: \.self) { hex in
                 SwatchButton(fill: Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0), isOn: selected == hex,
-                             label: "Colour", identifier: "\(identifier).\(hex.dropFirst())") { choose(hex) }
+                             label: "Colour", identifier: "\(identifier).\(hex.dropFirst())",
+                             colourName: SwatchButton<Color>.name(ofHex: hex)) { choose(hex) }
             }
         }
     }
