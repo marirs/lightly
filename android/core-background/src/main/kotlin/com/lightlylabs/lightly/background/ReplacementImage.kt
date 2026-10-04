@@ -45,14 +45,21 @@ object ReplacementImage {
      * [photo] (sRGB floats) aspect-filled into width × height, enlarged by [scalePercent] (100…200), and
      * positioned by [xPercent]/[yPercent] like CSS background-position (0 = left/top edge aligned).
      */
-    fun photo(photo: FloatImage, width: Int, height: Int, scalePercent: Double, xPercent: Double, yPercent: Double): FloatImage {
-        val factor = max(width.toDouble() / photo.width, height.toDouble() / photo.height) * scalePercent / 100.0
-        val scaledW = photo.width * factor
-        val scaledH = photo.height * factor
+    fun photo(photo: FloatImage, width: Int, height: Int, scalePercent: Double, xPercent: Double, yPercent: Double): FloatImage =
+        photo(planesOf(photo), width, height, scalePercent, xPercent, yPercent)
+
+    /** The photo split into R, G, B planes. Callers that draw one photo repeatedly cache this (11 MB per call). */
+    fun planesOf(photo: FloatImage): List<FloatPlane> =
+        (0 until 3).map { c -> FloatPlane(photo.width, photo.height, FloatArray(photo.width * photo.height) { photo.data[it * 3 + c] }) }
+
+    fun photo(planes: List<FloatPlane>, width: Int, height: Int, scalePercent: Double, xPercent: Double, yPercent: Double): FloatImage {
+        val source = planes[0]
+        val factor = max(width.toDouble() / source.width, height.toDouble() / source.height) * scalePercent / 100.0
+        val scaledW = source.width * factor
+        val scaledH = source.height * factor
         val left = (width - scaledW) * xPercent / 100.0
         val top = (height - scaledH) * yPercent / 100.0
         val out = FloatImage(width, height, 3)
-        val planes = (0 until 3).map { c -> FloatPlane(photo.width, photo.height, FloatArray(photo.width * photo.height) { photo.data[it * 3 + c] }) }
         // Area-average when shrinking, bilinear when enlarging.
         val shrink = factor < 1
         val pre = if (shrink) planes.map { DepthModelInput.resizeArea(it, scaledW.roundToInt().coerceAtLeast(1), scaledH.roundToInt().coerceAtLeast(1)) } else planes

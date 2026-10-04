@@ -43,6 +43,10 @@ class BackgroundSession(private val env: EditorEnvironment) {
 
     /** Replacement photos decoded at the analysis size, by AssetRef. */
     private val replacementPhotos = mutableMapOf<AssetRef, Rgba8Image>()
+    // The replacement photo as sRGB [0,1] R, G, B planes, converted once per asset. Converting it on
+    // every render (preview, each drag frame and each Save-copy tile) allocated ~22 MB each time and ran
+    // the 192 MB heap out of memory with a subject matte (measured on the Pixel 9 Pro emulator).
+    private val replacementFloats = mutableMapOf<AssetRef, List<com.lightlylabs.lightly.background.FloatPlane>>()
 
     /**
      * Embedded depth first (Dynamic Depth, GDepth), else the depth estimator; then the segmenter.
@@ -106,9 +110,13 @@ class BackgroundSession(private val env: EditorEnvironment) {
         faces = emptyList()
         noClearSubject = false
         replacementPhotos.clear()
+        replacementFloats.clear()
     }
 
-    fun rememberReplacementPhoto(asset: AssetRef, image: Rgba8Image) { replacementPhotos[asset] = image }
+    fun rememberReplacementPhoto(asset: AssetRef, image: Rgba8Image) {
+        replacementPhotos[asset] = image
+        replacementFloats.remove(asset)
+    }
 
     /** The recipe's derived references for what the analysis produced (digest of the map's float bytes). */
     fun withDerivedRefs(tool: BackgroundTool): BackgroundTool {
@@ -203,8 +211,14 @@ class BackgroundSession(private val env: EditorEnvironment) {
             is Replacement.Colour -> ReplacementImage.colour(w, h, r.colour)
             is Replacement.Gradient -> ReplacementImage.gradient(w, h, r.angle, r.stops.map { it.colour to it.position })
             is Replacement.Image -> {
-                val photo = replacementPhotos[r.image] ?: (r.image as? AssetRef.Bundled)?.let { env.bundledBackground(it.id) }?.also { replacementPhotos[r.image] = it } ?: return null
-                ReplacementImage.photo(FloatImage(photo.width, photo.height, 3, FloatArray(photo.pixelCount * 3) { (photo.pixels[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f }), w, h, r.scale, r.x, r.y)
+                val floats = replacementFloats[r.image] ?: run {
+                    val photo = replacementPhotos[r.image] ?: (r.image as? AssetRef.Bundled)?.let { env.bundledBackground(it.id) }?.also { replacementPhotos[r.image] = it } ?: return null
+                    (0 until 3).map { c ->
+                        com.lightlylabs.lightly.background.FloatPlane(photo.width, photo.height,
+                            FloatArray(photo.pixelCount) { (photo.pixels[it * 4 + c].toInt() and 0xff) / 255f })
+                    }.also { replacementFloats[r.image] = it }
+                }
+                ReplacementImage.photo(floats, w, h, r.scale, r.x, r.y)
             }
         }
         // The replacement receives the photo's global colour (Auto, develop.global at Amount); no spatial operator.
