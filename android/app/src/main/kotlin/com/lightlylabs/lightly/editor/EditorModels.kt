@@ -43,11 +43,12 @@ object EditorTools {
     }
 
     /**
-     * Tools a release build lets the person open: Develop (slice 2), Edit and Effects (slice 4), Border and Watermark (slice 5). The others
-     * open a development stub in debug builds only. Background's release enablement is slice 3's decision
-     * (still in progress) and is left unchanged here.
+     * Tools a release build lets the person open: every tool but Portrait, which is blocked on D3 (no face
+     * detector) and stays a debug-only development stub. Background is offered so a release without the
+     * gated depth model shows the approved unavailable and failure states (docs/v1/slice3-android.md)
+     * instead of a tab that does nothing.
      */
-    fun isImplemented(tool: EditorTool) = tool in setOf(EditorTool.DEVELOP, EditorTool.EDIT, EditorTool.EFFECTS, EditorTool.BORDER, EditorTool.WATERMARK)
+    fun isImplemented(tool: EditorTool) = tool != EditorTool.PORTRAIT
 }
 
 /** Prototype `s.auto`: what stage `auto` is doing for this photo. */
