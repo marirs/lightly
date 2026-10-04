@@ -203,3 +203,49 @@ class EditStagesTest {
         assertTrue(abs(pixel(presetOnly, 0, 0)[0] - 128) > 0)
     }
 }
+
+/** The light leak (rendering-v2 revision 2, C4) against the shared goldens (`lightLeak`): R, the premultiplied overlay, the output. */
+class LightLeakGoldensTest {
+    private val dir = java.io.File(checkNotNull(System.getProperty("lightly.renderingGoldensDir")))
+    private val index = kotlinx.serialization.json.Json.parseToJsonElement(java.io.File(dir, "index.json").readText()).let { it as kotlinx.serialization.json.JsonObject }
+
+    private fun array(name: String): FloatArray {
+        val buffer = java.nio.ByteBuffer.wrap(java.io.File(dir, name).readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+        return FloatArray(buffer.remaining()).also { buffer.get(it) }
+    }
+
+    @Test
+    fun `light leak equals the goldens`() {
+        val cases = (index.getValue("lightLeak") as kotlinx.serialization.json.JsonArray).map { it as kotlinx.serialization.json.JsonObject }
+        assertEquals(4, cases.size)
+        for (case in cases) {
+            fun num(o: kotlinx.serialization.json.JsonObject, k: String) = (o.getValue(k) as kotlinx.serialization.json.JsonPrimitive).content.toDouble()
+            val name = (case.getValue("name") as kotlinx.serialization.json.JsonPrimitive).content
+            val width = num(case, "width").toInt()
+            val height = num(case, "height").toInt()
+            val p = case.getValue("params") as kotlinx.serialization.json.JsonObject
+            val params = EffectsParams(leakEnabled = true, leakStyle = (p.getValue("style") as kotlinx.serialization.json.JsonPrimitive).content,
+                leakIntensity = num(p, "intensity"), leakX = num(p, "x"), leakY = num(p, "y"), leakRotation = num(p, "rotation"))
+            val leak = LightLeak.of(params, width, height)!!
+            assertEquals(num(case, "farthestCornerPx"), leak.farthestCorner, 1e-4, name)
+            val premultiplied = array(((case.getValue("premultiplied") as kotlinx.serialization.json.JsonObject).getValue("file") as kotlinx.serialization.json.JsonPrimitive).content)
+            val expected = array(((case.getValue("expected") as kotlinx.serialization.json.JsonObject).getValue("file") as kotlinx.serialization.json.JsonPrimitive).content)
+            var worstOverlay = 0.0
+            var worstOut = 0.0
+            val overlay = DoubleArray(3)
+            for (y in 0 until height) for (x in 0 until width) {
+                if (!leak.overlay(x, y, overlay)) overlay.fill(0.0)
+                val rgb = if (y < height / 3 && x < width / 3) floatArrayOf(0.75f, 0.2f, 0.15f)
+                    else floatArrayOf((0.35 + 0.5 * x / width).toFloat(), (0.25 + 0.4 * x / width).toFloat(), (0.2 + 0.3 * y / height).toFloat())
+                leak.apply(rgb, x, y)
+                for (c in 0 until 3) {
+                    val i = (y * width + x) * 3 + c
+                    worstOverlay = maxOf(worstOverlay, abs(overlay[c] - premultiplied[i]))
+                    worstOut = maxOf(worstOut, abs(rgb[c] - expected[i]).toDouble())
+                }
+            }
+            assertTrue(worstOverlay <= 2e-4, "$name overlay differs by $worstOverlay")
+            assertTrue(worstOut <= 2e-4, "$name output differs by $worstOut")
+        }
+    }
+}

@@ -193,11 +193,12 @@ object LookPackFacts {
 }
 
 /**
- * rendering-v2 revision this app implements (contract fixes 1): revision 1 moved background.focus
+ * rendering-v2 revision this app implements (contract fixes 2: stage order C1/C2, perspective C3, light leak C4;
+ * fixes 1 unchanged): revision 1 moved background.focus
  * `maxBlurRadius` from `params` to `constants` (0.06). Bundling or shipping any other revision fails.
  */
 object RenderingContractFacts {
-    const val SUPPORTED_REVISION = 1
+    const val SUPPORTED_REVISION = 2
 
     @Suppress("UNCHECKED_CAST")
     fun problems(contractText: String): List<String> {

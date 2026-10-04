@@ -105,34 +105,50 @@ internal class LightLeak private constructor(
     private val extent: Double, private val cosine: Double, private val sine: Double,
     private val coreAlpha: Double, private val ringAlpha: Double, private val style: String,
 ) {
-    fun apply(rgb: FloatArray, x: Int, y: Int) {
+    /** Farthest-corner distance R (px): the gradient ray the stops are fractions of. */
+    val farthestCorner: Double get() = extent
+
+    /**
+     * The premultiplied overlay colour (0…1) at frame pixel (x, y) into [out]; false where the rotated
+     * overlay does not cover the pixel or the gradient is transparent (no leak).
+     */
+    fun overlay(x: Int, y: Int, out: DoubleArray): Boolean {
         val px = x + 0.5 - frameCentreX
         val py = y + 0.5 - frameCentreY
         // The overlay is rotated about the frame centre: sample the unrotated gradient.
         val qx = cosine * px + sine * py + frameCentreX
         val qy = -sine * px + cosine * py + frameCentreY
+        // Revision 2 (C4): the rotated overlay leaves uncovered frame areas untouched.
+        if (qx < 0 || qx > frameCentreX * 2 || qy < 0 || qy > frameCentreY * 2) return false
         val dx = qx - centreX
         val dy = qy - centreY
         val t = sqrt(dx * dx + dy * dy) / extent
-        if (t >= END_STOP) return
-        var core = colours(style).first
-        var ring = colours(style).second
+        if (t >= END_STOP) return false
+        var (core, ring) = colours(style)
         if (style == "prism") {
             val hue = atan2(dy, dx) * 180 / PI
             core = prismColour(hue)
             ring = prismColour(hue + 40)
         }
         for (c in 0 until 3) {
-            val premultiplied = if (t <= RING_STOP) {
+            out[c] = if (t <= RING_STOP) {
                 val f = t / RING_STOP
                 core[c] / 255 * coreAlpha * (1 - f) + ring[c] / 255 * ringAlpha * f
             } else {
                 val f = (t - RING_STOP) / (END_STOP - RING_STOP)
                 ring[c] / 255 * ringAlpha * (1 - f)
             }
+        }
+        return true
+    }
+
+    fun apply(rgb: FloatArray, x: Int, y: Int) {
+        val premultiplied = DoubleArray(3)
+        if (!overlay(x, y, premultiplied)) return
+        for (c in 0 until 3) {
             // Screen with source alpha: Cb + α·Cs·(1 − Cb).
             val base = rgb[c].toDouble()
-            rgb[c] = (base + premultiplied * (1 - base)).coerceIn(0.0, 1.0).toFloat()
+            rgb[c] = (base + premultiplied[c] * (1 - base)).coerceIn(0.0, 1.0).toFloat()
         }
     }
 
