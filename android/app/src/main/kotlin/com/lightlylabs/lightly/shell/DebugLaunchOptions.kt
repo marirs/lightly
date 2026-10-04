@@ -158,7 +158,7 @@ object DebugLaunchOptions {
             }
             applySlice4(api, screen)
             // ed-remove rebases once the real removal has finished (see applySlice4).
-            if (screen == "ed-remove") return@applyDebugState
+            if (screen == "ed-remove" || screen == "s4-export") return@applyDebugState
             // History starts at the configured recipe (Undo disabled, as on the prototype's screens);
             // "Leaving with unsaved changes" keeps the recipe unsaved.
             api.rebaseHistory(keepUnsaved = screen == "leave-unsaved")
@@ -188,7 +188,7 @@ object DebugLaunchOptions {
     /** docs/ui/app/screens.js, the `ed-*` and `fx-*` setups, applied as the user would (one commit each). */
     private fun applySlice4(api: EditorViewModel.DebugEditorApi, screen: String) {
         val tool = when {
-            screen.startsWith("ed-") -> com.lightlylabs.lightly.editor.EditorTool.EDIT
+            screen.startsWith("ed-") || screen == "s4-export" -> com.lightlylabs.lightly.editor.EditorTool.EDIT
             screen.startsWith("fx-") -> com.lightlylabs.lightly.editor.EditorTool.EFFECTS
             else -> return
         }
@@ -216,6 +216,18 @@ object DebugLaunchOptions {
                 edit(com.lightlylabs.lightly.editor.EditSub.REMOVE, light)
                 // Injected for the capture: the approved failure state with the stroke the person drew.
                 api.prototypeStroke()?.let { api.holdRemove(com.lightlylabs.lightly.editor.RemoveOp.FAILED, it) }
+            }
+            // Not a prototype screen: the export check (docs/v1/slice4-android.md) saves one recipe with
+            // geometry, Adjust, a real Remove stroke and Effects, and the saved JPEG is inspected.
+            "s4-export" -> {
+                edit(com.lightlylabs.lightly.editor.EditSub.ADJUST, light)
+                api.prototypeStroke()?.let { stroke ->
+                    api.remove(stroke) {
+                        api.edit { it.copy(geometry = it.geometry.copy(straighten = -3.0), adjust = it.adjust.copy(exposure = 30.0, contrast = 20.0, temp = 25.0)) }
+                        api.cropAspect(com.lightlylabs.lightly.session.CropAspect.FOUR_FIVE)
+                        api.effects { it.copy(lightLeak = it.lightLeak.copy(enabled = true), grain = it.grain.copy(enabled = true), vignette = it.vignette.copy(enabled = true, amount = 60.0)) }
+                    }
+                }
             }
             "fx-leak" -> { api.effects { it.copy(lightLeak = it.lightLeak.copy(enabled = true)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.LEAK) }
             "fx-grain" -> { api.effects { it.copy(grain = it.grain.copy(enabled = true, amount = 45.0)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.GRAIN) }
