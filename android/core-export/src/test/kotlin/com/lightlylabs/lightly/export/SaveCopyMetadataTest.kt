@@ -157,10 +157,11 @@ class SaveCopyMetadataTest {
      */
     @Test
     fun `the shared file is the saved copy's bytes with its metadata policy, in all four combinations`() {
+        // One Original for all four saves: it must be byte-identical after every one of them.
+        val originalFile = original()
+        val originalBytes = originalFile.readBytes()
         for (keep in listOf(true, false)) for (location in listOf(true, false)) {
             val policy = MetadataPolicy(keepPhotoMetadata = keep, includeLocation = location)
-            val originalFile = original()
-            val originalBytes = originalFile.readBytes()
             val gateway = MemoryGateway()
             val shares = ShareCopies(temp.newFolder())
             val step = ExportMetadataStep<String>(
