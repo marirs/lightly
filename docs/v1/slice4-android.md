@@ -227,12 +227,58 @@ Files: `…/slice5/android/7ce562d/export-check/`.
 
 | Id | Status |
 |---|---|
-| W1 | Tablets keep the phone watermark ratios (contract). Tablet check pending |
+| W1 | Defect: the watermark was too small on screen. **PROVISIONAL** fix (a coordinator proposal, not an owner ruling): sizes are on-screen dp over the displayed photo. Owner sizing policy pending; see "Sizing evidence" below |
+| W10 | Import with nothing to use: toasts "No signature found in that photo" / "That photo can’t be opened". **PROVISIONAL** wording (owner question W10), as iOS |
 | W4 | Real Cormorant Garamond (owner decision) |
 | W5 | The default text "A. Rivera" (open owner question, as iOS) |
 | W7 | With no saved signature, the Signature tab and "Signature on the margin" cannot set a signature watermark; the margin toggle opens Draw signature (as iOS) |
 | P1 | Fixed (63bd68a). Where More is a sheet (tablets, folds), Draw and Import replace it. On phones the Preferences pages are full screen (the prototype's `page` screens), so the sheet opens over the page |
 | Gap | A watermark whose saved signature is missing or changed renders without it. The recipe also says a notice is shown, but no approved copy exists for it; raised for the owner |
+
+## Defects W1, blur and W6 (PROVISIONAL sizing)
+
+The sizing below is a **coordinator proposal awaiting the owner's sizing policy**, not an owner ruling.
+- **W1 and blur:** before the stage is laid out, the contract defaults apply. Once it is laid out:
+  - watermark sizes are 18 / 26 / 30 dp divided by the displayed photo's short edge in dp;
+  - the blur's R_max is 27.57 dp divided by the displayed long edge (the prototype's blur/9 at its 0.0133 viewport ratio).
+- **W6 and W10, as iOS:**
+  - the ink extractor now uses the iOS local-paper algorithm and constants: 32 px blocks, coverage floor 0.12, coverage only within 4 px of ink, so alpha is exactly 0 away from the ink;
+  - an import is brought to ≤ 1,600 px; ink found means the paper is removed;
+  - content with no ink is used as it is, so Use always works;
+  - a blank page (luma spread under 0.04, the iOS `blankSpread`) or an unreadable photo opens no sheet and shows a toast (PROVISIONAL wording, W10).
+- **Watermark layer:** its pixels are now read with `getPixels`, which has a defined channel order, instead of `copyPixelsToBuffer`, whose byte order is BGRA under Robolectric. Device output is unchanged. In tests, imported ink no longer comes out red.
+- **Import evidence** (`signature-import/` beside the sizing files):
+
+  | Input | Result |
+  |---|---|
+  | Ink on unevenly lit paper | Sheet; 0 stray-alpha px; 0 changed px away from the ink in the composite |
+  | Low-contrast content | Sheet, used as it is |
+  | Blank | Toast "No signature found in that photo" |
+  | Undecodable | Toast "That photo can’t be opened" |
+
+### Sizing evidence (Robolectric, renderers direct)
+
+- **Inputs:** portrait_medium_02, the stored da2_small depth, Focus lens/round, blur 55, focus 40, text "A. Rivera" in Inter.
+- **Layouts:** Pixel 9 Pro portrait (photo 319 × 479 dp) and Pixel Tablet landscape (463 × 696 dp).
+- **Renders:** preview 533 × 800 and export 1065 × 1600.
+- **Tests:** `SizingEvidenceTest`, `SignatureImportEvidenceTest`.
+- **Files:** `~/.codex/artifacts/lightly/v1/sizing-checks/android/<commit>/`.
+
+| Layout | Render | Blur fraction | σ px | σ / long | σ dp on screen | Font px | Ink px (incl. shadow) |
+|---|---|---|---|---|---|---|---|
+| Pixel 9 Pro | preview | 0.0576 | 3.75 | 0.00469 | 2.25 | 30.1 | 19 |
+| Pixel 9 Pro | export | 0.0576 | 7.62 | 0.00476 | 2.28 | 60.1 | 37 |
+| Pixel Tablet | preview | 0.0396 | 2.54 | 0.00317 | 2.21 | 20.7 | 15 |
+| Pixel Tablet | export | 0.0396 | 5.08 | 0.00317 | 2.21 | 41.4 | 29 |
+
+- **Preview and export agree:** within 1.5 % for blur and 3 % for the watermark.
+- **The saved file depends on the device's viewport:**
+  - the blur is 1.48× and the watermark font 1.45× larger in the photo when the edit is made on the phone;
+  - the on-screen look matches (2.2 dp blur, 18 dp font).
+- **Proposed reconciliation (not implemented; needs a contract field and the owner):** resolve the fraction when the user first sets the tool, and store it in the recipe.
+  - Pros: the saved output is the same on every device, and reopening is stable.
+  - Cons: it needs a recipe field (shared/); a phone-made recipe looks smaller on a tablet stage; legacy recipes use the contract default.
+  - The alternative is the contract constants, with the on-screen mismatch.
 
 ## Pending
 

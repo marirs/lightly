@@ -16,7 +16,6 @@ import com.lightlylabs.lightly.session.WatermarkPlacement
 import com.lightlylabs.lightly.session.WatermarkTool
 import com.lightlylabs.lightly.session.WatermarkType
 import com.lightlylabs.lightly.signatures.DrawnSignature
-import java.nio.ByteBuffer
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -177,12 +176,22 @@ class WatermarkStage(private val sizes: WatermarkSizes, private val fonts: Water
         val canvas = Canvas(bitmap)
         canvas.translate(-x0.toFloat(), -y0.toFloat())
         draw(content, l, main, w.size, canvas)
-        val buffer = ByteBuffer.allocate(bitmap.byteCount)
-        bitmap.copyPixelsToBuffer(buffer) // ARGB_8888 memory order is R, G, B, A, premultiplied
+        // getPixels is channel-order explicit; copyPixelsToBuffer copies native memory, whose byte order is
+        // RGBA on devices but BGRA under Robolectric's host graphics (it recoloured imported ink in tests).
+        val colours = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(colours, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
         bitmap.recycle()
-        val bytes = buffer.array()
         val opacity = w.opacity / 100
-        if (opacity < 1) for (i in bytes.indices) bytes[i] = ((bytes[i].toInt() and 0xff) * opacity).roundToInt().toByte()
+        val bytes = ByteArray(colours.size * 4)
+        for (i in colours.indices) {
+            val c = colours[i]
+            val alpha = (c ushr 24) / 255.0
+            // getPixels gives straight colour; the layer is premultiplied, with the opacity applied.
+            bytes[i * 4] = (((c shr 16) and 0xff) * alpha * opacity).roundToInt().toByte()
+            bytes[i * 4 + 1] = (((c shr 8) and 0xff) * alpha * opacity).roundToInt().toByte()
+            bytes[i * 4 + 2] = ((c and 0xff) * alpha * opacity).roundToInt().toByte()
+            bytes[i * 4 + 3] = ((c ushr 24) * opacity).roundToInt().toByte()
+        }
         return WatermarkLayer(x0, y0, x1 - x0, y1 - y0, bytes)
     }
 

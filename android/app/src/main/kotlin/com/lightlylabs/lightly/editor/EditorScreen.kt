@@ -345,7 +345,7 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                 // Marks and touches sit on the photo's box inside the border (prototype `.imgbox` in `.frame`).
                 val box = border?.let { com.lightlylabs.lightly.develop.BorderStage.imageBox(it, image.width, image.height) }
                 // The displayed photo box (inside the border), in dp: the on-screen basis of the watermark
-                // and blur sizes (owner rulings W1, blur). Not while comparing (the original is shown).
+                // and blur sizes (W1 and blur, PROVISIONAL). Not while comparing (the original is shown).
                 if (!ui.showsOriginal && ui.preview != null) {
                     val photoW = width * (box?.get(2)?.toFloat() ?: 1f)
                     val photoH = (width / ratio) * (box?.get(3)?.toFloat() ?: 1f)

@@ -741,7 +741,7 @@ class EditorViewModel(
     /** The saved signature a margin toggle uses when no watermark is set. */
     private fun signatureForMargin(): com.lightlylabs.lightly.session.SignatureRef? = (signatures.value.drawn ?: signatures.value.imported)?.reference
 
-    // --- On-screen sizes (owner rulings W1 and blur) -----------------------------------------------
+    // --- On-screen sizes (W1 and blur defects; PROVISIONAL sizing policy) ---------------------------
 
     /** The displayed photo's box (inside any border) on the stage, in dp, as last laid out. */
     data class StagePhoto(val shortDp: Float, val longDp: Float)
@@ -763,7 +763,8 @@ class EditorViewModel(
     }
 
     /**
-     * W1 (owner ruling, not a deviation): the watermark is the prototype's fixed on-screen size, text 18,
+     * W1 (a defect; this sizing approach is PROVISIONAL, a coordinator proposal awaiting the owner's
+     * sizing policy): the watermark is the prototype's fixed on-screen size, text 18,
      * signature 26 and logo 30 dp × size/34, in the photo box, on every device. As fractions of the photo's
      * short edge that is 18 / 26 / 30 ÷ the displayed short edge in dp, which the saved copy uses too.
      * Before the stage is laid out (tests, a save with no stage), the contract's phone medians apply.
@@ -773,7 +774,7 @@ class EditorViewModel(
         stagePhoto?.let { WatermarkSizes(PROTOTYPE_TEXT_DP / it.shortDp, PROTOTYPE_SIGNATURE_DP / it.shortDp, PROTOTYPE_LOGO_DP / it.shortDp) } ?: library.watermarkSizes
 
     /**
-     * Blur (owner ruling): the prototype blurs the displayed photo with a Gaussian of σ = blur/9 dp. The
+     * Blur (a defect; this sizing approach is PROVISIONAL, as W1): the prototype blurs the displayed photo with a Gaussian of σ = blur/9 dp. The
      * renderer with R_max = 0.06 of the long edge gives σ ≈ 0.0133 of the long edge at Blur 55
      * (contract-fixes-1 §1), so σ scales as 0.0133/0.06 per unit of R_max/100·blur/55. Matching
      * σ = blur/9 dp on a photo displayed L dp long gives R_max = 0.06 · (55/9) / 0.0133 / L ≈ 27.57 / L of
@@ -908,16 +909,24 @@ class EditorViewModel(
     /** A photo chosen for Import: the paper is removed off the main thread, then the sheet shows. */
     fun importSignaturePhoto(assetId: String) {
         scope.launch {
-            val extracted = kotlinx.coroutines.withContext(env.prefetchDispatcher) {
-                val photo = runCatching { env.photoLoader.load(assetId).display }.getOrNull() ?: return@withContext null
-                // W6 (owner ruling): with no ink found, the image is used as-is (scaled down, its own
-                // colours), so Use always works; the stage scales it into the signature box like any import.
-                com.lightlylabs.lightly.signatures.SignatureInkExtractor.extract(photo)?.let(com.lightlylabs.lightly.signatures.SignatureImages::png)
-                    ?: com.lightlylabs.lightly.signatures.SignatureImages.logoPng(photo)
+            val result = kotlinx.coroutines.withContext(env.prefetchDispatcher) {
+                val photo = runCatching { env.photoLoader.load(assetId).display }.getOrNull()
+                com.lightlylabs.lightly.signatures.SignatureImages.importSignature(photo)
             }
-            state.update { it.copy(overlay = EditorOverlay.SIGNATURE_IMPORT, watermark = it.watermark.copy(imported = extracted)) }
+            when (result) {
+                // W6 (defect fix, as iOS): ink found → paper removed; otherwise the photo as it is, so Use always works.
+                is com.lightlylabs.lightly.signatures.SignatureImages.ImportResult.InkFound -> openImportSheet(result.png)
+                is com.lightlylabs.lightly.signatures.SignatureImages.ImportResult.AsIs -> openImportSheet(result.png)
+                // Never silent, never an empty rectangle (as iOS). PROVISIONAL wording, owner question W10:
+                // the prototype has no message for an import with nothing to use.
+                com.lightlylabs.lightly.signatures.SignatureImages.ImportResult.Blank -> showToast(SIGNATURE_IMPORT_BLANK)
+                com.lightlylabs.lightly.signatures.SignatureImages.ImportResult.Unreadable -> showToast(SIGNATURE_IMPORT_UNREADABLE)
+            }
         }
     }
+
+    private fun openImportSheet(png: ByteArray) =
+        state.update { it.copy(overlay = EditorOverlay.SIGNATURE_IMPORT, watermark = it.watermark.copy(imported = png)) }
 
     /** `saveSigImported` (Use): the extracted signature becomes the saved imported one, and is used. */
     fun useImportedSignature() {
@@ -1611,6 +1620,11 @@ class EditorViewModel(
 
         /** Prototype `saveSig` toast. */
         const val SIGNATURE_SAVED = "Signature saved for reuse"
+
+        // PROVISIONAL (owner question W10): no approved copy exists for an import with nothing to use;
+        // the same wording as iOS, shown in the approved toast.
+        const val SIGNATURE_IMPORT_BLANK = "No signature found in that photo"
+        const val SIGNATURE_IMPORT_UNREADABLE = "That photo can\u2019t be opened"
 
         /** The uncropped rect, and the smallest crop side (fraction of the frame) a gesture can leave. */
         private val FULL_RECT = com.lightlylabs.lightly.session.NormalisedRect(0.0, 0.0, 1.0, 1.0)

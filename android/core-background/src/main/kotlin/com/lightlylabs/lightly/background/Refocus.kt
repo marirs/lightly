@@ -31,7 +31,7 @@ data class FocusParams(
     val styleAmount: Double,
     /**
      * R_max at blur 100 as a fraction of the long edge. The contract's 0.06 by default; the app passes the
-     * on-screen-matched value (owner ruling: the prototype's blur/9 dp on the displayed photo, every device).
+     * on-screen-matched value (PROVISIONAL: the prototype's blur/9 dp on the displayed photo, every device).
      */
     val maxBlurFraction: Double = Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE,
 )
