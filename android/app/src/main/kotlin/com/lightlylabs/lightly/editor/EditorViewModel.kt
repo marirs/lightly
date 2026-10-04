@@ -119,7 +119,7 @@ class EditorViewModel(
     private var separationJob: Job? = null
 
     /** Edit › Remove: the session's patches, the running removal, and the model (loaded on first stroke). */
-    private val removePatches = RemovePatchStore()
+    private val removePatches = RemovePatchStore(env.removePatchDirectory)
     private var removeJob: Job? = null
     private val inpainter: Inpainter? by lazy { env.inpainter() }
 
@@ -168,6 +168,8 @@ class EditorViewModel(
         if (previousAsset != null && previousAsset != assetId) env.photoAccess.release(previousAsset)
         savedState[KEY_ASSET] = assetId
         savedState.remove<String>(KEY_SESSION)
+        // A newly chosen photo starts a new session: no recovery can name the previous patches again.
+        removePatches.clearAll()
         loadPhoto(assetId, restoredSession = null)
     }
 
@@ -185,7 +187,8 @@ class EditorViewModel(
         separationJob?.cancel()
         backgroundSession.reset()
         removeJob?.cancel()
-        removePatches.clear()
+        // Memory only: a restore of this photo reads its patches back from disk.
+        removePatches.clearMemory()
         patchedDisplay = null
         val generation = ++photoGeneration
         state.value = EditorUiState(phase = EditorPhase.Loading)

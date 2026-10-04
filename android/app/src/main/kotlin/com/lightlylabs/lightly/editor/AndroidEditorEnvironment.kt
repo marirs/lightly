@@ -109,6 +109,8 @@ object AndroidEditorEnvironment {
             bundledBackground = { id -> loadBundledBackground(app, id) },
             // Release gate "pending legal sign-off (training data: Places2)": see LiteRtLamaInpainter. Loaded
             // on the first Remove stroke, never at app start.
+            // App-private files (never cache: the system may evict it under the restored session).
+            removePatchDirectory = java.io.File(app.filesDir, "remove-patches"),
             inpainter = lazy { LiteRtLamaInpainter.create(app, com.lightlylabs.lightly.BuildConfig.REMOVE_MODEL_ENABLED) }.let { model -> { model.value } },
             onPreviewRendered = { millis, globalOnly -> Log.i(LOG_TAG, "preview ${if (globalOnly) "drag" else "committed"}: ${"%.1f".format(millis)} ms") },
             newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },

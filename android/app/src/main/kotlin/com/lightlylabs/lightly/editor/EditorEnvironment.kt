@@ -98,6 +98,8 @@ class EditorEnvironment(
      * gate "pending legal sign-off (training data: Places2)") or it cannot load: the approved failure state.
      */
     val inpainter: () -> Inpainter? = { null },
+    /** Private storage for Remove patches (recipe derivedRef), so a recovered session keeps its fills; null = memory only. */
+    val removePatchDirectory: java.io.File? = null,
     /** Called after each preview render with its milliseconds and whether it was the drag (global-only) render. */
     val onPreviewRendered: (millis: Double, globalOnly: Boolean) -> Unit = { _, _ -> },
 )

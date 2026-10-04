@@ -43,20 +43,69 @@ class RemovePatch(val x: Int, val y: Int, val width: Int, val height: Int, val r
 }
 
 /**
- * The session's patches by digest (recipe `remove.strokes[].result.patch`). In memory for the photo's
- * session: undo and redo replay a stored patch and never re-run the model.
+ * The session's patches by digest (recipe `remove.strokes[].result.patch`, a `derivedRef`: "a cached result
+ * of an on-device model, stored beside the edit by digest"). Undo and redo replay a stored patch and never
+ * re-run the model.
+ *
+ * With a [directory], every patch is also written there (`<sha256>.patch`, atomically), so a session
+ * restored after the process was killed renders the same fills: a patch missing from memory is read from
+ * disk and its digest checked. A patch that is missing or fails the check is skipped, and the stroke
+ * renders without it; it is never recomputed silently (edit-recipe-v1 `derivedRef`).
  */
-// DEFERRED(remove-persistence): patches are not yet written beside the saved edit, so a session
-// restored after process death renders a stroke whose patch is missing without it (the contract's
-// "missing cache" rule allows recomputing only with the same model; not wired yet).
-class RemovePatchStore {
+// v3 differs from iOS (RemovePatchStore in memory only, bc71828): iOS loses a stroke's fill when the app
+// is killed and recovered; this store keeps it, as the recipe's derivedRef semantics require.
+class RemovePatchStore(private val directory: java.io.File? = null) {
     private val patches = java.util.concurrent.ConcurrentHashMap<String, RemovePatch>()
 
-    fun put(patch: RemovePatch) { patches[patch.sha256] = patch }
+    fun put(patch: RemovePatch) {
+        patches[patch.sha256] = patch
+        directory?.let { dir -> runCatching { write(dir, patch) } }
+    }
 
-    operator fun get(sha256: String): RemovePatch? = patches[sha256]
+    operator fun get(sha256: String): RemovePatch? = patches[sha256] ?: directory?.let { dir ->
+        runCatching { read(java.io.File(dir, "$sha256$SUFFIX")) }.getOrNull()?.takeIf { it.sha256 == sha256 }?.also { patches[sha256] = it }
+    }
 
-    fun clear() = patches.clear()
+    /** Forgets the patches in memory (another photo is loading); the files stay for a restore. */
+    fun clearMemory() = patches.clear()
+
+    /** Deletes every stored patch: a new photo was chosen, so no recovery can name them again. */
+    fun clearAll() {
+        patches.clear()
+        directory?.listFiles { file -> file.name.endsWith(SUFFIX) }?.forEach { it.delete() }
+    }
+
+    private fun write(dir: java.io.File, patch: RemovePatch) {
+        dir.mkdirs()
+        val target = java.io.File(dir, "${patch.sha256}$SUFFIX")
+        if (target.isFile) return
+        val temporary = java.io.File(dir, "${patch.sha256}.tmp")
+        java.io.DataOutputStream(java.io.BufferedOutputStream(java.io.FileOutputStream(temporary))).use { out ->
+            out.writeInt(MAGIC)
+            listOf(patch.x, patch.y, patch.width, patch.height, patch.sourceWidth, patch.sourceHeight).forEach(out::writeInt)
+            out.write(patch.rgba)
+        }
+        if (!temporary.renameTo(target)) temporary.delete()
+    }
+
+    private fun read(file: java.io.File): RemovePatch? {
+        if (!file.isFile) return null
+        java.io.DataInputStream(java.io.BufferedInputStream(java.io.FileInputStream(file))).use { input ->
+            if (input.readInt() != MAGIC) return null
+            val values = IntArray(6) { input.readInt() }
+            val (x, y, w, h) = values
+            require(w in 1..MAX_SIDE && h in 1..MAX_SIDE && values[4] > 0 && values[5] > 0) { "bad patch header" }
+            val rgba = ByteArray(w * h * 4)
+            input.readFully(rgba)
+            return RemovePatch(x, y, w, h, rgba, values[4], values[5])
+        }
+    }
+
+    companion object {
+        private const val SUFFIX = ".patch"
+        private const val MAGIC = 0x4C525031 // "LRP1"
+        private const val MAX_SIDE = 1 shl 15
+    }
 }
 
 /**

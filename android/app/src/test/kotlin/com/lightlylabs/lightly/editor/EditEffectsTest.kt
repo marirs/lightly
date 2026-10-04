@@ -142,7 +142,7 @@ class EditEffectsTest {
 
     private var savedSize: Pair<Int, Int>? = null
 
-    private fun TestScope.ready(inpainter: Inpainter?): EditorViewModel {
+    private fun TestScope.ready(inpainter: Inpainter?, savedState: SavedStateHandle = SavedStateHandle(), patchDirectory: java.io.File? = null, open: Boolean = true): EditorViewModel {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         val gateway = MemoryGateway()
@@ -168,9 +168,10 @@ class EditEffectsTest {
             favourites = Favourites(),
             debugBuild = true,
             inpainter = { inpainter },
+            removePatchDirectory = patchDirectory,
         )
-        val vm = EditorViewModel(SavedStateHandle(), env, CoroutineScope(SupervisorJob() + dispatcher))
-        vm.openPhoto("content://photo/1")
+        val vm = EditorViewModel(savedState, env, CoroutineScope(SupervisorJob() + dispatcher))
+        if (open) vm.openPhoto("content://photo/1")
         advanceUntilIdle()
         return vm
     }
@@ -275,5 +276,49 @@ class EditEffectsTest {
         advanceUntilIdle()
         assertTrue(vm.uiState.value.overlay == EditorOverlay.SAVED, "overlay ${vm.uiState.value.overlay}")
         assertEquals(64 to 64, savedSize)
+    }
+
+    /** A model that must never run: a recovered session replays stored patches. */
+    private class ForbiddenInpainter : Inpainter {
+        override val model = ModelRef("test-red", "1")
+        override fun inpaint(image: FloatArray, mask: FloatArray): FloatArray = error("the model ran again after recovery")
+    }
+
+    @Test
+    fun `a Remove fill survives the app being killed and recovered, without re-running the model`() = runTest {
+        val directory = kotlin.io.path.createTempDirectory("remove-patches").toFile()
+        val firstState = SavedStateHandle()
+        val first = ready(RedInpainter(), firstState, directory)
+        first.removeStroke(listOf(0.4 to 0.4, 0.6 to 0.45))
+        advanceUntilIdle()
+        val digest = first.uiState.value.session!!.current.tools.edit.remove.strokes.single().result.patch!!.sha256
+        val before = first.uiState.value.preview!!
+        assertTrue(java.io.File(directory, "$digest.patch").isFile, "the patch is stored beside the edit")
+
+        // Process death: only the saved-state bundle and the app's files survive. A new view model, a new
+        // patch store (empty memory) and a model that fails if it is called.
+        val restoredState = SavedStateHandle(firstState.keys().associateWith { firstState.get<Any>(it) })
+        Dispatchers.resetMain()
+        val second = ready(ForbiddenInpainter(), restoredState, directory, open = false)
+        val recovered = second.uiState.value
+        assertEquals(EditorPhase.Ready, recovered.phase)
+        assertEquals(digest, recovered.session!!.current.tools.edit.remove.strokes.single().result.patch!!.sha256)
+        assertTrue(before.pixels.contentEquals(recovered.preview!!.pixels), "the recovered preview shows the same fill")
+
+        // Choosing another photo starts a new session and deletes the stored patches.
+        second.openPhoto("content://photo/2")
+        advanceUntilIdle()
+        assertFalse(java.io.File(directory, "$digest.patch").exists())
+    }
+
+    @Test
+    fun `a stored patch whose bytes do not match its digest is skipped, never substituted`() {
+        val directory = kotlin.io.path.createTempDirectory("remove-patches").toFile()
+        val patch = RemoveEngine.patch(image(300, 200, 3), listOf(0.5 to 0.5), 10.0 / 300, RedInpainter())
+        RemovePatchStore(directory).put(patch)
+        val file = java.io.File(directory, "${patch.sha256}.patch")
+        val bytes = file.readBytes().also { it[it.size - 2] = (it[it.size - 2] + 1).toByte() }
+        file.writeBytes(bytes)
+        assertEquals(null, RemovePatchStore(directory)[patch.sha256])
     }
 }
