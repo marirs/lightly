@@ -231,7 +231,14 @@ final class RemovePatchStore: @unchecked Sendable {
             // A failed write keeps the patch for this launch only; after a kill the stroke is
             // rendered without its fill (skipped), never recomputed.
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try? Self.encode(patch).write(to: fileURL(digest, in: directory), options: .atomic)
+            // Derived results, re-made from the edit: kept out of iCloud and device backup, like the
+            // stored session (release register).
+            var folder = directory, file = fileURL(digest, in: directory)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try? folder.setResourceValues(values)
+            try? Self.encode(patch).write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            try? file.setResourceValues(values)
         }
         return digest
     }

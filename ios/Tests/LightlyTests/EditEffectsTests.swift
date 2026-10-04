@@ -348,7 +348,10 @@ final class RemovePatchPersistenceTests: XCTestCase {
     func testKillAndRecoverReplaysTheStoredPatchWithoutTheModel() async throws {
         let photo = try await EditorTestSupport.photo()
         let edit = try await editWithOneStroke(photo: photo)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("\(edit.digest).patch").path))
+        let file = directory.appendingPathComponent("\(edit.digest).patch")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(try file.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true, "not backed up")
+        XCTAssertEqual(try directory.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true)
         let trap = TrapInpainter()
         let session = try await restoredSession(photo: photo, recipe: edit.recipe, trap: trap)
         XCTAssertNotNil(session.removePatches.patch(edit.digest), "read back from disk, digest checked")
