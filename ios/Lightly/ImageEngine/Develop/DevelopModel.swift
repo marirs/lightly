@@ -49,8 +49,8 @@ struct DevelopModel: Sendable, Equatable {
         case focusConstantsMismatch(String)
     }
 
-    /// Rendering contract v2 revision this build implements (contract fixes 1).
-    static let requiredContractRevision: Int64 = 1
+    /// Rendering contract v2 revision this build implements (contract fixes 2).
+    static let requiredContractRevision: Int64 = 2
 
     /// The contract bundled with the app (`rendering-v2.json`, copied verbatim by project.yml).
     static func loadBundled(from bundle: Bundle = .main) throws -> DevelopModel {

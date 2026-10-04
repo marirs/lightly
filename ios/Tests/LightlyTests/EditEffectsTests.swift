@@ -150,7 +150,7 @@ final class EditEffectsStageTests: XCTestCase {
         let grey = SIMD3<Float>(repeating: 0.3)
         let atCentre = evaluator.apply(grey, x: 54, y: 28)
         XCTAssertGreaterThan(atCentre.x, 0.5); XCTAssertGreaterThan(atCentre.x, atCentre.z, "Warm")
-        XCTAssertEqual(evaluator.apply(grey, x: 299, y: 199), grey, "Beyond 55 % of the long edge: unchanged")
+        XCTAssertEqual(evaluator.apply(grey, x: 299, y: 199), grey, "Beyond 55 % of the farthest-corner ray: unchanged")
     }
 
     // MARK: Remove

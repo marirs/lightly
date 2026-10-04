@@ -78,11 +78,16 @@ struct EffectsStage: Sendable {
 /// centred at (x, y) % of the frame, rotated by `rotation` about the frame centre (the prototype
 /// rotates the whole overlay), screen-blended in encoded sRGB as CSS `mix-blend-mode: screen`.
 /// The core opacity is intensity/130 and the 30 % ring's intensity/400, fading to 0 at 55 % of the
-/// long edge; between the stops the colour is interpolated premultiplied, as CSS gradients are.
+/// farthest-corner distance R (the CSS `circle at x% y%` gradient ray: the largest distance from the
+/// centre to a frame corner, rendering-v2 revision 2, C4); between the stops the colour is
+/// interpolated premultiplied, as CSS gradients are. Where the rotated overlay does not cover the
+/// frame (rotation ≠ 0), nothing is added.
 struct LightLeakEvaluator: Sendable {
     let centre: SIMD2<Double>
     let frameCentre: SIMD2<Double>
-    let longEdge: Double
+    let frameSize: SIMD2<Double>
+    /// R: the farthest-corner distance from the leak centre, in frame pixels.
+    let farthestCorner: Double
     let cosine: Double, sine: Double
     let coreAlpha: Double, ringAlpha: Double
     let style: EditRecipe.Effects.LightLeak.Style
@@ -93,7 +98,8 @@ struct LightLeakEvaluator: Sendable {
         guard leak.intensity > 0 else { return nil }
         centre = SIMD2(leak.x / 100 * Double(frameWidth), leak.y / 100 * Double(frameHeight))
         frameCentre = SIMD2(Double(frameWidth) / 2, Double(frameHeight) / 2)
-        longEdge = Double(max(frameWidth, frameHeight))
+        frameSize = SIMD2(Double(frameWidth), Double(frameHeight))
+        farthestCorner = Self.farthestCorner(centre: centre, width: Double(frameWidth), height: Double(frameHeight))
         let theta = leak.rotation * .pi / 180
         cosine = cos(theta); sine = sin(theta)
         coreAlpha = min(leak.intensity / 130, 1)
@@ -128,13 +134,30 @@ struct LightLeakEvaluator: Sendable {
         return (rgb + m) * 255
     }
 
+    /// The CSS farthest-corner ray: the largest distance from `centre` to a corner of the frame.
+    static func farthestCorner(centre: SIMD2<Double>, width: Double, height: Double) -> Double {
+        [SIMD2(0, 0), SIMD2(width, 0), SIMD2(0, height), SIMD2(width, height)]
+            .map { corner -> Double in let d = corner - centre; return (d.x * d.x + d.y * d.y).squareRoot() }
+            .max() ?? 1
+    }
+
     func apply(_ rgb: SIMD3<Float>, x: Int, y: Int) -> SIMD3<Float> {
+        guard let premultiplied = premultiplied(x: x, y: y) else { return rgb }
+        // Screen with source alpha: Cb + α·Cs·(1 − Cb).
+        let base = SIMD3<Double>(rgb)
+        return SIMD3<Float>(base + premultiplied * (SIMD3(repeating: 1) - base))
+    }
+
+    /// The overlay's premultiplied colour (0…1) at a pixel centre; nil where nothing is added.
+    func premultiplied(x: Int, y: Int) -> SIMD3<Double>? {
         // The overlay is rotated about the frame centre: sample the unrotated gradient.
         let p = SIMD2(Double(x) + 0.5, Double(y) + 0.5) - frameCentre
         let q = SIMD2(cosine * p.x + sine * p.y, -sine * p.x + cosine * p.y) + frameCentre
+        // The rotated overlay is the frame's own box: outside it the leak does not reach (C4).
+        guard q.x >= 0, q.y >= 0, q.x <= frameSize.x, q.y <= frameSize.y else { return nil }
         let delta = q - centre
-        let t = (delta.x * delta.x + delta.y * delta.y).squareRoot() / longEdge
-        guard t < Self.endStop else { return rgb }
+        let t = (delta.x * delta.x + delta.y * delta.y).squareRoot() / farthestCorner
+        guard t < Self.endStop else { return nil }
         var (core, ring) = Self.colours(style)
         if style == .prism {
             let hue = atan2(delta.y, delta.x) * 180 / .pi
@@ -150,8 +173,6 @@ struct LightLeakEvaluator: Sendable {
             let f = (t - Self.ringStop) / (Self.endStop - Self.ringStop)
             premultiplied = (ring / 255 * ringAlpha) * (1 - f)
         }
-        // Screen with source alpha: Cb + α·Cs·(1 − Cb).
-        let base = SIMD3<Double>(rgb)
-        return SIMD3<Float>(base + premultiplied * (SIMD3(repeating: 1) - base))
+        return premultiplied
     }
 }
