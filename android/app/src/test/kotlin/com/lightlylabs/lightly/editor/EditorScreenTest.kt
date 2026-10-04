@@ -144,8 +144,33 @@ class EditorScreenTest {
     fun `an unimplemented tool opens a marked development stub in debug builds`() {
         val vm = editor()
         show(vm)
-        compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
+        // Watermark is slice 5; Edit and Effects are implemented (slice 4).
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.WATERMARK)).performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Development stub (debug build only).", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `Edit and Effects open their approved panels with the approved copy`() {
+        val vm = editor()
+        show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
+        compose.waitForIdle()
+        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Original", "Free", "4:5", "Drag the corners to crop. Pinch to zoom.").forEach {
+            compose.onNodeWithText(it).assertExists()
+        }
+        compose.onNodeWithText("Remove").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Undo stroke").assertExists()
+        compose.onNodeWithText("Brush over anything you want removed.").assertExists()
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
+        compose.waitForIdle()
+        listOf("Light Leaks", "Grain", "Vignette", "Off", "Warm edge", "Amber flare", "Rose", "Prism", "Intensity", "Rotation", "Drag on the photo to move the leak.").forEach {
+            compose.onNodeWithText(it).assertExists()
+        }
+        compose.onNodeWithTag("effects-on-off").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("On").assertExists()
+        assertTrue(vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
     }
 }
