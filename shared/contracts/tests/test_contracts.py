@@ -36,12 +36,27 @@ def test_contract_constants_are_the_calibration_files_verbatim():
 
 def test_stage_order_is_the_whole_edit_pipeline():
     stages = json.loads((CONTRACTS / "rendering-v2.json").read_text())["stages"]
+    # Revision 2 (contract fixes 2): Remove on the source first (C1); geometry after the layered stages (C2).
     assert [s["id"] for s in stages] == [
-        "auto", "develop.global", "develop.spatial", "edit.geometry", "edit.adjust", "edit.remove",
-        "background.replace", "background.focus", "portrait", "effects", "border", "watermark"]
+        "edit.remove", "auto", "develop.global", "develop.spatial", "edit.adjust",
+        "background.replace", "background.focus", "portrait", "edit.geometry", "effects", "border", "watermark"]
     assert [s["order"] for s in stages] == list(range(1, 13))
+    frames = {s["id"]: s["frame"] for s in stages}
+    assert all(frames[i].startswith("source") for i in ("edit.remove", "edit.adjust", "background.replace",
+                                                         "background.focus", "portrait"))
+    assert frames["edit.geometry"] == "source → frame" and frames["effects"] == "frame"
     effects = next(s for s in stages if s["id"] == "effects")
     assert [o["id"] for o in effects["operators"]] == ["lightLeak", "presetVignette", "userVignette", "presetGrain", "userGrain"]
+
+
+def test_contract_is_revision_2_with_the_css_light_leak():
+    contract = json.loads((CONTRACTS / "rendering-v2.json").read_text())
+    assert (contract["version"], contract["revision"]) == (2, 2)
+    effects = next(s for s in contract["stages"] if s["id"] == "effects")
+    leak = next(o for o in effects["operators"] if o["id"] == "lightLeak")["constants"]
+    assert [stop["position"] for stop in leak["stops"]] == [0.0, 0.30, 0.55]
+    assert [stop["alpha"] for stop in leak["stops"]] == ["intensity/130", "intensity/400", 0]
+    assert "farthest-corner" in leak["shape"]
 
 
 def test_every_operator_parameter_has_a_range_and_default():

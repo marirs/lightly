@@ -237,3 +237,43 @@ def test_override_path_applies_adaptive_tone_then_the_hald_lut():
     out = rm.develop_global_with_override(PROBES, recipe, MODEL, identity)
     adaptive_only = {k: v for k, v in settings.items() if k != "Contrast2012"}  # ingest_kit.SEPARATED_TONE
     assert np.abs(out - oracle(adaptive_only, PROBES)).max() < 1e-3
+
+
+# --- light leak (rendering-v2 revision 2, C4) -----------------------------------------------------
+
+LEAK = {"style": "warm", "intensity": 55, "x": 18, "y": 14, "rotation": 0}
+
+
+def test_light_leak_stops_follow_the_farthest_corner_not_the_long_edge():
+    """A centred leak on 300x200: R is the half diagonal (180.3 px), so the glow ends at 0.55·R = 99 px
+    from the centre; the long-edge rule of revision 1 would have reached 165 px."""
+    height, width = 200, 300
+    params = {**LEAK, "x": 50, "y": 50}
+    ray = rm.light_leak_farthest_corner(height, width, 50, 50)
+    assert ray == pytest.approx(math.hypot(150, 100))
+    premultiplied = rm.light_leak_premultiplied(height, width, params)
+    row = premultiplied[100, :, 0]                        # pixel centres at x + 0.5, centre at 150
+    distance = np.abs(np.arange(width) + 0.5 - 150)
+    assert (row[distance >= 0.55 * ray] == 0).all() and (row[distance < 0.55 * ray - 1] > 0).all()
+    core = np.array([255, 150, 70]) / 255 * 55 / 130
+    assert premultiplied[100, 149] == pytest.approx(core, abs=6e-3)      # 0.7 px from the centre
+    ring_pixel = int(round(150 + 0.30 * ray - 0.5))
+    assert premultiplied[100, ring_pixel] == pytest.approx(np.array([255, 90, 60]) / 255 * 55 / 400, abs=2e-3)
+
+
+def test_light_leak_rotation_turns_the_overlay_and_leaves_its_uncovered_corners_alone():
+    height, width = 200, 300
+    rotated = rm.light_leak_premultiplied(height, width, {**LEAK, "rotation": 90})
+    # CSS rotate(90deg) is clockwise: the leak near the top-left moves to the top-right.
+    assert rotated[:, width // 2:].sum() > rotated[:, :width // 2].sum()
+    # A 90° turn of a 3:2 overlay leaves the frame's left and right 50 px uncovered.
+    assert (rotated[:, :50] == 0).all() and (rotated[:, -50:] == 0).all()
+    frame = np.full((height, width, 3), 0.4)
+    out = rm.apply_light_leak(frame, LEAK)
+    leak = rm.light_leak_premultiplied(height, width, LEAK)
+    assert np.allclose(out, 0.4 + leak * 0.6) and out.max() <= 1
+
+
+def test_light_leak_prism_has_no_reference_yet():
+    with pytest.raises(ValueError):
+        rm.light_leak_premultiplied(4, 4, {**LEAK, "style": "prism"})

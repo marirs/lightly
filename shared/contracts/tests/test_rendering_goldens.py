@@ -1,4 +1,4 @@
-"""background.focus and grain: the revision-1 fixes and the committed parity goldens (shared/fixtures/rendering).
+"""background.focus, grain and light leak: the revision-1/2 fixes and the committed parity goldens (shared/fixtures/rendering).
 
 Run: python -m pytest shared/contracts/tests -q   (needs OpenCV and SciPy for experiments/depth/refocus.py)
 """
@@ -97,7 +97,8 @@ def _strip_digests(value):
 
 def test_goldens_are_current():
     """Arrays are compared with a tolerance (FFT results may differ in the last bits across machines);
-    run make_rendering_goldens.py after any change to refocus.py or reference_model.apply_grain."""
+    run make_rendering_goldens.py after any change to refocus.py, reference_model.apply_grain or
+    reference_model.apply_light_leak."""
     blobs = make_rendering_goldens.build()
     committed_index = json.loads((GOLDENS / "index.json").read_text())
     assert _strip_digests(json.loads(blobs["index.json"])) == _strip_digests(committed_index)

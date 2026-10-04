@@ -1,6 +1,6 @@
-# Rendering parity goldens (rendering-v2 revision 1)
+# Rendering parity goldens (rendering-v2 revision 2)
 
-The iOS and Android tests share these files and must load them from here. `shared/contracts/make_rendering_goldens.py` generates them; do not edit them by hand. Regenerate them after any change to `experiments/depth/refocus.py` or to `reference_model.apply_grain`; `shared/contracts/tests/test_rendering_goldens.py` fails until you do.
+The iOS and Android tests share these files and must load them from here. `shared/contracts/make_rendering_goldens.py` generates them; do not edit them by hand. Regenerate them after any change to `experiments/depth/refocus.py`, `reference_model.apply_grain` or `reference_model.apply_light_leak`; `shared/contracts/tests/test_rendering_goldens.py` fails until you do.
 
 Every array is a little-endian float32 file, row-major. `index.json` records each file's shape and SHA-256, the case parameters and the tolerances.
 
@@ -13,5 +13,6 @@ Every array is a little-endian float32 file, row-major. `index.json` records eac
 | `backgroundFocus.pullPush` | Pull-push on a large hole (only a 3 px border covered) and on partial coverage with an empty quadrant |
 | `backgroundFocus.renders` | Whole renders of the synthetic scene (`scene-image`, `scene-disparity`, `scene-matte`, `scene-replacement`): every style and bokeh, focus on the subject, on the background and depth-only, and a replaced background. The disparity is already at the working size, so no guided filter runs |
 | `grain` | `grain_noise` and `apply_grain` on a generated ramp (formula in the generator's `grain_input`), including the supersampled cases. Large cases store a 64×64 window given by `crop` |
+| `lightLeak` | *(revision 2)* `light_leak_farthest_corner`, the overlay's premultiplied colour and `apply_light_leak` on the same ramp: the default leak, a centred one (where the farthest-corner ray differs most from the long edge), the edit-recipe example (amber, rotation −30°, portrait frame) and a 90° rotation that leaves the frame's sides uncovered. Prism has no golden (provisional) |
 
 Tolerances are in `index.json`: whole renders are compared perceptually (ΔE00 mean ≤ 1.0, p99 ≤ 4, as depth-evaluation.md §R9), everything else numerically.

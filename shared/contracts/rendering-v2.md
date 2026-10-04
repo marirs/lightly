@@ -2,7 +2,7 @@
 
 This contract defines the ordered pipeline that renders a whole Lightly edit. It covers every tool in the approved UX (`docs/ui/app/`). The parameters, ranges, units and calibrated constants are in `rendering-v2.json`, which `build_rendering_v2.py` generates; do not edit the JSON by hand. This file gives the equations and the reasons behind them.
 
-**Revision:** 1 (contract fixes 1, 2026-10-03). See the [change log](#change-log) at the end and the porting notes in `docs/v1/contract-fixes-1.md`.
+**Revision:** 2 (contract fixes 2, 2026-10-04). See the [change log](#change-log) at the end and the porting notes in `docs/v1/contract-fixes-1.md` and `docs/v1/contract-fixes-2.md`.
 
 **Status:** Develop is specified exactly enough to port.
 - The global stage is the calibrated model, ported as `shared/look-pack/reference_model.py`. Per preset, it reproduces `experiments/presets/lr_model.py` within 3.7e-4 over the 2,591 catalogue presets.
@@ -13,20 +13,25 @@ This contract defines the ordered pipeline that renders a whole Lightly edit. It
 
 | # | Stage | Frame | Recipe source |
 |---|---|---|---|
-| 1 | `auto` | source | `editState.auto` (ia3dlut LUT, strength) |
-| 2 | `develop.global` | source | preset `recipe.global` × `look.strength` |
-| 3 | `develop.spatial` | source | preset `recipe.spatial` × `look.strength` |
-| 4 | `edit.geometry` | source → frame | `tools.edit.geometry` |
-| 5 | `edit.adjust` | frame | `tools.edit.adjust` |
-| 6 | `edit.remove` | frame | `tools.edit.remove` |
-| 7 | `background.replace` | frame | `tools.background.replacement` |
-| 8 | `background.focus` | frame | `tools.background.focus` |
-| 9 | `portrait` | frame | `tools.portrait.faces` |
+| 1 | `edit.remove` | source (full resolution) | `tools.edit.remove` |
+| 2 | `auto` | source | `editState.auto` (ia3dlut LUT, strength) |
+| 3 | `develop.global` | source | preset `recipe.global` × `look.strength` |
+| 4 | `develop.spatial` | source | preset `recipe.spatial` × `look.strength` |
+| 5 | `edit.adjust` | source | `tools.edit.adjust` |
+| 6 | `background.replace` | source | `tools.background.replacement` |
+| 7 | `background.focus` | source | `tools.background.focus` |
+| 8 | `portrait` | source | `tools.portrait.faces` |
+| 9 | `edit.geometry` | source → frame | `tools.edit.geometry` |
 | 10 | `effects` | frame | `tools.effects` + preset `recipe.finishing` |
 | 11 | `border` | frame → canvas | `tools.border` |
 | 12 | `watermark` | canvas | `tools.watermark` |
 
 Preview and export run the same stages on the same committed recipe. Only the resolution differs, and every spatial quantity is resolution independent (§2).
+
+**Revision 2 order (contract fixes 2).** Stage ids are unchanged; their order numbers changed.
+- **Remove runs first (C1),** on the full-resolution source pixels, before `auto` and every tone or colour stage (`docs/v1/remove-evaluation.md` §7, as heal works in Lightroom). Its stored patches are therefore independent of every later setting: a tone or colour change never re-runs the model, and preview and export composite the same patch.
+- **Adjust, Background and Portrait run in source coordinates (C2),** before `edit.geometry`. Scene mattes, depth maps and face landmarks are computed on the source, so these stages use them without resampling. Colour is per pixel and unaffected; the visible consequence is that resolution-relative radii (Detail in `edit.adjust`, Focus & Blur's R_max and kernels, portrait regions) are fractions of the **uncropped source** long edge, not of the cropped frame.
+- **Geometry then maps source → frame (stage 9),** and Effects stays in the frame after it, for the reasons below.
 
 **Departure from the order sketched in plan.md decision 3, on purpose.** The preset's own **vignette and grain** are carried in the preset (`recipe.finishing`) but evaluated in stage 10, `effects`, rather than in `develop.spatial`. They run in the order: light leak → preset vignette → user vignette → preset grain → user grain. There are three reasons:
 1. Lightroom's vignette is *post-crop*: it follows the final frame. If it were evaluated before `edit.geometry`, a crop would cut it off-centre.
@@ -35,7 +40,7 @@ Preview and export run the same stages on the same committed recipe. Only the re
 
 The approved "added on top, not replaced" notice is unchanged: user effects compose with the preset's. This order should be confirmed against the prototype screenshots before it is frozen.
 
-**Replaced backgrounds get the photo's colour.** In the approved prototype, the new background receives the Look's grade along with the photo. Stage 7 therefore passes the replacement through the photo's global colour stages before compositing it: `auto`, `develop.global` at strength, and `edit.adjust` colour. Spatial operators are not applied to the replacement.
+**Replaced backgrounds get the photo's colour.** In the approved prototype, the new background receives the Look's grade along with the photo. Stage 6 therefore passes the replacement through the photo's global colour stages before compositing it: `auto`, `develop.global` at strength, and `edit.adjust` colour. Spatial operators are not applied to the replacement.
 
 ## 2. Conventions
 
@@ -48,12 +53,13 @@ The approved "added on top, not replaced" notice is unchanged: user effects comp
   - The inverse uses the exact inverse matrices: `lin = (lab·M2⁻ᵀ)³·M1⁻ᵀ`.
   - Keep the 1e-7 floor. It makes the neutral recipe lift near-black by at most 1e-4, exactly as the model does.
 - **Luma:** Y = 0.2126 R + 0.7152 G + 0.0722 B on linear values.
-- **Resolution independence:** a radius is a fraction of the stage input's **long edge**. A Lightroom radius given in pixels (sharpening) is defined at `referenceLongEdgePx` = 3000.
+- **Resolution independence:** a radius is a fraction of the stage input's **long edge**: the uncropped source's for stages 1–8, the frame's for stage 10 (revision 2). A Lightroom radius given in pixels (sharpening) is defined at `referenceLongEdgePx` = 3000.
 - **Coordinates:** normalised [0, 1], origin top-left.
   - *Source*: the oriented original.
   - *Frame*: after `edit.geometry`.
   - *Canvas*: frame plus border.
-  - Points that belong to photo content are stored in source coordinates, so they survive a change of crop: Remove strokes, refine strokes, the focus target and face boxes. Stages map them through the geometry.
+  - Points that belong to photo content are stored in source coordinates, so they survive a change of crop: Remove strokes, refine strokes, the focus target and face boxes. Stages 1–8 use them directly; only drawing them over the frame (and storing a touch) maps them through the geometry.
+  - Effects positions (the light leak's x, y) are in frame coordinates.
 - **smoothstep(a, b, x):** `t = clamp((x−a)/(b−a), 0, 1)`, then `t²(3−2t)`.
 
 ## 3. The preset recipe (pack manifest `recipe`, recipeVersion 1)
@@ -294,7 +300,22 @@ out = clamp(enc(OKLab⁻¹(L', a·L'/L, b·L'/L)), 0, 1)      # L ≥ ~0.0046 be
 - **User grain styles:** `fine`, `film` and `coarse` scale size by 0.7, 1.0 and 1.5 respectively, capped at 100.
 
 ### Light leak
-This operator is *provisional*, using design values from the prototype. It is a radial glow centred at (x, y)% of the frame, rotated by `rotation`, and screen-blended. The core opacity is intensity/130 and the 30 % ring opacity is intensity/400; it fades to 0 at 55 % of the long edge. Style colours:
+Colours and opacities are *provisional* design values from the approved prototype. The geometry (revision 2, C4) is the prototype's CSS, exactly: a frame-sized overlay with
+`background: radial-gradient(circle at x% y%, core α, ring β 30%, transparent 55%)`, `mix-blend-mode: screen` and `transform: rotate(rotation deg)`, where α = intensity/130 and β = intensity/400.
+
+A CSS `circle` with no size is `farthest-corner`, so the stop positions are fractions of the distance from the leak centre to the **farthest frame corner**, not of the long edge. On a W × H frame (pixels, pixel centres at +0.5):
+```
+o  = (x·W/100, y·H/100);   c = (W/2, H/2);   θ = rad(rotation)          # clockwise positive, as CSS
+R  = max(|o − (0,0)|, |o − (W,0)|, |o − (0,H)|, |o − (W,H)|)
+d  = p − c;   q = c + (cosθ·d.x + sinθ·d.y, −sinθ·d.x + cosθ·d.y)       # undo the overlay's rotation
+if q.x < 0 or q.x > W or q.y < 0 or q.y > H: out = base                  # the rotated overlay does not cover p
+t  = |q − o| / R
+P  = t ≤ 0.30: lerp(α·core, β·ring, t/0.30)                               # premultiplied, colours in [0, 1]
+     t < 0.55: lerp(β·ring, 0, (t − 0.30)/0.25)
+     else:     0
+out = base + P·(1 − base)                                                 # screen, on sRGB-encoded values
+```
+The gradient interpolates premultiplied colour, as CSS gradients do; α and β are at most 100/130 < 1. At the default position (18, 14) on a 3:2 frame R is 1.0006 × the long edge, so revision 1's long-edge rule agreed there by chance; at the centre R is 0.60 × the long edge, and the long-edge rule drew a leak 1.66 × too large. Style colours:
 - warm: (255, 150, 70) → (255, 90, 60)
 - amber: (255, 176, 64) → (230, 120, 40)
 - rose: (255, 140, 160) → (220, 90, 120)
@@ -302,17 +323,19 @@ This operator is *provisional*, using design values from the prototype. It is a 
 
 ## 7. Other stages (parameters in rendering-v2.json)
 
-- **`edit.geometry`** runs in the displayed frame, in this order: quarter turns → flips → perspective (keystone, ±100 scales the far edge by 1 ∓ 0.3) → straighten (rotate about the centre and zoom by the smallest factor that leaves no empty corner) → crop (`rect` in the straightened frame; a fixed aspect holds w/h in pixels).
-- **`edit.adjust`** maps onto the Develop model: `ev = exposure/50`, with contrast, highlights, shadows, temp, tint, saturation and vibrance passed through. Detail maps onto S1–S3; see `maps` in the JSON. *Provisional mapping.*
-- **`edit.remove`:** each applied stroke replays its stored patch (`derivedRef`). It is blocked on D4.
-- **`background.replace`:** the subject matte composites the subject over an image (x, y, scale), a colour or a gradient. The replacement receives the photo's global colour (§1).
-- **`background.focus`** is a depth-aware blur, specified in §7.1.
+- **`edit.geometry`** (stage 9) maps the source to the frame after the layered stages, each step in the frame the previous one produced (what the person sees): quarter turns → flips → perspective (§7.2) → straighten (rotate about the centre and zoom by the smallest factor that leaves no empty corner) → crop (`rect` in the straightened frame; a fixed aspect holds w/h in pixels). The whole chain is one projective map, resampled once.
+- **`edit.adjust`** maps onto the Develop model: `ev = exposure/50`, with contrast, highlights, shadows, temp, tint, saturation and vibrance passed through. Detail maps onto S1–S3; see `maps` in the JSON. It runs in source coordinates, so Detail radii follow the uncropped source long edge. *Provisional mapping.*
+- **`edit.remove`** (stage 1) composites each applied stroke's stored patch (`derivedRef`: rect, RGB and feathered alpha at the full source resolution) onto the source pixels, in stroke order, before any other stage. Export composites it 1:1; preview composites the same patch scaled to the render's source size. A patch is never recomputed silently (`docs/v1/remove-evaluation.md` §7).
+- **`background.replace`:** the subject matte composites the subject over an image (x, y, scale), a colour or a gradient. The replacement receives the photo's global colour (§1). It runs in source coordinates: x, y and scale place the replacement in the source frame, and `edit.geometry` then turns, straightens and crops it with the photo.
+- **`background.focus`** is a depth-aware blur, specified in §7.1. It runs in source coordinates.
 - **`portrait`** works per face, inside landmark-derived regions. It never changes eye colour, eye shape or skin-tone colour.
 - **`border`** insets are fractions of the image width:
   - solid: [w, w, w]
   - frame: (w + s) on all sides, with a mat band s inside the frame band w
   - polaroid: side 0.055, top 0.055, bottom 0.24
-- **`watermark`** height at size 34, as a fraction of the image's short edge: signature 0.068, text font 0.047, logo 0.079. It scales linearly with size. Anchors sit at 6/50/94 % of the frame.
+- **`watermark`** height at size 34, as a fraction of the photo's short edge *(revision 2)*: text font size 0.06225, signature 0.08995, logo 0.09415 (revision 1: 0.047, 0.068, 0.079). It scales linearly with size/34. Anchors sit at 6/50/94 % of the frame.
+  - **Why these values.** The prototype draws the watermark in fixed CSS px (text 18, signature 26, logo 30, × size/34), so its ratio to the photo depends on how large the photo is displayed. The values are the medians over the four phone references (iphone17, iphone17promax, pixel9pro, pixel10proxl), measured on the prototype's own layout with fonts loaded. As fractions of the photo they are resolution independent, so preview and export match. Revision 1's values were about 0.75–0.84 × what the phone screens show.
+  - **Tablets (deviation W1).** On tablets the prototype's ratios are about half the phone ratios (ipadpro11, ipadpro13, pixeltablet: `docs/v1/contract-fixes-2.md` §5). Native keeps the phone ratios on every device, a recorded deviation like the Focus & Blur strength.
   - On a border, the watermark is centred in the bottom margin: 6 % from the bottom for polaroid, 1 % otherwise.
   - On a polaroid margin, the ink is #222222.
 
@@ -338,7 +361,24 @@ The farthest content from the focal plane gets R_max, which is what the prototyp
 
 **Layers, kernels, compositing:** §R4 (K = 8 for export, 4 allowed for interactive preview), §R5, §R6. Pull-push pulls to a 1×1 level with exact 2×2 box means (odd rows and columns repeated) and pushes back with half-pixel bilinear upsampling (§R6).
 
+**Long edge (revision 2).** The stage runs on the source, so `longEdge` in R_max, in the focus window and in the guided-filter radius is the uncropped source long edge.
+
 **Replaced background.** Placed by §R2.4 "plane": `D_B = min(median of the original background disparity, max(0, median_subject − 0.10))`. It is recomputed from the stored depth map and matte; `depth.replacementDepth` is not read.
+
+### 7.2 Perspective (revision 2)
+
+Perspective runs in the frame produced by quarter turns and flips, W × H pixels, centre c = (W/2, H/2). With k = 0.3, v = vertical and h = horizontal:
+```
+top    = v > 0 ? 1 − k·v/100 : 1;     bottom = v < 0 ? 1 − k·|v|/100 : 1
+right  = h > 0 ? 1 − k·h/100 : 1;     left   = h < 0 ? 1 − k·|h|/100 : 1
+corner(sx, sy) = (c.x + sx·c.x·(sy < 0 ? top : bottom),  c.y + sy·c.y·(sx < 0 ? left : right)),   sx, sy ∈ {−1, +1}
+K = the homography taking (0,0), (W,0), (W,H), (0,H) to corner(−1,−1), corner(1,−1), corner(1,1), corner(−1,1)
+z = the smallest z ≥ 1 such that the quad z·(corner − c) + c contains the rectangle [0,W] × [0,H]
+perspective = Zoom(z about c) · K
+```
+Positive vertical narrows the **top** edge; positive horizontal narrows the **right** edge. Each edge is scaled about the centre line, and the opposite edge is unchanged before the zoom. z leaves no empty area, the same rule as straighten; a port may solve it in closed form or numerically to within 1e-6.
+
+The approved prototype does not warp the photo for perspective (deviation E2, an owner decision); this section defines the native behaviour.
 
 ## 8. Tolerances (native parity)
 
@@ -348,7 +388,7 @@ See `docs/v1/preset-pack.md` §Parity. In short, against `shared/fixtures/look-p
 - each probe through a 33³ bake and trilinear lookup within 1e-3;
 - the random vectors exact (field values within 1e-6).
 
-Against `shared/fixtures/rendering/index.json` (revision 1): grain noise within 1e-4 and output within 2e-4; background.focus scalars (CoC, half-width, R_max, focal disparity, highlight curve) within 1e-4, kernels within 1e-5, pull-push within 1e-4, and whole renders ΔE00 mean ≤ 1.0 / p99 ≤ 4 (§R9).
+Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 1e-4 and output within 2e-4; light leak farthest-corner ray within 1e-4 px, premultiplied overlay and output within 2e-4; background.focus scalars (CoC, half-width, R_max, focal disparity, highlight curve) within 1e-4, kernels within 1e-5, pull-push within 1e-4, and whole renders ΔE00 mean ≤ 1.0 / p99 ≤ 4 (§R9).
 
 ## Change log
 
@@ -356,3 +396,4 @@ Against `shared/fixtures/rendering/index.json` (revision 1): grain noise within 
 |---|---|---|---|
 | 0 | — | Contract version 2 as first published (`e96349c`) | — |
 | 1 | 2026-10-03 | Contract fixes 1 (`docs/v1/contract-fixes-1.md`). **background.focus:** maxBlurRadius 0.03 → 0.06 of the long edge; CoC normalised by S − h with S = max(d_f, 1 − d_f) instead of 1 − h; the subject plane stays sharp when the focus is on the subject; depth-of-field half-width stays 0.5·depthOfField/100 (depth-evaluation §R4 changed to match); pull-push pulls to 1×1 (G7); `subject-matte` means no depth and cannot blur (G3); depth direction and stored focus depth defined (G4); replacement placement by §R2.4, `replacementDepth` not read (G6); renderer goldens (G5). **Grain (F2):** chromaticity kept; supersampling below 2 px per cell. Develop constants and their digest are unchanged. | No: `developModel.constantsSha256` is unchanged, so every `lookVersion` is unchanged. No saved edit exists outside development devices; the revision number versions the rendering change instead |
+| 2 | 2026-10-04 | Contract fixes 2 (`docs/v1/contract-fixes-2.md`). **Order (C1, C2):** `edit.remove` is stage 1, on the full-resolution source before `auto`; `edit.adjust`, `background.replace`, `background.focus` and `portrait` run in source coordinates (stages 5–8) and `edit.geometry` maps source → frame after them (stage 9); stage ids unchanged, order numbers 1–9 changed; resolution-relative radii in stages 1–8 are fractions of the uncropped source long edge. **Perspective (C3):** positive vertical narrows the top edge, positive horizontal the right edge, by 1 − 0.3·\|v\|/100, then the smallest no-empty-area zoom (§7.2). **Light leak (C4):** stops along the CSS farthest-corner ray instead of the long edge; the rotated overlay leaves uncovered frame areas untouched; constants in the JSON; goldens `lightLeak`. **Watermark:** heights at size 34 text 0.06225, signature 0.08995, logo 0.09415 of the short edge (phone medians; tablets deviation W1). Develop constants and their digest are unchanged. | No: `developModel.constantsSha256` is unchanged |

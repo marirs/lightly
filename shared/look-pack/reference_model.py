@@ -564,6 +564,59 @@ def apply_grain(rgb, params: dict, experimental: dict, strength: float = 1.0):
     return _with_lightness_keep_chromaticity(rgb, L, lab)
 
 
+# ------------------------------------------------------------------ light leak (stage effects, rendering-v2.md §6)
+# Revision 2 (contract fixes 2, C4): the geometry is the approved prototype's CSS exactly,
+# radial-gradient(circle at x% y%, core, ring 30%, transparent 55%) on a frame-sized overlay rotated by
+# transform: rotate(). A CSS circle without a size is farthest-corner, so the stops are fractions of the
+# distance from the centre to the farthest frame corner. Prism is provisional and not defined here.
+LIGHT_LEAK_STYLE_COLOURS = {
+    "warm": ((255, 150, 70), (255, 90, 60)),
+    "amber": ((255, 176, 64), (230, 120, 40)),
+    "rose": ((255, 140, 160), (220, 90, 120)),
+}
+LIGHT_LEAK_RING_STOP = 0.30
+LIGHT_LEAK_END_STOP = 0.55
+
+
+def light_leak_farthest_corner(height: int, width: int, x_percent: float, y_percent: float) -> float:
+    """The CSS farthest-corner gradient ray, in frame pixels, for a leak centred at (x, y) % of the frame."""
+    centre_x, centre_y = x_percent / 100 * width, y_percent / 100 * height
+    return max(math.hypot(corner_x - centre_x, corner_y - centre_y) for corner_x in (0, width) for corner_y in (0, height))
+
+
+def light_leak_premultiplied(height: int, width: int, params: dict) -> np.ndarray:
+    """The overlay's premultiplied colour (H, W, 3) in [0, 1] at pixel centres, after its rotation."""
+    style = params["style"]
+    if style not in LIGHT_LEAK_STYLE_COLOURS:
+        raise ValueError(f"light leak style {style!r} has no reference (prism is provisional)")
+    core, ring = (np.array(c, np.float64) / 255 for c in LIGHT_LEAK_STYLE_COLOURS[style])
+    core_alpha, ring_alpha = min(params["intensity"] / 130, 1.0), min(params["intensity"] / 400, 1.0)
+    leak_x, leak_y = params["x"] / 100 * width, params["y"] / 100 * height
+    ray = light_leak_farthest_corner(height, width, params["x"], params["y"])
+    # CSS rotate() is clockwise on screen (y down); sampling undoes it about the frame centre.
+    theta = math.radians(params["rotation"])
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+    py, px = np.mgrid[0:height, 0:width].astype(np.float64) + 0.5
+    dx, dy = px - width / 2, py - height / 2
+    qx = width / 2 + cos_t * dx + sin_t * dy
+    qy = height / 2 - sin_t * dx + cos_t * dy
+    covered = (qx >= 0) & (qx <= width) & (qy >= 0) & (qy <= height)
+    t = np.hypot(qx - leak_x, qy - leak_y) / ray
+    inner = np.clip(t / LIGHT_LEAK_RING_STOP, 0, 1)[..., None]
+    outer = np.clip((t - LIGHT_LEAK_RING_STOP) / (LIGHT_LEAK_END_STOP - LIGHT_LEAK_RING_STOP), 0, 1)[..., None]
+    premultiplied = np.where((t <= LIGHT_LEAK_RING_STOP)[..., None],
+                             core_alpha * core * (1 - inner) + ring_alpha * ring * inner,
+                             ring_alpha * ring * (1 - outer))
+    return np.where(covered[..., None], premultiplied, 0.0)
+
+
+def apply_light_leak(rgb, params: dict):
+    """Screen-blend the leak onto an sRGB-encoded frame: out = base + P·(1 − base), P premultiplied."""
+    rgb = np.asarray(rgb, np.float64)
+    premultiplied = light_leak_premultiplied(rgb.shape[0], rgb.shape[1], params)
+    return rgb + premultiplied * (1 - rgb)
+
+
 def develop_global_with_override(rgb, recipe: dict, model: dict, override_lut: np.ndarray):
     """develop.global when the pack ships a validated Lightroom HALD LUT for the preset (rendering-v2.md §4.4).
 

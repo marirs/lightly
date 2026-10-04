@@ -3,7 +3,7 @@
  "formatVersion": 1,
  "renderingContract": {
   "version": 2,
-  "revision": 1
+  "revision": 2
  },
  "generatedBy": "shared/contracts/make_rendering_goldens.py",
  "arrays": "little-endian float32, row-major; images are HxWx3 sRGB-encoded in [0, 1] unless named otherwise",
@@ -12,7 +12,8 @@
   "kernels": "max abs 1e-5 per tap",
   "pullPush": "max abs 1e-4",
   "focusRender": "ΔE00 mean ≤ 1.0 and p99 ≤ 4 against `expected` (depth-evaluation.md §R9)",
-  "grain": "noise max abs 1e-4; expected max abs 2e-4 (inside `crop` [row, column, height, width] when set)"
+  "grain": "noise max abs 1e-4; expected max abs 2e-4 (inside `crop` [row, column, height, width] when set)",
+  "lightLeak": "farthestCornerPx max abs 1e-4; premultiplied and expected max abs 2e-4 (pixel centres at +0.5)"
  },
  "backgroundFocus": {
   "constants": {
@@ -935,6 +936,136 @@
      3
     ],
     "sha256": "bdcd4707c68eededd79a6c1f4fa2f15ef06c1c83f4fdcc4e484050e7addd1b69"
+   }
+  }
+ ],
+ "lightLeak": [
+  {
+   "name": "warm-default-landscape",
+   "height": 80,
+   "width": 120,
+   "params": {
+    "style": "warm",
+    "intensity": 55,
+    "x": 18,
+    "y": 14,
+    "rotation": 0
+   },
+   "input": "grain_input (see generator)",
+   "farthestCornerPx": 120.066648,
+   "premultiplied": {
+    "file": "leak-warm-default-landscape-premultiplied.f32",
+    "shape": [
+     80,
+     120,
+     3
+    ],
+    "sha256": "7b14f2a6cf557ea07c801b0187ed1b47226ec04c8ff1405d38a4a68ed1198bab"
+   },
+   "expected": {
+    "file": "leak-warm-default-landscape-expected.f32",
+    "shape": [
+     80,
+     120,
+     3
+    ],
+    "sha256": "bec1ca3b31be048490e7400147ec70a257391a66dc7be92ee399c67a1833f8b5"
+   }
+  },
+  {
+   "name": "warm-centre-landscape",
+   "height": 80,
+   "width": 120,
+   "params": {
+    "style": "warm",
+    "intensity": 55,
+    "x": 50,
+    "y": 50,
+    "rotation": 0
+   },
+   "input": "grain_input (see generator)",
+   "farthestCornerPx": 72.111026,
+   "premultiplied": {
+    "file": "leak-warm-centre-landscape-premultiplied.f32",
+    "shape": [
+     80,
+     120,
+     3
+    ],
+    "sha256": "1054d146731c8176a96e2bc02cabbc0d462b8cdb637846e4687006d01e192a5a"
+   },
+   "expected": {
+    "file": "leak-warm-centre-landscape-expected.f32",
+    "shape": [
+     80,
+     120,
+     3
+    ],
+    "sha256": "6367c7b24d4d2e1327c1ed0c671fa443ee69218bc9a5ccdb67a35ecacda0a7cf"
+   }
+  },
+  {
+   "name": "amber-recipe-example-portrait",
+   "height": 120,
+   "width": 80,
+   "params": {
+    "style": "amber",
+    "intensity": 60,
+    "x": 80,
+    "y": 10,
+    "rotation": -30
+   },
+   "input": "grain_input (see generator)",
+   "farthestCornerPx": 125.538839,
+   "premultiplied": {
+    "file": "leak-amber-recipe-example-portrait-premultiplied.f32",
+    "shape": [
+     120,
+     80,
+     3
+    ],
+    "sha256": "ea80ce11a44cd08ab6462e56ac3590294fce4b049fb514eacf7be54fe12538fd"
+   },
+   "expected": {
+    "file": "leak-amber-recipe-example-portrait-expected.f32",
+    "shape": [
+     120,
+     80,
+     3
+    ],
+    "sha256": "bb89d41a568464852f8c2c46a830b2a80f15afb4350b6e7d4b34bfcc8dce0891"
+   }
+  },
+  {
+   "name": "rose-full-rotated-landscape",
+   "height": 80,
+   "width": 120,
+   "params": {
+    "style": "rose",
+    "intensity": 100,
+    "x": 35,
+    "y": 70,
+    "rotation": 90
+   },
+   "input": "grain_input (see generator)",
+   "farthestCornerPx": 96.020831,
+   "premultiplied": {
+    "file": "leak-rose-full-rotated-landscape-premultiplied.f32",
+    "shape": [
+     80,
+     120,
+     3
+    ],
+    "sha256": "f209ee6d921d182bc1c6f3b053cf03707b0e2869abb14b5004605c5169535a55"
+   },
+   "expected": {
+    "file": "leak-rose-full-rotated-landscape-expected.f32",
+    "shape": [
+     80,
+     120,
+     3
+    ],
+    "sha256": "95390a7d2f4d498ef0d4e0a1d54193b31e0db93ac0fb9b4fadd41a3fdc73b55d"
    }
   }
  ]

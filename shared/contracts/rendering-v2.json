@@ -1,7 +1,7 @@
 {
  "contract": "lightly-rendering",
  "version": 2,
- "revision": 1,
+ "revision": 2,
  "changeLog": "shared/contracts/rendering-v2.md#change-log",
  "prose": "shared/contracts/rendering-v2.md",
  "generatedBy": "shared/contracts/build_rendering_v2.py",
@@ -24,6 +24,25 @@
  "stages": [
   {
    "order": 1,
+   "id": "edit.remove",
+   "frame": "source (full resolution; strokes stored in source coordinates)",
+   "recipe": "editState.tools.edit.remove",
+   "operators": [
+    {
+     "id": "inpaint",
+     "params": {
+      "strokes": {
+       "type": "array",
+       "note": "see edit-recipe-v1 removeStroke"
+      }
+     },
+     "note": "revision 2: runs first, on the source pixels before auto and every tone or colour stage (remove-evaluation.md §7), so a later tone or colour change never re-runs the model. Each applied stroke's patch (rect, RGB, feathered alpha, source size) is stored by digest and composited in stroke order: 1:1 for export, scaled to the render's source size for preview. Never recomputed silently.",
+     "status": "model-chosen-D4 (LaMa big-lama, remove-evaluation.md §7; release gated on training-data sign-off)"
+    }
+   ]
+  },
+  {
+   "order": 2,
    "id": "auto",
    "frame": "source",
    "recipe": "editState.auto",
@@ -45,7 +64,7 @@
    ]
   },
   {
-   "order": 2,
+   "order": 3,
    "id": "develop.global",
    "frame": "source",
    "recipe": "pack preset recipe.global, editState.look.strength",
@@ -542,7 +561,7 @@
    "override": "a Lightroom HALD LUT replaces the bake only when bound evidence validates it (rendering-v2.md §4.4)"
   },
   {
-   "order": 3,
+   "order": 4,
    "id": "develop.spatial",
    "frame": "source",
    "recipe": "pack preset recipe.spatial",
@@ -669,105 +688,9 @@
    "amount": "amount-like parameters (noise reduction luminance/color, clarity, texture, sharpening amount) are multiplied by strength"
   },
   {
-   "order": 4,
-   "id": "edit.geometry",
-   "frame": "source → frame",
-   "recipe": "editState.tools.edit.geometry",
-   "operators": [
-    {
-     "id": "quarterTurns",
-     "params": {
-      "quarterTurns": {
-       "type": "integer",
-       "min": 0,
-       "max": 3,
-       "default": 0,
-       "unit": "90-degree clockwise turns"
-      }
-     }
-    },
-    {
-     "id": "flip",
-     "params": {
-      "horizontal": {
-       "type": "boolean",
-       "default": false
-      },
-      "vertical": {
-       "type": "boolean",
-       "default": false
-      }
-     },
-     "note": "in the turned frame (what the user sees)"
-    },
-    {
-     "id": "perspective",
-     "params": {
-      "vertical": {
-       "type": "number",
-       "min": -100,
-       "max": 100,
-       "default": 0,
-       "unit": "lightroom-slider"
-      },
-      "horizontal": {
-       "type": "number",
-       "min": -100,
-       "max": 100,
-       "default": 0,
-       "unit": "lightroom-slider"
-      }
-     },
-     "note": "keystone about the frame centre; ±100 = the far edge scaled by 1 ∓ 0.3"
-    },
-    {
-     "id": "straighten",
-     "params": {
-      "degrees": {
-       "type": "number",
-       "min": -45,
-       "max": 45,
-       "default": 0,
-       "unit": "degrees, clockwise positive"
-      }
-     },
-     "note": "rotated about the centre and scaled by the smallest factor that leaves no empty corner"
-    },
-    {
-     "id": "crop",
-     "params": {
-      "aspect": {
-       "type": "enum",
-       "values": [
-        "original",
-        "free",
-        "1:1",
-        "4:5",
-        "3:2",
-        "16:9",
-        "9:16"
-       ],
-       "default": "original"
-      },
-      "rect": {
-       "type": "rect",
-       "unit": "fraction-of-frame",
-       "default": [
-        0,
-        0,
-        1,
-        1
-       ]
-      }
-     },
-     "note": "rect [x, y, w, h] in the straightened frame; for a fixed aspect, w/h equals it in pixels"
-    }
-   ]
-  },
-  {
    "order": 5,
    "id": "edit.adjust",
-   "frame": "frame",
+   "frame": "source",
    "recipe": "editState.tools.edit.adjust",
    "operators": [
     {
@@ -859,38 +782,21 @@
        "unit": "percent"
       }
      },
+     "note": "revision 2: in source coordinates, so the Detail radii are fractions of the uncropped source long edge",
      "status": "provisional-mapping"
     }
    ]
   },
   {
    "order": 6,
-   "id": "edit.remove",
-   "frame": "frame (strokes stored in source coordinates)",
-   "recipe": "editState.tools.edit.remove",
-   "operators": [
-    {
-     "id": "inpaint",
-     "params": {
-      "strokes": {
-       "type": "array",
-       "note": "see edit-recipe-v1 removeStroke"
-      }
-     },
-     "note": "each applied stroke's result patch is stored by digest and replayed, never recomputed silently; blocked on dependency D4 (no on-device inpainting model)",
-     "status": "blocked-D4"
-    }
-   ]
-  },
-  {
-   "order": 7,
    "id": "background.replace",
-   "frame": "frame",
+   "frame": "source",
    "recipe": "editState.tools.background.replacement",
    "operators": [
     {
      "id": "replaceBackground",
      "note": "subject matte (segmentation) composites the subject over the replacement (image, colour or gradient). The replacement first receives the photo's global colour (auto, develop.global at strength, adjustColour), as in the approved prototype; no spatial operator is applied to it.",
+     "placement": "revision 2: x, y, scale place the replacement in the source frame; edit.geometry then maps it with the photo",
      "params": {
       "x": {
        "type": "number",
@@ -918,9 +824,9 @@
    ]
   },
   {
-   "order": 8,
+   "order": 7,
    "id": "background.focus",
-   "frame": "frame",
+   "frame": "source",
    "recipe": "editState.tools.background.focus",
    "operators": [
     {
@@ -1014,15 +920,15 @@
       "estimated": "Depth Anything V2 Small (D5)",
       "subject-matte": "no depth: the operator must not blur (blur 0 is enforced by the edit-recipe reader); never a mask-only blur (depth-evaluation.md §R8)"
      },
-     "note": "rendering-v2.md §7.1 and docs/v1/depth-evaluation.md §6; executable reference experiments/depth/refocus.py. The renderer works in disparity (1 near); the recipe stores depth (0 near), so disparity = 1 − depth. Applies to the replaced background too (§R2.4 plane placement).",
+     "note": "rendering-v2.md §7.1 and docs/v1/depth-evaluation.md §6; executable reference experiments/depth/refocus.py. The renderer works in disparity (1 near); the recipe stores depth (0 near), so disparity = 1 − depth. Applies to the replaced background too (§R2.4 plane placement). Revision 2: runs in source coordinates; R_max and every radius are fractions of the uncropped source long edge.",
      "status": "calibrated-to-approved-prototype"
     }
    ]
   },
   {
-   "order": 9,
+   "order": 8,
    "id": "portrait",
-   "frame": "frame (faces stored in source coordinates)",
+   "frame": "source (faces stored in source coordinates)",
    "recipe": "editState.tools.portrait",
    "operators": [
     {
@@ -1119,6 +1025,106 @@
    ]
   },
   {
+   "order": 9,
+   "id": "edit.geometry",
+   "frame": "source → frame",
+   "recipe": "editState.tools.edit.geometry",
+   "note": "revision 2: runs after the layered stages (Adjust, Background, Portrait), which work in source coordinates; effects, border and watermark follow in the frame",
+   "operators": [
+    {
+     "id": "quarterTurns",
+     "params": {
+      "quarterTurns": {
+       "type": "integer",
+       "min": 0,
+       "max": 3,
+       "default": 0,
+       "unit": "90-degree clockwise turns"
+      }
+     }
+    },
+    {
+     "id": "flip",
+     "params": {
+      "horizontal": {
+       "type": "boolean",
+       "default": false
+      },
+      "vertical": {
+       "type": "boolean",
+       "default": false
+      }
+     },
+     "note": "in the turned frame (what the user sees)"
+    },
+    {
+     "id": "perspective",
+     "params": {
+      "vertical": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      },
+      "horizontal": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "lightroom-slider"
+      }
+     },
+     "note": "revision 2 (rendering-v2.md §7.2): keystone about the frame centre. vertical > 0 narrows the TOP edge, vertical < 0 the bottom edge; horizontal > 0 narrows the RIGHT edge, horizontal < 0 the left edge; the narrowed edge is scaled about the centre line by 1 − 0.3·|value|/100. Then zoomed about the centre by the smallest factor z ≥ 1 that leaves no empty area",
+     "constants": {
+      "edgeScalePerUnit": 0.3
+     }
+    },
+    {
+     "id": "straighten",
+     "params": {
+      "degrees": {
+       "type": "number",
+       "min": -45,
+       "max": 45,
+       "default": 0,
+       "unit": "degrees, clockwise positive"
+      }
+     },
+     "note": "rotated about the centre and scaled by the smallest factor that leaves no empty corner"
+    },
+    {
+     "id": "crop",
+     "params": {
+      "aspect": {
+       "type": "enum",
+       "values": [
+        "original",
+        "free",
+        "1:1",
+        "4:5",
+        "3:2",
+        "16:9",
+        "9:16"
+       ],
+       "default": "original"
+      },
+      "rect": {
+       "type": "rect",
+       "unit": "fraction-of-frame",
+       "default": [
+        0,
+        0,
+        1,
+        1
+       ]
+      }
+     },
+     "note": "rect [x, y, w, h] in the straightened frame; for a fixed aspect, w/h equals it in pixels"
+    }
+   ]
+  },
+  {
    "order": 10,
    "id": "effects",
    "frame": "frame",
@@ -1166,6 +1172,73 @@
        "unit": "degrees"
       }
      },
+     "constants": {
+      "shape": "circle at (x, y) % of the frame, size farthest-corner (CSS default for a circle)",
+      "gradientRay": {
+       "definition": "R = max distance in frame pixels from the centre (x·W/100, y·H/100) to the four frame corners",
+       "note": "stop positions are fractions of R, not of the long edge"
+      },
+      "stops": [
+       {
+        "position": 0.0,
+        "colour": "core",
+        "alpha": "intensity/130"
+       },
+       {
+        "position": 0.3,
+        "colour": "ring",
+        "alpha": "intensity/400"
+       },
+       {
+        "position": 0.55,
+        "colour": "transparent",
+        "alpha": 0
+       }
+      ],
+      "interpolation": "premultiplied sRGB-encoded colour, linear between stops; 0 beyond the last stop",
+      "rotation": "CSS transform rotate(rotation deg) of the frame-sized overlay about the frame centre, clockwise positive: frame pixel p samples the gradient at q = Rot(−rotation)·(p − c) + c, c the frame centre; no leak where q falls outside the frame rectangle (the rotated overlay does not cover it)",
+      "blend": "screen in sRGB-encoded values with the gradient's alpha: out = base + αC·(1 − base), αC premultiplied",
+      "styles": {
+       "warm": {
+        "core": [
+         255,
+         150,
+         70
+        ],
+        "ring": [
+         255,
+         90,
+         60
+        ]
+       },
+       "amber": {
+        "core": [
+         255,
+         176,
+         64
+        ],
+        "ring": [
+         230,
+         120,
+         40
+        ]
+       },
+       "rose": {
+        "core": [
+         255,
+         140,
+         160
+        ],
+        "ring": [
+         220,
+         90,
+         120
+        ]
+       },
+       "prism": "hue sweep, provisional (rendering-v2.md §6)"
+      }
+     },
+     "equation": "rendering-v2.md#light-leak",
      "status": "provisional"
     },
     {
@@ -1260,7 +1333,25 @@
        "unit": "anchor index (row-major 3×3)"
       }
      },
-     "note": "height at size 34: signature 0.068, text font size 0.047, logo 0.079 of the image's short edge; linear in size. Anchors at 6/50/94 % of the frame. On a border: centred in the bottom margin (polaroid 6 %, other borders 1 % from the bottom)",
+     "constants": {
+      "unit": "fraction of the photo's short edge at size 34; linear in size/34",
+      "textFontSize": 0.06225,
+      "signatureHeight": 0.08995,
+      "logoHeight": 0.09415,
+      "measuredOn": [
+       "iphone17",
+       "iphone17promax",
+       "pixel9pro",
+       "pixel10proxl"
+      ],
+      "revision1Values": {
+       "textFontSize": 0.047,
+       "signatureHeight": 0.068,
+       "logoHeight": 0.079
+      },
+      "deviation": "W1: tablets keep the phone ratios (the prototype draws about half these ratios on tablets)"
+     },
+     "note": "height = constant × size/34 of the photo's short edge. Anchors at 6/50/94 % of the frame. On a border: centred in the bottom margin (polaroid 6 %, other borders 1 % from the bottom)",
      "status": "provisional"
     }
    ]

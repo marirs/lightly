@@ -1,4 +1,4 @@
-"""Write the parity goldens for background.focus and grain (rendering-v2 revision 1).
+"""Write the parity goldens for background.focus, grain and the light leak (rendering-v2 revision 2).
 
     python shared/contracts/make_rendering_goldens.py          # rewrite shared/fixtures/rendering/
     python shared/contracts/make_rendering_goldens.py --check  # exit 1 if the committed files are out of date
@@ -7,7 +7,7 @@ Closes gap G5 (docs/v1/slice3-android.md, docs/v1/contract-fixes-1.md): depth-ev
 renderer goldens that take the disparity map as an input, so they do not depend on the depth model.
 The expected values come from the executable references:
   - background.focus: experiments/depth/refocus.py (needs OpenCV and SciPy);
-  - grain: shared/look-pack/reference_model.py.
+  - grain and the light leak: shared/look-pack/reference_model.py.
 Every array is a little-endian float32 file next to `index.json`, which records its shape and SHA-256.
 The inputs are stored too, so a port never has to reproduce the synthetic scene generator.
 """
@@ -82,6 +82,15 @@ GRAIN_CASES = [
     ("thumbnail", 24, 18, {"amount": 55, "size": 25, "roughness": 59, "seed": 3343035603}),
 ]
 GRAIN_CROP = (slice(40, 104), slice(24, 88))   # stored 64x64 window of the larger cases (rows, columns)
+
+LIGHT_LEAK_CASES = [
+    # name, height, width, params. Revision 2 (C4): stops along the farthest-corner ray, rotation of the whole
+    # overlay (uncovered corners get no leak). Prism is provisional and has no golden.
+    ("warm-default-landscape", 80, 120, {"style": "warm", "intensity": 55, "x": 18, "y": 14, "rotation": 0}),
+    ("warm-centre-landscape", 80, 120, {"style": "warm", "intensity": 55, "x": 50, "y": 50, "rotation": 0}),
+    ("amber-recipe-example-portrait", 120, 80, {"style": "amber", "intensity": 60, "x": 80, "y": 10, "rotation": -30}),
+    ("rose-full-rotated-landscape", 80, 120, {"style": "rose", "intensity": 100, "x": 35, "y": 70, "rotation": 90}),
+]
 
 
 def grain_input(height: int, width: int) -> np.ndarray:
@@ -183,6 +192,18 @@ def grain_cases(files: Files) -> list:
     return out
 
 
+def light_leak_cases(files: Files) -> list:
+    out = []
+    for name, height, width, params in LIGHT_LEAK_CASES:
+        image = grain_input(height, width)
+        out.append({"name": name, "height": height, "width": width, "params": params, "input": "grain_input (see generator)",
+                    "farthestCornerPx": round(reference_model.light_leak_farthest_corner(height, width, params["x"], params["y"]), 6),
+                    "premultiplied": files.array(f"leak-{name}-premultiplied.f32",
+                                                 reference_model.light_leak_premultiplied(height, width, params)),
+                    "expected": files.array(f"leak-{name}-expected.f32", reference_model.apply_light_leak(image, params))})
+    return out
+
+
 def build() -> dict[str, bytes]:
     files = Files()
     scene_inputs = synthetic_scene()
@@ -198,6 +219,7 @@ def build() -> dict[str, bytes]:
             "pullPush": "max abs 1e-4",
             "focusRender": "ΔE00 mean ≤ 1.0 and p99 ≤ 4 against `expected` (depth-evaluation.md §R9)",
             "grain": "noise max abs 1e-4; expected max abs 2e-4 (inside `crop` [row, column, height, width] when set)",
+            "lightLeak": "farthestCornerPx max abs 1e-4; premultiplied and expected max abs 2e-4 (pixel centres at +0.5)",
         },
         "backgroundFocus": {
             "constants": next(s for s in contract["stages"] if s["id"] == "background.focus")["operators"][0]["constants"],
@@ -211,6 +233,7 @@ def build() -> dict[str, bytes]:
             "renders": focus_cases(files, scene_inputs),
         },
         "grain": grain_cases(files),
+        "lightLeak": light_leak_cases(files),
     }
     blobs = {"index.json": (json.dumps(index, indent=1, ensure_ascii=False) + "\n").encode()}
     blobs.update(files.blobs)

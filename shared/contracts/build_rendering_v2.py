@@ -20,7 +20,9 @@ OUT = Path(__file__).resolve().parent / "rendering-v2.json"
 PRESETS = REPO / "experiments/presets"
 # Revision within contract version 2; rendering-v2.md "Change log" lists what each one changed.
 # 1 = contract fixes 1 (docs/v1/contract-fixes-1.md): background.focus constants, pull-push, grain colour/aliasing.
-CONTRACT_REVISION = 1
+# 2 = contract fixes 2 (docs/v1/contract-fixes-2.md): Remove on the source before auto, geometry after the layered
+#     stages, perspective defined, light leak measured along the farthest-corner ray as the approved CSS does.
+CONTRACT_REVISION = 2
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -139,34 +141,65 @@ def focus_constants() -> dict:
     }
 
 
+def light_leak_constants() -> dict:
+    """Light-leak geometry (rendering-v2.md §6, revision 2): the approved prototype's
+    `radial-gradient(circle at x% y%, core, ring 30%, transparent 55%)`, rotated with the overlay."""
+    return {
+        "shape": "circle at (x, y) % of the frame, size farthest-corner (CSS default for a circle)",
+        "gradientRay": {"definition": "R = max distance in frame pixels from the centre (x·W/100, y·H/100) to the four frame corners",
+                        "note": "stop positions are fractions of R, not of the long edge"},
+        "stops": [{"position": 0.0, "colour": "core", "alpha": "intensity/130"},
+                  {"position": 0.30, "colour": "ring", "alpha": "intensity/400"},
+                  {"position": 0.55, "colour": "transparent", "alpha": 0}],
+        "interpolation": "premultiplied sRGB-encoded colour, linear between stops; 0 beyond the last stop",
+        "rotation": "CSS transform rotate(rotation deg) of the frame-sized overlay about the frame centre, clockwise positive: "
+                    "frame pixel p samples the gradient at q = Rot(−rotation)·(p − c) + c, c the frame centre; "
+                    "no leak where q falls outside the frame rectangle (the rotated overlay does not cover it)",
+        "blend": "screen in sRGB-encoded values with the gradient's alpha: out = base + αC·(1 − base), αC premultiplied",
+        "styles": {"warm": {"core": [255, 150, 70], "ring": [255, 90, 60]},
+                   "amber": {"core": [255, 176, 64], "ring": [230, 120, 40]},
+                   "rose": {"core": [255, 140, 160], "ring": [220, 90, 120]},
+                   "prism": "hue sweep, provisional (rendering-v2.md §6)"},
+    }
+
+
+def watermark_constants() -> dict:
+    """Watermark heights at size 34 (rendering-v2.md §7, revision 2). The prototype draws fixed CSS px (text 18,
+    signature 26, logo 30, × size/34), so its ratio to the photo depends on the screen; these are the medians over
+    the four phone references, made resolution independent. Tablets show smaller ratios: deviation W1."""
+    return {
+        "unit": "fraction of the photo's short edge at size 34; linear in size/34",
+        "textFontSize": 0.06225, "signatureHeight": 0.08995, "logoHeight": 0.09415,
+        "measuredOn": ["iphone17", "iphone17promax", "pixel9pro", "pixel10proxl"],
+        "revision1Values": {"textFontSize": 0.047, "signatureHeight": 0.068, "logoHeight": 0.079},
+        "deviation": "W1: tablets keep the phone ratios (the prototype draws about half these ratios on tablets)",
+    }
+
+
 def stages():
     return [
-        {"order": 1, "id": "auto", "frame": "source", "recipe": "editState.auto",
+        {"order": 1, "id": "edit.remove", "frame": "source (full resolution; strokes stored in source coordinates)",
+         "recipe": "editState.tools.edit.remove",
+         "operators": [{"id": "inpaint", "params": {"strokes": {"type": "array", "note": "see edit-recipe-v1 removeStroke"}},
+                        "note": "revision 2: runs first, on the source pixels before auto and every tone or colour stage "
+                                "(remove-evaluation.md §7), so a later tone or colour change never re-runs the model. Each applied "
+                                "stroke's patch (rect, RGB, feathered alpha, source size) is stored by digest and composited in "
+                                "stroke order: 1:1 for export, scaled to the render's source size for preview. Never recomputed silently.",
+                        "status": "model-chosen-D4 (LaMa big-lama, remove-evaluation.md §7; release gated on training-data sign-off)"}]},
+        {"order": 2, "id": "auto", "frame": "source", "recipe": "editState.auto",
          "operators": [{"id": "autoLut", "params": {"strength": num(0, 1, 1, "fraction")},
                         "note": "ia3dlut fused 33³ LUT from the stored weights and guardrail (EditState schema 2); "
                                 "out = in + strength·(LUT(in) − in). Skipped when modelVersion is no-model-in-build.",
                         "status": "existing"}]},
-        {"order": 2, "id": "develop.global", "frame": "source", "recipe": "pack preset recipe.global, editState.look.strength",
+        {"order": 3, "id": "develop.global", "frame": "source", "recipe": "pack preset recipe.global, editState.look.strength",
          "operators": develop_global_operators(),
          "bake": {"lutDimension": 33, "grid": "linspace(0, 1, N) per axis", "layout": "[b][g][r][rgb], red fastest",
                   "interpolation": "trilinear", "amount": "out = in + strength·(LUT(in) − in)"},
          "override": "a Lightroom HALD LUT replaces the bake only when bound evidence validates it (rendering-v2.md §4.4)"},
-        {"order": 3, "id": "develop.spatial", "frame": "source", "recipe": "pack preset recipe.spatial",
+        {"order": 4, "id": "develop.spatial", "frame": "source", "recipe": "pack preset recipe.spatial",
          "operators": develop_spatial_operators(),
          "amount": "amount-like parameters (noise reduction luminance/color, clarity, texture, sharpening amount) are multiplied by strength"},
-        {"order": 4, "id": "edit.geometry", "frame": "source → frame", "recipe": "editState.tools.edit.geometry",
-         "operators": [
-             {"id": "quarterTurns", "params": {"quarterTurns": num(0, 3, 0, "90-degree clockwise turns", integer=True)}},
-             {"id": "flip", "params": {"horizontal": {"type": "boolean", "default": False}, "vertical": {"type": "boolean", "default": False}},
-              "note": "in the turned frame (what the user sees)"},
-             {"id": "perspective", "params": {"vertical": num(-100, 100, 0, SLIDER), "horizontal": num(-100, 100, 0, SLIDER)},
-              "note": "keystone about the frame centre; ±100 = the far edge scaled by 1 ∓ 0.3"},
-             {"id": "straighten", "params": {"degrees": num(-45, 45, 0, "degrees, clockwise positive")},
-              "note": "rotated about the centre and scaled by the smallest factor that leaves no empty corner"},
-             {"id": "crop", "params": {"aspect": enum(["original", "free", "1:1", "4:5", "3:2", "16:9", "9:16"], "original"),
-                                       "rect": {"type": "rect", "unit": FRAME, "default": [0, 0, 1, 1]}},
-              "note": "rect [x, y, w, h] in the straightened frame; for a fixed aspect, w/h equals it in pixels"}]},
-        {"order": 5, "id": "edit.adjust", "frame": "frame", "recipe": "editState.tools.edit.adjust",
+        {"order": 5, "id": "edit.adjust", "frame": "source", "recipe": "editState.tools.edit.adjust",
          "operators": [
              {"id": "adjustColour", "maps": "develop.global model with: exposure.ev = exposure/50; toneSliders contrast, highlights, "
                                             "shadows = same values; whiteBalance temperature = temp, tint = tint; vibranceSaturation "
@@ -178,18 +211,16 @@ def stages():
                                             "parameters at defaults); clarity.amount = clarity; sharpening amount = sharpness, "
                                             "radius 1.0, detail 25, edgeMasking 0",
               "params": {"sharpness": num(0, 100, 0, PERCENT), "clarity": num(-100, 100, 0, SLIDER), "noise": num(0, 100, 0, PERCENT)},
+              "note": "revision 2: in source coordinates, so the Detail radii are fractions of the uncropped source long edge",
               "status": "provisional-mapping"}]},
-        {"order": 6, "id": "edit.remove", "frame": "frame (strokes stored in source coordinates)", "recipe": "editState.tools.edit.remove",
-         "operators": [{"id": "inpaint", "params": {"strokes": {"type": "array", "note": "see edit-recipe-v1 removeStroke"}},
-                        "note": "each applied stroke's result patch is stored by digest and replayed, never recomputed silently; "
-                                "blocked on dependency D4 (no on-device inpainting model)", "status": "blocked-D4"}]},
-        {"order": 7, "id": "background.replace", "frame": "frame", "recipe": "editState.tools.background.replacement",
+        {"order": 6, "id": "background.replace", "frame": "source", "recipe": "editState.tools.background.replacement",
          "operators": [{"id": "replaceBackground",
                         "note": "subject matte (segmentation) composites the subject over the replacement (image, colour or gradient). "
                                 "The replacement first receives the photo's global colour (auto, develop.global at strength, "
                                 "adjustColour), as in the approved prototype; no spatial operator is applied to it.",
+                        "placement": "revision 2: x, y, scale place the replacement in the source frame; edit.geometry then maps it with the photo",
                         "params": {"x": num(0, 100, 50, PERCENT), "y": num(0, 100, 50, PERCENT), "scale": num(100, 200, 100, PERCENT)}}]},
-        {"order": 8, "id": "background.focus", "frame": "frame", "recipe": "editState.tools.background.focus",
+        {"order": 7, "id": "background.focus", "frame": "source", "recipe": "editState.tools.background.focus",
          "operators": [{"id": "depthBlur",
                         "params": {"blur": num(0, 100, 0, PERCENT), "depthOfField": num(0, 100, 40, PERCENT, "'Focus depth' slider"),
                                    "style": enum(["lens", "soft", "swirl", "motion"], "lens"),
@@ -201,9 +232,10 @@ def stages():
                                                           "reader); never a mask-only blur (depth-evaluation.md §R8)"},
                         "note": "rendering-v2.md §7.1 and docs/v1/depth-evaluation.md §6; executable reference experiments/depth/refocus.py. "
                                 "The renderer works in disparity (1 near); the recipe stores depth (0 near), so disparity = 1 − depth. "
-                                "Applies to the replaced background too (§R2.4 plane placement).",
+                                "Applies to the replaced background too (§R2.4 plane placement). Revision 2: runs in source coordinates; "
+                                "R_max and every radius are fractions of the uncropped source long edge.",
                         "status": "calibrated-to-approved-prototype"}]},
-        {"order": 9, "id": "portrait", "frame": "frame (faces stored in source coordinates)", "recipe": "editState.tools.portrait",
+        {"order": 8, "id": "portrait", "frame": "source (faces stored in source coordinates)", "recipe": "editState.tools.portrait",
          "operators": [{"id": "faceRetouch", "params": {
              "skin.smoothing": num(0, 100, 0, PERCENT), "skin.blemishes": num(0, 100, 0, PERCENT), "skin.evenTone": num(0, 100, 0, PERCENT),
              "skin.keepTexture": num(0, 100, 85, PERCENT), "underEye.brighten": num(0, 100, 0, PERCENT), "underEye.softenLines": num(0, 100, 0, PERCENT),
@@ -211,10 +243,29 @@ def stages():
              "hair.definition": num(0, 100, 0, PERCENT), "hair.flyaways": num(0, 100, 0, PERCENT), "hair.shine": num(0, 100, 0, PERCENT)},
              "note": "per face, in face-region masks from landmarks; eye colour/shape and skin tone colour are never changed",
              "status": "provisional"}]},
+        {"order": 9, "id": "edit.geometry", "frame": "source → frame", "recipe": "editState.tools.edit.geometry",
+         "note": "revision 2: runs after the layered stages (Adjust, Background, Portrait), which work in source "
+                  "coordinates; effects, border and watermark follow in the frame",
+         "operators": [
+             {"id": "quarterTurns", "params": {"quarterTurns": num(0, 3, 0, "90-degree clockwise turns", integer=True)}},
+             {"id": "flip", "params": {"horizontal": {"type": "boolean", "default": False}, "vertical": {"type": "boolean", "default": False}},
+              "note": "in the turned frame (what the user sees)"},
+             {"id": "perspective", "params": {"vertical": num(-100, 100, 0, SLIDER), "horizontal": num(-100, 100, 0, SLIDER)},
+              "note": "revision 2 (rendering-v2.md §7.2): keystone about the frame centre. vertical > 0 narrows the TOP edge, "
+                      "vertical < 0 the bottom edge; horizontal > 0 narrows the RIGHT edge, horizontal < 0 the left edge; "
+                      "the narrowed edge is scaled about the centre line by 1 − 0.3·|value|/100. Then zoomed about the "
+                      "centre by the smallest factor z ≥ 1 that leaves no empty area",
+              "constants": {"edgeScalePerUnit": 0.3}},
+             {"id": "straighten", "params": {"degrees": num(-45, 45, 0, "degrees, clockwise positive")},
+              "note": "rotated about the centre and scaled by the smallest factor that leaves no empty corner"},
+             {"id": "crop", "params": {"aspect": enum(["original", "free", "1:1", "4:5", "3:2", "16:9", "9:16"], "original"),
+                                       "rect": {"type": "rect", "unit": FRAME, "default": [0, 0, 1, 1]}},
+              "note": "rect [x, y, w, h] in the straightened frame; for a fixed aspect, w/h equals it in pixels"}]},
         {"order": 10, "id": "effects", "frame": "frame", "recipe": "editState.tools.effects + preset recipe.finishing",
          "operators": [
              {"id": "lightLeak", "params": {"style": enum(["warm", "amber", "rose", "prism"], "warm"), "intensity": num(0, 100, 55, PERCENT),
                                             "x": num(0, 100, 18, PERCENT), "y": num(0, 100, 14, PERCENT), "rotation": num(-180, 180, 0, "degrees")},
+              "constants": light_leak_constants(), "equation": "rendering-v2.md#light-leak",
               "status": "provisional"},
              {"id": "presetVignette", "operator": "vignette", "source": "preset recipe.finishing.vignette (amount × look strength)"},
              {"id": "userVignette", "operator": "vignette",
@@ -232,9 +283,9 @@ def stages():
         {"order": 12, "id": "watermark", "frame": "canvas", "recipe": "editState.tools.watermark",
          "operators": [{"id": "watermark", "params": {"size": num(10, 80, 34, "size-units"), "opacity": num(0, 100, 85, PERCENT),
                                                       "position": num(0, 8, 8, "anchor index (row-major 3×3)", integer=True)},
-                        "note": "height at size 34: signature 0.068, text font size 0.047, logo 0.079 of the image's short edge; "
-                                "linear in size. Anchors at 6/50/94 % of the frame. On a border: centred in the bottom margin "
-                                "(polaroid 6 %, other borders 1 % from the bottom)", "status": "provisional"}]},
+                        "constants": watermark_constants(),
+                        "note": "height = constant × size/34 of the photo's short edge. Anchors at 6/50/94 % of the frame. On a border: "
+                                "centred in the bottom margin (polaroid 6 %, other borders 1 % from the bottom)", "status": "provisional"}]},
     ]
 
 
