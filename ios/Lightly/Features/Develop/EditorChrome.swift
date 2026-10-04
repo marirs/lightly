@@ -321,10 +321,15 @@ struct ToolNavigation: View {
     /// Beyond XXL the prototype has no layout; there a slot widens to its label plus the reference's
     /// smallest gap between neighbouring labels at XXL (76 - (52.6 + 77.7) / 2 ≈ 11 pt), and the
     /// dock scrolls, so labels never collide (at AX1 "Develop" and "Background" overlapped).
+    /// The same holds for the tablet rail (`.rail { flex: 0 0 84px }`): at AX1 "Background" and
+    /// "Watermark" were cut off at the screen edge, so beyond XXL the rail is as wide as its widest
+    /// label plus that gap.
     private static let dockSlotWidth: CGFloat = 76
+    private static let railWidth: CGFloat = 84
     private static let labelGapBeyondApprovedLarge: CGFloat = 11
 
-    private var slotsWidenForLabels: Bool { kind != .rail && dynamicTypeSize > ApprovedType.approvedLargeSize }
+    private var slotsWidenForLabels: Bool { dynamicTypeSize > ApprovedType.approvedLargeSize }
+    private var slotWidth: CGFloat { kind == .rail ? Self.railWidth : Self.dockSlotWidth }
 
     var body: some View {
         switch kind {
@@ -332,7 +337,8 @@ struct ToolNavigation: View {
             VStack(spacing: 2) {
                 ForEach(tools) { toolButton($0, minHeight: 62) }
             }
-            .frame(width: 84)
+            .fixedSize(horizontal: slotsWidenForLabels, vertical: false)
+            .frame(width: slotsWidenForLabels ? nil : Self.railWidth)
             .frame(maxHeight: .infinity)
             .overlay(alignment: .leading) { ApprovedVerticalHairline() }
             .accessibilityElement(children: .contain)
@@ -383,8 +389,8 @@ struct ToolNavigation: View {
                 }
             }
             .foregroundStyle((isOn ? ApprovedColor.ink : ApprovedColor.inkTertiary).resolved(colorScheme))
-            .frame(width: kind == .rail ? 84 : (slotsWidenForLabels ? nil : Self.dockSlotWidth))
-            .frame(minWidth: slotsWidenForLabels ? Self.dockSlotWidth : nil)
+            .frame(width: slotsWidenForLabels ? nil : slotWidth)
+            .frame(minWidth: slotsWidenForLabels ? slotWidth : nil)
             .frame(minHeight: minHeight)
             .contentShape(Rectangle())
         }
