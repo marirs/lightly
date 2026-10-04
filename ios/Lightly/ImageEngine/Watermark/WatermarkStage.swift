@@ -6,7 +6,7 @@ import ImageIO
 /// Rendering-v2 stage 12, `watermark`: draws the watermark on the canvas, after the border, in
 /// preview and export alike.
 ///
-/// Size (owner ruling W1, contract revision 3): the approved screens draw the watermark at a fixed
+/// Size (PROVISIONAL coordinator approach to defect W1, pending the owner): the approved screens draw the watermark at a fixed
 /// on-screen size, text font 18 pt, signature height 26 pt, logo height 30 pt, each × size/34, in
 /// the photo box, on every device. The stage therefore works in displayed points: `pixelsPerPoint`
 /// is the photo's pixels per point of the photo as the editor displays it (photo short edge in

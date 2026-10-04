@@ -63,7 +63,7 @@ final class EditorSession {
     /// border): the prototype's `.imgbox` inside `.frame`, which marks and touches use.
     private(set) var displayedImageBox = CGRect(x: 0, y: 0, width: 1, height: 1)
     /// The photo (inside any border) as the editor displays it, in points. The watermark's size
-    /// and Focus & Blur's strength are defined on screen (owner ruling W1, contract revision 3),
+    /// and Focus & Blur's strength are defined on screen (PROVISIONAL coordinator approach to defect W1, pending the owner),
     /// so preview renders use the current layout and Save copy / Share the layout when saving.
     private(set) var displayedPhotoSize: CGSize?
 

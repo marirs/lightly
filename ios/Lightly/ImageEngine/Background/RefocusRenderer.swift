@@ -41,7 +41,7 @@ enum RefocusRenderer {
         var maxRadiusFraction: Float?
     }
 
-    /// Owner ruling (contract revision 3): the prototype blurs the displayed photo with CSS
+    /// PROVISIONAL coordinator approach (pending the owner): the prototype blurs the displayed photo with CSS
     /// `blur(blur/9 px)`, the same in points on every device. Measured on the native renderer
     /// (contract-fixes-1 §1: σ = 0.0133 of the long edge at Blur 55 with R_max = 0.06 of it), the
     /// fitted Gaussian σ is 0.403 × R_max, so R_max at Blur 100 is 100 / 9 / 0.403 = 27.57 pt on
