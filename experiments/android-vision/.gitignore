@@ -21,3 +21,4 @@ models/face_landmarker/
 models/pose_landmarker/
 models/converted/
 .venv_convert/
+.venv_litert/

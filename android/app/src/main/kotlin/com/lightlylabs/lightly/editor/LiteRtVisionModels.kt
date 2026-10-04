@@ -97,8 +97,8 @@ class LiteRtVisionModels private constructor(private val context: Context) {
         const val POSE_DETECTOR = "pose_detector.tflite"
         const val SELFIE = "selfie_segmenter.tflite"
 
-        /** Recorded with the subject matte when it came from the person segmenter (selfie_segmenter SHA-256 prefix). */
-        val PERSON_MATTE_MODEL = com.lightlylabs.lightly.session.ModelRef("mediapipe-selfie-segmenter", "191ac9529ae5")
+        /** Recorded with the subject matte when it came from the person segmenter (the bundled file's SHA-256 prefix). */
+        val PERSON_MATTE_MODEL = com.lightlylabs.lightly.session.ModelRef("mediapipe-selfie-segmenter-builtin", "400dd25939e5")
 
         private fun isEmulator(): Boolean = android.os.Build.HARDWARE in setOf("ranchu", "goldfish")
 

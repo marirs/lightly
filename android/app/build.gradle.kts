@@ -59,7 +59,11 @@ val visionModels = mapOf(
         "face_landmarks_detector.tflite", "c7d54204ce0448474c7f3fa9af494787c0965cbdd6f20fc72867e43046bd43d5"),
     "pose_detector.tflite" to listOf("pose_landmarker_lite.task", "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a",
         "pose_detector.tflite", "46837eb883e6ec75b52c5f5ff6a9b78bd35e66c13f95e8c3566c582d146cb1d9"),
-    "selfie_segmenter.tflite" to listOf("selfie_segmenter.tflite", "191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b", "", ""),
+    // The selfie segmenter with its one MediaPipe custom op (Convolution2DTransposeBias) replaced by the builtin
+    // TRANSPOSE_CONV (experiments/android-vision/scripts/patch_selfie_segmenter.py, from the original
+    // 191ac952…658b; outputs equal within 1.6e-12): LiteRT's built-in kernels lack the custom op, and the
+    // arm64 emulator cannot use XNNPACK, which implements it.
+    "selfie_segmenter.tflite" to listOf("selfie_segmenter_builtin.tflite", "400dd25939e56f7374f2aa2345ddf31ded21f525627cbeb707a4f022ba90ef2d", "", ""),
 )
 val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) == "true"
 fun visionModelsEnabled(buildType: String) =
