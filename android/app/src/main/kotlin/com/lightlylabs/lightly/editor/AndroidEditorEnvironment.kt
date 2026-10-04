@@ -86,7 +86,7 @@ object AndroidEditorEnvironment {
             renderDispatcher = renderDispatcher,
             prefetchDispatcher = prefetchDispatcher,
             exporter = ExportCoordinator(
-                saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder(), metadataStep = metadataStep(app)),
+                saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder(), metadataStep = metadataStep(app), shareCopy = shareCopies(app)),
                 frameFactory = BitmapExportFrame.factory,
                 renderDispatcher = renderDispatcher,
                 maxTileEdge = exportTileEdge,
@@ -118,6 +118,13 @@ object AndroidEditorEnvironment {
             onPreviewRendered = { millis, globalOnly -> Log.i(LOG_TAG, "preview ${if (globalOnly) "drag" else "committed"}: ${"%.1f".format(millis)} ms") },
             newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },
         )
+    }
+
+    @Volatile private var shares: com.lightlylabs.lightly.export.ShareCopies? = null
+
+    /** Share's copy of the last saved file (same bytes), in cache/share, exposed by the app's FileProvider. */
+    fun shareCopies(context: Context): com.lightlylabs.lightly.export.ShareCopies = synchronized(this) {
+        shares ?: com.lightlylabs.lightly.export.ShareCopies(File(context.applicationContext.cacheDir, "share")).also { shares = it }
     }
 
     @Volatile private var signatures: com.lightlylabs.lightly.signatures.SignatureStore? = null

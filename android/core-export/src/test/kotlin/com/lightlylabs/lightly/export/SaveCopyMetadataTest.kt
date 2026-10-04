@@ -151,6 +151,59 @@ class SaveCopyMetadataTest {
         exif.getAttribute(ExifInterface.TAG_IMAGE_LENGTH)?.let { assertEquals("24", it) }
     }
 
+    /**
+     * Saved › Share (approved `share`): the shared file is the saved copy's exact bytes in all four
+     * combinations of Keep photo metadata and Include location, and the Original is never modified.
+     */
+    @Test
+    fun `the shared file is the saved copy's bytes with its metadata policy, in all four combinations`() {
+        for (keep in listOf(true, false)) for (location in listOf(true, false)) {
+            val policy = MetadataPolicy(keepPhotoMetadata = keep, includeLocation = location)
+            val originalFile = original()
+            val originalBytes = originalFile.readBytes()
+            val gateway = MemoryGateway()
+            val shares = ShareCopies(temp.newFolder())
+            val step = ExportMetadataStep<String>(
+                reader = { _, tags -> originalFile.inputStream().use { PlatformExifMetadata.readTags(it, tags) } },
+                writer = PlatformExifMetadata.writer,
+                scratchDirectory = temp.newFolder(),
+            )
+            val rendered = Bitmap.createBitmap(32, 24, Bitmap.Config.ARGB_8888, true, ColorSpace.get(ColorSpace.Named.SRGB)).apply { eraseColor(Color.rgb(200, 120, 60)) }
+            val saved = SaveCopyExporter(gateway, BitmapJpegEncoder(), metadataStep = step, shareCopy = shares)
+                .save("content://media/picker/0/42", NewImageSpec("copy.jpg", metadataPolicy = policy), rendered)
+
+            val shared = shares.existingFor(saved)!!
+            assertTrue(shared.readBytes().contentEquals(gateway.written.toByteArray()), "shared bytes differ from the saved copy ($policy)")
+            assertTrue(originalFile.readBytes().contentEquals(originalBytes), "the original changed ($policy)")
+            val exif = ExifInterface(shared)
+            captureTags.forEach { (tag, value) -> assertEquals(if (keep) value else null, exif.getAttribute(tag), "$tag ($policy)") }
+            assertEquals(location, exif.latLongOrNull() != null, "location ($policy)")
+            if (!keep && !location) assertFalse(JpegSegments.of(shared.readBytes()).any { it.isExif }, "no Exif segment when both are off")
+            assertSafeInEveryCombination(shared)
+        }
+    }
+
+    @Test
+    fun `a failed save leaves no share copy, and a failing share copy never fails the save`() {
+        val shares = ShareCopies(temp.newFolder())
+        val failing = object : MediaStoreGateway<String> {
+            override fun insertPending(spec: NewImageSpec) = "content://media/new/9"
+            override fun openForWrite(handle: String): OutputStream = ByteArrayOutputStream()
+            override fun publish(handle: String) = false
+            override fun delete(handle: String) = Unit
+        }
+        val rendered = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888, true, ColorSpace.get(ColorSpace.Named.SRGB))
+        runCatching { SaveCopyExporter(failing, BitmapJpegEncoder(), shareCopy = shares).save("src", NewImageSpec("c.jpg"), rendered) }
+        assertNull(shares.existingFor("content://media/new/9"))
+        val broken = object : ShareCopySink<String> {
+            override fun open(saved: String): OutputStream = object : OutputStream() { override fun write(b: Int) = throw java.io.IOException("disk full") }
+            override fun discard(saved: String) = Unit
+        }
+        val gateway = MemoryGateway()
+        SaveCopyExporter(gateway, BitmapJpegEncoder(), shareCopy = broken).save("src", NewImageSpec("c.jpg"), rendered)
+        assertTrue(gateway.written.size() > 0)
+    }
+
     @Test
     fun `an unreadable original still saves, without metadata`() {
         val gateway = MemoryGateway()

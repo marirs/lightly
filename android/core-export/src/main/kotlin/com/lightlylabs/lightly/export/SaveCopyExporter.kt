@@ -40,6 +40,36 @@ interface MediaStoreGateway<H> {
     fun delete(handle: H)
 }
 
+/**
+ * Where Share's copy of a save goes: the SAME encoded bytes written to the saved asset (approved
+ * `share`: "Share the saved copy"), so the shared file carries exactly the saved copy's pixels and the
+ * metadata policy it was saved with. [open] returns null when no copy can be kept (Share then falls
+ * back to the saved asset); [discard] removes a copy whose save failed.
+ */
+interface ShareCopySink<H> {
+    fun open(saved: H): OutputStream?
+    fun discard(saved: H)
+}
+
+/** Writes to [primary]; a failure of [secondary] never fails the save, it only drops the share copy. */
+internal class TeeOutputStream(private val primary: OutputStream, private var secondary: OutputStream?) : OutputStream() {
+    var secondaryFailed = false
+        private set
+
+    private inline fun copy(block: (OutputStream) -> Unit) {
+        val s = secondary ?: return
+        try { block(s) } catch (failure: IOException) { secondaryFailed = true; secondary = null; runCatching { s.close() } }
+    }
+
+    override fun write(b: Int) { primary.write(b); copy { it.write(b) } }
+    override fun write(b: ByteArray, off: Int, len: Int) { primary.write(b, off, len); copy { it.write(b, off, len) } }
+    override fun flush() { primary.flush(); copy { it.flush() } }
+    override fun close() { try { primary.close() } finally { closeSecondaryOnly() } }
+
+    /** Closes the share copy and leaves [primary] to its owner (the gateway's `use`). */
+    fun closeSecondaryOnly() { copy { it.flush(); it.close() }; secondary = null }
+}
+
 /** Failure categories mapped to the spec §5.4 messages. The edit state is kept in every case. */
 sealed class SaveCopyFailure(message: String, cause: Throwable?) : Exception(message, cause) {
     class PermissionDenied(cause: Throwable) : SaveCopyFailure("Permission denied while saving", cause)
@@ -70,6 +100,8 @@ class SaveCopyExporter<H, I>(
      * most private outcome.
      */
     private val metadataStep: ExportMetadataStep<H>? = null,
+    /** Share's copy of each saved file (the same bytes); null keeps none. */
+    private val shareCopy: ShareCopySink<H>? = null,
 ) {
     init {
         require(quality in 1..100) { "JPEG quality must be 1..100, was $quality" }
@@ -87,11 +119,19 @@ class SaveCopyExporter<H, I>(
         // either: "deleting the pending row" would delete the Original.
         check(target != source) { "MediaStore returned the source row as the insert target; refusing to write" }
 
+        var tee: TeeOutputStream? = null
         try {
-            gateway.openForWrite(target).use { sink -> encodeWithMetadata(source, spec.metadataPolicy, rendered, sink) }
+            gateway.openForWrite(target).use { sink ->
+                // The bytes go to the saved asset and, unchanged, to Share's copy.
+                val share = shareCopy?.let { runCatching { it.open(target) }.getOrNull() }
+                val out = if (share == null) sink else TeeOutputStream(sink, share).also { tee = it }
+                try { encodeWithMetadata(source, spec.metadataPolicy, rendered, out) } finally { if (out !== sink) (out as TeeOutputStream).closeSecondaryOnly() }
+            }
             if (!gateway.publish(target)) throw SaveCopyFailure.PublishFailed()
+            if (tee?.secondaryFailed == true) shareCopy?.discard(target)
             return target
         } catch (failure: Throwable) {
+            shareCopy?.let { runCatching { it.discard(target) } }
             deletePendingQuietly(target, failure)
             throw classify(failure)
         }

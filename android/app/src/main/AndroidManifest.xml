@@ -37,7 +37,8 @@
         </activity>
 
         <!-- Camera captures are written by the system camera into cache/captures through this
-             provider; nothing else is shared. -->
+             provider, and Share hands over its copy of the last saved file from cache/share
+             (read-only grants); nothing else is shared. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.captures"

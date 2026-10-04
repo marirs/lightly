@@ -330,8 +330,17 @@ class MainActivity : ComponentActivity() {
      * Saved sheet › Share: the system share sheet with the saved copy, which already follows the
      * metadata policy it was saved with. DEFERRED(slice 5): the approved share flow's own checks.
      */
+    /**
+     * Saved › Share (approved `share`): the system share sheet with the saved copy's exact bytes, from Share's
+     * copy written alongside the save (same pixels, same metadata policy). The original is never touched.
+     */
     private fun shareSavedCopy(savedUri: String) {
-        val send = Intent(Intent.ACTION_SEND).setType("image/jpeg").putExtra(Intent.EXTRA_STREAM, Uri.parse(savedUri)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        // The share copy is the byte-exact file. Without it (another save replaced it, or the cache was
+        // cleared), the saved asset itself is shared; MediaStore may then hide its location from the reader.
+        val copy = com.lightlylabs.lightly.editor.AndroidEditorEnvironment.shareCopies(this).existingFor(savedUri)
+        val stream = copy?.let { androidx.core.content.FileProvider.getUriForFile(this, "$packageName.captures", it) } ?: Uri.parse(savedUri)
+        val send = Intent(Intent.ACTION_SEND).setType("image/jpeg").putExtra(Intent.EXTRA_STREAM, stream).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .apply { clipData = android.content.ClipData.newRawUri(null, stream) }
         try {
             startActivity(Intent.createChooser(send, null))
         } catch (noHandler: ActivityNotFoundException) {

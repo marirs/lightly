@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only the camera capture folder is shareable (CameraCaptures). -->
+<!-- Shareable: the camera capture folder (CameraCaptures) and Share's copy of the last saved file (ShareCopies). -->
 <paths>
     <cache-path name="captures" path="captures/" />
+    <cache-path name="share" path="share/" />
 </paths>
