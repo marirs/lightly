@@ -11,9 +11,11 @@ Open it from the repository root server (`python3 -m http.server 8765`) at http:
 | `fx-selective-empty` | Effects › Selective Colour switched on, nothing picked yet: **Pick** is active, "Tap the photo on a colour to keep it." |
 | `fx-selective-picked` | One colour kept (the red arrow), **Matching colours**, Range 40, Strength 100. The lips are red too and stay partly in colour: that is what colour matching does. |
 | `fx-selective-overlay` | The temporary blue overlay (Background › Refine's tint) while Range is dragged: what will stay in colour. |
-| `fx-selective-multi` | Several colours kept (sky, red door, orange sign), each a removable chip. |
-| `fx-selective-area` | **Painted area**, Add brush: the blue tint shows the painted area. One dab caught the lips, so they stay red. |
-| `fx-selective-area-remove` | Painted area, Remove brush: the lips are taken back out of the painted area. |
+| `fx-selective-multi` | Several colours kept (sky, red door, orange sign), each a removable chip. **Pick** comes first in the row, so adding another colour stays in reach; the chips scroll. |
+| `fx-selective-area-painting` | **Painted area** while painting: the blue tint shows the painted area. It disappears a moment after the stroke. |
+| `fx-selective-area` | Painted area, Add, the result without the overlay. One dab caught the lips, so they stay red. |
+| `fx-selective-area-remove` | Painted area, Remove, the result: the lips are taken back out of the painted area. |
+| `fx-selective-leak` | With a Light Leak on: Selective Colour is applied after the leak, so the leak's colour does not come back outside the kept colours. |
 | `fx-selective-off` | Switched off: the photo is in full colour and the picks are kept for when it is switched on again. |
 
 Each panel scrolls like the approved Effects panels; Strength and **Clear selection** are at its end.
@@ -21,7 +23,7 @@ Each panel scrolls like the approved Effects panels; Strength and **Clear select
 ## Two different ways to choose what stays in colour
 
 - **Matching colours** (default): every pixel close to a picked colour stays in colour, anywhere in the photo. This is colour matching only. It does not know what an object is: picking a red dress also keeps red lips, a red sign and anything else of that red.
-- **Painted area**: the person paints the area, with Add and Remove brushes, where the picked colours may stay in colour. Outside the painted area the photo turns black and white. The app does not find the dress or the balloon: the painting is what limits it.
+- **Painted area**: manual refinement. The person paints the area, with Add and Remove brushes, where the picked colours may stay in colour. Outside the painted area the photo turns black and white. The app does not find the dress or the balloon: the painting is what limits it.
 
 Not proposed: automatic object selection. The Background subject mask separates a person from the background, but it cannot tell a dress from the person wearing it, or one balloon from several, so it is not offered as "select the dress".
 
@@ -29,6 +31,7 @@ Not proposed: automatic object selection. The Background subject mask separates 
 
 - Picks and painted dabs are stored in photo coordinates (fractions of the photo), so resizing or rotating the editor does not move them.
 - Range: how far neighbouring shades are included (a colour distance). Strength: 100 makes everything outside the selection black and white; 0 leaves the photo unchanged.
+- Pipeline order: Develop and Edit adjustments, Light Leaks, **Selective Colour**, Grain, Vignette.
 - Undo/Redo: a pick, a chip removal, a scope change, a painted stroke and Clear selection are one step each; one slider drag is one step.
 - Compare shows the original; preview and Save copy use the same renderer; the session restores picks, area and values.
 
@@ -37,8 +40,8 @@ Not proposed: automatic object selection. The Background subject mask separates 
 1. A fourth Effects tab named "Selective Colour", after Vignette.
 2. The scope labels "Matching colours" and "Painted area".
 3. Removing a colour by tapping its chip (a × on the chip).
-4. The overlay: the Refine blue tint, shown for a moment after each pick, while Range is dragged, and throughout Painted area.
+4. The overlay: the Refine blue tint, shown for a moment after each pick, while Range is dragged, and while painting (gone a moment after each stroke, so the result is visible).
 5. Defaults: Range 40, Strength 100, Matching colours.
-6. Order in the pipeline: proposed before Light Leaks, Grain and Vignette, so a light leak's colour sits on top of the black and white.
+6. Order in the pipeline: after Light Leaks, before Grain and Vignette (owner's recommendation), so "everything else black and white" holds with a coloured leak on.
 
 Photo appearance on this page is an in-browser illustration (canvas, Lab colour distance), like the rest of the prototype's CSS simulations; it is not the native renderer.

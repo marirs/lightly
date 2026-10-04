@@ -111,15 +111,19 @@ const approvedPhotoHTML = photoHTML;
 photoHTML = function (s, ui = {}) {
   const html = approvedPhotoHTML(s, ui), sel = s.fx.sel;
   if (ui.compare || !sel || !sel.on || !sel.picks.length || !selImages[s.photo]) return html;
-  const r = renderSel(s.photo, sel); return r ? html.split(`src="${PHOTOS[s.photo].src}"`).join(`src="${r.photo}"`) : html;
+  const r = renderSel(s.photo, sel); if (!r) return html;
+  // Order (owner recommendation): after Light Leaks, before Grain and Vignette, so a coloured leak does not
+  // bring colour back. Illustration only: the leak overlay is desaturated by Strength.
+  return html.split(`src="${PHOTOS[s.photo].src}"`).join(`src="${r.photo}"`)
+    .replace('mix-blend-mode:screen;', `mix-blend-mode:screen;filter:saturate(${1 - sel.strength / 100});`);
 };
 
 const approvedMarksFor = marksFor;
 marksFor = function (s, ui) {
   let m = approvedMarksFor(s, ui); const sel = s.fx.sel;
-  // Temporary overlay (Background › Refine's blue tint): what stays in colour. Shown while picking, while
-  // Range is dragged and while painting; never saved.
-  if (ui.tool === 'effects' && ui.sub === 'sel' && sel.on && sel.picks.length && (ui.selOverlay || sel.scope === 'area')) {
+  // Temporary overlay (Background › Refine's blue tint), never saved: shown for a moment after a pick, while
+  // Range is dragged and while painting; otherwise the person sees the actual result.
+  if (ui.tool === 'effects' && ui.sub === 'sel' && sel.on && sel.picks.length && ui.selOverlay) {
     const r = renderSel(s.photo, sel);
     if (r) m += `<div class="maskTint" style="-webkit-mask-image:url(${r.tint});mask-image:url(${r.tint});-webkit-mask-size:100% 100%;mask-size:100% 100%"></div>`;
   }
@@ -137,7 +141,8 @@ effectsPanel = function (s, ui, L) {
   if (sel.on) {
     const picking = ui.picking || !sel.picks.length;
     const chips = sel.picks.map((p, i) => `<button class="opt" data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}"><span style="width:22px;height:22px;border-radius:11px;border:1px solid var(--hair);background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}"></span>${icon('close', 16)}</button>`).join('');
-    body += `<div class="chiprow" style="align-items:center"><span style="min-width:84px;color:var(--ink2)">Keep</span>${chips}<button class="opt ${picking ? 'on' : ''}" data-act="selPicking" aria-pressed="${picking}">${icon('plus', 18)}Pick</button></div>`;
+    // Pick comes first: with several colours the chips scroll (`.chiprow`), and adding one more stays in reach.
+    body += `<div class="chiprow" style="align-items:center"><span style="min-width:84px;color:var(--ink2)">Keep</span><button class="opt ${picking ? 'on' : ''}" data-act="selPicking" aria-pressed="${picking}">${icon('plus', 18)}Pick</button>${chips}</div>`;
     body += `<div class="note">${picking ? 'Tap the photo on a colour to keep it. Everything else turns black and white.' : 'Tap a colour to remove it.'}</div>`;
     body += seg([['match', 'Matching colours'], ['area', 'Painted area']], sel.scope, 'selScope');
     if (sel.scope === 'match') body += `<div class="note">The picked colours stay wherever they appear in the photo.</div>`;
@@ -170,7 +175,7 @@ Prototype.prototype.render = function () {
   const at = (e) => { const b = stage.querySelector('.imgbox').getBoundingClientRect(); return { x:(e.clientX - b.left) / b.width, y:(e.clientY - b.top) / b.height }; };
   const picking = ui.picking || !sel.picks.length;
   if (picking) stage.onclick = (e) => { const p = at(e); if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) return; sel.picks.push(p); ui.picking = false; ui.selOverlay = true; this.commit(); this.render(); setTimeout(() => { ui.selOverlay = false; this.render(); }, 1200); };
-  else if (sel.scope === 'area') stage.onclick = (e) => { const p = at(e); sel.area.push({ ...p, r:0.06, mode:ui.brush === 'erase' ? 'erase' : 'add' }); this.commit(); this.render(); };
+  else if (sel.scope === 'area') stage.onclick = (e) => { const p = at(e); sel.area.push({ ...p, r:0.06, mode:ui.brush === 'erase' ? 'erase' : 'add' }); ui.selOverlay = true; this.commit(); this.render(); clearTimeout(this.selTimer); this.selTimer = setTimeout(() => { ui.selOverlay = false; this.render(); }, 1200); };
   // Range drag shows the overlay while the finger is down (one undo step on release, as every slider).
   const range = this.host.querySelector('.trk[data-path="fx.sel.range"]');
   if (range) { const down = range.onpointerdown, up = range.onpointerup; range.onpointerdown = (e) => { ui.selOverlay = true; down(e); }; range.onpointerup = (e) => { ui.selOverlay = false; up(e); this.render(); }; }
@@ -187,8 +192,10 @@ add('fx-selective-empty', 'effects', 'PROPOSAL · Selective Colour · first pick
 add('fx-selective-picked', 'effects', 'PROPOSAL · Selective Colour · one colour kept, Matching colours', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW] }), ui:{ tool:'effects', sub:'sel' } });
 add('fx-selective-overlay', 'effects', 'PROPOSAL · Selective Colour · overlay while Range is dragged', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], range:55 }), ui:{ tool:'effects', sub:'sel', selOverlay:true } });
 add('fx-selective-multi', 'effects', 'PROPOSAL · Selective Colour · several colours kept', 'editor', { photo:'street', setup:selSetup({ picks:[{ x:0.62, y:0.10 }, { x:0.15, y:0.56 }, { x:0.72, y:0.40 }], range:35 }), ui:{ tool:'effects', sub:'sel' } });
-add('fx-selective-area', 'effects', 'PROPOSAL · Selective Colour · Painted area, Add', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], scope:'area', range:55, area:ARROW_AREA }), ui:{ tool:'effects', sub:'sel', brush:'add' } });
-add('fx-selective-area-remove', 'effects', 'PROPOSAL · Selective Colour · Painted area, Remove', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], scope:'area', range:55, area:LIPS_REMOVED }), ui:{ tool:'effects', sub:'sel', brush:'erase' } });
+add('fx-selective-area-painting', 'effects', 'PROPOSAL · Selective Colour · Painted area, while painting (overlay)', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], scope:'area', range:55, area:ARROW_AREA }), ui:{ tool:'effects', sub:'sel', brush:'add', selOverlay:true } });
+add('fx-selective-area', 'effects', 'PROPOSAL · Selective Colour · Painted area, Add (result)', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], scope:'area', range:55, area:ARROW_AREA }), ui:{ tool:'effects', sub:'sel', brush:'add' } });
+add('fx-selective-area-remove', 'effects', 'PROPOSAL · Selective Colour · Painted area, Remove (result)', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], scope:'area', range:55, area:LIPS_REMOVED }), ui:{ tool:'effects', sub:'sel', brush:'erase' } });
+add('fx-selective-leak', 'effects', 'PROPOSAL · Selective Colour · with a Light Leak (applied after the leak)', 'editor', { photo:'woman', setup:(s) => { selSetup({ picks:[ARROW] })(s); s.fx.leak.on = true; }, ui:{ tool:'effects', sub:'sel' } });
 add('fx-selective-off', 'effects', 'PROPOSAL · Selective Colour · Off (selection kept)', 'editor', { photo:'woman', setup:(s) => { selSetup({ picks:[ARROW] })(s); s.fx.sel.on = false; }, ui:{ tool:'effects', sub:'sel' } });
 
 /* The whole approved catalogue stays (the prototype controller starts from Launch); the proposal screens are
