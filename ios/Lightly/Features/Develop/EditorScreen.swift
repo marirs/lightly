@@ -10,6 +10,7 @@ struct EditorScreen: View {
     @State private var portraitPanel: PortraitPanelModel
     @State private var editPanel: EditPanelModel
     @State private var effectsPanel: EffectsPanelModel
+    @State private var borderPanel: BorderPanelModel
     /// Edit › Remove: the stroke being brushed (source coordinates).
     @State private var removePoints: [EditRecipe.Point] = []
     /// Edit › Crop: the rect when a corner drag or pinch began.
@@ -42,6 +43,7 @@ struct EditorScreen: View {
         _portraitPanel = State(initialValue: PortraitPanelModel(session: session))
         _editPanel = State(initialValue: EditPanelModel(session: session))
         _effectsPanel = State(initialValue: EffectsPanelModel(session: session))
+        _borderPanel = State(initialValue: BorderPanelModel(session: session))
         self.onClose = onClose
         self.onMore = onMore
         self.onChooseAnotherPhoto = onChooseAnotherPhoto
@@ -235,6 +237,7 @@ struct EditorScreen: View {
         if r.tools.portrait.faces.contains(where: { portraitPanel.changeCount(for: $0) > 0 }) { used.insert(.portrait) }
         if editPanel.isUsed { used.insert(.edit) }
         if effectsPanel.isUsed { used.insert(.effects) }
+        if borderPanel.isUsed { used.insert(.border) }
         return used
     }
 
@@ -247,13 +250,14 @@ struct EditorScreen: View {
             editPanel.sub = .crop
             editPanel.group = .light
             effectsPanel.sub = .leak
+            borderPanel.shownType = nil
         }
         #if DEBUG
         tool = next
         #else
         // DEFERRED(slice 5): in release builds the unbuilt tools stay listed but do not open; the
         // development stub exists only in DEBUG builds.
-        if [.develop, .background, .portrait, .edit, .effects].contains(next) { tool = next }
+        if [.develop, .background, .portrait, .edit, .effects, .border].contains(next) { tool = next }
         #endif
     }
 
@@ -265,6 +269,7 @@ struct EditorScreen: View {
         case .portrait: PortraitPanelView(model: portraitPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         case .edit: EditPanelView(model: editPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         case .effects: EffectsPanelView(model: effectsPanel, roomy: style == .list, wraps: style == .wrappedTabs)
+        case .border: BorderPanelView(model: borderPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         default: ToolStubPanel(tool: tool, roomy: style == .list)
         }
     }

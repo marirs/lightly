@@ -139,6 +139,8 @@ struct ApprovedGroupLabel: View {
 struct ApprovedNote: View {
     let text: Text
     var topPadding: CGFloat = 6
+    /// `.note` pads 6 below; captions above a swatch row use `padding-bottom:0`.
+    var bottomPadding: CGFloat = 6
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -149,7 +151,7 @@ struct ApprovedNote: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
             .padding(.top, topPadding)
-            .padding(.bottom, 6)
+            .padding(.bottom, bottomPadding)
     }
 }
 

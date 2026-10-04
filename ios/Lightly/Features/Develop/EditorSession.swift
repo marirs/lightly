@@ -596,6 +596,26 @@ final class EditorSession {
         commit(next)
     }
 
+    func previewBorder(_ change: (inout EditRecipe.Border) -> Void) {
+        var next = recipe
+        change(&next.tools.border)
+        render(next, final: false)
+    }
+
+    /// One undo step.
+    func commitBorder(_ change: (inout EditRecipe.Border) -> Void) {
+        var next = recipe
+        change(&next.tools.border)
+        commit(next)
+    }
+
+    /// One undo step.
+    func commitWatermark(_ change: (inout EditRecipe.Watermark) -> Void) {
+        var next = recipe
+        change(&next.tools.watermark)
+        commit(next)
+    }
+
     /// Crop › an aspect: a fixed aspect takes the largest centred rect of that shape; Original
     /// resets the rect; Free keeps the current one (prototype `set:edit.aspect`).
     func setCropAspect(_ aspect: EditRecipe.Geometry.Aspect) {
@@ -779,6 +799,8 @@ final class EditorSession {
         var effects: EditRecipe.Effects = EditRecipe.Tools.neutral(grainSeed: 0).effects
         /// The applied Remove strokes' patches, in order (full-resolution source pixels).
         var removePatches: [RemovePatch] = []
+        /// Border (stage 11), applied last to every frame, preview and export alike.
+        var border: EditRecipe.Border = EditRecipe.Tools.neutral(grainSeed: 0).border
 
         /// True when a slice-4 stage changes pixels; otherwise the slice-2/3 path runs unchanged.
         var usesEditOrEffects: Bool {
@@ -823,6 +845,14 @@ final class EditorSession {
     //   uncropped long edge instead of the cropped frame's.
     nonisolated private static func renderPixels(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
                                                  renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
+        let frame = try renderFrameBeforeBorder(job, base: base, width: width, height: height, renderer: renderer, cache: cache)
+        let canvas = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
+        return RenderedFrame(pixels: canvas.pixels, width: canvas.width, height: canvas.height)
+    }
+
+    /// Stages 1–10 (everything up to the border).
+    nonisolated private static func renderFrameBeforeBorder(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
+                                                            renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
         guard job.usesEditOrEffects else {
             return RenderedFrame(pixels: try renderDevelopAndLayered(job, base: base, width: width, height: height,
                                                                      renderer: renderer, cache: cache),
@@ -1056,6 +1086,7 @@ final class EditorSession {
     private func attachEditAndEffects(_ target: EditRecipe, to job: inout RenderJob) {
         job.edit = target.tools.edit
         job.effects = target.tools.effects
+        job.border = target.tools.border
         job.removePatches = removePatches.patches(for: target.tools.edit.remove.strokes)
     }
 
