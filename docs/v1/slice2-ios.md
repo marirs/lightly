@@ -115,178 +115,171 @@ No shippable model exists (D1). The build ships `ModelNotBundledAutoEnhancer`; t
 
 **Reference variant used for the Develop screens.** Every approved Develop screen is drawn with Auto *applied* (`newSession` sets `auto: 'applied'`). No Auto model ships (D1), so the build can only show the approved unavailable state. The references for `model-unavailable`, `dev-*`, `compare`, `saving` and `saved` were therefore rendered with the approved renderer and the screen's own setup plus `s.auto = 'unavailable'` (the approved combination of "presets still work" with that screen). The screens exactly as registered (Auto applied, no notice) are **blocked by D1** in every cell. `loading`, `developing` and `develop-failed` are compared as registered.
 
-**Status of the 24 cells: complete, current.**
-- **Capture.** All 504 screens (21 × 24) were captured with the validated one-launch runner, one cell per heavy-lock acquisition, from one build at `ea75592` (clean working tree).
-- **Grain recapture.** The two grain screens (`dev-favourites` and `dev-portrait-photo`, Portrait 13 "Glow") were captured again in every cell after the rendering-v2 revision 1 port, from a build at `ec1df87`. The other 19 screens do not use grain or Focus & Blur, so the port does not affect them.
-- **References.** All come from `scripts/reference_cache.py`: variant `auto-unavailable` for the Develop screens, none for `loading`, `developing` and `develop-failed`.
-- **Review.** Every screen of every cell was reviewed side by side, against `docs/ui/REVIEW-RULES.md`.
-- **Records.** Each capture's JSON record (in `~/.codex/artifacts/lightly/v1/slice2/ios/runner/{native,grain}/<cell>/`) gives its revision, local-change fingerprint, device, orientation, theme, text size and tool version.
+**Status of the 24 cells: complete, current (runner v5).**
+- **Build.** All 504 screens were recaptured with capture tool v5 from one recorded build at `5c3a3ee` (clean tree), one cell per heavy-lock acquisition. Artifacts: `~/.codex/artifacts/lightly/v1/slice2/ios/runner5/native/<cell>/`, each PNG with its JSON record.
+- **Why the recapture.** It was triggered by the v5 re-check of the iPhone 17 cell. Against the ea75592 captures, the only photo differences were the screens showing a grain preset ("05 Hiking 05" and Glow). Those changed because of the revision-1 grain port (ec1df87), not because of the readiness signal: with the code held equal, v5 changed nothing.
+- **Comparison with the reviewed captures.** In every cell, each v5 capture was diffed against its reviewed predecessor (rows of the status bar excluded, since the iPad shows the date). Every screen was identical or differed by at most 1 level on icon edges, except the grain screens. The grain screens were reviewed again against the references, and their results are unchanged.
+- **Older captures.** The `runner/` and `native/` captures are marked STALE.
 
-Each entry gives the result and the revision of the capture (`@revision`):
-- **V** means an exact match in layout, controls, copy, hierarchy, colours, icons and state.
-- **Mn** is a recorded deviation (table below).
-- Every capture also carries D1 (Auto blocked), M1 (status bar) and M7 (real versus simulated rendering); these are not repeated per screen.
-- M8 (the spinner turns in the app) stays recorded for the owner, even though the runner's still ring matches the prototype.
+Each entry gives the result and the revision of the capture (`@revision`). Every capture also carries D1, M1 and M7, and M8 stays recorded for the owner.
 
-In total: 72 screens V, and 432 carry one or more of M2, M3, M4, M5 and M9. Every iPad capture carries M2, and every Large cell carries M3 on its text screens. No screen is unverified and no defect (X) is open: X1 and X2 (loading box) and M6 (Replace Cancel) are fixed and verified in every cell.
-
-The earlier captures (`native/` at 1a4503c and 7356591) are superseded and stay marked STALE.
+In total: 72 screens V, 432 with recorded deviations (M2, M3, M4, M5, M9). There is no open defect and no unverified screen.
 
 #### iPhone 17, portrait
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | V @ea75592 | V @ea75592 | V @ea75592 | V @ea75592 |
-| `developing` | V @ea75592 | V @ea75592 | V @ea75592 | V @ea75592 |
-| `model-unavailable` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `develop-failed` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-original` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-preset` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-dragging` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-browse` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-large` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-long-name` | M4 @ea75592 | M3 @ea75592 | M4 @ea75592 | M3 @ea75592 |
-| `dev-amount` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-starred` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-favourites` | V, M9 @ec1df87 | M3, M9 @ec1df87 | V, M9 @ec1df87 | M3, M9 @ec1df87 |
-| `dev-fav-full` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-fav-replace` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-bw` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-landscape-photo` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-portrait-photo` | V, M9 @ec1df87 | M3, M9 @ec1df87 | V, M9 @ec1df87 | M3, M9 @ec1df87 |
-| `compare` | V, M5 @ea75592 | M3, M5 @ea75592 | V, M5 @ea75592 | M3, M5 @ea75592 |
-| `saving` | V, M5 @ea75592 | M3, M5 @ea75592 | V, M5 @ea75592 | M3, M5 @ea75592 |
-| `saved` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `loading` | V @5c3a3ee | V @5c3a3ee | V @5c3a3ee | V @5c3a3ee |
+| `developing` | V @5c3a3ee | V @5c3a3ee | V @5c3a3ee | V @5c3a3ee |
+| `model-unavailable` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `develop-failed` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-original` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-preset` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-dragging` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-browse` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-large` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-long-name` | M4 @5c3a3ee | M3 @5c3a3ee | M4 @5c3a3ee | M3 @5c3a3ee |
+| `dev-amount` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-starred` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-favourites` | V, M9 @5c3a3ee | M3, M9 @5c3a3ee | V, M9 @5c3a3ee | M3, M9 @5c3a3ee |
+| `dev-fav-full` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-fav-replace` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-bw` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-landscape-photo` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-portrait-photo` | V, M9 @5c3a3ee | M3, M9 @5c3a3ee | V, M9 @5c3a3ee | M3, M9 @5c3a3ee |
+| `compare` | V, M5 @5c3a3ee | M3, M5 @5c3a3ee | V, M5 @5c3a3ee | M3, M5 @5c3a3ee |
+| `saving` | V, M5 @5c3a3ee | M3, M5 @5c3a3ee | V, M5 @5c3a3ee | M3, M5 @5c3a3ee |
+| `saved` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
 
 #### iPhone 17 Pro Max, portrait
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | V @ea75592 | V @ea75592 | V @ea75592 | V @ea75592 |
-| `developing` | V @ea75592 | V @ea75592 | V @ea75592 | V @ea75592 |
-| `model-unavailable` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `develop-failed` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-original` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-preset` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-dragging` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-browse` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-large` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-long-name` | M4 @ea75592 | M3 @ea75592 | M4 @ea75592 | M3 @ea75592 |
-| `dev-amount` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-starred` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-favourites` | V, M9 @ec1df87 | M3, M9 @ec1df87 | V, M9 @ec1df87 | M3, M9 @ec1df87 |
-| `dev-fav-full` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-fav-replace` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-bw` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-landscape-photo` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
-| `dev-portrait-photo` | V, M9 @ec1df87 | M3, M9 @ec1df87 | V, M9 @ec1df87 | M3, M9 @ec1df87 |
-| `compare` | V, M5 @ea75592 | M3, M5 @ea75592 | V, M5 @ea75592 | M3, M5 @ea75592 |
-| `saving` | V, M5 @ea75592 | M3, M5 @ea75592 | V, M5 @ea75592 | M3, M5 @ea75592 |
-| `saved` | V @ea75592 | M3 @ea75592 | V @ea75592 | M3 @ea75592 |
+| `loading` | V @5c3a3ee | V @5c3a3ee | V @5c3a3ee | V @5c3a3ee |
+| `developing` | V @5c3a3ee | V @5c3a3ee | V @5c3a3ee | V @5c3a3ee |
+| `model-unavailable` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `develop-failed` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-original` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-preset` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-dragging` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-browse` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-large` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-long-name` | M4 @5c3a3ee | M3 @5c3a3ee | M4 @5c3a3ee | M3 @5c3a3ee |
+| `dev-amount` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-starred` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-favourites` | V, M9 @5c3a3ee | M3, M9 @5c3a3ee | V, M9 @5c3a3ee | M3, M9 @5c3a3ee |
+| `dev-fav-full` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-fav-replace` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-bw` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-landscape-photo` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
+| `dev-portrait-photo` | V, M9 @5c3a3ee | M3, M9 @5c3a3ee | V, M9 @5c3a3ee | M3, M9 @5c3a3ee |
+| `compare` | V, M5 @5c3a3ee | M3, M5 @5c3a3ee | V, M5 @5c3a3ee | M3, M5 @5c3a3ee |
+| `saving` | V, M5 @5c3a3ee | M3, M5 @5c3a3ee | V, M5 @5c3a3ee | M3, M5 @5c3a3ee |
+| `saved` | V @5c3a3ee | M3 @5c3a3ee | V @5c3a3ee | M3 @5c3a3ee |
 
 #### iPad Pro 11-inch, portrait
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `developing` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `model-unavailable` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `develop-failed` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-original` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-preset` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-dragging` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-browse` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-large` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-long-name` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-amount` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-starred` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-favourites` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
-| `dev-fav-full` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-fav-replace` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-bw` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-landscape-photo` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-portrait-photo` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
-| `compare` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
-| `saving` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
-| `saved` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `loading` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `developing` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `model-unavailable` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `develop-failed` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-original` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-preset` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-dragging` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-browse` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-large` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-long-name` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-amount` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-starred` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-favourites` | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee |
+| `dev-fav-full` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-fav-replace` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-bw` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-landscape-photo` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-portrait-photo` | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee |
+| `compare` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
+| `saving` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
+| `saved` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
 
 #### iPad Pro 11-inch, landscape
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `developing` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `model-unavailable` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `develop-failed` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-original` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-preset` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-dragging` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-browse` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-large` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-long-name` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-amount` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-starred` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-favourites` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
-| `dev-fav-full` | M2, M4 @ea75592 | M2, M3 @ea75592 | M2, M4 @ea75592 | M2, M3 @ea75592 |
-| `dev-fav-replace` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-bw` | M2, M4 @ea75592 | M2, M3 @ea75592 | M2, M4 @ea75592 | M2, M3 @ea75592 |
-| `dev-landscape-photo` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-portrait-photo` | M2, M4, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M4, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
-| `compare` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
-| `saving` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
-| `saved` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `loading` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `developing` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `model-unavailable` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `develop-failed` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-original` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-preset` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-dragging` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-browse` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-large` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-long-name` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-amount` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-starred` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-favourites` | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee |
+| `dev-fav-full` | M2, M4 @5c3a3ee | M2, M3 @5c3a3ee | M2, M4 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-fav-replace` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-bw` | M2, M4 @5c3a3ee | M2, M3 @5c3a3ee | M2, M4 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-landscape-photo` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-portrait-photo` | M2, M4, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee | M2, M4, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee |
+| `compare` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
+| `saving` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
+| `saved` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
 
 #### iPad Pro 13-inch, portrait
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `developing` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `model-unavailable` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `develop-failed` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-original` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-preset` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-dragging` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-browse` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-large` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-long-name` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-amount` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-starred` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-favourites` | M2, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M9 @ec1df87 |
-| `dev-fav-full` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-fav-replace` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-bw` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-landscape-photo` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-portrait-photo` | M2, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M9 @ec1df87 |
-| `compare` | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 |
-| `saving` | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 |
-| `saved` | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 | M2, M5 @ea75592 |
+| `loading` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `developing` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `model-unavailable` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `develop-failed` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-original` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-preset` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-dragging` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-browse` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-large` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-long-name` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-amount` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-starred` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-favourites` | M2, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M9 @5c3a3ee |
+| `dev-fav-full` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-fav-replace` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-bw` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-landscape-photo` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-portrait-photo` | M2, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M9 @5c3a3ee |
+| `compare` | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee |
+| `saving` | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee |
+| `saved` | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M5 @5c3a3ee |
 
 #### iPad Pro 13-inch, landscape
 
 | Screen | light, default | light, Large | dark, default | dark, Large |
 |---|---|---|---|---|
-| `loading` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `developing` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `model-unavailable` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `develop-failed` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-original` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-preset` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-dragging` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-browse` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-large` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-long-name` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-amount` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-starred` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-favourites` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
-| `dev-fav-full` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-fav-replace` | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 | M2 @ea75592 |
-| `dev-bw` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-landscape-photo` | M2 @ea75592 | M2, M3 @ea75592 | M2 @ea75592 | M2, M3 @ea75592 |
-| `dev-portrait-photo` | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 | M2, M9 @ec1df87 | M2, M3, M9 @ec1df87 |
-| `compare` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
-| `saving` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
-| `saved` | M2, M5 @ea75592 | M2, M3, M5 @ea75592 | M2, M5 @ea75592 | M2, M3, M5 @ea75592 |
+| `loading` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `developing` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `model-unavailable` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `develop-failed` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-original` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-preset` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-dragging` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-browse` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-large` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-long-name` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-amount` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-starred` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-favourites` | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee |
+| `dev-fav-full` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-fav-replace` | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee | M2 @5c3a3ee |
+| `dev-bw` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-landscape-photo` | M2 @5c3a3ee | M2, M3 @5c3a3ee | M2 @5c3a3ee | M2, M3 @5c3a3ee |
+| `dev-portrait-photo` | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee | M2, M9 @5c3a3ee | M2, M3, M9 @5c3a3ee |
+| `compare` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
+| `saving` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
+| `saved` | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee | M2, M5 @5c3a3ee | M2, M3, M5 @5c3a3ee |
 
 
 ### Capture runner (one launch per cell)
