@@ -139,7 +139,7 @@ data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, va
 @Composable
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
-    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); EditMarks(vm, ui) }) }
+    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); EditMarks(vm, ui) }, onPhotoBox = vm::onStagePhotoMeasured) }
     val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
     val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
     Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
@@ -314,7 +314,7 @@ internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, 
  * the "Original" badge at the photo's top-left corner.
  */
 @Composable
-private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}) {
+private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
     BoxWithConstraints(modifier.background(colors.canvas).testTagResource(EditorTags.STAGE), contentAlignment = Alignment.Center) {
@@ -344,6 +344,13 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                 }
                 // Marks and touches sit on the photo's box inside the border (prototype `.imgbox` in `.frame`).
                 val box = border?.let { com.lightlylabs.lightly.develop.BorderStage.imageBox(it, image.width, image.height) }
+                // The displayed photo box (inside the border), in dp: the on-screen basis of the watermark
+                // and blur sizes (owner rulings W1, blur). Not while comparing (the original is shown).
+                if (!ui.showsOriginal && ui.preview != null) {
+                    val photoW = width * (box?.get(2)?.toFloat() ?: 1f)
+                    val photoH = (width / ratio) * (box?.get(3)?.toFloat() ?: 1f)
+                    androidx.compose.runtime.SideEffect { onPhotoBox(minOf(photoW, photoH), maxOf(photoW, photoH)) }
+                }
                 if (box == null) overlay() else BoxWithConstraints(Modifier.fillMaxSize()) {
                     Box(Modifier.offset(x = maxWidth * box[0].toFloat(), y = maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { overlay() }
                 }

@@ -29,6 +29,11 @@ data class FocusParams(
     val style: String,
     val bokeh: String,
     val styleAmount: Double,
+    /**
+     * R_max at blur 100 as a fraction of the long edge. The contract's 0.06 by default; the app passes the
+     * on-screen-matched value (owner ruling: the prototype's blur/9 dp on the displayed photo, every device).
+     */
+    val maxBlurFraction: Double = Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE,
 )
 
 /** One plane of the scene model (§R2): colour (linear, not premultiplied), coverage, nearness (1 = near). */
@@ -71,7 +76,8 @@ object Refocus {
 
     fun halfWidth(depthOfField: Double) = (depthOfField.coerceIn(0.0, 100.0) / 100.0) * FocusConstants.DOF_HALF_WIDTH_SCALE
 
-    fun maxRadiusPx(blur: Double, longEdge: Int) = blur.coerceIn(0.0, 100.0) / 100.0 * FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE * longEdge
+    fun maxRadiusPx(blur: Double, longEdge: Int, maxBlurFraction: Double = FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE) =
+        blur.coerceIn(0.0, 100.0) / 100.0 * maxBlurFraction * longEdge
 
     // ------------------------------------------------------------------ colour (§R1)
 
@@ -209,7 +215,7 @@ object Refocus {
     fun render(scene: FocusScene, params: FocusParams, focal: Double, layersPerSide: Int = FocusConstants.LAYERS_PER_SIDE_EXPORT, subjectInFocus: Boolean = false): FloatImage {
         val w = scene.width
         val h = scene.height
-        val radiusMax = maxRadiusPx(params.blur, max(w, h))
+        val radiusMax = maxRadiusPx(params.blur, max(w, h), params.maxBlurFraction)
         val half = halfWidth(params.depthOfField)
         val highlights = params.style == "lens" || params.style == "swirl" || params.style == "motion"
         val planes = listOfNotNull(scene.background, scene.subject)

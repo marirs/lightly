@@ -144,7 +144,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * or blur without depth: the panel then shows the approved failure state, never a substitute).
      * [developPlan] grades the replacement with the photo's global colour (rendering-v2 §1).
      */
-    fun planFor(tool: BackgroundTool, developPlan: DevelopRenderPlan, renderer: DevelopRenderer): BackgroundPlan? {
+    fun planFor(tool: BackgroundTool, developPlan: DevelopRenderPlan, renderer: DevelopRenderer, maxBlurFraction: Double = com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE): BackgroundPlan? {
         val a = refined(tool) ?: return null
         val focus = tool.focus
         val blur = if (a.depth == null) 0.0 else focus.blur
@@ -155,7 +155,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
             ?: defaultTarget().let { (x, y) -> focalNearnessAt(x, y) } ?: 0.5
         // Revision 1 (G4): a stored focusDepth is used as d_f = 1 − focusDepth and never re-resolved.
         // replacementDepth is not read (G6): placement is §R2.4 "plane".
-        return BackgroundPlan(replacement, FocusParams(blur, focus.depthOfField, focus.style.name.lowercase(), focus.bokeh.name.lowercase(), focus.styleAmount), focal,
+        return BackgroundPlan(replacement, FocusParams(blur, focus.depthOfField, focus.style.name.lowercase(), focus.bokeh.name.lowercase(), focus.styleAmount, maxBlurFraction), focal,
             focusTarget = focus.target?.let { it.x to it.y })
     }
 

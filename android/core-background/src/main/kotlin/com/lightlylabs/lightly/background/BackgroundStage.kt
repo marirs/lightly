@@ -100,7 +100,7 @@ object BackgroundStage {
             for (c in 0 until 3) out[p * 4 + c] = encode(Refocus.linearToSrgb(rendered.data[p * 3 + c]))
             out[p * 4 + 3] = developed[p * 4 + 3]
         }
-        val radiusMax = Refocus.maxRadiusPx(plan.focus.blur, max(w, h))
+        val radiusMax = Refocus.maxRadiusPx(plan.focus.blur, max(w, h), plan.focus.maxBlurFraction)
         val half = Refocus.halfWidth(plan.focus.depthOfField)
         val defocus = FloatPlane(w, h, FloatArray(w * h) { p ->
             val background = if (radiusMax > 0) (abs(Refocus.signedCoc(scene.background.nearness.values[p], plan.focalNearness, half, radiusMax)) / radiusMax).toFloat() else 0f

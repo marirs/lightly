@@ -741,6 +741,54 @@ class EditorViewModel(
     /** The saved signature a margin toggle uses when no watermark is set. */
     private fun signatureForMargin(): com.lightlylabs.lightly.session.SignatureRef? = (signatures.value.drawn ?: signatures.value.imported)?.reference
 
+    // --- On-screen sizes (owner rulings W1 and blur) -----------------------------------------------
+
+    /** The displayed photo's box (inside any border) on the stage, in dp, as last laid out. */
+    data class StagePhoto(val shortDp: Float, val longDp: Float)
+
+    @Volatile private var stagePhoto: StagePhoto? = null
+
+    /**
+     * The Stage reports the displayed photo box. A change re-renders the preview, because the watermark and
+     * blur sizes follow it; Save copy (and so Share) uses the value at the moment Save is tapped.
+     */
+    fun onStagePhotoMeasured(shortDp: Float, longDp: Float) {
+        if (shortDp <= 0f || longDp <= 0f) return
+        val previous = stagePhoto
+        if (previous != null && kotlin.math.abs(previous.shortDp - shortDp) < 0.5f && kotlin.math.abs(previous.longDp - longDp) < 0.5f) return
+        stagePhoto = StagePhoto(shortDp, longDp)
+        val session = state.value.session ?: return
+        val tools = session.current.tools
+        if (tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE || tools.background.focus.blur > 0) requestPreview(session.current, globalOnly = false)
+    }
+
+    /**
+     * W1 (owner ruling, not a deviation): the watermark is the prototype's fixed on-screen size, text 18,
+     * signature 26 and logo 30 dp × size/34, in the photo box, on every device. As fractions of the photo's
+     * short edge that is 18 / 26 / 30 ÷ the displayed short edge in dp, which the saved copy uses too.
+     * Before the stage is laid out (tests, a save with no stage), the contract's phone medians apply.
+     */
+    // v3 differs from rendering-v2 revision 2's fixed fractions (phone medians): replaced by the on-screen rule.
+    internal fun watermarkSizes(library: DevelopLibrary): WatermarkSizes =
+        stagePhoto?.let { WatermarkSizes(PROTOTYPE_TEXT_DP / it.shortDp, PROTOTYPE_SIGNATURE_DP / it.shortDp, PROTOTYPE_LOGO_DP / it.shortDp) } ?: library.watermarkSizes
+
+    /**
+     * Blur (owner ruling): the prototype blurs the displayed photo with a Gaussian of σ = blur/9 dp. The
+     * renderer with R_max = 0.06 of the long edge gives σ ≈ 0.0133 of the long edge at Blur 55
+     * (contract-fixes-1 §1), so σ scales as 0.0133/0.06 per unit of R_max/100·blur/55. Matching
+     * σ = blur/9 dp on a photo displayed L dp long gives R_max = 0.06 · (55/9) / 0.0133 / L ≈ 27.57 / L of
+     * the displayed long edge. Background runs on the uncropped source, so that fraction of the frame is
+     * converted to the source's long edge. The depth shaping, styles and subject rule are unchanged.
+     */
+    internal fun maxBlurFraction(edit: EditState): Double {
+        val photo = stagePhoto ?: return com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE
+        val ofFrame = BLUR_MATCH_DP / photo.longDp
+        val geometry = displayGeometry() ?: return ofFrame
+        val frameLong = kotlin.math.max(geometry.frameWidth, geometry.frameHeight).toDouble()
+        val sourceLong = kotlin.math.max(geometry.sourceWidth, geometry.sourceHeight).toDouble()
+        return ofFrame * frameLong / sourceLong
+    }
+
     // --- Watermark (slice 5) ----------------------------------------------------------------------
 
     val signatures: StateFlow<com.lightlylabs.lightly.signatures.SignatureStore.Contents> get() = env.signatures.contents
@@ -774,7 +822,7 @@ class EditorViewModel(
         val w = edit.tools.watermark
         if (w.type == com.lightlylabs.lightly.session.WatermarkType.NONE) return null
         val content = watermarkContent(w) ?: return null
-        val stage = WatermarkStage(library.watermarkSizes, env.watermarkFonts)
+        val stage = WatermarkStage(watermarkSizes(library), env.watermarkFonts)
         return WatermarkPainter { cw, ch, rect -> stage.layer(w, content, cw, ch, rect, edit.tools.border.type) }
     }
 
@@ -861,8 +909,11 @@ class EditorViewModel(
     fun importSignaturePhoto(assetId: String) {
         scope.launch {
             val extracted = kotlinx.coroutines.withContext(env.prefetchDispatcher) {
-                runCatching { env.photoLoader.load(assetId).display }.getOrNull()?.let(com.lightlylabs.lightly.signatures.SignatureInkExtractor::extract)
-                    ?.let(com.lightlylabs.lightly.signatures.SignatureImages::png)
+                val photo = runCatching { env.photoLoader.load(assetId).display }.getOrNull() ?: return@withContext null
+                // W6 (owner ruling): with no ink found, the image is used as-is (scaled down, its own
+                // colours), so Use always works; the stage scales it into the signature box like any import.
+                com.lightlylabs.lightly.signatures.SignatureInkExtractor.extract(photo)?.let(com.lightlylabs.lightly.signatures.SignatureImages::png)
+                    ?: com.lightlylabs.lightly.signatures.SignatureImages.logoPng(photo)
             }
             state.update { it.copy(overlay = EditorOverlay.SIGNATURE_IMPORT, watermark = it.watermark.copy(imported = extracted)) }
         }
@@ -1165,7 +1216,7 @@ class EditorViewModel(
         if (state.value.phase != EditorPhase.Ready) return
         val committed = session.current
         val plan = library.planFor(committed)
-        val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer)
+        val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer, maxBlurFraction(committed))
         val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, backgroundPlan) else ExportRenderPlan { frame ->
             // One renderer and clarity base per frame; tiles read their apron from the full frame.
             val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
@@ -1296,7 +1347,7 @@ class EditorViewModel(
                 val edit = request.payload.state ?: return@PreviewRenderer display
                 val start = System.nanoTime()
                 val plan = library.planFor(edit, request.payload.globalOnly)
-                val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer)
+                val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer, maxBlurFraction(edit))
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
                     val compose = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background).first } }
@@ -1549,6 +1600,14 @@ class EditorViewModel(
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
         const val SAVE_CANCELLED = "Save cancelled · nothing was written"
+
+        /** The prototype's watermark sizes at size 34 (`watermarkHTML`), in CSS px = dp. */
+        const val PROTOTYPE_TEXT_DP = 18.0
+        const val PROTOTYPE_SIGNATURE_DP = 26.0
+        const val PROTOTYPE_LOGO_DP = 30.0
+
+        /** 0.06 · (55/9) / 0.0133: R_max (fraction of the displayed long edge) × that edge in dp; see maxBlurFraction. */
+        const val BLUR_MATCH_DP = 0.06 * (55.0 / 9.0) / 0.0133
 
         /** Prototype `saveSig` toast. */
         const val SIGNATURE_SAVED = "Signature saved for reuse"

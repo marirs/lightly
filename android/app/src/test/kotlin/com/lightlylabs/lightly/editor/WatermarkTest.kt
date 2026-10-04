@@ -192,4 +192,32 @@ class WatermarkTest {
         store.delete(com.lightlylabs.lightly.session.SignatureKind.DRAWN)
         assertNull(store.resolve(vm.watermark().signature!!))
     }
+
+    @Test
+    fun `W1 - the watermark is the prototype's on-screen size on every device, and Save uses the stage's size`() = runTest {
+        val vm = ready()
+        // Before the stage is laid out: the contract's values.
+        assertEquals(WatermarkSizes.REVISION_2, vm.watermarkSizes(BundledPack.library))
+        // A phone-sized and a tablet-sized photo box: the text is 18 dp on screen in both.
+        for (shortDp in listOf(400f, 760f)) {
+            vm.onStagePhotoMeasured(shortDp, shortDp * 1.5f)
+            val sizes = vm.watermarkSizes(BundledPack.library)
+            assertEquals(18.0, sizes.textFontSize * shortDp, 1e-9)
+            assertEquals(26.0, sizes.signatureHeight * shortDp, 1e-9)
+            assertEquals(30.0, sizes.logoHeight * shortDp, 1e-9)
+        }
+    }
+
+    @Test
+    fun `blur - R_max follows the displayed photo so the on-screen blur is blur over 9 dp on every device`() = runTest {
+        val vm = ready()
+        val recipe = vm.uiState.value.session!!.current
+        assertEquals(0.06, vm.maxBlurFraction(recipe), 1e-12)
+        // Pixel 9 Pro bg-focus: the photo is about 479 dp long, where the contract's 0.06 was calibrated (+4 to 9 %).
+        vm.onStagePhotoMeasured(320f, 479f)
+        assertEquals(0.0576, vm.maxBlurFraction(recipe), 0.0005)
+        // A tablet shows the photo about twice as large, so the fraction halves: the same σ in dp on screen.
+        vm.onStagePhotoMeasured(640f, 958f)
+        assertEquals(0.0288, vm.maxBlurFraction(recipe), 0.0005)
+    }
 }
