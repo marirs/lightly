@@ -36,14 +36,31 @@ enum RefocusRenderer {
         var focalOverride: Float?
         /// nil: decided by the tap (M(target) ≥ 0.5). true for a null recipe target with a subject.
         var subjectFocus: Bool?
+        /// R_max at Blur 100 as a fraction of the image's long side; nil: the contract's 0.06.
+        /// The editor sets it from the displayed photo so the on-screen strength is the prototype's.
+        var maxRadiusFraction: Float?
+    }
+
+    /// Owner ruling (contract revision 3): the prototype blurs the displayed photo with CSS
+    /// `blur(blur/9 px)`, the same in points on every device. Measured on the native renderer
+    /// (contract-fixes-1 §1: σ = 0.0133 of the long edge at Blur 55 with R_max = 0.06 of it), the
+    /// fitted Gaussian σ is 0.403 × R_max, so R_max at Blur 100 is 100 / 9 / 0.403 = 27.57 pt on
+    /// screen. Depth shaping, styles and the subject rule are unchanged; only this scale moves.
+    static let sigmaPerMaxRadius: Float = 0.0133 / (0.55 * 0.06)
+    static let maxRadiusPointsAtBlur100: Float = 100 / 9 / sigmaPerMaxRadius
+
+    /// R_max as a fraction of the source's long side for a photo displayed `displayLongEdgePoints`
+    /// long, whose frame (after Edit's geometry) is `frameLongPixels` of a `sourceLongPixels` source.
+    static func maxRadiusFraction(displayLongEdgePoints: Double, frameLongPixels: Int, sourceLongPixels: Int) -> Float {
+        maxRadiusPointsAtBlur100 * Float(frameLongPixels) / Float(max(sourceLongPixels, 1)) / Float(max(displayLongEdgePoints, 1))
     }
 
     static func halfWidth(focusDepth: Float) -> Float {
         focusHalfWidthPerUnit * min(max(focusDepth, 0), 100) / 100
     }
 
-    static func radiusMax(blur: Float, longSide: Int) -> Float {
-        min(max(blur, 0), 100) / 100 * maxCoCFractionOfLongSide * Float(longSide)
+    static func radiusMax(blur: Float, longSide: Int, fraction: Float? = nil) -> Float {
+        min(max(blur, 0), 100) / 100 * (fraction ?? maxCoCFractionOfLongSide) * Float(longSide)
     }
 
     /// S = max(d_f, 1 − d_f): where Blur reaches R_max (§R4, revision 1).
@@ -227,7 +244,7 @@ enum RefocusRenderer {
     /// Renders the refocused image; returns linear RGB.
     static func render(_ scene: Scene, _ params: Parameters) -> FloatImage {
         let w = scene.background.colour.width, h = scene.background.colour.height
-        let radiusMax = radiusMax(blur: params.blur, longSide: max(w, h))
+        let radiusMax = radiusMax(blur: params.blur, longSide: max(w, h), fraction: params.maxRadiusFraction)
         if radiusMax < 0.5 {
             // blur = 0: the photo unchanged, or the subject over its replacement.
             return scene.original ?? composite(scene)

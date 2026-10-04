@@ -17,26 +17,28 @@ final class WatermarkStageTests: XCTestCase {
               placement: placement, position: position, offset: offset, size: size, opacity: opacity, colour: colour)
     }
 
-    // MARK: Contract constants
+    // MARK: On-screen size (owner ruling W1, contract revision 3)
 
-    func testSizeConstantsAreRevisionTwosAndReadFromTheContract() throws {
-        let data = try Data(contentsOf: DevelopParityTests.fixture("shared/contracts/rendering-v2.json"))
-        let loaded = try XCTUnwrap(WatermarkStage.SizeConstants.load(contractData: data))
-        XCTAssertEqual(loaded, WatermarkStage.SizeConstants.revision2)
-        XCTAssertEqual(loaded, WatermarkStage.SizeConstants.bundled, "the app reads the bundled contract")
-        XCTAssertEqual(WatermarkStage.mainSize(.text, size: 34, shortEdge: 1000), 62.25, accuracy: 1e-9)
-        XCTAssertEqual(WatermarkStage.mainSize(.signature, size: 34, shortEdge: 1000), 89.95, accuracy: 1e-9)
-        XCTAssertEqual(WatermarkStage.mainSize(.logo, size: 34, shortEdge: 1000), 94.15, accuracy: 1e-9)
+    /// The prototype's layouts for wm-text / wm-signature (sunset): iPhone 17 portrait shows the
+    /// photo 402 × 268.1 pt, iPad Pro 13" landscape 892 × 594.8 pt. Whatever the photo's pixels,
+    /// the watermark's displayed size is 18 / 26 / 30 pt × size/34.
+    func testTheDisplayedSizeIsThePrototypesPointsOnEveryLayout() {
+        for displayShort in [268.1, 594.8] {
+            for imageShort in [426.0, 1067.0, 4000.0] {
+                let ppp = WatermarkStage.pixelsPerPoint(imageShortEdgePixels: imageShort, displayShortEdgePoints: displayShort)
+                for (kind, points) in [(WatermarkStage.Kind.text, 18.0), (.signature, 26.0), (.logo, 30.0)] {
+                    for size in [10.0, 34.0, 80.0] {
+                        let pixels = WatermarkStage.mainSize(kind, size: size, pixelsPerPoint: ppp)
+                        // Displayed: pixels × (displayed points per pixel).
+                        XCTAssertEqual(pixels * displayShort / imageShort, points * size / 34, accuracy: 1e-9)
+                    }
+                }
+            }
+        }
     }
 
-    func testSizeScalesLinearlyWithSizeAndTheShortEdge() {
-        for kind in [WatermarkStage.Kind.text, .signature, .logo] {
-            let base = WatermarkStage.mainSize(kind, size: 34, shortEdge: 600)
-            XCTAssertEqual(WatermarkStage.mainSize(kind, size: 68, shortEdge: 600), 2 * base, accuracy: 1e-9)
-            XCTAssertEqual(WatermarkStage.mainSize(kind, size: 10, shortEdge: 600), base * 10 / 34, accuracy: 1e-9)
-            XCTAssertEqual(WatermarkStage.mainSize(kind, size: 34, shortEdge: 1200), 2 * base, accuracy: 1e-9,
-                           "a fraction of the short edge: preview and export agree")
-        }
+    func testBeforeLayoutTheFallbackIsTheMedianPhone() {
+        XCTAssertEqual(WatermarkStage.pixelsPerPoint(imageShortEdgePixels: 1000, displayShortEdgePoints: nil), 1000 / 289.2, accuracy: 1e-9)
     }
 
     // MARK: Anchors and alignment
@@ -48,7 +50,7 @@ final class WatermarkStageTests: XCTestCase {
         // px = 0.06225 · 600 / 18 = 2.075; the strut needs 13 px = 26.975 above, 2 px = 4.15 below.
         for position in 0..<9 {
             let layout = WatermarkStage.layout(watermark(position: position), kind: .text, extent: extent, canvasSize: canvas,
-                                               imageRect: image, border: .none)
+                                               imageRect: image, border: .none, pixelsPerPoint: WatermarkStage.pixelsPerPoint(imageShortEdgePixels: Double(min(image.width, image.height)), displayShortEdgePoints: nil))
             let ax = [60.0, 500, 940][position % 3], ay = [36.0, 300, 564][position / 3]
             let expectedX = [ax, ax - 50, ax - 100][position % 3]
             let expectedTop = [ay, ay - 20, ay - 40][position / 3]
@@ -61,11 +63,11 @@ final class WatermarkStageTests: XCTestCase {
 
     func testTheStrutKeepsAnSVGTwoCSSPixelsAboveTheBoxBottom() {
         let image = CGRect(x: 0, y: 0, width: 900, height: 600)
-        let px = WatermarkStage.cssPixel(.signature, shortEdge: 600)
-        let height = WatermarkStage.mainSize(.signature, size: 34, shortEdge: 600)
+        let px = WatermarkStage.pixelsPerPoint(imageShortEdgePixels: 600, displayShortEdgePoints: nil)
+        let height = WatermarkStage.mainSize(.signature, size: 34, pixelsPerPoint: px)
         let layout = WatermarkStage.layout(watermark(.signature), kind: .signature,
                                            extent: .init(width: 3.4 * height, above: height, below: 0),
-                                           canvasSize: image.size, imageRect: image, border: .none)
+                                           canvasSize: image.size, imageRect: image, border: .none, pixelsPerPoint: WatermarkStage.pixelsPerPoint(imageShortEdgePixels: Double(min(image.width, image.height)), displayShortEdgePoints: nil))
         XCTAssertEqual(Double(layout.box.maxY), 0.94 * 600, accuracy: 1e-9)
         XCTAssertEqual(Double(layout.box.maxY) - layout.baseline, 2 * px, accuracy: 1e-9, "SVG bottom 2 CSS px above the box")
         XCTAssertEqual(layout.box.height, height + 2 * px, accuracy: 1e-9, "26 px signature → 28 px box, as measured")
@@ -76,7 +78,7 @@ final class WatermarkStageTests: XCTestCase {
         let extent = WatermarkStage.Extent(width: 100, above: 40, below: 10)
         func box(_ x: Double, _ y: Double) -> CGRect {
             WatermarkStage.layout(watermark(position: 8, offset: .init(x: x, y: y)), kind: .text, extent: extent,
-                                  canvasSize: image.size, imageRect: image, border: .none).box
+                                  canvasSize: image.size, imageRect: image, border: .none, pixelsPerPoint: WatermarkStage.pixelsPerPoint(imageShortEdgePixels: Double(min(image.width, image.height)), displayShortEdgePoints: nil)).box
         }
         XCTAssertEqual(box(0.5, 0.5).midX, 500, accuracy: 1e-9)
         XCTAssertEqual(box(0.5, 0.5).midY, 500, accuracy: 1e-9)
@@ -91,7 +93,7 @@ final class WatermarkStageTests: XCTestCase {
         let placement = BorderStage.placement(border, frameWidth: 1000, frameHeight: 500)
         let layout = WatermarkStage.layout(watermark(position: 0), kind: .text, extent: .init(width: 50, above: 40, below: 10),
                                            canvasSize: CGSize(width: placement.canvasWidth, height: placement.canvasHeight),
-                                           imageRect: placement.imageRect, border: .solid)
+                                           imageRect: placement.imageRect, border: .solid, pixelsPerPoint: WatermarkStage.pixelsPerPoint(imageShortEdgePixels: Double(min(placement.imageRect.width, placement.imageRect.height)), displayShortEdgePoints: nil))
         XCTAssertEqual(layout.box.minX, 100 + 60, accuracy: 1e-9)
         XCTAssertEqual(layout.box.minY, 100 + 30, accuracy: 1e-9)
     }
@@ -102,7 +104,7 @@ final class WatermarkStageTests: XCTestCase {
         let canvas = CGSize(width: 1200, height: 900)
         let layout = WatermarkStage.layout(watermark(colour: "#C9A27E", placement: .border), kind: .text,
                                            extent: .init(width: 200, above: 60, below: 20), canvasSize: canvas,
-                                           imageRect: CGRect(x: 100, y: 100, width: 1000, height: 700), border: .solid)
+                                           imageRect: CGRect(x: 100, y: 100, width: 1000, height: 700), border: .solid, pixelsPerPoint: 1)
         XCTAssertTrue(layout.onBorder)
         XCTAssertEqual(layout.box.midX, 600, accuracy: 1e-9)
         XCTAssertEqual(layout.box.maxY, 900 * 0.99, accuracy: 1e-9)
@@ -113,7 +115,7 @@ final class WatermarkStageTests: XCTestCase {
         let canvas = CGSize(width: 1110, height: 1095)
         let layout = WatermarkStage.layout(watermark(.signature, placement: .border), kind: .signature,
                                            extent: .init(width: 300, above: 90, below: 0), canvasSize: canvas,
-                                           imageRect: CGRect(x: 55, y: 55, width: 1000, height: 800), border: .polaroid)
+                                           imageRect: CGRect(x: 55, y: 55, width: 1000, height: 800), border: .polaroid, pixelsPerPoint: 1)
         XCTAssertEqual(layout.box.maxY, 1095 * 0.94, accuracy: 1e-9)
         XCTAssertEqual(layout.ink, "#222222")
     }
@@ -121,7 +123,7 @@ final class WatermarkStageTests: XCTestCase {
     func testBorderPlacementWithoutABorderStaysOnThePhoto() {
         let image = CGRect(x: 0, y: 0, width: 800, height: 600)
         let layout = WatermarkStage.layout(watermark(placement: .border), kind: .text, extent: .init(width: 100, above: 40, below: 10),
-                                           canvasSize: image.size, imageRect: image, border: .none)
+                                           canvasSize: image.size, imageRect: image, border: .none, pixelsPerPoint: WatermarkStage.pixelsPerPoint(imageShortEdgePixels: Double(min(image.width, image.height)), displayShortEdgePoints: nil))
         XCTAssertFalse(layout.onBorder)
         XCTAssertEqual(layout.box.maxX, 0.94 * 800, accuracy: 1e-9)
     }
@@ -150,10 +152,10 @@ final class WatermarkStageTests: XCTestCase {
         let w = watermark()
         let content = WatermarkStage.Content.text("A. Rivera", .inter)
         let image = CGRect(x: 0, y: 0, width: width, height: height)
-        WatermarkStage.apply(w, content: content, pixels: &pixels, canvasWidth: width, canvasHeight: height, imageRect: image, border: .none)
+        WatermarkStage.apply(w, content: content, pixels: &pixels, canvasWidth: width, canvasHeight: height, imageRect: image, border: .none, displayShortEdgePoints: nil)
         let changed = try XCTUnwrap(changedBounds(before, pixels, width: width))
-        let layout = WatermarkStage.layout(w, kind: .text, extent: WatermarkStage.extent(of: content, size: 34, shortEdge: 800),
-                                           canvasSize: image.size, imageRect: image, border: .none)
+        let layout = WatermarkStage.layout(w, kind: .text, extent: WatermarkStage.extent(of: content, size: 34, pixelsPerPoint: 800 / 289.2),
+                                           canvasSize: image.size, imageRect: image, border: .none, pixelsPerPoint: WatermarkStage.pixelsPerPoint(imageShortEdgePixels: Double(min(image.width, image.height)), displayShortEdgePoints: nil))
         // The glyphs (and their 1 px / 2 px shadow) stay within the box, give or take the shadow.
         let slack = 4 * layout.cssPixel
         XCTAssertGreaterThanOrEqual(Double(changed.minX), Double(layout.box.minX) - slack)
@@ -161,17 +163,17 @@ final class WatermarkStageTests: XCTestCase {
         XCTAssertLessThanOrEqual(Double(changed.maxY), Double(layout.box.maxY) + slack)
         XCTAssertEqual(Double(changed.maxX), 0.94 * 1200, accuracy: slack, "right edge at the 94 % anchor")
         // Inter's cap height is about 0.73 em: the ink is roughly that tall.
-        XCTAssertEqual(Double(changed.height), 0.73 * WatermarkStage.mainSize(.text, size: 34, shortEdge: 800), accuracy: 6)
+        XCTAssertEqual(Double(changed.height), 0.73 * WatermarkStage.mainSize(.text, size: 34, pixelsPerPoint: 800 / 289.2), accuracy: 6)
     }
 
     func testZeroOpacityOrNoContentDrawsNothing() {
         let before = canvas(300, 200)
         var pixels = before
         WatermarkStage.apply(watermark(opacity: 0), content: .text("A", .inter), pixels: &pixels, canvasWidth: 300, canvasHeight: 200,
-                             imageRect: CGRect(x: 0, y: 0, width: 300, height: 200), border: .none)
+                             imageRect: CGRect(x: 0, y: 0, width: 300, height: 200), border: .none, displayShortEdgePoints: nil)
         XCTAssertEqual(pixels, before)
         WatermarkStage.apply(watermark(.signature), content: nil, pixels: &pixels, canvasWidth: 300, canvasHeight: 200,
-                             imageRect: CGRect(x: 0, y: 0, width: 300, height: 200), border: .none)
+                             imageRect: CGRect(x: 0, y: 0, width: 300, height: 200), border: .none, displayShortEdgePoints: nil)
         XCTAssertEqual(pixels, before, "a missing signature renders without it")
     }
 
@@ -179,7 +181,7 @@ final class WatermarkStageTests: XCTestCase {
         func peak(_ opacity: Double) -> UInt8 {
             var pixels = canvas(600, 400)
             WatermarkStage.apply(watermark(.logo, opacity: opacity), content: .sampleLogo, pixels: &pixels, canvasWidth: 600, canvasHeight: 400,
-                                 imageRect: CGRect(x: 0, y: 0, width: 600, height: 400), border: .none)
+                                 imageRect: CGRect(x: 0, y: 0, width: 600, height: 400), border: .none, displayShortEdgePoints: nil)
             return stride(from: 0, to: pixels.count, by: 4).map { pixels[$0] }.max() ?? 0
         }
         XCTAssertEqual(Double(peak(100)), 255, accuracy: 2)
@@ -195,12 +197,12 @@ final class WatermarkStageTests: XCTestCase {
         var w = watermark(.signature, colour: "#FFFFFF", placement: .border)
         w.signature = .init(signatureId: "x", signatureVersion: "000000000000", kind: .drawn)
         WatermarkStage.apply(w, content: .drawnSignature(.prototypeSample), pixels: &out.pixels, canvasWidth: out.width,
-                             canvasHeight: out.height, imageRect: placement.imageRect, border: .polaroid)
+                             canvasHeight: out.height, imageRect: placement.imageRect, border: .polaroid, displayShortEdgePoints: nil)
         let changed = try XCTUnwrap(changedBounds(before, out.pixels, width: out.width))
         XCTAssertGreaterThan(Double(changed.minY), Double(placement.imageRect.maxY), "in the bottom margin, below the photo")
         // The box is centred; the prototype's ink starts 6 of 170 units into it (and ends well
         // short of its right edge, so the ink itself sits left of centre, as in bd-polaroid).
-        let boxWidth = WatermarkStage.mainSize(.signature, size: 34, shortEdge: 400) * 170 / 50
+        let boxWidth = WatermarkStage.mainSize(.signature, size: 34, pixelsPerPoint: 400 / 289.2) * 170 / 50
         XCTAssertEqual(Double(changed.minX), Double(out.width) / 2 - boxWidth / 2 + boxWidth * 6 / 170, accuracy: 3, "centred box")
         let darkest = stride(from: 0, to: out.pixels.count, by: 4).map { Int(out.pixels[$0]) }.min() ?? 255
         XCTAssertEqual(darkest, 0x22, accuracy: 3, "#222222 ink, not the white watermark colour")
@@ -477,5 +479,86 @@ final class WatermarkSessionTests: XCTestCase {
         border.commit { $0.colour = "#F4F1EC" }
         XCTAssertEqual(session.recipe.tools.border.type, .polaroid, "a change on the shown tab applies it")
         XCTAssertEqual(session.recipe.tools.border.colour, "#F4F1EC")
+    }
+}
+
+/// Focus & Blur's strength on screen (owner ruling, contract revision 3): the prototype blurs the
+/// displayed photo with σ = blur/9 pt on every device.
+final class BlurDisplayScaleTests: XCTestCase {
+
+    /// iPhone 17 portrait bg-focus shows the woman photo 1129 px / 3 = 376.3 pt long; iPad Pro 13"
+    /// landscape 1878 px / 2 = 939 pt (contract-fixes-1 §1 measurement table).
+    func testTheDisplayedSigmaIsBlurOverNinePointsOnEveryLayout() {
+        for displayLong in [376.3, 939.0] {
+            for sourceLong in [1_257, 4_032] {
+                let fraction = RefocusRenderer.maxRadiusFraction(displayLongEdgePoints: displayLong, frameLongPixels: sourceLong,
+                                                                 sourceLongPixels: sourceLong)
+                for blur: Float in [30, 55, 100] {
+                    let radiusPixels = RefocusRenderer.radiusMax(blur: blur, longSide: sourceLong, fraction: fraction)
+                    let sigmaPoints = Double(RefocusRenderer.sigmaPerMaxRadius * radiusPixels) * displayLong / Double(sourceLong)
+                    XCTAssertEqual(sigmaPoints, Double(blur) / 9, accuracy: 1e-3, "display \(displayLong) pt, source \(sourceLong) px")
+                }
+            }
+        }
+    }
+
+    func testTheFractionIsResolutionIndependentSoExportMatchesPreview() {
+        // Preview 1600 px and export 4032 px of the same photo, both displayed 376.3 pt long.
+        let preview = RefocusRenderer.maxRadiusFraction(displayLongEdgePoints: 376.3, frameLongPixels: 1_600, sourceLongPixels: 1_600)
+        let export = RefocusRenderer.maxRadiusFraction(displayLongEdgePoints: 376.3, frameLongPixels: 4_032, sourceLongPixels: 4_032)
+        XCTAssertEqual(preview, export, accuracy: 1e-7)
+        // A crop shows a smaller part of the source larger: the source fraction shrinks with it.
+        let cropped = RefocusRenderer.maxRadiusFraction(displayLongEdgePoints: 376.3, frameLongPixels: 2_016, sourceLongPixels: 4_032)
+        XCTAssertEqual(cropped, export / 2, accuracy: 1e-7)
+    }
+
+    func testTheCalibrationKeepsTheMeasuredRatio() {
+        // σ = 0.0133 of the long edge at Blur 55 with R_max 0.06 (contract-fixes-1 §1).
+        XCTAssertEqual(Double(RefocusRenderer.sigmaPerMaxRadius), 0.0133 / 0.033, accuracy: 1e-6)
+        XCTAssertEqual(Double(RefocusRenderer.maxRadiusPointsAtBlur100), 27.57, accuracy: 0.01)
+    }
+}
+
+/// The session renders the watermark at the displayed size, and Save copy at the layout of the moment.
+@MainActor
+final class WatermarkDisplaySizeTests: XCTestCase {
+
+    private func changedRowSpan(_ a: CGImage, _ b: CGImage) throws -> (rows: Int, top: Int)? {
+        let pa = try MetalLUTRenderer.rgba8Bytes(of: a), pb = try MetalLUTRenderer.rgba8Bytes(of: b)
+        var top = Int.max, bottom = -1
+        for i in stride(from: 0, to: pa.count, by: 4) where abs(Int(pa[i]) - Int(pb[i])) > 60 {
+            let y = i / 4 / a.width
+            top = min(top, y); bottom = max(bottom, y)
+        }
+        return bottom < 0 ? nil : (bottom - top + 1, top)
+    }
+
+    private func decoded(_ data: Data) throws -> CGImage {
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+        return try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    }
+
+    func testPreviewShowsThePrototypesPointsAndExportMatchesPreview() async throws {
+        let photo = try await EditorTestSupport.photo(width: 1_280, height: 852)
+        let session = try await EditorTestSupport.readySession(photo: photo, previewLongEdge: 640)
+        // The iPhone 17 layout of a 3:2 photo: 402 × 267.6 pt.
+        session.setDisplayedPhotoSize(CGSize(width: 402, height: 267.6))
+        await session.settleRendering()
+        let previewPlain = session.displayedImage
+        let exportPlain = try decoded(try await session.exportedData())
+        session.commitWatermark { w in
+            WatermarkPanelModel.setType(.text, on: &w)
+            w.text = .init(text: "AAAA", font: .inter)
+            w.opacity = 100
+        }
+        await session.settleRendering()
+        let preview = try XCTUnwrap(try changedRowSpan(session.displayedImage, previewPlain))
+        let exportData = try await session.exportedData()
+        let export = try XCTUnwrap(try changedRowSpan(try decoded(exportData), exportPlain))
+        // Inter caps are 0.727 em: 18 pt × 0.727 = 13.1 pt on screen.
+        let previewPoints = Double(preview.rows) * 267.6 / 426
+        XCTAssertEqual(previewPoints, 18 * 0.727, accuracy: 1.5, "displayed at the prototype's size")
+        XCTAssertEqual(Double(export.rows), 2 * Double(preview.rows), accuracy: 3, "the saved copy is the screen, at twice the pixels")
+        XCTAssertEqual(Double(export.top) / 852, Double(preview.top) / 426, accuracy: 0.01)
     }
 }

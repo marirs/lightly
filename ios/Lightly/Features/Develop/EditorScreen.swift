@@ -162,6 +162,7 @@ struct EditorScreen: View {
                                showsOriginalBadge: session.isShowingOriginal,
                                outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                                imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
+                               onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },
                                marks: { if !session.isShowingOriginal { stageMarks } })
         switch layout.mode {

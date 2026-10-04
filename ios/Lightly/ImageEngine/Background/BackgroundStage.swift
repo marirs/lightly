@@ -23,7 +23,7 @@ enum BackgroundStage {
     /// `replacementLinear` is the replacement already rendered at the frame size, with the
     /// photo's global colour applied (stage 7 note).
     static func render(_ linear: FloatImage, background: EditRecipe.Background, cache: SceneCache,
-                       replacementLinear: FloatImage?, interactive: Bool) -> FloatImage {
+                       replacementLinear: FloatImage?, interactive: Bool, maxRadiusFraction: Float? = nil) -> FloatImage {
         let hasReplacement = background.replacement != nil && replacementLinear != nil
         let blur = Float(background.focus.blur)
         guard hasReplacement || blur > 0 else { return linear }
@@ -60,7 +60,8 @@ enum BackgroundStage {
             // The recipe stores depth (0 near); the renderer works in disparity (G4).
             focalOverride: background.focus.depth.focusDepth.map { 1 - Float($0) },
             // A null target with a subject means "focus on the subject" (§R4).
-            subjectFocus: background.focus.target == nil && matte != nil ? true : nil)
+            subjectFocus: background.focus.target == nil && matte != nil ? true : nil,
+            maxRadiusFraction: maxRadiusFraction)
         return RefocusRenderer.render(scene, params)
     }
 

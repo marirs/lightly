@@ -173,6 +173,8 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     /// The photo inside the canvas, as fractions (prototype `.imgbox` inside `.frame`): marks are
     /// laid over this box, not over the border.
     var imageBox = CGRect(x: 0, y: 0, width: 1, height: 1)
+    /// Reports the displayed photo's size in points (the image box of the fitted canvas).
+    var onPhotoSize: ((CGSize) -> Void)?
     @ViewBuilder var overlay: () -> Overlay
     /// Marks laid over the fitted photo itself (prototype `marks` inside `.imgbox`).
     @ViewBuilder var marks: () -> Marks
@@ -218,6 +220,9 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                 overlay()
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .onChange(of: CGSize(width: fitted.width * imageBox.width, height: fitted.height * imageBox.height), initial: true) { _, size in
+                onPhotoSize?(size)
+            }
         }
         .background(ApprovedColor.canvas.resolved(colorScheme))
         .clipped()

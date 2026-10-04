@@ -62,6 +62,19 @@ final class EditorSession {
     /// Where the photo sits inside the displayed canvas (fractions; the whole canvas without a
     /// border): the prototype's `.imgbox` inside `.frame`, which marks and touches use.
     private(set) var displayedImageBox = CGRect(x: 0, y: 0, width: 1, height: 1)
+    /// The photo (inside any border) as the editor displays it, in points. The watermark's size
+    /// and Focus & Blur's strength are defined on screen (owner ruling W1, contract revision 3),
+    /// so preview renders use the current layout and Save copy / Share the layout when saving.
+    private(set) var displayedPhotoSize: CGSize?
+
+    /// The editor's stage reports the displayed photo's size; a change re-renders what depends on it.
+    func setDisplayedPhotoSize(_ size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        if let current = displayedPhotoSize, abs(current.width - size.width) < 0.5, abs(current.height - size.height) < 0.5 { return }
+        displayedPhotoSize = size
+        let tools = recipe.tools
+        if tools.watermark.type != .none || tools.background.focus.blur > 0 { renderCommitted() }
+    }
     private(set) var isShowingOriginal = false
     private(set) var saveState: SaveState = .idle
     /// Edits made since the last saved copy (the approved `dirty`).
@@ -853,6 +866,8 @@ final class EditorSession {
         /// The watermark's resolved content; nil draws nothing (no watermark, or a saved signature
         /// that is missing or changed: rendered without it, never substituted).
         var watermarkContent: WatermarkStage.Content?
+        /// The displayed photo's size in points when the job was made (nil: not laid out yet).
+        var displayPhotoSize: CGSize?
 
         /// True when a slice-4 stage changes pixels; otherwise the slice-2/3 path runs unchanged.
         var usesEditOrEffects: Bool {
@@ -904,7 +919,8 @@ final class EditorSession {
             let imageRect = job.border.type == .none ? CGRect(x: 0, y: 0, width: frame.width, height: frame.height)
                 : BorderStage.placement(job.border, frameWidth: frame.width, frameHeight: frame.height).imageRect
             WatermarkStage.apply(job.watermark, content: content, pixels: &canvas.pixels, canvasWidth: canvas.width,
-                                 canvasHeight: canvas.height, imageRect: imageRect, border: job.border.type)
+                                 canvasHeight: canvas.height, imageRect: imageRect, border: job.border.type,
+                                 displayShortEdgePoints: job.displayPhotoSize.map { Double(min($0.width, $0.height)) })
         }
         return RenderedFrame(pixels: canvas.pixels, width: canvas.width, height: canvas.height)
     }
@@ -938,6 +954,7 @@ final class EditorSession {
         }
         try Task.checkCancellation()
         if var layered = job.layered, LayeredStages.isActive(layered) {
+            layered.maxBlurRadiusFraction = blurFraction(job, sourceWidth: width, sourceHeight: height)
             layered.developLUT = plan?.lookLUT
             layered.autoLUT = job.autoLUT.map { $0.blendedTowardIdentity(strength: Float(job.autoStrength)) }
             layered.adjustLUT = adjustLUT
@@ -970,6 +987,7 @@ final class EditorSession {
             guard let plan else { return pixels }
             return try renderer.render(plan, pixels: pixels, width: width, height: height, includePixelStages: job.includePixelStages)
         }
+        layered.maxBlurRadiusFraction = blurFraction(job, sourceWidth: width, sourceHeight: height)
         // Stages 2–3, then 7–9, then the preset's finishing in stage 10.
         if let plan {
             pixels = try renderer.render(plan, pixels: pixels, width: width, height: height,
@@ -981,6 +999,16 @@ final class EditorSession {
                                           lutApplier: renderer.lutApplier)
         if let plan, job.includePixelStages { pixels = renderer.finish(plan, pixels: pixels, width: width, height: height) }
         return pixels
+    }
+
+    /// Focus & Blur's R_max from the displayed photo (nil before the editor has laid out: the
+    /// contract's 0.06 of the long side).
+    nonisolated private static func blurFraction(_ job: RenderJob, sourceWidth: Int, sourceHeight: Int) -> Float? {
+        guard let display = job.displayPhotoSize else { return nil }
+        let frame = GeometryTransform(job.edit.geometry, sourceWidth: sourceWidth, sourceHeight: sourceHeight)
+        return RefocusRenderer.maxRadiusFraction(displayLongEdgePoints: Double(max(display.width, display.height)),
+                                                 frameLongPixels: max(frame.frameWidth, frame.frameHeight),
+                                                 sourceLongPixels: max(sourceWidth, sourceHeight))
     }
 
     private func layeredInputs(for target: EditRecipe) -> LayeredStages.Inputs? {
@@ -1149,6 +1177,7 @@ final class EditorSession {
         job.border = target.tools.border
         job.watermark = target.tools.watermark
         job.watermarkContent = watermarkContent(for: target.tools.watermark)
+        job.displayPhotoSize = displayedPhotoSize
         job.removePatches = removePatches.patches(for: target.tools.edit.remove.strokes)
     }
 

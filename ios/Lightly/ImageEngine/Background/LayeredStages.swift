@@ -20,6 +20,8 @@ enum LayeredStages {
         var autoLUT: LUT3D?
         /// Edit › Adjust's colour LUT (stage 5), part of the photo's global colour (stage 7 note).
         var adjustLUT: LUT3D? = nil
+        /// Focus & Blur's R_max fraction from the displayed photo (RefocusRenderer); nil: contract 0.06.
+        var maxBlurRadiusFraction: Float? = nil
     }
 
     static let interactiveCap = 640
@@ -75,7 +77,8 @@ enum LayeredStages {
                 let working = full.resized(width: ww, height: wh)
                 let replacementWorking = replacementFull?.resized(width: ww, height: wh)
                 let blurred = BackgroundStage.render(working, background: background, cache: inputs.cache,
-                                                     replacementLinear: replacementWorking, interactive: cap <= interactiveCap)
+                                                     replacementLinear: replacementWorking, interactive: cap <= interactiveCap,
+                                                     maxRadiusFraction: inputs.maxBlurRadiusFraction)
                 let sharpWorking = composite.resized(width: ww, height: wh)
                 // Defocus weight: how far the blurred result departs from the sharp composite,
                 // relative to the local contrast; 1 where it is clearly blurred.

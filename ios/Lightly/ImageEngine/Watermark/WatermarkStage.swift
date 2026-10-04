@@ -3,11 +3,16 @@ import CoreText
 import Foundation
 import ImageIO
 
-/// Rendering-v2 stage 12, `watermark` (revision 2 §7, `stages[watermark]` constants): draws the
-/// watermark on the canvas, after the border, in preview and export alike.
+/// Rendering-v2 stage 12, `watermark`: draws the watermark on the canvas, after the border, in
+/// preview and export alike.
 ///
-/// Sizes are fractions of the photo's short edge (the frame inside the border) at size 34,
-/// linear in size/34: text font size 0.06225, signature height 0.08995, logo height 0.09415.
+/// Size (owner ruling W1, contract revision 3): the approved screens draw the watermark at a fixed
+/// on-screen size, text font 18 pt, signature height 26 pt, logo height 30 pt, each × size/34, in
+/// the photo box, on every device. The stage therefore works in displayed points: `pixelsPerPoint`
+/// is the photo's pixels per point of the photo as the editor displays it (photo short edge in
+/// pixels ÷ displayed short edge in points). The preview uses the current stage layout; Save copy
+/// and Share use the layout at the moment of saving, so the copy matches the screen.
+///
 /// On the photo the watermark's box is anchored at 6/50/94 % of the photo, or at the dragged
 /// `offset`; on a border it is centred in the bottom margin, its box bottom 6 % (polaroid) or 1 %
 /// (other borders) of the canvas height above the canvas bottom, in #222222 ink on a polaroid.
@@ -15,45 +20,18 @@ import ImageIO
 /// The box follows the prototype's `.wm` element (CSS `line-height: 1` inside a 15 px strut):
 /// the line box reaches at least 13 CSS px above the baseline and 2 CSS px below it, so an
 /// inline SVG (signature, logo) sits 2 px above the box bottom and text keeps its half-leading.
-/// A CSS px is the type's size constant × short edge ÷ the prototype's px size (18, 26, 30).
+/// One CSS px is one displayed point.
 enum WatermarkStage {
 
-    // MARK: - Contract constants (rendering-v2.json revision 2, stages[watermark])
+    /// Before the editor has measured its stage (tests, headless renders): a photo displayed with
+    /// a 289 pt short edge, the median of the approved phone screens (contract revision 2).
+    static let fallbackDisplayShortEdgePoints = 289.2
 
-
-    /// The three size constants, read from the bundled `rendering-v2.json`
-    /// (`stages[watermark].operators[0].constants`), as contract fixes 2 §6 asks.
-    struct SizeConstants: Equatable, Sendable {
-        var textFontSize: Double
-        var signatureHeight: Double
-        var logoHeight: Double
-
-        /// Revision 2's values, used only if the bundled contract cannot be read (a broken bundle;
-        /// DevelopModel refuses such a build's renders anyway).
-        static let revision2 = SizeConstants(textFontSize: 0.06225, signatureHeight: 0.08995, logoHeight: 0.09415)
-
-        static func load(contractData data: Data) -> SizeConstants? {
-            guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let stages = root["stages"] as? [[String: Any]],
-                  let stage = stages.first(where: { $0["id"] as? String == "watermark" }),
-                  let operators = stage["operators"] as? [[String: Any]],
-                  let constants = operators.first?["constants"] as? [String: Any],
-                  let text = (constants["textFontSize"] as? NSNumber)?.doubleValue,
-                  let signature = (constants["signatureHeight"] as? NSNumber)?.doubleValue,
-                  let logo = (constants["logoHeight"] as? NSNumber)?.doubleValue else { return nil }
-            return SizeConstants(textFontSize: text, signatureHeight: signature, logoHeight: logo)
-        }
-
-        static let bundled: SizeConstants = {
-            guard let url = Bundle.main.url(forResource: "rendering-v2", withExtension: "json"),
-                  let data = try? Data(contentsOf: url), let loaded = load(contractData: data) else { return revision2 }
-            return loaded
-        }()
+    /// Photo pixels per displayed point, from the photo's short edge in pixels and in points.
+    static func pixelsPerPoint(imageShortEdgePixels: Double, displayShortEdgePoints: Double?) -> Double {
+        imageShortEdgePixels / max(displayShortEdgePoints ?? fallbackDisplayShortEdgePoints, 1)
     }
 
-    static var textFontSizeAt34: Double { SizeConstants.bundled.textFontSize }
-    static var signatureHeightAt34: Double { SizeConstants.bundled.signatureHeight }
-    static var logoHeightAt34: Double { SizeConstants.bundled.logoHeight }
     /// The prototype's px sizes at size 34 (`watermarkHTML`): text 18, signature 26, logo 30.
     static let prototypePixels = (text: 18.0, signature: 26.0, logo: 30.0)
     static let anchors = [0.06, 0.5, 0.94]
@@ -113,25 +91,16 @@ enum WatermarkStage {
         }
     }
 
-    /// The type's main size at `size` for a photo with this short edge: the text's font size, or
-    /// the signature's or logo's height, in pixels.
-    static func mainSize(_ kind: Kind, size: Double, shortEdge: Double) -> Double {
-        let constant: Double
+    /// The type's main size at `size`, in photo pixels: the text's font size, or the signature's
+    /// or logo's height (18 / 26 / 30 pt × size/34 on screen).
+    static func mainSize(_ kind: Kind, size: Double, pixelsPerPoint: Double) -> Double {
+        let points: Double
         switch kind {
-        case .text: constant = textFontSizeAt34
-        case .signature: constant = signatureHeightAt34
-        case .logo: constant = logoHeightAt34
+        case .text: points = prototypePixels.text
+        case .signature: points = prototypePixels.signature
+        case .logo: points = prototypePixels.logo
         }
-        return constant * shortEdge * size / 34
-    }
-
-    /// One prototype CSS px in pixels (constant at every Size: the strut and the shadow do not scale).
-    static func cssPixel(_ kind: Kind, shortEdge: Double) -> Double {
-        switch kind {
-        case .text: textFontSizeAt34 * shortEdge / prototypePixels.text
-        case .signature: signatureHeightAt34 * shortEdge / prototypePixels.signature
-        case .logo: logoHeightAt34 * shortEdge / prototypePixels.logo
-        }
+        return points * size / 34 * pixelsPerPoint
     }
 
     /// The anchor point as fractions of the photo: the dragged offset, else the position's anchor.
@@ -153,9 +122,8 @@ enum WatermarkStage {
     }
 
     static func layout(_ watermark: EditRecipe.Watermark, kind: Kind, extent: Extent, canvasSize: CGSize,
-                       imageRect: CGRect, border: EditRecipe.Border.Kind) -> Layout {
-        let shortEdge = Double(min(imageRect.width, imageRect.height))
-        let px = cssPixel(kind, shortEdge: shortEdge)
+                       imageRect: CGRect, border: EditRecipe.Border.Kind, pixelsPerPoint: Double) -> Layout {
+        let px = pixelsPerPoint
         let above = max(extent.above, strutAbove * px), below = max(extent.below, strutBelow * px)
         let height = above + below
         let onBorder = isOnBorder(watermark, border: border)
@@ -177,12 +145,12 @@ enum WatermarkStage {
     }
 
     /// The content's extent at `size` on a photo with this short edge.
-    static func extent(of content: Content, size: Double, shortEdge: Double) -> Extent {
+    static func extent(of content: Content, size: Double, pixelsPerPoint: Double) -> Extent {
         let kind = kind(of: content)
-        let main = mainSize(kind, size: size, shortEdge: shortEdge)
+        let main = mainSize(kind, size: size, pixelsPerPoint: pixelsPerPoint)
         switch content {
         case .text(let text, let font):
-            let ctFont = textFont(font, size: main, cssPixel: cssPixel(.text, shortEdge: shortEdge), watermarkSize: size)
+            let ctFont = textFont(font, size: main, cssPixel: pixelsPerPoint, watermarkSize: size)
             let line = textLine(text, font: ctFont, colour: CGColor(gray: 1, alpha: 1))
             let width = CTLineGetTypographicBounds(line, nil, nil, nil)
             // CSS `line-height: 1`: the inline box is one font size tall, the font's ascent and
@@ -205,15 +173,17 @@ enum WatermarkStage {
     /// Draws the watermark onto an RGBA8 canvas in place. `imageRect` is the photo inside the
     /// border, in canvas pixels (origin top-left).
     static func apply(_ watermark: EditRecipe.Watermark, content: Content?, pixels: inout [UInt8],
-                      canvasWidth: Int, canvasHeight: Int, imageRect: CGRect, border: EditRecipe.Border.Kind) {
+                      canvasWidth: Int, canvasHeight: Int, imageRect: CGRect, border: EditRecipe.Border.Kind,
+                      displayShortEdgePoints: Double?) {
         guard watermark.type != .none, let content, canvasWidth > 0, canvasHeight > 0, watermark.opacity > 0 else { return }
         let shortEdge = Double(min(imageRect.width, imageRect.height))
         guard shortEdge > 0 else { return }
+        let ppp = pixelsPerPoint(imageShortEdgePixels: shortEdge, displayShortEdgePoints: displayShortEdgePoints)
         let kind = kind(of: content)
-        let extent = extent(of: content, size: watermark.size, shortEdge: shortEdge)
+        let extent = extent(of: content, size: watermark.size, pixelsPerPoint: ppp)
         let layout = layout(watermark, kind: kind, extent: extent, canvasSize: CGSize(width: canvasWidth, height: canvasHeight),
-                            imageRect: imageRect, border: border)
-        let main = mainSize(kind, size: watermark.size, shortEdge: shortEdge)
+                            imageRect: imageRect, border: border, pixelsPerPoint: ppp)
+        let main = mainSize(kind, size: watermark.size, pixelsPerPoint: ppp)
         pixels.withUnsafeMutableBytes { raw in
             guard let base = raw.baseAddress,
                   let context = CGContext(data: base, width: canvasWidth, height: canvasHeight, bitsPerComponent: 8,
