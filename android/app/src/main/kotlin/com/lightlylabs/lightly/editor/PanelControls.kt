@@ -23,6 +23,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +77,18 @@ import kotlin.math.sin
 @Composable
 fun <T> OptionTabs(items: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, dotted: (T) -> Boolean = { false }, tagPrefix: String = "tab") {
     val colors = lightlyColors
+    val scroll = rememberScrollState()
+    // The selected tab's left edge in window coordinates, as currently scrolled.
+    var selectedWindowX by remember { mutableFloatStateOf(Float.NaN) }
+    val density = LocalDensity.current
+    // Prototype buildRulers, for every `.tabs` row that overflows: scrollLeft = max(0, on.offsetLeft − 120),
+    // with offsetLeft measured from the device frame's left edge, so the selected tab lands 120 dp in
+    // (the same rule as the Develop category strip).
+    LaunchedEffect(selected, selectedWindowX) {
+        if (selectedWindowX.isNaN() || scroll.maxValue == 0) return@LaunchedEffect
+        val target = (scroll.value + selectedWindowX - with(density) { 120.dp.toPx() }).roundToInt().coerceIn(0, scroll.maxValue)
+        if (abs(target - scroll.value) > 1) scroll.scrollTo(target)
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -79,7 +99,7 @@ fun <T> OptionTabs(items: List<Pair<T, String>>, selected: T, onSelect: (T) -> U
                 val w = size.width
                 drawRect(Brush.horizontalGradient(0f to Color.Transparent, 16.dp.toPx() / w to Color.Black, 1f - 24.dp.toPx() / w to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
             }
-            .horizontalScroll(rememberScrollState())
+            .horizontalScroll(scroll)
             .padding(horizontal = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -92,6 +112,7 @@ fun <T> OptionTabs(items: List<Pair<T, String>>, selected: T, onSelect: (T) -> U
                     .widthIn(min = 44.dp)
                     .clickable(role = Role.Tab) { onSelect(value) }
                     .semantics { this.selected = on }
+                    .then(if (on) Modifier.onGloballyPositioned { selectedWindowX = it.positionInWindow().x } else Modifier)
                     .testTagResource("$tagPrefix-${label.lowercase().replace(' ', '-')}"),
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
@@ -176,7 +197,7 @@ fun ChipRow(content: @Composable RowScope.() -> Unit) {
     )
 }
 
-/** `.opt`: an outlined option (44 dp min, radius 10); selected = selection colour and soft fill. */
+/** `.opt`: an outlined option (44 dp min, radius 10, border-box padding 0 12 + 1 border); selected = selection colour and soft fill. */
 @Composable
 fun OptChip(selected: Boolean, description: String, onClick: () -> Unit, tag: String, content: @Composable RowScope.() -> Unit) {
     val colors = lightlyColors
@@ -191,7 +212,9 @@ fun OptChip(selected: Boolean, description: String, onClick: () -> Unit, tag: St
             .clickable(role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = description; this.selected = selected }
             .testTagResource(tag)
-            .padding(horizontal = 12.dp),
+            // CSS border-box: `padding: 0 12px` plus the 1px border, which takes layout space in CSS but
+            // not in Compose (its border is drawn inside). 12 alone made every chip 2 dp narrower.
+            .padding(horizontal = 12.dp + 1.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
