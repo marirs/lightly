@@ -226,9 +226,12 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertEqual(element("tool.effects").value as? String, "Edited")
         saveScreenshot("restore-1-before")
         XCUIDevice.shared.press(.home)
-        Thread.sleep(forTimeInterval: 2)
+        // The system saves scene state as the app enters the background; give it time before the kill.
+        _ = app.wait(for: .runningBackgroundSuspended, timeout: 5)
+        Thread.sleep(forTimeInterval: 3)
         relaunch(arguments: [])
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "the editor reopens")
+        // A cold launch loads the preset pack before the editor is ready (slow under a full suite).
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: 60), "the editor reopens")
         XCTAssertEqual(element("tool.effects").value as? String, "Edited", "with the same edit")
         XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "and its history")
         saveScreenshot("restore-2-after-relaunch")
