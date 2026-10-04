@@ -111,6 +111,8 @@ final class EditorSession {
     private let exporter: any PhotoExporting
     private let saveSettings: @MainActor () -> ExportSettings
     private let previewLongEdge: Int
+    /// Loads the Remove model on first use (LaMa; nil = not in this build or gated off).
+    private let inpainterLoader: @Sendable () -> (any Inpainting)?
 
     @ObservationIgnored private var previewBase: (pixels: [UInt8], width: Int, height: Int)?
     @ObservationIgnored private var originalPreview: CGImage
@@ -151,7 +153,8 @@ final class EditorSession {
          libraryWriter: any PhotoLibraryWriting = PhotoKitLibraryWriter(),
          exporter: any PhotoExporting = ImageIOPhotoExporter(),
          saveSettings: @escaping @MainActor () -> ExportSettings = { .default },
-         previewLongEdge: Int = 1_600) {
+         previewLongEdge: Int = 1_600,
+         inpainterLoader: @escaping @Sendable () -> (any Inpainting)? = { LamaInpainter.loadBundled() }) {
         self.photo = photo
         self.library = library
         self.autoEnhancer = autoEnhancer
@@ -161,6 +164,7 @@ final class EditorSession {
         self.exporter = exporter
         self.saveSettings = saveSettings
         self.previewLongEdge = previewLongEdge
+        self.inpainterLoader = inpainterLoader
         let source = Self.sourceReference(for: photo)
         history = [.neutral(source: source, grainSeed: EditRecipe.grainSeed(fromHeadSha256: source.fingerprint.headSha256))]
         // Until the preview copy exists the photo itself is shown (the approved loading screen keeps
@@ -474,15 +478,37 @@ final class EditorSession {
         return EditRecipe.DerivedRef(sha256: digest, model: model, width: image.width, height: image.height)
     }
 
+    /// The refine-edges tint's matte on the displayed frame: through Edit's geometry when there is any.
+    var displayMatteImage: CGImage? {
+        guard let matte = sceneCache.subject?.matte else { return matteImage }
+        let geometry = recipe.tools.edit.geometry
+        guard geometry != GeometryTransform.neutralGeometry else { return matteImage }
+        if let cached = warpedMatte, cached.geometry == geometry { return cached.image }
+        let transform = GeometryTransform(geometry, sourceWidth: matte.width, sourceHeight: matte.height)
+        let warped = transform.render(Self.maskBytes(matte), width: matte.width, height: matte.height)
+        let image = Self.alphaImage(warped.pixels, width: warped.width, height: warped.height)
+        warpedMatte = (geometry, image)
+        return image
+    }
+    @ObservationIgnored private var warpedMatte: (geometry: EditRecipe.Geometry, image: CGImage?)?
+
     /// A matte as an alpha image (for SwiftUI masking).
     static func maskImage(_ matte: FloatImage) -> CGImage? {
+        alphaImage(maskBytes(matte), width: matte.width, height: matte.height)
+    }
+
+    private static func maskBytes(_ matte: FloatImage) -> [UInt8] {
         var bytes = [UInt8](repeating: 0, count: matte.pixelCount * 4)
         for i in 0..<matte.pixelCount {
             let a = UInt8(min(max(matte.data[i], 0), 1) * 255)
             bytes[i * 4] = a; bytes[i * 4 + 1] = a; bytes[i * 4 + 2] = a; bytes[i * 4 + 3] = a
         }
+        return bytes
+    }
+
+    private static func alphaImage(_ bytes: [UInt8], width: Int, height: Int) -> CGImage? {
         guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
-        return CGImage(width: matte.width, height: matte.height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: matte.width * 4,
+        return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
                        space: ColorPipeline.sRGB, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
                        provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
     }
@@ -516,6 +542,175 @@ final class EditorSession {
             self.sceneCache.personMatte = matte
             self.renderCommitted()
         }
+    }
+
+    // MARK: - Edit and Effects (slice 4)
+
+    /// Edit › Remove's operation (approved `ed-removing`, `ed-remove-failed`).
+    enum RemoveState: Equatable {
+        case idle
+        /// "Removing…", cancellable.
+        case removing
+        /// "Couldn't remove that area." with Try again (also when the model is missing: never a
+        /// substitute fill).
+        case failed
+    }
+
+    private(set) var removeState: RemoveState = .idle
+    /// The stroke being removed, or the one that failed (drawn on the photo until it is applied,
+    /// retried or replaced).
+    private(set) var pendingRemoveStroke: EditRecipe.RemoveStroke?
+    @ObservationIgnored let removePatches = RemovePatchStore()
+    @ObservationIgnored private var removeTask: Task<Void, Never>?
+    @ObservationIgnored private var inpainter: (any Inpainting)?
+    @ObservationIgnored private var inpainterLoaded = false
+
+    /// The geometry of the committed recipe for the photo (marks and touches map through it).
+    var geometryTransform: GeometryTransform {
+        GeometryTransform(recipe.tools.edit.geometry, sourceWidth: photo.image.width, sourceHeight: photo.image.height)
+    }
+
+    /// A slider or drag moving: preview only.
+    func previewEdit(_ change: (inout EditRecipe.Edit) -> Void) {
+        var next = recipe
+        change(&next.tools.edit)
+        render(next, final: false)
+    }
+
+    /// One undo step.
+    func commitEdit(_ change: (inout EditRecipe.Edit) -> Void) {
+        var next = recipe
+        change(&next.tools.edit)
+        commit(next)
+    }
+
+    func previewEffects(_ change: (inout EditRecipe.Effects) -> Void) {
+        var next = recipe
+        change(&next.tools.effects)
+        render(next, final: false)
+    }
+
+    func commitEffects(_ change: (inout EditRecipe.Effects) -> Void) {
+        var next = recipe
+        change(&next.tools.effects)
+        commit(next)
+    }
+
+    /// Crop › an aspect: a fixed aspect takes the largest centred rect of that shape; Original
+    /// resets the rect; Free keeps the current one (prototype `set:edit.aspect`).
+    func setCropAspect(_ aspect: EditRecipe.Geometry.Aspect) {
+        commitEdit { edit in
+            edit.geometry.cropAspect = aspect
+            edit.geometry.cropRect = Self.cropRect(for: aspect, geometry: edit.geometry, photo: photo)
+        }
+    }
+
+    nonisolated static func cropRect(for aspect: EditRecipe.Geometry.Aspect, geometry: EditRecipe.Geometry,
+                                     photo: SelectedPhoto) -> EditRecipe.Rect {
+        switch aspect {
+        case .original: return .init(x: 0, y: 0, width: 1, height: 1)
+        case .free: return geometry.cropRect
+        default:
+            let turned = GeometryTransform.turnedSize(geometry, sourceWidth: photo.image.width, sourceHeight: photo.image.height)
+            return GeometryTransform.centredRect(aspect: GeometryTransform.ratio(aspect) ?? 1, width: turned.width, height: turned.height)
+        }
+    }
+
+    /// Rotate left (−1) or right (+1): one quarter turn. A fixed crop aspect keeps its shape in
+    /// the turned frame, so its rect is laid out again.
+    func rotate(quarterTurns delta: Int) {
+        commitEdit { edit in
+            edit.geometry.quarterTurns = ((edit.geometry.quarterTurns + delta) % 4 + 4) % 4
+            if GeometryTransform.ratio(edit.geometry.cropAspect) != nil {
+                edit.geometry.cropRect = Self.cropRect(for: edit.geometry.cropAspect, geometry: edit.geometry, photo: photo)
+            } else if edit.geometry.cropAspect == .free {
+                // A free rect turns with the photo.
+                let r = edit.geometry.cropRect
+                edit.geometry.cropRect = delta > 0 ? .init(x: 1 - r.y - r.height, y: r.x, width: r.height, height: r.width)
+                                                   : .init(x: r.y, y: 1 - r.x - r.width, width: r.height, height: r.width)
+            }
+        }
+    }
+
+    /// Remove: brushing a stroke (source coordinates) starts removing it. It becomes one undo step
+    /// once its patch exists; cancelled or failed, nothing changes.
+    func removeStroke(points: [EditRecipe.Point], radius: Double) {
+        guard removeState != .removing, !points.isEmpty else { return }
+        let stroke = EditRecipe.RemoveStroke(radius: min(max(radius, 0.001), 0.5), points: points, status: .applied, patch: nil)
+        pendingRemoveStroke = stroke
+        runRemove(stroke)
+    }
+
+    /// Remove failed › Try again: the same stroke once more.
+    func retryRemove() {
+        guard removeState == .failed, let stroke = pendingRemoveStroke else { return }
+        runRemove(stroke)
+    }
+
+    /// Removing › Cancel: nothing changes ("Cancelled · nothing changed"). A model call already
+    /// running finishes in the background and is discarded (Core ML cannot interrupt it).
+    func cancelRemove() {
+        guard removeState == .removing else { return }
+        removeTask?.cancel()
+        removeTask = nil
+        removeState = .idle
+        pendingRemoveStroke = nil
+        showToast("Cancelled · nothing changed")
+    }
+
+    /// Undo stroke: the last applied stroke goes (one undo step).
+    func undoStroke() {
+        guard !recipe.tools.edit.remove.strokes.isEmpty else { return }
+        commitEdit { $0.remove.strokes.removeLast() }
+    }
+
+    private func runRemove(_ stroke: EditRecipe.RemoveStroke) {
+        removeState = .removing
+        let image = photo.image
+        let earlier = removePatches.patches(for: recipe.tools.edit.remove.strokes)
+        let loader = inpainterLoader
+        let alreadyLoaded = inpainterLoaded ? inpainter : nil
+        let needsLoad = !inpainterLoaded
+        removeTask = Task { [weak self] in
+            do {
+                let work = Task.detached(priority: .userInitiated) { () -> (patch: RemovePatch, engine: any Inpainting) in
+                    // The model loads on first use (seconds for 103 MB), off the main actor.
+                    guard let engine = needsLoad ? loader() : alreadyLoaded else { throw RemoveEngine.Failure.modelUnavailable }
+                    var pixels = try MetalLUTRenderer.rgba8Bytes(of: image)
+                    RemoveEngine.composite(earlier, into: &pixels, width: image.width, height: image.height)
+                    let patch = try await RemoveEngine.patch(for: stroke, source: pixels, width: image.width, height: image.height,
+                                                             inpainter: engine)
+                    return (patch, engine)
+                }
+                let result = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
+                try Task.checkCancellation()
+                self?.finishRemove(stroke, patch: result.patch, engine: result.engine)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard let self, !Task.isCancelled, !self.isClosed else { return }
+                if case RemoveEngine.Failure.modelUnavailable = error { self.inpainterLoaded = true; self.inpainter = nil }
+                self.removeState = .failed
+            }
+        }
+    }
+
+    private func finishRemove(_ stroke: EditRecipe.RemoveStroke, patch: RemovePatch, engine: any Inpainting) {
+        guard !isClosed, removeState == .removing else { return }
+        inpainter = engine
+        inpainterLoaded = true
+        var applied = stroke
+        let digest = removePatches.add(patch)
+        applied.patch = EditRecipe.DerivedRef(sha256: digest, model: engine.model, width: patch.width, height: patch.height)
+        removeState = .idle
+        pendingRemoveStroke = nil
+        commitEdit { $0.remove.strokes.append(applied) }
+    }
+
+    /// The preset's own finishing, for the Effects notice ("already includes its own grain").
+    var appliedPresetFinishing: PresetRecipe.Finishing? {
+        guard let preset = appliedPreset, (recipe.look?.strength ?? 0) > 0 else { return nil }
+        return preset.recipe.finishing
     }
 
     // MARK: - History
@@ -579,20 +774,102 @@ final class EditorSession {
         var layered: LayeredStages.Inputs?
         /// Working-resolution cap for Focus & Blur (LayeredStages).
         var layeredCap = LayeredStages.previewCap
+        /// Edit (geometry, Adjust, Remove) and Effects (slice 4).
+        var edit: EditRecipe.Edit = EditRecipe.Tools.neutral(grainSeed: 0).edit
+        var effects: EditRecipe.Effects = EditRecipe.Tools.neutral(grainSeed: 0).effects
+        /// The applied Remove strokes' patches, in order (full-resolution source pixels).
+        var removePatches: [RemovePatch] = []
+
+        /// True when a slice-4 stage changes pixels; otherwise the slice-2/3 path runs unchanged.
+        var usesEditOrEffects: Bool {
+            edit.geometry != GeometryTransform.neutralGeometry || AdjustStage.hasColour(edit.adjust)
+                || AdjustStage.hasDetail(edit.adjust) || !removePatches.isEmpty || Self.hasUserEffects(effects)
+        }
+
+        static func hasUserEffects(_ effects: EditRecipe.Effects) -> Bool {
+            effects.lightLeak.enabled || effects.grain.enabled || effects.vignette.enabled
+        }
+    }
+
+    /// A rendered frame; geometry can change its size.
+    private struct RenderedFrame: Sendable {
+        let pixels: [UInt8]
+        let width: Int
+        let height: Int
     }
 
     private func makeScheduler() {
         guard let base = previewBase, let renderer = library.renderer, let cache = library.cache else { return }
         scheduler = LatestWinsRenderScheduler { job in
-            let pixels = try Self.renderPixels(job, base: base.pixels, width: base.width, height: base.height,
-                                               renderer: renderer, cache: cache)
-            return try MetalLUTRenderer.makeImage(rgba8: pixels, width: base.width, height: base.height)
+            let frame = try Self.renderPixels(job, base: base.pixels, width: base.width, height: base.height,
+                                              renderer: renderer, cache: cache)
+            return try MetalLUTRenderer.makeImage(rgba8: frame.pixels, width: frame.width, height: frame.height)
         }
     }
 
-    /// The Develop stages for a job, on any thread. Auto (stage 1) then the Look (stages 2, 3, 10).
+    /// Every stage for a job, on any thread.
+    ///
+    /// Without Edit or Effects edits this is the slice-2/3 path, unchanged: Auto (1), the Look
+    /// (2, 3), Background and Portrait (7–9), the preset's finishing (10). With them:
+    /// Remove patches → Auto (1) → Look (2, 3) → Adjust (5) → Background and Portrait (7–9) →
+    /// geometry (4) → Effects with the preset's finishing (10).
+    // CONTRACT GAP (reported): rendering-v2 §1 orders geometry (4) before Adjust (5), Remove (6) and
+    // stages 7–9. This port:
+    // - replays Remove patches on the source before stage 1, as remove-evaluation §7 specifies
+    //   ("on the full-resolution source pixels, before tone and colour adjustments"), so a later
+    //   tone or colour change never needs the model again;
+    // - runs Adjust and stages 7–9 in source coordinates, then geometry. Colour is per pixel, so
+    //   only resolution-relative radii differ: Detail's and Focus & Blur's radii follow the
+    //   uncropped long edge instead of the cropped frame's.
     nonisolated private static func renderPixels(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
-                                                 renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> [UInt8] {
+                                                 renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
+        guard job.usesEditOrEffects else {
+            return RenderedFrame(pixels: try renderDevelopAndLayered(job, base: base, width: width, height: height,
+                                                                     renderer: renderer, cache: cache),
+                                 width: width, height: height)
+        }
+        var pixels = base
+        RemoveEngine.composite(job.removePatches, into: &pixels, width: width, height: height)
+        if let autoLUT = job.autoLUT, job.autoStrength > 0 {
+            pixels = try renderer.lutApplier.apply([autoLUT.blendedTowardIdentity(strength: Float(job.autoStrength))],
+                                                   toRGBA8: pixels, width: width, height: height,
+                                                   maximumTileSide: MetalLUTRenderer.defaultMaximumTileSide)
+        }
+        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache) }
+        if let plan {
+            pixels = try renderer.render(plan, pixels: pixels, width: width, height: height,
+                                         includePixelStages: job.includePixelStages, includeFinishing: false)
+        }
+        // Stage 5, Adjust: colour as a baked LUT, Detail as the Develop spatial operators.
+        let adjustLUT = AdjustStage.colourLUT(job.edit.adjust, model: renderer.model)
+        let detail = job.includePixelStages ? AdjustStage.detailSpatial(job.edit.adjust) : PresetRecipe.Spatial()
+        if adjustLUT != nil || !detail.isEmpty {
+            let adjustPlan = DevelopRenderPlan(lookLUT: adjustLUT, spatial: detail, finishing: .init(), presetID: nil)
+            pixels = try renderer.render(adjustPlan, pixels: pixels, width: width, height: height, includePixelStages: true)
+        }
+        try Task.checkCancellation()
+        if var layered = job.layered, LayeredStages.isActive(layered) {
+            layered.developLUT = plan?.lookLUT
+            layered.autoLUT = job.autoLUT.map { $0.blendedTowardIdentity(strength: Float(job.autoStrength)) }
+            layered.adjustLUT = adjustLUT
+            pixels = try LayeredStages.render(pixels, width: width, height: height, inputs: layered, cap: job.layeredCap,
+                                              lutApplier: renderer.lutApplier)
+        }
+        try Task.checkCancellation()
+        let transform = GeometryTransform(job.edit.geometry, sourceWidth: width, sourceHeight: height)
+        let frame = transform.render(pixels, width: width, height: height)
+        guard job.includePixelStages else { return RenderedFrame(pixels: frame.pixels, width: frame.width, height: frame.height) }
+        let effects = EffectsStage(effects: job.effects, presetFinishing: plan?.finishing ?? .init(),
+                                   presetStrength: plan?.finishingStrength ?? 0,
+                                   frameWidth: frame.width, frameHeight: frame.height, model: renderer.model)
+        return RenderedFrame(pixels: effects.apply(frame.pixels, width: frame.width, height: frame.height),
+                             width: frame.width, height: frame.height)
+    }
+
+    /// The slice-2/3 stages: Auto (1) then the Look (2, 3, 10), with Background and Portrait (7–9)
+    /// between the Look's spatial stage and its finishing.
+    nonisolated private static func renderDevelopAndLayered(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
+                                                            renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> [UInt8] {
         var pixels = base
         if let autoLUT = job.autoLUT, job.autoStrength > 0 {
             pixels = try renderer.lutApplier.apply([autoLUT.blendedTowardIdentity(strength: Float(job.autoStrength))],
@@ -641,10 +918,17 @@ final class EditorSession {
         }
         let auto = autoState == .applied ? autoLUT : nil
         let layered = layeredInputs(for: target)
-        let hasPixelStages = (look.map { !$0.recipe.spatial.isEmpty || !$0.recipe.finishing.isEmpty } ?? false) || layered != nil
         var job = RenderJob(look: look, strength: strength, autoLUT: auto, autoStrength: target.auto.strength,
-                            includePixelStages: !hasPixelStages, generation: current)
+                            includePixelStages: true, generation: current)
+        attachEditAndEffects(target, to: &job)
+        // Pixel stages the user moves directly (Effects, Adjust › Detail) are in every frame, so a
+        // slider shows its effect while it moves.
+        let userPixelStages = RenderJob.hasUserEffects(target.tools.effects) || AdjustStage.hasDetail(target.tools.edit.adjust)
+        let hasPixelStages = (look.map { !$0.recipe.spatial.isEmpty || !$0.recipe.finishing.isEmpty } ?? false) || layered != nil
+            || userPixelStages
+        job.includePixelStages = !hasPixelStages
         job.followUpWithFullFrame = final && hasPixelStages
+        if !final && userPixelStages { job.includePixelStages = true }
         if let layered {
             // While a slider moves, the interactive frame already includes Background and
             // Portrait at a small working size, so the photo follows the control.
@@ -732,7 +1016,7 @@ final class EditorSession {
                     let rendered = try Self.renderPixels(job, base: pixels, width: image.width, height: image.height,
                                                          renderer: renderer, cache: cache)
                     try Task.checkCancellation()
-                    let output = try MetalLUTRenderer.makeImage(rgba8: rendered, width: image.width, height: image.height)
+                    let output = try MetalLUTRenderer.makeImage(rgba8: rendered.pixels, width: rendered.width, height: rendered.height)
                     return try exporter.encode(output, originalData: originalData, settings: settings)
                 }
                 // The render runs detached (seconds at 48 MP); Cancel stops it between tiles.
@@ -765,7 +1049,14 @@ final class EditorSession {
                             autoStrength: recipe.auto.strength, includePixelStages: true, generation: 0)
         job.layered = layeredInputs(for: recipe)
         job.layeredCap = LayeredStages.exportCap
+        attachEditAndEffects(recipe, to: &job)
         return job
+    }
+
+    private func attachEditAndEffects(_ target: EditRecipe, to job: inout RenderJob) {
+        job.edit = target.tools.edit
+        job.effects = target.tools.effects
+        job.removePatches = removePatches.patches(for: target.tools.edit.remove.strokes)
     }
 
     /// Saving › Cancel: nothing is written ("Save cancelled · nothing was written").
@@ -810,7 +1101,7 @@ final class EditorSession {
         let image = photo.image
         let pixels = try MetalLUTRenderer.rgba8Bytes(of: image)
         let rendered = try Self.renderPixels(job, base: pixels, width: image.width, height: image.height, renderer: renderer, cache: cache)
-        let output = try MetalLUTRenderer.makeImage(rgba8: rendered, width: image.width, height: image.height)
+        let output = try MetalLUTRenderer.makeImage(rgba8: rendered.pixels, width: rendered.width, height: rendered.height)
         return try exporter.encode(output, originalData: photo.originalData, settings: saveSettings())
     }
 
@@ -825,6 +1116,7 @@ final class EditorSession {
         // Subject separation and depth run for seconds on the CPU; a closed session's result
         // has nowhere to go.
         subjectTask?.cancel()
+        removeTask?.cancel()
         let scheduler = scheduler
         Task { await scheduler?.close() }
     }
@@ -846,6 +1138,26 @@ final class EditorSession {
     }
 
     #if DEBUG
+    /// Holds an approved Remove state for a capture (`ed-removing`, `ed-remove-failed`) with the
+    /// stroke the person drew, without running the model.
+    func debugHoldRemoveState(_ state: RemoveState, stroke: EditRecipe.RemoveStroke) {
+        removeTask?.cancel()
+        pendingRemoveStroke = stroke
+        removeState = state
+    }
+
+    /// Captures of `ed-remove`: removes the stroke with the real model and waits until it is
+    /// applied (or failed), then makes the result the session's initial state, like `stateFor`.
+    func debugRemoveAsInitial(points: [EditRecipe.Point], radius: Double) async {
+        removeStroke(points: points, radius: radius)
+        await removeTask?.value
+        if removeState == .idle, history.count > 1 {
+            let last = recipe
+            history = [last]
+            historyIndex = 0
+        }
+    }
+
     /// A scenario's recipe as the session's initial state (not an undo step), like `stateFor`.
     func debugSetInitial(_ change: (inout EditRecipe) -> Void) {
         var next = recipe
@@ -875,6 +1187,7 @@ final class EditorSession {
         await subjectTask?.value
         await focusTask?.value
         await personMatteTask?.value
+        await removeTask?.value
         await saveTask?.value
         await settleRendering()
     }

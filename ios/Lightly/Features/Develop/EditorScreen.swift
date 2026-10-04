@@ -8,6 +8,12 @@ struct EditorScreen: View {
     @State private var panel: DevelopPanelModel
     @State private var backgroundPanel: BackgroundPanelModel
     @State private var portraitPanel: PortraitPanelModel
+    @State private var editPanel: EditPanelModel
+    @State private var effectsPanel: EffectsPanelModel
+    /// Edit › Remove: the stroke being brushed (source coordinates).
+    @State private var removePoints: [EditRecipe.Point] = []
+    /// Edit › Crop: the rect when a corner drag or pinch began.
+    @State private var cropGestureStart: (rect: EditRecipe.Rect, corner: Int)?
     /// Change background › Image: dragging the photo moves the background.
     @State private var replacementDragStart: (x: Double, y: Double)?
     /// Refine edges: the stroke being drawn (source coordinates).
@@ -34,6 +40,8 @@ struct EditorScreen: View {
         _panel = State(initialValue: DevelopPanelModel(session: session, favourites: favourites))
         _backgroundPanel = State(initialValue: BackgroundPanelModel(session: session))
         _portraitPanel = State(initialValue: PortraitPanelModel(session: session))
+        _editPanel = State(initialValue: EditPanelModel(session: session))
+        _effectsPanel = State(initialValue: EffectsPanelModel(session: session))
         self.onClose = onClose
         self.onMore = onMore
         self.onChooseAnotherPhoto = onChooseAnotherPhoto
@@ -83,11 +91,15 @@ struct EditorScreen: View {
                     backgroundPanel.mode = ui.backgroundMode
                     backgroundPanel.kind = ui.backgroundKind
                     portraitPanel.tab = ui.portraitTab
+                    editPanel.sub = ui.editSub
+                    editPanel.group = ui.editGroup
+                    effectsPanel.sub = ui.effectsSub
                     if ui.tool == .background, !["bg-separating", "bg-failed"].contains(scenario.screenID) {
                         session.analyseSubjectIfNeeded()
                         await session.debugWaitForSubject()
                     }
                     await scenario.applyBackgroundAndPortrait(session: session)
+                    await scenario.applyEditAndEffects(session: session, brushRadius: editPanel.brushRadius)
                 } else {
                     await scenario.apply(session: session, panel: panel)
                     await scenario.applyBackgroundAndPortrait(session: session)
@@ -221,6 +233,8 @@ struct EditorScreen: View {
         if r.look != nil { used.insert(.develop) }
         if r.tools.background.replacement != nil || r.tools.background.focus.blur > 0 { used.insert(.background) }
         if r.tools.portrait.faces.contains(where: { portraitPanel.changeCount(for: $0) > 0 }) { used.insert(.portrait) }
+        if editPanel.isUsed { used.insert(.edit) }
+        if effectsPanel.isUsed { used.insert(.effects) }
         return used
     }
 
@@ -230,13 +244,16 @@ struct EditorScreen: View {
             backgroundPanel.mode = .focus
             backgroundPanel.kind = nil
             portraitPanel.tab = .skin
+            editPanel.sub = .crop
+            editPanel.group = .light
+            effectsPanel.sub = .leak
         }
         #if DEBUG
         tool = next
         #else
-        // DEFERRED(slices 4–5): in release builds the unbuilt tools stay listed but do not open; the
+        // DEFERRED(slice 5): in release builds the unbuilt tools stay listed but do not open; the
         // development stub exists only in DEBUG builds.
-        if [.develop, .background, .portrait].contains(next) { tool = next }
+        if [.develop, .background, .portrait, .edit, .effects].contains(next) { tool = next }
         #endif
     }
 
@@ -246,6 +263,8 @@ struct EditorScreen: View {
         case .develop: DevelopPanelView(model: panel, style: style)
         case .background: BackgroundPanelView(model: backgroundPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         case .portrait: PortraitPanelView(model: portraitPanel, roomy: style == .list, wraps: style == .wrappedTabs)
+        case .edit: EditPanelView(model: editPanel, roomy: style == .list, wraps: style == .wrappedTabs)
+        case .effects: EffectsPanelView(model: effectsPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         default: ToolStubPanel(tool: tool, roomy: style == .list)
         }
     }
@@ -262,10 +281,14 @@ struct EditorScreen: View {
                     backgroundMarks(size: size)
                 case .portrait:
                     if let people = session.people {
-                        FaceRingsMark(faces: people.usableFaces.map(\.ring), selected: portraitPanel.selectedFace,
-                                      people: people.usableFaces.isEmpty ? people.people + people.faces.map(\.box) : [],
+                        FaceRingsMark(faces: people.usableFaces.map { toFrame($0.ring) }, selected: portraitPanel.selectedFace,
+                                      people: people.usableFaces.isEmpty ? (people.people + people.faces.map(\.box)).map(toFrame) : [],
                                       onSelect: { portraitPanel.selectedFace = $0 })
                     }
+                case .edit:
+                    editMarks(size: size)
+                case .effects:
+                    if effectsPanel.sub == .leak { leakDragArea(size: size) }
                 default:
                     EmptyView()
                 }
@@ -283,11 +306,12 @@ struct EditorScreen: View {
                                    onCancel: session.cancelSubjectSeparation)
                 .position(x: size.width / 2, y: size.height / 2)
         case (.ready, .refine):
-            MatteTintMark(matte: session.matteImage)
+            MatteTintMark(matte: session.displayMatteImage)
             Color.clear.contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        refinePoints.append(.init(x: min(max(value.location.x / size.width, 0), 1), y: min(max(value.location.y / size.height, 0), 1)))
+                        let p = toSource(CGPoint(x: value.location.x / size.width, y: value.location.y / size.height))
+                        refinePoints.append(.init(x: min(max(p.x, 0), 1), y: min(max(p.y, 0), 1)))
                     }
                     .onEnded { _ in
                         guard !refinePoints.isEmpty else { return }
@@ -318,15 +342,186 @@ struct EditorScreen: View {
         case (.ready, .focus), (.noSubject, _):
             let target = background.focus.target.map { CGPoint(x: $0.x, y: $0.y) }
                 ?? session.defaultFocusTarget.map { CGPoint(x: $0.x, y: $0.y) }
-            if session.subjectState == .ready, let target { FocusTargetMark(point: target) }
+            if session.subjectState == .ready, let target { FocusTargetMark(point: toFrame(target)) }
             Color.clear.contentShape(Rectangle())
                 .onTapGesture { location in
-                    session.setFocusTarget(x: location.x / size.width, y: location.y / size.height)
+                    let p = toSource(CGPoint(x: location.x / size.width, y: location.y / size.height))
+                    session.setFocusTarget(x: p.x, y: p.y)
                 }
                 .accessibilityHidden(true)
         default:
             EmptyView()
         }
+    }
+
+    // MARK: - Geometry mapping for marks and touches
+
+    /// A normalised source point on the displayed frame (through Edit's geometry).
+    private func toFrame(_ point: CGPoint) -> CGPoint {
+        let transform = session.geometryTransform
+        return transform.isIdentity ? point : transform.frame(fromSource: point)
+    }
+
+    /// A normalised touch on the displayed frame in source coordinates.
+    private func toSource(_ point: CGPoint) -> CGPoint {
+        let transform = session.geometryTransform
+        return transform.isIdentity ? point : transform.source(fromFrame: point)
+    }
+
+    /// A source rect (face box) on the frame: its centre mapped, its size scaled.
+    // Rotation by straighten or perspective is not applied to the ring's shape (a few degrees at
+    // most); its centre follows the face exactly.
+    private func toFrame(_ rect: EditRecipe.Rect) -> EditRecipe.Rect {
+        let transform = session.geometryTransform
+        guard !transform.isIdentity else { return rect }
+        let centre = transform.frame(fromSource: CGPoint(x: rect.x + rect.width / 2, y: rect.y + rect.height / 2))
+        let turned = transform.frameWidth > 0 && session.recipe.tools.edit.geometry.quarterTurns % 2 == 1
+        let sw = Double(transform.sourceWidth), sh = Double(transform.sourceHeight)
+        let width = (turned ? rect.height * sh : rect.width * sw) / Double(transform.frameWidth)
+        let height = (turned ? rect.width * sw : rect.height * sh) / Double(transform.frameHeight)
+        return .init(x: centre.x - width / 2, y: centre.y - height / 2, width: width, height: height)
+    }
+
+    // MARK: - Edit and Effects marks (prototype `marksFor`)
+
+    @ViewBuilder
+    private func editMarks(size: CGSize) -> some View {
+        switch editPanel.sub {
+        case .crop:
+            CropFrameMark()
+            cropGestureArea(size: size)
+        case .straighten, .perspective:
+            ThirdsGridMark()
+        case .remove:
+            RemoveStrokesMark(strokes: removeStrokesOnFrame(size: size))
+            if session.removeState == .removing {
+                StageOperationProgress(title: "Removing…", identifier: "edit.removing", onCancel: session.cancelRemove)
+                    .position(x: size.width / 2, y: size.height / 2)
+            } else {
+                Color.clear.contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            let p = toSource(CGPoint(x: value.location.x / size.width, y: value.location.y / size.height))
+                            removePoints.append(.init(x: min(max(p.x, 0), 1), y: min(max(p.y, 0), 1)))
+                        }
+                        .onEnded { _ in
+                            guard !removePoints.isEmpty else { return }
+                            session.removeStroke(points: removePoints, radius: editPanel.brushRadius)
+                            removePoints = []
+                        })
+                    .accessibilityHidden(true)
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    /// The applied strokes, the stroke being removed (or failed) and the one being brushed, on
+    /// the frame, with the brush radius in frame points.
+    private func removeStrokesOnFrame(size: CGSize) -> [(points: [CGPoint], radius: CGFloat)] {
+        let transform = session.geometryTransform
+        let sourceLongEdge = Double(max(transform.sourceWidth, transform.sourceHeight))
+        // Frame points per source pixel (the frame is displayed at `size`).
+        let pointsPerPixel = Double(size.width) / Double(transform.frameWidth)
+        var strokes = session.recipe.tools.edit.remove.strokes.map { ($0.points, $0.radius) }
+        if let pending = session.pendingRemoveStroke { strokes.append((pending.points, pending.radius)) }
+        if !removePoints.isEmpty { strokes.append((removePoints, editPanel.brushRadius)) }
+        return strokes.map { points, radius in
+            (points.map { toFrame(CGPoint(x: $0.x, y: $0.y)) }, CGFloat(radius * sourceLongEdge * pointsPerPixel))
+        }
+    }
+
+    /// Crop: drag a corner to crop, pinch to zoom ("Drag the corners to crop. Pinch to zoom.").
+    /// The photo shows the crop; a drag or pinch previews and its end is one undo step.
+    private func cropGestureArea(size: CGSize) -> some View {
+        Color.clear.contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 2)
+                .onChanged { value in
+                    let geometry = session.recipe.tools.edit.geometry
+                    let start = cropGestureStart ?? (geometry.cropRect, Self.nearestCorner(value.startLocation, size: size))
+                    cropGestureStart = start
+                    let rect = cropRect(dragging: start.corner, from: start.rect, by: value.translation, size: size)
+                    session.previewEdit { Self.setCrop(&$0.geometry, rect) }
+                }
+                .onEnded { value in
+                    guard let start = cropGestureStart else { return }
+                    cropGestureStart = nil
+                    let rect = cropRect(dragging: start.corner, from: start.rect, by: value.translation, size: size)
+                    session.commitEdit { Self.setCrop(&$0.geometry, rect) }
+                })
+            .simultaneousGesture(MagnifyGesture()
+                .onChanged { value in
+                    let start = cropGestureStart ?? (session.recipe.tools.edit.geometry.cropRect, -1)
+                    cropGestureStart = start
+                    session.previewEdit { Self.setCrop(&$0.geometry, Self.zoomed(start.rect, by: value.magnification)) }
+                }
+                .onEnded { value in
+                    guard let start = cropGestureStart else { return }
+                    cropGestureStart = nil
+                    session.commitEdit { Self.setCrop(&$0.geometry, Self.zoomed(start.rect, by: value.magnification)) }
+                })
+            .accessibilityHidden(true)
+    }
+
+    /// Cropping an uncropped photo makes the aspect Free; a fixed aspect is kept.
+    private static func setCrop(_ geometry: inout EditRecipe.Geometry, _ rect: EditRecipe.Rect) {
+        geometry.cropRect = rect
+        if geometry.cropAspect == .original, rect != .init(x: 0, y: 0, width: 1, height: 1) { geometry.cropAspect = .free }
+    }
+
+    /// 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right: the corner nearest the touch.
+    private static func nearestCorner(_ point: CGPoint, size: CGSize) -> Int {
+        (point.x < size.width / 2 ? 0 : 1) + (point.y < size.height / 2 ? 0 : 2)
+    }
+
+    private func cropRect(dragging corner: Int, from start: EditRecipe.Rect, by translation: CGSize, size: CGSize) -> EditRecipe.Rect {
+        let geometry = session.recipe.tools.edit.geometry
+        let turned = GeometryTransform.turnedSize(geometry, sourceWidth: session.photo.image.width, sourceHeight: session.photo.image.height)
+        // A displayed point is this fraction of the turned frame.
+        let dx = Double(translation.width / max(size.width, 1)) * start.width
+        let dy = Double(translation.height / max(size.height, 1)) * start.height
+        let minimum = 0.05
+        var x0 = start.x, y0 = start.y, x1 = start.x + start.width, y1 = start.y + start.height
+        if corner % 2 == 0 { x0 = min(max(x0 + dx, 0), x1 - minimum) } else { x1 = max(min(x1 + dx, 1), x0 + minimum) }
+        if corner < 2 { y0 = min(max(y0 + dy, 0), y1 - minimum) } else { y1 = max(min(y1 + dy, 1), y0 + minimum) }
+        if let ratio = GeometryTransform.ratio(geometry.cropAspect) {
+            // Keep the aspect: the height follows the width, anchored at the opposite corner.
+            var width = x1 - x0
+            var height = width * Double(turned.width) / (ratio * Double(turned.height))
+            let maxHeight = corner < 2 ? y1 : 1 - y0
+            if height > maxHeight { height = maxHeight; width = height * ratio * Double(turned.height) / Double(turned.width) }
+            if corner % 2 == 0 { x0 = x1 - width } else { x1 = x0 + width }
+            if corner < 2 { y0 = y1 - height } else { y1 = y0 + height }
+        }
+        return .init(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+    }
+
+    /// Pinch: zooms into (or out of) the crop about its centre, within the photo.
+    private static func zoomed(_ rect: EditRecipe.Rect, by magnification: CGFloat) -> EditRecipe.Rect {
+        let scale = 1 / max(Double(magnification), 0.05)
+        var width = rect.width * scale, height = rect.height * scale
+        let fit = min(1 / width, 1 / height, 1)
+        if fit < 1 { width *= fit; height *= fit }
+        let cx = rect.x + rect.width / 2, cy = rect.y + rect.height / 2
+        let x = min(max(cx - width / 2, 0), 1 - width), y = min(max(cy - height / 2, 0), 1 - height)
+        return .init(x: x, y: y, width: width, height: height)
+    }
+
+    /// Light Leaks: drag on the photo to move the leak (preview while dragging, one step at the end).
+    private func leakDragArea(size: CGSize) -> some View {
+        Color.clear.contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 2)
+                .onChanged { value in
+                    let x = min(max(value.location.x / size.width * 100, 0), 100).rounded()
+                    let y = min(max(value.location.y / size.height * 100, 0), 100).rounded()
+                    session.previewEffects { $0.lightLeak.x = x; $0.lightLeak.y = y }
+                }
+                .onEnded { value in
+                    let x = min(max(value.location.x / size.width * 100, 0), 100).rounded()
+                    let y = min(max(value.location.y / size.height * 100, 0), 100).rounded()
+                    session.commitEffects { $0.lightLeak.x = x; $0.lightLeak.y = y }
+                })
+            .accessibilityHidden(true)
     }
 
     // MARK: - Loading (`loadingHTML`)

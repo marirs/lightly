@@ -18,6 +18,8 @@ enum LayeredStages {
         /// The develop global LUT at its Amount, to give a replacement the photo's colour.
         var developLUT: LUT3D?
         var autoLUT: LUT3D?
+        /// Edit › Adjust's colour LUT (stage 5), part of the photo's global colour (stage 7 note).
+        var adjustLUT: LUT3D? = nil
     }
 
     static let interactiveCap = 640
@@ -45,7 +47,7 @@ enum LayeredStages {
                 var image: CGImage?
                 if case .image(.bundled(let id), _, _, _) = replacement { image = inputs.cache.replacementImages[id] }
                 if var rgba = BackgroundStage.replacementRGBA8(replacement, width: width, height: height, image: image) {
-                    let passes = [inputs.autoLUT, inputs.developLUT].compactMap { $0 }
+                    let passes = [inputs.autoLUT, inputs.developLUT, inputs.adjustLUT].compactMap { $0 }
                     if !passes.isEmpty {
                         rgba = try lutApplier.apply(passes, toRGBA8: rgba, width: width, height: height,
                                                     maximumTileSide: MetalLUTRenderer.defaultMaximumTileSide)

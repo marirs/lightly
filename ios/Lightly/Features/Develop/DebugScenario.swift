@@ -39,6 +39,9 @@ struct DebugScenario {
         var backgroundMode: BackgroundPanelModel.Mode = .focus
         var backgroundKind: BackgroundPanelModel.Kind?
         var portraitTab: PortraitPanelModel.Tab = .skin
+        var editSub: EditPanelModel.Sub = .crop
+        var editGroup: EditPanelModel.Group = .light
+        var effectsSub: EffectsPanelModel.Sub = .leak
     }
 
     var editorUI: EditorUI {
@@ -53,6 +56,17 @@ struct DebugScenario {
         case "pt-eyes": return EditorUI(tool: .portrait, portraitTab: .eyes)
         case "pt-teeth": return EditorUI(tool: .portrait, portraitTab: .teeth)
         case "pt-hair": return EditorUI(tool: .portrait, portraitTab: .hair)
+        case "ed-crop": return EditorUI(tool: .edit, editSub: .crop)
+        case "ed-rotate": return EditorUI(tool: .edit, editSub: .rotate)
+        case "ed-straighten": return EditorUI(tool: .edit, editSub: .straighten)
+        case "ed-perspective": return EditorUI(tool: .edit, editSub: .perspective)
+        case "ed-adjust-light": return EditorUI(tool: .edit, editSub: .adjust, editGroup: .light)
+        case "ed-adjust-colour": return EditorUI(tool: .edit, editSub: .adjust, editGroup: .colour)
+        case "ed-adjust-detail": return EditorUI(tool: .edit, editSub: .adjust, editGroup: .detail)
+        case "ed-remove", "ed-removing", "ed-remove-failed": return EditorUI(tool: .edit, editSub: .remove)
+        case "fx-leak": return EditorUI(tool: .effects, effectsSub: .leak)
+        case "fx-grain", "fx-preset-conflict": return EditorUI(tool: .effects, effectsSub: .grain)
+        case "fx-vignette", "fx-combined": return EditorUI(tool: .effects, effectsSub: .vignette)
         default: return EditorUI()
         }
     }
@@ -93,6 +107,68 @@ struct DebugScenario {
         case "pt-landscape-photo", "pt-multi": face { $0.skin.smoothing = 20 }
         case "pt-hidden":
             if let p = session.library.pack.category(id: "landscape")?.presets.first(where: { $0.stop == 120 }) { session.debugApply(p, amount: 100) }
+        default: break
+        }
+    }
+
+    /// The prototype's `ed-remove` stroke mark (`.stroke` at left 62 %, top 30 %, 16 % × 5 % of the
+    /// photo, rotated −12°, fully rounded) as a Remove stroke: its centre line and radius, in
+    /// source coordinates for a photo of `width × height`.
+    static func prototypeStroke(width: Int, height: Int) -> (points: [EditRecipe.Point], radius: Double) {
+        let w = Double(width), h = Double(height)
+        let boxWidth = 0.16 * w, boxHeight = 0.05 * h
+        let radius = min(boxHeight / 2, boxWidth / 2)
+        let centre = SIMD2(0.62 * w + boxWidth / 2, 0.30 * h + boxHeight / 2)
+        let half = boxWidth / 2 - radius
+        let angle = -12 * Double.pi / 180
+        let axis = SIMD2(cos(angle), sin(angle))
+        let ends = [centre - axis * half, centre + axis * half]
+        let points = stride(from: 0.0, through: 1.0, by: 0.125).map { t -> EditRecipe.Point in
+            let p = ends[0] + (ends[1] - ends[0]) * t
+            return EditRecipe.Point(x: p.x / w, y: p.y / h)
+        }
+        return (points, radius / max(w, h))
+    }
+
+    /// Slice-4 setups (prototype `screens.js`, Edit and Effects): the recipe the screen shows, as
+    /// the session's initial state.
+    @MainActor
+    func applyEditAndEffects(session: EditorSession, brushRadius: Double) async {
+        func preset(_ category: String, _ stop: Int) {
+            if let p = session.library.pack.category(id: category)?.presets.first(where: { $0.stop == stop }) { session.debugApply(p, amount: 100) }
+        }
+        func edit(_ change: @escaping (inout EditRecipe.Edit) -> Void) { session.debugSetInitial { change(&$0.tools.edit) } }
+        func effects(_ change: @escaping (inout EditRecipe.Effects) -> Void) { session.debugSetInitial { change(&$0.tools.effects) } }
+        let stroke = Self.prototypeStroke(width: session.photo.image.width, height: session.photo.image.height)
+        switch screenID {
+        case "ed-crop":
+            edit { e in
+                e.geometry.cropAspect = .fourFive
+                e.geometry.cropRect = EditorSession.cropRect(for: .fourFive, geometry: e.geometry, photo: session.photo)
+            }
+        case "ed-rotate": edit { $0.geometry.flipHorizontal = true }
+        case "ed-straighten": edit { $0.geometry.straighten = -3 }
+        case "ed-perspective": edit { $0.geometry.perspectiveVertical = 18 }
+        case "ed-adjust-light": edit { $0.adjust.exposure = 12; $0.adjust.contrast = 10; $0.adjust.highlights = -20; $0.adjust.shadows = 25 }
+        case "ed-adjust-colour": edit { $0.adjust.temp = 15; $0.adjust.tint = -4; $0.adjust.vibrance = 12 }
+        case "ed-adjust-detail": edit { $0.adjust.sharpness = 30; $0.adjust.clarity = 15; $0.adjust.noise = 20 }
+        case "ed-remove":
+            // One stroke, removed by the real model (LaMa); the capture waits for its patch.
+            await session.debugRemoveAsInitial(points: stroke.points, radius: stroke.radius)
+        case "ed-removing", "ed-remove-failed":
+            if screenID == "ed-remove-failed" { preset("landscape", 37) }
+            session.debugHoldRemoveState(screenID == "ed-removing" ? .removing : .failed,
+                                         stroke: .init(radius: stroke.radius, points: stroke.points, status: .applied, patch: nil))
+        case "fx-leak": effects { $0.lightLeak.enabled = true }
+        case "fx-grain": effects { $0.grain.enabled = true; $0.grain.amount = 45 }
+        case "fx-vignette": effects { $0.vignette.enabled = true }
+        case "fx-combined": effects { $0.lightLeak.enabled = true; $0.grain.enabled = true; $0.vignette.enabled = true }
+        case "fx-preset-conflict":
+            // The prototype picks Film 5 with a stand-in hash (`presetHasEffect`); Film 5's real
+            // recipe has no grain. Film 3 ("01 Vintage 01") is the first Film preset that carries
+            // its own grain, so the approved state can be shown (deviation F1, owner decision).
+            preset("film", 3)
+            effects { $0.grain.enabled = true }
         default: break
         }
     }
@@ -149,10 +225,13 @@ struct DebugScenario {
         case "dev-portrait-photo":
             apply("portrait", 13)
         case "compare":
+            // Prototype `edited`: the preset and a vignette (the Effects dot shows).
             apply("landscape", 37)
+            session.debugSetInitial { $0.tools.effects.vignette.enabled = true }
             session.toggleCompare()
         case "saving", "saved":
             apply("landscape", 37)
+            session.debugSetInitial { $0.tools.effects.vignette.enabled = true }
             session.saveCopy()
         default:
             break

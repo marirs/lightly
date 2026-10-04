@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>LightlyDepthModelTrainingDataSignedOff</key>
 	<string>$(LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF)</string>
+	<key>LightlyRemoveModelTrainingDataSignedOff</key>
+	<string>$(LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF)</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

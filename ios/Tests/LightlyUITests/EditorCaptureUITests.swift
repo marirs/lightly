@@ -18,7 +18,7 @@ final class EditorCaptureUITests: XCTestCase {
         "lake": "docs/ui/assets/photos/landscape_02", "field": "docs/ui/assets/photos/landscape_03",
         "sunset": "docs/ui/assets/photos/sunset_02", "man": "docs/ui/assets/photos/portrait_deep_03",
         "woman": "docs/ui/assets/photos/portrait_medium_02", "smile": "docs/ui/assets/photos/portrait_deep_02",
-        "bar": "docs/ui/assets/photos/night_03",
+        "bar": "docs/ui/assets/photos/night_03", "street": "docs/ui/assets/photos/wellexposed_03",
         // The licensed multi-person photo stands in for the prototype's one-face pt-multi.
         "group": "experiments/test-photos/group_three_01"
     ]
@@ -67,7 +67,23 @@ final class EditorCaptureUITests: XCTestCase {
         ("pt-landscape-photo", "smile", [], "slider.smoothing"),
         ("pt-multi", "group", [], "portrait.face.3"),
         ("pt-no-usable-face", "bar", [], "tool.portrait"),
-        ("pt-hidden", "field", [], "develop.ruler")
+        ("pt-hidden", "field", [], "develop.ruler"),
+        // Slice 4.
+        ("ed-crop", "lake", [], "edit.aspect.4:5"),
+        ("ed-rotate", "field", [], "edit.flipHorizontal"),
+        ("ed-straighten", "field", [], "slider.angle"),
+        ("ed-perspective", "street", [], "slider.vertical"),
+        ("ed-adjust-light", "lake", [], "slider.exposure"),
+        ("ed-adjust-colour", "lake", [], "slider.temperature"),
+        ("ed-adjust-detail", "lake", [], "slider.noisereduction"),
+        ("ed-remove", "field", [], "edit.remove.undoStroke"),
+        ("ed-removing", "field", [], "edit.removing"),
+        ("ed-remove-failed", "field", [], "edit.remove.retry"),
+        ("fx-leak", "sunset", [], "effects.leak.warm"),
+        ("fx-grain", "lake", [], "effects.grain.film"),
+        ("fx-vignette", "lake", [], "slider.softness"),
+        ("fx-combined", "sunset", [], "slider.softness"),
+        ("fx-preset-conflict", "lake", [], "develop.notice")
     ]
 
     static var repositoryRoot: String {

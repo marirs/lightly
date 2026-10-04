@@ -217,10 +217,34 @@ final class EditorFlowUITests: XCTestCase {
 
     func testUnbuiltToolsOpenAMarkedDevelopmentStub() {
         openEditor()
-        element("tool.effects").tap()
-        XCTAssertTrue(element("tool.stub.effects").waitForExistence(timeout: timeout))
+        // Slice 5's tools are still stubs; Edit and Effects are built (slice 4).
+        element("tool.watermark").tap()
+        XCTAssertTrue(element("tool.stub.watermark").waitForExistence(timeout: timeout))
         element("tool.develop").tap()
         XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
+    }
+
+    /// Edit and Effects in the same session as Develop: an effect switched on marks Effects
+    /// ("used" dot), a crop aspect marks Edit, and Undo walks back whole recipes, one step each.
+    func testEditAndEffectsShareTheSessionAndUndoStepByStep() {
+        openEditor()
+        element("tool.effects").tap()
+        XCTAssertTrue(element("effects.leak.toggle").waitForExistence(timeout: timeout))
+        element("effects.sub.Vignette").tap()
+        element("effects.vignette.toggle").tap()
+        XCTAssertEqual(element("tool.effects").value as? String, "Edited")
+        element("tool.edit").tap()
+        XCTAssertTrue(element("edit.aspect.1:1").waitForExistence(timeout: timeout))
+        element("edit.aspect.1:1").tap()
+        XCTAssertEqual(element("tool.edit").value as? String, "Edited")
+        XCTAssertTrue(element("edit.aspect.1:1").isSelected)
+        element("editor.undo").tap()
+        XCTAssertFalse(element("edit.aspect.1:1").isSelected, "Undo removes the crop")
+        XCTAssertEqual(element("tool.effects").value as? String, "Edited", "…and keeps the earlier vignette")
+        element("editor.undo").tap()
+        XCTAssertNotEqual(element("tool.effects").value as? String, "Edited")
+        element("editor.redo").tap()
+        XCTAssertEqual(element("tool.effects").value as? String, "Edited")
     }
 
     func testFailedAutoOffersRetryAndContinueWithOriginal() {

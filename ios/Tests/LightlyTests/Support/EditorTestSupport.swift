@@ -36,13 +36,15 @@ enum EditorTestSupport {
         writer: any PhotoLibraryWriting = SpyLibraryWriter(),
         exporter: any PhotoExporting = ImageIOPhotoExporter(),
         settings: @escaping @MainActor () -> ExportSettings = { .default },
-        previewLongEdge: Int = 640
+        previewLongEdge: Int = 640,
+        inpainter: (any Inpainting)? = nil
     ) async throws -> EditorSession {
         let resolvedPhoto: SelectedPhoto
         if let photo { resolvedPhoto = photo } else { resolvedPhoto = try await Self.photo() }
         let session = EditorSession(photo: resolvedPhoto, library: try library ?? Self.library(), autoEnhancer: autoEnhancer,
                                     personDetector: personDetector, libraryWriter: writer, exporter: exporter,
-                                    saveSettings: settings, previewLongEdge: previewLongEdge)
+                                    saveSettings: settings, previewLongEdge: previewLongEdge,
+                                    inpainterLoader: { inpainter })
         session.start()
         await session.waitUntilReady()
         await session.settleRendering()

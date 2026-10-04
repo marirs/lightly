@@ -20,6 +20,9 @@ settings:
     # Release gate: "pending legal sign-off (training data)" for the depth model. Set to YES only
     # after the sign-off (docs/v1/depth-evaluation.md T1).
     LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF: "NO"
+    # Release gate: "pending legal sign-off (training data: Places2)" for the Remove model (LaMa).
+    # Set to YES only after the sign-off (docs/v1/remove-evaluation.md §8).
+    LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF: "NO"
 
 targets:
   Lightly:
@@ -95,6 +98,8 @@ targets:
         CFBundleDisplayName: Lightly
         # Release gate for the depth model (ios/Tools/bundle_depth_model.sh).
         LightlyDepthModelTrainingDataSignedOff: $(LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF)
+        # Release gate for the Remove model (ios/Tools/bundle_remove_model.sh).
+        LightlyRemoveModelTrainingDataSignedOff: $(LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF)
         # Approved Launch: the eight-ray mark alone, centred, on the background colour. The
         # system shows it until the first frame; Welcome follows. No timer holds it on screen.
         UILaunchScreen:
@@ -154,6 +159,9 @@ aggregateTargets:
         basedOnDependencyAnalysis: false
       - name: Bundle depth model
         script: '"${SRCROOT}/Tools/bundle_depth_model.sh"'
+        basedOnDependencyAnalysis: false
+      - name: Bundle Remove model
+        script: '"${SRCROOT}/Tools/bundle_remove_model.sh"'
         basedOnDependencyAnalysis: false
     settings:
       base:

@@ -11,6 +11,8 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
     case undo, redo, compare, develop, background, portrait, edit, effects, watermark, border, star, info, warn, share
     // Background (slice 3): refine brush, add, bokeh shapes.
     case brush, erase, plus, circle, hex, heart, starShape
+    // Edit (slice 4): Rotate left/right, Flip horizontal/vertical.
+    case rotl, rotr, fliph, flipv
 
     /// One drawing primitive in the 24×24 view box.
     enum Element: Sendable {
@@ -78,6 +80,14 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
             [.path("M8 20h12M5.5 14.5l7-7 5 5-5.5 5.5H9z")]
         case .plus:
             [.path("M12 5v14M5 12h14")]
+        case .rotl:
+            [.path("M4 4v5h5"), .path("M4.5 9A8 8 0 1 1 6 16")]
+        case .rotr:
+            [.path("M20 4v5h-5"), .path("M19.5 9A8 8 0 1 0 18 16")]
+        case .fliph:
+            [.path("M12 3v18"), .path("M9 7L4 12l5 5z"), .path("M15 7l5 5-5 5z")]
+        case .flipv:
+            [.path("M3 12h18"), .path("M7 9l5-5 5 5z"), .path("M7 15l5 5 5-5z")]
         case .circle:
             [.circle(cx: 12, cy: 12, r: 7, filled: false)]
         case .hex:
