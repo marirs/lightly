@@ -68,12 +68,14 @@ final class SignaturePadModel {
 
     #if DEBUG
     /// Design captures of `wm-sig-draw`: the prototype's sample at `left:24px;bottom:34px`, 70 pt
-    /// tall, on a pad of `padHeight`.
+    /// tall, on a pad of `padHeight` (outer size, border included).
     func debugFillWithPrototypeSample(padHeight: Double) {
         let sample = DrawnSignature.prototypeSample
         let scale = 70 / sample.viewBox.height
-        let top = padHeight - 34 - 70
-        strokes = sample.strokes.map { $0.map { DrawnSignature.Point(x: 24 + $0.x * scale, y: top + $0.y * scale) } }
+        // `position:absolute` is measured from the pad's padding box (inside its 1 px border), and the
+        // inline SVG sits 2 px above its div's bottom (the line box's strut).
+        let top = padHeight - 1 - 34 - 2 - 70
+        strokes = sample.strokes.map { $0.map { DrawnSignature.Point(x: 1 + 24 + $0.x * scale, y: top + $0.y * scale) } }
     }
     #endif
 }

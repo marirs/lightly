@@ -176,7 +176,8 @@ struct BorderPanelView: View {
         }
         .toggleStyle(ApprovedSwitchToggleStyle())
         .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
-        .frame(minHeight: 44)
+        // `.listrow` keeps its 52 pt min-height here (only Effects' On rows set 44).
+        .frame(minHeight: ApprovedMetrics.rowMinimumHeight)
         .accessibilityIdentifier("border.polaroid.signature")
     }
 
