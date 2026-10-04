@@ -322,7 +322,17 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
             val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
             val ratio = image.width.toFloat() / image.height
             val width = minOf(maxWidth.value, maxHeight.value * ratio)
-            Box(Modifier.size(width.dp, (width / ratio).dp)) {
+            // Stage 11: with a border the preview is the canvas. `.pic` then has box-shadow 0 0 0 1px
+            // rgba(0,0,0,.12), a ring just outside it (not while comparing: the original has no border).
+            val border = ui.session?.current?.let { EditMapping.border(it) }?.takeIf { !it.isNone && !ui.showsOriginal && ui.preview != null }
+            Box(
+                Modifier.size(width.dp, (width / ratio).dp).then(
+                    if (border == null) Modifier else Modifier.drawBehind {
+                        val ring = 1.dp.toPx()
+                        drawRect(Color(0x1F000000), topLeft = Offset(-ring / 2, -ring / 2), size = androidx.compose.ui.geometry.Size(size.width + ring, size.height + ring), style = androidx.compose.ui.graphics.drawscope.Stroke(ring))
+                    },
+                ),
+            ) {
                 Image(bitmap, contentDescription = if (ui.showsOriginal) "The original photo" else "Your photo with the edit", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
                 if (ui.showsOriginal) {
                     Text(
@@ -332,7 +342,11 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                         modifier = Modifier.padding(10.dp).background(Color(0x8C000000), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 3.dp),
                     )
                 }
-                overlay()
+                // Marks and touches sit on the photo's box inside the border (prototype `.imgbox` in `.frame`).
+                val box = border?.let { com.lightlylabs.lightly.develop.BorderStage.imageBox(it, image.width, image.height) }
+                if (box == null) overlay() else BoxWithConstraints(Modifier.fillMaxSize()) {
+                    Box(Modifier.offset(x = maxWidth * box[0].toFloat(), y = maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { overlay() }
+                }
             }
         }
         ui.toast?.let { text ->
@@ -426,6 +440,7 @@ private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPane
         EditorTool.BACKGROUND -> BackgroundPanel(vm, ui, roomy)
         EditorTool.EDIT -> EditPanel(vm, ui, roomy)
         EditorTool.EFFECTS -> EffectsPanel(vm, ui, roomy)
+        EditorTool.BORDER -> BorderPanel(vm, ui, roomy)
         else -> ToolStub(ui.tool, roomy)
     }
 }
@@ -443,6 +458,7 @@ private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
         EditorTool.BACKGROUND -> recipe?.tools?.background?.let { it.replacement != null || it.focus.blur > 0 } == true
         EditorTool.EDIT -> recipe != null && ToolUsed.edit(recipe, pendingStroke = ui.edit.pendingStroke != null)
         EditorTool.EFFECTS -> recipe != null && ToolUsed.effects(recipe)
+        EditorTool.BORDER -> recipe?.tools?.border?.type?.let { it != com.lightlylabs.lightly.session.BorderType.NONE } == true
         else -> false
     }
     val items: @Composable () -> Unit = {

@@ -32,6 +32,12 @@ data class EditUi(
 /** Prototype `effectsPanel` tabs. */
 enum class EffectsSub(val label: String) { LEAK("Light Leaks"), GRAIN("Grain"), VIGNETTE("Vignette") }
 
+/**
+ * Transient Border UI. [shown] is the tab on screen (prototype `ui.sub || s.border.type`); null follows the
+ * recipe. It differs from the recipe only when Border opened on the preferred type with no border set.
+ */
+data class BorderUi(val shown: com.lightlylabs.lightly.session.BorderType? = null, val sliderDrag: Pair<String, Double>? = null)
+
 data class EffectsUi(val sub: EffectsSub = EffectsSub.LEAK, val sliderDrag: Pair<String, Double>? = null)
 
 object EditOptions {

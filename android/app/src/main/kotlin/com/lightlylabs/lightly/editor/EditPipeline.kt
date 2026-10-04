@@ -2,6 +2,8 @@ package com.lightlylabs.lightly.editor
 
 import com.lightlylabs.lightly.develop.AdjustParams
 import com.lightlylabs.lightly.develop.AdjustStage
+import com.lightlylabs.lightly.develop.BorderParams
+import com.lightlylabs.lightly.develop.BorderStage
 import com.lightlylabs.lightly.develop.DevelopModel
 import com.lightlylabs.lightly.develop.DevelopRenderPlan
 import com.lightlylabs.lightly.develop.DevelopRenderer
@@ -43,22 +45,28 @@ object EditMapping {
         )
     }
 
+    fun border(state: EditState): BorderParams {
+        val b = state.tools.border
+        return BorderParams(b.type.name.lowercase(), b.colour, b.width, b.spacing, b.mat)
+    }
+
     /** The applied strokes' patch digests, in order. */
     fun patchDigests(state: EditState): List<String> =
         state.tools.edit.remove.strokes.filter { it.result.status == RemoveStatus.APPLIED }.mapNotNull { it.result.patch?.sha256 }
 
     /**
-     * True when a slice-4 stage changes pixels. Otherwise the slice-2/3 path runs unchanged (the
-     * preset's finishing inside the Develop pass), so their renders and captures stay valid.
+     * True when a slice-4 or slice-5 stage changes pixels (Edit, Effects, Border). Otherwise the slice-2/3
+     * path runs unchanged (the preset's finishing inside the Develop pass), so their renders and captures
+     * stay valid.
      */
     fun usesEditOrEffects(state: EditState): Boolean =
-        !geometry(state).isIdentity || !adjust(state).isNeutral || patchDigests(state).isNotEmpty() || effects(state).anyEnabled
+        !geometry(state).isIdentity || !adjust(state).isNeutral || patchDigests(state).isNotEmpty() || effects(state).anyEnabled || !border(state).isNone
 }
 
 /**
  * Every stage of a recipe that uses Edit or Effects, in this order:
  * Remove patches → Auto (1) → Look (2, 3) → Adjust (5) → Background (7, 8) → geometry (4) → Effects with
- * the preset's finishing (10).
+ * the preset's finishing (10) → Border (11, frame → canvas).
  */
 // CONTRACT GAP (reported, as iOS C1/C2): rendering-v2 §1 orders geometry (4) before Adjust (5), Remove
 // (6) and Background (7–8). This port, like iOS:
@@ -85,7 +93,8 @@ class EditPipeline(
         AdjustStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)?.let { image = renderer.render(image, it) }
         background?.let { image = it(image) }
         image = GeometryTransform(EditMapping.geometry(state), image.width, image.height).render(image)
-        return EffectsStage(EditMapping.effects(state), developPlan.finishing, model, image.width, image.height).apply(image)
+        image = EffectsStage(EditMapping.effects(state), developPlan.finishing, model, image.width, image.height).apply(image)
+        return BorderStage.apply(EditMapping.border(state), image)
     }
 
     /**
@@ -110,16 +119,24 @@ class EditPipeline(
         val compose = background?.invoke(frame)
         val geometry = GeometryTransform(EditMapping.geometry(state), frame.width, frame.height)
         val effects = EffectsStage(EditMapping.effects(state), developPlan.finishing, model, geometry.frameWidth, geometry.frameHeight)
+        val border = EditMapping.border(state)
+        val placement = BorderStage.placement(border, geometry.frameWidth, geometry.frameHeight)
+
+        /** One tile of the frame (stages 1–10), in frame coordinates. */
+        fun frameTile(source: Rgba8Image, out: PixelRect): Rgba8Image {
+            val region = geometry.sourceBounds(out)
+            var pixels = renderRegion(source, region, plan, base, adjustPlan, adjustBase, adjustApron)
+            compose?.let { pixels = Rgba8Image(region.width, region.height, it(pixels.pixels, region, source.width, source.height)) }
+            val framed = if (geometry.isIdentity) pixels else geometry.renderTile(pixels, region.x, region.y, out)
+            return effects.apply(framed, out.x, out.y)
+        }
         object : ExportTileRenderer {
-            override fun outputSize(source: Rgba8Image) = geometry.frameWidth to geometry.frameHeight
+            // Stage 11 makes the canvas: the frame plus the border.
+            override fun outputSize(source: Rgba8Image) = placement.canvasWidth to placement.canvasHeight
 
             override fun renderTile(frame: Rgba8Image, tile: Tile): Rgba8Image {
                 val out = PixelRect(tile.x, tile.y, tile.width, tile.height)
-                val region = geometry.sourceBounds(out)
-                var pixels = renderRegion(frame, region, plan, base, adjustPlan, adjustBase, adjustApron)
-                compose?.let { pixels = Rgba8Image(region.width, region.height, it(pixels.pixels, region, frame.width, frame.height)) }
-                val framed = if (geometry.isIdentity) pixels else geometry.renderTile(pixels, region.x, region.y, out)
-                return effects.apply(framed, out.x, out.y)
+                return if (border.isNone) frameTile(frame, out) else BorderStage.renderTile(border, placement, out) { region -> frameTile(frame, region) }
             }
         }
     }

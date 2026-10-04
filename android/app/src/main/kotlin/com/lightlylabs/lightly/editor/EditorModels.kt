@@ -43,11 +43,11 @@ object EditorTools {
     }
 
     /**
-     * Tools a release build lets the person open: Develop (slice 2), Edit and Effects (slice 4). The others
+     * Tools a release build lets the person open: Develop (slice 2), Edit and Effects (slice 4), Border (slice 5). The others
      * open a development stub in debug builds only. Background's release enablement is slice 3's decision
      * (still in progress) and is left unchanged here.
      */
-    fun isImplemented(tool: EditorTool) = tool in setOf(EditorTool.DEVELOP, EditorTool.EDIT, EditorTool.EFFECTS)
+    fun isImplemented(tool: EditorTool) = tool in setOf(EditorTool.DEVELOP, EditorTool.EDIT, EditorTool.EFFECTS, EditorTool.BORDER)
 }
 
 /** Prototype `s.auto`: what stage `auto` is doing for this photo. */

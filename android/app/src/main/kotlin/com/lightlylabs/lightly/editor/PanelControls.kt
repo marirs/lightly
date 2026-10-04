@@ -284,8 +284,8 @@ fun cssLinearGradient(angleDegrees: Double, colours: List<Color>, width: Float, 
 
 fun colourOf(hex: String): Color = Color(0xFF000000 or hex.substring(1).toLong(16))
 
-/** `.note`: 13 sp ink3, padding 6 18. */
+/** `.note`: 13 sp ink3, padding 6 18; [bottom] 0 for the prototype's `padding-bottom:0` captions above swatch rows. */
 @Composable
-fun PanelNote(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = lightlyTextStyle(13.sp, color = lightlyColors.ink3), modifier = modifier.padding(horizontal = 18.dp, vertical = 6.dp))
+fun PanelNote(text: String, modifier: Modifier = Modifier, bottom: Dp = 6.dp) {
+    Text(text, style = lightlyTextStyle(13.sp, color = lightlyColors.ink3), modifier = modifier.padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = bottom))
 }

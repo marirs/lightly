@@ -58,7 +58,7 @@ object AndroidEditorEnvironment {
     @Volatile var manifestParseMillis: Double = -1.0
         private set
 
-    fun create(context: Context, screenLongestPx: Int, metadataPolicy: () -> MetadataPolicy, favourites: FavouritesStore): EditorEnvironment {
+    fun create(context: Context, screenLongestPx: Int, metadataPolicy: () -> MetadataPolicy, favourites: FavouritesStore, preferredBorder: () -> com.lightlylabs.lightly.prefs.PreferredBorder = { com.lightlylabs.lightly.prefs.PreferredBorder.NONE }): EditorEnvironment {
         val app = context.applicationContext
         val resolver = app.contentResolver
         val gateway = UriStringGateway(ContentResolverGateway(resolver))
@@ -111,6 +111,7 @@ object AndroidEditorEnvironment {
             // on the first Remove stroke, never at app start.
             // App-private files (never cache: the system may evict it under the restored session).
             removePatchDirectory = java.io.File(app.filesDir, "remove-patches"),
+            preferredBorder = preferredBorder,
             inpainter = lazy { LiteRtLamaInpainter.create(app, com.lightlylabs.lightly.BuildConfig.REMOVE_MODEL_ENABLED) }.let { model -> { model.value } },
             onPreviewRendered = { millis, globalOnly -> Log.i(LOG_TAG, "preview ${if (globalOnly) "drag" else "committed"}: ${"%.1f".format(millis)} ms") },
             newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },

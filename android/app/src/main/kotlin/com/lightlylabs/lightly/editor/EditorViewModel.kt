@@ -85,6 +85,8 @@ data class EditorUiState(
     /** Edit and Effects tool UI (slice 4). */
     val edit: EditUi = EditUi(),
     val effects: EffectsUi = EffectsUi(),
+    /** Border tool UI (slice 5). */
+    val border: BorderUi = BorderUi(),
 ) {
     val showsOriginal: Boolean get() = compareHeld || compareToggled
     val canUndo: Boolean get() = session?.canUndo == true
@@ -294,7 +296,8 @@ class EditorViewModel(
         if (tool !in state.value.tools) return
         if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
         // Prototype `tool`: sub, op and group reset; a removal already running keeps running.
-        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi()) }
+        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi()) }
+        if (tool == EditorTool.BORDER) openBorderOnPreferredType()
         if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
     }
 
@@ -640,6 +643,95 @@ class EditorViewModel(
             debugAfterRemove?.let { action -> debugAfterRemove = null; action() }
         }
     }
+
+    // --- Border (slice 5) -------------------------------------------------------------------------
+
+    /** The Border tab on screen: the shown tab, else the recipe's type (prototype `ui.sub || b.type`). */
+    fun borderTab(ui: EditorUiState = state.value): com.lightlylabs.lightly.session.BorderType =
+        ui.border.shown ?: ui.session?.current?.tools?.border?.type ?: com.lightlylabs.lightly.session.BorderType.NONE
+
+    /**
+     * Preferences › Preferred border, "Opens first in Border": with no border on the photo, Border opens on
+     * the preferred type's tab. Nothing is applied until the person changes a control there (as iOS).
+     */
+    private fun openBorderOnPreferredType() {
+        if (state.value.session?.current?.tools?.border?.type != com.lightlylabs.lightly.session.BorderType.NONE) return
+        val shown = when (env.preferredBorder()) {
+            com.lightlylabs.lightly.prefs.PreferredBorder.NONE -> null
+            com.lightlylabs.lightly.prefs.PreferredBorder.SOLID -> com.lightlylabs.lightly.session.BorderType.SOLID
+            com.lightlylabs.lightly.prefs.PreferredBorder.PHOTO_FRAME -> com.lightlylabs.lightly.session.BorderType.FRAME
+            com.lightlylabs.lightly.prefs.PreferredBorder.POLAROID -> com.lightlylabs.lightly.session.BorderType.POLAROID
+        }
+        state.update { it.copy(border = it.border.copy(shown = shown)) }
+    }
+
+    /** The preferred border's name in the None note (the prototype's `${'None'}` placeholder). */
+    val preferredBorderName: String get() = env.preferredBorder().label
+
+    private fun commitBorder(change: (com.lightlylabs.lightly.session.BorderTool) -> com.lightlylabs.lightly.session.BorderTool) {
+        val session = state.value.session ?: return
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(border = change(s.tools.border))) }, state.value.auto)
+    }
+
+    /** Prototype `borderType`: choosing a tab sets the border type (one step); Polaroid resets its colour to white. */
+    fun chooseBorder(type: com.lightlylabs.lightly.session.BorderType) {
+        state.update { it.copy(border = it.border.copy(shown = type)) }
+        commitBorder { withType(it, type) }
+    }
+
+    private fun withType(b: com.lightlylabs.lightly.session.BorderTool, type: com.lightlylabs.lightly.session.BorderType) =
+        if (b.type == type) b else b.copy(type = type, colour = if (type == com.lightlylabs.lightly.session.BorderType.POLAROID) "#FFFFFF" else b.colour)
+
+    /** A control on the shown tab: the border becomes that tab's type in the same step. */
+    private fun commitOnShownTab(change: (com.lightlylabs.lightly.session.BorderTool) -> com.lightlylabs.lightly.session.BorderTool) {
+        val type = borderTab()
+        commitBorder { change(withType(it, type)) }
+    }
+
+    fun setBorderColour(hex: String) = commitOnShownTab { it.copy(colour = hex) }
+
+    fun setBorderMat(hex: String) = commitOnShownTab { it.copy(mat = hex) }
+
+    private fun withBorderSlider(b: com.lightlylabs.lightly.session.BorderTool, field: String, value: Double) = when (field) {
+        "width" -> b.copy(width = value.coerceIn(1.0, 15.0))
+        "frameWidth" -> b.copy(width = value.coerceIn(1.0, 10.0))
+        "spacing" -> b.copy(spacing = value.coerceIn(0.0, 12.0))
+        else -> b
+    }
+
+    fun onBorderSlider(field: String, value: Double) {
+        val session = state.value.session ?: return
+        state.update { it.copy(border = it.border.copy(sliderDrag = field to value)) }
+        val type = borderTab()
+        requestPreview(session.current.copy(tools = session.current.tools.copy(border = withBorderSlider(withType(session.current.tools.border, type), field, value))), globalOnly = false)
+    }
+
+    fun onBorderSliderRelease(field: String, value: Double) {
+        state.update { it.copy(border = it.border.copy(sliderDrag = null)) }
+        commitOnShownTab { withBorderSlider(it, field, value) }
+    }
+
+    /** Prototype `polaroidSig`: the toggle is on when a watermark sits on the margin. */
+    fun signatureOnMargin(ui: EditorUiState = state.value): Boolean =
+        ui.session?.current?.tools?.watermark?.let { it.placement == com.lightlylabs.lightly.session.WatermarkPlacement.BORDER && it.type != com.lightlylabs.lightly.session.WatermarkType.NONE } == true
+
+    /**
+     * Prototype `polaroidSig`: with no watermark, the saved signature is chosen; then the watermark flips
+     * between the photo and the margin. One step.
+     */
+    // DEFERRED(watermark): with no watermark and no saved signature, the signature store (slice 5 Watermark)
+    // must supply one; until it exists the toggle only flips an existing watermark's placement.
+    fun toggleSignatureOnMargin() {
+        val session = state.value.session ?: return
+        val type = borderTab()
+        val w = session.current.tools.watermark
+        val flipped = if (w.placement == com.lightlylabs.lightly.session.WatermarkPlacement.BORDER) com.lightlylabs.lightly.session.WatermarkPlacement.PHOTO else com.lightlylabs.lightly.session.WatermarkPlacement.BORDER
+        val signed = if (w.type != com.lightlylabs.lightly.session.WatermarkType.NONE) w else (signatureForMargin()?.let { ref -> w.copy(type = com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, signature = ref) } ?: return)
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(border = withType(s.tools.border, type), watermark = signed.copy(placement = flipped))) }, state.value.auto)
+    }
+
+    /** The saved signature a margin toggle uses when no watermark is set (null until the signature store exists). */
+    internal var signatureForMargin: () -> com.lightlylabs.lightly.session.SignatureRef? = { null }
 
     // --- Effects (slice 4) ------------------------------------------------------------------------
 
@@ -1139,6 +1231,8 @@ class EditorViewModel(
         fun edit(change: (com.lightlylabs.lightly.session.EditTool) -> com.lightlylabs.lightly.session.EditTool) = commitEdit(change)
 
         fun effects(change: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool) = commitEffects(change)
+
+        fun border(change: (com.lightlylabs.lightly.session.BorderTool) -> com.lightlylabs.lightly.session.BorderTool) = commitBorder(change)
 
         fun cropAspect(aspect: com.lightlylabs.lightly.session.CropAspect) = setCropAspect(aspect)
 

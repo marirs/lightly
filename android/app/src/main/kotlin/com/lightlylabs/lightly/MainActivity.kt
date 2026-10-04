@@ -356,6 +356,7 @@ internal class AppGraph private constructor(context: Context) {
             context,
             screenLongestPx = maxOf(metrics.widthPixels, metrics.heightPixels),
             metadataPolicy = { preferences.preferences.value.metadataPolicy },
+            preferredBorder = { preferences.preferences.value.preferredBorder },
             favourites = favouritesStore,
         )
     }

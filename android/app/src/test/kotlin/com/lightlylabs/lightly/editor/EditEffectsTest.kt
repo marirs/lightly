@@ -103,6 +103,7 @@ class EditEffectsTest {
                 adjust = tools.edit.adjust.copy(exposure = 12.0, contrast = 10.0, temp = 15.0, sharpness = 30.0, noise = 20.0),
             ),
             effects = tools.effects.copy(vignette = tools.effects.vignette.copy(enabled = true), lightLeak = tools.effects.lightLeak.copy(enabled = true), grain = tools.effects.grain.copy(enabled = true)),
+            border = tools.border.copy(type = com.lightlylabs.lightly.session.BorderType.FRAME, colour = "#111111", width = 3.0, spacing = 5.0),
         ))
     }
 
@@ -320,5 +321,27 @@ class EditEffectsTest {
         val bytes = file.readBytes().also { it[it.size - 2] = (it[it.size - 2] + 1).toByte() }
         file.writeBytes(bytes)
         assertEquals(null, RemovePatchStore(directory)[patch.sha256])
+    }
+
+    @Test
+    fun `Border tabs commit one step each, Polaroid resets to white, and Save copy writes the canvas`() = runTest {
+        val vm = ready(null)
+        vm.selectTool(EditorTool.BORDER)
+        vm.chooseBorder(com.lightlylabs.lightly.session.BorderType.SOLID)
+        vm.setBorderColour("#111111")
+        vm.onBorderSliderRelease("width", 5.0)
+        advanceUntilIdle()
+        val solid = vm.uiState.value.session!!.current.tools.border
+        assertEquals("#111111", solid.colour); assertEquals(5.0, solid.width)
+        // The 48 × 32 preview proxy: 5 % of the width, rounded, is 2 px on every side.
+        assertEquals(52 to 36, vm.uiState.value.preview!!.width to vm.uiState.value.preview!!.height)
+        vm.chooseBorder(com.lightlylabs.lightly.session.BorderType.POLAROID)
+        advanceUntilIdle()
+        assertEquals("#FFFFFF", vm.uiState.value.session!!.current.tools.border.colour)
+        vm.undo(); advanceUntilIdle()
+        assertEquals(com.lightlylabs.lightly.session.BorderType.SOLID, vm.uiState.value.session!!.current.tools.border.type)
+        vm.saveCopy(); advanceUntilIdle()
+        // Full resolution 96 × 64: 4.8 → 5 px on every side.
+        assertEquals(106 to 74, savedSize)
     }
 }

@@ -157,6 +157,7 @@ object DebugLaunchOptions {
                 "dev-portrait-photo", "bg-failed" -> preset("portrait", 13)
             }
             applySlice4(api, screen)
+            applyBorder(api, screen)
             // ed-remove rebases once the real removal has finished (see applySlice4).
             if (screen == "ed-remove" || screen == "s4-export") return@applyDebugState
             // History starts at the configured recipe (Undo disabled, as on the prototype's screens);
@@ -245,5 +246,26 @@ object DebugLaunchOptions {
                 fx(com.lightlylabs.lightly.editor.EffectsSub.GRAIN)
             }
         }
+    }
+
+    /** docs/ui/app/screens.js, the `bd-*` setups (Border, slice 5). */
+    private fun applyBorder(api: EditorViewModel.DebugEditorApi, screen: String) {
+        if (!screen.startsWith("bd-")) return
+        val type = when (screen) {
+            "bd-solid" -> com.lightlylabs.lightly.session.BorderType.SOLID
+            "bd-frame" -> com.lightlylabs.lightly.session.BorderType.FRAME
+            "bd-polaroid" -> com.lightlylabs.lightly.session.BorderType.POLAROID
+            else -> com.lightlylabs.lightly.session.BorderType.NONE
+        }
+        api.border {
+            when (screen) {
+                "bd-solid" -> it.copy(type = type, width = 5.0)
+                "bd-frame" -> it.copy(type = type, colour = "#111111", width = 3.0, spacing = 5.0)
+                // Prototype `bd-polaroid` also puts the saved signature on the margin (Watermark, slice 5).
+                "bd-polaroid" -> it.copy(type = type)
+                else -> it
+            }
+        }
+        api.openTool(com.lightlylabs.lightly.editor.EditorTool.BORDER) { it.copy(border = it.border.copy(shown = type)) }
     }
 }

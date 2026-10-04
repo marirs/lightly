@@ -100,6 +100,8 @@ class EditorEnvironment(
     val inpainter: () -> Inpainter? = { null },
     /** Private storage for Remove patches (recipe derivedRef), so a recovered session keeps its fills; null = memory only. */
     val removePatchDirectory: java.io.File? = null,
+    /** Preferences › Preferred border: which Border tab opens first when the photo has none (never applied). */
+    val preferredBorder: () -> com.lightlylabs.lightly.prefs.PreferredBorder = { com.lightlylabs.lightly.prefs.PreferredBorder.NONE },
     /** Called after each preview render with its milliseconds and whether it was the drag (global-only) render. */
     val onPreviewRendered: (millis: Double, globalOnly: Boolean) -> Unit = { _, _ -> },
 )
