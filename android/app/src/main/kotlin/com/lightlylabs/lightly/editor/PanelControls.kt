@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -161,6 +162,8 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
                 }
                 .semantics {
                     contentDescription = label
+                    // TalkBack speaks the shown value ("+12"), not a percentage of the range.
+                    stateDescription = (if (centred && value.roundToInt() > 0) "+" else "") + value.roundToInt()
                     progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), min.toFloat()..max.toFloat(), steps = (max - min).toInt() - 1)
                     setProgress { v -> onRelease(v.roundToInt().toDouble()); true }
                 }
@@ -223,7 +226,7 @@ fun OptChip(selected: Boolean, description: String, onClick: () -> Unit, tag: St
 
 /** `.sw` (44 dp circle) or a gradient swatch (52 × 44, radius 10); selected = a 2 dp ring 5 dp outside. */
 @Composable
-fun Swatch(fill: (Size) -> Brush, selected: Boolean, description: String, onClick: () -> Unit, tag: String, width: Dp = 44.dp, cornerRadius: Dp? = null) {
+fun Swatch(fill: (Size) -> Brush, selected: Boolean, description: String, onClick: () -> Unit, tag: String, width: Dp = 44.dp, cornerRadius: Dp? = null, colourName: String? = null) {
     val colors = lightlyColors
     val shape = if (cornerRadius == null) CircleShape else RoundedCornerShape(cornerRadius)
     Box(
@@ -249,9 +252,26 @@ fun Swatch(fill: (Size) -> Brush, selected: Boolean, description: String, onClic
             .drawBehind { drawRect(fill(size)) }
             .border(1.dp, colors.hair, shape)
             .clickable(role = Role.RadioButton, onClick = onClick)
-            .semantics { contentDescription = description; this.selected = selected }
+            .semantics {
+                contentDescription = description
+                this.selected = selected
+                // The approved label is only "Colour"; TalkBack speaks the colour's name as its value (as iOS).
+                colourName?.let { stateDescription = it }
+            }
             .testTagResource(tag),
     )
+}
+
+/** Spoken names of the approved swatch colours (Border, Watermark, Change background); the same names as iOS. */
+object SwatchNames {
+    private val names = mapOf(
+        "#FFFFFF" to "White", "#F4F1EC" to "Warm white", "#111111" to "Black", "#3C4A55" to "Slate", "#C9A27E" to "Tan",
+        "#5A4636" to "Brown", "#C9C2B8" to "Stone", "#1F2328" to "Charcoal", "#8A8A8F" to "Grey",
+        // Change background's other swatches. iOS names none of its background swatches (they keep the approved
+        // "Colour #hex" label); these four are Android-only names, reported for iOS to adopt or replace.
+        "#D9D4CC" to "Light stone", "#9AA3A8" to "Blue grey", "#8A5A44" to "Rust", "#4E6B5A" to "Forest green",
+    )
+    fun of(hex: String): String? = names[hex.uppercase()]
 }
 
 /** `.thumbopt.add`: the dashed 64 dp tile with a plus. */

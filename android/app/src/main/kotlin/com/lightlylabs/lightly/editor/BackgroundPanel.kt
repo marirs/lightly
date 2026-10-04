@@ -150,7 +150,7 @@ private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundT
         }
         ReplacementKind.COLOUR -> ChipRow {
             BackgroundOptions.SWATCHES.forEach { hex ->
-                Swatch({ SolidColor(colourOf(hex)) }, (replaced as? Replacement.Colour)?.colour == hex, "Colour $hex", { vm.chooseBackgroundColour(hex) }, tag = "swatch-$hex")
+                Swatch({ SolidColor(colourOf(hex)) }, (replaced as? Replacement.Colour)?.colour == hex, "Colour $hex", { vm.chooseBackgroundColour(hex) }, tag = "swatch-$hex", colourName = SwatchNames.of(hex))
             }
         }
         ReplacementKind.GRADIENT -> ChipRow {

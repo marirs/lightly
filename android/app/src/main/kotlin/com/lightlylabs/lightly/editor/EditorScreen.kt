@@ -510,7 +510,8 @@ private fun ToolItem(tool: EditorTool, selected: Boolean, used: Boolean, rail: B
         Modifier
             .then(if (rail) Modifier.fillMaxWidth().heightIn(min = 62.dp) else Modifier.width(76.dp).heightIn(min = 56.dp))
             .clickable(role = Role.Tab, onClick = onClick)
-            .semantics { this.selected = selected }
+            // The used dot is spoken as "Edited" (as iOS).
+            .semantics { this.selected = selected; if (used) stateDescription = "Edited" }
             .testTagResource(EditorTags.tool(tool)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),

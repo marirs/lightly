@@ -234,7 +234,7 @@ private fun CommonControls(vm: EditorViewModel, ui: EditorUiState, hasBorder: Bo
     WatermarkSlider(vm, ui, "Opacity", "opacity", w.opacity, 0.0, 100.0)
     if (colours) ChipRow {
         Text("Colour", style = lightlyTextStyle(color = colors.ink2), modifier = Modifier.widthIn(min = 84.dp))
-        WatermarkOptions.COLOURS.forEach { hex -> Swatch({ SolidColor(colourOf(hex)) }, w.colour == hex, "Colour", { vm.setWatermarkColour(hex) }, tag = "watermark-colour-$hex") }
+        WatermarkOptions.COLOURS.forEach { hex -> Swatch({ SolidColor(colourOf(hex)) }, w.colour == hex, "Colour", { vm.setWatermarkColour(hex) }, tag = "watermark-colour-$hex", colourName = SwatchNames.of(hex)) }
     }
 }
 

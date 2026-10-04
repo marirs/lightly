@@ -72,7 +72,7 @@ fun BorderPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column
 /** `swatches(path, cur, list)`: a `.chiprow` of `.sw`, the recipe's colour marked (`cur === c`). */
 @Composable
 private fun Swatches(colours: List<String>, selected: String, onChoose: (String) -> Unit, tag: String) = ChipRow {
-    colours.forEach { hex -> Swatch({ SolidColor(colourOf(hex)) }, selected == hex, "Colour", { onChoose(hex) }, tag = "$tag-$hex") }
+    colours.forEach { hex -> Swatch({ SolidColor(colourOf(hex)) }, selected == hex, "Colour", { onChoose(hex) }, tag = "$tag-$hex", colourName = SwatchNames.of(hex)) }
 }
 
 @Composable

@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -144,7 +146,7 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
     if (sub != EffectsSub.LEAK && on(sub) && vm.presetHasOwn(sub, ui)) {
         Notice(LightlyIcons.Info, AnnotatedString("The applied preset already includes its own ${if (sub == EffectsSub.GRAIN) "grain" else "vignette"}. This one is added to it, not replaced."))
     }
-    OnOffRow(on(sub)) { vm.toggleEffect(sub) }
+    OnOffRow(on(sub), name = sub.label) { vm.toggleEffect(sub) }
     when (sub) {
         EffectsSub.LEAK -> {
             ChipRow {
@@ -191,12 +193,14 @@ private fun EffectsSlider(vm: EditorViewModel, ui: EditorUiState, label: String,
  * switch at the end. The whole row toggles; semantics are a Switch.
  */
 @Composable
-private fun OnOffRow(on: Boolean, onToggle: () -> Unit) {
+private fun OnOffRow(on: Boolean, name: String, onToggle: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 44.dp)
             .toggleable(value = on, role = Role.Switch, onValueChange = { onToggle() })
+            // TalkBack names the effect ("Vignette, switch, on"); the row itself shows only On/Off (as iOS).
+            .semantics { contentDescription = name }
             .testTagResource("effects-on-off")
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,

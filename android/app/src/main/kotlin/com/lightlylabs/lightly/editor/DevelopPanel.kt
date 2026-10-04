@@ -1,6 +1,7 @@
 package com.lightlylabs.lightly.editor
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.calculateTargetValue
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -386,6 +387,7 @@ private fun AmountRow(amount: Int, vm: EditorViewModel) {
                     }
                     .semantics {
                         contentDescription = "Amount"
+                        stateDescription = "$shown"
                         progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat(), 0f..100f, steps = 99)
                         setProgress { value -> vm.onAmountRelease(value.roundToInt()); true }
                     },
@@ -444,7 +446,8 @@ private fun Ruler(model: DevelopPanelModel, vm: EditorViewModel) {
             .testTagResource(EditorTags.RULER)
             .semantics {
                 contentDescription = "Presets"
-                stateDescription = model.name
+                // As iOS: the preset's name and its place in the category.
+                stateDescription = "${model.name}, ${model.stop} of $count"
                 progressBarRangeInfo = ProgressBarRangeInfo(model.stop.toFloat(), 0f..count.toFloat().coerceAtLeast(1f), steps = (count - 1).coerceAtLeast(0))
                 setProgress { value -> vm.onRulerRelease(value.roundToInt()); true }
             }
@@ -481,8 +484,15 @@ private fun Ruler(model: DevelopPanelModel, vm: EditorViewModel) {
                         change.consume()
                     }
                     val velocity = if (fine) 0f else -tracker.calculateVelocity().x
+                    // Reduced animations (Remove animations / animator duration scale 0): the fling still travels as
+                    // far, but the ruler jumps there and lands on its stop without the snap animation (as iOS).
+                    val reduceMotion = reducedMotion()
                     fling = scope.launch {
-                        if (abs(velocity) > 50f) {
+                        if (abs(velocity) > 50f && reduceMotion) {
+                            val landed = exponentialDecay<Float>(frictionMultiplier = 2f).calculateTargetValue(offset.value, velocity).coerceIn(0f, currentCount * step)
+                            offset.snapTo(landed)
+                            vm.onRulerDrag(stopAt(landed))
+                        } else if (abs(velocity) > 50f) {
                             offset.animateDecay(velocity, exponentialDecay(frictionMultiplier = 2f)) {
                                 val clamped = value.coerceIn(0f, currentCount * step)
                                 if (clamped != value) scope.launch { offset.snapTo(clamped) }
@@ -490,7 +500,7 @@ private fun Ruler(model: DevelopPanelModel, vm: EditorViewModel) {
                             }
                         }
                         val target = stopAt(offset.value.coerceIn(0f, currentCount * step))
-                        offset.animateTo(target * step, tween(120))
+                        if (reduceMotion) offset.snapTo(target * step) else offset.animateTo(target * step, tween(120))
                         vm.onRulerRelease(target)
                         dragging = false
                     }
@@ -555,3 +565,9 @@ fun ToolStub(tool: EditorTool, roomy: Boolean) = Column(Modifier.fillMaxWidth())
         },
     )
 }
+
+/**
+ * True when the system asks for no animations: Accessibility › Remove animations, or the developer option
+ * "Animator duration scale" off; both set the animator duration scale to 0, which disables animators.
+ */
+internal fun reducedMotion(): Boolean = !android.animation.ValueAnimator.areAnimatorsEnabled()
