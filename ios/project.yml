@@ -63,6 +63,24 @@ targets:
         buildPhase: resources
       - path: ../docs/ui/assets/photos/backlit_02_thumb.jpg
         buildPhase: resources
+      # The four approved watermark fonts and their licences (shared/fonts, SIL OFL 1.1; the OFL
+      # requires the licence to ship with the fonts). Read by URL in WatermarkFonts.
+      - path: ../shared/fonts/Allura-Regular.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/CormorantGaramond-Variable.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/Inter-Variable.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/Caveat-Variable.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/Allura-OFL.txt
+        buildPhase: resources
+      - path: ../shared/fonts/CormorantGaramond-OFL.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Inter-OFL.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Caveat-OFL.txt
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly

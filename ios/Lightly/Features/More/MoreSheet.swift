@@ -101,7 +101,7 @@ struct MoreSheet: View {
         case .favourites:
             FavouritePresetsPage(favourites: appState.favourites, catalogue: appState.presetCatalogue)
         case .savedSignature:
-            SavedSignaturePage()
+            SavedSignaturePage(signatures: appState.signatures, onChange: appState.signaturesChanged)
         case .preferredBorder:
             PreferredBorderPage(preferences: appState.preferences)
         case .legal:

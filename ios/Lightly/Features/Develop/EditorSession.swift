@@ -59,6 +59,9 @@ final class EditorSession {
     private(set) var history: [EditRecipe]
     private(set) var historyIndex = 0
     private(set) var displayedImage: CGImage
+    /// Where the photo sits inside the displayed canvas (fractions; the whole canvas without a
+    /// border): the prototype's `.imgbox` inside `.frame`, which marks and touches use.
+    private(set) var displayedImageBox = CGRect(x: 0, y: 0, width: 1, height: 1)
     private(set) var isShowingOriginal = false
     private(set) var saveState: SaveState = .idle
     /// Edits made since the last saved copy (the approved `dirty`).
@@ -113,6 +116,8 @@ final class EditorSession {
     private let previewLongEdge: Int
     /// Loads the Remove model on first use (LaMa; nil = not in this build or gated off).
     private let inpainterLoader: @Sendable () -> (any Inpainting)?
+    /// Saved signatures and chosen logos the watermark resolves against (stage 12).
+    let signatures: SignatureStore
 
     @ObservationIgnored private var previewBase: (pixels: [UInt8], width: Int, height: Int)?
     @ObservationIgnored private var originalPreview: CGImage
@@ -154,7 +159,8 @@ final class EditorSession {
          exporter: any PhotoExporting = ImageIOPhotoExporter(),
          saveSettings: @escaping @MainActor () -> ExportSettings = { .default },
          previewLongEdge: Int = 1_600,
-         inpainterLoader: @escaping @Sendable () -> (any Inpainting)? = { LamaInpainter.loadBundled() }) {
+         inpainterLoader: @escaping @Sendable () -> (any Inpainting)? = { LamaInpainter.loadBundled() },
+         signatures: SignatureStore? = nil) {
         self.photo = photo
         self.library = library
         self.autoEnhancer = autoEnhancer
@@ -165,6 +171,9 @@ final class EditorSession {
         self.saveSettings = saveSettings
         self.previewLongEdge = previewLongEdge
         self.inpainterLoader = inpainterLoader
+        // Built here, not as a default argument: the store is main-actor isolated. Without one
+        // (tests) signatures live in memory only.
+        self.signatures = signatures ?? SignatureStore(directory: nil)
         let source = Self.sourceReference(for: photo)
         history = [.neutral(source: source, grainSeed: EditRecipe.grainSeed(fromHeadSha256: source.fingerprint.headSha256))]
         // Until the preview copy exists the photo itself is shown (the approved loading screen keeps
@@ -609,6 +618,13 @@ final class EditorSession {
         commit(next)
     }
 
+    /// A slider or drag moving: preview only.
+    func previewWatermark(_ change: (inout EditRecipe.Watermark) -> Void) {
+        var next = recipe
+        change(&next.tools.watermark)
+        render(next, final: false)
+    }
+
     /// One undo step.
     func commitWatermark(_ change: (inout EditRecipe.Watermark) -> Void) {
         var next = recipe
@@ -799,8 +815,12 @@ final class EditorSession {
         var effects: EditRecipe.Effects = EditRecipe.Tools.neutral(grainSeed: 0).effects
         /// The applied Remove strokes' patches, in order (full-resolution source pixels).
         var removePatches: [RemovePatch] = []
-        /// Border (stage 11), applied last to every frame, preview and export alike.
+        /// Border (stage 11) and watermark (stage 12), applied to every frame, preview and export alike.
         var border: EditRecipe.Border = EditRecipe.Tools.neutral(grainSeed: 0).border
+        var watermark: EditRecipe.Watermark = EditRecipe.Tools.neutral(grainSeed: 0).watermark
+        /// The watermark's resolved content; nil draws nothing (no watermark, or a saved signature
+        /// that is missing or changed: rendered without it, never substituted).
+        var watermarkContent: WatermarkStage.Content?
 
         /// True when a slice-4 stage changes pixels; otherwise the slice-2/3 path runs unchanged.
         var usesEditOrEffects: Bool {
@@ -846,7 +866,14 @@ final class EditorSession {
     nonisolated private static func renderPixels(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
                                                  renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
         let frame = try renderFrameBeforeBorder(job, base: base, width: width, height: height, renderer: renderer, cache: cache)
-        let canvas = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
+        var canvas = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
+        // Stage 12 on the canvas, after the border, so a watermark can sit in its margin.
+        if job.watermark.type != .none, let content = job.watermarkContent {
+            let imageRect = job.border.type == .none ? CGRect(x: 0, y: 0, width: frame.width, height: frame.height)
+                : BorderStage.placement(job.border, frameWidth: frame.width, frameHeight: frame.height).imageRect
+            WatermarkStage.apply(job.watermark, content: content, pixels: &canvas.pixels, canvasWidth: canvas.width,
+                                 canvasHeight: canvas.height, imageRect: imageRect, border: job.border.type)
+        }
         return RenderedFrame(pixels: canvas.pixels, width: canvas.width, height: canvas.height)
     }
 
@@ -1000,6 +1027,7 @@ final class EditorSession {
         guard job.generation >= publishedGeneration else { return }
         if job.generation == publishedGeneration, publishedWasFull, !job.includePixelStages { return }
         displayedImage = image
+        displayedImageBox = BorderStage.imageBox(job.border, canvasWidth: image.width, canvasHeight: image.height)
         publishedGeneration = job.generation
         publishedWasFull = job.includePixelStages
         publishedRenderCount += 1
@@ -1087,8 +1115,39 @@ final class EditorSession {
         job.edit = target.tools.edit
         job.effects = target.tools.effects
         job.border = target.tools.border
+        job.watermark = target.tools.watermark
+        job.watermarkContent = watermarkContent(for: target.tools.watermark)
         job.removePatches = removePatches.patches(for: target.tools.edit.remove.strokes)
     }
+
+    /// Stage 12's content for a watermark, resolved against the saved signatures and logos.
+    /// A missing or changed saved signature, or a logo file not on this device, resolves to nil:
+    /// the photo renders without it (edit recipe `signatureRef` rule).
+    // DEFERRED(owner question W2): there is no approved notice for a missing or changed saved
+    // signature, so none is shown; the panel's chips still offer the current signatures.
+    func watermarkContent(for watermark: EditRecipe.Watermark) -> WatermarkStage.Content? {
+        switch watermark.type {
+        case .none: return nil
+        case .signature:
+            guard let reference = watermark.signature, case .available(let saved) = signatures.resolve(reference) else { return nil }
+            switch saved.kind {
+            case .drawn: return saved.drawn.map { .drawnSignature($0) }
+            case .imported: return .importedSignature(saved.data)
+            }
+        case .text:
+            return watermark.text.map { .text($0.text, $0.font) }
+        case .logo:
+            switch watermark.logo {
+            case .bundled(let id)? where id == WatermarkStage.sampleLogoID: return .sampleLogo
+            case .file(let digest)?: return signatures.logo(sha256: digest).map { .logoImage($0) }
+            default: return nil
+            }
+        }
+    }
+
+    /// Re-renders after the saved signatures changed (Preferences: drawn again, imported, deleted),
+    /// so the photo shows what the recipe now resolves to.
+    func signaturesChanged() { renderCommitted() }
 
     /// Saving › Cancel: nothing is written ("Save cancelled · nothing was written").
     func cancelSave() {
@@ -1102,6 +1161,9 @@ final class EditorSession {
     /// The stage's toast (`.toast`), shown for 1.4 s as in the prototype.
     private(set) var toast: String?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+
+    /// A tool's confirmation on the stage (`.toast`), e.g. "Signature saved for reuse".
+    func showStageToast(_ text: String) { showToast(text) }
 
     private func showToast(_ text: String) {
         toast = text

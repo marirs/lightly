@@ -30,16 +30,6 @@ enum EditorTool: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// The delivery slice that builds the tool (docs/v1/implementation-checklist.md).
-    var slice: Int {
-        switch self {
-        case .develop: 2
-        case .background, .portrait: 3
-        case .edit, .effects: 4
-        case .watermark, .border: 5
-        }
-    }
-
     /// Portrait is contextual: offered only when the photo has a person (`toolsFor`).
     static func available(hasPerson: Bool) -> [EditorTool] {
         allCases.filter { $0 != .portrait || hasPerson }
@@ -180,6 +170,9 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     /// `.pic` with a border: `box-shadow:0 0 0 1px rgba(0,0,0,.12)`, a 1 pt ring just outside the
     /// canvas so a white border stays visible on the stage.
     var outlinesCanvas = false
+    /// The photo inside the canvas, as fractions (prototype `.imgbox` inside `.frame`): marks are
+    /// laid over this box, not over the border.
+    var imageBox = CGRect(x: 0, y: 0, width: 1, height: 1)
     @ViewBuilder var overlay: () -> Overlay
     /// Marks laid over the fitted photo itself (prototype `marks` inside `.imgbox`).
     @ViewBuilder var marks: () -> Marks
@@ -213,7 +206,15 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                     .accessibilityElement()
                     .accessibilityLabel(Text(showsOriginalBadge ? "Photo, original" : "Photo"))
                     .accessibilityIdentifier("editor.photo")
-                    .overlay { marks() }
+                    .overlay {
+                        // `.imgbox` is `overflow:hidden`: marks are clipped to the photo.
+                        GeometryReader { canvas in
+                            marks()
+                                .frame(width: canvas.size.width * imageBox.width, height: canvas.size.height * imageBox.height)
+                                .clipped()
+                                .offset(x: canvas.size.width * imageBox.minX, y: canvas.size.height * imageBox.minY)
+                        }
+                    }
                 overlay()
             }
             .frame(width: geometry.size.width, height: geometry.size.height)

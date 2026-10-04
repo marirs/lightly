@@ -11,6 +11,9 @@ struct EditorScreen: View {
     @State private var editPanel: EditPanelModel
     @State private var effectsPanel: EffectsPanelModel
     @State private var borderPanel: BorderPanelModel
+    @State private var watermarkPanel: WatermarkPanelModel
+    /// Watermark: the anchor when a drag on the photo began.
+    @State private var watermarkDragStart: (x: Double, y: Double)?
     /// Edit › Remove: the stroke being brushed (source coordinates).
     @State private var removePoints: [EditRecipe.Point] = []
     /// Edit › Crop: the rect when a corner drag or pinch began.
@@ -35,7 +38,8 @@ struct EditorScreen: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.colorScheme) private var colorScheme
 
-    init(session: EditorSession, favourites: FavouritePresetsStore, onClose: @escaping () -> Void,
+    init(session: EditorSession, favourites: FavouritePresetsStore,
+         preferredBorder: @escaping @MainActor () -> PreferredBorder = { .none }, onClose: @escaping () -> Void,
          onMore: @escaping () -> Void, onChooseAnotherPhoto: @escaping () -> Void) {
         self.session = session
         _panel = State(initialValue: DevelopPanelModel(session: session, favourites: favourites))
@@ -43,7 +47,9 @@ struct EditorScreen: View {
         _portraitPanel = State(initialValue: PortraitPanelModel(session: session))
         _editPanel = State(initialValue: EditPanelModel(session: session))
         _effectsPanel = State(initialValue: EffectsPanelModel(session: session))
-        _borderPanel = State(initialValue: BorderPanelModel(session: session))
+        let watermarkPanel = WatermarkPanelModel(session: session, signatures: session.signatures)
+        _watermarkPanel = State(initialValue: watermarkPanel)
+        _borderPanel = State(initialValue: BorderPanelModel(session: session, watermarkPanel: watermarkPanel, preferredBorder: preferredBorder))
         self.onClose = onClose
         self.onMore = onMore
         self.onChooseAnotherPhoto = onChooseAnotherPhoto
@@ -96,12 +102,14 @@ struct EditorScreen: View {
                     editPanel.sub = ui.editSub
                     editPanel.group = ui.editGroup
                     effectsPanel.sub = ui.effectsSub
+                    watermarkPanel.shownType = ui.watermarkType
                     if ui.tool == .background, !["bg-separating", "bg-failed"].contains(scenario.screenID) {
                         session.analyseSubjectIfNeeded()
                         await session.debugWaitForSubject()
                     }
                     await scenario.applyBackgroundAndPortrait(session: session)
                     await scenario.applyEditAndEffects(session: session, brushRadius: editPanel.brushRadius)
+                    await scenario.applyWatermark(session: session, panel: watermarkPanel)
                 } else {
                     await scenario.apply(session: session, panel: panel)
                     await scenario.applyBackgroundAndPortrait(session: session)
@@ -153,6 +161,7 @@ struct EditorScreen: View {
         let stage = PhotoStage(image: session.isShowingOriginal ? session.originalImage : session.displayedImage,
                                showsOriginalBadge: session.isShowingOriginal,
                                outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
+                               imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },
                                marks: { if !session.isShowingOriginal { stageMarks } })
         switch layout.mode {
@@ -238,6 +247,7 @@ struct EditorScreen: View {
         if r.tools.portrait.faces.contains(where: { portraitPanel.changeCount(for: $0) > 0 }) { used.insert(.portrait) }
         if editPanel.isUsed { used.insert(.edit) }
         if effectsPanel.isUsed { used.insert(.effects) }
+        if watermarkPanel.isUsed { used.insert(.watermark) }
         if borderPanel.isUsed { used.insert(.border) }
         return used
     }
@@ -252,14 +262,10 @@ struct EditorScreen: View {
             editPanel.group = .light
             effectsPanel.sub = .leak
             borderPanel.shownType = nil
+            watermarkPanel.shownType = nil
+            if next == .border { borderPanel.openOnPreferredType() }
         }
-        #if DEBUG
         tool = next
-        #else
-        // DEFERRED(slice 5): in release builds the unbuilt tools stay listed but do not open; the
-        // development stub exists only in DEBUG builds.
-        if [.develop, .background, .portrait, .edit, .effects, .border].contains(next) { tool = next }
-        #endif
     }
 
     @ViewBuilder
@@ -270,8 +276,8 @@ struct EditorScreen: View {
         case .portrait: PortraitPanelView(model: portraitPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         case .edit: EditPanelView(model: editPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         case .effects: EffectsPanelView(model: effectsPanel, roomy: style == .list, wraps: style == .wrappedTabs)
+        case .watermark: WatermarkPanelView(model: watermarkPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         case .border: BorderPanelView(model: borderPanel, roomy: style == .list, wraps: style == .wrappedTabs)
-        default: ToolStubPanel(tool: tool, roomy: style == .list)
         }
     }
 
@@ -295,6 +301,8 @@ struct EditorScreen: View {
                     editMarks(size: size)
                 case .effects:
                     if effectsPanel.sub == .leak { leakDragArea(size: size) }
+                case .watermark:
+                    if watermarkPanel.isUsed, !watermarkPanel.isOnBorder { watermarkDragArea(size: size) }
                 default:
                     EmptyView()
                 }
@@ -530,6 +538,24 @@ struct EditorScreen: View {
             .accessibilityHidden(true)
     }
 
+    /// Watermark: "Or drag the watermark on the photo." The anchor follows the finger (preview
+    /// while dragging, one undo step at the end); the box keeps the prototype's 30/70 % alignment.
+    private func watermarkDragArea(size: CGSize) -> some View {
+        Color.clear.contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 2)
+                .onChanged { value in
+                    let start = watermarkDragStart ?? WatermarkStage.anchor(session.recipe.tools.watermark)
+                    watermarkDragStart = start
+                    watermarkPanel.dragAnchor(from: start, by: value.translation, imageSize: size, final: false)
+                }
+                .onEnded { value in
+                    guard let start = watermarkDragStart else { return }
+                    watermarkDragStart = nil
+                    watermarkPanel.dragAnchor(from: start, by: value.translation, imageSize: size, final: true)
+                })
+            .accessibilityHidden(true)
+    }
+
     // MARK: - Loading (`loadingHTML`)
 
     @ViewBuilder
@@ -598,34 +624,25 @@ struct EditorScreen: View {
                     onChooseAnother: { session.dismissSaveState(); onChooseAnotherPhoto() })
             }
         }
+        switch watermarkPanel.sheet {
+        case .draw?:
+            ApprovedSheetOverlay(isTablet: isTabletSheet, onDismiss: { watermarkPanel.sheet = nil }) {
+                DrawSignatureSheetContent(pad: watermarkPanel.pad, onCancel: { watermarkPanel.sheet = nil },
+                                          onSave: watermarkPanel.saveDrawn)
+            }
+        case .importSignature(let extracted)?:
+            ApprovedSheetOverlay(isTablet: isTabletSheet, onDismiss: { watermarkPanel.sheet = nil }) {
+                ImportSignatureSheetContent(extracted: extracted, onCancel: { watermarkPanel.sheet = nil },
+                                            onUse: watermarkPanel.useImported)
+            }
+        case nil:
+            EmptyView()
+        }
         if panel.isReplaceSheetShown {
             ApprovedSheetOverlay(isTablet: isTabletSheet, onDismiss: { panel.isReplaceSheetShown = false }) {
                 ReplaceFavouriteSheetContent(model: panel)
             }
         }
-    }
-}
-
-/// A DEBUG-only placeholder for a tool a later slice builds. It is marked as such so it can never
-/// be mistaken for the approved panel.
-struct ToolStubPanel: View {
-    let tool: EditorTool
-    let roomy: Bool
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if roomy {
-                Text(tool.title).approvedText(13, weight: .semibold)
-                    .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-                    .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 4)
-            }
-            DevelopNotice(icon: .warn, bold: "Development stub.",
-                          text: " \(tool.title) is built in slice \(tool.slice). This placeholder exists only in development builds and is not the approved panel.",
-                          actions: [])
-        }
-        .padding(.bottom, 8)
-        .accessibilityIdentifier("tool.stub.\(tool.rawValue)")
     }
 }
 

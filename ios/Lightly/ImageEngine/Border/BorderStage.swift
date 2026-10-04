@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Rendering-v2 stage 11, `border`: places the finished frame on a larger canvas.
@@ -26,16 +27,45 @@ enum BorderStage {
         }
     }
 
+    /// Inset pixel sizes for a frame, rounded from the frame width, and the canvas they make.
+    struct Placement: Equatable {
+        let side: Int, top: Int, bottom: Int
+        let frameWidth: Int, frameHeight: Int
+        var canvasWidth: Int { frameWidth + 2 * side }
+        var canvasHeight: Int { frameHeight + top + bottom }
+        /// The photo inside the canvas, in canvas pixels (origin top-left).
+        var imageRect: CGRect { CGRect(x: side, y: top, width: frameWidth, height: frameHeight) }
+    }
+
+    static func placement(_ border: EditRecipe.Border, frameWidth: Int, frameHeight: Int) -> Placement {
+        let insets = insets(border)
+        return Placement(side: Int((insets.side * Double(frameWidth)).rounded()), top: Int((insets.top * Double(frameWidth)).rounded()),
+                         bottom: Int((insets.bottom * Double(frameWidth)).rounded()), frameWidth: frameWidth, frameHeight: frameHeight)
+    }
+
+    /// The photo's box inside a canvas this border produced, as fractions of the canvas (the
+    /// prototype's `.imgbox` inside `.frame`): marks and touches sit on it. Recovers the exact
+    /// frame width the canvas was made from (the insets are rounded from it).
+    static func imageBox(_ border: EditRecipe.Border, canvasWidth: Int, canvasHeight: Int) -> CGRect {
+        guard border.type != .none, canvasWidth > 0, canvasHeight > 0 else { return CGRect(x: 0, y: 0, width: 1, height: 1) }
+        let insets = insets(border)
+        let estimate = Int((Double(canvasWidth) / (1 + 2 * insets.side)).rounded())
+        let frameWidth = (estimate - 2...estimate + 2).first { placement(border, frameWidth: $0, frameHeight: 0).canvasWidth == canvasWidth } ?? estimate
+        let probe = placement(border, frameWidth: frameWidth, frameHeight: 0)
+        let frameHeight = max(canvasHeight - probe.top - probe.bottom, 1)
+        let rect = placement(border, frameWidth: frameWidth, frameHeight: frameHeight).imageRect
+        return CGRect(x: rect.minX / CGFloat(canvasWidth), y: rect.minY / CGFloat(canvasHeight),
+                      width: rect.width / CGFloat(canvasWidth), height: rect.height / CGFloat(canvasHeight))
+    }
+
     /// RGBA8 frame in, RGBA8 canvas out. Inset pixel sizes are rounded from the frame width.
     static func apply(_ border: EditRecipe.Border, pixels: [UInt8], width: Int, height: Int)
         -> (pixels: [UInt8], width: Int, height: Int) {
         guard border.type != .none, width > 0, height > 0 else { return (pixels, width, height) }
-        let insets = insets(border)
-        let side = Int((insets.side * Double(width)).rounded())
-        let top = Int((insets.top * Double(width)).rounded())
-        let bottom = Int((insets.bottom * Double(width)).rounded())
-        let canvasWidth = width + 2 * side
-        let canvasHeight = height + top + bottom
+        let placement = placement(border, frameWidth: width, frameHeight: height)
+        let side = placement.side, top = placement.top
+        let canvasWidth = placement.canvasWidth
+        let canvasHeight = placement.canvasHeight
         let outer = rgba(border.colour)
         var canvas = [UInt8](repeating: 0, count: canvasWidth * canvasHeight * 4)
         fill(&canvas, canvasWidth: canvasWidth, x0: 0, y0: 0, x1: canvasWidth, y1: canvasHeight, colour: outer)

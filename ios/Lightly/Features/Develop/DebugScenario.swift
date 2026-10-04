@@ -42,6 +42,8 @@ struct DebugScenario {
         var editSub: EditPanelModel.Sub = .crop
         var editGroup: EditPanelModel.Group = .light
         var effectsSub: EffectsPanelModel.Sub = .leak
+        /// Watermark's tab (`ui.sub`); nil follows the recipe.
+        var watermarkType: EditRecipe.Watermark.Kind?
     }
 
     var editorUI: EditorUI {
@@ -68,6 +70,10 @@ struct DebugScenario {
         case "fx-grain", "fx-preset-conflict": return EditorUI(tool: .effects, effectsSub: .grain)
         case "fx-vignette", "fx-combined": return EditorUI(tool: .effects, effectsSub: .vignette)
         case "bd-none", "bd-solid", "bd-frame", "bd-polaroid": return EditorUI(tool: .border)
+        case "wm-none": return EditorUI(tool: .watermark, watermarkType: EditRecipe.Watermark.Kind.none)
+        case "wm-signature", "wm-sig-draw", "wm-sig-import": return EditorUI(tool: .watermark, watermarkType: .signature)
+        case "wm-text", "wm-on-border": return EditorUI(tool: .watermark, watermarkType: .text)
+        case "wm-logo": return EditorUI(tool: .watermark, watermarkType: .logo)
         default: return EditorUI()
         }
     }
@@ -175,10 +181,56 @@ struct DebugScenario {
             session.debugSetInitial { r in
                 r.tools.border.type = .frame; r.tools.border.colour = "#111111"; r.tools.border.width = 3; r.tools.border.spacing = 5
             }
+        default: break
+        }
+    }
+
+    /// Slice-5 setups (prototype `screens.js`, Watermark and `bd-polaroid`). The prototype's
+    /// session always holds a drawn and an imported saved signature (`wm-signature`), so the store
+    /// gets the prototype's two samples first.
+    @MainActor
+    func applyWatermark(session: EditorSession, panel: WatermarkPanelModel) async {
+        guard screenID.hasPrefix("wm-") || screenID == "bd-polaroid" else { return }
+        session.signatures.debugReplace(drawn: DrawnSignature.prototypeSample, importedPNG: SignatureInkExtractor.prototypeImportedSample())
+        let drawn = session.signatures.drawn?.reference
+        func watermark(_ change: @escaping (inout EditRecipe) -> Void) { session.debugSetInitial(change) }
+        func signature(_ recipe: inout EditRecipe) {
+            WatermarkPanelModel.setType(.signature, on: &recipe.tools.watermark)
+            recipe.tools.watermark.signature = drawn
+        }
+        func text(_ recipe: inout EditRecipe, _ font: EditRecipe.Watermark.Font) {
+            WatermarkPanelModel.setType(.text, on: &recipe.tools.watermark)
+            recipe.tools.watermark.text = .init(text: WatermarkPanelModel.defaultText, font: font)
+        }
+        switch screenID {
+        case "wm-signature": watermark { signature(&$0) }
+        case "wm-sig-draw":
+            watermark { signature(&$0) }
+            panel.sheet = .draw
+            panel.pad.debugFillWithPrototypeSample(padHeight: Double(DrawSignatureSheetContent.padHeight))
+        case "wm-sig-import":
+            watermark { signature(&$0) }
+            panel.sheet = .importSignature(SignatureInkExtractor.prototypeImportedSample())
+        case "wm-text": watermark { text(&$0, .cormorantGaramond) }
+        case "wm-logo":
+            watermark { r in
+                WatermarkPanelModel.setType(.logo, on: &r.tools.watermark)
+                r.tools.watermark.logo = .bundled(id: WatermarkStage.sampleLogoID)
+                r.tools.watermark.position = 2
+            }
+        case "wm-on-border":
+            watermark { r in
+                text(&r, .caveat)
+                r.tools.border.type = .solid
+                r.tools.border.width = 8
+                r.tools.watermark.placement = .border
+            }
         case "bd-polaroid":
-            // DEFERRED(Watermark): the approved setup also puts the saved signature on the margin
-            // (`s.wm.type = 'signature'; s.wm.place = 'border'`); that needs the signature store.
-            session.debugSetInitial { $0.tools.border.type = .polaroid }
+            watermark { r in
+                r.tools.border.type = .polaroid
+                signature(&r)
+                r.tools.watermark.placement = .border
+            }
         default: break
         }
     }

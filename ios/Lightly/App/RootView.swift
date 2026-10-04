@@ -109,6 +109,7 @@ struct RootView: View {
                 EditorScreen(
                     session: appState.editorSession(for: photo),
                     favourites: appState.favourites,
+                    preferredBorder: { appState.preferences.preferredBorder },
                     onClose: { appState.returnToWelcome() },
                     onMore: { appState.openMore() },
                     onChooseAnotherPhoto: { appState.chooseFromLibrary() }
@@ -126,7 +127,7 @@ struct RootView: View {
     @ViewBuilder
     private func moreSheet(_ entry: MoreEntry, windowSize: CGSize) -> some View {
         let isTablet = horizontalSizeClass == .regular
-        let content = MoreSheet(entry: entry)
+        let content = MoreSheet(entry: entry, initialPath: moreInitialPath)
             // The prototype's sheet puts the page header below its grabber (8 + 15 pt) on
             // phones, and 8 pt from the top of the form sheet on tablets.
             .padding(.top, isTablet ? 8 : 23)
@@ -145,6 +146,15 @@ struct RootView: View {
                 .presentationDetents([.height(windowSize.height * 0.88)])
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    /// Captures open More at a page (`pref-signature`); the app always opens its first page.
+    private var moreInitialPath: [MorePage]? {
+        #if DEBUG
+        return appState.debugMoreInitialPath
+        #else
+        return nil
+        #endif
     }
 
     private func fullSize(of geometry: GeometryProxy) -> CGSize {

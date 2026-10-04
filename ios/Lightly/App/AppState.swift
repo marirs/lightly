@@ -65,6 +65,10 @@ final class AppState {
 
     /// The More sheet, if presented.
     var moreEntry: MoreEntry?
+    #if DEBUG
+    /// Captures: the pages the next More sheet opens with (`pref-signature`); nil normally.
+    var debugMoreInitialPath: [MorePage]?
+    #endif
 
     /// No camera on this device (the simulator): a plain alert instead of a capture screen.
     var isCameraUnavailableAlertPresented = false
@@ -81,6 +85,8 @@ final class AppState {
 
     let preferences: PreferencesStore
     let favourites: FavouritePresetsStore
+    /// Saved signatures (and chosen watermark logos), shared by Watermark and Preferences.
+    let signatures: SignatureStore
     let presetCatalogue: DevelopPresetCatalogue
     let releaseContent: ReleaseContent
     let appVersion: AppVersion
@@ -119,6 +125,7 @@ final class AppState {
         cameraAccess: any CameraAccessing = SystemCameraAccess(),
         preferences: PreferencesStore? = nil,
         favourites: FavouritePresetsStore? = nil,
+        signatures: SignatureStore? = nil,
         presetCatalogue: DevelopPresetCatalogue = .empty,
         releaseContent: ReleaseContent = .none,
         appVersion: AppVersion = AppVersion(bundle: .main)
@@ -134,9 +141,16 @@ final class AppState {
         // outside the main actor, and both stores are main-actor isolated.
         self.preferences = preferences ?? PreferencesStore()
         self.favourites = favourites ?? FavouritePresetsStore(catalogue: presetCatalogue)
+        self.signatures = signatures ?? SignatureStore.applicationSupport()
         self.presetCatalogue = presetCatalogue
         self.releaseContent = releaseContent
         self.appVersion = appVersion
+    }
+
+    /// The saved signatures changed in Preferences: open editors re-render, so a watermark that
+    /// used a signature now drawn again or deleted shows without it.
+    func signaturesChanged() {
+        for session in editorSessions.values { session.signaturesChanged() }
     }
 
     /// The editing session for a photograph, created on first request. Creating it opens the
@@ -148,7 +162,8 @@ final class AppState {
             photo: photo, library: developLibrary, autoEnhancer: autoEnhancer, personDetector: personDetector,
             sceneAnalyser: sceneAnalyser, libraryWriter: libraryWriter,
             // Read at each save, so a switch changed in More applies to the next copy.
-            saveSettings: { preferences.saveCopySettings })
+            saveSettings: { preferences.saveCopySettings },
+            signatures: signatures)
         editorSessions[photo.id] = session
         return session
     }
@@ -276,8 +291,16 @@ final class AppState {
 extension AppState {
     /// Capture sessions (DebugCaptureDriver): close everything a screen left behind and wait
     /// until its background work has stopped, so the next screen starts as a fresh launch does.
+    /// Captures: More opened at a page (`[.menu, .preferences, .savedSignature]`).
+    func debugOpenMore(path: [MorePage]) {
+        debugMoreInitialPath = path
+        moreEntry = .menu
+    }
+
     func debugResetForNextScreen(resetPreferences: Bool) async {
         let previous = selectedPhoto.flatMap { editorSessions[$0.id] }
+        debugMoreInitialPath = nil
+        signatures.debugReplace(drawn: nil, importedPNG: nil)
         closeMore()
         returnToWelcome()
         await previous?.debugAwaitQuiescence()

@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -245,29 +246,102 @@ extension FavouritePresetsPage {
     }
 }
 
-/// Saved signature (approved `pref-signature`).
+/// Saved signature (approved `pref-signature`): the saved signature, Draw a new signature,
+/// Import from a photo, Delete saved signature, and the note.
 ///
-/// No signature can exist yet: drawing and importing arrive with Watermark in slice 5, so the
-/// page shows its structure with the empty state.
-// DEFERRED(slice 5): show the saved signature, enable Draw / Import, and add "Delete saved
-// signature" once a signature store exists.
+/// The page shows one signature (the one saved last) while Watermark can hold a drawn and an
+/// imported one (owner question W3); Delete removes the one shown. With nothing saved the page
+/// says so and has no Delete row (no approved empty state; recorded with W3).
 struct SavedSignaturePage: View {
+    let signatures: SignatureStore
+    let onChange: () -> Void
+
+    private enum Sheet: Identifiable {
+        case draw
+        case importSignature(Data?)
+        var id: String { if case .draw = self { "draw" } else { "import" } }
+    }
+
+    @State private var sheet: Sheet?
+    @State private var pad = SignaturePadModel()
+    @State private var isPickingPhoto = false
+    @State private var photo: PhotosPickerItem?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("signature.empty", bundle: .main)
-                .approvedText(15)
-                .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
-                .frame(maxWidth: .infinity, minHeight: 54)
-                .padding(.vertical, 24)
-                .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
-                .overlay(alignment: .bottom) { ApprovedHairline() }
-            ApprovedListRow(title: Text("signature.draw", bundle: .main))
-                .opacity(0.4)
-            ApprovedListRow(title: Text("signature.import", bundle: .main))
-                .opacity(0.4)
+            Group {
+                if let shown = signatures.shown {
+                    // `padding:24px 18px;display:grid;place-items:center`, the signature 54 pt tall in ink.
+                    SignatureGlyph(signature: shown, height: 54, ink: shown.kind == .drawn ? ApprovedColor.ink.resolved(colorScheme) : nil)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement()
+                        .accessibilityLabel(Text("Saved signature"))
+                        .accessibilityIdentifier("signature.preview")
+                } else {
+                    Text("signature.empty", bundle: .main)
+                        .approvedText(15)
+                        .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
+                        .frame(maxWidth: .infinity, minHeight: 54)
+                }
+            }
+            .padding(.vertical, 24)
+            .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
+            .overlay(alignment: .bottom) { ApprovedHairline() }
+            Button { pad.clear(); sheet = .draw } label: { ApprovedListRow(title: Text("signature.draw", bundle: .main)) }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("signature.draw")
+            Button { isPickingPhoto = true } label: { ApprovedListRow(title: Text("signature.import", bundle: .main)) }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("signature.import")
+            if let shown = signatures.shown {
+                Button {
+                    signatures.delete(shown.kind)
+                    onChange()
+                } label: {
+                    ApprovedListRow(title: Text("Delete saved signature"), titleColor: ApprovedColor.danger) { EmptyView() }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("signature.delete")
+            }
             ApprovedNote(text: Text("signature.note", bundle: .main))
+        }
+        .photosPicker(isPresented: $isPickingPhoto, selection: $photo, matching: .images)
+        .onChange(of: photo) { _, item in
+            guard let item else { return }
+            photo = nil
+            Task {
+                let data = try? await item.loadTransferable(type: Data.self)
+                let extracted = await Task.detached(priority: .userInitiated) { () -> Data? in
+                    guard let data, let image = WatermarkPanelModel.uprightImage(data) else { return nil }
+                    return SignatureInkExtractor.extract(from: image)
+                }.value
+                sheet = .importSignature(extracted)
+            }
+        }
+        // A sheet over the More sheet, at its content's height, in the sheet colour.
+        .sheet(item: $sheet) { current in
+            Group {
+                switch current {
+                case .draw:
+                    DrawSignatureSheetContent(pad: pad, onCancel: { sheet = nil }) { drawing in
+                        signatures.saveDrawn(drawing)
+                        onChange()
+                        sheet = nil
+                    }
+                case .importSignature(let extracted):
+                    ImportSignatureSheetContent(extracted: extracted, onCancel: { sheet = nil }) { png in
+                        signatures.saveImported(png: png)
+                        onChange()
+                        sheet = nil
+                    }
+                }
+            }
+            .padding(.top, 15)
+            .padding(.bottom, 30)
+            .presentationDetents([.height(current.id == "draw" ? 330 : 345)])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(ApprovedColor.sheet.dynamic)
         }
     }
 }

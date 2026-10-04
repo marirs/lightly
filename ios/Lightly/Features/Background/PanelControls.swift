@@ -180,6 +180,8 @@ struct ChipRow<Content: View>: View {
 struct OptionChip<Label: View>: View {
     let isOn: Bool
     let identifier: String
+    /// `.opt` min-width 44; the saved-signature chips set `min-width:120px`.
+    var minWidth: CGFloat = 44
     let action: () -> Void
     @ViewBuilder let label: () -> Label
     @Environment(\.colorScheme) private var colorScheme
@@ -190,8 +192,9 @@ struct OptionChip<Label: View>: View {
                 .foregroundStyle((isOn ? ApprovedColor.selection : ApprovedColor.inkSecondary).resolved(colorScheme))
                 // `.opt` is border-box: 12 pt padding plus its 1 pt border on each side. The border
                 // here is drawn inside the frame, so the content needs 13 pt to keep the width.
+                // CSS min-width is border-box too: the content's minimum is min-width − 26.
+                .frame(minWidth: minWidth - 26, minHeight: 44)
                 .padding(.horizontal, 13)
-                .frame(minWidth: 44, minHeight: 44)
                 .background(RoundedRectangle(cornerRadius: 10).fill(isOn ? selectionSoft : .clear))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder((isOn ? ApprovedColor.selection : ApprovedColor.hairline).resolved(colorScheme), lineWidth: 1))
                 .contentShape(Rectangle())
