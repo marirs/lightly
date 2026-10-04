@@ -83,9 +83,33 @@ class ProxyDecoder {
         /** ARGB_8888 `copyPixelsToBuffer` writes bytes in R, G, B, A order (unpremultiplied for opaque photos). */
         fun toRgba8(bitmap: Bitmap): Rgba8Image {
             require(bitmap.config == Bitmap.Config.ARGB_8888) { "Expected ARGB_8888, was ${bitmap.config}" }
-            val bytes = ByteArray(bitmap.width * bitmap.height * Rgba8Image.CHANNELS)
+            val size = bitmap.width * bitmap.height * Rgba8Image.CHANNELS
+            val trace = allocationTrace
+            val started = System.nanoTime()
+            trace?.invoke("rgba8 alloc START bytes=$size ${bitmap.width}x${bitmap.height} thread=${Thread.currentThread().name} ${heapSummary()}\n" +
+                Throwable("call site").stackTrace.take(16).joinToString("\n") { "    at $it" })
+            val bytes = try {
+                ByteArray(size)
+            } catch (failure: OutOfMemoryError) {
+                trace?.invoke("rgba8 alloc THREW after ${(System.nanoTime() - started) / 1_000_000} ms ${heapSummary()}\n${failure.stackTraceToString()}")
+                throw failure
+            }
+            trace?.invoke("rgba8 alloc DONE bytes=$size in ${(System.nanoTime() - started) / 1_000_000} ms ${heapSummary()}")
             bitmap.copyPixelsToBuffer(ByteBuffer.wrap(bytes))
             return Rgba8Image(bitmap.width, bitmap.height, bytes)
+        }
+
+        /**
+         * Debug-only diagnostics for the large RGBA allocation (set by the app in debug builds):
+         * a runtime "Throwing OutOfMemoryError" warning for a 12 MP buffer could not be tied to a
+         * call site otherwise. Null (no cost) in release builds.
+         */
+        @Volatile var allocationTrace: ((String) -> Unit)? = null
+
+        private fun heapSummary(): String {
+            val runtime = Runtime.getRuntime()
+            val usedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+            return "javaHeapUsed=${usedMb}MB javaHeapCommitted=${runtime.totalMemory() / (1024 * 1024)}MB javaHeapMax=${runtime.maxMemory() / (1024 * 1024)}MB"
         }
     }
 }

@@ -78,6 +78,8 @@ object AndroidEditorEnvironment {
             )
         }
         val exportTileEdge = 1024
+        // Debug builds log the full-resolution RGBA allocation (bytes, thread, Java heap, call site).
+        if (BuildConfig.DEBUG) ProxyDecoder.allocationTrace = { line -> Log.i("LightlyAlloc", line) }
         // Loaded on first use (the first photo's people analysis), never at app start.
         val vision = LiteRtVisionModels.get(app, BuildConfig.VISION_MODELS_ENABLED)
         return EditorEnvironment(
