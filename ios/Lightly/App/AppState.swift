@@ -89,6 +89,10 @@ final class AppState {
     let signatures: SignatureStore
     /// Remove patches beside the edit (`derivedRef`), shared by the sessions of this launch.
     let removePatches: RemovePatchStore
+    /// The working session on disk while it has unsaved edits (restored after the system ends the app).
+    let sessionStore: EditSessionStore
+    /// A stored session waiting for its editor (`editorSession(for:)` consumes it).
+    @ObservationIgnored private var pendingRestore: (photoID: UUID, session: PersistedEditSession)?
     let presetCatalogue: DevelopPresetCatalogue
     let releaseContent: ReleaseContent
     let appVersion: AppVersion
@@ -129,6 +133,7 @@ final class AppState {
         favourites: FavouritePresetsStore? = nil,
         signatures: SignatureStore? = nil,
         removePatches: RemovePatchStore = .applicationSupport(),
+        sessionStore: EditSessionStore = .applicationSupport(),
         presetCatalogue: DevelopPresetCatalogue = .empty,
         releaseContent: ReleaseContent = .none,
         appVersion: AppVersion = AppVersion(bundle: .main)
@@ -146,6 +151,7 @@ final class AppState {
         self.favourites = favourites ?? FavouritePresetsStore(catalogue: presetCatalogue)
         self.signatures = signatures ?? SignatureStore.applicationSupport()
         self.removePatches = removePatches
+        self.sessionStore = sessionStore
         self.presetCatalogue = presetCatalogue
         self.releaseContent = releaseContent
         self.appVersion = appVersion
@@ -162,13 +168,20 @@ final class AppState {
     func editorSession(for photo: SelectedPhoto) -> EditorSession {
         if let existing = editorSessions[photo.id] { return existing }
         let preferences = preferences
+        var restoring: PersistedEditSession?
+        if let pending = pendingRestore, pending.photoID == photo.id {
+            restoring = pending.session
+            pendingRestore = nil
+        }
         let session = EditorSession(
             photo: photo, library: developLibrary, autoEnhancer: autoEnhancer, personDetector: personDetector,
             sceneAnalyser: sceneAnalyser, libraryWriter: libraryWriter,
             // Read at each save, so a switch changed in More applies to the next copy.
             saveSettings: { preferences.saveCopySettings },
             signatures: signatures,
-            removePatches: removePatches)
+            removePatches: removePatches,
+            sessionStore: sessionStore,
+            restoring: restoring)
         editorSessions[photo.id] = session
         return session
     }
@@ -286,6 +299,30 @@ final class AppState {
 
     private func closeEditor(for photoID: UUID) {
         editorSessions.removeValue(forKey: photoID)?.close()
+        // Leaving the photo (close, Discard, another photo): nothing to restore any more.
+        sessionStore.clear()
+    }
+
+    // MARK: - Restoring after the system ended the app
+
+    /// At launch: when the system ended the app while a photo was open (`sceneWasEditing`, kept by
+    /// SwiftUI scene storage, which iOS drops when the person force-quits), the stored session
+    /// reopens in the editor exactly as it was, with no prompt, as the system restores apps. Otherwise
+    /// whatever is stored is discarded, Remove patches included.
+    // Owner question W9: an explicit "Resume editing?" prompt would need an approved design.
+    func restoreInterruptedSession(sceneWasEditing: Bool) async {
+        guard let saved = sessionStore.load() else { return }
+        guard sceneWasEditing, selectedPhoto == nil,
+              let photo = try? await photoLoader.loadPhoto(from: saved.original, source: .photoLibrary),
+              EditorSession.sourceReference(for: photo).fingerprint == saved.history.first?.source.fingerprint
+        else {
+            sessionStore.clear()
+            removePatches.removeAll()
+            return
+        }
+        pendingRestore = (photo.id, saved)
+        selectedPhoto = photo
+        route = .editor(SelectedPhotoReference(id: photo.id))
     }
 
     // MARK: - Intents: More

@@ -38,14 +38,17 @@ enum EditorTestSupport {
         settings: @escaping @MainActor () -> ExportSettings = { .default },
         previewLongEdge: Int = 640,
         inpainter: (any Inpainting)? = nil,
-        removePatches: RemovePatchStore = RemovePatchStore()
+        removePatches: RemovePatchStore = RemovePatchStore(),
+        sessionStore: EditSessionStore? = nil,
+        restoring: PersistedEditSession? = nil
     ) async throws -> EditorSession {
         let resolvedPhoto: SelectedPhoto
         if let photo { resolvedPhoto = photo } else { resolvedPhoto = try await Self.photo() }
         let session = EditorSession(photo: resolvedPhoto, library: try library ?? Self.library(), autoEnhancer: autoEnhancer,
                                     personDetector: personDetector, libraryWriter: writer, exporter: exporter,
                                     saveSettings: settings, previewLongEdge: previewLongEdge,
-                                    inpainterLoader: { inpainter }, removePatches: removePatches)
+                                    inpainterLoader: { inpainter }, removePatches: removePatches,
+                                    sessionStore: sessionStore, restoring: restoring)
         session.start()
         await session.waitUntilReady()
         await session.settleRendering()

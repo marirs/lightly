@@ -28,7 +28,7 @@ final class EditorSession {
     }
 
     /// The approved Auto states (`s.auto`).
-    enum AutoState: Equatable {
+    enum AutoState: String, Equatable {
         /// Correction applied (stop zero reads "Auto").
         case applied
         /// Correction available but switched off (stop zero reads "Original").
@@ -118,6 +118,15 @@ final class EditorSession {
     private let inpainterLoader: @Sendable () -> (any Inpainting)?
     /// Saved signatures and chosen logos the watermark resolves against (stage 12).
     let signatures: SignatureStore
+    /// Where the session is kept while it has unsaved edits (restored after the system ends the app).
+    private let sessionStore: EditSessionStore?
+    /// A session read back from `sessionStore`: opened as it was, without running any model.
+    private let restoring: PersistedEditSession?
+    /// The original's bytes are on disk for this session.
+    @ObservationIgnored private var sessionPersisted = false
+    /// Bumped whenever a model result arrives; the analysis is written when it differs.
+    @ObservationIgnored private var analysisRevision = 0
+    @ObservationIgnored private var analysisPersistedRevision = -1
 
     @ObservationIgnored private var previewBase: (pixels: [UInt8], width: Int, height: Int)?
     @ObservationIgnored private var originalPreview: CGImage
@@ -161,7 +170,9 @@ final class EditorSession {
          previewLongEdge: Int = 1_600,
          inpainterLoader: @escaping @Sendable () -> (any Inpainting)? = { LamaInpainter.loadBundled() },
          signatures: SignatureStore? = nil,
-         removePatches: RemovePatchStore = RemovePatchStore()) {
+         removePatches: RemovePatchStore = RemovePatchStore(),
+         sessionStore: EditSessionStore? = nil,
+         restoring: PersistedEditSession? = nil) {
         self.photo = photo
         self.library = library
         self.autoEnhancer = autoEnhancer
@@ -176,6 +187,8 @@ final class EditorSession {
         // (tests) signatures live in memory only.
         self.signatures = signatures ?? SignatureStore(directory: nil)
         self.removePatches = removePatches
+        self.sessionStore = sessionStore
+        self.restoring = restoring
         let source = Self.sourceReference(for: photo)
         history = [.neutral(source: source, grainSeed: EditRecipe.grainSeed(fromHeadSha256: source.fingerprint.headSha256))]
         // Until the preview copy exists the photo itself is shown (the approved loading screen keeps
@@ -208,6 +221,14 @@ final class EditorSession {
             originalPreview = prepared.image
             displayedImage = prepared.image
         }
+        if let restoring {
+            // Restore: no model runs again (Auto, Vision, depth). Every result comes from storage.
+            await library.waitUntilLoaded()
+            if prepared != nil { makeScheduler() }
+            guard !isClosed else { return }
+            applyRestored(restoring)
+            return
+        }
         async let person = personDetector.containsPerson(prepared?.image ?? image)
         if let sceneAnalyser {
             let analysed = await sceneAnalyser.people(in: prepared?.image ?? image)
@@ -229,6 +250,7 @@ final class EditorSession {
         await library.waitUntilLoaded()
         if prepared != nil { makeScheduler() }
         hasPerson = await person
+        analysisRevision += 1
         guard !isClosed else { return }
         #if DEBUG
         // Design captures of the loading screen (`--hold-phase`): stay in that phase.
@@ -283,6 +305,7 @@ final class EditorSession {
         guard autoState == .failed else { return }
         autoState = .off
         renderCommitted()
+        persistSession()
     }
 
     /// The Auto switch: only between applied and off (an unavailable or failed Auto cannot be
@@ -421,6 +444,8 @@ final class EditorSession {
             defaultFocusTarget = (Double(centroid.x), Double(centroid.y))
         }
         subjectState = matte == nil ? .noSubject : .ready
+        analysisRevision += 1
+        persistSession()
         renderCommitted()
     }
 
@@ -551,6 +576,8 @@ final class EditorSession {
             let matte = await sceneAnalyser.personMatte(for: image)
             guard let self, !self.isClosed, self.sceneCache.personMatte == nil else { return }
             self.sceneCache.personMatte = matte
+            self.analysisRevision += 1
+            self.persistSession()
             self.renderCommitted()
         }
     }
@@ -772,6 +799,7 @@ final class EditorSession {
         hasUnsavedEdits = true
         if case .saved = saveState { saveState = .idle }
         renderCommitted()
+        persistSession()
     }
 
     /// Records `next` as one undo step (nothing when it equals the committed recipe).
@@ -786,6 +814,7 @@ final class EditorSession {
         hasUnsavedEdits = true
         if case .saved = saveState { saveState = .idle }
         renderCommitted()
+        persistSession()
     }
 
     // MARK: - Compare
@@ -1187,7 +1216,71 @@ final class EditorSession {
         // A cancelled save already returned to idle; a late result must not reopen a sheet.
         guard !isClosed, saveState == .saving else { return }
         saveState = state
-        if case .saved = state { hasUnsavedEdits = false }
+        if case .saved = state {
+            hasUnsavedEdits = false
+            // Saved as a copy: there is nothing left to recover.
+            persistSession()
+        }
+    }
+
+    // MARK: - Session persistence (restore after the system ends the app)
+
+    /// Keeps the stored session in step: written while there are unsaved edits, cleared once there
+    /// are none. The original's bytes are written once; the history on every change; the model
+    /// results when they changed.
+    private func persistSession() {
+        guard let sessionStore, !isClosed else { return }
+        guard hasUnsavedEdits else {
+            if sessionPersisted { sessionStore.clear() }
+            sessionPersisted = false
+            analysisPersistedRevision = -1
+            return
+        }
+        if !sessionPersisted {
+            sessionStore.saveOriginal(photo.originalData)
+            sessionPersisted = true
+        }
+        sessionStore.saveHistory(history, index: historyIndex, autoState: autoState.rawValue)
+        if analysisPersistedRevision != analysisRevision {
+            sessionStore.saveAnalysis(PersistedAnalysis(hasPerson: hasPerson, people: people, subjectAnalysed: sceneCache.subjectAnalysed,
+                                                        subject: sceneCache.subject, disparity: sceneCache.disparity,
+                                                        personMatte: sceneCache.personMatte))
+            analysisPersistedRevision = analysisRevision
+        }
+    }
+
+    /// Opens a stored session exactly as it was: its history and position, its Auto state and the
+    /// model results it was edited with.
+    // DEFERRED(D1): no Auto model ships, so no Auto LUT is stored; once one does, store its LUT
+    // with the session so a restored "applied" Auto renders without running the model.
+    private func applyRestored(_ saved: PersistedEditSession) {
+        let analysis = saved.analysis
+        hasPerson = analysis.hasPerson ?? false
+        people = analysis.people
+        sceneCache.people = analysis.people
+        sceneCache.personMatte = analysis.personMatte
+        if analysis.subjectAnalysed {
+            sceneCache.subject = analysis.subject
+            sceneCache.subjectAnalysed = true
+            sceneCache.disparity = analysis.disparity
+            for name in BackgroundPanelModel.bundledImages where sceneCache.replacementImages[name] == nil {
+                sceneCache.replacementImages[name] = BundledBackgrounds.image(name)
+            }
+            matteImage = analysis.subject.flatMap { Self.maskImage($0.matte) }
+            if let matte = analysis.subject {
+                let centroid = RefocusRenderer.defaultTarget(matte: matte.matte, faces: people?.faces ?? [])
+                defaultFocusTarget = (Double(centroid.x), Double(centroid.y))
+            }
+            subjectState = analysis.subject == nil ? .noSubject : .ready
+        }
+        autoState = AutoState(rawValue: saved.autoState) ?? .unavailable
+        history = saved.history
+        historyIndex = saved.index
+        hasUnsavedEdits = true
+        sessionPersisted = true
+        analysisPersistedRevision = analysisRevision
+        phase = .ready
+        renderCommitted()
     }
 
     /// The full-resolution bytes Save copy would write for the committed recipe (tests).

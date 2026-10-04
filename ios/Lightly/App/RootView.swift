@@ -13,6 +13,10 @@ struct RootView: View {
 
     /// Selection binding for Apple's system photo picker.
     @State private var pickerSelection: PhotosPickerItem?
+    /// True while this scene shows the editor. Scene storage survives the system ending the app
+    /// and is dropped when the person force-quits it, which is exactly when a stored session should
+    /// (and should not) come back.
+    @SceneStorage("lightly.sceneIsEditing") private var sceneIsEditing = false
 
     var body: some View {
         @Bindable var appState = appState
@@ -65,9 +69,25 @@ struct RootView: View {
         .onChange(of: appState.preferences.appearance, initial: true) { _, appearance in
             Self.apply(appearance)
         }
+        .onChange(of: appState.route) { _, route in
+            if case .editor = route { sceneIsEditing = true } else { sceneIsEditing = false }
+        }
+        .task { await restoreIfInterrupted() }
         #if DEBUG
         .task { await Self.runDebugLaunchActions(on: appState) }
         #endif
+    }
+
+    private func restoreIfInterrupted() async {
+        #if DEBUG
+        // Launches that open a photo themselves (captures, UI tests) start clean.
+        let arguments = DebugArguments.current
+        if arguments.contains("--open-photo") || arguments.contains("--capture-commands") || arguments.contains("--reset-preferences") {
+            appState.sessionStore.clear()
+            return
+        }
+        #endif
+        await appState.restoreInterruptedSession(sceneWasEditing: sceneIsEditing)
     }
 
     #if DEBUG
