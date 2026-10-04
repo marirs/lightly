@@ -231,6 +231,13 @@ object DebugLaunchOptions {
                 api.focus(60.0, null)
                 api.rebaseHistory()
             }
+            // Not prototype screens: the Save copy check of slice 3 (the saved JPEG is pulled and inspected).
+            "bg-export-blur" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) { api.focus(60.0, null); api.saveCopy() }
+            "bg-export-replaced" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
+                api.background(firstImage)
+                api.focus(60.0, null)
+                api.saveCopy()
+            }
             "pt-skin" -> face(com.lightlylabs.lightly.editor.PortraitTab.SKIN, listOf("skin.smoothing" to 24.0, "skin.blemishes" to 40.0, "skin.evenTone" to 18.0))
             "pt-under" -> face(com.lightlylabs.lightly.editor.PortraitTab.UNDER, listOf("underEye.brighten" to 20.0, "underEye.softenLines" to 15.0))
             "pt-eyes" -> face(com.lightlylabs.lightly.editor.PortraitTab.EYES, listOf("eyes.brighten" to 15.0))

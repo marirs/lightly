@@ -1686,6 +1686,9 @@ class EditorViewModel(
             selectPortraitTab(tab)
         }
 
+        /** Save copy of the committed recipe, as the button does (debug export checks). */
+        fun saveCopy() = this@EditorViewModel.saveCopy()
+
         /** One Portrait slider released at [value] on the chosen face (one step). */
         fun portrait(field: String, value: Double) = onPortraitSliderRelease(field, value)
 
