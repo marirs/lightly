@@ -207,8 +207,17 @@ class MainActivity : ComponentActivity() {
                                 close = { shell.navigate(AppNavigator.closeMore(nav)) },
                                 updatePreferences = { change -> updatePreferences(graph.preferences, change) },
                                 openSupport = ::openSupportDestination,
-                                drawSignature = editor::preferencesDrawSignature,
-                                importSignature = editor::preferencesImportSignature,
+                                // Prototype `overlay:sigDraw` / `overlay:sigImport`: where More is a sheet (tablets,
+                                // folds) the signature sheet replaces it; a full-screen page (phones, as the
+                                // prototype's `page` screens) stays under the sheet. Dismissing closes the sheet.
+                                drawSignature = {
+                                    if (layout != ShellLayout.Compact) shell.navigate(AppNavigator.closeMore(nav))
+                                    editor.preferencesDrawSignature()
+                                },
+                                importSignature = {
+                                    if (layout != ShellLayout.Compact) shell.navigate(AppNavigator.closeMore(nav))
+                                    editor.preferencesImportSignature()
+                                },
                                 deleteSignature = editor::deleteShownSignature,
                             ),
                         ),
