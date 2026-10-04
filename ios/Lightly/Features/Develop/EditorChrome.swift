@@ -177,6 +177,9 @@ struct CompareButton: View {
 struct PhotoStage<Overlay: View, Marks: View>: View {
     let image: CGImage
     var showsOriginalBadge = false
+    /// `.pic` with a border: `box-shadow:0 0 0 1px rgba(0,0,0,.12)`, a 1 pt ring just outside the
+    /// canvas so a white border stays visible on the stage.
+    var outlinesCanvas = false
     @ViewBuilder var overlay: () -> Overlay
     /// Marks laid over the fitted photo itself (prototype `marks` inside `.imgbox`).
     @ViewBuilder var marks: () -> Marks
@@ -200,6 +203,11 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                                 .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55)))
                                 .padding(10)
                                 .accessibilityIdentifier("editor.originalBadge")
+                        }
+                    }
+                    .overlay {
+                        if outlinesCanvas {
+                            Rectangle().inset(by: -0.5).stroke(Color.black.opacity(0.12), lineWidth: 1)
                         }
                     }
                     .accessibilityElement()

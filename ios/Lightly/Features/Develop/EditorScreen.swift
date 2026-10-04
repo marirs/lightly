@@ -152,6 +152,7 @@ struct EditorScreen: View {
         let topBar = EditorTopBar(session: session, onClose: close, onSave: session.saveCopy, onMore: onMore)
         let stage = PhotoStage(image: session.isShowingOriginal ? session.originalImage : session.displayedImage,
                                showsOriginalBadge: session.isShowingOriginal,
+                               outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },
                                marks: { if !session.isShowingOriginal { stageMarks } })
         switch layout.mode {
