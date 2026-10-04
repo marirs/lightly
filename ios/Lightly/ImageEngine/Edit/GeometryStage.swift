@@ -145,9 +145,8 @@ struct GeometryTransform: Sendable, Equatable {
     /// Keystone about the frame centre: vertical v > 0 narrows the top edge to 1 − 0.3·v/100 of its
     /// width (v < 0 the bottom edge); horizontal h > 0 shortens the right edge (h < 0 the left).
     /// Then the smallest zoom about the centre that leaves no empty area.
-    // CONTRACT GAP (reported): rendering-v2 §7 names neither which edge is "far" for each sign
-    // nor how the keystone is zoomed; this port picks top/right for positive values and the
-    // no-empty-area zoom that straighten uses.
+    // rendering-v2 revision 2 §7.2 (C3) fixes the sign convention and the zoom as implemented
+    // here: top/right edges for positive values, then the no-empty-area zoom that straighten uses.
     static func keystone(vertical: Double, horizontal: Double, width: Double, height: Double) -> simd_double3x3 {
         let k = perspectiveEdgeScalePerUnit
         let top = vertical > 0 ? 1 - k * vertical / 100 : 1, bottom = vertical < 0 ? 1 + k * vertical / 100 : 1

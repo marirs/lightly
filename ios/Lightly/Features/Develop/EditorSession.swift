@@ -835,14 +835,14 @@ final class EditorSession {
     /// (2, 3), Background and Portrait (7–9), the preset's finishing (10). With them:
     /// Remove patches → Auto (1) → Look (2, 3) → Adjust (5) → Background and Portrait (7–9) →
     /// geometry (4) → Effects with the preset's finishing (10).
-    // CONTRACT GAP (reported): rendering-v2 §1 orders geometry (4) before Adjust (5), Remove (6) and
-    // stages 7–9. This port:
-    // - replays Remove patches on the source before stage 1, as remove-evaluation §7 specifies
+    // Stage order of rendering-v2 revision 2 (§1, C1 and C2, docs/v1/contract-fixes-2.md), which
+    // adopted this port's order:
+    // - Remove patches are replayed on the source before Auto, as remove-evaluation §7 specifies
     //   ("on the full-resolution source pixels, before tone and colour adjustments"), so a later
     //   tone or colour change never needs the model again;
-    // - runs Adjust and stages 7–9 in source coordinates, then geometry. Colour is per pixel, so
-    //   only resolution-relative radii differ: Detail's and Focus & Blur's radii follow the
-    //   uncropped long edge instead of the cropped frame's.
+    // - Adjust and stages 6–8 run in source coordinates, then geometry. Detail's and Focus &
+    //   Blur's radii follow the uncropped source long edge.
+    // Then border (11) and watermark (12) on the canvas.
     nonisolated private static func renderPixels(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
                                                  renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
         let frame = try renderFrameBeforeBorder(job, base: base, width: width, height: height, renderer: renderer, cache: cache)
