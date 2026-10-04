@@ -29,6 +29,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import java.io.ByteArrayOutputStream
@@ -258,10 +259,11 @@ class EditEffectsTest {
         val before = vm.uiState.value.session!!.current
         vm.removeStroke(listOf(0.5 to 0.5))
         vm.cancelRemove()
+        runCurrent()
+        assertEquals(EditorViewModel.OPERATION_CANCELLED, vm.uiState.value.toast)
         advanceUntilIdle()
         assertEquals(RemoveOp.IDLE, vm.uiState.value.edit.removeOp)
         assertEquals(before, vm.uiState.value.session!!.current)
-        assertEquals(EditorViewModel.OPERATION_CANCELLED, vm.uiState.value.toast)
     }
 
     @Test
