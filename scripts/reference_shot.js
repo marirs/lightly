@@ -1,9 +1,18 @@
 // Renders one approved prototype screen for the reference cache (scripts/reference_cache.py).
 //
-// Identical to docs/ui/tools/shot.js except for one optional argument: a named variant from
-// scripts/reference_variants.json, whose `state` fields are assigned onto the screen's session
-// after the approved setup runs. With no variant the output must be byte-identical to shot.js;
-// scripts/reference_cache.py checks that on every new tool revision before using it.
+// Same rendering steps as docs/ui/tools/shot.js, with two differences:
+//  1. An optional named variant from scripts/reference_variants.json, whose `state` fields are
+//     assigned onto the screen's session after the approved setup runs.
+//  2. Every font face the prototype declares is loaded BEFORE the screen is injected. shot.js
+//     awaits document.fonts.ready on the empty notes page, so faces used only by the injected
+//     screen (Roboto, on Android layouts) load after buildRulers has applied the tab-strip rule
+//     `scrollLeft = on.offsetLeft - 120`. Measured on pixel9pro dev-browse: the active tab moved
+//     from 547 to 536 px after Roboto loaded, but scrollLeft stayed 427 instead of the rule's 416.
+//     In the interactive prototype the fonts are loaded long before any screen is shown, so the
+//     rule holds there; this tool reproduces that.
+// When the screen's fonts were already loaded (iOS layouts use Inter, which the notes page loads),
+// the output must be byte-identical to shot.js; scripts/reference_cache.py checks that on an
+// iPhone cell for every new tool revision before using it.
 //
 // Usage: NODE_PATH=<playwright-core> node scripts/reference_shot.js <screenId> <deviceId>
 //          <portrait|landscape> <light|dark> <default|large> <out.png> <base> [variantName]
@@ -26,6 +35,8 @@ const fs = require('fs');
   const p = await b.newPage({ viewport:{ width:L.w + 40, height:L.h + 40 }, deviceScaleFactor:L.scale });
   await p.goto(`${base}/docs/ui/app/index.html#tab=notes`, { waitUntil:'networkidle' }); await p.waitForFunction(() => window.READY);
   await p.evaluate(() => document.fonts.ready);
+  // Load every declared face, not only those the notes page used (see difference 2 above).
+  await p.evaluate(() => Promise.all([...document.fonts].map(face => face.load())));
   await p.evaluate(([screen, dev, orient, theme, text, variantState]) => {
     const spec = S.find(x => x.id === screen); if (!spec) throw new Error('unknown screen ' + screen);
     const d = DEVICES.find(x => x.id === dev), L = layoutFor(d, orient), { s, ui } = stateFor(spec);

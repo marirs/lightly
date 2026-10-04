@@ -25,7 +25,13 @@ Refusals, so that no stale or unreproducible image is recorded as current:
     folder, so the image would not match the recorded revision)
   - the font CSS cannot be fetched (the key would be unknown)
   - scripts/reference_shot.js without a variant does not reproduce shot.js
-    byte for byte (checked once per tool revision, recorded in the cache)
+    byte for byte on an iPhone cell, whose fonts shot.js already has loaded
+    (checked once per tool revision, recorded in the cache)
+
+All references are rendered with scripts/reference_shot.js, because shot.js
+captures Android layouts before their Roboto faces load, which leaves the
+category strip off the prototype's own scroll rule (see that file's header).
+Format 2 invalidates every format-1 reference for that reason.
 
 Usage:
   scripts/reference_cache.py get <screen> <device> <orientation> <theme> <text> [variant]
@@ -74,7 +80,7 @@ CHROMIUM_LIKE_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 )
-CACHE_FORMAT_VERSION = 1
+CACHE_FORMAT_VERSION = 2
 VALID_ORIENTATIONS = {"portrait", "landscape"}
 VALID_THEMES = {"light", "dark"}
 VALID_TEXT_SIZES = {"default", "large"}
@@ -231,12 +237,8 @@ def render_reference(inputs: dict[str, object], image_path: Path, metadata_path:
         partial_path = Path(partial.name)
     cell = tuple(str(inputs[k]) for k in ("screen", "device", "orientation", "theme", "text_size"))
     try:
-        if inputs["variant"]:
-            require_variant_tool_matches_approved_tool()
-            run_renderer(VARIANT_SHOT_TOOL, cell, partial_path, str(inputs["variant"]))
-        else:
-            # No variant: render with the approved tool itself.
-            run_renderer(APPROVED_SHOT_TOOL, cell, partial_path)
+        require_variant_tool_matches_approved_tool()
+        run_renderer(VARIANT_SHOT_TOOL, cell, partial_path, str(inputs["variant"]))
         image_sha256 = hashlib.sha256(partial_path.read_bytes()).hexdigest()
         partial_path.replace(image_path)
     except ReferenceCacheError:
