@@ -314,6 +314,17 @@ struct ToolNavigation: View {
     let onSelect: (EditorTool) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// `.tool { flex: 0 0 76px }`. Up to the approved large text (XXL) every slot is exactly 76 pt
+    /// and labels may run a little past it, as in the reference ("Background" is 77.7 pt at XXL).
+    /// Beyond XXL the prototype has no layout; there a slot widens to its label plus the reference's
+    /// smallest gap between neighbouring labels at XXL (76 - (52.6 + 77.7) / 2 ≈ 11 pt), and the
+    /// dock scrolls, so labels never collide (at AX1 "Develop" and "Background" overlapped).
+    private static let dockSlotWidth: CGFloat = 76
+    private static let labelGapBeyondApprovedLarge: CGFloat = 11
+
+    private var slotsWidenForLabels: Bool { kind != .rail && dynamicTypeSize > ApprovedType.approvedLargeSize }
 
     var body: some View {
         switch kind {
@@ -363,6 +374,7 @@ struct ToolNavigation: View {
                     .approvedText(11, weight: .medium)
                     .lineLimit(1)
                     .fixedSize()
+                    .padding(.horizontal, slotsWidenForLabels ? Self.labelGapBeyondApprovedLarge / 2 : 0)
                 if isUsed {
                     Circle()
                         .fill((isOn ? ApprovedColor.selection : ApprovedColor.inkTertiary).resolved(colorScheme))
@@ -371,7 +383,8 @@ struct ToolNavigation: View {
                 }
             }
             .foregroundStyle((isOn ? ApprovedColor.ink : ApprovedColor.inkTertiary).resolved(colorScheme))
-            .frame(width: kind == .rail ? 84 : 76)
+            .frame(width: kind == .rail ? 84 : (slotsWidenForLabels ? nil : Self.dockSlotWidth))
+            .frame(minWidth: slotsWidenForLabels ? Self.dockSlotWidth : nil)
             .frame(minHeight: minHeight)
             .contentShape(Rectangle())
         }
