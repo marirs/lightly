@@ -230,7 +230,7 @@ object LookPackFacts {
  * `maxBlurRadius` from `params` to `constants` (0.06). Bundling or shipping any other revision fails.
  */
 object RenderingContractFacts {
-    const val SUPPORTED_REVISION = 2
+    const val SUPPORTED_REVISION = 3
 
     @Suppress("UNCHECKED_CAST")
     fun problems(contractText: String): List<String> {

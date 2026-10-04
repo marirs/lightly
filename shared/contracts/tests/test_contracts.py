@@ -49,9 +49,9 @@ def test_stage_order_is_the_whole_edit_pipeline():
     assert [o["id"] for o in effects["operators"]] == ["lightLeak", "presetVignette", "userVignette", "presetGrain", "userGrain"]
 
 
-def test_contract_is_revision_2_with_the_css_light_leak():
+def test_contract_is_revision_3_with_the_css_light_leak():
     contract = json.loads((CONTRACTS / "rendering-v2.json").read_text())
-    assert (contract["version"], contract["revision"]) == (2, 2)
+    assert (contract["version"], contract["revision"]) == (2, 3)
     effects = next(s for s in contract["stages"] if s["id"] == "effects")
     leak = next(o for o in effects["operators"] if o["id"] == "lightLeak")["constants"]
     assert [stop["position"] for stop in leak["stops"]] == [0.0, 0.30, 0.55]

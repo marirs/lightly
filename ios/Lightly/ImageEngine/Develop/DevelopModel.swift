@@ -50,7 +50,7 @@ struct DevelopModel: Sendable, Equatable {
     }
 
     /// Rendering contract v2 revision this build implements (contract fixes 2).
-    static let requiredContractRevision: Int64 = 2
+    static let requiredContractRevision: Int64 = 3
 
     /// The contract bundled with the app (`rendering-v2.json`, copied verbatim by project.yml).
     static func loadBundled(from bundle: Bundle = .main) throws -> DevelopModel {

@@ -275,8 +275,12 @@ def build_scene(image_srgb: np.ndarray, disparity_full: np.ndarray, matte: np.nd
     interior_fill = fill_masked(linear, solid)
     with np.errstate(divide="ignore", invalid="ignore"):
         solved = (linear - (1 - matte[..., None]) * background_colour) / np.maximum(matte[..., None], 1e-3)
-    reliability = np.clip((matte - 0.3) / 0.4, 0, 1)[..., None]
-    subject_colour = np.clip(reliability * solved + (1 - reliability) * interior_fill, 0, None).astype(np.float32)
+    # Revision 3: the solved colour wherever the matte is above 0.02, clipped to [0, 1]. Revisions 1-2
+    # used the interior fill below matte 0.3; where a soft matte tail extends past the subject over a
+    # different background, that painted the subject's colour there (a red glow beside a red shirt over
+    # a dark wall, 10-20 px wide at 12 MP). The solved colour reproduces the photo there instead.
+    reliability = (matte > 0.02).astype(np.float32)[..., None]
+    subject_colour = np.clip(reliability * np.clip(solved, 0, 1) + (1 - reliability) * interior_fill, 0, None).astype(np.float32)
 
     if replacement_srgb is not None:
         background_colour = srgb_to_linear(cover_fit(replacement_srgb, (h, w)))

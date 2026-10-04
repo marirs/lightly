@@ -144,10 +144,12 @@ enum RefocusRenderer {
         var subjectColour = linear
         for i in 0..<linear.pixelCount {
             let m = matte.data[i]
-            let reliability = min(max((m - 0.3) / 0.4, 0), 1)
+            // rendering-v2 revision 3: the solved colour wherever the matte is above 0.02 (was: interior fill
+            // below 0.3, which painted the subject's colour into a soft matte tail: a glow at the shoulder).
+            let reliability: Float = m > 0.02 ? 1 : 0
             for c in 0..<3 {
                 let solved = (linear.data[i * 3 + c] - (1 - m) * backgroundColour.data[i * 3 + c]) / max(m, 1e-3)
-                subjectColour.data[i * 3 + c] = max(reliability * solved + (1 - reliability) * interiorFill.data[i * 3 + c], 0)
+                subjectColour.data[i * 3 + c] = max(reliability * min(max(solved, 0), 1) + (1 - reliability) * interiorFill.data[i * 3 + c], 0)
             }
         }
         return Scene(background: Plane(colour: backgroundColour, alpha: ones, disparity: backgroundDisparity),

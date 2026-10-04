@@ -22,7 +22,7 @@ PRESETS = REPO / "experiments/presets"
 # 1 = contract fixes 1 (docs/v1/contract-fixes-1.md): background.focus constants, pull-push, grain colour/aliasing.
 # 2 = contract fixes 2 (docs/v1/contract-fixes-2.md): Remove on the source before auto, geometry after the layered
 #     stages, perspective defined, light leak measured along the farthest-corner ray as the approved CSS does.
-CONTRACT_REVISION = 2
+CONTRACT_REVISION = 3
 
 
 def num(lo, hi, default, unit, note=None, integer=False):

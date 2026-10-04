@@ -152,11 +152,13 @@ object Refocus {
         val subjectColour = FloatImage(w, h, 3)
         for (p in 0 until w * h) {
             val alpha = m.values[p]
-            val reliability = ((alpha - 0.3f) / 0.4f).coerceIn(0f, 1f)
+            // rendering-v2 revision 3: the solved colour wherever the matte is above 0.02 (was: interior fill
+            // below 0.3, which painted the subject's colour into a soft matte tail: a glow at the shoulder).
+            val reliability = if (alpha > 0.02f) 1f else 0f
             for (c in 0 until 3) {
                 val i = p * 3 + c
                 val solved = (photoLinear.data[i] - (1 - alpha) * backgroundColour.data[i]) / max(alpha, 1e-3f)
-                subjectColour.data[i] = max(0f, reliability * solved + (1 - reliability) * interiorFill.data[i])
+                subjectColour.data[i] = max(0f, reliability * solved.coerceIn(0f, 1f) + (1 - reliability) * interiorFill.data[i])
             }
         }
         var background = ScenePlane(backgroundColour, FloatPlane.filled(w, h, 1f), backgroundNearness)
