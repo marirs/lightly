@@ -187,7 +187,9 @@ struct OptionChip<Label: View>: View {
         Button(action: action) {
             HStack(spacing: 6) { label() }
                 .foregroundStyle((isOn ? ApprovedColor.selection : ApprovedColor.inkSecondary).resolved(colorScheme))
-                .padding(.horizontal, 12)
+                // `.opt` is border-box: 12 pt padding plus its 1 pt border on each side. The border
+                // here is drawn inside the frame, so the content needs 13 pt to keep the width.
+                .padding(.horizontal, 13)
                 .frame(minWidth: 44, minHeight: 44)
                 .background(RoundedRectangle(cornerRadius: 10).fill(isOn ? selectionSoft : .clear))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder((isOn ? ApprovedColor.selection : ApprovedColor.hairline).resolved(colorScheme), lineWidth: 1))
