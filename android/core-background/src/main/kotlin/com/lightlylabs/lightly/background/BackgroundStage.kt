@@ -210,13 +210,14 @@ object BackgroundStage {
         // The sharp composite at the working size (the subject over the replaced background), made after the
         // scene is gone, from the bytes and the plan's (unexpanded) replacement.
         val replacementSrgb = plan.replacement
-        val sharp = FloatImage(w, h, 3, FloatArray(w * h * 3) { i ->
+        // Per-element loops below run rows in parallel (forEachRow); the arithmetic is unchanged.
+        val sharp = FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { i ->
             val p = i / 3
             val photo = Refocus.srgbToLinear((developed[p * 4 + i % 3].toInt() and 0xff) / 255f)
             if (replacementSrgb == null) photo else { val a = matte!!.values[p].coerceIn(0f, 1f); decontaminate(photo, a, plate!!.data[i]) * a + Refocus.srgbToLinear(replacementSrgb.data[i]) * (1 - a) }
         })
         // iOS: how far the blurred result departs from the sharp composite, relative to 0.02; softened.
-        val weight = PlaneOps.gaussianBlur(FloatPlane(w, h, FloatArray(w * h) { p ->
+        val weight = PlaneOps.gaussianBlur(FloatPlane(w, h, parallelFloatArray(w, h, 1) { p ->
             var d = 0f
             for (c in 0 until 3) d = max(d, abs(blurred.data[p * 3 + c] - sharp.data[p * 3 + c]))
             minOf(d / 0.02f, 1f)
@@ -250,8 +251,8 @@ object BackgroundStage {
 
     private fun renderScene(developed: ByteArray, w: Int, h: Int, nearness: FloatPlane, matte: FloatPlane?, plan: BackgroundPlan, blur: Double, layersPerSide: Int): FloatImage {
         val scene = Refocus.buildScene(
-            FloatImage(w, h, 3, FloatArray(w * h * 3) { Refocus.srgbToLinear((developed[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f) }), nearness, matte,
-            plan.replacement?.let { r -> FloatImage(w, h, 3, FloatArray(w * h * 3) { Refocus.srgbToLinear(r.data[it]) }) })
+            FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { Refocus.srgbToLinear((developed[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f) }), nearness, matte,
+            plan.replacement?.let { r -> FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { Refocus.srgbToLinear(r.data[it]) }) })
         val subjectInFocus = scene.subject != null && (plan.focusTarget?.let { (x, y) -> Refocus.focusIsOnSubject(scene, x, y) } ?: true)
         return Refocus.render(scene, plan.focus.copy(blur = blur), plan.focalNearness, layersPerSide, subjectInFocus, consumeScene = true)
     }

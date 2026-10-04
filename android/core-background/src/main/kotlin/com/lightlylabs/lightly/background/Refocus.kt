@@ -252,10 +252,12 @@ object Refocus {
         for (layer in -layersPerSide..-1) {
             for (planeIndex in planes.indices) {
                 val blurred = layerBlurred(planes[planeIndex], colours[planeIndex], cocMaps[planeIndex], layer, step, params, radiusMax) ?: continue
-                for (p in 0 until w * h) {
-                    val a = blurred.data[p * 4 + 3]
-                    for (c in 0 until 3) behindColour.data[p * 3 + c] = blurred.data[p * 4 + c] + (1 - a) * behindColour.data[p * 3 + c]
-                    behindAlpha.values[p] = a + (1 - a) * behindAlpha.values[p]
+                forEachRow(h) { y ->
+                    for (p in y * w until (y + 1) * w) {
+                        val a = blurred.data[p * 4 + 3]
+                        for (c in 0 until 3) behindColour.data[p * 3 + c] = blurred.data[p * 4 + c] + (1 - a) * behindColour.data[p * 3 + c]
+                        behindAlpha.values[p] = a + (1 - a) * behindAlpha.values[p]
+                    }
                 }
             }
         }
@@ -267,11 +269,13 @@ object Refocus {
                 val blurred = layerBlurred(planes[planeIndex], colours[planeIndex], cocMaps[planeIndex], layer, step, params, radiusMax) ?: continue
                 for (i in front.data.indices) front.data[i] += blurred.data[i]
             }
-            for (p in 0 until w * h) {
-                val coverage = front.data[p * 4 + 3]
-                val overflow = max(coverage, 1f)
-                val alpha = coverage / overflow
-                for (c in 0 until 3) result.data[p * 3 + c] = front.data[p * 4 + c] / overflow + (1 - alpha) * result.data[p * 3 + c]
+            forEachRow(h) { y ->
+                for (p in y * w until (y + 1) * w) {
+                    val coverage = front.data[p * 4 + 3]
+                    val overflow = max(coverage, 1f)
+                    val alpha = coverage / overflow
+                    for (c in 0 until 3) result.data[p * 3 + c] = front.data[p * 4 + c] / overflow + (1 - alpha) * result.data[p * 3 + c]
+                }
             }
         }
         if (highlights) compressHighlights(result)
@@ -284,18 +288,24 @@ object Refocus {
         val w = colour.width
         val h = colour.height
         val premultiplied = FloatImage(w, h, 4)
-        var any = false
-        for (p in 0 until w * h) {
-            val position = coc.values[p] / step
-            val weight = (max(0.0, 1 - abs(position - layer)) * plane.alpha.values[p]).toFloat()
-            if (weight < 1e-6f) continue
-            any = any || weight > 1e-4f
-            premultiplied.data[p * 4] = colour.data[p * 3] * weight
-            premultiplied.data[p * 4 + 1] = colour.data[p * 3 + 1] * weight
-            premultiplied.data[p * 4 + 2] = colour.data[p * 3 + 2] * weight
-            premultiplied.data[p * 4 + 3] = weight
+        // Rows in parallel (preview speed: this loop alone was ~0.55 s of a 2.7 s settled preview at
+        // 682×1024 on the Pixel 9 Pro emulator); each pixel's arithmetic is unchanged.
+        val any = java.util.concurrent.atomic.AtomicBoolean(false)
+        forEachRow(h) { y ->
+            var rowAny = false
+            for (p in y * w until (y + 1) * w) {
+                val position = coc.values[p] / step
+                val weight = (max(0.0, 1 - abs(position - layer)) * plane.alpha.values[p]).toFloat()
+                if (weight < 1e-6f) continue
+                rowAny = rowAny || weight > 1e-4f
+                premultiplied.data[p * 4] = colour.data[p * 3] * weight
+                premultiplied.data[p * 4 + 1] = colour.data[p * 3 + 1] * weight
+                premultiplied.data[p * 4 + 2] = colour.data[p * 3 + 2] * weight
+                premultiplied.data[p * 4 + 3] = weight
+            }
+            if (rowAny) any.set(true)
         }
-        if (!any) return null
+        if (!any.get()) return null
         return blurLayer(premultiplied, abs(layer) * step, params, radiusMax)
     }
 
@@ -418,14 +428,14 @@ object Refocus {
         val w = (image.width + factor - 1) / factor
         val h = (image.height + factor - 1) / factor
         val out = FloatImage(w, h, image.channels)
-        for (y in 0 until h) for (x in 0 until w) {
+        forEachRow(h) { y -> for (x in 0 until w) {
             var n = 0
             for (yy in y * factor until min(image.height, (y + 1) * factor)) for (xx in x * factor until min(image.width, (x + 1) * factor)) {
                 for (c in 0 until image.channels) out.data[(y * w + x) * image.channels + c] += image.data[(yy * image.width + xx) * image.channels + c]
                 n++
             }
             for (c in 0 until image.channels) out.data[(y * w + x) * image.channels + c] /= n
-        }
+        } }
         return out
     }
 
@@ -433,11 +443,11 @@ object Refocus {
         val out = FloatImage(width, height, image.channels)
         val sx = image.width.toDouble() / width
         val sy = image.height.toDouble() / height
-        for (y in 0 until height) for (x in 0 until width) {
+        forEachRow(height) { y -> for (x in 0 until width) {
             val srcX = ((x + 0.5) * sx - 0.5).coerceIn(0.0, (image.width - 1).toDouble())
             val srcY = ((y + 0.5) * sy - 0.5).coerceIn(0.0, (image.height - 1).toDouble())
             bilinearAdd(image, srcX, srcY, out, (y * width + x) * image.channels, 1f)
-        }
+        } }
         return out
     }
 
@@ -458,9 +468,11 @@ object Refocus {
             val downColour = halve(colour)
             val downAlpha = halve(FloatImage(alpha.width, alpha.height, 1, alpha.values)).let { FloatPlane(it.width, it.height, it.data) }
             val newAlpha = downAlpha.map { min(it * 4f, 1f) }
-            for (p in 0 until newAlpha.width * newAlpha.height) {
-                val gain = newAlpha.values[p] / max(downAlpha.values[p], 1e-6f)
-                for (c in 0 until downColour.channels) downColour.data[p * downColour.channels + c] *= gain
+            forEachRow(newAlpha.height) { y ->
+                for (p in y * newAlpha.width until (y + 1) * newAlpha.width) {
+                    val gain = newAlpha.values[p] / max(downAlpha.values[p], 1e-6f)
+                    for (c in 0 until downColour.channels) downColour.data[p * downColour.channels + c] *= gain
+                }
             }
             levels += downColour to newAlpha
         }
@@ -472,9 +484,11 @@ object Refocus {
             val (colour, alpha) = levels[index]
             // The upsampled level is combined in place (same values as a separate output buffer, one image less).
             val up = upsample(filled, alpha.width, alpha.height)
-            for (p in 0 until alpha.width * alpha.height) {
-                val a = alpha.values[p].coerceIn(0f, 1f)
-                for (c in 0 until colour.channels) up.data[p * colour.channels + c] = colour.data[p * colour.channels + c] + (1 - a) * up.data[p * colour.channels + c]
+            forEachRow(alpha.height) { y ->
+                for (p in y * alpha.width until (y + 1) * alpha.width) {
+                    val a = alpha.values[p].coerceIn(0f, 1f)
+                    for (c in 0 until colour.channels) up.data[p * colour.channels + c] = colour.data[p * colour.channels + c] + (1 - a) * up.data[p * colour.channels + c]
+                }
             }
             filled = up
             // Finer levels no longer need the coarser ones.
@@ -488,7 +502,7 @@ object Refocus {
         val w = (image.width + 1) / 2
         val h = (image.height + 1) / 2
         val out = FloatImage(w, h, image.channels)
-        for (y in 0 until h) for (x in 0 until w) {
+        forEachRow(h) { y -> for (x in 0 until w) {
             val y0 = 2 * y
             val y1 = min(2 * y + 1, image.height - 1)
             val x0 = 2 * x
@@ -497,18 +511,22 @@ object Refocus {
                 fun at(xx: Int, yy: Int) = image.data[(yy * image.width + xx) * image.channels + c]
                 out.data[(y * w + x) * image.channels + c] = 0.25f * (at(x0, y0) + at(x0, y1) + at(x1, y0) + at(x1, y1))
             }
-        }
+        } }
         return out
     }
 
     /** `fill_masked`: low-weight pixels replaced by a smooth pull-push fill from valid ones. */
     fun fillMasked(values: FloatImage, weight: FloatPlane): FloatImage {
-        val premultiplied = FloatImage(values.width, values.height, values.channels, FloatArray(values.data.size) { values.data[it] * weight.values[it / values.channels] })
+        val premultiplied = FloatImage(values.width, values.height, values.channels,
+            parallelFloatArray(values.width, values.height, values.channels) { values.data[it] * weight.values[it / values.channels] })
         val filled = pullPushFill(premultiplied, weight)
         // Written into the fill's own buffer (same values; one image less at the peak).
-        for (i in filled.data.indices) {
-            val wgt = weight.values[i / values.channels]
-            filled.data[i] = values.data[i] * wgt + filled.data[i] * (1 - wgt)
+        val rowLength = values.width * values.channels
+        forEachRow(values.height) { y ->
+            for (i in y * rowLength until (y + 1) * rowLength) {
+                val wgt = weight.values[i / values.channels]
+                filled.data[i] = values.data[i] * wgt + filled.data[i] * (1 - wgt)
+            }
         }
         return filled
     }
