@@ -160,7 +160,8 @@ final class EditorSession {
          saveSettings: @escaping @MainActor () -> ExportSettings = { .default },
          previewLongEdge: Int = 1_600,
          inpainterLoader: @escaping @Sendable () -> (any Inpainting)? = { LamaInpainter.loadBundled() },
-         signatures: SignatureStore? = nil) {
+         signatures: SignatureStore? = nil,
+         removePatches: RemovePatchStore = RemovePatchStore()) {
         self.photo = photo
         self.library = library
         self.autoEnhancer = autoEnhancer
@@ -174,6 +175,7 @@ final class EditorSession {
         // Built here, not as a default argument: the store is main-actor isolated. Without one
         // (tests) signatures live in memory only.
         self.signatures = signatures ?? SignatureStore(directory: nil)
+        self.removePatches = removePatches
         let source = Self.sourceReference(for: photo)
         history = [.neutral(source: source, grainSeed: EditRecipe.grainSeed(fromHeadSha256: source.fingerprint.headSha256))]
         // Until the preview copy exists the photo itself is shown (the approved loading screen keeps
@@ -569,7 +571,8 @@ final class EditorSession {
     /// The stroke being removed, or the one that failed (drawn on the photo until it is applied,
     /// retried or replaced).
     private(set) var pendingRemoveStroke: EditRecipe.RemoveStroke?
-    @ObservationIgnored let removePatches = RemovePatchStore()
+    /// Remove patches by digest; written beside the edit when the app gives a directory.
+    @ObservationIgnored let removePatches: RemovePatchStore
     @ObservationIgnored private var removeTask: Task<Void, Never>?
     @ObservationIgnored private var inpainter: (any Inpainting)?
     @ObservationIgnored private var inpainterLoaded = false

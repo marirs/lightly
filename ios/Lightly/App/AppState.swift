@@ -87,6 +87,8 @@ final class AppState {
     let favourites: FavouritePresetsStore
     /// Saved signatures (and chosen watermark logos), shared by Watermark and Preferences.
     let signatures: SignatureStore
+    /// Remove patches beside the edit (`derivedRef`), shared by the sessions of this launch.
+    let removePatches: RemovePatchStore
     let presetCatalogue: DevelopPresetCatalogue
     let releaseContent: ReleaseContent
     let appVersion: AppVersion
@@ -126,6 +128,7 @@ final class AppState {
         preferences: PreferencesStore? = nil,
         favourites: FavouritePresetsStore? = nil,
         signatures: SignatureStore? = nil,
+        removePatches: RemovePatchStore = .applicationSupport(),
         presetCatalogue: DevelopPresetCatalogue = .empty,
         releaseContent: ReleaseContent = .none,
         appVersion: AppVersion = AppVersion(bundle: .main)
@@ -142,6 +145,7 @@ final class AppState {
         self.preferences = preferences ?? PreferencesStore()
         self.favourites = favourites ?? FavouritePresetsStore(catalogue: presetCatalogue)
         self.signatures = signatures ?? SignatureStore.applicationSupport()
+        self.removePatches = removePatches
         self.presetCatalogue = presetCatalogue
         self.releaseContent = releaseContent
         self.appVersion = appVersion
@@ -163,7 +167,8 @@ final class AppState {
             sceneAnalyser: sceneAnalyser, libraryWriter: libraryWriter,
             // Read at each save, so a switch changed in More applies to the next copy.
             saveSettings: { preferences.saveCopySettings },
-            signatures: signatures)
+            signatures: signatures,
+            removePatches: removePatches)
         editorSessions[photo.id] = session
         return session
     }
@@ -231,6 +236,9 @@ final class AppState {
         do {
             let data = try await provider()
             let photo = try await photoLoader.loadPhoto(from: data, source: source)
+            // A new photo starts a new edit: the previous edit's Remove patches go. (A restore of
+            // the same edit after the app was killed would keep them; iOS has no such path yet.)
+            removePatches.removeAll()
             if let previous = selectedPhoto, previous.id != photo.id {
                 // Switching photos ends the previous session; its in-flight
                 // renders must not land after the new photo is shown.

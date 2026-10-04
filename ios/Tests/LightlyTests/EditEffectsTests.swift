@@ -295,6 +295,103 @@ final class EditEffectsSessionTests: XCTestCase {
     }
 }
 
+/// A model that must never run: a restored edit replays stored patches, never the model.
+final class TrapInpainter: Inpainting, @unchecked Sendable {
+    let model = EditRecipe.ModelRef(id: "test-trap", version: "1")
+    private(set) var calls = 0
+    func inpaint(image: [Float], mask: [Float], side: Int) async throws -> [Float] {
+        calls += 1
+        XCTFail("The Remove model ran for a restored edit")
+        throw RemoveEngine.Failure.modelFailed("trap")
+    }
+}
+
+/// edit-recipe `derivedRef`: Remove patches are stored beside the edit by digest and survive the
+/// app being killed; a missing or corrupt patch is skipped and never recomputed.
+@MainActor
+final class RemovePatchPersistenceTests: XCTestCase {
+
+    private var library: DevelopLibrary!
+    private var directory: URL!
+
+    override func setUp() async throws {
+        library = try EditorTestSupport.library()
+        directory = FileManager.default.temporaryDirectory.appendingPathComponent("patches-\(UUID().uuidString)")
+    }
+
+    override func tearDown() async throws { try? FileManager.default.removeItem(at: directory) }
+
+    /// Session A removes a stroke and its recipe is saved; the app is "killed" (both the session
+    /// and the in-memory store go). A fresh store over the same folder and a fresh session
+    /// restored from the saved recipe render the same fill without running a model.
+    private func editWithOneStroke(photo: SelectedPhoto) async throws -> (recipe: Data, export: Data, digest: String) {
+        let session = try await EditorTestSupport.readySession(photo: photo, library: library, inpainter: FlatInpainter(),
+                                                               removePatches: RemovePatchStore(directory: directory))
+        session.removeStroke(points: [.init(x: 0.5, y: 0.5), .init(x: 0.55, y: 0.5)], radius: 0.03)
+        await session.debugAwaitQuiescence()
+        let digest = try XCTUnwrap(session.recipe.tools.edit.remove.strokes.first?.patch?.sha256)
+        let saved = EditRecipeCodec.encode(session.recipe)
+        let export = try await session.exportedData()
+        session.close()
+        return (saved, export, digest)
+    }
+
+    private func restoredSession(photo: SelectedPhoto, recipe: Data, trap: TrapInpainter) async throws -> EditorSession {
+        let restored = try EditRecipeCodec.decode(recipe)
+        let session = try await EditorTestSupport.readySession(photo: photo, library: library, inpainter: trap,
+                                                               removePatches: RemovePatchStore(directory: directory))
+        session.debugSetInitial { $0.tools = restored.tools }
+        await session.settleRendering()
+        return session
+    }
+
+    func testKillAndRecoverReplaysTheStoredPatchWithoutTheModel() async throws {
+        let photo = try await EditorTestSupport.photo()
+        let edit = try await editWithOneStroke(photo: photo)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("\(edit.digest).patch").path))
+        let trap = TrapInpainter()
+        let session = try await restoredSession(photo: photo, recipe: edit.recipe, trap: trap)
+        XCTAssertNotNil(session.removePatches.patch(edit.digest), "read back from disk, digest checked")
+        let export = try await session.exportedData()
+        XCTAssertEqual(export, edit.export, "the restored edit renders the same fill")
+        XCTAssertEqual(trap.calls, 0)
+    }
+
+    func testACorruptOrMissingPatchIsSkippedNotRecomputed() async throws {
+        let photo = try await EditorTestSupport.photo()
+        let edit = try await editWithOneStroke(photo: photo)
+        let file = directory.appendingPathComponent("\(edit.digest).patch")
+        var bytes = try Data(contentsOf: file)
+        bytes[bytes.count - 1] ^= 0xFF
+        try bytes.write(to: file)
+        let trap = TrapInpainter()
+        let corrupt = try await restoredSession(photo: photo, recipe: edit.recipe, trap: trap)
+        XCTAssertNil(corrupt.removePatches.patch(edit.digest), "a patch whose bytes do not hash to its name is refused")
+        let skipped = try await corrupt.exportedData()
+        let plain = try await EditorTestSupport.readySession(photo: photo, library: library).exportedData()
+        XCTAssertEqual(skipped, plain, "the stroke renders without its fill")
+        XCTAssertEqual(trap.calls, 0, "never recomputed silently")
+        try FileManager.default.removeItem(at: file)
+        let missing = try await restoredSession(photo: photo, recipe: edit.recipe, trap: trap)
+        let missingExport = try await missing.exportedData()
+        XCTAssertEqual(missingExport, plain)
+        XCTAssertEqual(trap.calls, 0)
+    }
+
+    func testChoosingANewPhotoDeletesTheStoredPatches() async throws {
+        let photo = try await EditorTestSupport.photo()
+        let edit = try await editWithOneStroke(photo: photo)
+        let store = RemovePatchStore(directory: directory)
+        XCTAssertNotNil(store.patch(edit.digest))
+        store.removeAll()
+        XCTAssertNil(RemovePatchStore(directory: directory).patch(edit.digest))
+        let state = AppState(photoLoader: ImageIOPhotoLoader(), removePatches: RemovePatchStore(directory: directory))
+        _ = try await editWithOneStroke(photo: photo)
+        await state.openPhoto(source: .photoLibrary) { try TestFixtures.makeTIFFData(for: TestFixtures.makeImage(width: 64, height: 48)) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path), "a new photo deletes the previous edit's patches")
+    }
+}
+
 struct SlowInpainter: Inpainting {
     let model = EditRecipe.ModelRef(id: "test-slow", version: "1")
     func inpaint(image: [Float], mask: [Float], side: Int) async throws -> [Float] {

@@ -177,13 +177,9 @@ struct RemovePatch: Equatable, Sendable {
     let sourceWidth: Int, sourceHeight: Int
     let rgba: [UInt8]
 
-    /// The digest the recipe stores (`derivedRef.sha256`): the rect, the source size and the bytes.
-    var sha256: String {
-        var data = Data()
-        for value in [x, y, width, height, sourceWidth, sourceHeight] { withUnsafeBytes(of: Int64(value).littleEndian) { data.append(contentsOf: $0) } }
-        data.append(contentsOf: rgba)
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
+    /// The digest the recipe stores (`derivedRef.sha256`): the rect, the source size and the bytes
+    /// (exactly the stored file's bytes, RemovePatchStore.encode).
+    var sha256: String { RemovePatchStore.digest(of: RemovePatchStore.encode(self)) }
 
     /// Premultiplied-free RGBA (0…1) at continuous patch coordinates; outside counts as alpha 0.
     func sample(x: Double, y: Double) -> SIMD4<Double> {
@@ -205,28 +201,90 @@ struct RemovePatch: Equatable, Sendable {
     }
 }
 
-/// The patches this session made, by digest. Undo/redo move between recipes that name patches by
-/// digest; the patches themselves stay here for the session, so a redo replays the same pixels.
+/// Remove patches by digest (edit recipe `derivedRef`: "a cached result of an on-device model,
+/// stored beside the edit by digest"). Undo/redo move between recipes that name patches by
+/// digest; a redo replays the same pixels.
+///
+/// With a directory, every patch is also written atomically to `<sha256>.patch` (the digest's
+/// own input bytes: six little-endian Int64 — x, y, width, height, source width and height —
+/// then the RGBA), so an edit restored after the app was killed still has its fills. A patch
+/// not in memory is read back and kept only if its bytes hash to its name; a missing or corrupt
+/// patch is skipped, and never recomputed silently (the model is not run again for it).
 final class RemovePatchStore: @unchecked Sendable {
-    // @unchecked: every access holds `lock`.
+    // @unchecked: every access to `patches` holds `lock`; file writes are atomic renames.
     private let lock = NSLock()
     private var patches: [String: RemovePatch] = [:]
+    private let directory: URL?
+
+    init(directory: URL? = nil) { self.directory = directory }
+
+    /// The app's store: Application Support/RemovePatches.
+    static func applicationSupport() -> RemovePatchStore {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        return RemovePatchStore(directory: base?.appendingPathComponent("RemovePatches", isDirectory: true))
+    }
 
     func add(_ patch: RemovePatch) -> String {
         let digest = patch.sha256
         lock.withLock { patches[digest] = patch }
+        if let directory {
+            // A failed write keeps the patch for this launch only; after a kill the stroke is
+            // rendered without its fill (skipped), never recomputed.
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? Self.encode(patch).write(to: fileURL(digest, in: directory), options: .atomic)
+        }
         return digest
     }
 
-    func patch(_ digest: String) -> RemovePatch? { lock.withLock { patches[digest] } }
+    func patch(_ digest: String) -> RemovePatch? {
+        if let cached = lock.withLock({ patches[digest] }) { return cached }
+        guard let directory, let data = try? Data(contentsOf: fileURL(digest, in: directory)),
+              Self.digest(of: data) == digest, let patch = Self.decode(data) else { return nil }
+        lock.withLock { patches[digest] = patch }
+        return patch
+    }
 
-    /// The applied strokes' patches in order; a stroke whose patch is unknown is skipped (it can
-    /// only come from another session, and is never recomputed silently).
+    /// The applied strokes' patches in order; a stroke whose patch is unknown, missing or corrupt
+    /// is skipped (never recomputed silently).
     func patches(for strokes: [EditRecipe.RemoveStroke]) -> [RemovePatch] {
         strokes.compactMap { stroke in
             guard stroke.status == .applied, let ref = stroke.patch else { return nil }
             return patch(ref.sha256)
         }
+    }
+
+    /// Choosing a new photo: the previous edit's patches are deleted, in memory and on disk.
+    func removeAll() {
+        lock.withLock { patches.removeAll() }
+        if let directory { try? FileManager.default.removeItem(at: directory) }
+    }
+
+    private func fileURL(_ digest: String, in directory: URL) -> URL {
+        // Digests are hex; anything else never names a file.
+        let safe = digest.allSatisfy { "0123456789abcdef".contains($0) } ? digest : "invalid"
+        return directory.appendingPathComponent("\(safe).patch")
+    }
+
+    static func encode(_ patch: RemovePatch) -> Data {
+        var data = Data()
+        for value in [patch.x, patch.y, patch.width, patch.height, patch.sourceWidth, patch.sourceHeight] {
+            withUnsafeBytes(of: Int64(value).littleEndian) { data.append(contentsOf: $0) }
+        }
+        data.append(contentsOf: patch.rgba)
+        return data
+    }
+
+    static func decode(_ data: Data) -> RemovePatch? {
+        guard data.count >= 48 else { return nil }
+        let fields = (0..<6).map { i in Int(Int64(littleEndian: data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: i * 8, as: Int64.self) })) }
+        let rgba = [UInt8](data.dropFirst(48))
+        guard fields[2] > 0, fields[3] > 0, rgba.count == fields[2] * fields[3] * 4 else { return nil }
+        return RemovePatch(x: fields[0], y: fields[1], width: fields[2], height: fields[3],
+                           sourceWidth: fields[4], sourceHeight: fields[5], rgba: rgba)
+    }
+
+    static func digest(of data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
 
