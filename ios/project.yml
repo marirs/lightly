@@ -36,6 +36,10 @@ targets:
       - path: Lightly
         excludes:
           - "**/.DS_Store"
+          # Legacy catalogues derived from third-party packs: nothing in the app reads them (the
+          # format-3 Look pack is the catalogue), so they are not shipped (release register).
+          - "Resources/Presets/presets_photo.json"
+          - "Resources/Presets/luts_video.json"
       # The approved Develop catalogue (categories and preset names), shared with Android. Copied
       # verbatim; favourites (slice 1) and the Develop panel (slice 2) read it.
       - path: ../presets/develop-design-ui.json

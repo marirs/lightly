@@ -54,8 +54,12 @@ final class PresetCatalogLoadingTests: XCTestCase {
         }
     }
 
-    func testAppBundleShipsTheCatalogue() throws {
-        let catalog = try BuiltInPresetCatalog.load(from: .main)
-        XCTAssertGreaterThan(catalog.presets(in: .film).count, 0)
+    /// Release register: the legacy catalogues name third-party packs and nothing in the app reads
+    /// them, so the app does not ship them (the format-3 Look pack is the catalogue).
+    func testTheAppBundleDoesNotShipTheLegacyCatalogues() throws {
+        XCTAssertNil(Bundle.main.url(forResource: "presets_photo", withExtension: "json"))
+        XCTAssertNil(Bundle.main.url(forResource: "luts_video", withExtension: "json"))
+        let catalog = try BuiltInPresetCatalog.load(from: TestFixtures.legacyPresetsBundle)
+        XCTAssertGreaterThan(catalog.presets(in: .film).count, 0, "still readable by its own tests")
     }
 }
