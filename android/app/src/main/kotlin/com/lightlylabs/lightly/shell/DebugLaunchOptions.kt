@@ -238,6 +238,12 @@ object DebugLaunchOptions {
                 api.focus(60.0, null)
                 api.saveCopy()
             }
+            // Replacement edge checks against the lightest and darkest approved Change-background swatches.
+            "bg-export-light", "bg-export-dark" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
+                val hex = if (screen == "bg-export-light") "#F4F1EC" else "#1F2328"
+                api.background { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour(hex)) }
+                api.saveCopy()
+            }
             "pt-skin" -> face(com.lightlylabs.lightly.editor.PortraitTab.SKIN, listOf("skin.smoothing" to 24.0, "skin.blemishes" to 40.0, "skin.evenTone" to 18.0))
             "pt-under" -> face(com.lightlylabs.lightly.editor.PortraitTab.UNDER, listOf("underEye.brighten" to 20.0, "underEye.softenLines" to 15.0))
             "pt-eyes" -> face(com.lightlylabs.lightly.editor.PortraitTab.EYES, listOf("eyes.brighten" to 15.0))

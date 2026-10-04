@@ -108,6 +108,12 @@ class WorkingBackground(
     val blurred: FloatImage?,
     val sharp: FloatImage?,
     val weight: FloatPlane?,
+    /**
+     * With a replacement: the ORIGINAL background continued behind the subject (linear RGB, pull-push
+     * filled from pixels the matte marks as background). Used to remove the old background's colour
+     * from soft matte edges (hair) before compositing over the replacement; otherwise null.
+     */
+    val plate: FloatImage? = null,
 ) {
     /** Bilinear sample of channel [c] of an interleaved RGB image at working-pixel coordinates, edges clamped. */
     fun sample(image: FloatImage, x: Double, y: Double, c: Int): Float {
@@ -196,7 +202,8 @@ object BackgroundStage {
         require(developed.size == w * h * 4) { "frame is not ${w}x$h" }
         val matte = analysis.matte
         val blur = if (analysis.depth == null) 0.0 else plan.focus.blur
-        if (blur <= 0.0) return WorkingBackground(w, h, matte, null, null, null)
+        val plate = if (plan.replacement != null && matte != null) originalBackgroundPlate(developed, w, h, matte) else null
+        if (blur <= 0.0) return WorkingBackground(w, h, matte, null, null, null, plate)
         require(plan.replacement == null || matte != null) { "a replacement needs a subject matte" }
         // Memory: the linear photo and replacement exist only inside renderScene; the scene's colours are expanded in place.
         val blurred = renderScene(developed, w, h, analysis.depth!!.nearness, matte, plan, blur, layersPerSide)
@@ -206,7 +213,7 @@ object BackgroundStage {
         val sharp = FloatImage(w, h, 3, FloatArray(w * h * 3) { i ->
             val p = i / 3
             val photo = Refocus.srgbToLinear((developed[p * 4 + i % 3].toInt() and 0xff) / 255f)
-            if (replacementSrgb == null) photo else { val a = matte!!.values[p].coerceIn(0f, 1f); photo * a + Refocus.srgbToLinear(replacementSrgb.data[i]) * (1 - a) }
+            if (replacementSrgb == null) photo else { val a = matte!!.values[p].coerceIn(0f, 1f); decontaminate(photo, a, plate!!.data[i]) * a + Refocus.srgbToLinear(replacementSrgb.data[i]) * (1 - a) }
         })
         // iOS: how far the blurred result departs from the sharp composite, relative to 0.02; softened.
         val weight = PlaneOps.gaussianBlur(FloatPlane(w, h, FloatArray(w * h) { p ->
@@ -214,7 +221,31 @@ object BackgroundStage {
             for (c in 0 until 3) d = max(d, abs(blurred.data[p * 3 + c] - sharp.data[p * 3 + c]))
             minOf(d / 0.02f, 1f)
         }), 1.5)
-        return WorkingBackground(w, h, matte, blurred, sharp, weight)
+        return WorkingBackground(w, h, matte, blurred, sharp, weight, plate)
+    }
+
+    /** Matte values below this count as visible original background when building the plate. */
+    private const val PLATE_BACKGROUND_MATTE = 0.1f
+
+    /**
+     * The original background continued under the subject: linear photo where the matte says
+     * background, pull-push filled elsewhere (the same fill the depth layers use).
+     */
+    private fun originalBackgroundPlate(developed: ByteArray, w: Int, h: Int, matte: FloatPlane): FloatImage {
+        val photo = FloatImage(w, h, 3, FloatArray(w * h * 3) { SRGB_TO_LINEAR[developed[(it / 3) * 4 + it % 3].toInt() and 0xff] })
+        val background = FloatPlane(w, h, FloatArray(w * h) { if (matte.values[it] < PLATE_BACKGROUND_MATTE) 1f else 0f })
+        return Refocus.fillMasked(photo, background)
+    }
+
+    /**
+     * Colour decontamination for a soft matte edge. An edge pixel is I = a·F + (1 − a)·B with B the
+     * original background (the plate); compositing I itself over a replacement carries B's colour into
+     * the result (a red fringe along hair in front of a red wall). Solving for the subject colour F
+     * removes it. Where a is tiny F barely contributes, so its denominator is bounded.
+     */
+    internal fun decontaminate(observed: Float, alpha: Float, originalBackground: Float): Float {
+        if (alpha >= 0.999f) return observed
+        return ((observed - (1 - alpha) * originalBackground) / max(alpha, 0.05f)).coerceIn(0f, 1f)
     }
 
     private fun renderScene(developed: ByteArray, w: Int, h: Int, nearness: FloatPlane, matte: FloatPlane?, plan: BackgroundPlan, blur: Double, layersPerSide: Int): FloatImage {
@@ -250,7 +281,10 @@ object BackgroundStage {
                 val w = working.weight?.sample(wx, wy) ?: 0f
                 for (c in 0 until 3) {
                     val full = SRGB_TO_LINEAR[region[i + c].toInt() and 0xff]
-                    var v = if (replacement != null && a < 1f) full * a + repl[c] * (1 - a) else full
+                    var v = if (replacement != null && a < 1f) {
+                        val subject = working.plate?.let { decontaminate(full, a, working.sample(it, wx, wy, c)) } ?: full
+                        subject * a + repl[c] * (1 - a)
+                    } else full
                     if (working.blurred != null) {
                         val b = working.sample(working.blurred, wx, wy, c)
                         val keep = v + (b - working.sample(working.sharp!!, wx, wy, c))
