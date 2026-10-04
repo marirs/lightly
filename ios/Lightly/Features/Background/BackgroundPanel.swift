@@ -194,7 +194,8 @@ struct BackgroundPanelView: View {
             ChipRow {
                 ForEach(BackgroundPanelModel.swatches, id: \.self) { hex in
                     SwatchButton(fill: Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0), isOn: model.background.replacement == .colour(hex),
-                                 label: "Colour \(hex)", identifier: "background.colour.\(hex)") {
+                                 label: "Colour \(hex)", identifier: "background.colour.\(hex)",
+                                 colourName: SwatchButton<Color>.name(ofHex: hex)) {
                         session.commitBackground { $0.replacement = .colour(hex) }
                     }
                 }

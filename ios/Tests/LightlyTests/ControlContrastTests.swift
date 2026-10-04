@@ -116,3 +116,15 @@ final class ControlContrastTests: XCTestCase {
         }
     }
 }
+
+/// Swatch colour names spoken as VoiceOver values, the same as Android's.
+@MainActor
+final class SwatchNameTests: XCTestCase {
+    func testEveryApprovedSwatchHasAName() {
+        let all = BorderPanelModel.solidColours + BorderPanelModel.frameColours + BorderPanelModel.matColours
+            + BorderPanelModel.polaroidColours + WatermarkPanelModel.colours + BackgroundPanelModel.swatches
+        for hex in Set(all) { XCTAssertNotNil(SwatchButton<Color>.name(ofHex: hex), hex) }
+        XCTAssertEqual(SwatchButton<Color>.name(ofHex: "#4E6B5A"), "Forest green")
+        XCTAssertEqual(SwatchButton<Color>.name(ofHex: "#9AA3A8"), "Blue grey")
+    }
+}

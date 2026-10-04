@@ -249,7 +249,9 @@ struct SwatchButton<Fill: ShapeStyle>: View {
     static func name(ofHex hex: String) -> String? {
         [
             "#FFFFFF": "White", "#F4F1EC": "Warm white", "#111111": "Black", "#3C4A55": "Slate", "#C9A27E": "Tan",
-            "#5A4636": "Brown", "#C9C2B8": "Stone", "#1F2328": "Charcoal", "#8A8A8F": "Grey"
+            "#5A4636": "Brown", "#C9C2B8": "Stone", "#1F2328": "Charcoal", "#8A8A8F": "Grey",
+            // Change background colours, named as on Android so both platforms read alike.
+            "#D9D4CC": "Light stone", "#9AA3A8": "Blue grey", "#8A5A44": "Rust", "#4E6B5A": "Forest green"
         ][hex.uppercased()]
     }
 }
