@@ -101,3 +101,28 @@ iPad 11 landscape (side panel with title): layout matches; the watermark is abou
 - Device checks (dev devices only): export memory at 48 MP with a watermark.
 - Owner decisions W1–W9.
 - Restore on a device (dev devices only): memory and time to restore a 48 MP original.
+
+## Update 2 (after 61605e8)
+
+Correction: commits 003ac1a and f60c49b call the display-relative sizing and the as-is import an "owner ruling". They are a PROVISIONAL coordinator approach, pending the owner; only "wrong watermark size" (W1) and "dead Use" (W6) are owner-declared defects. Code comments say so (c892545).
+
+| Kind | Commit | What |
+|---|---|---|
+| Code | 003ac1a | W1 (provisional): watermark 18/26/30 pt × size/34 and Focus & Blur R_max 27.57 pt × blur/100 on the displayed photo; Save/Share use the layout at save time |
+| Code | f60c49b, a993c4d | W6: Use always works (as-is when no ink); paper ends at alpha 0 (local paper level, hard floor, 4 px ink proximity); blank and unreadable imports show the approved toast (W10 copy) |
+| Code | 1e9a526, 2c955e8 | PrivacyInfo.xcprivacy (no tracking, no data; UserDefaults CA92.1, system boot time 35F9.1); legacy presets_photo.json / luts_video.json out of the app; Remove patches excluded from backup |
+| Code | 980cac3, 46c8ce3 | Accessibility: Reduce Motion, VoiceOver names/values (effect switches, swatch colour names as Android, signature chips), contrast tests |
+| Test | 76be0db | Release gates closed: Focus & Blur without depth shows "Couldn't separate the subject.", Remove fails, nothing changes |
+| Test | 41b2340, 246e7b2 | Restore UI test waits; restore decision logged |
+
+**Suites at 61605e8** (snapshot, verify_preflight): unit 330 tests, 0 failures, 4 skipped; UI 31 tests, 6 skipped, 1 failure (restore, below).
+
+**Release configuration** (a993c4d, default gates): builds; 24 MB; no depth model and no LaMa in the bundle; Look pack (6.2 MB manifest) and privacy manifest bundled; app-icon check passes; no DEBUG launch arguments or stubs in the binary. Gate behaviour covered by `ReleaseGateTests`; a hands-on Release run in the Simulator is pending.
+
+**Review build**: `~/.codex/artifacts/lightly/v1/review-builds/ios/lightly-ios-review-61605e8-sim.zip` (SHA-256 5ef977eef5c223cb100ccaab6364502ece44b3442ff2f1fa904ed3f682116e8c), README beside it. Not UX acceptance, not release.
+
+**Sizing evidence** (`~/.codex/artifacts/lightly/v1/slice5/ios/sizing-evidence/`, `SizingEvidenceTests`, rendered images): the same edit saved from the iPhone 17 layout vs the iPad 13 landscape layout gives a watermark of 162 vs 73 px and a background σ of 23.5 vs 10.6 px on the same export (ratio 2.2 = the display ratio): **the saved file depends on the editing device** with the provisional approach. Preview vs export agree (54 vs 54 px; σ 11.77 vs 11.76 at half scale). On screen the watermark is 13.4–13.6 pt for an 18 pt Inter cap height (13.1 pt). Proposal for the owner (not built): store the resolved fraction in the recipe when the watermark or blur is set, so later saves reproduce it on any device. Focused UI check (`verify-sizing-a993c4d`): wm-text and bg-focus on iPhone 17 and iPad 13 landscape; the iPad watermark now matches the prototype's size.
+
+**Restore UI test (open defect R2)**: passes alone; fails after `testSaveCopyShowsSavingThenSavedAndKeepEditing` (reproduced with that pair). The launch log shows the stored session present but "scene was editing false": the SwiftUI scene-storage flag did not survive the background-and-kill, so the restore was (correctly, by its rule) declined. The unit kill-and-recover tests pass. Next: replace the flag with UIKit scene state restoration (`stateRestorationActivity`) or the app's own lifecycle record; needs the coordinator's agreement because it decides force-quit vs system kill.
+
+New owner question **W10**: copy for an import with nothing to use ("No signature found in that photo", "That photo can’t be opened").
