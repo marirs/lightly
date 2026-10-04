@@ -84,7 +84,12 @@
   - The Places terms bind the downloader (the LaMa authors), not Lightly.
   - The Places team licenses its own trained models under CC BY. That shows the dataset owners treat trained models as licensable by whoever trained them.
 - But the image copyrights belong to their owners. The Apache grant from Samsung Research can license only Samsung's rights in the weights, not any rights an image owner might have in a model trained on the images. The legal question is the same as in item 1.
-- **Provenance gap:** the weights come from a third-party mirror. The SHA-256 matches the mirror, but we have no hash published by Samsung to compare with.
+- **Provenance (verified by engineering, 2026-10-04):**
+  - The official repository's README (github.com/advimman/lama, `README.md` on `main`) names `curl -LJO https://huggingface.co/smartywu/big-lama/resolve/main/big-lama.zip` as the primary download. The "All yandex dist links went bad" note points to a Google Drive folder as the alternative.
+  - Hugging Face's LFS record for `big-lama.zip` at revision `05cb2be7f8dbe6ca7c6e78f4fc827a4b2baaa4a9` (repository licence tag `apache-2.0`) gives SHA-256 `f1b358ca24093b93a106183b98a3dea6e8ed09f3b43ea7251eb2c81e7b4575f6`, 381,428,720 bytes. That is identical to our download (`experiments/inpaint/fetch_models.sh`).
+  - Our weights are therefore byte-identical to the file the official README directs users to.
+  - **Residual gap:** the authors publish no checksum of their own, so the chain of trust runs through the README link to the Hugging Face repository.
+  - **Recommended resolution:** accept this provenance, pin revision `05cb2be7` (already done), and record the README link and LFS hash in the shipped notices. Optional cross-check: compare against the Google Drive copy linked from the same README.
 
 **Risk.** Medium-low; the same class of risk as item 1. Every pretrained inpainting model we evaluated has the same Places2 lineage (`remove-evaluation.md` §8).
 
@@ -281,7 +286,7 @@
 | # | Item | Status | Exact question |
 |---|---|---|---|
 | 1 | Depth Anything V2 Small | **needs counsel** | Can we ship Apache-2.0 DA-V2-Small weights trained on pseudo-labels of research-only and NC/SA datasets (SA-1B, ImageNet-21K, BDD100K, VKITTI 2, Hypersim), when we never accepted those datasets' terms? |
-| 2 | LaMa big-lama | **needs counsel** (+ owner: verify the official weights hash) | Does Samsung's Apache-2.0 release of Places2-trained weights let us ship them commercially, given that Places' "non-commercial research" terms bound only the downloader? |
+| 2 | LaMa big-lama | **needs counsel** (provenance verified: identical to the official README's primary download) | Does Samsung's Apache-2.0 release of Places2-trained weights let us ship them commercially, given that Places' "non-commercial research" terms bound only the downloader? |
 | 3 | MediaPipe / ML Kit (Android) | **needs owner action** (D3 choice) | Which option: MediaPipe with datatransport removed, raw `.tflite` on LiteRT, or ML Kit with metrics disclosed? The licences are clear (Apache-2.0, consented data). |
 | 4 | Apple Vision | **clear** | None beyond the DPLA. The Face Data disclosure is in the privacy draft. |
 | 5 | LiteRT 1.4.2 | **clear** | None; ship the Apache-2.0 notice. |
