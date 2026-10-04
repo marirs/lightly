@@ -55,7 +55,9 @@ bounded() { local seconds=$1; shift; perl -e 'alarm shift; exec @ARGV' "$seconds
 FAVS=look-d8704f3622765f1c77c4,look-617ee7c8edcb1bad9c35,look-5c41fdbeb28f5f83f0d0,look-5b83aa782a1e85276462,look-a2ea17e735e9957ee464
 HIKING=look-617ee7c8edcb1bad9c35
 FILES=/data/user/0/$PKG/files
-photo_for() { case $1 in bg-no-subject) echo landscape_02;; bg-*) echo portrait_medium_02;; dev-long-name) echo landscape_03;; dev-favourites|dev-bw|dev-portrait-photo) echo portrait_deep_03;; dev-landscape-photo) echo sunset_02;; *) echo landscape_02;; esac; }
+photo_for() { case $1 in bg-no-subject) echo landscape_02;; bg-*) echo portrait_medium_02;; dev-long-name) echo landscape_03;;
+  # Slice 4 (screens.js): field = landscape_03, street = wellexposed_03, sunset = sunset_02, lake = landscape_02.
+  ed-rotate|ed-straighten|ed-remove|ed-removing|ed-remove-failed) echo landscape_03;; ed-perspective) echo wellexposed_03;; fx-leak|fx-combined) echo sunset_02;; dev-favourites|dev-bw|dev-portrait-photo) echo portrait_deep_03;; dev-landscape-photo) echo sunset_02;; *) echo landscape_02;; esac; }
 people_for() { case $(photo_for $1) in portrait_deep_03|portrait_medium_02) echo present;; *) echo absent;; esac; }
 # Slice-1 screens (no photo): file id → debug navigation route (DebugLaunchOptions screen names).
 SLICE1_SCREENS="welcome welcome-more camera-denied load-failed preferences pref-favourites pref-signature pref-border legal privacy terms about support"
@@ -90,7 +92,7 @@ demo network -e wifi show -e level 4 -e fully true; demo network -e mobile show 
 demo notifications -e visible false
 # Text size is a system setting read when the process starts: set before the app launches.
 if [ "$TEXT" = large ]; then $ADB shell settings put system font_scale 1.24; else $ADB shell settings put system font_scale 1.0; fi
-for p in landscape_02 landscape_03 sunset_02 portrait_deep_03 portrait_medium_02; do
+for p in landscape_02 landscape_03 sunset_02 portrait_deep_03 portrait_medium_02 wellexposed_03; do
   $ADB push -q "$REPO/docs/ui/assets/photos/$p.jpg" /data/local/tmp/$p.jpg >/dev/null
   $ADB shell run-as $PKG sh -c "'mkdir -p files && cp /data/local/tmp/$p.jpg files/$p.jpg'"
 done
