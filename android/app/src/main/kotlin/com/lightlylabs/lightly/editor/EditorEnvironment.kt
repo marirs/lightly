@@ -98,6 +98,8 @@ class EditorEnvironment(
     val exifOrientation: (ByteArray) -> Int = { 1 },
     /** A bundled background photo by recipe id (`background.landscape_01` …), or null if this build has none. */
     val bundledBackground: (String) -> Rgba8Image? = { null },
+    /** Test seam: runs at the start of every preview render (a deliberately slow preview in tests). No-op in the app. */
+    val beforePreviewRender: () -> Unit = {},
     /**
      * Edit › Remove's model (LaMa), loaded on first use; null when this build does not carry it (release
      * gate "pending legal sign-off (training data: Places2)") or it cannot load: the approved failure state.

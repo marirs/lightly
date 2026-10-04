@@ -1290,11 +1290,36 @@ class EditorViewModel(
 
     /** Save copy: a full-resolution JPEG of the SAME committed recipe the preview shows. */
     fun saveCopy() {
-        val loaded = photo?.takeIf { isCurrent(it.generation) }?.loaded ?: return
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
         val session = state.value.session ?: return
         val library = library ?: return
-        if (state.value.phase != EditorPhase.Ready) return
+        if (state.value.phase != EditorPhase.Ready || exportRunning) return
         val committed = session.current
+        // Previews and the export never hold their large buffers at once: hold new previews, show the
+        // approved Saving state, and wait until the preview in flight has EXITED (not merely been asked
+        // to cancel) before any export buffer is allocated. A concurrent Background preview ran the
+        // 192 MB heap out of memory during a 12 MP Save copy (Refocus.fillMasked).
+        beginExportHoldingPreviews()
+        userCancelledSave = false
+        state.update { it.copy(overlay = EditorOverlay.SAVING) }
+        scope.launch {
+            scheduler?.cancelAllAndAwaitIdle()
+            exportPreparationsStarted++
+            val started = !userCancelledSave && isCurrent(current.generation) && startExport(current.loaded, library, committed)
+            if (!started) {
+                if (userCancelledSave) showToast(SAVE_CANCELLED)
+                userCancelledSave = false
+                state.update { if (it.overlay == EditorOverlay.SAVING) it.copy(overlay = null) else it }
+                endExportReleasingPreviews()
+            }
+        }
+    }
+
+    /** How many exports passed the preview wait and began preparing (tests). */
+    @Volatile internal var exportPreparationsStarted = 0
+
+    /** Builds the export plans and starts the export; false when the exporter refused. */
+    private fun startExport(loaded: LoadedPhoto, library: DevelopLibrary, committed: EditState): Boolean {
         val plan = library.planFor(committed)
         val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer, maxBlurFraction(committed), BackgroundSession.EXPORT_CAP)
         val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, backgroundPlan) else ExportRenderPlan { frame ->
@@ -1320,13 +1345,9 @@ class EditorViewModel(
             }
         }
         val job = ExportJob(sourceHandle = loaded.source.assetId, original = loaded.fullResolution, plan = exportPlan, spec = env.newImageSpec(loaded.source))
-        beginExportHoldingPreviews()
-        if (env.exporter.start(job) is ExportStart.Started) {
-            savingRecipe = committed
-            state.update { it.copy(overlay = EditorOverlay.SAVING) }
-        } else {
-            endExportReleasingPreviews()
-        }
+        if (env.exporter.start(job) !is ExportStart.Started) return false
+        savingRecipe = committed
+        return true
     }
 
     /** Save copy of a recipe with Edit or Effects (EditPipeline): the same stages as its preview, at full resolution. */
@@ -1451,6 +1472,7 @@ class EditorViewModel(
         val newScheduler = RenderScheduler(
             sessionId = "photo-$generation",
             renderer = PreviewRenderer<PreviewRequest, Rgba8Image> { request ->
+                env.beforePreviewRender()
                 val library = env.library.await()
                 val edit = request.payload.state ?: return@PreviewRenderer display
                 val start = System.nanoTime()
@@ -1529,10 +1551,9 @@ class EditorViewModel(
 
     private fun beginExportHoldingPreviews() {
         exportRunning = true
-        // A preview already rendering would still compete with the export: cancel it (the screen keeps
-        // its last published preview) and render the latest request again once the export ends.
+        // The preview in flight is cancelled and awaited by saveCopy; render the latest request again
+        // once the export ends (the screen keeps its last published preview meanwhile).
         if (requestedRevision > publishedRevision) heldPreview = lastPreviewRequest
-        scheduler?.cancel(requestedRevision)
     }
 
     private fun endExportReleasingPreviews() {

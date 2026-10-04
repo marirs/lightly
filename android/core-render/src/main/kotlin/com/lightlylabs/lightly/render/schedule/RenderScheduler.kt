@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,6 +102,21 @@ class RenderScheduler<P : Any, R : Any>(
         pending = RenderRequest(sessionId, lastIssuedRevision, payload)
         if (inFlight == null) startPendingLocked()
         lastIssuedRevision
+    }
+
+    /**
+     * Cancels every request issued so far and suspends until the render in flight, if any, has
+     * EXITED. Cancellation is cooperative: a CPU-bound render that does not check for it runs to its
+     * end, and this waits for that. Save copy calls it before allocating its full-resolution buffers,
+     * so a preview and the export never hold their large buffers at the same time.
+     */
+    suspend fun cancelAllAndAwaitIdle() {
+        val job: Job? = synchronized(lock) {
+            cancelledThroughRevision = lastIssuedRevision
+            pending = null
+            inFlight?.job
+        }
+        job?.cancelAndJoin()
     }
 
     /** Cancels requests with revision `<= through`. Requests newer than [through] keep running. */
