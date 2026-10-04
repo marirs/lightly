@@ -35,7 +35,19 @@ if [ $# -lt 2 ]; then
   echo "usage: scripts/heavy <label> <command> [args...]" >&2
   exit 64
 fi
+# An outer supervisor bounds waiting + execution, not just lock acquisition.
+if [ "${LIGHTLY_BOUNDED_JOB:-}" != "1" ]; then
+  export LIGHTLY_BOUNDED_JOB=1
+  exec python3 "$(dirname "$0")/run_bounded.py" bash "$0" "$@"
+fi
 label=$1; shift
+case "$label" in
+  *capture*|*matrix*|*reference*)
+    if [ -f /tmp/lightly-captures.paused ]; then
+      echo "Capture automation paused by user intervention. Report existing evidence; do not retry." >&2
+      exit 75
+    fi ;;
+esac
 wait_seconds=${LIGHTLY_HEAVY_WAIT_SECONDS:-120}
 case "$wait_seconds" in
   ''|*[!0-9]*) echo "LIGHTLY_HEAVY_WAIT_SECONDS must be a nonnegative integer" >&2; exit 64 ;;

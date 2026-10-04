@@ -13,6 +13,7 @@ class HeavyTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(prefix="lightly-heavy-test-")
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        (self.root / "run_bounded.py").write_text((SOURCE.parent / "run_bounded.py").read_text())
         self.lock = self.root / "lock"
         self.wrapper = self.root / "heavy"
         self.wrapper.write_text(SOURCE.read_text().replace("/tmp/lightly-heavy.lock", str(self.lock)).replace("/tmp/lightly-heavy.log", str(self.root / "log")).replace("/tmp/lightly-heavy.reservation", str(self.root / "reservation")))
@@ -22,6 +23,7 @@ class HeavyTests(unittest.TestCase):
             stub.chmod(0o700)
         self.env = dict(os.environ, PATH=str(self.root) + ":" + os.environ["PATH"])
         self.env.pop("LIGHTLY_HEAVY_LOCK_HELD", None)
+        self.env.pop("LIGHTLY_BOUNDED_JOB", None)
 
     def run_job(self, wait, *command):
         return subprocess.run(["bash", str(self.wrapper), "test", *command], env=dict(self.env, LIGHTLY_HEAVY_WAIT_SECONDS=wait), capture_output=True, text=True, timeout=8)

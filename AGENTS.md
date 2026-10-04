@@ -16,3 +16,7 @@ The user explicitly requires **NO UX DEVIATIONS**. This applies to every impleme
 ## Verification throughput
 
 Read `docs/v1/verification-workflow.md` before scheduling builds, tests or screenshot batches. Use `scripts/heavy` for all heavy work, including commands prefixed by `rtk`. A busy lock is pending work, not permission to bypass it or launch automatic retry loops.
+
+## Immediate review budget (2026-10-04)
+
+User requires feedback within ten minutes. Bulk screenshot automation is paused; no automatic restart or bypass via snapshot copies. Follow the intervention section in `docs/v1/verification-workflow.md`. Show existing progress and record pending checks; do not hold handoff behind full matrices. Exact UX acceptance remains unchanged.

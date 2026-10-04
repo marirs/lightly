@@ -12,3 +12,13 @@ The exact approved UX rule is unchanged. Coverage is an acceptance requirement, 
 - Reuse unchanged reference captures keyed by reference revision, assets, device, orientation, theme, text size and capture-tool version. Invalidate affected native captures after a change. No stale screenshot may be represented as a current verification.
 - Track all required matrix cells as verified, deviation or pending. Chunking and caching must never remove coverage or lower UX acceptance.
 - Keep generated output in temporary directories or private ~/.codex/artifacts/lightly, as appropriate. Do not delete active build directories, models, original evidence or user data to reclaim memory. Disk usage and swap allocation alone do not establish current memory pressure; measure paging activity and memory pressure before claiming the cause.
+
+## User intervention — 2026-10-04: ten-minute feedback budget
+
+Bulk capture automation is stopped. Do not resume it, remove `/tmp/lightly-captures.paused`, run snapshot copies to bypass it, or submit replacement matrix loops without explicit user authorization. Preserve all existing evidence. Interrupted output is incomplete, never a passing result.
+
+The next handoff must fit within ten minutes and show existing app progress, concrete deviations and pending checks. `scripts/heavy` now bounds an entire invocation, including lock wait, to 600 seconds (plus at most two seconds for termination). Exit 124 means incomplete; exit 75 means busy/paused. Neither permits an automatic retry. Do not chain many bounded jobs into another hours-long review.
+
+A common component correction should first be checked in a focused component/state comparison and affected layout examples. Its dependency-affected full-screen evidence remains stale/pending until validated; do not claim the whole matrix matches from that sample. Full release coverage remains required but must not prevent progress handoff, and another bulk pass requires the user's scheduling approval. Exact approved UX is unchanged.
+
+Do not infer logical stroke thickness from a raster screenshot without recording CSS viewport, device pixel ratio, screenshot scaling and font readiness. An apparent raster difference is not by itself permission to alter the approved design or reference.
