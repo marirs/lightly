@@ -328,6 +328,34 @@ final class AppState {
     // MARK: - Intents: More
 
     func openMore() { moreEntry = .menu }
+
+    // MARK: - Preferences › Saved signature › Draw / Import
+
+    /// The prototype's `overlay:sigDraw` / `overlay:sigImport` replace the More page overlay: the
+    /// sheet shows over the screen beneath More, and closing it returns to that screen.
+    enum SignatureSheet: Equatable {
+        case draw
+        /// The extracted signature (nil: no ink found in the photo).
+        case importSignature(Data?)
+    }
+
+    var signatureSheet: SignatureSheet?
+    /// The Draw signature pad of the sheet opened from Preferences.
+    let signaturePad = SignaturePadModel()
+
+    func openSignatureSheet(_ sheet: SignatureSheet) {
+        if sheet == .draw { signaturePad.clear() }
+        closeMore()
+        signatureSheet = sheet
+    }
+
+    /// Save (Draw) or Use (Import): stored for reuse; added to a photo only from Watermark.
+    func saveSignatureFromPreferences(drawn: DrawnSignature? = nil, importedPNG: Data? = nil) {
+        if let drawn { signatures.saveDrawn(drawn) }
+        if let importedPNG { signatures.saveImported(png: importedPNG) }
+        signatureSheet = nil
+        signaturesChanged()
+    }
     func openPrivacyPolicyFromWelcome() { moreEntry = .privacyPolicyFromWelcome }
     func closeMore() { moreEntry = nil }
 }
@@ -345,6 +373,7 @@ extension AppState {
     func debugResetForNextScreen(resetPreferences: Bool) async {
         let previous = selectedPhoto.flatMap { editorSessions[$0.id] }
         debugMoreInitialPath = nil
+        signatureSheet = nil
         signatures.debugReplace(drawn: nil, importedPNG: nil)
         closeMore()
         returnToWelcome()

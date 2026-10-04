@@ -26,6 +26,7 @@ struct RootView: View {
                 .sheet(item: $appState.moreEntry) { entry in
                     moreSheet(entry, windowSize: fullSize(of: geometry))
                 }
+                .overlay { signatureSheet(isTablet: fullSize(of: geometry).width > 700) }
         }
         .ignoresSafeArea(.keyboard)
         // Apple's native picker. Presenting it this way requires no Photos
@@ -76,6 +77,25 @@ struct RootView: View {
         #if DEBUG
         .task { await Self.runDebugLaunchActions(on: appState) }
         #endif
+    }
+
+    /// Draw signature / Import signature opened from Preferences, in place of More.
+    @ViewBuilder
+    private func signatureSheet(isTablet: Bool) -> some View {
+        switch appState.signatureSheet {
+        case .draw?:
+            ApprovedSheetOverlay(isTablet: isTablet, onDismiss: { appState.signatureSheet = nil }) {
+                DrawSignatureSheetContent(pad: appState.signaturePad, onCancel: { appState.signatureSheet = nil },
+                                          onSave: { appState.saveSignatureFromPreferences(drawn: $0) })
+            }
+        case .importSignature(let extracted)?:
+            ApprovedSheetOverlay(isTablet: isTablet, onDismiss: { appState.signatureSheet = nil }) {
+                ImportSignatureSheetContent(extracted: extracted, onCancel: { appState.signatureSheet = nil },
+                                            onUse: { appState.saveSignatureFromPreferences(importedPNG: $0) })
+            }
+        case nil:
+            EmptyView()
+        }
     }
 
     private func restoreIfInterrupted() async {

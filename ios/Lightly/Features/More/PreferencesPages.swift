@@ -252,18 +252,15 @@ extension FavouritePresetsPage {
 /// The page shows one signature (the one saved last) while Watermark can hold a drawn and an
 /// imported one (owner question W3); Delete removes the one shown. With nothing saved the page
 /// says so and has no Delete row (no approved empty state; recorded with W3).
+///
+/// Draw and Import replace the More sheet with their own sheet, as the prototype's
+/// `overlay:sigDraw` / `overlay:sigImport` replace the `page` overlay (AppState).
 struct SavedSignaturePage: View {
     let signatures: SignatureStore
     let onChange: () -> Void
+    /// Opens Draw signature (or Import signature with the extracted ink) in place of More.
+    let openSheet: (AppState.SignatureSheet) -> Void
 
-    private enum Sheet: Identifiable {
-        case draw
-        case importSignature(Data?)
-        var id: String { if case .draw = self { "draw" } else { "import" } }
-    }
-
-    @State private var sheet: Sheet?
-    @State private var pad = SignaturePadModel()
     @State private var isPickingPhoto = false
     @State private var photo: PhotosPickerItem?
     @Environment(\.colorScheme) private var colorScheme
@@ -288,7 +285,7 @@ struct SavedSignaturePage: View {
             .padding(.vertical, 24)
             .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
             .overlay(alignment: .bottom) { ApprovedHairline() }
-            Button { pad.clear(); sheet = .draw } label: { ApprovedListRow(title: Text("signature.draw", bundle: .main)) }
+            Button { openSheet(.draw) } label: { ApprovedListRow(title: Text("signature.draw", bundle: .main)) }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("signature.draw")
             Button { isPickingPhoto = true } label: { ApprovedListRow(title: Text("signature.import", bundle: .main)) }
@@ -316,32 +313,8 @@ struct SavedSignaturePage: View {
                     guard let data, let image = WatermarkPanelModel.uprightImage(data) else { return nil }
                     return SignatureInkExtractor.extract(from: image)
                 }.value
-                sheet = .importSignature(extracted)
+                openSheet(.importSignature(extracted))
             }
-        }
-        // A sheet over the More sheet, at its content's height, in the sheet colour.
-        .sheet(item: $sheet) { current in
-            Group {
-                switch current {
-                case .draw:
-                    DrawSignatureSheetContent(pad: pad, onCancel: { sheet = nil }) { drawing in
-                        signatures.saveDrawn(drawing)
-                        onChange()
-                        sheet = nil
-                    }
-                case .importSignature(let extracted):
-                    ImportSignatureSheetContent(extracted: extracted, onCancel: { sheet = nil }) { png in
-                        signatures.saveImported(png: png)
-                        onChange()
-                        sheet = nil
-                    }
-                }
-            }
-            .padding(.top, 15)
-            .padding(.bottom, 30)
-            .presentationDetents([.height(current.id == "draw" ? 330 : 345)])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(ApprovedColor.sheet.dynamic)
         }
     }
 }
