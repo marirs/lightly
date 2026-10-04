@@ -18,7 +18,7 @@ final class SliceOneSnapshotTests: XCTestCase {
 
     /// App state with the bundled catalogue, the five favourites the approved screens show and a
     /// fixed version so the references do not change with the build number.
-    private func makeState() -> AppState {
+    private func makeState(signatures: SignatureStore = SignatureStore(directory: nil)) -> AppState {
         let catalogue = DevelopPresetCatalogue.loadBundled()
         let favourites = FavouritePresetsStore(defaults: defaults, catalogue: catalogue)
         let seeded = [("portrait", 13), ("landscape", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
@@ -28,6 +28,7 @@ final class SliceOneSnapshotTests: XCTestCase {
             photoLoader: ImageIOPhotoLoader(),
             preferences: PreferencesStore(defaults: defaults),
             favourites: favourites,
+            signatures: signatures,
             presetCatalogue: catalogue,
             releaseContent: .none,
             appVersion: AppVersion(version: "1.0", build: "1")
@@ -77,7 +78,12 @@ final class SliceOneSnapshotTests: XCTestCase {
         SnapshotAssertion.assert(of: view, named: "more-preferences-accessibility3")
     }
     func testFavourites() { SnapshotAssertion.assert(of: page(.favourites, state: makeState()), named: "more-favourites") }
-    func testSavedSignature() { SnapshotAssertion.assert(of: page(.savedSignature, state: makeState()), named: "more-signature") }
+    /// Slice 5: the approved page with a saved (drawn) signature: the prototype's sample.
+    func testSavedSignature() {
+        let signatures = SignatureStore(directory: nil)
+        signatures.saveDrawn(.prototypeSample)
+        SnapshotAssertion.assert(of: page(.savedSignature, state: makeState(signatures: signatures)), named: "more-signature")
+    }
     func testPreferredBorder() { SnapshotAssertion.assert(of: page(.preferredBorder, state: makeState()), named: "more-border") }
     func testLegal() { SnapshotAssertion.assert(of: page(.legal, state: makeState()), named: "more-legal") }
     func testPrivacyPolicyUnavailable() { SnapshotAssertion.assert(of: page(.privacyPolicy, state: makeState()), named: "more-privacy") }
