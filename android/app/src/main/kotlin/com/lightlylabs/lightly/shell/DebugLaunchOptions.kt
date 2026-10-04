@@ -277,7 +277,7 @@ object DebugLaunchOptions {
 
     /** docs/ui/app/screens.js, the `wm-*` setups (Watermark, slice 5). */
     private fun applyWatermark(api: EditorViewModel.DebugEditorApi, screen: String) {
-        if (!screen.startsWith("wm-")) return
+        if (!screen.startsWith("wm-") && screen != "s5-export") return
         val signature = api.drawnSignature()
         fun text(font: com.lightlylabs.lightly.session.WatermarkFont) = { w: com.lightlylabs.lightly.session.WatermarkTool ->
             w.copy(type = com.lightlylabs.lightly.session.WatermarkType.TEXT, signature = null, logo = null, text = com.lightlylabs.lightly.session.WatermarkText(com.lightlylabs.lightly.editor.WatermarkOptions.DEFAULT_TEXT, font))
@@ -295,6 +295,12 @@ object DebugLaunchOptions {
             "wm-on-border" -> {
                 api.border { it.copy(type = com.lightlylabs.lightly.session.BorderType.SOLID, width = 8.0) }
                 api.watermark { text(com.lightlylabs.lightly.session.WatermarkFont.CAVEAT)(it).copy(placement = com.lightlylabs.lightly.session.WatermarkPlacement.BORDER) }
+                com.lightlylabs.lightly.session.WatermarkType.TEXT
+            }
+            // Not a prototype screen: the saved-JPEG check (a frame border and a text watermark on the photo).
+            "s5-export" -> {
+                api.border { it.copy(type = com.lightlylabs.lightly.session.BorderType.FRAME, colour = "#111111", width = 3.0, spacing = 5.0) }
+                api.watermark(text(com.lightlylabs.lightly.session.WatermarkFont.CAVEAT))
                 com.lightlylabs.lightly.session.WatermarkType.TEXT
             }
             else -> com.lightlylabs.lightly.session.WatermarkType.NONE

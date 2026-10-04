@@ -49,6 +49,13 @@ import com.lightlylabs.lightly.shell.lightlyTextStyle
 import com.lightlylabs.lightly.shell.testTagResource
 import com.lightlylabs.lightly.signatures.DrawnSignature
 
+/**
+ * CSS `dashed` borders as the approved Chromium renders draw them at these widths: about 3 dp dashes and
+ * 2 dp gaps (measured on wm-sig-draw and wm-sig-import, Pixel 9 Pro reference: 8 px on, 5 px off at 2.625).
+ */
+private val CHROME_DASH = 3.dp
+private val CHROME_GAP = 2.dp
+
 /** `.sheethead`: Cancel, the centred title, the trailing action (`.btn.quiet` in the 17 px semibold head). */
 @Composable
 fun SheetHeadWithAction(title: String, action: String, onCancel: () -> Unit, onAction: () -> Unit, actionTag: String) {
@@ -110,7 +117,7 @@ fun ColumnScope.DrawSignatureSheet(strokes: List<List<DrawnSignature.Point>>, on
                 drawPath(path, colors.ink, style = Stroke(pen, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
             drawRoundRect(colors.ink3, topLeft = Offset(line / 2, line / 2), size = androidx.compose.ui.geometry.Size(size.width - line, size.height - line), cornerRadius = CornerRadius(12.dp.toPx()),
-                style = Stroke(line, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))))
+                style = Stroke(line, pathEffect = PathEffect.dashPathEffect(floatArrayOf(CHROME_DASH.toPx(), CHROME_GAP.toPx()))))
         }
     }
     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), verticalAlignment = Alignment.Top) {
@@ -135,7 +142,7 @@ fun ColumnScope.ImportSignatureSheet(png: ByteArray?, onCancel: () -> Unit, onUs
         Canvas(Modifier.fillMaxSize().padding(14.dp)) {
             val w = 1.5.dp.toPx()
             drawRoundRect(colors.sel, topLeft = Offset(w / 2, w / 2), size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w), cornerRadius = CornerRadius(8.dp.toPx()),
-                style = Stroke(w, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3 * w, 3 * w))))
+                style = Stroke(w, pathEffect = PathEffect.dashPathEffect(floatArrayOf(CHROME_DASH.toPx(), CHROME_GAP.toPx()))))
         }
     }
     PanelNote("The paper is removed. The ink keeps its original colour and texture.")
