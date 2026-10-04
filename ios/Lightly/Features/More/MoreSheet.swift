@@ -42,6 +42,8 @@ struct MoreSheet: View {
             .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing), removal: .opacity))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(ApprovedColor.sheet.resolved(colorScheme).ignoresSafeArea())
+            // The approved toast, inside the sheet so it shows over More (signature import).
+            .overlay { if let toast = appState.toast { StageToast(text: toast) } }
     }
 
     // MARK: - Navigation
@@ -104,7 +106,7 @@ struct MoreSheet: View {
             FavouritePresetsPage(favourites: appState.favourites, catalogue: appState.presetCatalogue)
         case .savedSignature:
             SavedSignaturePage(signatures: appState.signatures, onChange: appState.signaturesChanged,
-                               openSheet: appState.openSignatureSheet)
+                               openSheet: appState.openSignatureSheet, showToast: appState.showToast)
         case .preferredBorder:
             PreferredBorderPage(preferences: appState.preferences)
         case .legal:

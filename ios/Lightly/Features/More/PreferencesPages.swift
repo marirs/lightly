@@ -261,6 +261,8 @@ struct SavedSignaturePage: View {
     let onChange: () -> Void
     /// Opens Draw signature (or Import signature with the extracted ink) in place of More.
     let openSheet: (AppState.SignatureSheet) -> Void
+    /// An import with nothing to use: the approved toast, never silent.
+    let showToast: (String) -> Void
 
     @State private var isPickingPhoto = false
     @State private var photo: PhotosPickerItem?
@@ -310,11 +312,14 @@ struct SavedSignaturePage: View {
             photo = nil
             Task {
                 let data = try? await item.loadTransferable(type: Data.self)
-                let extracted = await Task.detached(priority: .userInitiated) { () -> Data? in
-                    guard let data, let image = WatermarkPanelModel.uprightImage(data) else { return nil }
-                    return SignatureInkExtractor.importPNG(from: image)
+                let result = await Task.detached(priority: .userInitiated) { () -> SignatureInkExtractor.ImportResult in
+                    SignatureInkExtractor.importSignature(from: data.flatMap(WatermarkPanelModel.uprightImage))
                 }.value
-                if let extracted { openSheet(.importSignature(extracted)) }
+                switch result {
+                case .inkFound(let png), .asIs(let png): openSheet(.importSignature(png))
+                case .blank: showToast(WatermarkPanelModel.blankImportMessage)
+                case .unreadable: showToast(WatermarkPanelModel.unreadableImportMessage)
+                }
             }
         }
     }

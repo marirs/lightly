@@ -17,7 +17,7 @@ final class WatermarkStageTests: XCTestCase {
               placement: placement, position: position, offset: offset, size: size, opacity: opacity, colour: colour)
     }
 
-    // MARK: On-screen size (owner ruling W1, contract revision 3)
+    // MARK: On-screen size (PROVISIONAL approach to defect W1, pending the owner)
 
     /// The prototype's layouts for wm-text / wm-signature (sunset): iPhone 17 portrait shows the
     /// photo 402 × 268.1 pt, iPad Pro 13" landscape 892 × 594.8 pt. Whatever the photo's pixels,
@@ -368,14 +368,22 @@ final class SignatureStoreTests: XCTestCase {
                                 provider: CGDataProvider(data: Data([UInt8](repeating: 240, count: 50 * 50 * 4)) as CFData)!,
                                 decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
         XCTAssertNil(SignatureInkExtractor.extract(from: paperOnly), "no ink found")
-        // Owner ruling W6: Use still works, with the photo as it is (no paper removal).
-        let asIs = try XCTUnwrap(SignatureInkExtractor.importPNG(from: paperOnly))
+        // A blank page has nothing to use: no sheet (a toast says so), never an empty rectangle.
+        XCTAssertEqual(SignatureInkExtractor.importSignature(from: paperOnly), .blank)
+        XCTAssertNil(SignatureInkExtractor.importPNG(from: paperOnly))
+        // Defect W6: content with no ink told from the paper is used as it is (no paper removal).
+        var faint = [UInt8](repeating: 128, count: 50 * 50 * 4)
+        for i in stride(from: 0, to: faint.count / 2, by: 4) { faint[i] = 150; faint[i + 1] = 140 }
+        for i in stride(from: 3, to: faint.count, by: 4) { faint[i] = 255 }
+        let faintImage = try MetalLUTRenderer.makeImage(rgba8: faint, width: 50, height: 50)
+        guard case .asIs(let asIs) = SignatureInkExtractor.importSignature(from: faintImage) else { return XCTFail("expected as-is") }
         let asIsImage = try XCTUnwrap(WatermarkStage.image(from: asIs))
         XCTAssertEqual(asIsImage.width, 50); XCTAssertEqual(asIsImage.height, 50)
         let store = SignatureStore(directory: nil)
         let saved = store.saveImported(png: asIs)
         XCTAssertEqual(store.resolve(saved.reference), .available(saved), "Use saves it like any import")
-        XCTAssertEqual(try XCTUnwrap(SignatureInkExtractor.importPNG(from: image)), png, "with ink, the paper is removed as before")
+        XCTAssertEqual(SignatureInkExtractor.importSignature(from: image), .inkFound(png), "with ink, the paper is removed as before")
+        XCTAssertEqual(SignatureInkExtractor.importSignature(from: nil), .unreadable)
     }
 }
 
@@ -490,7 +498,7 @@ final class WatermarkSessionTests: XCTestCase {
     }
 }
 
-/// Focus & Blur's strength on screen (owner ruling, contract revision 3): the prototype blurs the
+/// Focus & Blur's strength on screen (PROVISIONAL approach, pending the owner): the prototype blurs the
 /// displayed photo with σ = blur/9 pt on every device.
 final class BlurDisplayScaleTests: XCTestCase {
 

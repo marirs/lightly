@@ -27,6 +27,7 @@ struct RootView: View {
                     moreSheet(entry, windowSize: fullSize(of: geometry))
                 }
                 .overlay { signatureSheet(isTablet: fullSize(of: geometry).width > 700) }
+                .overlay { if let toast = appState.toast { StageToast(text: toast) } }
         }
         .ignoresSafeArea(.keyboard)
         // Apple's native picker. Presenting it this way requires no Photos

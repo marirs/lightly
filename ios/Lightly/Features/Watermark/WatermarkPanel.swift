@@ -31,6 +31,11 @@ final class WatermarkPanelModel {
     @ObservationIgnored private var lastText = EditRecipe.Watermark.Text(text: WatermarkPanelModel.defaultText, font: .allura)
     @ObservationIgnored private var lastLogo: EditRecipe.AssetRef = .bundled(id: WatermarkStage.sampleLogoID)
 
+    // Owner question W10: the prototype has no message for an import with nothing to use; these
+    // reuse the approved toast and the wording of "This photo can’t be opened".
+    static let blankImportMessage = "No signature found in that photo"
+    static let unreadableImportMessage = "That photo can’t be opened"
+
     /// The prototype's sample text (`newSession`: `text:'A. Rivera'`); owner question W5.
     static let defaultText = "A. Rivera"
     static let colours = ["#FFFFFF", "#111111", "#C9A27E", "#8A8A8F"]
@@ -123,13 +128,16 @@ final class WatermarkPanelModel {
     func importSignature(from item: PhotosPickerItem) {
         Task { [weak self] in
             let data = try? await item.loadTransferable(type: Data.self)
-            let extracted = await Task.detached(priority: .userInitiated) { () -> Data? in
-                guard let data, let image = Self.uprightImage(data) else { return nil }
-                return SignatureInkExtractor.importPNG(from: image)
+            let result = await Task.detached(priority: .userInitiated) { () -> SignatureInkExtractor.ImportResult in
+                SignatureInkExtractor.importSignature(from: data.flatMap(Self.uprightImage))
             }.value
-            // An unreadable photo opens nothing (there is nothing to use).
-            guard let extracted else { return }
-            self?.sheet = .importSignature(extracted)
+            guard let self else { return }
+            switch result {
+            case .inkFound(let png), .asIs(let png): sheet = .importSignature(png)
+            // Never silent, never an empty rectangle.
+            case .blank: session.showStageToast(Self.blankImportMessage)
+            case .unreadable: session.showStageToast(Self.unreadableImportMessage)
+            }
         }
     }
 

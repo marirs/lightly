@@ -340,6 +340,20 @@ final class AppState {
     }
 
     var signatureSheet: SignatureSheet?
+
+    /// The approved `.toast`, over whatever screen is showing (Preferences' signature import).
+    private(set) var toast: String?
+    @ObservationIgnored private var toastTask: Task<Void, Never>?
+
+    func showToast(_ text: String) {
+        toast = text
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(1_400))
+            guard !Task.isCancelled else { return }
+            self?.toast = nil
+        }
+    }
     /// The Draw signature pad of the sheet opened from Preferences.
     let signaturePad = SignaturePadModel()
 
