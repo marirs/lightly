@@ -15,7 +15,12 @@ Status: **progress, not accepted.** Built and tested; one phone cell (iPhone 17 
 | Test | db68ef1 | `more-signature` snapshot re-recorded: the old baseline was the slice-1 empty stub (slice-1 mismatch #5) |
 | Code | f520543 | "Signature on the margin" row 52 pt (was 44; found in this review); `wm-sig-draw` capture sample position |
 | Code | 7bcef45 | Remove patches stored beside the edit by digest (`derivedRef`), kill-and-recover and corrupt-patch tests |
-| Docs | this file | Slice-5 iOS report |
+| Docs | 6512140 | Slice-5 iOS report (first version) |
+| Code | 88973a6 | Session restore after the system ends the app (R1) |
+| Code | daee977 | Draw / Import from Preferences replace the More page (were a nested sheet) |
+| Test | 2e770cd | Share: the shared file is the saved copy's bytes; metadata policy in all four combinations on it |
+| Tooling | fbffd33 | Restore and Draw-replaces-More UI tests; `share` capture screen |
+| Docs | this file | Report update |
 
 ## What is built
 
@@ -43,9 +48,17 @@ Status: **progress, not accepted.** Built and tested; one phone cell (iPhone 17 
 
 **Remove patches** (7bcef45): written atomically to Application Support/RemovePatches/`<sha256>.patch`, digest-checked on load; missing/corrupt → skipped, never recomputed; a new photo deletes them.
 
+**Session restore (R1, 88973a6)**: there is no approved "resume" screen, so the session comes back the platform way, as on Android: while it has unsaved edits it is kept in Application Support/EditSession (a copy of the original's bytes; every undo entry as canonical edit-recipe-v1 JSON and the position; the Auto state; the model results: people and faces, subject matte, depth map, person matte). A SwiftUI scene-storage flag marks an editing scene; iOS drops it on a force-quit. After the system ends the app, the next launch reopens the editor exactly as it was, with no prompt; after a force-quit the stored session and its Remove patches are discarded. No model runs on restore (Auto, Vision, depth, Remove). The folder is excluded from backup; files are protected until first unlock. Save copy, Discard, close and a new photo clear it. Owner question **W9**: an explicit "Resume editing?" prompt would need a design.
+
+**Share**: unchanged code. Saved › Share hands the system share sheet a file holding the saved copy's own bytes, so it is the same full-resolution committed render as Save copy with the same metadata policy; the original is never modified.
+
+**Preferences › Saved signature › Draw / Import** (daee977): as the prototype's `overlay:sigDraw` / `overlay:sigImport`, they replace the More page; More closes and the approved sheet opens over the screen beneath (Import picks the photo first). Saving there only stores the signature.
+
 ## Tests
 
 - Unit (targeted runs, Simulator iPhone 17): `WatermarkStageTests` 16, `SignatureStoreTests` 7, `WatermarkSessionTests` 5, `BorderStageTests` 4, `EditorSessionTests` + `EditEffectsSessionTests` 25, `EditEffectsStageTests` 13, `RenderingGoldenTests` 9, `RemovePatchPersistenceTests` 3, `AppStateTests` 5, `SliceOneSnapshotTests` 16 — 0 failures. The full unit suite was not run in this slice (pending).
+- Restore and Share (test-ios-restore-share): `SessionRestoreTests` 4 — kill and recover from storage only with counting Auto, person and Remove models (none called), same history and position, identical preview bytes and export; Save clears; backup exclusion; force-quit discards, relaunch restores, leaving clears. `EditorSessionTests` metadata test now also checks the shared file's bytes in all four Keep photo metadata / Include location combinations.
+- UI (verify-ios-restore-share-iphone17, build 2e770cd): `testTheSessionComesBackAfterTheSystemEndsTheApp` (background, kill, plain relaunch: editor with the edit and its history) and `testDrawFromPreferencesReplacesTheMorePage` pass; screenshots in `~/.codex/artifacts/lightly/v1/slice5/ios/verify-restore-share/iphone17__portrait__light__default/`.
 - UI: `EditorFlowUITests` `testWatermarkTextPositionAndUndo` and `testEditAndEffectsShareTheSessionAndUndoStepByStep` pass (build f520543).
 - Save copy: `WatermarkSessionTests.testSaveCopyCarriesTheBorderAndTheWatermarkAndTheSessionKeepsTheOriginal` renders the export path at full resolution: polaroid canvas = photo + insets, only the bottom margin changes, original bytes untouched. Inspected visually on `portrait_deep_03` (1067 × 1600 → 1185 × 1915, Caveat "A. Rivera" in #222222 centred in the margin): `~/.codex/artifacts/lightly/v1/slice5/ios/verify-watermark-f520543/export-polaroid-caveat-portrait_deep_03.jpg`.
 
@@ -61,6 +74,8 @@ Status: **progress, not accepted.** Built and tested; one phone cell (iPhone 17 
 | bd-polaroid | W1 (after f520543; before it the panel was 8 pt short) |
 | pref-signature | page content V; recorded slice-1 deviation 1 (phone More pages in the sheet) |
 
+`saved` V (as slice 2). `share` (captures2, build fbffd33's DEBUG wait): the system share sheet with "Lightly copy · JPEG Image" and the saved copy's thumbnail. **S1**: the prototype draws its own mock of the system sheet (`data-system`); iOS shows the real iOS 26 share sheet (layout and actions are the system's).
+
 iPad 11 landscape (side panel with title): layout matches; the watermark is about twice the prototype's size (W1, tablets).
 
 ## Deviations and owner questions
@@ -75,11 +90,14 @@ iPad 11 landscape (side panel with title): layout matches; the watermark is abou
 | W6 | wm-sig-import | no design for a photo with no ink found | the sheet shows the empty paper box; Use does nothing | owner question |
 | W7 | bd-polaroid | `polaroidSig` sets type signature even with nothing saved | no saved signature: Draw signature opens; the saved drawing goes on the margin | owner question (v3 differs, in code) |
 | W8 | Border (preferred) | prototype never shows a non-None preferred tab | Border opens on the preferred tab; the first change there applies that type in the same step | owner question |
-| R1 | — | Android restores an edit after process death | iOS stores Remove patches but has no recipe restore after a kill yet | gap reported |
+| R1 | — | Android restores an edit after process death | done in 88973a6 (silent restore, no new screen) | closed |
+| W9 | — | no approved screen for resuming an interrupted edit | silent restore after a system kill; discarded after a force-quit | owner question |
+| S1 | share | prototype's mock of the system share sheet | the real system share sheet | platform (system UI) |
 
 ## Pending
 
 - Full-device matrix for the nine screens (23 cells), dark and large text: needs the owner's scheduling approval. `pref-border` (unchanged since slice 1) was not recaptured.
 - Full unit and UI suites at the final revision.
 - Device checks (dev devices only): export memory at 48 MP with a watermark.
-- Owner decisions W1–W8; iOS process-death restore (R1).
+- Owner decisions W1–W9.
+- Restore on a device (dev devices only): memory and time to restore a 48 MP original.
