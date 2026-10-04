@@ -1480,6 +1480,8 @@ class EditorViewModel(
         schedulerCollector = scope.launch {
             newScheduler.published.collect { result ->
                 if (result != null && result.sessionId == "photo-$photoGeneration") settledRevision = result.revision
+                // A failed render keeps the last preview; say why in logcat (tag LightlyDevelop), never silently.
+                (result?.outcome as? RenderOutcome.Failed)?.let { failed -> runCatching { android.util.Log.w("LightlyDevelop", "preview render failed", failed.error) } }
                 val rendered = (result?.outcome as? RenderOutcome.Rendered)?.value ?: return@collect
                 if (result.sessionId == "photo-$photoGeneration") {
                     state.update { it.copy(preview = rendered) }

@@ -23,6 +23,7 @@ import com.lightlylabs.lightly.session.DerivedRef
 import com.lightlylabs.lightly.session.ModelRef
 import com.lightlylabs.lightly.session.Replacement
 import java.nio.ByteBuffer
+import kotlin.math.roundToInt
 import java.security.MessageDigest
 
 /**
@@ -125,12 +126,14 @@ class BackgroundSession(private val env: EditorEnvironment) {
     fun focalNearnessAt(x: Double, y: Double): Double? {
         val a = analysis ?: return null
         val nearness = a.depth?.nearness ?: return null
-        val matte = a.matte
-        val scene = com.lightlylabs.lightly.background.Refocus.buildScene(
-            FloatImage(a.width, a.height, 3), nearness, matte,
-        )
-        return com.lightlylabs.lightly.background.Refocus.focalNearness(scene, x, y)
+        focalMemo?.let { (key, value) -> if (key.first === a && key.second == x to y) return value }
+        return focalNearness(nearness, a.matte, x, y).also { focalMemo = (a to (x to y)) to it }
     }
+
+    /** The last focal nearness and the analysis and target it was resolved for (every preview asks again). */
+    @Volatile private var focalMemo: Pair<Pair<BackgroundAnalysis, Pair<Double, Double>>, Double>? = null
+
+
 
     /** The photo's detected faces (Portrait's analysis), for the default focus. */
     @Volatile private var faces: List<com.lightlylabs.lightly.vision.DetectedFace> = emptyList()
@@ -221,6 +224,41 @@ class BackgroundSession(private val env: EditorEnvironment) {
     }
 
     companion object {
+        /**
+         * [com.lightlylabs.lightly.background.Refocus.focalNearness] on the planes
+         * [com.lightlylabs.lightly.background.Refocus.buildScene] would build, computing only their nearness:
+         * the median nearness of the topmost plane in a window of half-size 0.01 · longSide. The full scene
+         * also builds three colour images at the analysis size (20 MB each at 1600 × 1067), which with a
+         * subject matte exhausted the 192 MB heap on the emulator (OutOfMemoryError in pullPushFill,
+         * bg-change-colour, 60c8b22). Same planes, same constants, same result.
+         */
+        internal fun focalNearness(nearness: FloatPlane, matte: FloatPlane?, x: Double, y: Double): Double {
+            val w = nearness.width
+            val h = nearness.height
+            val longSide = maxOf(w, h)
+            val cx = (x.coerceIn(0.0, 1.0) * (w - 1)).toInt()
+            val cy = (y.coerceIn(0.0, 1.0) * (h - 1)).toInt()
+            val ops = com.lightlylabs.lightly.background.PlaneOps
+            val plane = if (matte == null) nearness else {
+                val m = matte.map { it.coerceIn(0f, 1f) }
+                if (m[cx, cy] >= 0.5f) {
+                    var interior = ops.erodeDisc(m, 0.5f, (0.01 * longSide).roundToInt())
+                    if (interior.count { it } < 50) interior = BooleanArray(w * h) { m.values[it] > 0.5f }
+                    val raw = com.lightlylabs.lightly.background.Refocus.fillMaskedPlane(nearness, FloatPlane(w, h, FloatArray(w * h) { if (interior[it]) 1f else 0f }))
+                    val values = nearness.values.filterIndexed { i, _ -> interior[i] }.toFloatArray()
+                    val median = if (values.isNotEmpty()) ops.median(values) else 0.5
+                    raw.map { (median + com.lightlylabs.lightly.background.Refocus.FocusConstants.SUBJECT_DEPTH_COMPRESSION * (it - median)).toFloat() }
+                } else {
+                    val band = ops.dilateDisc(m, 0.02f, (0.015 * longSide).roundToInt())
+                    com.lightlylabs.lightly.background.Refocus.fillMaskedPlane(nearness, FloatPlane(w, h, FloatArray(w * h) { if (band[it]) 0f else 1f }))
+                }
+            }
+            val radius = maxOf(2, (0.01 * longSide).roundToInt())
+            val window = ArrayList<Float>()
+            for (yy in maxOf(0, cy - radius)..minOf(h - 1, cy + radius)) for (xx in maxOf(0, cx - radius)..minOf(w - 1, cx + radius)) window += plane[xx, yy]
+            return ops.median(window.toFloatArray())
+        }
+
         /** Area-average resize of RGBA8 (used to bring a full frame to the analysis size for Save copy). */
         fun resize(image: Rgba8Image, width: Int, height: Int): Rgba8Image {
             val planes = (0 until 4).map { c ->

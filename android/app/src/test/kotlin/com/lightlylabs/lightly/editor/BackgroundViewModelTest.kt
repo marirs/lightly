@@ -122,6 +122,33 @@ class BackgroundViewModelTest {
     }
 
     @Test
+    fun `the focal nearness without colour planes equals the full scene's`() {
+        val w = 120
+        val h = 90
+        val nearness = FloatPlane(w, h, FloatArray(w * h) { p -> ((p % w) * 0.006f + (p / w) * 0.003f).coerceIn(0f, 1f) })
+        val matte = FloatPlane(w, h, FloatArray(w * h) { p -> val x = p % w - 60; val y = p / w - 50; if (x * x + y * y < 600) 1f else if (x * x + y * y < 700) 0.5f else 0f })
+        val scene = com.lightlylabs.lightly.background.Refocus.buildScene(com.lightlylabs.lightly.background.FloatImage(w, h, 3), nearness, matte)
+        for ((x, y) in listOf(0.5 to 0.55, 0.1 to 0.1, 0.9 to 0.8, 0.62 to 0.3)) {
+            assertEquals(com.lightlylabs.lightly.background.Refocus.focalNearness(scene, x, y), BackgroundSession.focalNearness(nearness, matte, x, y), 1e-9)
+        }
+        val plain = com.lightlylabs.lightly.background.Refocus.buildScene(com.lightlylabs.lightly.background.FloatImage(w, h, 3), nearness, null)
+        assertEquals(com.lightlylabs.lightly.background.Refocus.focalNearness(plain, 0.3, 0.4), BackgroundSession.focalNearness(nearness, null, 0.3, 0.4), 1e-9)
+    }
+
+    @Test
+    fun `a colour replacement renders behind the subject in the preview`() = runTest {
+        val vm = Harness(this, depthDouble, segmenterDouble).ready(this)
+        vm.selectTool(EditorTool.BACKGROUND)
+        vm.selectBackgroundSub(BackgroundSub.CHANGE)
+        advanceUntilIdle()
+        vm.chooseBackgroundColour("#3C4A55"); advanceUntilIdle()
+        val preview = assertNotNull(vm.uiState.value.preview)
+        // A corner is background: it takes the colour (graded by the photo's global colour, here identity).
+        val o = 0
+        assertEquals(listOf(0x3C, 0x4A, 0x55), (0 until 3).map { preview.pixels[o + it].toInt() and 0xff }, "corner pixel")
+    }
+
+    @Test
     fun `cancelling separation changes nothing and says so`() = runTest {
         val vm = Harness(this, depthDouble, segmenterDouble).ready(this)
         vm.selectTool(EditorTool.BACKGROUND)

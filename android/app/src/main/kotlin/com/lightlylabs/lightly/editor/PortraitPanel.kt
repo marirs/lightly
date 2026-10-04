@@ -22,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -148,6 +147,7 @@ private fun frameRect(vm: EditorViewModel, ui: EditorUiState, r: NormalisedRect)
 
 @Composable
 private fun FaceRing(r: FrameRect, boxWidthDp: Float, boxHeightDp: Float, dim: Boolean, tag: String?, description: String?, testTag: String?, onClick: (() -> Unit)?) {
+    val opacity = if (dim) 0.75f else 1f
     val left = (r.x * boxWidthDp).toFloat()
     val top = (r.y * boxHeightDp).toFloat()
     val width = max(1f, (r.width * boxWidthDp).toFloat())
@@ -156,18 +156,19 @@ private fun FaceRing(r: FrameRect, boxWidthDp: Float, boxHeightDp: Float, dim: B
         Modifier
             .offset(left.dp, top.dp)
             .size(width.dp, height.dp)
-            .alpha(if (dim) 0.75f else 1f)
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .then(if (description != null) Modifier.semantics { contentDescription = description; selected = !dim } else Modifier)
             .then(if (testTag != null) Modifier.testTagResource(testTag) else Modifier)
             .drawBehind {
                 // `box-shadow: 0 0 0 1px rgba(0,0,0,.2)`: a 1 dp dark ring just outside the border box.
                 val px = 1.dp.toPx()
-                drawOval(Color(0x33000000), topLeft = androidx.compose.ui.geometry.Offset(-px / 2, -px / 2),
+                // `.dim { opacity:.75 }` on the whole ring and its tag. Applied to each colour, not as a layer:
+                // a layer's alpha is drawn through an offscreen buffer the size of the ring, which clipped the tag.
+                drawOval(Color(0x33000000).copy(alpha = 0.2f * opacity), topLeft = androidx.compose.ui.geometry.Offset(-px / 2, -px / 2),
                     size = androidx.compose.ui.geometry.Size(size.width + px, size.height + px), style = Stroke(px))
                 // `.faceRing { border:1.5px solid rgba(255,255,255,.95) }`, floored to 1 px as Chrome renders it;
                 // `.dim` is dashed (Chrome's 3/2 dp dash pattern, as the signature sheets).
-                drawOval(Color(0xF2FFFFFF), topLeft = androidx.compose.ui.geometry.Offset(px / 2, px / 2),
+                drawOval(Color.White.copy(alpha = 0.95f * opacity), topLeft = androidx.compose.ui.geometry.Offset(px / 2, px / 2),
                     size = androidx.compose.ui.geometry.Size(size.width - px, size.height - px),
                     style = Stroke(px, pathEffect = if (dim) PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.dp.toPx())) else null))
             },
@@ -182,10 +183,10 @@ private fun FaceRing(r: FrameRect, boxWidthDp: Float, boxHeightDp: Float, dim: B
                         val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
                         layout(placeable.width, placeable.height) { placeable.place(0, placeable.height + 6.dp.roundToPx()) }
                     }
-                    .background(Color(0x8C000000), RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.55f * opacity), RoundedCornerShape(8.dp))
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             ) {
-                Text(tag, style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(12f), color = Color.White), maxLines = 1)
+                Text(tag, style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(12f), color = Color.White.copy(alpha = opacity)), maxLines = 1)
             }
         }
     }

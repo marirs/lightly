@@ -232,6 +232,16 @@ class PeopleAnalyser(
     private val landmarker: FaceMeshLandmarker?,
     private val poses: PoseDetector?,
 ) {
+    companion object {
+        /**
+         * Person presence from the pose detector needs a higher score than its own 0.5 threshold. On the
+         * evaluation photos the highest score without a person was 0.53 (landscape_02, the approved
+         * bg-no-subject lake, at the editor's 1024 px analysis size: Portrait would have been offered)
+         * and the lowest with one 0.67 (group_three_01); 0.6 separates them.
+         */
+        const val MIN_PERSON_SCORE = 0.6f
+    }
+
     /** The same detectors without the landmark model: enough to know whether people are there. */
     fun withoutLandmarks() = PeopleAnalyser(faces, null, poses)
 
@@ -244,6 +254,7 @@ class PeopleAnalyser(
             DetectedFace(box, detection.score, presence, if (presence >= DetectedFace.MIN_LANDMARK_PRESENCE) points else emptyList())
         }.sortedBy { it.box.x }
         val people = poses?.detect(image).orEmpty()
+            .filter { it.score >= MIN_PERSON_SCORE }
             .map { DetectedFace.clampedRect(it.xMin, it.yMin, it.width, it.height) }
             .filter { person -> detected.none { overlaps(person, it.box) } }
         return PeopleAnalysis(detected, people)
