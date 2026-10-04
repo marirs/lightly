@@ -1,0 +1,357 @@
+{
+ "_comment": "Hand-labelled expectations for the evaluation set. Face boxes are normalised [x,y,w,h], origin top-left; a detection counts as a hit when its centre lies inside an unmatched box. 'required': false marks faces a detector may reasonably miss (silhouette profile). people = number of persons a person/subject mask should include. Boxes for portraits/groups were seeded from Apple Vision and checked by eye; backlit faces and the synthetic small faces were placed by hand / from the compositing geometry in make_test_set.py.",
+ "photos": {
+  "backlit_01": {
+   "faces": [
+    {
+     "box": [
+      0.28,
+      0.25,
+      0.4,
+      0.25
+     ],
+     "required": true,
+     "skin": "medium"
+    }
+   ],
+   "people": 1,
+   "category": "backlit"
+  },
+  "backlit_02": {
+   "faces": [],
+   "people": 1,
+   "category": "backlit",
+   "note": "person seen from behind; no face"
+  },
+  "backlit_03": {
+   "faces": [
+    {
+     "box": [
+      0.35,
+      0.12,
+      0.25,
+      0.45
+     ],
+     "required": false,
+     "skin": "light"
+    }
+   ],
+   "people": 1,
+   "category": "backlit",
+   "note": "silhouetted profile"
+  },
+  "group_three_01": {
+   "faces": [
+    {
+     "box": [
+      0.2621,
+      0.188,
+      0.1538,
+      0.2733
+     ],
+     "required": true,
+     "skin": "light"
+    },
+    {
+     "box": [
+      0.3798,
+      0.1902,
+      0.2155,
+      0.3832
+     ],
+     "required": true,
+     "skin": "medium"
+    },
+    {
+     "box": [
+      0.5983,
+      0.0352,
+      0.1955,
+      0.3476
+     ],
+     "required": true,
+     "skin": "deep"
+    }
+   ],
+   "people": 3,
+   "category": "group"
+  },
+  "landscape_01": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  },
+  "landscape_02": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  },
+  "landscape_03": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  },
+  "night_01": {
+   "faces": [],
+   "people": null,
+   "category": "scene",
+   "note": "may contain tiny distant pedestrians; excluded from person false-positive stats"
+  },
+  "night_02": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  },
+  "night_03": {
+   "faces": [],
+   "people": null,
+   "category": "night",
+   "note": "silhouetted patrons at a bar; no visible faces; people count ambiguous"
+  },
+  "portrait_deep_01": {
+   "faces": [
+    {
+     "box": [
+      0.1032,
+      0.3146,
+      0.4564,
+      0.3033
+     ],
+     "required": true,
+     "skin": "deep"
+    }
+   ],
+   "people": 1,
+   "category": "portrait"
+  },
+  "portrait_deep_02": {
+   "faces": [
+    {
+     "box": [
+      0.3266,
+      0.1262,
+      0.2999,
+      0.4499
+     ],
+     "required": true,
+     "skin": "deep"
+    }
+   ],
+   "people": 1,
+   "category": "portrait"
+  },
+  "portrait_deep_03": {
+   "faces": [
+    {
+     "box": [
+      0.3109,
+      0.0936,
+      0.4339,
+      0.2893
+     ],
+     "required": true,
+     "skin": "deep"
+    }
+   ],
+   "people": 1,
+   "category": "portrait"
+  },
+  "portrait_light_01": {
+   "faces": [
+    {
+     "box": [
+      0.1035,
+      0.3028,
+      0.6076,
+      0.405
+     ],
+     "required": true,
+     "skin": "light"
+    }
+   ],
+   "people": 1,
+   "category": "portrait"
+  },
+  "portrait_light_02": {
+   "faces": [
+    {
+     "box": [
+      -0.0098,
+      0.1929,
+      0.9911,
+      0.6607
+     ],
+     "required": true,
+     "skin": "light"
+    }
+   ],
+   "people": 1,
+   "category": "portrait"
+  },
+  "portrait_medium_01": {
+   "faces": [
+    {
+     "box": [
+      0.0965,
+      0.2978,
+      0.7385,
+      0.4922
+     ],
+     "required": true,
+     "skin": "medium"
+    }
+   ],
+   "people": 1,
+   "category": "portrait"
+  },
+  "portrait_medium_02": {
+   "faces": [
+    {
+     "box": [
+      0.203,
+      0.3995,
+      0.3154,
+      0.2098
+     ],
+     "required": true,
+     "skin": "medium"
+    }
+   ],
+   "people": 1,
+   "category": "portrait"
+  },
+  "sunset_01": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  },
+  "sunset_02": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  },
+  "sunset_03": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  },
+  "synthetic_group4": {
+   "faces": [
+    {
+     "box": [
+      0.0253,
+      0.3005,
+      0.1542,
+      0.4112
+     ],
+     "required": true,
+     "skin": "light"
+    },
+    {
+     "box": [
+      0.2724,
+      0.2945,
+      0.1881,
+      0.5017
+     ],
+     "required": true,
+     "skin": "medium"
+    },
+    {
+     "box": [
+      0.5202,
+      0.3074,
+      0.1177,
+      0.3137
+     ],
+     "required": true,
+     "skin": "deep"
+    },
+    {
+     "box": [
+      0.8302,
+      0.098,
+      0.1047,
+      0.279
+     ],
+     "required": true,
+     "skin": "deep"
+    }
+   ],
+   "people": 4,
+   "category": "group"
+  },
+  "synthetic_small_faces": {
+   "faces": [
+    {
+     "box": [
+      0.0586,
+      0.6777,
+      0.0977,
+      0.2198
+     ],
+     "required": true,
+     "skin": "light"
+    },
+    {
+     "box": [
+      0.2344,
+      0.707,
+      0.0845,
+      0.1905
+     ],
+     "required": true,
+     "skin": "medium"
+    },
+    {
+     "box": [
+      0.397,
+      0.7363,
+      0.0718,
+      0.1612
+     ],
+     "required": true,
+     "skin": "deep"
+    },
+    {
+     "box": [
+      0.5469,
+      0.7582,
+      0.062,
+      0.1392
+     ],
+     "required": true,
+     "skin": "deep"
+    },
+    {
+     "box": [
+      0.687,
+      0.7802,
+      0.0522,
+      0.1172
+     ],
+     "required": true,
+     "skin": "light"
+    }
+   ],
+   "people": 5,
+   "category": "small_faces"
+  },
+  "wellexposed_01": {
+   "faces": [],
+   "people": null,
+   "category": "scene",
+   "note": "may contain tiny distant pedestrians; excluded from person false-positive stats"
+  },
+  "wellexposed_02": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  },
+  "wellexposed_03": {
+   "faces": [],
+   "people": 0,
+   "category": "no_person"
+  }
+ }
+}

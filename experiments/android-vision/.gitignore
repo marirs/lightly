@@ -1,0 +1,23 @@
+# Build outputs, local machine state, downloaded models and copied photos.
+# Models are fetched (sha256-verified) and photos copied by scripts/prepare_assets.sh.
+.venv/
+__pycache__/
+VisionEval/.gradle/
+VisionEval/.kotlin/
+VisionEval/build/
+VisionEval/app/build/
+VisionEval/local.properties
+VisionEval/.idea/
+VisionEval/app/src/all/assets/
+*.iml
+*.apk
+models/*.tflite
+models/*.task
+work/
+results/**/*.png
+results/**/*.jpg
+models/*.pth
+models/face_landmarker/
+models/pose_landmarker/
+models/converted/
+.venv_convert/
