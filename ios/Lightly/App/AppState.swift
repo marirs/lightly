@@ -1,3 +1,4 @@
+import OSLog
 import CoreGraphics
 import Foundation
 import Observation
@@ -305,13 +306,19 @@ final class AppState {
 
     // MARK: - Restoring after the system ended the app
 
+    private static let restoreLog = Logger(subsystem: "com.lightlylabs.lightly", category: "restore")
+
     /// At launch: when the system ended the app while a photo was open (`sceneWasEditing`, kept by
     /// SwiftUI scene storage, which iOS drops when the person force-quits), the stored session
     /// reopens in the editor exactly as it was, with no prompt, as the system restores apps. Otherwise
     /// whatever is stored is discarded, Remove patches included.
     // Owner question W9: an explicit "Resume editing?" prompt would need an approved design.
     func restoreInterruptedSession(sceneWasEditing: Bool) async {
-        guard let saved = sessionStore.load() else { return }
+        guard let saved = sessionStore.load() else {
+            Self.restoreLog.notice("restore: no stored session")
+            return
+        }
+        Self.restoreLog.notice("restore: stored session with \(saved.history.count, privacy: .public) steps; scene was editing \(sceneWasEditing, privacy: .public)")
         guard sceneWasEditing, selectedPhoto == nil,
               let photo = try? await photoLoader.loadPhoto(from: saved.original, source: .photoLibrary),
               EditorSession.sourceReference(for: photo).fingerprint == saved.history.first?.source.fingerprint

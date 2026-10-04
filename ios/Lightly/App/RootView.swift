@@ -1,3 +1,4 @@
+import OSLog
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -108,8 +109,11 @@ struct RootView: View {
             return
         }
         #endif
+        Self.restoreLog.notice("launch: scene was editing \(sceneIsEditing, privacy: .public)")
         await appState.restoreInterruptedSession(sceneWasEditing: sceneIsEditing)
     }
+
+    private static let restoreLog = Logger(subsystem: "com.lightlylabs.lightly", category: "restore")
 
     #if DEBUG
     /// `--open-unreadable-photo` (DEBUG only): opens bytes that are not an image through the real
