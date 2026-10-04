@@ -135,7 +135,8 @@ struct PanelSlider: View {
                         .offset(x: mid ? width * min(0.5, fraction) : 0)
                     Circle()
                         .fill(colorScheme == .dark ? ApprovedColor.ink.resolved(colorScheme) : ApprovedColor.background.resolved(colorScheme))
-                        .overlay(Circle().strokeBorder(ApprovedColor.ink.resolved(colorScheme), lineWidth: 1.5))
+                        // `.trk b` border: 1 pt as rendered (the approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px)).
+                        .overlay(Circle().strokeBorder(ApprovedColor.ink.resolved(colorScheme), lineWidth: 1))
                         .frame(width: 18, height: 18)
                         .offset(x: width * fraction - 9)
                 }

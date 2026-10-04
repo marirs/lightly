@@ -23,7 +23,7 @@ struct ThirdsGridMark: View {
     }
 }
 
-/// `.cropframe`: inset 6 %, a 1.5 pt white border, the area outside darkened (42 % black, clipped
+/// `.cropframe`: inset 6 %, a 1 pt white border (1.5px in the CSS, floored by the approved render), the area outside darkened (42 % black, clipped
 /// to the photo), four 18 pt corner handles of 3 pt white strokes 3 pt outside the frame, and the
 /// thirds grid inside.
 struct CropFrameMark: View {
@@ -38,18 +38,19 @@ struct CropFrameMark: View {
                     path.addRect(frame)
                 }
                 .fill(Color.black.opacity(0.42), style: FillStyle(eoFill: true))
+                // The border is 1 pt as rendered (the approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px)); the grid fills the padding box inside it.
                 ThirdsGridMark()
-                    .frame(width: frame.width - 3, height: frame.height - 3)
-                    .offset(x: frame.minX + 1.5, y: frame.minY + 1.5)
-                Rectangle().strokeBorder(.white, lineWidth: 1.5)
+                    .frame(width: frame.width - 2, height: frame.height - 2)
+                    .offset(x: frame.minX + 1, y: frame.minY + 1)
+                Rectangle().strokeBorder(.white, lineWidth: 1)
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY)
                 ForEach(0..<4, id: \.self) { corner in
                     cornerHandle(corner)
                         .frame(width: 18, height: 18)
-                        // `left/top: −3px` from the padding box, inside the 1.5 pt border.
-                        .offset(x: corner % 2 == 0 ? frame.minX - 1.5 : frame.maxX - 16.5,
-                                y: corner < 2 ? frame.minY - 1.5 : frame.maxY - 16.5)
+                        // `left/top: −3px` from the padding box, inside the 1 pt border.
+                        .offset(x: corner % 2 == 0 ? frame.minX - 2 : frame.maxX - 16,
+                                y: corner < 2 ? frame.minY - 2 : frame.maxY - 16)
                 }
             }
         }

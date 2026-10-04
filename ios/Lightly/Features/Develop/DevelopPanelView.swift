@@ -74,10 +74,11 @@ struct DevelopPanelView: View {
             HStack(spacing: 7) {
                 Circle()
                     .fill(isOn ? c(ApprovedColor.selection) : .clear)
-                    .overlay(Circle().strokeBorder(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary), lineWidth: 1.5))
-                    // `.autoT::before`: 9 × 9 plus a 1.5 border outside it (pseudo-elements are not
-                    // covered by `.dv * { box-sizing: border-box }`), so 12 pt overall.
-                    .frame(width: 12, height: 12)
+                    .overlay(Circle().strokeBorder(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary), lineWidth: 1))
+                    // `.autoT::before`: 9 × 9 plus its border outside it (pseudo-elements are not
+                    // covered by `.dv * { box-sizing: border-box }`). The CSS says 1.5, but the
+                    // approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px), so the approved dot is 11 pt with a 1 pt ring.
+                    .frame(width: 11, height: 11)
                 Text("Auto")
                     .approvedText(15)
                     .foregroundStyle(isOn ? c(ApprovedColor.ink) : isUnavailable ? c(ApprovedColor.inkTertiary) : c(ApprovedColor.inkSecondary))
@@ -308,7 +309,8 @@ struct ApprovedSlider: View {
                     Capsule().fill(ApprovedColor.ink.resolved(colorScheme)).frame(width: width * fraction, height: 3)
                     Circle()
                         .fill(colorScheme == .dark ? ApprovedColor.ink.resolved(colorScheme) : ApprovedColor.background.resolved(colorScheme))
-                        .overlay(Circle().strokeBorder(ApprovedColor.ink.resolved(colorScheme), lineWidth: 1.5))
+                        // `.trk b` border: 1 pt as rendered (the approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px)).
+                        .overlay(Circle().strokeBorder(ApprovedColor.ink.resolved(colorScheme), lineWidth: 1))
                         .frame(width: 18, height: 18)
                         .offset(x: width * fraction - 9)
                 }

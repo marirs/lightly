@@ -269,14 +269,15 @@ struct ProgressBox<Extra: View>: View {
     }
 }
 
-/// `.spinner`: a 22 pt ring, 2.5 pt, 35 % white with a white top quarter. The prototype draws it
+/// `.spinner`: a 22 pt ring, 2 pt as rendered (2.5px in the CSS), 35 % white with a white top quarter. The prototype draws it
 /// still; here it turns, as a spinner does, and every frame looks like the approved one.
 struct RingSpinner: View {
     @State private var angle: Double = 0
     var body: some View {
         ZStack {
-            Circle().strokeBorder(.white.opacity(0.35), lineWidth: 2.5)
-            Circle().inset(by: 1.25).trim(from: 0.625, to: 0.875).stroke(.white, lineWidth: 2.5)
+            // `.spinner` border: 2 pt as rendered (the approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px)).
+            Circle().strokeBorder(.white.opacity(0.35), lineWidth: 2)
+            Circle().inset(by: 1).trim(from: 0.625, to: 0.875).stroke(.white, lineWidth: 2)
         }
         .frame(width: 22, height: 22)
         .rotationEffect(.degrees(angle))
