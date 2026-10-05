@@ -13,14 +13,16 @@
    prototype's CSS simulations; it is not the native renderer. */
 
 const SEL_PHOTOS = ['woman', 'street'];
-const SEL_DEFAULTS = { on:false, picks:[], scope:'match', range:40, strength:100, area:[] };
+// No On switch: the effect is active while at least one colour is kept; removing the last colour or Clear
+// selection turns it off.
+const SEL_DEFAULTS = { picks:[], scope:'match', range:40, strength:100, area:[] };
 
 /* ---------------------------------------------------------------- session: fx.sel */
 const approvedNewSession = newSession;
 newSession = function (photo) { const s = approvedNewSession(photo); s.fx.sel = JSON.parse(JSON.stringify(SEL_DEFAULTS)); return s; };
 
 const approvedToolUsed = toolUsed;
-toolUsed = function (s, t) { return approvedToolUsed(s, t) || (t === 'effects' && !!(s.fx.sel && s.fx.sel.on && s.fx.sel.picks.length)); };
+toolUsed = function (s, t) { return approvedToolUsed(s, t) || (t === 'effects' && !!(s.fx.sel && s.fx.sel.picks.length)); };
 
 /* ---------------------------------------------------------------- pixels (illustration) */
 const selImages = {};          // photo id -> { w, h, rgb:Uint8ClampedArray, lab:Float32Array }
@@ -110,7 +112,7 @@ function renderSel(id, sel) {
 const approvedPhotoHTML = photoHTML;
 photoHTML = function (s, ui = {}) {
   const html = approvedPhotoHTML(s, ui), sel = s.fx.sel;
-  if (ui.compare || !sel || !sel.on || !sel.picks.length || !selImages[s.photo]) return html;
+  if (ui.compare || !sel || !sel.picks.length || !selImages[s.photo]) return html;
   const r = renderSel(s.photo, sel); if (!r) return html;
   // Order (owner recommendation): after Light Leaks, before Grain and Vignette, so a coloured leak does not
   // bring colour back. Illustration only: the leak overlay is desaturated by Strength.
@@ -123,7 +125,7 @@ marksFor = function (s, ui) {
   let m = approvedMarksFor(s, ui); const sel = s.fx.sel;
   // Temporary overlay (Background › Refine's blue tint), never saved: shown for a moment after a pick, while
   // Range is dragged and while painting; otherwise the person sees the actual result.
-  if (ui.tool === 'effects' && ui.sub === 'sel' && sel.on && sel.picks.length && ui.selOverlay) {
+  if (ui.tool === 'effects' && ui.sub === 'sel' && sel.picks.length && ui.selOverlay) {
     const r = renderSel(s.photo, sel);
     if (r) m += `<div class="maskTint" style="-webkit-mask-image:url(${r.tint});mask-image:url(${r.tint});-webkit-mask-size:100% 100%;mask-size:100% 100%"></div>`;
   }
@@ -135,15 +137,16 @@ const approvedEffectsPanel = effectsPanel;
 effectsPanel = function (s, ui, L) {
   if (ui.sub !== 'sel') return approvedEffectsPanel(s, ui, L).replace(/<div class="tabs">([\s\S]*?)<\/div>/, (all, inner) => `<div class="tabs">${inner}${selTab(s, ui)}</div>`);
   const fx = s.fx, sel = fx.sel;
-  const items = [['leak', 'Light Leaks', fx.leak.on ? 'dotted' : ''], ['grain', 'Grain', fx.grain.on ? 'dotted' : ''], ['vig', 'Vignette', fx.vig.on ? 'dotted' : ''], ['sel', 'Selective Colour', sel.on && sel.picks.length ? 'dotted' : '']];
-  const onRow = `<button class="listrow" style="border:0;min-height:44px;width:100%" data-act="fxToggle:sel" aria-pressed="${sel.on}"><span>${sel.on ? 'On' : 'Off'}</span><span class="toggle ${sel.on ? 'on' : ''}" style="margin-left:auto"></span></button>`;
-  let body = onRow;
-  if (sel.on) {
+  const items = [['leak', 'Light Leaks', fx.leak.on ? 'dotted' : ''], ['grain', 'Grain', fx.grain.on ? 'dotted' : ''], ['vig', 'Vignette', fx.vig.on ? 'dotted' : ''], ['sel', 'Selective Colour', sel.picks.length ? 'dotted' : '']];
+  let body = '';
+  {
     const picking = ui.picking || !sel.picks.length;
-    const chips = sel.picks.map((p, i) => `<button class="opt" data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}"><span style="width:22px;height:22px;border-radius:11px;border:1px solid var(--hair);background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}"></span>${icon('close', 16)}</button>`).join('');
+    // Kept colours are the approved 44 pt swatches (`.sw`, as in Background and Border); a small × marks that
+    // tapping one removes it.
+    const chips = sel.picks.map((p, i) => `<button class="sw" data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}" style="background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}"><span style="position:absolute;right:-3px;top:-3px;width:18px;height:18px;border-radius:9px;background:var(--bg);border:1px solid var(--hair);display:grid;place-items:center;color:var(--ink2)">${icon('close', 11)}</span></button>`).join('');
     // "Keep" and Pick are pinned; only the colour chips scroll (`.chiprow`), so adding another colour stays
     // in reach however many there are.
-    body += `<div style="display:flex;align-items:center;gap:8px;padding-left:18px"><span style="min-width:76px;color:var(--ink2)">Keep</span><button class="opt ${picking ? 'on' : ''}" data-act="selPicking" aria-pressed="${picking}" style="flex:0 0 auto">${icon('plus', 18)}Pick</button><div class="chiprow" style="flex:1 1 auto;min-width:0;padding-left:0;align-items:center">${chips}</div></div>`;
+    body += `<div style="display:flex;align-items:center;gap:8px;padding-left:18px"><span style="min-width:76px;color:var(--ink2)">Keep</span><button class="sw ${picking ? 'on' : ''}" data-act="selPicking" aria-pressed="${picking}" aria-label="Pick a colour" style="display:grid;place-items:center;background:var(--bg2);color:var(--ink)">${icon('plus', 20)}</button><div class="chiprow" style="flex:1 1 auto;min-width:0;padding-left:0;align-items:center">${chips}</div></div>`;
     body += `<div class="note">${picking ? 'Tap the photo on a colour to keep it. Everything else turns black and white.' : 'Tap a colour to remove it.'}</div>`;
     body += seg([['match', 'Matching colours'], ['area', 'Painted area']], sel.scope, 'selScope');
     if (sel.scope === 'match') body += `<div class="note">The picked colours stay wherever they appear in the photo.</div>`;
@@ -154,7 +157,7 @@ effectsPanel = function (s, ui, L) {
   return `${L.roomy ? '<div class="ptitle">Effects</div>' : ''}${tabs(items, 'sel', 'sub')}${body}`;
 };
 PANELS.effects = effectsPanel;   // the approved panel map captured the original function
-const selTab = (s, ui) => { const sel = s.fx.sel, dotted = sel.on && sel.picks.length; return `<button class="${dotted ? 'dotted' : ''}" data-act="sub:sel">Selective Colour</button>`; };
+const selTab = (s, ui) => { const sel = s.fx.sel, dotted = sel.picks.length; return `<button class="${dotted ? 'dotted' : ''}" data-act="sub:sel">Selective Colour</button>`; };
 
 /* ---------------------------------------------------------------- interactions */
 // Brush size 0..100 -> dab radius 2 %..15 % of the photo's height. A view setting, not an edit (no undo step).
@@ -175,7 +178,7 @@ const approvedRender = Prototype.prototype.render;
 Prototype.prototype.render = function () {
   approvedRender.call(this);
   const stage = this.host.querySelector('.stage'), sel = this.s.fx.sel, ui = this.ui;
-  if (!stage || ui.tool !== 'effects' || ui.sub !== 'sel' || !sel.on) return;
+  if (!stage || ui.tool !== 'effects' || ui.sub !== 'sel') return;
   const at = (e) => { const b = stage.querySelector('.imgbox').getBoundingClientRect(); return { x:(e.clientX - b.left) / b.width, y:(e.clientY - b.top) / b.height }; };
   const picking = ui.picking || !sel.picks.length;
   if (picking) stage.onclick = (e) => { const p = at(e); if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) return; sel.picks.push(p); ui.picking = false; ui.selOverlay = true; this.commit(); this.render(); setTimeout(() => { ui.selOverlay = false; this.render(); }, 1200); };
@@ -233,7 +236,7 @@ const ARROW = { x:0.30, y:0.12 };                                        // red 
 const ARROW_AREA = [{ x:0.30, y:0.12, r:0.17, mode:'add' }, { x:0.30, y:0.36, r:0.17, mode:'add' }, { x:0.24, y:0.62, r:0.17, mode:'add' }, { x:0.20, y:0.78, r:0.13, mode:'add' }, { x:0.31, y:0.52, r:0.08, mode:'add' }];
 // ... and Remove takes the lips back out of the painted area.
 const LIPS_REMOVED = [...ARROW_AREA, { x:0.335, y:0.545, r:0.06, mode:'erase' }];
-const selSetup = (o) => (s) => { Object.assign(s.fx.sel, { on:true }, JSON.parse(JSON.stringify(o))); };
+const selSetup = (o) => (s) => { Object.assign(s.fx.sel, JSON.parse(JSON.stringify(o))); };
 add('fx-selective-empty', 'effects', 'PROPOSAL · Selective Colour · first pick (tap the photo)', 'editor', { photo:'woman', setup:selSetup({}), ui:{ tool:'effects', sub:'sel', picking:true } });
 add('fx-selective-picked', 'effects', 'PROPOSAL · Selective Colour · one colour kept, Matching colours', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW] }), ui:{ tool:'effects', sub:'sel' } });
 add('fx-selective-overlay', 'effects', 'PROPOSAL · Selective Colour · overlay while Range is dragged', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], range:55 }), ui:{ tool:'effects', sub:'sel', selOverlay:true } });
@@ -242,7 +245,6 @@ add('fx-selective-area-painting', 'effects', 'PROPOSAL · Selective Colour · Pa
 add('fx-selective-area', 'effects', 'PROPOSAL · Selective Colour · Painted area, Add (result)', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], scope:'area', range:55, area:ARROW_AREA }), ui:{ tool:'effects', sub:'sel', brush:'add' } });
 add('fx-selective-area-remove', 'effects', 'PROPOSAL · Selective Colour · Painted area, Remove (result)', 'editor', { photo:'woman', setup:selSetup({ picks:[ARROW], scope:'area', range:55, area:LIPS_REMOVED }), ui:{ tool:'effects', sub:'sel', brush:'erase' } });
 add('fx-selective-leak', 'effects', 'PROPOSAL · Selective Colour · with a Light Leak (applied after the leak)', 'editor', { photo:'woman', setup:(s) => { selSetup({ picks:[ARROW] })(s); s.fx.leak.on = true; }, ui:{ tool:'effects', sub:'sel' } });
-add('fx-selective-off', 'effects', 'PROPOSAL · Selective Colour · Off (selection kept)', 'editor', { photo:'woman', setup:(s) => { selSetup({ picks:[ARROW] })(s); s.fx.sel.on = false; }, ui:{ tool:'effects', sub:'sel' } });
 
 /* The whole approved catalogue stays (the prototype controller starts from Launch); the proposal screens are
    listed under Effects, after the approved Effects screens. */
