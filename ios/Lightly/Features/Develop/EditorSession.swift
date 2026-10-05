@@ -295,6 +295,7 @@ final class EditorSession {
                 // Auto is the starting point, not an edit: it replaces the untouched initial entry.
                 history = [start]
                 historyIndex = 0
+                editEpoch &+= 1
             } else {
                 // Retry after edits: switching Auto on is one more step; the edits are kept.
                 phase = .ready
@@ -654,15 +655,23 @@ final class EditorSession {
     /// Keeps the colour under a tap at (`frameX`, `frameY`), fractions of the displayed frame. The colour is
     /// sampled from Selective Colour's own input (the frame before it, at the preview size), not from the
     /// photo on screen, which may already be black and white there. One undo step.
+    ///
+    /// Sampling is asynchronous, so a result can land after the person has moved on. It is kept only if
+    /// nothing but picks changed the edit since the tap (`editEpoch`: Clear, a removal, a slider, Undo, Redo
+    /// or any other edit discards it) and this session is still open; picks land in tap order, and the
+    /// eight-colour limit counts picks still sampling.
     func pickSelectiveColour(frameX: Double, frameY: Double) {
         guard phase == .ready, let base = previewBase, let renderer = library.renderer, let cache = library.cache,
-              recipe.tools.effects.selectiveColour.colours.count < Self.maximumKeptColours else { return }
+              recipe.tools.effects.selectiveColour.colours.count + pendingPicks < Self.maximumKeptColours else { return }
         var job = committedJob()
         job.layeredCap = LayeredStages.previewCap
         job.stopBeforeSelectiveColour = true
         let source = geometryTransform.isIdentity ? CGPoint(x: frameX, y: frameY)
             : geometryTransform.source(fromFrame: CGPoint(x: frameX, y: frameY))
         let x = min(max(Double(source.x), 0), 1), y = min(max(Double(source.y), 0), 1)
+        let epoch = editEpoch
+        let previous = pickTask
+        pendingPicks += 1
         pickTask = Task { [weak self] in
             let lab = try? await Task.detached(priority: .userInitiated) {
                 // Stages up to Selective Colour only: no border, no watermark.
@@ -671,25 +680,46 @@ final class EditorSession {
                 return SelectiveColourEvaluator.sample(frame.pixels, width: frame.width, height: frame.height,
                                                        xFraction: frameX, yFraction: frameY)
             }.value
-            guard let self, let lab, !self.isClosed else { return }
-            self.commitEffects { $0.selectiveColour.colours.append(.init(oklab: lab, x: x, y: y)) }
+            await previous?.value   // land in tap order
+            guard let self else { return }
+            self.pendingPicks -= 1
+            guard let lab, !self.isClosed, self.editEpoch == epoch,
+                  self.recipe.tools.effects.selectiveColour.colours.count < Self.maximumKeptColours else { return }
+            self.commitPick { $0.selectiveColour.colours.append(.init(oklab: lab, x: x, y: y)) }
         }
+    }
+
+    /// A pick's result: one undo step that, unlike every other edit, leaves `editEpoch` alone, so picks
+    /// still sampling are kept.
+    private func commitPick(_ change: (inout EditRecipe.Effects) -> Void) {
+        var next = recipe
+        change(&next.tools.effects)
+        committingPick = true
+        commit(next)
+        committingPick = false
     }
 
     /// Removes one kept colour (the × on its dot). One undo step.
     func removeSelectiveColour(at index: Int) {
+        editEpoch &+= 1   // a pick still sampling no longer applies
         guard recipe.tools.effects.selectiveColour.colours.indices.contains(index) else { return }
         commitEffects { $0.selectiveColour.colours.remove(at: index) }
     }
 
     /// Clear: no kept colours, Range and Strength back to their defaults. One undo step.
     func clearSelectiveColour() {
+        editEpoch &+= 1   // even with nothing kept yet, a pick still sampling no longer applies
         guard recipe.tools.effects.selectiveColour != .none else { return }
         commitEffects { $0.selectiveColour = .none }
     }
 
     /// The sampling render of the latest pick (awaited by `settleRendering`).
     @ObservationIgnored private var pickTask: Task<Void, Never>?
+    /// Picks still sampling (they count towards the eight-colour limit).
+    @ObservationIgnored private var pendingPicks = 0
+    /// Advances on every change of the edit except a pick's own result: a pick sampled before it is stale.
+    @ObservationIgnored private(set) var editEpoch: UInt64 = 0
+    @ObservationIgnored private var committingPick = false
 
     /// edit-recipe-v1 `selectiveColour.colours` maxItems.
     static let maximumKeptColours = 8
@@ -853,6 +883,7 @@ final class EditorSession {
     }
 
     private func afterHistoryMove() {
+        editEpoch &+= 1   // Undo and Redo make any pick still sampling stale
         // The Auto switch follows the recipe it belongs to.
         if autoState == .applied || autoState == .off { autoState = recipe.auto.strength > 0 ? .applied : .off }
         hasUnsavedEdits = true
@@ -864,6 +895,7 @@ final class EditorSession {
     /// Records `next` as one undo step (nothing when it equals the committed recipe).
     private func commit(_ next: EditRecipe) {
         guard next != recipe else { return renderCommitted() }
+        if !committingPick { editEpoch &+= 1 }
         var entry = next
         entry.revision = (history.map(\.revision).max() ?? 0) + 1
         history.removeSubrange((historyIndex + 1)...)
@@ -1371,6 +1403,7 @@ final class EditorSession {
         autoState = AutoState(rawValue: saved.autoState) ?? .unavailable
         history = saved.history
         historyIndex = saved.index
+        editEpoch &+= 1
         hasUnsavedEdits = true
         sessionPersisted = true
         analysisPersistedRevision = analysisRevision
@@ -1439,6 +1472,7 @@ final class EditorSession {
             let last = recipe
             history = [last]
             historyIndex = 0
+            editEpoch &+= 1
         }
     }
 

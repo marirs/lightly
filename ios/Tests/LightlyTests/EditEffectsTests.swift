@@ -277,6 +277,60 @@ final class EditEffectsSessionTests: XCTestCase {
         XCTAssertTrue(session.recipe.tools.effects.selectiveColour.colours.isEmpty, "One pick is one undo step")
     }
 
+    private func keptColours(_ session: EditorSession) -> [EditRecipe.Effects.SelectiveColour.Kept] {
+        session.recipe.tools.effects.selectiveColour.colours
+    }
+
+    /// Clear while another pick is still sampling: the late result must not bring Selective Colour back.
+    func testClearDuringSamplingDiscardsThePendingPick() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, previewLongEdge: 480)
+        session.pickSelectiveColour(frameX: 0.5, frameY: 0.5)
+        await session.settleRendering()
+        XCTAssertEqual(keptColours(session).count, 1)
+        session.pickSelectiveColour(frameX: 0.2, frameY: 0.8)   // still sampling…
+        session.clearSelectiveColour()                         // …when Clear is tapped
+        await session.settleRendering()
+        XCTAssertTrue(keptColours(session).isEmpty, "a pick sampled before Clear is discarded")
+    }
+
+    /// Undo while a pick is still sampling: the late result must not land on the undone edit.
+    func testUndoDuringSamplingDiscardsThePendingPick() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, previewLongEdge: 480)
+        session.commitEffects { $0.vignette.enabled = true }
+        session.pickSelectiveColour(frameX: 0.5, frameY: 0.5)
+        session.undo()
+        await session.settleRendering()
+        XCTAssertTrue(keptColours(session).isEmpty)
+        XCTAssertFalse(session.recipe.tools.effects.vignette.enabled, "Undo stays undone")
+        XCTAssertTrue(session.canRedo, "the redo step is not destroyed by a late pick")
+    }
+
+    /// Leaving the photo while a pick is still sampling: nothing lands on the closed session.
+    func testClosingDuringSamplingDiscardsThePendingPick() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, previewLongEdge: 480)
+        let before = session.recipe
+        session.pickSelectiveColour(frameX: 0.5, frameY: 0.5)
+        session.close()
+        await session.settleRendering()
+        XCTAssertEqual(session.recipe, before)
+    }
+
+    /// Rapid picks: they land in tap order, and picks still sampling count towards the eight-colour limit.
+    func testRapidPicksLandInOrderUpToTheLimit() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, previewLongEdge: 480)
+        for i in 0..<6 {   // six kept already
+            session.commitEffects { $0.selectiveColour.colours.append(.init(oklab: SIMD3(0.5, 0.1, Double(i) / 50), x: 0, y: 0)) }
+        }
+        let taps: [(Double, Double)] = [(0.1, 0.1), (0.9, 0.9), (0.5, 0.5)]
+        for (x, y) in taps { session.pickSelectiveColour(frameX: x, frameY: y) }
+        await session.settleRendering()
+        let kept = keptColours(session)
+        XCTAssertEqual(kept.count, EditorSession.maximumKeptColours, "the third rapid pick is refused at the limit")
+        XCTAssertEqual(kept[6].x, 0.1, accuracy: 1e-9); XCTAssertEqual(kept[7].x, 0.9, accuracy: 1e-9)   // tap order
+        session.undo()
+        XCTAssertEqual(keptColours(session).count, 7, "each pick is its own undo step")
+    }
+
     /// Mean of max − min over the channels (0 for black and white), on an 8-bit sRGB copy.
     private static func meanChroma(_ image: CGImage) -> Double {
         let width = 64, height = 64
