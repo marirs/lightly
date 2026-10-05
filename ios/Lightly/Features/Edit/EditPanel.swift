@@ -80,7 +80,7 @@ struct EditPanelView: View {
                 }
             }
         }
-        ApprovedNote("Drag the corners to crop. Pinch to zoom.")
+        ApprovedNote("Drag a corner or an edge to crop. Drag inside to move.")
     }
 
     private var rotate: some View {

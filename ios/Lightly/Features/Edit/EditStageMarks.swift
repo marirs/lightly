@@ -27,10 +27,14 @@ struct ThirdsGridMark: View {
 /// to the photo), four 18 pt corner handles of 3 pt white strokes 3 pt outside the frame, and the
 /// thirds grid inside.
 struct CropFrameMark: View {
+    /// The crop rectangle in fractions of the shown (uncropped) frame (owner amendment 2026-10-05: the real crop,
+    /// not the prototype's illustrative 6 % inset).
+    let rect: EditRecipe.Rect
+
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
-            let frame = CGRect(x: size.width * 0.06, y: size.height * 0.06, width: size.width * 0.88, height: size.height * 0.88)
+            let frame = CGRect(x: size.width * rect.x, y: size.height * rect.y, width: size.width * rect.width, height: size.height * rect.height)
             ZStack(alignment: .topLeading) {
                 // `box-shadow: 0 0 0 2000px rgba(0,0,0,.42)` outside the border box.
                 Path { path in

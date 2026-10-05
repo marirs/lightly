@@ -643,9 +643,27 @@ final class EditorSession {
     @ObservationIgnored private var inpainter: (any Inpainting)?
     @ObservationIgnored private var inpainterLoaded = false
 
-    /// The geometry of the committed recipe for the photo (marks and touches map through it).
+    /// The geometry of the committed recipe for the photo (marks and touches map through it); uncropped while Crop is
+    /// being edited, as the stage then shows.
     var geometryTransform: GeometryTransform {
-        GeometryTransform(recipe.tools.edit.geometry, sourceWidth: photo.image.width, sourceHeight: photo.image.height)
+        let geometry = isCropEditing ? Self.uncropped(recipe).tools.edit.geometry : recipe.tools.edit.geometry
+        return GeometryTransform(geometry, sourceWidth: photo.image.width, sourceHeight: photo.image.height)
+    }
+
+    /// Edit › Crop is open (owner amendment 2026-10-05, free crop): previews show the straightened frame uncropped, and the
+    /// crop rectangle is drawn over it in that frame's fractions; Border and Watermark are left out of those previews so
+    /// the rectangle sits on the photo. Save copy and every other tool use the committed, cropped recipe.
+    var isCropEditing = false {
+        didSet { if oldValue != isCropEditing { renderCommitted() } }
+    }
+
+    /// `recipe` as the crop editor shows it: no crop, no border, no watermark.
+    nonisolated static func uncropped(_ recipe: EditRecipe) -> EditRecipe {
+        var shown = recipe
+        shown.tools.edit.geometry.cropRect = .init(x: 0, y: 0, width: 1, height: 1)
+        shown.tools.border.type = .none
+        shown.tools.watermark.type = .none
+        return shown
     }
 
     /// A slider or drag moving: preview only.
@@ -1141,7 +1159,8 @@ final class EditorSession {
     /// Requests a preview of `target`. A final render shows the global stage first, then the full
     /// Develop (spatial and finishing) when the preset has them; an interactive one (dragging)
     /// shows the global stage only, so the photo keeps up with the finger.
-    private func render(_ target: EditRecipe, final: Bool) {
+    private func render(_ requested: EditRecipe, final: Bool) {
+        let target = isCropEditing ? Self.uncropped(requested) : requested
         // An interactive frame is a control moving (a slider, a drag) before it commits: a pick still sampling
         // is stale from this moment, or it would land mid-drag and replace the preview with committed values.
         if !final { editEpoch &+= 1 }

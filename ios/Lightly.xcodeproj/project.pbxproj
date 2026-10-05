@@ -44,6 +44,7 @@
 		1AE728C94894582F5D5EA239 /* DesignCaptureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8500BFF4CA6673C1D4DF0396 /* DesignCaptureUITests.swift */; };
 		1C0C8991356A89DD9DAEE2AC /* WatermarkFonts.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC8867C92181E47646B33115 /* WatermarkFonts.swift */; };
 		2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */; };
+		21ECEFFC568E5D4079FFC7B9 /* CropGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7C94EEE92F650E5802946F /* CropGeometry.swift */; };
 		228FFCD1BC0744D1F47D9682 /* SnapshotEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99944887E73D0A1E77E396D /* SnapshotEnvironment.swift */; };
 		2384620040907CC99DC27B0E /* ReleaseBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE2E0E9F910229CF50E0172 /* ReleaseBundleTests.swift */; };
 		2760948729F8145BC66EC434 /* WelcomeAndMoreUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265EE6CFDB60FD91346759E4 /* WelcomeAndMoreUITests.swift */; };
@@ -132,6 +133,7 @@
 		85B97E1A9D88278E0D307BCF /* LayoutProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36E3C386A1FA473C368713F4 /* LayoutProbe.swift */; };
 		85C6896D31A30DAD25D62456 /* SceneAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDD59E94E292024C2CA6B08 /* SceneAnalysisTests.swift */; };
 		87752B3B6F236666FE29F54A /* LUTGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46A2557F630816ED676CA636 /* LUTGoldenTests.swift */; };
+		8793EDAD4DC0F90D2C19BC38 /* CropGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFD78A0BC6A4E1B58CD2D17B /* CropGeometryTests.swift */; };
 		893F88F49177247C5B85B31F /* PreviewRenderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE53EB1E9EA9A6AAE8D08CD /* PreviewRenderScheduler.swift */; };
 		8AFB9B90744721FE3714600C /* develop-design-ui.json in Resources */ = {isa = PBXBuildFile; fileRef = C19345599EF03BC686B3EA56 /* develop-design-ui.json */; };
 		8C12973AB782BD36F8645934 /* PresetRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9234D806F0C86FE475798B4 /* PresetRecipe.swift */; };
@@ -426,6 +428,7 @@
 		DCDD59E94E292024C2CA6B08 /* SceneAnalysisTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneAnalysisTests.swift; sourceTree = "<group>"; };
 		DCE13AD3F22CA801C6C084CE /* ExportMetadataPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportMetadataPolicyTests.swift; sourceTree = "<group>"; };
 		DD65A5CBA72970A37FA57D50 /* PortraitRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortraitRenderer.swift; sourceTree = "<group>"; };
+		DD7C94EEE92F650E5802946F /* CropGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropGeometry.swift; sourceTree = "<group>"; };
 		E05740F2B38FB331A62DB58A /* Allura-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Allura-OFL.txt"; sourceTree = "<group>"; };
 		E058C31F9580EFE911C7CCE9 /* CanonicalJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalJSON.swift; sourceTree = "<group>"; };
 		E48B233453406911E7C00651 /* EffectsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectsPanel.swift; sourceTree = "<group>"; };
@@ -450,6 +453,7 @@
 		FDF66869D5782D441ED5CBE1 /* backlit_02.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = backlit_02.jpg; sourceTree = "<group>"; };
 		FEE316B50A9E42D8018DFCC8 /* DependencyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyContainer.swift; sourceTree = "<group>"; };
 		FF0C8F9918CC281BA758EA6C /* PhotoFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoFingerprint.swift; sourceTree = "<group>"; };
+		FFD78A0BC6A4E1B58CD2D17B /* CropGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropGeometryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -741,6 +745,7 @@
 				62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */,
 				68AD1F5D2E9C382F30B5F059 /* ColorPipelineRenderTests.swift */,
 				B701BCDE146455B7448BDFA1 /* ControlContrastTests.swift */,
+				FFD78A0BC6A4E1B58CD2D17B /* CropGeometryTests.swift */,
 				6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */,
 				9FE37F379E52CD8BB1A9B8E6 /* DevelopParityTests.swift */,
 				BEAB57D54CF9513A80CE789D /* DevelopPerformanceTests.swift */,
@@ -1149,6 +1154,7 @@
 		DE9AEB3EF7558DF2C8AC6954 /* Edit */ = {
 			isa = PBXGroup;
 			children = (
+				DD7C94EEE92F650E5802946F /* CropGeometry.swift */,
 				554F4D00143EBE896F0C6A9D /* EditPanel.swift */,
 				614765C58D29E4A3F31B500C /* EditStageMarks.swift */,
 			);
@@ -1457,6 +1463,7 @@
 				2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */,
 				E2530F2A80A145DB5A03FA45 /* ColorPipelineRenderTests.swift in Sources */,
 				6D26C71C7DA23615F20A3D04 /* ControlContrastTests.swift in Sources */,
+				8793EDAD4DC0F90D2C19BC38 /* CropGeometryTests.swift in Sources */,
 				ABF41ACB403B2485A5C75CB9 /* DeferredWorkTests.swift in Sources */,
 				C8492A221BBEB380A1DA692E /* DevelopParityTests.swift in Sources */,
 				EC24B271F9A6BE997EBFB43A /* DevelopPerformanceTests.swift in Sources */,
@@ -1539,6 +1546,7 @@
 				4C4B1B342F45110F5B45AEB0 /* ColorPipeline.swift in Sources */,
 				0515CC84E2377F443226B9D9 /* ContextualTool.swift in Sources */,
 				2C19E196DEDEA053146A440A /* ControlChrome.swift in Sources */,
+				21ECEFFC568E5D4079FFC7B9 /* CropGeometry.swift in Sources */,
 				713EA1515DB18632B61053A9 /* DebugCaptureDriver.swift in Sources */,
 				62962F950C63ED926A5A97DC /* DebugFixedRecipeDeveloper.swift in Sources */,
 				C53D3F5636EB0DDA85B8EB9A /* DebugScenario.swift in Sources */,

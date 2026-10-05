@@ -17,7 +17,10 @@ struct EditorScreen: View {
     /// Edit › Remove: the stroke being brushed (source coordinates).
     @State private var removePoints: [EditRecipe.Point] = []
     /// Edit › Crop: the rect when a corner drag or pinch began.
-    @State private var cropGestureStart: (rect: EditRecipe.Rect, corner: Int)?
+    /// The crop rectangle and the handle when a crop drag began.
+    @State private var cropGestureStart: (rect: EditRecipe.Rect, handle: CropGeometry.Handle)?
+    /// The rectangle shown while a crop drag moves (committed when it ends).
+    @State private var cropDraft: EditRecipe.Rect?
     /// Change background › Image: dragging the photo moves the background.
     @State private var replacementDragStart: (x: Double, y: Double)?
     /// Refine edges: the stroke being drawn (source coordinates).
@@ -88,6 +91,8 @@ struct EditorScreen: View {
             }
         }
         #endif
+        // Free crop shows the uncropped frame while Edit › Crop is open (owner amendment 2026-10-05).
+        .onChange(of: tool == .edit && editPanel.sub == .crop, initial: true) { _, cropping in session.isCropEditing = cropping }
         .task {
             session.start()
             #if DEBUG
@@ -414,7 +419,7 @@ struct EditorScreen: View {
     private func editMarks(size: CGSize) -> some View {
         switch editPanel.sub {
         case .crop:
-            CropFrameMark()
+            CropFrameMark(rect: cropDraft ?? session.recipe.tools.edit.geometry.cropRect)
             cropGestureArea(size: size)
         case .straighten, .perspective:
             ThirdsGridMark()
@@ -457,80 +462,44 @@ struct EditorScreen: View {
         }
     }
 
-    /// Crop: drag a corner to crop, pinch to zoom ("Drag the corners to crop. Pinch to zoom.").
-    /// The photo shows the crop; a drag or pinch previews and its end is one undo step.
+    /// Free crop (owner amendment 2026-10-05): the stage shows the straightened frame uncropped
+    /// (`EditorSession.isCropEditing`); drag a corner or an edge to resize, inside to move. An aspect preset locks the
+    /// ratio on every handle; Free leaves it unconstrained. The drag shows the rectangle; its end is one undo step.
     private func cropGestureArea(size: CGSize) -> some View {
         Color.clear.contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 2)
                 .onChanged { value in
                     let geometry = session.recipe.tools.edit.geometry
-                    let start = cropGestureStart ?? (geometry.cropRect, Self.nearestCorner(value.startLocation, size: size))
-                    cropGestureStart = start
-                    let rect = cropRect(dragging: start.corner, from: start.rect, by: value.translation, size: size)
-                    session.previewEdit { Self.setCrop(&$0.geometry, rect) }
+                    if cropGestureStart == nil {
+                        guard let handle = CropGeometry.handle(at: value.startLocation, rect: geometry.cropRect, size: size) else { return }
+                        cropGestureStart = (geometry.cropRect, handle)
+                    }
+                    guard let start = cropGestureStart else { return }
+                    cropDraft = draggedCrop(start, by: value.translation, size: size)
                 }
                 .onEnded { value in
                     guard let start = cropGestureStart else { return }
+                    let rect = draggedCrop(start, by: value.translation, size: size)
                     cropGestureStart = nil
-                    let rect = cropRect(dragging: start.corner, from: start.rect, by: value.translation, size: size)
+                    cropDraft = nil
                     session.commitEdit { Self.setCrop(&$0.geometry, rect) }
                 })
-            .simultaneousGesture(MagnifyGesture()
-                .onChanged { value in
-                    let start = cropGestureStart ?? (session.recipe.tools.edit.geometry.cropRect, -1)
-                    cropGestureStart = start
-                    session.previewEdit { Self.setCrop(&$0.geometry, Self.zoomed(start.rect, by: value.magnification)) }
-                }
-                .onEnded { value in
-                    guard let start = cropGestureStart else { return }
-                    cropGestureStart = nil
-                    session.commitEdit { Self.setCrop(&$0.geometry, Self.zoomed(start.rect, by: value.magnification)) }
-                })
             .accessibilityHidden(true)
+    }
+
+    private func draggedCrop(_ start: (rect: EditRecipe.Rect, handle: CropGeometry.Handle), by translation: CGSize, size: CGSize) -> EditRecipe.Rect {
+        let geometry = session.recipe.tools.edit.geometry
+        let frame = GeometryTransform.turnedSize(geometry, sourceWidth: session.photo.image.width, sourceHeight: session.photo.image.height)
+        return CropGeometry.dragged(start.rect, handle: start.handle,
+                                    dx: Double(translation.width / max(size.width, 1)), dy: Double(translation.height / max(size.height, 1)),
+                                    ratio: GeometryTransform.ratio(geometry.cropAspect),
+                                    frameAspect: Double(frame.width) / Double(max(frame.height, 1)))
     }
 
     /// Cropping an uncropped photo makes the aspect Free; a fixed aspect is kept.
     private static func setCrop(_ geometry: inout EditRecipe.Geometry, _ rect: EditRecipe.Rect) {
         geometry.cropRect = rect
         if geometry.cropAspect == .original, rect != .init(x: 0, y: 0, width: 1, height: 1) { geometry.cropAspect = .free }
-    }
-
-    /// 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right: the corner nearest the touch.
-    private static func nearestCorner(_ point: CGPoint, size: CGSize) -> Int {
-        (point.x < size.width / 2 ? 0 : 1) + (point.y < size.height / 2 ? 0 : 2)
-    }
-
-    private func cropRect(dragging corner: Int, from start: EditRecipe.Rect, by translation: CGSize, size: CGSize) -> EditRecipe.Rect {
-        let geometry = session.recipe.tools.edit.geometry
-        let turned = GeometryTransform.turnedSize(geometry, sourceWidth: session.photo.image.width, sourceHeight: session.photo.image.height)
-        // A displayed point is this fraction of the turned frame.
-        let dx = Double(translation.width / max(size.width, 1)) * start.width
-        let dy = Double(translation.height / max(size.height, 1)) * start.height
-        let minimum = 0.05
-        var x0 = start.x, y0 = start.y, x1 = start.x + start.width, y1 = start.y + start.height
-        if corner % 2 == 0 { x0 = min(max(x0 + dx, 0), x1 - minimum) } else { x1 = max(min(x1 + dx, 1), x0 + minimum) }
-        if corner < 2 { y0 = min(max(y0 + dy, 0), y1 - minimum) } else { y1 = max(min(y1 + dy, 1), y0 + minimum) }
-        if let ratio = GeometryTransform.ratio(geometry.cropAspect) {
-            // Keep the aspect: the height follows the width, anchored at the opposite corner.
-            var width = x1 - x0
-            var height = width * Double(turned.width) / (ratio * Double(turned.height))
-            let maxHeight = corner < 2 ? y1 : 1 - y0
-            if height > maxHeight { height = maxHeight; width = height * ratio * Double(turned.height) / Double(turned.width) }
-            if corner % 2 == 0 { x0 = x1 - width } else { x1 = x0 + width }
-            if corner < 2 { y0 = y1 - height } else { y1 = y0 + height }
-        }
-        return .init(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
-    }
-
-    /// Pinch: zooms into (or out of) the crop about its centre, within the photo.
-    private static func zoomed(_ rect: EditRecipe.Rect, by magnification: CGFloat) -> EditRecipe.Rect {
-        let scale = 1 / max(Double(magnification), 0.05)
-        var width = rect.width * scale, height = rect.height * scale
-        let fit = min(1 / width, 1 / height, 1)
-        if fit < 1 { width *= fit; height *= fit }
-        let cx = rect.x + rect.width / 2, cy = rect.y + rect.height / 2
-        let x = min(max(cx - width / 2, 0), 1 - width), y = min(max(cy - height / 2, 0), 1 - height)
-        return .init(x: x, y: y, width: width, height: height)
     }
 
     /// Light Leaks: drag on the photo to move the leak (preview while dragging, one step at the end).
