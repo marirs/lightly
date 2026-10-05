@@ -25,7 +25,8 @@ SIM=/tmp/lightly-dd-review-sim/Build/Products/Debug-iphonesimulator; DEV=/tmp/li
 (cd $SIM && rm -f "$I/lightly-ios-review-$C-sim.zip" && zip -qry "$I/lightly-ios-review-$C-sim.zip" Lightly.app)
 (cd $DEV && rm -f "$I/lightly-ios-review-$C-iphone.zip" && zip -qry "$I/lightly-ios-review-$C-iphone.zip" Lightly.app)
 (cd "$I" && shasum -a 256 *.zip > SHA256SUMS && cat SHA256SUMS)
-echo "binary sha256 sim $(shasum -a 256 $SIM/Lightly.app/Lightly | cut -c1-16) iphone $(shasum -a 256 $DEV/Lightly.app/Lightly | cut -c1-16)"
+# The code is in Lightly.debug.dylib (Debug builds); the Lightly executable is a launcher stub that rarely changes.
+echo "code sha256 sim $(shasum -a 256 $SIM/Lightly.app/Lightly.debug.dylib | cut -c1-16) iphone $(shasum -a 256 $DEV/Lightly.app/Lightly.debug.dylib | cut -c1-16)"
 codesign -dvv $DEV/Lightly.app 2>&1 | grep -E "Authority=Apple Dev|TeamIdentifier"
 # INSTALL=0 packages only: the review devices keep the build the owner is testing.
 if [ "${INSTALL:-1}" = 1 ]; then
