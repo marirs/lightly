@@ -4,26 +4,24 @@ Requested by the owner on 2026-10-04 as an addition to the approved UX. Nothing 
 
 Open it from the repository root server (`python3 -m http.server 8765`) at http://127.0.0.1:8765/docs/ui/proposals/selective-colour/index.html. The proposed screens are under **Effects** in the Screen index, named `PROPOSAL · Selective Colour · …`.
 
-## Panel (Effects › Selective Colour), one panel
+## Panel (Effects › Selective Colour)
+
+Owner's layout, 2026-10-05:
 
 ```
-Nothing kept yet:
-  [eyedropper] Tap a colour in the photo to keep it.
+Nothing kept yet:   [eyedropper] Tap a colour in the photo to keep it.
 
-After a pick:
-  ●  ●  ●                                   Clear
-  [ Pick | Paint | Erase ]      (approved segmented control, icon and label)
-  Range       ───────●────────
-  Strength    ───────────────●
-  Brush size  ─────●──────────  (only with Paint or Erase)
+After a pick:       ●  ●  (+)  Clear
+                    Range     ───────●────────
+                    Strength  ───────────────●
 ```
 
-- Before any colour is kept, the panel shows one instruction only. After that, Pick | Paint | Erase sets what a touch on the photo does: Pick adds a colour; Paint marks the area where kept colours stay; Erase removes from that area. All in one panel.
-- No On switch: picking a colour applies the effect; tapping a dot removes that colour; Clear removes colours and painted area.
-- Colour matching is the default: the picked colours stay wherever they appear in the photo. It does not know what an object is: picking a red dress also keeps red lips. Painting an area is manual refinement: once painted, only the picked colours inside it stay in colour. The app does not find the dress or the balloon.
-- The blue overlay (Background › Refine's tint) shows for a moment after a pick, while Range is dragged and while painting; otherwise the result is shown.
+- The kept colours sit on top; (+) beside them adds another (tap (+), then the photo); Clear is right beside them. Tapping a colour removes it.
+- Below: the controls only.
+- No On switch: picking a colour applies the effect.
+- Colour matching: the kept colours stay wherever they appear in the photo; it does not know what an object is (a red dress also keeps red lips). Painting an area is not in this layout.
 
-Screens under **Effects** in the Screen index: `fx-selective-empty`, `fx-selective-picked`, `fx-selective-overlay`, `fx-selective-multi`, `fx-selective-area-painting`, `fx-selective-area`, `fx-selective-area-remove`, `fx-selective-leak`.
+Screens under **Effects** in the Screen index: `fx-selective-empty`, `fx-selective-picked`, `fx-selective-overlay`, `fx-selective-multi`, `fx-selective-leak`.
 
 ## Proposal 2: no On/Off switch on Light Leaks, Grain and Vignette
 
@@ -31,15 +29,15 @@ Owner, 2026-10-05. Changes approved screens, so it needs explicit approval befor
 
 ## Behaviour (both platforms)
 
-- Picks and painted dabs are stored in photo coordinates (fractions of the photo), so resizing or rotating the editor does not move them.
+- Picks are stored in photo coordinates (fractions of the photo), so resizing or rotating the editor does not move them.
 - Range: how far neighbouring shades are included (a colour distance). Strength: 100 makes everything outside the selection black and white; 0 leaves the photo unchanged.
 - Pipeline order: Develop and Edit adjustments, Light Leaks, **Selective Colour**, Grain, Vignette.
-- Undo/Redo: a pick, a colour removal, a painted stroke and Clear are one step each; one slider drag is one step.
-- Compare shows the original; preview and Save copy use the same renderer; the session restores picks, area and values.
+- Undo/Redo: a pick, a colour removal and Clear are one step each; one slider drag is one step.
+- Compare shows the original; preview and Save copy use the same renderer; the session restores picks and values.
 
 ## Decisions needed
 
-1. Selective Colour: the one-panel design above (fourth Effects tab; colour dots and Clear; Pick | Paint | Erase; Range, Strength, Brush size).
+1. Selective Colour: the layout above (fourth Effects tab; colours, (+), Clear; Range, Strength).
 2. Defaults: Range 40, Strength 100.
 3. Order in the pipeline: after Light Leaks, before Grain and Vignette.
 4. Proposal 2: remove the On/Off switch from Light Leaks, Grain and Vignette.
