@@ -95,11 +95,12 @@ object AndroidEditorEnvironment {
                     people = { image -> models.peopleAnalyser()?.withoutLandmarks()?.analyse(image) ?: com.lightlylabs.lightly.vision.PeopleAnalysis.NONE },
                     personSegmenter = { models.personSegmenter() },
                     portraitMatting = { models.portraitMatting() },
-                    // DEFERRED(subject model): the class-agnostic model awaits the owner's approval (evaluation §5).
-                    subjectSaliency = { null },
+                    // U²-Netp when packaged (vision-model release gate; experimental, evaluation §5). Without it a
+                    // photo without people shows the approved "Couldn't separate the subject" state.
+                    subjectSaliency = { models.subjectSaliency() },
                 ))
             } ?: com.lightlylabs.lightly.background.PendingSubjectSegmenter,
-            segmenterModelRef = vision?.let { if (it.hasPortraitMatte) LiteRtVisionModels.PORTRAIT_MATTE_MODEL else LiteRtVisionModels.PERSON_MATTE_MODEL },
+            segmenterModelRef = vision?.subjectMatteModelRef,
             personMatte = { image -> vision?.personSegmenter()?.let { segmenter -> withContext(Dispatchers.Default) { segmenter.segment(image.toVision()) } } },
             library = library,
             previewRenderer = DevelopRenderer(workerPool, parallelism),

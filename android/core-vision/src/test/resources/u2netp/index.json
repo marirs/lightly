@@ -1,0 +1,27 @@
+{
+ "skimage": "0.26.0",
+ "stride": 7,
+ "cases": [
+  {
+   "name": "boat_600x400",
+   "width": 600,
+   "height": 400,
+   "resized_max": 0.9985365055576114,
+   "tensor_sum": -168909.59779556852
+  },
+  {
+   "name": "swan_301x457",
+   "width": 301,
+   "height": 457,
+   "resized_max": 0.8737834570790248,
+   "tensor_sum": -296605.85025577585
+  },
+  {
+   "name": "lake_200x150",
+   "width": 200,
+   "height": 150,
+   "resized_max": 0.9999425551470589,
+   "tensor_sum": 24084.408026745994
+  }
+ ]
+}

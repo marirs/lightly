@@ -58,8 +58,28 @@ object VisionProbe {
                 val segmenter = VisionSubjectSegmenter(
                     people = { image -> models.peopleAnalyser()?.withoutLandmarks()?.analyse(image) ?: PeopleAnalysis.NONE },
                     personSegmenter = { models.personSegmenter() },
-                    subjectSaliency = { null },
+                    subjectSaliency = { models.subjectSaliency() },
                 )
+                // U²-Netp parity with the reference pipeline: the exact display pixels (PNG) and the raw 320 × 320
+                // saliency (little-endian float32), so the reference can run on the same input offline.
+                models.subjectSaliency()?.let { saliency ->
+                    val t0 = System.nanoTime()
+                    val raw = saliency.saliency(display)
+                    result.put("saliency_ms", (System.nanoTime() - t0) / 1e6)
+                    result.put("saliency_confident_area", com.lightlylabs.lightly.vision.SubjectSaliency.confidentArea(raw).toDouble())
+                    File(folder, photo.nameWithoutExtension + "__saliency.f32").outputStream().use { out ->
+                        val bytes = ByteBuffer.allocate(raw.values.size * 4).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                        bytes.asFloatBuffer().put(raw.values)
+                        out.write(bytes.array())
+                    }
+                    File(folder, photo.nameWithoutExtension + "__display.png").outputStream().use { out ->
+                        val argb = IntArray(display.width * display.height) { i ->
+                            val o = i * 4
+                            (0xff shl 24) or ((display.pixels[o].toInt() and 0xff) shl 16) or ((display.pixels[o + 1].toInt() and 0xff) shl 8) or (display.pixels[o + 2].toInt() and 0xff)
+                        }
+                        Bitmap.createBitmap(argb, display.width, display.height, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, out)
+                    }
+                }
                 start = System.nanoTime()
                 val separation = try {
                     val matte = segmenter.segment(display.pixels, display.width, display.height)

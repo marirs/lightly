@@ -70,9 +70,14 @@ val visionModels = mapOf(
  * MODNet portrait matting (experiments/android-vision/scripts/convert_modnet.py, Apache-2.0; training data
  * undocumented: counsel before release, same gate as the models above): the person matte with hair detail
  * that replaces the selfie segmenter's soft mask for Background; without it the selfie segmenter is used.
+ * U²-Netp class-agnostic subject saliency (experiments/android-vision/scripts/convert_u2netp.py, Apache-2.0;
+ * training data DUTS-TR without an explicit licence: counsel before release, same gate): Background's subject for
+ * photos without people (boats, animals) and its "No clear subject" decision; without it those photos show the
+ * approved "Couldn't separate the subject" state. Experimental (docs/v1/android-vision-evaluation.md §5).
  */
 val optionalVisionModels = mapOf(
     "portrait_matte.tflite" to listOf("modnet_photographic_512_fp16.tflite", "4b57ff612f1a78d331af496f30eca2f10ae64cd47c4e90ed001f65b2a9d8d078", "", ""),
+    "subject_saliency.tflite" to listOf("u2netp_320_fp32.tflite", "40655434570d0716e005904f2f833f6a87856ed2ac26a26d529c7234a3fe399e", "", ""),
 )
 val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) == "true"
 fun visionModelsEnabled(buildType: String) =

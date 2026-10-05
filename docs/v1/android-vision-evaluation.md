@@ -199,7 +199,27 @@ Approved copy: "Change background needs a person or object in front". The segmen
     - Portrait is offered only when the people analysis finds a person (`EditorModels.kt`: `presence == PRESENT`; covered by `DevelopPanelModelTest`).
     - §4 found no face and no pose on the boat and the swan, matching Vision's 0 faces / 0 humans, so a found boat or animal does not expose Portrait.
     - Separate existing finding: night_03 has one face with landmark presence 0.00 plus one pose detection. `PeopleAnalysis.hasPerson` (faces or people) is therefore true there, while Vision finds no human. Not re-tested in the app.
-  - Not done: the app integration (input port, thresholds, packaging behind the sign-off property, wiring `subjectSaliency`) and any on-device run. iOS uses Vision; the boat and swan IoUs above compare with it, and agreement with Vision is not proof of accuracy.
+  - **Integrated 2026-10-05 (experimental, behind the vision-model release gate).**
+    - Packaging: `subject_saliency.tflite` is in `optionalVisionModels`. Debug builds package it when the file is present; release builds only with `-PlightlyVisionModels=true`.
+    - Preprocessing ported exactly (`ReferenceResize`, `SubjectSaliency.input`):
+      - golden-checked against scikit-image 0.26 on three inputs (downscale, odd-sized crop, upscale): resized RGB ≤ 1e-5, NCHW tensor ≤ 1e-4 (`SubjectSaliencyPreprocessingTest`);
+      - on the emulator, the app's saliency against the reference on the same display pixels: max 9e-5 (boat, swan, lake, bar), the same confident areas. The 0.99 difference is resolved;
+      - against the reference on the original 1920 px photo, max 0.06 (the app works on the 1600 px display image).
+    - Portrait path unchanged: a photo with people uses the person matte alone and U²-Netp is not run (test). This differs from iOS, where Vision may include objects next to people.
+    - Emulator flows (debug build, real models; `scripts/u2netp_emulator_flows.sh`):
+      - boat and swan: separation finished with Portrait absent from the tools; replace → Undo → Redo moved the recipe and history correctly; Save copy wrote 1920 px JPEGs;
+      - lake: the approved "No clear subject found" state;
+      - cancel "Finding the subject…": "Cancelled · nothing changed", then a new separation finished;
+      - bar: Portrait offered with the approved "No face can be edited" notice and no controls.
+      - Switching photos was exercised as separate launches only, not the in-app "Choose another photo" path.
+  - **Saved-copy defects (open):** a light halo around the boat's edges and a red fringe at its lower left; the swan keeps a strip of grass under its body, with a halo.
+  - **Held-out check of the "no subject" rule: it fails.** 13 local photos not used to choose it (`scripts/u2netp_heldout.py`, `work/u2netp-heldout/heldout_sheet.jpg`):
+    - 9 have no people. Four of them come out as a "subject": landscape_01 (mountain ridge, 6.0 %), night_01 (a building, 18.7 %), wellexposed_01 (sky between towers, 13.6 %) and wellexposed_03 (sky down a street, 11.3 %). Visually none has a separable subject, and Vision finds none.
+    - The other five no-people photos are correctly "none". All 4 subject photos are found (people photos take the person path in the app).
+    - No small-subject photo was available locally, so small subjects are untested.
+    - The 2 % rule therefore stays experimental and is a release blocker. A better decision needs new evidence, not tuning on this set.
+  - **Bar scene and Portrait (written requirement):** the approved prototype's bar photo is `faces: [], people: true` (`docs/ui/app/data.js`). `toolsFor` offers Portrait, and the panel shows the "No face can be edited" notice. Android matches.
+    - Defect: Android draws a face ring around the disco ball (its unusable face detection). The prototype marks only the people (dim rings).
 
 ## 6. Static comparison (desk, earlier)
 

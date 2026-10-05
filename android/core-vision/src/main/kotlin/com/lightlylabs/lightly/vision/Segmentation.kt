@@ -160,66 +160,75 @@ class PortraitMatting(private val model: TensorModel) {
 }
 
 /**
- * U²-Netp (xuebinqin/U-2-Net, Apache-2.0), class-agnostic salient-object segmentation: the photo
- * resized to 320 × 320, divided by its maximum, ImageNet mean/std, NCHW (u2net_test.py RescaleT(320) +
- * ToTensorLab(flag=0)); output 1 × 1 × 320 × 320 sigmoid saliency.
+ * U²-Netp (xuebinqin/U-2-Net @ ac7e1c8, Apache-2.0), class-agnostic salient-object segmentation, with the
+ * reference preprocessing of u2net_test.py (RescaleT(320) + ToTensorLab(flag=0)) reproduced exactly:
+ * [ReferenceResize] (scikit-image's anti-aliased resize) to 320 × 320 stretched, RGB, divided by the maximum
+ * over all three channels, ImageNet mean/std, NCHW. Output: 1 × 1 × 320 × 320 sigmoid saliency (d0).
  *
- * DEFERRED(subject model): converted as an experiment on 2026-10-05 (u2netp_320_fp32.tflite, not approved
- * for bundling; docs/v1/android-vision-evaluation.md §5). Not wired: the app never builds this class. Before it is:
- * - [input] must reproduce u2net_test.py's skimage anti-aliased resize. The plain bilinear stretch here changes
- *   the output by up to 0.99 on the lake and the bar scene (the bar would read as a subject), and area
- *   averaging still moves the lake from 1.1 % to 3.3 % confident area (desk, §5).
- * - The thresholds below are placeholders and are wrong: they call the lake (approved `bg-no-subject`) a
- *   subject. The desk fixtures separate on the area at >= 0.9 of the raw sigmoid (subjects >= 4.6 %, scenes
- *   without a subject <= 1.1 %); 12 photos only, so provisional.
- * - The upstream test script min-max normalises the output (normPRED); this uses the raw sigmoid on purpose,
- *   because normalising stretches every photo's peak to 1 and so cannot tell "no subject".
+ * v3 differs from u2net_test.py: the raw sigmoid is used, not the min-max normalised `normPRED` map, because
+ * normalising stretches every photo's peak to 1 and so cannot tell "no subject".
+ *
+ * Packaged only where the vision-model release gate allows (debug builds; release with -PlightlyVisionModels=true)
+ * and the converted file is present; training data (DUTS-TR) still needs counsel (evaluation §5).
  */
 class SubjectSaliency(private val model: TensorModel) {
     /** The refined saliency matte, or null when the photo has no clear subject. */
-    fun segment(image: RgbaImage): FloatPlane? {
+    fun segment(image: RgbaImage): FloatPlane? = matteOrNull(saliency(image), image)
+
+    /** The raw 320 × 320 saliency (tests and the debug probe compare it with the reference pipeline). */
+    fun saliency(image: RgbaImage): FloatPlane {
         val output = model.run(input(image))[0]
         require(output.size == INPUT * INPUT) { "expected a 320 × 320 saliency map, got ${output.size} values" }
-        val low = FloatPlane(INPUT, INPUT, output.copyOf())
-        if (!hasClearSubject(low)) return null
-        return MatteRefiner.refine(low, image)
+        return FloatPlane(INPUT, INPUT, output.copyOf())
     }
 
-    fun input(image: RgbaImage): FloatArray {
-        // RescaleT(320): stretched; skimage resize ≈ bilinear for downscaling photos of this size.
-        val rgb = TensorSampler.nhwc(image, TensorSampler.stretched(image), INPUT, INPUT, ValueRange.UNIT)
-        val maximum = rgb.maxOrNull()?.takeIf { it > 0f } ?: 1f
-        val plane = INPUT * INPUT
-        val out = FloatArray(3 * plane)
-        for (i in 0 until plane) for (c in 0 until 3) out[c * plane + i] = (rgb[i * 3 + c] / maximum - MEAN[c]) / STD[c]
-        return out
-    }
+    fun matteOrNull(low: FloatPlane, image: RgbaImage): FloatPlane? =
+        if (!hasClearSubject(low)) null else MatteRefiner.refine(low, image)
+
+    fun input(image: RgbaImage): FloatArray = normalise(ReferenceResize.resize(image, INPUT, INPUT))
 
     companion object {
         const val INPUT = 320
         private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
         private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
 
-        /** PENDING calibration (see the class note): area of confident saliency and its peak. */
-        const val MIN_SUBJECT_AREA = 0.01f
-        const val MIN_PEAK = 0.5f
+        /**
+         * EXPERIMENTAL "no clear subject" rule: a subject when at least this share of the 320 × 320 saliency is
+         * >= [CONFIDENT]. Chosen on 12 desk photos (subjects >= 4.6 %, scenes without a subject <= 1.1 %), so not
+         * independently validated; the held-out check is recorded in evaluation §5. Small subjects are the risk.
+         */
+        const val MIN_CONFIDENT_AREA = 0.02f
+        const val CONFIDENT = 0.9f
 
-        fun hasClearSubject(matte: FloatPlane): Boolean {
-            val confident = matte.values.count { it >= 0.5f }.toFloat() / matte.values.size
-            return confident >= MIN_SUBJECT_AREA && (matte.values.maxOrNull() ?: 0f) >= MIN_PEAK
+        fun confidentArea(matte: FloatPlane): Float = matte.values.count { it >= CONFIDENT }.toFloat() / matte.values.size
+
+        fun hasClearSubject(matte: FloatPlane): Boolean = confidentArea(matte) >= MIN_CONFIDENT_AREA
+
+        /** Interleaved RGB in [0, 1] (320 × 320 × 3) → the model's NCHW input. */
+        fun normalise(rgb: FloatArray): FloatArray {
+            val maximum = rgb.maxOrNull()?.takeIf { it > 0f } ?: 1f
+            val plane = INPUT * INPUT
+            val out = FloatArray(3 * plane)
+            for (i in 0 until plane) for (c in 0 until 3) out[c * plane + i] = (rgb[i * 3 + c] / maximum - MEAN[c]) / STD[c]
+            return out
         }
     }
 }
 
 /**
  * Background's subject separation (core-background [SubjectSegmenter]) from the people analysis, the
- * person matte and the class-agnostic subject model, matching iOS's Vision foreground-instance matte:
- * - every subject the class-agnostic model finds, people included, is the subject;
- * - people found by the people analysis are added from the person matte, which follows hair and
- *   clothing better than a saliency map;
- * - with no class-agnostic model in this build, a photo with people uses the person matte alone, and a
- *   photo without people cannot be judged: [SegmentationUnavailableException], the approved
- *   "Couldn't separate the subject" state, never a guessed "No clear subject found".
+ * person matte and the class-agnostic subject model:
+ * - a photo with people uses the person matte alone (MODNet, else the selfie segmenter), with or without the
+ *   class-agnostic model: the portrait path is unchanged by U²-Netp, whose coarser edge would otherwise be
+ *   unioned into the hair;
+ * - a photo without people uses the class-agnostic model ([SubjectSaliency]): its matte, or null for the
+ *   approved "No clear subject found";
+ * - with no class-agnostic model in this build, a photo without people cannot be judged:
+ *   [SegmentationUnavailableException], the approved "Couldn't separate the subject" state, never a guessed
+ *   "No clear subject found".
+ *
+ * v3 differs from iOS: Vision's foreground-instance matte can include objects next to people (a person holding a
+ * surfboard); here, people photos get the people only.
  */
 class VisionSubjectSegmenter(
     private val people: (RgbaImage) -> PeopleAnalysis,
@@ -236,15 +245,8 @@ class VisionSubjectSegmenter(
             portraitMatting()?.segment(image, boxes)
                 ?: (personSegmenter() ?: throw SegmentationUnavailableException("No person segmenter in this build")).segment(image, boxes)
         } else null
-        val saliency = subjectSaliency()
-        if (saliency == null) {
-            return personMatte ?: throw SegmentationUnavailableException("No class-agnostic subject model in this build (evaluation §5)")
-        }
-        val subject = saliency.segment(image)
-        return when {
-            subject == null -> personMatte
-            personMatte == null -> subject
-            else -> FloatPlane(width, height, FloatArray(width * height) { max(subject.values[it], personMatte.values[it]) })
-        }
+        if (personMatte != null) return personMatte
+        val saliency = subjectSaliency() ?: throw SegmentationUnavailableException("No class-agnostic subject model in this build (evaluation §5)")
+        return saliency.segment(image)
     }
 }

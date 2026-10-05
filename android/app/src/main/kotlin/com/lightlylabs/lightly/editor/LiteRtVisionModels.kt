@@ -7,6 +7,7 @@ import com.lightlylabs.lightly.vision.PeopleAnalyser
 import com.lightlylabs.lightly.vision.PersonSegmenter
 import com.lightlylabs.lightly.vision.PortraitMatting
 import com.lightlylabs.lightly.vision.PoseDetector
+import com.lightlylabs.lightly.vision.SubjectSaliency
 import com.lightlylabs.lightly.vision.TensorModel
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
@@ -30,6 +31,7 @@ class LiteRtVisionModels private constructor(private val context: Context) {
     private val poseDetector by lazy { load(POSE_DETECTOR, listOf(lastDim(12), lastDim(1))) }
     private val selfie by lazy { load(SELFIE, listOf(elements(256 * 256))) }
     private val portraitMatte by lazy { load(PORTRAIT_MATTE, listOf(elements(PortraitMatting.INPUT * PortraitMatting.INPUT))) }
+    private val subjectSaliencyModel by lazy { load(SUBJECT_SALIENCY, listOf(elements(SubjectSaliency.INPUT * SubjectSaliency.INPUT))) }
 
     fun peopleAnalyser(): PeopleAnalyser? {
         val faces = faceDetector ?: return null
@@ -43,6 +45,23 @@ class LiteRtVisionModels private constructor(private val context: Context) {
 
     /** Whether the optional MODNet asset is packaged (checked without loading it). */
     val hasPortraitMatte: Boolean by lazy { context.assets.list("vision")?.contains(PORTRAIT_MATTE) == true }
+
+    /** U²-Netp, when this build packages it (optional asset, experimental): the class-agnostic subject. */
+    fun subjectSaliency(): SubjectSaliency? = subjectSaliencyModel?.let(::SubjectSaliency)
+
+    /** Whether the optional U²-Netp asset is packaged (checked without loading it). */
+    val hasSubjectSaliency: Boolean by lazy { context.assets.list("vision")?.contains(SUBJECT_SALIENCY) == true }
+
+    /**
+     * The model identity recorded with a subject matte. With U²-Netp packaged the matte combines the saliency
+     * subject with the person matte (VisionSubjectSegmenter), so both are named.
+     */
+    val subjectMatteModelRef: com.lightlylabs.lightly.session.ModelRef
+        get() {
+            val person = if (hasPortraitMatte) PORTRAIT_MATTE_MODEL else PERSON_MATTE_MODEL
+            return if (!hasSubjectSaliency) person
+            else com.lightlylabs.lightly.session.ModelRef("${SUBJECT_SALIENCY_MODEL.id}+${person.id}", "${SUBJECT_SALIENCY_MODEL.version}+${person.version}")
+        }
 
     /** Picks one output tensor by its shape (or name); the adapter returns outputs in the order listed. */
     private fun interface OutputSelector {
@@ -105,12 +124,16 @@ class LiteRtVisionModels private constructor(private val context: Context) {
         const val POSE_DETECTOR = "pose_detector.tflite"
         const val SELFIE = "selfie_segmenter.tflite"
         const val PORTRAIT_MATTE = "portrait_matte.tflite"
+        const val SUBJECT_SALIENCY = "subject_saliency.tflite"
 
         /** Recorded with the subject matte when it came from the person segmenter (the bundled file's SHA-256 prefix). */
         val PERSON_MATTE_MODEL = com.lightlylabs.lightly.session.ModelRef("mediapipe-selfie-segmenter-builtin", "400dd25939e5")
 
         /** Recorded with the subject matte when people were matted by MODNet (the bundled file's SHA-256 prefix). */
         val PORTRAIT_MATTE_MODEL = com.lightlylabs.lightly.session.ModelRef("modnet-photographic-512-fp16", "4b57ff612f1a")
+
+        /** U²-Netp (the bundled file's SHA-256 prefix). */
+        val SUBJECT_SALIENCY_MODEL = com.lightlylabs.lightly.session.ModelRef("u2netp-320-fp32", "40655434570d")
 
         private fun isEmulator(): Boolean = android.os.Build.HARDWARE in setOf("ranchu", "goldfish")
 

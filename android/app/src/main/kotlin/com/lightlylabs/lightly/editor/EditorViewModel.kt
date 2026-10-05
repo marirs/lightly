@@ -1772,6 +1772,18 @@ class EditorViewModel(
     inner class DebugEditorApi {
         val library: DevelopLibrary? get() = this@EditorViewModel.library
 
+        /** Undo, Redo and Cancel as the top bar and the "Finding the subject…" Cancel do (debug flow checks). */
+        fun undo() = this@EditorViewModel.undo()
+        fun redo() = this@EditorViewModel.redo()
+        fun cancelSeparation() = this@EditorViewModel.cancelSeparation()
+
+        /** One line of the state a flow check asserts on (logcat, debug builds only). */
+        fun summary(): String {
+            val s = state.value
+            return "separation=${s.separation} tools=${s.tools.map { it.name }} replacement=${s.session?.current?.tools?.background?.replacement} " +
+                "canUndo=${s.canUndo} canRedo=${s.canRedo} preview=${s.preview?.let { "${it.width}x${it.height}" }} toast=${s.toast}"
+        }
+
         fun setAuto(auto: AutoState) = state.update { it.copy(auto = auto) }
 
         fun applyPreset(categoryId: String, stop: Int, amount: Int = 100) {

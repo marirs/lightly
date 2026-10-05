@@ -244,6 +244,22 @@ object DebugLaunchOptions {
                 api.background { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour(hex)) }
                 api.saveCopy()
             }
+            // Object cut-out flow check (logcat tag LightlyFlow): separation with the real models, a replacement
+            // (preview), Undo, Redo, then Save copy of the replaced photo. Not a prototype screen.
+            "bg-object-flow" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.CHANGE) {
+                flowLog("separated ${api.summary()}")
+                api.background { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour("#1F2328")) }
+                flowLog("replaced ${api.summary()}")
+                api.undo(); flowLog("undone ${api.summary()}")
+                api.redo(); flowLog("redone ${api.summary()}")
+                api.saveCopy(); flowLog("save requested")
+            }
+            // Cancel "Finding the subject…" at once, then start it again as Retry does (logcat tag LightlyFlow).
+            "bg-cancel-flow" -> {
+                api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
+                api.cancelSeparation(); flowLog("cancelled ${api.summary()}")
+                api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) { flowLog("separated after cancel ${api.summary()}") }
+            }
             "pt-skin" -> face(com.lightlylabs.lightly.editor.PortraitTab.SKIN, listOf("skin.smoothing" to 24.0, "skin.blemishes" to 40.0, "skin.evenTone" to 18.0))
             "pt-under" -> face(com.lightlylabs.lightly.editor.PortraitTab.UNDER, listOf("underEye.brighten" to 20.0, "underEye.softenLines" to 15.0))
             "pt-eyes" -> face(com.lightlylabs.lightly.editor.PortraitTab.EYES, listOf("eyes.brighten" to 15.0))
@@ -255,6 +271,8 @@ object DebugLaunchOptions {
             "pt-hidden" -> { api.applyPreset("landscape", 120); api.rebaseHistory() }
         }
     }
+
+    private fun flowLog(message: String) { android.util.Log.i("LightlyFlow", message) }
 
     /** docs/ui/app/screens.js, the `ed-*` and `fx-*` setups, applied as the user would (one commit each). */
     private fun applySlice4(api: EditorViewModel.DebugEditorApi, screen: String) {

@@ -82,25 +82,35 @@ class PeopleAndSegmentationTest {
     }
 
     @Test
-    fun `the subject model decides no clear subject, and people are added to its matte`() {
+    fun `the subject model decides photos without people, and people keep the person matte unchanged`() {
         val empty = SubjectSaliency { listOf(FloatArray(320 * 320)) }
         assertNull(runBlocking { VisionSubjectSegmenter({ PeopleAnalysis.NONE }, { null }, { empty }).segment(blank.pixels, 64, 48) })
         val boat = SubjectSaliency { listOf(FloatArray(320 * 320) { if (it / 320 > 200) 1f else 0f }) }
         val matte = assertNotNull(runBlocking { VisionSubjectSegmenter({ PeopleAnalysis.NONE }, { null }, { boat }).segment(blank.pixels, 64, 48) })
         assertTrue(matte[32, 45] > 0.9f)
         assertTrue(matte[32, 5] < 0.1f)
+        // With a person, the saliency model is never consulted and the person matte is returned as is.
+        val people = PeopleAnalysis(listOf(DetectedFace(NormalisedRect(0.4, 0.2, 0.2, 0.3), 0.9f, 1f, emptyList())), emptyList())
+        val person = PersonSegmenter { listOf(FloatArray(256 * 256) { if (it % 256 < 128) 1f else 0f }) }
+        val withoutSaliency = assertNotNull(runBlocking { VisionSubjectSegmenter({ people }, { person }, { null }).segment(blank.pixels, 64, 48) })
+        val withSaliency = assertNotNull(runBlocking {
+            VisionSubjectSegmenter({ people }, { person }, { SubjectSaliency { error("U²-Netp must not run for people") } }).segment(blank.pixels, 64, 48)
+        })
+        assertTrue(withoutSaliency.values.contentEquals(withSaliency.values))
     }
 
     @Test
     fun `U2-Netp input is max-normalised, ImageNet-standardised, NCHW`() {
-        // Larger than the tensor, so every sample lies inside the photo (no zero border mixed in).
+        // A uniform photo twice the tensor's size: scikit-image's anti-aliasing (σ 0.5, zero outside the photo) darkens
+        // only the outermost samples, so the centre equals the maximum and each channel there is (1 − mean) / std.
         val grey = RgbaImage(640, 640, ByteArray(640 * 640 * 4) { if (it % 4 == 3) -1 else 64 })
         val input = SubjectSaliency { error("not run") }.input(grey)
         assertEquals(3 * 320 * 320, input.size)
-        // Every pixel equals the maximum, so each channel is (1 − mean) / std.
-        assertEquals((1 - 0.485f) / 0.229f, input[0], 1e-4f)
-        assertEquals((1 - 0.456f) / 0.224f, input[320 * 320], 1e-4f)
-        assertEquals((1 - 0.406f) / 0.225f, input[2 * 320 * 320], 1e-4f)
+        val centre = 160 * 320 + 160
+        assertEquals((1 - 0.485f) / 0.229f, input[centre], 1e-4f)
+        assertEquals((1 - 0.456f) / 0.224f, input[320 * 320 + centre], 1e-4f)
+        assertEquals((1 - 0.406f) / 0.225f, input[2 * 320 * 320 + centre], 1e-4f)
+        assertTrue(input[0] < input[centre], "the reference's zero padding darkens the corner")
     }
 
     @Test
