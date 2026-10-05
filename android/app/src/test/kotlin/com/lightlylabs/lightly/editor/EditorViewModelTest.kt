@@ -198,6 +198,10 @@ class EditorViewModelTest {
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "releasing where the drag started changes nothing")
         assertEquals(steps, vm.uiState.value.session!!.history.entries.size)
         assertEquals(landscape.displayName, model().name); assertEquals("portrait", model().categoryId)
+        // A touch without movement (release with no drag) is a cancel too, never "no Look".
+        vm.onRulerRelease(0); advanceUntilIdle()
+        assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "a touch on the browsed ruler changes nothing")
+        assertEquals(steps, vm.uiState.value.session!!.history.entries.size)
 
         vm.onRulerDrag(2); vm.onRulerRelease(2); advanceUntilIdle()
         val portrait = BundledPack.preset("portrait", 2)

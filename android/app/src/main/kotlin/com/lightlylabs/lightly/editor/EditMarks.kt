@@ -2,6 +2,7 @@ package com.lightlylabs.lightly.editor
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -87,6 +88,7 @@ private fun CropFrame(vm: EditorViewModel) {
     Canvas(
         Modifier
             .fillMaxSize()
+            .cropHandleGestureExclusion(rect)
             .pointerInput(Unit) { cropGestures(vm) { draft = it } }
             .semantics { contentDescription = "Drag a corner or an edge to crop. Drag inside to move." },
     ) {
@@ -114,6 +116,31 @@ private fun CropFrame(vm: EditorViewModel) {
             drawRect(Color.White, Offset(if (atLeft) x else x + handle - thick, y), Size(thick, handle))
         }
     }
+}
+
+/**
+ * A photo as wide as the screen puts the left and right crop handles inside the system Back gesture zones (gesture
+ * navigation), so dragging them closed the editor's dialog instead of cropping. The four corners and the middle of the
+ * left and right edges are excluded from system gestures: 48 + 48 + 96 dp per side, within Android's 200 dp limit.
+ */
+private fun Modifier.cropHandleGestureExclusion(rect: com.lightlylabs.lightly.session.NormalisedRect): Modifier {
+    return this
+        .systemGestureExclusion { c -> handleZone(c.size, rect.x, rect.y, 48f) }
+        .systemGestureExclusion { c -> handleZone(c.size, rect.x, rect.y + rect.height, 48f) }
+        .systemGestureExclusion { c -> handleZone(c.size, rect.x + rect.width, rect.y, 48f) }
+        .systemGestureExclusion { c -> handleZone(c.size, rect.x + rect.width, rect.y + rect.height, 48f) }
+        .systemGestureExclusion { c -> handleZone(c.size, rect.x, rect.y + rect.height / 2, 96f) }
+        .systemGestureExclusion { c -> handleZone(c.size, rect.x + rect.width, rect.y + rect.height / 2, 96f) }
+}
+
+/** A 48 dp wide, [heightDp] tall rectangle centred on the handle at fractions ([fx], [fy]) of the frame. */
+private fun handleZone(size: androidx.compose.ui.unit.IntSize, fx: Double, fy: Double, heightDp: Float): androidx.compose.ui.geometry.Rect {
+    val density = android.content.res.Resources.getSystem().displayMetrics.density
+    val cx = (size.width * fx).toFloat()
+    val cy = (size.height * fy).toFloat()
+    val halfW = 24f * density
+    val halfH = heightDp / 2 * density
+    return androidx.compose.ui.geometry.Rect(cx - halfW, cy - halfH, cx + halfW, cy + halfH)
 }
 
 /** One finger: a corner, an edge or the inside of the crop rectangle (CropGeometry), previewed as [onDraft], committed at the end. */

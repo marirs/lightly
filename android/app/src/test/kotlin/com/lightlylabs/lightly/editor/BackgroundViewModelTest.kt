@@ -252,6 +252,7 @@ class BackgroundViewModelTest {
         val finished = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
         assertTrue(finished.matteAvailable && finished.depthAvailable)
         assertEquals(2, vm.uiState.value.session!!.history.entries.size)
+        assertEquals(Replacement.Colour("#3C4A55"), vm.uiState.value.session!!.current.tools.background.replacement, "the retrying edit is applied")
     }
 
     @Test

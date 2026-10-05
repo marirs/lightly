@@ -115,6 +115,8 @@ object DebugLaunchOptions {
         editor.debugHoldLoading = screen == "loading" || screen == "developing"
         editor.debugHoldSeparation = screen == "bg-separating"
         editor.debugFailSeparation = screen == "bg-failed"
+        // Cancel checks only: separation waits 8 s (cancellable) before analysing, long enough to tap Cancel.
+        editor.debugSlowSeparation = screen == "bg-slow"
         editor.debugHoldRemove = screen == "ed-removing"
         switchTarget = File(File(path).parentFile, "subject_swan.jpg").absolutePath
         editor.openPhoto("file://" + File(path).absolutePath)

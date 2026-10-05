@@ -339,6 +339,7 @@ class EditorViewModel(
         separationJob = scope.launch(env.prefetchDispatcher) {
             // Capture of the approved "Finding the subject…" state (debug builds only): stays separating.
             if (debugHoldSeparation) return@launch
+            if (debugSlowSeparation) delay(8_000)
             // Capture of the approved "Couldn't separate the subject" state (debug builds only, injected:
             // with the vision models this photo separates, so the failure is no longer what a user sees).
             if (debugFailSeparation) { state.update { it.copy(separation = SeparationState.Finished(depthAvailable = false, matteAvailable = false, noClearSubject = false)) }; return@launch }
@@ -355,6 +356,8 @@ class EditorViewModel(
             if (!isCurrent(current.generation)) return@launch
             state.update { it.copy(separation = finished) }
             state.value.session?.let { requestPreview(it.current, globalOnly = false) }
+            // The edit that restarted a cancelled analysis, applied now that its results are in.
+            pendingBackgroundChange?.let { change -> pendingBackgroundChange = null; commitBackground(change) }
             // Debug captures only: commits that need the finished analysis, inside this job so capture
             // readiness (no separation in flight) covers them.
             debugAfterSeparation?.let { action -> debugAfterSeparation = null; action() }
@@ -368,6 +371,7 @@ class EditorViewModel(
      */
     fun cancelSeparation() {
         separationJob?.cancel()
+        pendingBackgroundChange = null
         backgroundSession.discardPending()
         state.update { s ->
             val finished = s.separation as? SeparationState.Finished
@@ -378,10 +382,12 @@ class EditorViewModel(
         showToast(OPERATION_CANCELLED)
     }
 
-    /** After Cancel, the next Background edit runs the analysis again (never a refresh or re-entering the tool). */
-    private fun resumeCancelledSeparation() {
+    /** The Background edit that restarted a cancelled analysis; committed when the analysis finishes. */
+    private var pendingBackgroundChange: ((com.lightlylabs.lightly.session.BackgroundTool) -> com.lightlylabs.lightly.session.BackgroundTool)? = null
+
+    private fun separationWasCancelled(): Boolean {
         val s = state.value.separation
-        if (s == SeparationState.Cancelled || (s is SeparationState.Finished && s.depthCancelled)) startSeparation()
+        return s == SeparationState.Cancelled || (s is SeparationState.Finished && s.depthCancelled)
     }
 
     fun retrySeparation() = startSeparation()
@@ -398,11 +404,17 @@ class EditorViewModel(
     fun setBrushSize(size: Int) = state.update { it.copy(background = it.background.copy(brushSize = size.coerceIn(0, 100))) }
 
     private fun commitBackground(change: (com.lightlylabs.lightly.session.BackgroundTool) -> com.lightlylabs.lightly.session.BackgroundTool) {
+        // After Cancel, the next Background edit runs the analysis again (never a refresh or re-entering the tool) and
+        // is committed once it finishes: a blur needs the depth, which a commit made now would not have.
+        if (separationWasCancelled()) {
+            pendingBackgroundChange = change
+            startSeparation()
+            return
+        }
         val session = state.value.session ?: return
         // Derived references (the depth source and map) go in before the change too: a first blur commit
         // must not build a Focus with blur > 0 and source subject-matte, which the recipe rejects.
         commit(session.commit { s -> s.copy(tools = s.tools.copy(background = backgroundSession.withDerivedRefs(change(backgroundSession.withDerivedRefs(s.tools.background))))) }, state.value.auto)
-        resumeCancelledSeparation()
     }
 
     private fun withSlider(tool: com.lightlylabs.lightly.session.BackgroundTool, field: String, value: Double) = when (field) {
@@ -1292,7 +1304,8 @@ class EditorViewModel(
     /** Release: ONE undo step, and only when the Look actually changes. No interpolation between stops. */
     fun onRulerRelease(stop: Int) {
         val model = panelModel()
-        val startedAt = state.value.develop.dragStart
+        // No drag recorded (a touch without movement, or an interrupted gesture): a cancel, never a commit.
+        val startedAt = state.value.develop.dragStart ?: state.value.develop.dragStop ?: model?.stop
         state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, fine = false)) }
         val session = state.value.session ?: return
         if (model == null) return
@@ -1729,6 +1742,8 @@ class EditorViewModel(
 
     /** Debug captures only: separation never finishes, so "Finding the subject…" can be captured. */
     internal var debugHoldSeparation: Boolean = false
+    /** Debug Cancel checks only (screen "bg-slow"): separation starts 8 s late, cancellably. */
+    internal var debugSlowSeparation: Boolean = false
 
     /** Debug captures only: separation ends in the approved failure state without running (bg-failed). */
     internal var debugFailSeparation: Boolean = false

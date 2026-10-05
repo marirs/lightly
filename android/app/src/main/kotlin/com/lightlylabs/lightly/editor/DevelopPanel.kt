@@ -479,7 +479,8 @@ private fun Ruler(model: DevelopPanelModel, vm: EditorViewModel) {
                 // As iOS: the preset's name and its place in the category.
                 stateDescription = "${model.name}, ${model.stop} of $count"
                 progressBarRangeInfo = ProgressBarRangeInfo(model.stop.toFloat(), 0f..count.toFloat().coerceAtLeast(1f), steps = (count - 1).coerceAtLeast(0))
-                setProgress { value -> vm.onRulerRelease(value.roundToInt()); true }
+                // An accessibility step is a drag to the stop and a release there: one committed step.
+                setProgress { value -> vm.onRulerDrag(value.roundToInt()); vm.onRulerRelease(value.roundToInt()); true }
             }
             .pointerInput(model.categoryId) {
                 awaitEachGesture {
@@ -523,10 +524,11 @@ private fun Ruler(model: DevelopPanelModel, vm: EditorViewModel) {
                             offset.snapTo(landed)
                             vm.onRulerDrag(stopAt(landed))
                         } else if (abs(velocity) > 50f) {
+                            // Bounds stop the decay at either end. (Snapping inside the decay block cancelled this
+                            // coroutine at the ends, so the release never came and the header stayed in drag state.)
+                            offset.updateBounds(0f, currentCount * step)
                             offset.animateDecay(velocity, exponentialDecay(frictionMultiplier = 2f)) {
-                                val clamped = value.coerceIn(0f, currentCount * step)
-                                if (clamped != value) scope.launch { offset.snapTo(clamped) }
-                                vm.onRulerDrag(stopAt(clamped))
+                                vm.onRulerDrag(stopAt(value.coerceIn(0f, currentCount * step)))
                             }
                         }
                         val target = stopAt(offset.value.coerceIn(0f, currentCount * step))
