@@ -87,6 +87,47 @@ final class SessionRestoreTests: XCTestCase {
         XCTAssertEqual(after.recipe.tools.edit.adjust.exposure, 25, "a returning user can still step through the history")
     }
 
+    /// Selective Colour evidence: four colours kept together, one removed, Undo, then a kill and restore that gives
+    /// back the same four colours, the same preview and the same Save copy.
+    func testFourKeptColoursRemoveUndoRestoreAndSaveCopy() async throws {
+        let store = EditSessionStore(directory: sessionDirectory)
+        // The prototype's street photo: blue sky, red door, orange sign, brick road.
+        let street = try await ImageIOPhotoLoader().loadPhoto(from: try Data(contentsOf: DevelopParityTests.fixture("docs/ui/assets/photos/wellexposed_03.jpg")),
+                                                              source: .photoLibrary)
+        let session = try await EditorTestSupport.readySession(photo: street, library: library, sessionStore: store)
+        session.sceneSessionID = { "scene-A" }
+        let taps: [(Double, Double)] = [(0.62, 0.10), (0.15, 0.56), (0.72, 0.40), (0.50, 0.80)]
+        for (x, y) in taps { session.pickSelectiveColour(frameX: x, frameY: y); await session.settleRendering() }
+        var kept = session.recipe.tools.effects.selectiveColour.colours
+        XCTAssertEqual(kept.count, 4, "four colours kept together")
+        XCTAssertEqual(Set(kept.map { "\($0.oklab)" }).count, 4, "four different colours")
+        let four = kept
+        session.removeSelectiveColour(at: 1)
+        kept = session.recipe.tools.effects.selectiveColour.colours
+        XCTAssertEqual(kept, [four[0], four[2], four[3]], "the × removes just that colour")
+        session.undo()
+        XCTAssertEqual(session.recipe.tools.effects.selectiveColour.colours, four, "Undo brings it back in place")
+        await session.settleRendering()
+        store.flush()
+        let preview = try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage)
+        let export = try await session.exportedData()
+        let history = session.history, index = session.historyIndex
+        session.close()   // killed
+
+        let saved = try XCTUnwrap(EditSessionStore(directory: sessionDirectory).load())
+        let photo = try await ImageIOPhotoLoader().loadPhoto(from: saved.original, source: .photoLibrary)
+        let after = try await EditorTestSupport.readySession(photo: photo, library: library,
+                                                             sessionStore: EditSessionStore(directory: sessionDirectory), restoring: saved)
+        await after.settleRendering()
+        XCTAssertEqual(after.history, history); XCTAssertEqual(after.historyIndex, index)
+        XCTAssertEqual(after.recipe.tools.effects.selectiveColour.colours, four, "the four colours are restored")
+        XCTAssertEqual(try MetalLUTRenderer.rgba8Bytes(of: after.displayedImage), preview, "the restored preview is identical")
+        let restoredExport = try await after.exportedData()
+        XCTAssertEqual(restoredExport, export, "the restored Save copy is identical")
+        after.redo()
+        XCTAssertEqual(after.recipe.tools.effects.selectiveColour.colours.count, 3, "the removal can be redone after restore")
+    }
+
     func testSavingACopyClearsTheStoredSession() async throws {
         let store = EditSessionStore(directory: sessionDirectory)
         let writer = SpyLibraryWriter()
