@@ -172,6 +172,13 @@ def examples() -> dict[str, dict]:
     s["tools"]["effects"]["vignette"].update(enabled=True)
     out["effects-combined-on-top-of-preset"] = s
 
+    s = neutral_state(look=LOOK_PORTRAIT_GLOW, revision=4)
+    # Two kept colours (a red and a blue, OKLab as sampled), Range 40, Strength 100 (rendering-v2 revision 4).
+    s["tools"]["effects"]["selectiveColour"] = {
+        "colours": [{"oklab": [0.55, 0.185, 0.101], "x": 0.3, "y": 0.12}, {"oklab": [0.49, -0.015, -0.217], "x": 0.62, "y": 0.1}],
+        "range": 40, "strength": 100}
+    out["effects-selective-colour"] = s
+
     s = neutral_state(revision=2)
     s["tools"]["watermark"].update(type="signature", signature=SIGNATURE_DRAWN, size=30, colour="#111111")
     out["watermark-signature-drawn"] = s
