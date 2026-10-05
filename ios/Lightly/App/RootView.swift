@@ -102,9 +102,14 @@ struct RootView: View {
             return
         }
         #endif
+        // The scene this launch is shown in, read the same way the editor records it (EditorSession.sceneSessionID).
+        // `UIApplication.openSessions` was used before; after the previous scene session had been discarded it was
+        // still empty when this ran, so a restore after a system kill was declined (UI test R2, 2026-10-05).
+        let current = UIApplication.shared.connectedScenes.first(where: { $0.activationState != .unattached })?.session.persistentIdentifier
+            ?? UIApplication.shared.connectedScenes.first?.session.persistentIdentifier
         let open = Set(UIApplication.shared.openSessions.map(\.persistentIdentifier))
-        Self.restoreLog.notice("launch: \(open.count, privacy: .public) open scene sessions")
-        await appState.restoreInterruptedSession(openSceneSessionIDs: open)
+        Self.restoreLog.notice("launch: scene \(current.map { String($0.prefix(8)) } ?? "none", privacy: .public); \(open.count, privacy: .public) open scene sessions")
+        await appState.restoreInterruptedSession(currentSceneSessionID: current)
     }
 
     private static let restoreLog = Logger(subsystem: "com.lightlylabs.lightly", category: "restore")

@@ -164,9 +164,9 @@ final class SessionRestoreTests: XCTestCase {
         let session = try await editedSession(store: store)
         session.close()
 
-        // A force-quit: iOS discarded the scene session, so the stored session is discarded.
+        // A force-quit: iOS discarded the scene session and the launch got a new one, so the stored session is discarded.
         let quit = AppState(photoLoader: ImageIOPhotoLoader(), removePatches: RemovePatchStore(directory: patchDirectory), sessionStore: store)
-        await quit.restoreInterruptedSession(openSceneSessionIDs: ["scene-B"])
+        await quit.restoreInterruptedSession(currentSceneSessionID: "scene-B")
         store.flush()
         XCTAssertEqual(quit.route, .welcome)
         XCTAssertNil(store.load())
@@ -176,7 +176,7 @@ final class SessionRestoreTests: XCTestCase {
         again.close()
         let state = AppState(photoLoader: ImageIOPhotoLoader(), developLibrary: library,
                              removePatches: RemovePatchStore(directory: patchDirectory), sessionStore: store)
-        await state.restoreInterruptedSession(openSceneSessionIDs: ["scene-A", "scene-B"])
+        await state.restoreInterruptedSession(currentSceneSessionID: "scene-A")
         let photo = try XCTUnwrap(state.selectedPhoto)
         XCTAssertEqual(state.route, .editor(SelectedPhotoReference(id: photo.id)))
         let restored = state.editorSession(for: photo)
@@ -208,7 +208,7 @@ final class SessionRestoreTests: XCTestCase {
 
         let state = AppState(photoLoader: ImageIOPhotoLoader(), developLibrary: library,
                              removePatches: RemovePatchStore(directory: patchDirectory), sessionStore: store)
-        await state.restoreInterruptedSession(openSceneSessionIDs: ["scene-A"])
+        await state.restoreInterruptedSession(currentSceneSessionID: "scene-A")
         let photo = try XCTUnwrap(state.selectedPhoto, "restored after the system ended the app")
         let restored = state.editorSession(for: photo)
         restored.start()

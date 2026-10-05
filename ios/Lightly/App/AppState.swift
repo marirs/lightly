@@ -310,23 +310,23 @@ final class AppState {
 
     /// At launch: a stored session (there is one only while an edit has unsaved changes, Save copy
     /// included and later edits too) reopens in the editor exactly as it was, with no prompt, when
-    /// the scene session it was made in is still among the app's open scene sessions:
+    /// this launch reconnects the scene session it was made in:
     /// - the system ended the app (memory pressure, update, reboot is handled as a cold start):
-    ///   iOS keeps the scene session, so its id is in `openSceneSessionIDs` → restored;
+    ///   iOS keeps the scene session and reconnects it, so `currentSceneSessionID` matches → restored;
     /// - the person removed the app in the app switcher (force-quit): iOS discards that scene
-    ///   session (`application(_:didDiscardSceneSessions:)`), so its id is missing → discarded,
+    ///   session (`application(_:didDiscardSceneSessions:)`) and the launch gets a new one → discarded,
     ///   Remove patches included;
     /// - Discard, close, another photo or Save copy without later edits already cleared it.
     /// v3 differs: a SwiftUI scene-storage flag was used first; it did not reliably survive the
     /// background-and-kill (restore UI test R2), and it tracked the route rather than the edit.
     // Owner question W9: an explicit "Resume editing?" prompt would need an approved design.
-    func restoreInterruptedSession(openSceneSessionIDs: Set<String>) async {
+    func restoreInterruptedSession(currentSceneSessionID: String?) async {
         guard let saved = sessionStore.load() else {
             Self.restoreLog.notice("restore: no stored session")
             return
         }
-        Self.restoreLog.notice("restore: stored session with \(saved.history.count, privacy: .public) steps; its scene session is open: \(saved.sceneSessionID.map(openSceneSessionIDs.contains) ?? false, privacy: .public)")
-        guard let scene = saved.sceneSessionID, openSceneSessionIDs.contains(scene), selectedPhoto == nil,
+        Self.restoreLog.notice("restore: stored session with \(saved.history.count, privacy: .public) steps from scene \(saved.sceneSessionID.map { String($0.prefix(8)) } ?? "none", privacy: .public); same scene: \(saved.sceneSessionID != nil && saved.sceneSessionID == currentSceneSessionID, privacy: .public)")
+        guard let scene = saved.sceneSessionID, scene == currentSceneSessionID, selectedPhoto == nil,
               let photo = try? await photoLoader.loadPhoto(from: saved.original, source: .photoLibrary),
               EditorSession.sourceReference(for: photo).fingerprint == saved.history.first?.source.fingerprint
         else {
