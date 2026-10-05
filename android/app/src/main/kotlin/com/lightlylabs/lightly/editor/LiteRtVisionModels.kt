@@ -5,6 +5,7 @@ import com.lightlylabs.lightly.vision.BlazeFaceDetector
 import com.lightlylabs.lightly.vision.FaceMeshLandmarker
 import com.lightlylabs.lightly.vision.PeopleAnalyser
 import com.lightlylabs.lightly.vision.PersonSegmenter
+import com.lightlylabs.lightly.vision.PortraitMatting
 import com.lightlylabs.lightly.vision.PoseDetector
 import com.lightlylabs.lightly.vision.TensorModel
 import org.tensorflow.lite.Interpreter
@@ -28,6 +29,7 @@ class LiteRtVisionModels private constructor(private val context: Context) {
     private val faceMesh by lazy { load(FACE_MESH, listOf(elements(478 * 3), named("Identity_1"))) }
     private val poseDetector by lazy { load(POSE_DETECTOR, listOf(lastDim(12), lastDim(1))) }
     private val selfie by lazy { load(SELFIE, listOf(elements(256 * 256))) }
+    private val portraitMatte by lazy { load(PORTRAIT_MATTE, listOf(elements(PortraitMatting.INPUT * PortraitMatting.INPUT))) }
 
     fun peopleAnalyser(): PeopleAnalyser? {
         val faces = faceDetector ?: return null
@@ -35,6 +37,12 @@ class LiteRtVisionModels private constructor(private val context: Context) {
     }
 
     fun personSegmenter(): PersonSegmenter? = selfie?.let(::PersonSegmenter)
+
+    /** MODNet, when this build packages it (optional asset): Background's person matte with hair detail. */
+    fun portraitMatting(): PortraitMatting? = portraitMatte?.let(::PortraitMatting)
+
+    /** Whether the optional MODNet asset is packaged (checked without loading it). */
+    val hasPortraitMatte: Boolean by lazy { context.assets.list("vision")?.contains(PORTRAIT_MATTE) == true }
 
     /** Picks one output tensor by its shape (or name); the adapter returns outputs in the order listed. */
     private fun interface OutputSelector {
@@ -96,9 +104,13 @@ class LiteRtVisionModels private constructor(private val context: Context) {
         const val FACE_MESH = "face_landmarks_detector.tflite"
         const val POSE_DETECTOR = "pose_detector.tflite"
         const val SELFIE = "selfie_segmenter.tflite"
+        const val PORTRAIT_MATTE = "portrait_matte.tflite"
 
         /** Recorded with the subject matte when it came from the person segmenter (the bundled file's SHA-256 prefix). */
         val PERSON_MATTE_MODEL = com.lightlylabs.lightly.session.ModelRef("mediapipe-selfie-segmenter-builtin", "400dd25939e5")
+
+        /** Recorded with the subject matte when people were matted by MODNet (the bundled file's SHA-256 prefix). */
+        val PORTRAIT_MATTE_MODEL = com.lightlylabs.lightly.session.ModelRef("modnet-photographic-512-fp16", "4b57ff612f1a")
 
         private fun isEmulator(): Boolean = android.os.Build.HARDWARE in setOf("ranchu", "goldfish")
 

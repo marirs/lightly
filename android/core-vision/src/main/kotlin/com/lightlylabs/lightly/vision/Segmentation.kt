@@ -98,6 +98,68 @@ class PersonSegmenter(private val model: TensorModel) {
 }
 
 /**
+ * MODNet photographic portrait matting (github.com/ZHKKKe/MODNet, Apache-2.0; converted by
+ * experiments/android-vision/scripts/convert_modnet.py): a real alpha matte with hair detail, used for people
+ * instead of the selfie segmenter when bundled.
+ *
+ * Why: the selfie segmenter's 256 × 256 mask, upscaled to the photo, is soft over ~30 px all round the person.
+ * Over a replaced background that band showed as a dark halo (portrait_deep_03 on a light colour) and let the
+ * old background show through hair (red wall in portrait_medium_02). Measured offline against Vision's matte
+ * on both portraits: IoU 0.965/0.971 → 0.986/0.977, edge-band error 0.237/0.249 → 0.191/0.192, red in the hair
+ * on a dark replacement 7.0 → 4.5 levels before foreground estimation.
+ *
+ * Input: the photo letterboxed into 512 × 512 (long edge 512, centred, zero padding), area-downsampled first,
+ * RGB in [−1, 1]. Output: alpha at 512 × 512; the photo's part is bilinearly resized back to the photo.
+ */
+class PortraitMatting(private val model: TensorModel) {
+    fun segment(image: RgbaImage, people: List<com.lightlylabs.lightly.session.NormalisedRect> = emptyList()): FloatPlane {
+        val scale = INPUT.toDouble() / max(image.width, image.height)
+        val fitWidth = max(1, (image.width * scale).roundToInt())
+        val fitHeight = max(1, (image.height * scale).roundToInt())
+        val x0 = (INPUT - fitWidth) / 2
+        val y0 = (INPUT - fitHeight) / 2
+        val input = FloatArray(INPUT * INPUT * 3) { ValueRange.SIGNED.offset }   // padding: 0 in [0, 1]
+        val fitted = areaDownsample(image, fitWidth, fitHeight)
+        for (y in 0 until fitHeight) for (x in 0 until fitWidth) {
+            val o = ((y + y0) * INPUT + (x + x0)) * 3
+            for (c in 0 until 3) input[o + c] = fitted[(y * fitWidth + x) * 3 + c] * ValueRange.SIGNED.scale + ValueRange.SIGNED.offset
+        }
+        val output = model.run(input)[0]
+        require(output.size == INPUT * INPUT) { "expected a 512 × 512 alpha matte, got ${output.size} values" }
+        val crop = FloatPlane(fitWidth, fitHeight, FloatArray(fitWidth * fitHeight) { i ->
+            output[(i / fitWidth + y0) * INPUT + (i % fitWidth + x0)].coerceIn(0f, 1f)
+        })
+        val kept = if (people.isEmpty()) crop else PersonSegmenter.keepTouching(crop, people)
+        return PlaneOps.resizeBilinear(kept, image.width, image.height)
+    }
+
+    companion object {
+        const val INPUT = 512
+
+        /** Box (area) downsampling to [width] × [height], RGB in [0, 1]: what OpenCV INTER_AREA does for these ratios. */
+        fun areaDownsample(image: RgbaImage, width: Int, height: Int): FloatArray {
+            val out = FloatArray(width * height * 3)
+            for (y in 0 until height) {
+                val sy0 = y * image.height / height
+                val sy1 = max(sy0 + 1, (y + 1) * image.height / height)
+                for (x in 0 until width) {
+                    val sx0 = x * image.width / width
+                    val sx1 = max(sx0 + 1, (x + 1) * image.width / width)
+                    var r = 0f; var g = 0f; var b = 0f
+                    for (sy in sy0 until sy1) for (sx in sx0 until sx1) {
+                        r += image.channel(sx, sy, 0); g += image.channel(sx, sy, 1); b += image.channel(sx, sy, 2)
+                    }
+                    val n = ((sy1 - sy0) * (sx1 - sx0)).toFloat()
+                    val o = (y * width + x) * 3
+                    out[o] = r / n; out[o + 1] = g / n; out[o + 2] = b / n
+                }
+            }
+            return out
+        }
+    }
+}
+
+/**
  * U²-Netp (xuebinqin/U-2-Net, Apache-2.0), class-agnostic salient-object segmentation: the photo
  * resized to 320 × 320, divided by its maximum, ImageNet mean/std, NCHW (u2net_test.py RescaleT(320) +
  * ToTensorLab(flag=0)); output 1 × 1 × 320 × 320 sigmoid saliency.
@@ -157,13 +219,16 @@ class VisionSubjectSegmenter(
     private val people: (RgbaImage) -> PeopleAnalysis,
     private val personSegmenter: () -> PersonSegmenter?,
     private val subjectSaliency: () -> SubjectSaliency?,
+    /** MODNet when bundled: the person matte with hair detail (preferred over [personSegmenter]). */
+    private val portraitMatting: () -> PortraitMatting? = { null },
 ) : SubjectSegmenter {
     override suspend fun segment(rgba: ByteArray, width: Int, height: Int): FloatPlane? {
         val image = RgbaImage(width, height, rgba)
         val analysis = people(image)
         val personMatte = if (analysis.hasPerson) {
             val boxes = analysis.faces.map { it.box } + analysis.people
-            (personSegmenter() ?: throw SegmentationUnavailableException("No person segmenter in this build")).segment(image, boxes)
+            portraitMatting()?.segment(image, boxes)
+                ?: (personSegmenter() ?: throw SegmentationUnavailableException("No person segmenter in this build")).segment(image, boxes)
         } else null
         val saliency = subjectSaliency()
         if (saliency == null) {

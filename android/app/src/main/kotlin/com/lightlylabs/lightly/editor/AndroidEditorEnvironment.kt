@@ -94,11 +94,12 @@ object AndroidEditorEnvironment {
                     // Only presence matters here: the landmark model is not needed to know a person is there.
                     people = { image -> models.peopleAnalyser()?.withoutLandmarks()?.analyse(image) ?: com.lightlylabs.lightly.vision.PeopleAnalysis.NONE },
                     personSegmenter = { models.personSegmenter() },
+                    portraitMatting = { models.portraitMatting() },
                     // DEFERRED(subject model): the class-agnostic model awaits the owner's approval (evaluation §5).
                     subjectSaliency = { null },
                 ))
             } ?: com.lightlylabs.lightly.background.PendingSubjectSegmenter,
-            segmenterModelRef = vision?.let { LiteRtVisionModels.PERSON_MATTE_MODEL },
+            segmenterModelRef = vision?.let { if (it.hasPortraitMatte) LiteRtVisionModels.PORTRAIT_MATTE_MODEL else LiteRtVisionModels.PERSON_MATTE_MODEL },
             personMatte = { image -> vision?.personSegmenter()?.let { segmenter -> withContext(Dispatchers.Default) { segmenter.segment(image.toVision()) } } },
             library = library,
             previewRenderer = DevelopRenderer(workerPool, parallelism),

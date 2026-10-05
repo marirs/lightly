@@ -65,6 +65,15 @@ val visionModels = mapOf(
     // arm64 emulator cannot use XNNPACK, which implements it.
     "selfie_segmenter.tflite" to listOf("selfie_segmenter_builtin.tflite", "400dd25939e56f7374f2aa2345ddf31ded21f525627cbeb707a4f022ba90ef2d", "", ""),
 )
+/**
+ * Optional vision models: packaged with the others when their source file is present, never required.
+ * MODNet portrait matting (experiments/android-vision/scripts/convert_modnet.py, Apache-2.0; training data
+ * undocumented: counsel before release, same gate as the models above): the person matte with hair detail
+ * that replaces the selfie segmenter's soft mask for Background; without it the selfie segmenter is used.
+ */
+val optionalVisionModels = mapOf(
+    "portrait_matte.tflite" to listOf("modnet_photographic_512_fp16.tflite", "4b57ff612f1a78d331af496f30eca2f10ae64cd47c4e90ed001f65b2a9d8d078", "", ""),
+)
 val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) == "true"
 fun visionModelsEnabled(buildType: String) =
     visionModels.values.all { visionModelsDirectory.resolve(it[0]).isFile } && (buildType == "debug" || visionModelsRelease)
@@ -623,7 +632,7 @@ androidComponents {
         if (visionModelsEnabled(variant.buildType ?: "")) {
             val bundleVisionModels = tasks.register<BundleVisionModelsTask>("bundle${variantName}VisionModels") {
                 modelsDirectory.set(visionModelsDirectory)
-                models.set(visionModels.mapValues { (_, v) -> v.joinToString("|") })
+                models.set((visionModels + optionalVisionModels.filterValues { visionModelsDirectory.resolve(it[0]).isFile }).mapValues { (_, v) -> v.joinToString("|") })
             }
             variant.sources.assets?.addGeneratedSourceDirectory(bundleVisionModels, BundleVisionModelsTask::assetsDirectory)
         }
