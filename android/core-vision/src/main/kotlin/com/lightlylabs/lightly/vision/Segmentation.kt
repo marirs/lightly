@@ -164,10 +164,16 @@ class PortraitMatting(private val model: TensorModel) {
  * resized to 320 × 320, divided by its maximum, ImageNet mean/std, NCHW (u2net_test.py RescaleT(320) +
  * ToTensorLab(flag=0)); output 1 × 1 × 320 × 320 sigmoid saliency.
  *
- * DEFERRED(subject model): the LiteRT conversion awaits the owner's permission
- * (docs/v1/android-vision-evaluation.md §5). Until a converted file is bundled, the app never builds
- * this class, and the "no clear subject" thresholds below are placeholders that must be calibrated on
- * the evaluation fixtures (boat, swan: subject; lake, field, sunset: none) before use.
+ * DEFERRED(subject model): converted as an experiment on 2026-10-05 (u2netp_320_fp32.tflite, not approved
+ * for bundling; docs/v1/android-vision-evaluation.md §5). Not wired: the app never builds this class. Before it is:
+ * - [input] must reproduce u2net_test.py's skimage anti-aliased resize. The plain bilinear stretch here changes
+ *   the output by up to 0.99 on the lake and the bar scene (the bar would read as a subject), and area
+ *   averaging still moves the lake from 1.1 % to 3.3 % confident area (desk, §5).
+ * - The thresholds below are placeholders and are wrong: they call the lake (approved `bg-no-subject`) a
+ *   subject. The desk fixtures separate on the area at >= 0.9 of the raw sigmoid (subjects >= 4.6 %, scenes
+ *   without a subject <= 1.1 %); 12 photos only, so provisional.
+ * - The upstream test script min-max normalises the output (normPRED); this uses the raw sigmoid on purpose,
+ *   because normalising stretches every photo's peak to 1 and so cannot tell "no subject".
  */
 class SubjectSaliency(private val model: TensorModel) {
     /** The refined saliency matte, or null when the photo has no clear subject. */

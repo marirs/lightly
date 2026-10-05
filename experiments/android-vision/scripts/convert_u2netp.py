@@ -1,7 +1,9 @@
-"""U^2-Netp (github.com/xuebinqin/U-2-Net @ ac7e1c8, Apache-2.0) -> LiteRT fp32. Offline; NOT run by the agent.
+"""U^2-Netp (github.com/xuebinqin/U-2-Net @ ac7e1c8, Apache-2.0) -> LiteRT fp32. Offline experiment.
 
-The permission system refused to let the agent run this (upstream model code plus pickled weights), so the
-owner runs it, or allows it, after reviewing docs/v1/android-vision-evaluation.md section 5.
+Run 2026-10-05 at the owner's direction (earlier attempts had been refused by the permission system):
+output sha256 40655434570d0716e005904f2f833f6a87856ed2ac26a26d529c7234a3fe399e, max |tflite - torch| 3.6e-5 on
+random input and <= 1.4e-4 on the boat, swan and lake photos. A converted file is an experiment, not release
+approval: see docs/v1/android-vision-evaluation.md section 5.
 
     python3.11 -m venv .venv_convert && .venv_convert/bin/pip install torch litert-torch numpy
     curl -sL -o work/u2net/u2net.py https://raw.githubusercontent.com/xuebinqin/U-2-Net/ac7e1c817ecab7c7dff5ce6b1abba61cd213ff29/model/u2net.py

@@ -165,9 +165,41 @@ Approved copy: "Change background needs a person or object in front". The segmen
   - it would be packaged only into debug builds, and into release only behind a sign-off property (`-PlightlySubjectLegalSignOff=true`, training-data question above);
   - without it, a photo with no person shows the approved "Couldn't separate the subject" state, never a guessed "no subject";
   - a photo with people uses the person matte.
-- **Status:**
-  - The conversion was attempted twice in `scratchpad/vision/u2net/convert.py`. Both times the permission system refused it ("Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Code from External]"). The user must allow it, or run the script themselves.
-  - Scoring against the Vision mattes (boat, swan, lake, portraits) is pending until the conversion runs.
+- **Status (2026-10-05): converted and desk-evaluated as an experiment; not approved for bundling, not wired.**
+  - Earlier, the conversion was refused twice by the permission system ("[Code from External]"). On 2026-10-05 it ran at the owner's direction (`scripts/convert_u2netp.py`).
+  - Provenance re-checked:
+    - `model/u2net.py` is byte-identical to upstream at `ac7e1c8` (fetched again; SHA-256 above).
+    - The repository has no copy of the weights. The README's Google Drive link (id above, still present at `ac7e1c8`) is the primary source, and the local file matches its recorded SHA-256.
+    - Loaded with `weights_only=True`. Licence: Apache-2.0 (LICENSE at `ac7e1c8`).
+  - Output `u2netp_320_fp32.tflite`, SHA-256 `40655434570d0716e005904f2f833f6a87856ed2ac26a26d529c7234a3fe399e` (git-ignored; `models/MODELS.csv`). Max |LiteRT − PyTorch|: 3.6e-5 on random input, ≤ 1.4e-4 on the boat, swan and lake.
+  - Preprocessing confirmed against `u2net_test.py` / `data_loader.py`:
+    - `skimage.transform.resize(image, (320, 320), mode='constant')`, which anti-aliases when downscaling;
+    - then `image / max`, ImageNet mean/std, NCHW; the output is `d1` (= d0).
+    - The script then min-max normalises (`normPRED`). The "no subject" decision must use the raw sigmoid, because normalising stretches every photo's peak to 1.
+  - **Desk results (reference preprocessing, raw sigmoid, 320 × 320):**
+
+    | Photo | Vision subject | Area ≥ 0.5 | Area ≥ 0.9 | IoU vs Vision matte |
+    |---|---|---|---|---|
+    | subject_boat | 1 | 36.5 % | 34.9 % | 0.965 |
+    | subject_swan | 1 | 5.2 % | 4.6 % | 0.942 |
+    | backlit_02 (person, no face) | 1 | 9.0 % | 8.1 % | — |
+    | portraits (4), group_three_01 | 1 | 34–68 % | 33–67 % | — |
+    | landscape_02 (lake, approved `bg-no-subject`) | 0 | 11.0 % | 1.1 % | — (soft blob on the mountain, peak 0.98) |
+    | landscape_03 | 0 | 0.4 % | 0.0 % | — |
+    | sunset_02 | 0 | 1.1 % | 0.8 % (the sun) | — |
+    | night_03 (bar) | 0 | 1.0 % | 0.0 % | — |
+
+    - The area at ≥ 0.9 separates all 12 (subjects ≥ 4.6 %, scenes without a subject ≤ 1.1 %). With 12 photos this is provisional, not calibrated.
+    - The placeholder rule in `SubjectSaliency` (≥ 1 % at 0.5 and peak ≥ 0.5) is wrong: it calls the lake a subject.
+  - **Preprocessing is decisive.** `SubjectSaliency.input`'s plain bilinear stretch changes the output by up to 0.99:
+    - night_03 (bar) goes to 14.5 % at ≥ 0.9, so it would read as a subject;
+    - area averaging is closer but still moves the lake from 1.1 % to 3.3 %, near the swan's 4.5 %.
+    - Android needs an exact port of the anti-aliased resize, golden-checked against skimage.
+  - **Portrait visibility is independent of this model.**
+    - Portrait is offered only when the people analysis finds a person (`EditorModels.kt`: `presence == PRESENT`; covered by `DevelopPanelModelTest`).
+    - §4 found no face and no pose on the boat and the swan, matching Vision's 0 faces / 0 humans, so a found boat or animal does not expose Portrait.
+    - Separate existing finding: night_03 has one face with landmark presence 0.00 plus one pose detection. `PeopleAnalysis.hasPerson` (faces or people) is therefore true there, while Vision finds no human. Not re-tested in the app.
+  - Not done: the app integration (input port, thresholds, packaging behind the sign-off property, wiring `subjectSaliency`) and any on-device run. iOS uses Vision; the boat and swan IoUs above compare with it, and agreement with Vision is not proof of accuracy.
 
 ## 6. Static comparison (desk, earlier)
 
