@@ -68,6 +68,14 @@ struct PeopleAnalysis: Sendable, Equatable {
 
     var hasPerson: Bool { !faces.isEmpty || !people.isEmpty }
     var usableFaces: [DetectedFace] { faces.filter(\.isUsable) }
+
+    /// Prototype `marksFor` with no usable face: dim rings on the people's faces. The faces that cannot be edited are
+    /// those marks; person rectangles are used only when no face was found (someone seen from behind), so a person
+    /// detection elsewhere in the photo (a false one: a lamp in the bar photo, Android 2026-10-05) gets no ring.
+    var unusableMarks: [EditRecipe.Rect] {
+        guard usableFaces.isEmpty else { return [] }
+        return faces.isEmpty ? people : faces.map(\.box)
+    }
 }
 
 enum SceneAnalysisError: Error, Equatable {

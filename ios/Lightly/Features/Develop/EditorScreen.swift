@@ -94,7 +94,9 @@ struct EditorScreen: View {
             if let scenario = DebugScenario.current {
                 let ui = scenario.editorUI
                 if ui.tool != .develop {
+                    SaveTrace.note("scenario \(scenario.screenID): started, waiting until ready")
                     await session.waitUntilReady()
+                    SaveTrace.note("scenario \(scenario.screenID): ready")
                     select(ui.tool)
                     backgroundPanel.mode = ui.backgroundMode
                     backgroundPanel.kind = ui.backgroundKind
@@ -105,7 +107,9 @@ struct EditorScreen: View {
                     watermarkPanel.shownType = ui.watermarkType
                     if ui.tool == .background, !["bg-separating", "bg-failed"].contains(scenario.screenID) {
                         session.analyseSubjectIfNeeded()
+                        SaveTrace.note("scenario \(scenario.screenID): waiting for the subject")
                         await session.debugWaitForSubject()
+                        SaveTrace.note("scenario \(scenario.screenID): subject \(String(describing: session.subjectState))")
                     }
                     await scenario.applyBackgroundAndPortrait(session: session)
                     await scenario.applyEditAndEffects(session: session, brushRadius: editPanel.brushRadius)
@@ -301,7 +305,7 @@ struct EditorScreen: View {
                 case .portrait:
                     if let people = session.people {
                         FaceRingsMark(faces: people.usableFaces.map { toFrame($0.ring) }, selected: portraitPanel.selectedFace,
-                                      people: people.usableFaces.isEmpty ? (people.people + people.faces.map(\.box)).map(toFrame) : [],
+                                      people: people.unusableMarks.map(toFrame),
                                       onSelect: { portraitPanel.selectedFace = $0 })
                     }
                 case .edit:
