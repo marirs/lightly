@@ -141,12 +141,14 @@ effectsPanel = function (s, ui, L) {
   let body = '';
   {
     const picking = ui.picking || !sel.picks.length;
-    // Kept colours are the approved 44 pt swatches (`.sw`, as in Background and Border); a small × marks that
-    // tapping one removes it.
-    const chips = sel.picks.map((p, i) => `<button class="sw" data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}" style="background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}"><span style="position:absolute;right:-3px;top:-3px;width:18px;height:18px;border-radius:9px;background:var(--bg);border:1px solid var(--hair);display:grid;place-items:center;color:var(--ink2)">${icon('close', 11)}</span></button>`).join('');
+    // Kept colours: 28 pt dots inside 44 pt touch targets (the visible circle is small; the target is not).
+    // A small × marks that tapping one removes it.
+    const dot = (inner, extra = '') => `<span style="position:relative;width:28px;height:28px;border-radius:14px;border:1px solid var(--hair);display:grid;place-items:center;${extra}">${inner}</span>`;
+    const target = 'width:44px;height:44px;display:grid;place-items:center;flex:0 0 auto;background:none;border:0;padding:0';
+    const chips = sel.picks.map((p, i) => `<button data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}" style="${target}">${dot(`<span style="position:absolute;right:-5px;top:-5px;width:14px;height:14px;border-radius:7px;background:var(--bg);border:1px solid var(--hair);display:grid;place-items:center;color:var(--ink2)">${icon('close', 9)}</span>`, `background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}`)}</button>`).join('');
     // "Keep" and Pick are pinned; only the colour chips scroll (`.chiprow`), so adding another colour stays
     // in reach however many there are.
-    body += `<div style="display:flex;align-items:center;gap:8px;padding-left:18px"><span style="min-width:76px;color:var(--ink2)">Keep</span><button class="sw ${picking ? 'on' : ''}" data-act="selPicking" aria-pressed="${picking}" aria-label="Pick a colour" style="display:grid;place-items:center;background:var(--bg2);color:var(--ink)">${icon('plus', 20)}</button><div class="chiprow" style="flex:1 1 auto;min-width:0;padding-left:0;align-items:center">${chips}</div></div>`;
+    body += `<div style="display:flex;align-items:center;gap:0;padding-left:18px"><span style="min-width:76px;color:var(--ink2)">Keep</span><button data-act="selPicking" aria-pressed="${picking}" aria-label="Pick a colour" style="${target};color:${picking ? 'var(--sel)' : 'var(--ink)'}">${dot(icon('plus', 16), picking ? 'border-color:var(--sel)' : '')}</button><div class="chiprow" style="flex:1 1 auto;min-width:0;padding-left:0;gap:0;align-items:center">${chips}</div></div>`;
     body += `<div class="note">${picking ? 'Tap the photo on a colour to keep it. Everything else turns black and white.' : 'Tap a colour to remove it.'}</div>`;
     body += seg([['match', 'Matching colours'], ['area', 'Painted area']], sel.scope, 'selScope');
     if (sel.scope === 'match') body += `<div class="note">The picked colours stay wherever they appear in the photo.</div>`;

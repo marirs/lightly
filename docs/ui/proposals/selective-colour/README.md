@@ -11,7 +11,7 @@ Open it from the repository root server (`python3 -m http.server 8765`) at http:
 | `fx-selective-empty` | Effects › Selective Colour, nothing picked yet (no On switch: the effect is active while at least one colour is kept): **Pick** is active, "Tap the photo on a colour to keep it." |
 | `fx-selective-picked` | One colour kept (the red arrow), **Matching colours**, Range 40, Strength 100. The lips are red too and stay partly in colour: that is what colour matching does. |
 | `fx-selective-overlay` | The temporary blue overlay (Background › Refine's tint) while Range is dragged: what will stay in colour. |
-| `fx-selective-multi` | Several colours kept (sky, red door, orange sign), each a removable chip. **Keep** and the **+** swatch (pick another colour) are pinned; only the colour swatches scroll, so adding another colour stays in reach. |
+| `fx-selective-multi` | Several colours kept (sky, red door, orange sign), each a removable chip. **Keep** and the **+** (pick another colour) are pinned; only the colour dots scroll, so adding another colour stays in reach. |
 | `fx-selective-area-painting` | **Painted area** while painting: drag on the photo to paint a stroke at the Brush size; the blue tint shows the painted area while the finger is down and for a moment after, then the result. |
 | `fx-selective-area` | Painted area, Add, the result without the overlay. One dab caught the lips, so they stay red. |
 | `fx-selective-area-remove` | Painted area, Remove, the result: the lips are taken back out of the painted area. |
@@ -39,7 +39,7 @@ Not proposed: automatic object selection. The Background subject mask separates 
 1. A fourth Effects tab named "Selective Colour", after Vignette.
 2. The scope labels "Matching colours" and "Painted area".
 3. No On switch: picking a colour applies it; removing the last colour or Clear selection removes it.
-4. Kept colours as the approved 44 pt swatches; tapping one removes it (a small × on each), and a **+** swatch of the same size picks another.
+4. Kept colours as small 28 pt dots in 44 pt touch targets; tapping one removes it (a small × on each), and a **+** dot of the same size picks another.
 5. The overlay: the Refine blue tint, shown for a moment after each pick, while Range is dragged, and while painting (gone a moment after each stroke, so the result is visible).
 6. Defaults: Range 40, Strength 100, Matching colours.
 7. Order in the pipeline: after Light Leaks, before Grain and Vignette (owner's recommendation), so "everything else black and white" holds with a coloured leak on.
