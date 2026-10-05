@@ -203,14 +203,15 @@ private fun ScrollingTabs(model: DevelopPanelModel, onSelect: (String) -> Unit, 
     val scroll = rememberScrollState()
     // Each tab's left edge within the scrolling row (px, padding included).
     val tabStarts = remember { mutableStateMapOf<String, Float>() }
-    val density = LocalDensity.current
     // Owner amendment 2026-10-05 (as iOS): the tab before the selected one starts 18 dp in, fully visible past the 16 dp
     // fade; replaces the prototype's "selected tab 120 dp in", which left the previous tab half hidden beside Auto.
     LaunchedEffect(model.categoryId, tabStarts.size, scroll.maxValue) {
         val ids = model.categories.map { it.id }
         val index = ids.indexOf(model.categoryId).takeIf { it >= 0 } ?: return@LaunchedEffect
         val previous = tabStarts[ids[maxOf(index - 1, 0)]] ?: return@LaunchedEffect
-        val target = (previous - with(density) { 18.dp.toPx() }).roundToInt().coerceIn(0, scroll.maxValue)
+        // positionInParent is measured inside the row's 18 dp start padding, so scrolling to it puts the previous tab's
+        // leading edge at that padding, past the 16 dp fade (checked on the emulator, 2026-10-05).
+        val target = previous.roundToInt().coerceIn(0, scroll.maxValue)
         if (abs(target - scroll.value) > 1) scroll.scrollTo(target)
     }
     Row(
