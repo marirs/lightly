@@ -137,23 +137,23 @@ marksFor = function (s, ui) {
 /* ---------------------------------------------------------------- panel */
 const approvedEffectsPanel = effectsPanel;
 // Eyedropper glyph in the approved icon style (24 × 24, 1.6 stroke).
-ICON.picker = '<path d="M13.5 6.5l4 4"/><path d="M15.2 4.8a2.1 2.1 0 013 3l-2.2 2.2-3-3z"/><path d="M12.5 8L5 15.5V19h3.5L16 11.5"/>';
+ICON.picker = '<path d="M14.6 4.6a2.6 2.6 0 013.7 0l1.1 1.1a2.6 2.6 0 010 3.7l-2.2 2.2-4.8-4.8z"/><path d="M11.2 7.6l5.2 5.2"/><path d="M13.6 10.2L6.4 17.4 5 20l2.6-1.4 7.2-7.2"/>';
 effectsPanel = function (s, ui, L) {
   if (ui.sub !== 'sel') return approvedEffectsPanel(s, ui, L).replace(/<div class="tabs">([\s\S]*?)<\/div>/, (all, inner) => `<div class="tabs">${inner}${selTab(s, ui)}</div>`);
   const fx = s.fx, sel = fx.sel, tool = selToolOf(s, ui);
   const items = [['leak', 'Light Leaks', fx.leak.on ? 'dotted' : ''], ['grain', 'Grain', fx.grain.on ? 'dotted' : ''], ['vig', 'Vignette', fx.vig.on ? 'dotted' : ''], ['sel', 'Selective Colour', sel.picks.length ? 'dotted' : '']];
-  // One panel. Top row: three tools for what a touch on the photo does (pick a colour, paint the area where
-  // colours stay, erase from it), then the kept colours as small dots (they scroll), then Clear.
-  // Icons and dots are drawn small inside 44 pt touch targets.
+  const head = `${L.roomy ? '<div class="ptitle">Effects</div>' : ''}${tabs(items, 'sel', 'sub')}`;
+  // Nothing kept yet: one clear instruction, nothing else to choose.
+  if (!sel.picks.length) return head + `<div style="display:flex;align-items:center;gap:10px;padding:14px 18px 12px;color:var(--ink2);font-size:calc(15px * var(--ts))">${icon('picker', 20)}<span>Tap a colour in the photo to keep it.</span></div>`;
+  // Kept colours: small dots in 44 pt touch targets (they scroll); tapping one removes it. Clear at the end.
   const target = 'width:44px;height:44px;display:grid;place-items:center;flex:0 0 auto;background:none;border:0;padding:0';
-  const toolBtn = (k, ic, label) => `<button data-act="selTool:${k}" aria-pressed="${tool === k}" aria-label="${label}" style="${target};color:${tool === k ? 'var(--sel)' : 'var(--ink2)'}">${icon(ic, 21)}</button>`;
   const dots = sel.picks.map((p, i) => `<button data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}" style="${target}"><span style="width:26px;height:26px;border-radius:13px;border:1px solid var(--hair);background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}"></span></button>`).join('');
-  let body = `<div style="display:flex;align-items:center;padding:4px 10px 0 10px">${toolBtn('pick', 'picker', 'Pick a colour')}${toolBtn('add', 'brush', 'Paint the area where colours stay')}${toolBtn('erase', 'erase', 'Erase from the area')}<span style="width:1px;height:24px;background:var(--hair);margin:0 6px;flex:0 0 auto"></span>`;
-  if (!sel.picks.length) return `${L.roomy ? '<div class="ptitle">Effects</div>' : ''}${tabs(items, 'sel', 'sub')}${body}<span class="note" style="padding:0 6px">Tap a colour in the photo.</span></div>`;
-  body += `<div class="chiprow" style="flex:1 1 auto;min-width:0;padding:0;gap:0;align-items:center">${dots}</div><button class="btn quiet small" data-act="selClear">Clear</button></div>`;
+  let body = `<div style="display:flex;align-items:center;padding:4px 10px 0 8px"><div class="chiprow" style="flex:1 1 auto;min-width:0;padding:0;gap:0;align-items:center">${dots}</div><button class="btn quiet small" data-act="selClear">Clear</button></div>`;
+  // What a touch on the photo does: the approved labelled segmented control (as Background › Refine's Add | Remove).
+  body += seg([['pick', `${icon('picker', 16)}&nbsp;Pick`], ['add', `${icon('brush', 16)}&nbsp;Paint`], ['erase', `${icon('erase', 16)}&nbsp;Erase`]], tool, 'selTool');
   body += sl('Range', sel.range, 'fx.sel.range') + sl('Strength', sel.strength, 'fx.sel.strength');
   if (tool !== 'pick') body += sl('Brush size', selBrushSize(ui), 'ui.selBrush');
-  return `${L.roomy ? '<div class="ptitle">Effects</div>' : ''}${tabs(items, 'sel', 'sub')}${body}`;
+  return head + body;
 };
 // The tool a touch on the photo uses: the eyedropper until there is a colour, then whichever is chosen.
 const selToolOf = (s, ui) => s.fx.sel.picks.length ? (ui.selTool || 'pick') : 'pick';

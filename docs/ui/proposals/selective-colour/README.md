@@ -7,14 +7,18 @@ Open it from the repository root server (`python3 -m http.server 8765`) at http:
 ## Panel (Effects › Selective Colour), one panel
 
 ```
-Light Leaks   Grain   Vignette   Selective Colour •
-[eyedropper] [brush] [eraser] │ ●  ●  ●          Clear
-Range       ───────●──────────  40
-Strength    ─────────────────●  100
-Brush size  ──────●───────────  40     (only with the brush or eraser)
+Nothing kept yet:
+  [eyedropper] Tap a colour in the photo to keep it.
+
+After a pick:
+  ●  ●  ●                                   Clear
+  [ Pick | Paint | Erase ]      (approved segmented control, icon and label)
+  Range       ───────●────────
+  Strength    ───────────────●
+  Brush size  ─────●──────────  (only with Paint or Erase)
 ```
 
-- The three tools set what a touch on the photo does: the eyedropper picks a colour to keep; the brush paints the area where kept colours stay; the eraser removes from that area. No separate page.
+- Before any colour is kept, the panel shows one instruction only. After that, Pick | Paint | Erase sets what a touch on the photo does: Pick adds a colour; Paint marks the area where kept colours stay; Erase removes from that area. All in one panel.
 - No On switch: picking a colour applies the effect; tapping a dot removes that colour; Clear removes colours and painted area.
 - Colour matching is the default: the picked colours stay wherever they appear in the photo. It does not know what an object is: picking a red dress also keeps red lips. Painting an area is manual refinement: once painted, only the picked colours inside it stay in colour. The app does not find the dress or the balloon.
 - The blue overlay (Background › Refine's tint) shows for a moment after a pick, while Range is dragged and while painting; otherwise the result is shown.
@@ -35,7 +39,7 @@ Owner, 2026-10-05. Changes approved screens, so it needs explicit approval befor
 
 ## Decisions needed
 
-1. Selective Colour: the one-panel design above (fourth Effects tab; eyedropper, brush, eraser; dots; Range, Strength, Brush size).
+1. Selective Colour: the one-panel design above (fourth Effects tab; colour dots and Clear; Pick | Paint | Erase; Range, Strength, Brush size).
 2. Defaults: Range 40, Strength 100.
 3. Order in the pipeline: after Light Leaks, before Grain and Vignette.
 4. Proposal 2: remove the On/Off switch from Light Leaks, Grain and Vignette.
