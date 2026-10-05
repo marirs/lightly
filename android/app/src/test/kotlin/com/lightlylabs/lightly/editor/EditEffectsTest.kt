@@ -142,6 +142,7 @@ class EditEffectsTest {
     }
 
     private var savedSize: Pair<Int, Int>? = null
+    private var savedPixels: ByteArray? = null
 
     private fun TestScope.ready(inpainter: Inpainter?, savedState: SavedStateHandle = SavedStateHandle(), patchDirectory: java.io.File? = null, open: Boolean = true): EditorViewModel {
         val dispatcher = StandardTestDispatcher(testScheduler)
@@ -163,7 +164,7 @@ class EditEffectsTest {
             renderDispatcher = dispatcher,
             prefetchDispatcher = dispatcher,
             exporter = ExportCoordinator(
-                SaveCopyExporter(gateway, JpegEncoder<Rgba8ExportFrame> { frame, _, sink -> savedSize = frame.width to frame.height; sink.write(frame.pixels) }),
+                SaveCopyExporter(gateway, JpegEncoder<Rgba8ExportFrame> { frame, _, sink -> savedSize = frame.width to frame.height; savedPixels = frame.pixels.copyOf(); sink.write(frame.pixels) }),
                 Rgba8ExportFrame.factory, dispatcher, maxTileEdge = 32,
             ),
             favourites = Favourites(),
@@ -398,6 +399,39 @@ class EditEffectsTest {
         second.openPhoto("content://photo/2")
         advanceUntilIdle()
         assertFalse(java.io.File(directory, "$digest.patch").exists())
+    }
+
+    @Test
+    fun `four kept colours, remove one, Undo, kill and restore give the same colours, preview and Save copy`() = runTest {
+        val firstState = SavedStateHandle()
+        val first = ready(null, firstState)
+        first.selectTool(EditorTool.EFFECTS); first.selectEffectsSub(EffectsSub.SELECTIVE)
+        listOf(0.1 to 0.1, 0.9 to 0.1, 0.1 to 0.9, 0.9 to 0.9).forEachIndexed { i, (x, y) ->
+            if (i > 0) first.toggleAddingColour()
+            first.pickSelectiveColour(x, y); advanceUntilIdle()
+        }
+        val four = first.kept()
+        assertEquals(4, four.size, "four colours kept together")
+        assertEquals(4, four.map { it.oklab }.toSet().size, "four different colours")
+        first.removeSelectiveColour(1); advanceUntilIdle()
+        assertEquals(listOf(four[0], four[2], four[3]), first.kept(), "the × removes just that colour")
+        first.undo(); advanceUntilIdle()
+        assertEquals(four, first.kept(), "Undo brings it back in place")
+        val preview = first.uiState.value.preview!!
+        first.saveCopy(); advanceUntilIdle()
+        val saved = savedPixels!!.copyOf()
+
+        // Process death: only the saved-state bundle survives.
+        val restoredState = SavedStateHandle(firstState.keys().associateWith { firstState.get<Any>(it) })
+        Dispatchers.resetMain()
+        val second = ready(null, restoredState, open = false)
+        assertEquals(four, second.kept(), "the four colours are restored")
+        assertTrue(preview.pixels.contentEquals(second.uiState.value.preview!!.pixels), "the restored preview is identical")
+        savedPixels = null
+        second.saveCopy(); advanceUntilIdle()
+        assertTrue(saved.contentEquals(savedPixels!!), "the restored Save copy is identical")
+        second.redo(); advanceUntilIdle()
+        assertEquals(3, second.kept().size, "the removal can be redone after restore")
     }
 
     @Test
