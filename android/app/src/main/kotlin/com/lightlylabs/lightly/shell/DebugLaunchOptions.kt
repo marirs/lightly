@@ -301,6 +301,7 @@ object DebugLaunchOptions {
                 }
             }
             "fx-leak" -> { api.effects { it.copy(lightLeak = it.lightLeak.copy(enabled = true)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.LEAK) }
+            "fx-selective" -> fx(com.lightlylabs.lightly.editor.EffectsSub.SELECTIVE)
             "fx-grain" -> { api.effects { it.copy(grain = it.grain.copy(enabled = true, amount = 45.0)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.GRAIN) }
             "fx-vignette" -> { api.effects { it.copy(vignette = it.vignette.copy(enabled = true)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.VIGNETTE) }
             "fx-combined" -> {
