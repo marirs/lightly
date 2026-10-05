@@ -227,9 +227,40 @@ class BackgroundViewModelTest {
         val vm = Harness(this, depthDouble, segmenterDouble).ready(this)
         vm.selectTool(EditorTool.BACKGROUND)
         vm.cancelSeparation()
-        assertEquals(SeparationState.NotStarted, vm.uiState.value.separation)
+        assertEquals(SeparationState.Cancelled, vm.uiState.value.separation)
         assertEquals(EditorViewModel.OPERATION_CANCELLED, vm.uiState.value.toast)
         assertEquals(1, vm.uiState.value.session!!.history.entries.size)
+    }
+
+    /** Owner check 2026-10-05: Cancel -> leave the tool -> reopen -> retry. */
+    @Test
+    fun `cancel returns to the panel, ignores late results, survives reopening, and the next edit retries`() = runTest {
+        val vm = Harness(this, depthDouble, segmenterDouble).ready(this)
+        vm.selectTool(EditorTool.BACKGROUND)
+        assertEquals(SeparationState.Separating, vm.uiState.value.separation)
+        vm.cancelSeparation()
+        assertEquals(BackgroundPanelState.Focus, BackgroundPanelState.of(vm.uiState.value.background, vm.uiState.value.separation, null), "the panel's controls, no indicator")
+        advanceUntilIdle()
+        assertEquals(SeparationState.Cancelled, vm.uiState.value.separation, "the cancelled run's result is not shown")
+        assertNull(vm.refinedMatte(), "nor installed")
+        vm.selectTool(EditorTool.DEVELOP); vm.selectTool(EditorTool.BACKGROUND); vm.selectBackgroundSub(BackgroundSub.CHANGE)
+        advanceUntilIdle()
+        assertEquals(SeparationState.Cancelled, vm.uiState.value.separation, "reopening does not restart it")
+        vm.chooseBackgroundColour("#3C4A55")
+        assertEquals(SeparationState.Separating, vm.uiState.value.separation, "the next edit retries")
+        advanceUntilIdle()
+        val finished = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        assertTrue(finished.matteAvailable && finished.depthAvailable)
+        assertEquals(2, vm.uiState.value.session!!.history.entries.size)
+    }
+
+    @Test
+    fun `a depth failure with a good outline is the depth message, and Change background works`() = runTest {
+        val vm = Harness(this, DepthEstimator { throw IllegalStateException("delegate failed") }, segmenterDouble).ready(this)
+        vm.selectTool(EditorTool.BACKGROUND); advanceUntilIdle()
+        val finished = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        assertEquals(BackgroundPanelState.DepthFailed, BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.FOCUS), finished, null))
+        assertIs<BackgroundPanelState.Change>(BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.CHANGE), finished, null))
     }
 
     @Test

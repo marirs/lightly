@@ -92,8 +92,11 @@ final class EditorSession {
         case ready
         /// No clear subject; depth-only blur is still offered.
         case noSubject
-        /// "Couldn't separate the subject." (also when depth is unavailable: never faked).
+        /// "Couldn't separate the subject."
         case failed
+        /// Cancel (prototype `cancelOp`): back to the panel with nothing changed; the next Background edit starts
+        /// the analysis again, never a view refresh.
+        case cancelled
     }
 
     /// The subject matte only: Change background and Refine edges need nothing else.
@@ -101,21 +104,43 @@ final class EditorSession {
 
     /// Depth, estimated alongside the matte but independently: only Focus & Blur (and the no-subject
     /// blur) waits for it, so a slow or failed depth model never holds up Change background.
-    enum DepthState: Equatable { case notStarted, estimating, ready, failed }
+    enum DepthState: Equatable { case notStarted, estimating, ready, failed, cancelled }
     private(set) var depthState: DepthState = .notStarted
 
-    /// What the Background panel shows for an operation. Operations that blur need depth as well as
-    /// the matte; while depth is pending they show "Finding the subject…", and when it fails the
-    /// approved "Couldn't separate the subject." with Try again (never a matte-only blur, §R8).
-    func backgroundState(needsDepth: Bool) -> SubjectState {
-        let blurs = needsDepth || subjectState == .noSubject
-        guard blurs, subjectState == .ready || subjectState == .noSubject else { return subjectState }
-        switch depthState {
-        case .notStarted, .estimating: return .separating
-        case .failed: return .failed
-        case .ready: return subjectState
-        }
+    /// What the Background panel (and the stage) shows.
+    enum BackgroundContent: Equatable {
+        /// "Finding the subject…" with Cancel.
+        case finding
+        /// "Couldn't separate the subject." with Try again (approved `bg-failed`).
+        case subjectFailed
+        /// Depth failed while the subject outline is fine: only blurring is unavailable. The copy is a proposal
+        /// awaiting owner approval (no approved depth-specific message exists; the subject message would be wrong).
+        case depthFailed
+        /// "No clear subject found." with the Blur slider (approved `bg-no-subject`).
+        case noSubject
+        /// The mode's controls: analysis done, or cancelled (prototype `cancelOp` returns to the panel).
+        case controls
     }
+
+    /// Operations that blur need depth as well as the matte (never a matte-only blur, §R8); Change background and
+    /// Refine edges need only the matte.
+    func backgroundContent(needsDepth: Bool) -> BackgroundContent {
+        switch subjectState {
+        case .notStarted, .separating: return .finding
+        case .failed: return .subjectFailed
+        case .cancelled: return .controls
+        case .ready, .noSubject: break
+        }
+        if needsDepth || subjectState == .noSubject {
+            switch depthState {
+            case .notStarted, .estimating: return .finding
+            case .failed: return .depthFailed
+            case .ready, .cancelled: break
+            }
+        }
+        return subjectState == .noSubject ? .noSubject : .controls
+    }
+
     /// Faces and people (Portrait), once analysed.
     private(set) var people: PeopleAnalysis?
     /// The subject matte as an image, for the refine-edges tint.
@@ -436,6 +461,7 @@ final class EditorSession {
 
     /// Starts subject separation and depth for this photo ("Finding the subject…"), each once.
     func analyseSubjectIfNeeded() {
+        DiagnosticTrace.note("background: opened, subject \(subjectState), depth \(depthState)")
         if subjectState == .notStarted { startSubjectMatte() }
         if depthState == .notStarted { startDepth() }
     }
@@ -446,22 +472,34 @@ final class EditorSession {
         if depthState == .failed { startDepth() }
     }
 
-    /// Cancel: nothing changes ("Cancelled · nothing changed"); the next use starts again.
+    /// Cancel (prototype `cancelOp`): the panel returns with nothing changed ("Cancelled · nothing changed"); the
+    /// committed edit and its preview stay. Whatever already finished (e.g. the subject outline) is kept. Results of
+    /// the cancelled work that arrive later are dropped (finish* only accept a pending state).
     func cancelSubjectSeparation() {
         var cancelled = false
         if subjectState == .separating {
             subjectTask?.cancel()
             subjectTask = nil
-            subjectState = .notStarted
+            subjectState = .cancelled
             cancelled = true
         }
         if depthState == .estimating {
             depthTask?.cancel()
             depthTask = nil
-            depthState = .notStarted
+            depthState = .cancelled
             cancelled = true
         }
-        if cancelled { showToast("Cancelled · nothing changed") }
+        guard cancelled else { return }
+        DiagnosticTrace.note("subject: cancelled by the person")
+        renderCommitted()
+        showToast("Cancelled · nothing changed")
+    }
+
+    /// After Cancel, the next Background edit starts the cancelled analysis again (prototype: the operation runs
+    /// when the person asks for an effect), never a view refresh or re-entering the tool.
+    private func resumeCancelledAnalysis() {
+        if subjectState == .cancelled { startSubjectMatte() }
+        if depthState == .cancelled { startDepth() }
     }
 
     // Previously the matte, depth and the person matte were awaited together, so one slow
@@ -480,7 +518,7 @@ final class EditorSession {
                 try Task.checkCancellation()
                 self?.finishSubjectMatte(matte)
             } catch {
-                guard !Task.isCancelled, let self, !self.isClosed else { return }
+                guard !Task.isCancelled, let self, !self.isClosed, self.subjectState == .separating else { return }
                 self.subjectState = .failed
             }
         }
@@ -499,7 +537,7 @@ final class EditorSession {
                 try Task.checkCancellation()
                 self?.finishDepth(disparity)
             } catch {
-                guard !Task.isCancelled, let self, !self.isClosed else { return }
+                guard !Task.isCancelled, let self, !self.isClosed, self.depthState == .estimating else { return }
                 self.depthState = .failed
             }
         }
@@ -518,7 +556,8 @@ final class EditorSession {
     }
 
     private func finishSubjectMatte(_ matte: SubjectMatte?) {
-        guard !isClosed else { return }
+        // Only a pending separation accepts a result: a cancelled one's late result is dropped.
+        guard !isClosed, subjectState == .separating else { return }
         sceneCache.subject = matte
         sceneCache.subjectAnalysed = true
         for name in BackgroundPanelModel.bundledImages where sceneCache.replacementImages[name] == nil {
@@ -536,7 +575,7 @@ final class EditorSession {
     }
 
     private func finishDepth(_ disparity: DisparityMap) {
-        guard !isClosed else { return }
+        guard !isClosed, depthState == .estimating else { return }
         sceneCache.disparity = disparity
         depthState = .ready
         analysisRevision += 1
@@ -557,6 +596,7 @@ final class EditorSession {
         change(&next.tools.background)
         recordDerivedResults(in: &next.tools.background)
         commit(next)
+        resumeCancelledAnalysis()
     }
 
     /// Tap the photo to set focus (source coordinates).

@@ -74,6 +74,8 @@ fun BackgroundPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Co
         }
         BackgroundPanelState.Separating -> Notice(LightlyIcons.Info, AnnotatedString("Finding the subject…"), listOf("Cancel" to vm::cancelSeparation))
         BackgroundPanelState.Failed -> Notice(LightlyIcons.Warn, bold("Couldn't separate the subject.", " Your other edits are kept."), listOf("Try again" to vm::retrySeparation))
+        // PROPOSED copy (owner approval pending, 2026-10-05): see BackgroundPanelState.DepthFailed.
+        BackgroundPanelState.DepthFailed -> Notice(LightlyIcons.Warn, bold("Couldn't measure depth.", " Blur needs it. Change background still works."), listOf("Try again" to vm::retrySeparation))
         BackgroundPanelState.Refine -> RefineBody(vm, ui)
         is BackgroundPanelState.Change -> ChangeBody(vm, ui, tool, state.kind)
         BackgroundPanelState.Focus -> FocusBody(vm, ui, tool)

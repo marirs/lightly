@@ -172,6 +172,9 @@ class BackgroundSession(private val env: EditorEnvironment) {
         )
     }
 
+    /** Cancel: results of the run in flight are not installed when they arrive (its CPU work cannot be stopped). */
+    fun discardPending() { synchronized(installLock) { epoch++ } }
+
     fun reset() {
         synchronized(installLock) { epoch++ }
         analysis = null

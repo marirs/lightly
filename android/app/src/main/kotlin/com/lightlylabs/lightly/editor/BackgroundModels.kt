@@ -19,11 +19,14 @@ enum class BrushMode { ADD, ERASE }
 sealed interface SeparationState {
     data object NotStarted : SeparationState
     data object Separating : SeparationState
+
+    /** Cancelled before the matte arrived (prototype `cancelOp`): the panel shows its controls; nothing changed. */
+    data object Cancelled : SeparationState
     /**
      * [depthPending]: the matte is in and depth is still being estimated. Change background and Refine
      * edges need only the matte, so they do not wait for it; Focus & Blur (and the no-subject blur) does.
      */
-    data class Finished(val depthAvailable: Boolean, val matteAvailable: Boolean, val noClearSubject: Boolean, val depthPending: Boolean = false) : SeparationState
+    data class Finished(val depthAvailable: Boolean, val matteAvailable: Boolean, val noClearSubject: Boolean, val depthPending: Boolean = false, val depthCancelled: Boolean = false) : SeparationState
 }
 
 /** Transient Background UI (never in history). */
@@ -46,6 +49,12 @@ sealed interface BackgroundPanelState {
 
     /** The approved failure: "Couldn't separate the subject. Your other edits are kept." with Try again. */
     data object Failed : BackgroundPanelState
+
+    /**
+     * Depth failed while the subject outline is fine: only blurring is unavailable. PROPOSED copy, owner approval
+     * pending (no approved depth-specific message exists; the subject message would be untrue).
+     */
+    data object DepthFailed : BackgroundPanelState
     data object Refine : BackgroundPanelState
     data class Change(val kind: ReplacementKind) : BackgroundPanelState
     data object Focus : BackgroundPanelState
@@ -58,12 +67,30 @@ sealed interface BackgroundPanelState {
          */
         fun of(ui: BackgroundUi, separation: SeparationState, replacement: Replacement?): BackgroundPanelState = when (separation) {
             SeparationState.NotStarted, SeparationState.Separating -> Separating
-            is SeparationState.Finished -> when {
-                separation.noClearSubject -> if (separation.depthPending) Separating else if (separation.depthAvailable) NoSubject else Failed
-                ui.sub == BackgroundSub.REFINE -> if (separation.matteAvailable) Refine else Failed
-                ui.sub == BackgroundSub.CHANGE -> if (separation.matteAvailable) Change(ui.kind ?: kindOf(replacement)) else Failed
-                else -> if (separation.depthPending) Separating else if (separation.depthAvailable) Focus else Failed
+            // Cancel returns to the panel's controls (prototype `cancelOp`); the next edit runs the analysis again.
+            SeparationState.Cancelled -> body(ui, replacement)
+            is SeparationState.Finished -> {
+                val depthUsable = separation.depthAvailable || separation.depthCancelled
+                when {
+                    separation.noClearSubject -> when {
+                        separation.depthPending -> Separating
+                        depthUsable -> NoSubject
+                        else -> DepthFailed
+                    }
+                    ui.sub == BackgroundSub.REFINE -> if (separation.matteAvailable) Refine else Failed
+                    ui.sub == BackgroundSub.CHANGE -> if (separation.matteAvailable) Change(ui.kind ?: kindOf(replacement)) else Failed
+                    separation.depthPending -> Separating
+                    depthUsable -> Focus
+                    separation.matteAvailable -> DepthFailed
+                    else -> Failed
+                }
             }
+        }
+
+        private fun body(ui: BackgroundUi, replacement: Replacement?): BackgroundPanelState = when (ui.sub) {
+            BackgroundSub.REFINE -> Refine
+            BackgroundSub.CHANGE -> Change(ui.kind ?: kindOf(replacement))
+            else -> Focus
         }
 
         fun kindOf(replacement: Replacement?): ReplacementKind = when (replacement) {

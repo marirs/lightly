@@ -326,7 +326,7 @@ class EditorViewModel(
         state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi(), portrait = PortraitUi(selectedFace = it.portrait.selectedFace)) }
         refreshAfterCropEditingChange(wasCropEditing)
         if (tool == EditorTool.BORDER) openBorderOnPreferredType()
-        if (tool == EditorTool.BACKGROUND && separationNeedsRestart()) startSeparation()
+        if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
     }
 
     // --- Background (slice 3) -------------------------------------------------------------------
@@ -361,29 +361,34 @@ class EditorViewModel(
         }
     }
 
+    /**
+     * Cancel (prototype `cancelOp`): back to the Background panel with nothing changed; the committed edit and its
+     * preview stay, and a matte that already arrived is kept. The cancelled run's late results are discarded
+     * ([BackgroundSession.discardPending]). Nothing restarts it but the next Background edit (commitBackground).
+     */
     fun cancelSeparation() {
         separationJob?.cancel()
-        // With the matte already in, Cancel stops only the pending depth: Change background keeps working,
-        // and Focus & Blur starts depth again on next use (selectBackgroundSub).
+        backgroundSession.discardPending()
         state.update { s ->
-            val keepsMatte = (s.separation as? SeparationState.Finished)?.depthPending == true
-            s.copy(separation = if (keepsMatte) s.separation else SeparationState.NotStarted)
+            val finished = s.separation as? SeparationState.Finished
+            val next = if (finished?.depthPending == true) finished.copy(depthPending = false, depthCancelled = true) else SeparationState.Cancelled
+            s.copy(separation = next)
         }
+        state.value.session?.let { requestPreview(it.current, globalOnly = false) }
         showToast(OPERATION_CANCELLED)
     }
 
-    /** Separation not running and not complete: never started, cancelled, or cancelled while depth was pending. */
-    private fun separationNeedsRestart(): Boolean = when (val s = state.value.separation) {
-        SeparationState.NotStarted -> true
-        is SeparationState.Finished -> s.depthPending && separationJob?.isActive != true
-        SeparationState.Separating -> false
+    /** After Cancel, the next Background edit runs the analysis again (never a refresh or re-entering the tool). */
+    private fun resumeCancelledSeparation() {
+        val s = state.value.separation
+        if (s == SeparationState.Cancelled || (s is SeparationState.Finished && s.depthCancelled)) startSeparation()
     }
 
     fun retrySeparation() = startSeparation()
 
     fun selectBackgroundSub(sub: BackgroundSub) {
         state.update { it.copy(background = it.background.copy(sub = sub, sliderDrag = null)) }
-        if (separationNeedsRestart()) startSeparation()
+        if (state.value.separation == SeparationState.NotStarted) startSeparation()
     }
 
     fun selectReplacementKind(kind: ReplacementKind) = state.update { it.copy(background = it.background.copy(kind = kind)) }
@@ -397,6 +402,7 @@ class EditorViewModel(
         // Derived references (the depth source and map) go in before the change too: a first blur commit
         // must not build a Focus with blur > 0 and source subject-matte, which the recipe rejects.
         commit(session.commit { s -> s.copy(tools = s.tools.copy(background = backgroundSession.withDerivedRefs(change(backgroundSession.withDerivedRefs(s.tools.background))))) }, state.value.auto)
+        resumeCancelledSeparation()
     }
 
     private fun withSlider(tool: com.lightlylabs.lightly.session.BackgroundTool, field: String, value: Double) = when (field) {

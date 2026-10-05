@@ -330,13 +330,13 @@ struct EditorScreen: View {
     @ViewBuilder
     private func backgroundMarks(size: CGSize) -> some View {
         let background = session.recipe.tools.background
-        switch (session.backgroundState(needsDepth: backgroundPanel.mode == .focus), backgroundPanel.mode) {
-        case (.separating, _):
+        switch (session.backgroundContent(needsDepth: backgroundPanel.mode == .focus), backgroundPanel.mode) {
+        case (.finding, _) where session.subjectState == .separating || session.depthState == .estimating:
             // `.progress` sits at the centre of the photo (left/top 50 %, translate −50 %).
             StageOperationProgress(title: "Finding the subject…", identifier: "background.separating",
                                    onCancel: session.cancelSubjectSeparation)
                 .position(x: size.width / 2, y: size.height / 2)
-        case (.ready, .refine):
+        case (.controls, .refine):
             MatteTintMark(matte: session.displayMatteImage)
             Color.clear.contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0)
@@ -350,7 +350,7 @@ struct EditorScreen: View {
                         refinePoints = []
                     })
                 .accessibilityHidden(true)
-        case (.ready, .change):
+        case (.controls, .change):
             if case .image(let asset, let x, let y, let scale)? = background.replacement {
                 Color.clear.contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 2)
@@ -370,7 +370,7 @@ struct EditorScreen: View {
                         })
                     .accessibilityHidden(true)
             }
-        case (.ready, .focus), (.noSubject, _):
+        case (.controls, .focus), (.noSubject, _):
             let target = background.focus.target.map { CGPoint(x: $0.x, y: $0.y) }
                 ?? session.defaultFocusTarget.map { CGPoint(x: $0.x, y: $0.y) }
             if session.subjectState == .ready, let target { FocusTargetMark(point: toFrame(target)) }

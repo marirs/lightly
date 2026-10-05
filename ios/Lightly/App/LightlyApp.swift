@@ -9,6 +9,9 @@ struct LightlyApp: App {
         // `DependencyContainer` is main-actor isolated, as is `AppState`;
         // `App.init` runs on the main actor, so this is safe without hopping.
         _appState = State(initialValue: DependencyContainer.live().makeAppState())
+        // A marker per launch: proves the trace file is written and names the build that wrote it.
+        let version = AppVersion()
+        DiagnosticTrace.note("launch: Lightly \(version.version) (\(version.build))")
     }
 
     var body: some Scene {

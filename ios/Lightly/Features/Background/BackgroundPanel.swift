@@ -68,25 +68,28 @@ struct BackgroundPanelView: View {
             content
         }
         .task { session.analyseSubjectIfNeeded() }
-        // After Cancel, choosing Focus & Blur or Change background starts the cancelled analysis again (as on Android).
-        .onChange(of: model.mode) { session.analyseSubjectIfNeeded() }
     }
 
     @ViewBuilder
     private var content: some View {
         // Only Focus & Blur waits for depth; Change background and Refine edges need the matte alone.
-        switch session.backgroundState(needsDepth: model.mode == .focus) {
-        case .notStarted, .separating:
+        switch session.backgroundContent(needsDepth: model.mode == .focus) {
+        case .finding:
             DevelopNotice(icon: .info, bold: nil, text: "Finding the subject…",
                           actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
-        case .failed:
+        case .subjectFailed:
             DevelopNotice(icon: .warn, bold: "Couldn't separate the subject.", text: " Your other edits are kept.",
+                          actions: [("Try again", "background.retry", { session.retrySubjectSeparation() })])
+        case .depthFailed:
+            // PROPOSED copy (owner approval pending, 2026-10-05): no approved depth-specific message exists, and
+            // "Couldn't separate the subject." would be untrue here (the outline is fine; Change background works).
+            DevelopNotice(icon: .warn, bold: "Couldn't measure depth.", text: " Blur needs it. Change background still works.",
                           actions: [("Try again", "background.retry", { session.retrySubjectSeparation() })])
         case .noSubject:
             DevelopNotice(icon: .info, bold: "No clear subject found.",
                           text: " Change background needs a person or object in front. You can still blur by tapping where to focus.", actions: [])
             blurSlider
-        case .ready:
+        case .controls:
             switch model.mode {
             case .refine: refine
             case .change: change
