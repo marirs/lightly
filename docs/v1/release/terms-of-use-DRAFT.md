@@ -1,3 +1,5 @@
+> **Superseded 2026-10-05** by the website text (lightly.pro, `pub-sites/lightly/public/terms.md`), which the apps now bundle. Kept for its sourced analysis only; see docs/v1/release/README.md.
+
 # Lightly Terms of Use
 
 > **DRAFT FOR REVIEW. NOT LEGAL ADVICE. NOT FOR RELEASE until counsel and the owner approve it.** `[OWNER: …]` and `[COUNSEL: …]` mark text that needs input. The governing law, liability and consumer-rights wording depend on where the company is incorporated and where the app is sold; counsel must confirm them. Open licensing questions behind section 4 and the Notices are in `dependencies.md`.

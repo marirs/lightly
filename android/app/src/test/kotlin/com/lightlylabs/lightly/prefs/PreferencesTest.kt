@@ -98,15 +98,16 @@ class PreferencesTest {
     }
 
     @Test
-    fun `release text is empty in this build, so no document or support destination is shown`() {
-        // The shipped asset must stay empty until the product owner supplies the text (D2).
-        val shipped = File("src/main/assets/legal/release-text.json").readText()
-        assertEquals("", shipped.trim(), "no placeholder or invented legal text may be bundled")
-
-        val text = ReleaseText.parse(shipped)
-        assertNull(text.privacyPolicy)
-        assertNull(text.termsOfUse)
-        assertNull(text.supportDestination)
+    fun `the shipped release text is the website's Privacy Policy and Terms, with Support at hello@lightly_pro`() {
+        // Generated from lightly.pro's privacy.md and terms.md by scripts/make_release_text.py; never placeholder text.
+        val text = ReleaseText.parse(File("src/main/assets/legal/release-text.json").readText())
+        val privacy = text.privacyPolicy!!.sections
+        val terms = text.termsOfUse!!.sections
+        assertTrue(privacy.any { it.heading == "Editing on your device" })
+        assertTrue(terms.any { it.heading == "Your photographs" })
+        assertEquals("mailto:hello@lightly.pro", text.supportDestination)
+        val all = (privacy + terms).joinToString(" ") { it.body }
+        for (marker in listOf("[OWNER", "lorem", "TODO", "](http")) assertTrue(marker !in all, marker)
     }
 
     @Test

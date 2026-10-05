@@ -58,8 +58,9 @@ final class WelcomeAndMoreUITests: XCTestCase {
         waitForWelcome()
         tap("welcome.privacyPolicy")
         assertOnPage("privacyPolicy")
-        // No release text is bundled yet (D2): a neutral state, never placeholder text.
-        XCTAssertTrue(element("legal.unavailable").exists)
+        // The bundled text is the website's Privacy Policy (lightly.pro/privacy).
+        XCTAssertTrue(element("legal.document").exists)
+        XCTAssertTrue(app.staticTexts["Editing on your device"].exists)
         tap("page.back")
         waitForWelcome()
         XCTAssertFalse(element("more.page.privacyPolicy").exists)
@@ -101,14 +102,15 @@ final class WelcomeAndMoreUITests: XCTestCase {
         tap("more.row.privacyPolicy"); assertOnPage("privacyPolicy")
         tap("page.back"); assertOnPage("legal")
         tap("more.row.termsOfUse"); assertOnPage("termsOfUse")
-        XCTAssertTrue(element("legal.unavailable").exists)
+        XCTAssertTrue(element("legal.document").exists)
+        XCTAssertTrue(app.staticTexts["Your photographs"].exists)
         tap("page.back"); assertOnPage("legal")
         tap("page.back"); assertOnPage("menu")
 
         tap("more.row.about"); assertOnPage("about")
         XCTAssertTrue(element("about.version").label.contains("Version"), element("about.version").label)
         tap("more.row.support"); assertOnPage("support")
-        XCTAssertTrue(element("support.unavailable").exists, "No support destination is bundled yet (D2)")
+        XCTAssertFalse(element("support.unavailable").exists, "Support has a destination (hello@lightly.pro)")
         tap("page.back"); assertOnPage("about")
         tap("page.back"); assertOnPage("menu")
 

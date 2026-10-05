@@ -195,6 +195,16 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
     }
 
+    /// Save copy through the real Photos writer (no fake writer), tapped as a person does. The runner grants the
+    /// add-only permission beforehand and checks the new file, its size and the unchanged original afterwards.
+    func testSaveCopyWritesANewPhotoThroughPhotos() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        app.buttons["editor.saveCopy"].tap()
+        XCTAssertTrue(app.staticTexts["Saved as a new photo"].waitForExistence(timeout: 90), "no Saved sheet")
+        XCTAssertTrue(app.staticTexts["The original is unchanged."].exists)
+    }
+
     func testClosingWithUnsavedEditsAsks() {
         openEditor()
         dragRuler(by: 3)

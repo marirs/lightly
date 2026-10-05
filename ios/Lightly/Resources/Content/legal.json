@@ -1,6 +1,129 @@
 {
-  "schemaVersion": 1,
-  "privacyPolicy": null,
-  "termsOfUse": null,
-  "support": null
+ "schemaVersion": 1,
+ "privacyPolicy": {
+  "sections": [
+   {
+    "heading": "Last updated",
+    "paragraphs": [
+     "5 October 2026"
+    ]
+   },
+   {
+    "heading": "Scope",
+    "paragraphs": [
+     "This policy covers the Lightly photo editor and lightly.pro. Privacy enquiries can be sent to hello@lightly.pro."
+    ]
+   },
+   {
+    "heading": "Editing on your device",
+    "paragraphs": [
+     "Lightly processes the photographs you choose on your device. The app does not upload them to Lightly, require a Lightly account, or include advertising or analytics. Save copy creates a new image; Share opens the system share sheet so you choose the destination. The receiving app has its own privacy practices."
+    ]
+   },
+   {
+    "heading": "Photos and permissions",
+    "paragraphs": [
+     "You choose photos through the system picker or use the camera. Lightly requests permissions needed for those actions and for saving. You can manage permissions in your device settings. On Android, access to a chosen photo may be retained to restore an editing session."
+    ]
+   },
+   {
+    "heading": "Faces, subjects and depth",
+    "paragraphs": [
+     "Available Portrait and Background tools analyse faces, features, subject outlines and depth locally to apply edits. They do not identify who a person is. These results are not sent to us and may be retained locally with an unfinished edit so it can be restored."
+    ]
+   },
+   {
+    "heading": "Metadata and location",
+    "paragraphs": [
+     "Keep photo metadata and Include location are separate controls. Camera and exposure details can be kept while location is excluded. Location is off by default and can only be included when available in the photo supplied by your device. These preferences apply to saved and shared copies."
+    ]
+   },
+   {
+    "heading": "Local storage",
+    "paragraphs": [
+     "Preferences, favourite presets, signatures, logos and temporary editing data are stored on your device. Recovery data may include image data, edit history and computed masks or depth. Retention and backup behaviour depend on your device and platform. Removing the app does not remove exported photos or copies you shared elsewhere."
+    ]
+   },
+   {
+    "heading": "Visiting this website",
+    "paragraphs": [
+     "This site uses Cloudflare for hosting and delivery. Requests necessarily expose technical information such as your IP address, requested URL and browser information to the hosting service. Cloudflare may process it for delivery, security and operations. See Cloudflare’s privacy policy.",
+     "We have not added advertising, analytics scripts, embedded third-party media or tracking cookies to this site. Fonts and images are hosted with the website. Hosting-level security features may have their own technical requirements."
+    ]
+   },
+   {
+    "heading": "Contacting us",
+    "paragraphs": [
+     "If you email us, we receive your email address and whatever you send, including attachments. We use this to respond and investigate your request. Do not send private photos unless necessary and agreed. The email provider also processes correspondence."
+    ]
+   },
+   {
+    "heading": "Your choices and changes",
+    "paragraphs": [
+     "You can manage local app permissions and stored content through the app and device. For information about correspondence you have sent us, or to request its correction or deletion, email hello@lightly.pro. Applicable legal rights depend on your location. We will update this page when our practices change."
+    ]
+   }
+  ]
+ },
+ "termsOfUse": {
+  "sections": [
+   {
+    "heading": "Last updated",
+    "paragraphs": [
+     "5 October 2026"
+    ]
+   },
+   {
+    "heading": "About Lightly",
+    "paragraphs": [
+     "Lightly is a photo-editing app for iOS and Android. This website describes the product and provides support information. For questions about these terms, contact hello@lightly.pro."
+    ]
+   },
+   {
+    "heading": "Your photographs",
+    "paragraphs": [
+     "Your photos and edits remain yours. Lightly claims no ownership of them. You are responsible for having the permissions needed to edit and share content, including images of other people. Do not use the app or website for unlawful activity or to infringe another person’s rights."
+    ]
+   },
+   {
+    "heading": "Using the app",
+    "paragraphs": [
+     "Use the app in accordance with applicable law and the terms supplied with its release. Do not disrupt the website or attempt to access systems without permission. Any restrictions are subject to rights that applicable law gives you."
+    ]
+   },
+   {
+    "heading": "Results and originals",
+    "paragraphs": [
+     "Automated and image-processing tools can make mistakes. Review the result before sharing it. Save copy is designed to preserve the original, but you should maintain your own backups of important photographs."
+    ]
+   },
+   {
+    "heading": "Availability and purchases",
+    "paragraphs": [
+     "No purchase or subscription is offered on this website. Store purchases are also subject to the relevant store’s payment and refund terms and applicable consumer law."
+    ]
+   },
+   {
+    "heading": "Website and third-party materials",
+    "paragraphs": [
+     "The Lightly name, logo and website materials are provided to describe the product. Third-party photographs and fonts retain their respective ownership and licence terms. Nothing here restricts rights granted by an open-source licence."
+    ]
+   },
+   {
+    "heading": "Consumer rights",
+    "paragraphs": [
+     "Nothing in these terms is intended to exclude rights that cannot lawfully be excluded, including applicable consumer rights."
+    ]
+   },
+   {
+    "heading": "Contact",
+    "paragraphs": [
+     "For questions about Lightly or these terms, email hello@lightly.pro."
+    ]
+   }
+  ]
+ },
+ "support": {
+  "url": "mailto:hello@lightly.pro"
+ }
 }
