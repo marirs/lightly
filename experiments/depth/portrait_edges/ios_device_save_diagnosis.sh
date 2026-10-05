@@ -5,7 +5,7 @@
 D=4C50E425-9BEA-58DB-9D5E-2BF46A9F0A6C; U=00008030-001C71D03E78802E; B=com.lightlylabs.lightly
 OUT=$(cd "$(dirname "$0")/../out" && pwd)/device-save-diagnosis; MODE=${MODE:-documents}; LOG=$OUT/$MODE.log
 [ "${BUILD:-1}" = 1 ] && { (cd "$(dirname "$0")/../../../ios" && xcodegen generate >/dev/null && xcodebuild build -project Lightly.xcodeproj -scheme Lightly -configuration Debug -destination "generic/platform=iOS" \
-  -derivedDataPath /tmp/lightly-dd-review-device -allowProvisioningUpdates CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=3UDFB78DLC CODE_SIGN_IDENTITY="Apple Development" -quiet 2>&1 | grep -E "error:" | head) ;
+  -derivedDataPath /tmp/lightly-dd-review-device -allowProvisioningUpdates $(bash "$(dirname "$0")/../../../scripts/version.sh" | awk '{print "MARKETING_VERSION="$1" CURRENT_PROJECT_VERSION="$2}') CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=3UDFB78DLC CODE_SIGN_IDENTITY="Apple Development" -quiet 2>&1 | grep -E "error:" | head) ;
   xcrun devicectl device install app --device $D /tmp/lightly-dd-review-device/Build/Products/Debug-iphoneos/Lightly.app 2>&1 | grep -iE "installed|error" | head -2; }
 # The trace file (DEBUG SaveTrace) starts empty; the system log is attempted over the network as well.
 : > $OUT/empty.log

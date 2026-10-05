@@ -17,20 +17,22 @@ if [ -f "$LIGHTLY_REPO/.lightly-source" ]; then
   export LIGHTLY_REMOVE_MODEL_DIR="${LIGHTLY_REMOVE_MODEL_DIR:-$LIGHTLY_MAIN_CHECKOUT/experiments/inpaint/models/exported}"
   export LIGHTLY_LOOK_PACK_DIR="${LIGHTLY_LOOK_PACK_DIR:-$LIGHTLY_MAIN_CHECKOUT/shared/look-pack/out}"
 fi
+read -r MARKETING BUILD_NUMBER < <(bash "$LIGHTLY_REPO/scripts/version.sh")
+VERSION_SETTINGS=(MARKETING_VERSION="$MARKETING" CURRENT_PROJECT_VERSION="$BUILD_NUMBER")
 cd "$LIGHTLY_REPO/ios" || exit 1
 xcodegen generate 2>&1 | tail -1
 status=0
 if [ "$what" = unit ] || [ "$what" = both ]; then
   echo "== unit build $(date +%T) at $REV $FP"
   xcodebuild build-for-testing -project Lightly.xcodeproj -scheme Lightly -destination "generic/platform=iOS Simulator" \
-    -derivedDataPath "$LIGHTLY_DD_UNIT" > "$LIGHTLY_DD_UNIT.log" 2>&1 || status=1
+    -derivedDataPath "$LIGHTLY_DD_UNIT" "${VERSION_SETTINGS[@]}" > "$LIGHTLY_DD_UNIT.log" 2>&1 || status=1
   grep -E "error:|\*\* " "$LIGHTLY_DD_UNIT.log" | sort -u | head -40
   [ $status -eq 0 ] && echo "$REV $FP" > "$LIGHTLY_DD_UNIT/BUILD_RECORD"
 fi
 if [ "$what" = ui ] || [ "$what" = both ]; then
   echo "== UI build $(date +%T) at $REV $FP"
   xcodebuild build-for-testing -project Lightly.xcodeproj -scheme LightlyUITests -destination "generic/platform=iOS Simulator" \
-    -derivedDataPath "$LIGHTLY_DD_UI" SWIFT_OPTIMIZATION_LEVEL=-O > "$LIGHTLY_DD_UI.log" 2>&1 || status=1
+    -derivedDataPath "$LIGHTLY_DD_UI" SWIFT_OPTIMIZATION_LEVEL=-O "${VERSION_SETTINGS[@]}" > "$LIGHTLY_DD_UI.log" 2>&1 || status=1
   grep -E "error:|\*\* " "$LIGHTLY_DD_UI.log" | sort -u | head -30
   [ $status -eq 0 ] && echo "$REV $FP" > "$LIGHTLY_DD_UI/BUILD_RECORD"
 fi

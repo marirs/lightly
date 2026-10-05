@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LightlyDepthModelTrainingDataSignedOff</key>
 	<string>$(LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF)</string>
 	<key>LightlyRemoveModelTrainingDataSignedOff</key>

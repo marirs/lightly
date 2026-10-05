@@ -83,6 +83,13 @@ val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) == "t
 fun visionModelsEnabled(buildType: String) =
     visionModels.values.all { visionModelsDirectory.resolve(it[0]).isFile } && (buildType == "debug" || visionModelsRelease)
 
+/** Marketing version and build number shared with iOS (version.properties, scripts/version.sh). */
+val lightlyMarketingVersion: String = rootDir.parentFile.resolve("version.properties").readLines()
+    .first { it.startsWith("marketingVersion=") }.substringAfter("=").trim()
+val lightlyBuildNumber: Int = ((findProperty("lightlyBuildNumber") as String?) ?: providers.exec {
+    commandLine("bash", rootDir.parentFile.resolve("scripts/version.sh").path, "--build")
+}.standardOutput.asText.get().trim()).toInt()
+
 android {
     namespace = "com.lightlylabs.lightly"
     compileSdk = 36
@@ -92,8 +99,10 @@ android {
         // Spec U6 (revised after Codex M1 finding 8): the IS_PENDING save path needs API 29.
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-m2"
+        // version.properties and scripts/version.sh, shared with iOS: marketing version and the git-derived build
+        // number (YYMMDD + the commit's three-digit sequence that day). -PlightlyBuildNumber overrides it.
+        versionCode = lightlyBuildNumber
+        versionName = lightlyMarketingVersion
     }
 
     buildFeatures {
