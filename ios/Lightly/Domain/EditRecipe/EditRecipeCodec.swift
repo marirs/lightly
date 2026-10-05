@@ -309,7 +309,9 @@ enum EditRecipeCodec {
     }
 
     private static func readEffects(_ r: Reader) throws -> EditRecipe.Effects {
-        try r.requireExactly(["lightLeak", "grain", "vignette"])
+        // selectiveColour is optional (rendering-v2 revision 4): recipes written before it stay valid.
+        let hasSelective = r.raw("selectiveColour") != nil
+        try r.requireExactly(["lightLeak", "grain", "vignette"] + (hasSelective ? ["selectiveColour"] : []))
         let l = try r.object("lightLeak"); try l.requireExactly(["enabled", "style", "intensity", "x", "y", "rotation"])
         let g = try r.object("grain"); try g.requireExactly(["enabled", "style", "amount", "size", "roughness", "seed"])
         let v = try r.object("vignette"); try v.requireExactly(["enabled", "amount", "size", "softness"])
@@ -321,7 +323,24 @@ enum EditRecipeCodec {
             grain: .init(enabled: try g.bool("enabled"), style: try g.enumeration("style"), amount: try g.percent("amount"),
                          size: try g.percent("size"), roughness: try g.percent("roughness"), seed: UInt32(seed)),
             vignette: .init(enabled: try v.bool("enabled"), amount: try v.percent("amount"), size: try v.percent("size"),
-                            softness: try v.percent("softness")))
+                            softness: try v.percent("softness")),
+            selectiveColour: hasSelective ? try readSelectiveColour(try r.object("selectiveColour")) : .none)
+    }
+
+    private static func readSelectiveColour(_ r: Reader) throws -> EditRecipe.Effects.SelectiveColour {
+        try r.requireExactly(["colours", "range", "strength"])
+        let items = try r.array("colours")
+        guard items.count <= 8 else { throw r.error("colours", "at most 8 colours") }
+        let colours = try items.enumerated().map { index, item -> EditRecipe.Effects.SelectiveColour.Kept in
+            let c = try Reader(item, path: "\(r.path).colours[\(index)]")
+            try c.requireExactly(["oklab", "x", "y"])
+            let lab = try c.array("oklab").map { $0.doubleValue }
+            guard lab.count == 3, let l = lab[0], let a = lab[1], let b = lab[2], l.isFinite, a.isFinite, b.isFinite else {
+                throw c.error("oklab", "must be three numbers")
+            }
+            return .init(oklab: SIMD3(l, a, b), x: try c.number("x", 0...1), y: try c.number("y", 0...1))
+        }
+        return .init(colours: colours, range: try r.percent("range"), strength: try r.percent("strength"))
     }
 
     private static func readWatermark(_ r: Reader) throws -> EditRecipe.Watermark {
@@ -420,6 +439,16 @@ enum EditRecipeCodec {
         }
     }
 
+    /// Written only with kept colours (no colours is the same as absent, so older readers see no change).
+    private static func selectiveColour(_ s: EditRecipe.Effects.SelectiveColour) -> [(String, CanonicalJSON)] {
+        guard !s.colours.isEmpty else { return [] }
+        let colours = s.colours.map { c in
+            CanonicalJSON.object([("oklab", .array([number(c.oklab.x), number(c.oklab.y), number(c.oklab.z)])),
+                                  ("x", number(c.x)), ("y", number(c.y))])
+        }
+        return [("selectiveColour", .object([("colours", .array(colours)), ("range", number(s.range)), ("strength", number(s.strength))]))]
+    }
+
     private static func point(_ p: EditRecipe.Point?) -> CanonicalJSON {
         guard let p else { return .null }
         return .array([number(p.x), number(p.y)])
@@ -501,7 +530,7 @@ enum EditRecipeCodec {
                                ("roughness", number(fx.grain.roughness)), ("seed", .number(String(fx.grain.seed)))])),
             ("vignette", .object([("enabled", .bool(fx.vignette.enabled)), ("amount", number(fx.vignette.amount)),
                                   ("size", number(fx.vignette.size)), ("softness", number(fx.vignette.softness))]))
-        ])
+        ] + selectiveColour(fx.selectiveColour))
         let w = t.watermark
         let watermark = CanonicalJSON.object([
             ("type", .string(w.type.rawValue)),
