@@ -46,12 +46,12 @@ def test_stage_order_is_the_whole_edit_pipeline():
                                                          "background.focus", "portrait"))
     assert frames["edit.geometry"] == "source → frame" and frames["effects"] == "frame"
     effects = next(s for s in stages if s["id"] == "effects")
-    assert [o["id"] for o in effects["operators"]] == ["lightLeak", "presetVignette", "userVignette", "presetGrain", "userGrain"]
+    assert [o["id"] for o in effects["operators"]] == ["lightLeak", "selectiveColour", "presetVignette", "userVignette", "presetGrain", "userGrain"]
 
 
-def test_contract_is_revision_3_with_the_css_light_leak():
+def test_contract_is_revision_4_with_the_css_light_leak():
     contract = json.loads((CONTRACTS / "rendering-v2.json").read_text())
-    assert (contract["version"], contract["revision"]) == (2, 3)
+    assert (contract["version"], contract["revision"]) == (2, 4)
     effects = next(s for s in contract["stages"] if s["id"] == "effects")
     leak = next(o for o in effects["operators"] if o["id"] == "lightLeak")["constants"]
     assert [stop["position"] for stop in leak["stops"]] == [0.0, 0.30, 0.55]

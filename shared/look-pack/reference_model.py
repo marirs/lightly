@@ -617,6 +617,84 @@ def apply_light_leak(rgb, params: dict):
     return rgb + premultiplied * (1 - rgb)
 
 
+# ------------------------------------------------------------------ selective colour (rendering-v2 revision 4)
+# Effects › Selective Colour (owner request 2026-10-04): the kept colours stay, everything else is blended
+# towards black and white by Strength. Colour matching only: it does not know what an object is.
+# Matching is by hue, gated by saturation relative to the picked colour, in OKLCh with saturation s = C / L.
+# Lightness does not count, so the shadowed and lit parts of a red dress stay red; greys and pale skin, much less
+# saturated than a picked red, do not (measured: red s 0.38, red in shadow 0.34, lips 0.28, skin 0.12-0.16).
+SELECTIVE_COLOUR_MIN_LIGHTNESS = 0.05      # s = C / max(L, this): near-black pixels have no reliable hue
+SELECTIVE_COLOUR_NEUTRAL_PICK = 0.04       # a pick less saturated than this keeps only near-neutral pixels
+
+
+def _oklch_saturation_hue(oklab):
+    lab = np.asarray(oklab, np.float64)
+    chroma = np.hypot(lab[..., 1], lab[..., 2])
+    saturation = chroma / np.maximum(lab[..., 0], SELECTIVE_COLOUR_MIN_LIGHTNESS)
+    return saturation, np.degrees(np.arctan2(lab[..., 2], lab[..., 1])) % 360
+
+
+def selective_colour_hue_tolerance(range_percent: float) -> float:
+    """Hue window in degrees: Range 0..100 -> 6..56; fully kept within half of it, fading to 0 at the edge."""
+    return 6 + 0.5 * range_percent
+
+
+def selective_colour_saturation_gate(range_percent: float) -> tuple[float, float]:
+    """Saturation closeness min(r, 1/r), r = pixel / pick, where keeping starts and where it is full: Range 0 -> (0.65, 0.9),
+    Range 40 -> (0.43, 0.68), Range 100 -> (0.1, 0.35)."""
+    start = 0.65 - 0.0055 * range_percent
+    return start, start + 0.25
+
+
+def selective_colour_keep(oklab, colours, range_percent: float):
+    """Per-pixel 'stays in colour' weight in [0, 1]: the best match to any kept colour (OKLab inputs)."""
+    saturation, hue = _oklch_saturation_hue(oklab)
+    hue_tolerance = selective_colour_hue_tolerance(range_percent)
+    gate_start, gate_full = selective_colour_saturation_gate(range_percent)
+    keep = np.zeros(saturation.shape)
+    for colour in colours:
+        pick_saturation, pick_hue = _oklch_saturation_hue(np.asarray(colour, np.float64))
+        if pick_saturation < SELECTIVE_COLOUR_NEUTRAL_PICK:
+            match = 1 - smoothstep(SELECTIVE_COLOUR_NEUTRAL_PICK, 2 * SELECTIVE_COLOUR_NEUTRAL_PICK, saturation)
+        else:
+            hue_distance = np.abs((hue - pick_hue + 180) % 360 - 180)
+            by_hue = np.clip((hue_tolerance - hue_distance) / (0.5 * hue_tolerance), 0, 1)
+            # Symmetric in the ratio: much less saturated (greys, pale skin for a red) and much more saturated
+            # (a red sign for a picked skin tone) are both left out.
+            ratio = saturation / pick_saturation
+            match = by_hue * smoothstep(gate_start, gate_full, np.minimum(ratio, 1 / np.maximum(ratio, 1e-6)))
+        keep = np.maximum(keep, match)
+    return keep
+
+
+def apply_selective_colour(rgb, params: dict):
+    """sRGB-encoded frame in and out. params: colours (OKLab triples), range and strength in percent.
+
+    Outside the kept colours the frame is blended towards its linear luminance (Rec. 709 weights): Strength
+    100 makes it black and white, 0 leaves it unchanged. No colours: unchanged.
+    """
+    rgb = np.asarray(rgb, np.float64)
+    if not params.get("colours"):
+        return rgb
+    linear = srgb_to_linear(rgb)
+    keep = selective_colour_keep(linear_to_oklab(linear), params["colours"], params["range"])
+    colourfulness = keep + (1 - keep) * (1 - params["strength"] / 100)
+    luminance = (linear @ np.array([0.2126, 0.7152, 0.0722]))[..., None]
+    return linear_to_srgb(luminance + (linear - luminance) * colourfulness[..., None])
+
+
+def selective_colour_sample(rgb, x_fraction: float, y_fraction: float):
+    """The kept colour for a tap at (x, y) fractions of the frame: OKLab of the mean linear colour over a square
+    of side max(3, round(1 % of the long edge)) pixels centred on the tapped pixel, clipped to the frame."""
+    rgb = np.asarray(rgb, np.float64)
+    height, width = rgb.shape[:2]
+    side = max(3, round(0.01 * max(height, width)))
+    cx = min(width - 1, int(x_fraction * width)); cy = min(height - 1, int(y_fraction * height))
+    half = side // 2
+    window = srgb_to_linear(rgb[max(0, cy - half): cy + half + 1, max(0, cx - half): cx + half + 1])
+    return linear_to_oklab(window.reshape(-1, 3).mean(0))
+
+
 def develop_global_with_override(rgb, recipe: dict, model: dict, override_lut: np.ndarray):
     """develop.global when the pack ships a validated Lightroom HALD LUT for the preset (rendering-v2.md §4.4).
 

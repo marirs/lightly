@@ -1,4 +1,4 @@
-"""Write the parity goldens for background.focus, grain and the light leak (rendering-v2 revision 2).
+"""Write the parity goldens for background.focus, grain, the light leak and selective colour (rendering-v2 revision 4).
 
     python shared/contracts/make_rendering_goldens.py          # rewrite shared/fixtures/rendering/
     python shared/contracts/make_rendering_goldens.py --check  # exit 1 if the committed files are out of date
@@ -7,7 +7,7 @@ Closes gap G5 (docs/v1/slice3-android.md, docs/v1/contract-fixes-1.md): depth-ev
 renderer goldens that take the disparity map as an input, so they do not depend on the depth model.
 The expected values come from the executable references:
   - background.focus: experiments/depth/refocus.py (needs OpenCV and SciPy);
-  - grain and the light leak: shared/look-pack/reference_model.py.
+  - grain, the light leak and selective colour: shared/look-pack/reference_model.py.
 Every array is a little-endian float32 file next to `index.json`, which records its shape and SHA-256.
 The inputs are stored too, so a port never has to reproduce the synthetic scene generator.
 """
@@ -204,6 +204,40 @@ def light_leak_cases(files: Files) -> list:
     return out
 
 
+def selective_colour_input(height: int, width: int) -> np.ndarray:
+    """Four vertical bands, saturated red | saturated blue | skin tone | neutral grey, each with a lightness ramp
+    down the rows, so the goldens cover a kept colour, a rejected one, a near miss and a neutral."""
+    yy = np.mgrid[0:height, 0:width][0].astype(np.float64)
+    ramp = (0.3 + 0.7 * yy / max(1, height - 1))[..., None]   # deep shadow (top) to lit (bottom)
+    bands = np.array([[0.82, 0.12, 0.10], [0.15, 0.30, 0.85], [0.80, 0.55, 0.45], [0.55, 0.55, 0.55]])
+    column_band = np.minimum(np.arange(width) * 4 // width, 3)
+    return bands[column_band][None, :, :] * ramp
+
+
+# name, height, width, picks as (x, y) fractions of the frame, range, strength
+SELECTIVE_COLOUR_CASES = [
+    ("red-range40-full", 48, 64, [(0.12, 0.5)], 40, 100),
+    ("red-range0-full", 48, 64, [(0.12, 0.5)], 0, 100),
+    ("red-blue-range60-half", 48, 64, [(0.12, 0.5), (0.37, 0.2)], 60, 50),
+    ("skin-range40-full", 47, 61, [(0.62, 0.9)], 40, 100),
+    ("none", 48, 64, [], 40, 100),
+]
+
+
+def selective_colour_cases(files: Files) -> list:
+    out = []
+    for name, height, width, picks, range_percent, strength in SELECTIVE_COLOUR_CASES:
+        image = selective_colour_input(height, width)
+        colours = [reference_model.selective_colour_sample(image, x, y).tolist() for x, y in picks]
+        params = {"colours": [rounded(c, 7) for c in colours], "range": range_percent, "strength": strength}
+        oklab = reference_model.linear_to_oklab(reference_model.srgb_to_linear(image))
+        out.append({"name": name, "height": height, "width": width, "picks": [list(p) for p in picks], "params": params,
+                    "input": files.array(f"selective-{name}-input.f32", image),
+                    "keep": files.array(f"selective-{name}-keep.f32", reference_model.selective_colour_keep(oklab, params["colours"], range_percent)),
+                    "expected": files.array(f"selective-{name}-expected.f32", reference_model.apply_selective_colour(image, params))})
+    return out
+
+
 def build() -> dict[str, bytes]:
     files = Files()
     scene_inputs = synthetic_scene()
@@ -220,6 +254,7 @@ def build() -> dict[str, bytes]:
             "focusRender": "ΔE00 mean ≤ 1.0 and p99 ≤ 4 against `expected` (depth-evaluation.md §R9)",
             "grain": "noise max abs 1e-4; expected max abs 2e-4 (inside `crop` [row, column, height, width] when set)",
             "lightLeak": "farthestCornerPx max abs 1e-4; premultiplied and expected max abs 2e-4 (pixel centres at +0.5)",
+            "selectiveColour": "params.colours (the sampled picks) max abs 1e-4; keep and expected max abs 2e-4",
         },
         "backgroundFocus": {
             "constants": next(s for s in contract["stages"] if s["id"] == "background.focus")["operators"][0]["constants"],
@@ -234,6 +269,7 @@ def build() -> dict[str, bytes]:
         },
         "grain": grain_cases(files),
         "lightLeak": light_leak_cases(files),
+        "selectiveColour": selective_colour_cases(files),
     }
     blobs = {"index.json": (json.dumps(index, indent=1, ensure_ascii=False) + "\n").encode()}
     blobs.update(files.blobs)

@@ -18,6 +18,7 @@ pytest.importorskip("cv2")
 pytest.importorskip("scipy")
 import make_rendering_goldens  # noqa: E402
 import refocus  # noqa: E402
+import reference_model  # noqa: E402
 
 
 # --- G7: pull-push fills a large hole from its neighbours ----------------------------------------------
@@ -107,3 +108,63 @@ def test_goldens_are_current():
             continue
         committed = np.frombuffer((GOLDENS / name).read_bytes(), "<f4")
         assert np.allclose(np.frombuffer(data, "<f4"), committed, atol=1e-5), name
+
+
+# --- selective colour (revision 4) -----------------------------------------------------------------
+
+def _selective(image, picks, range_percent=40, strength=100):
+    colours = [reference_model.selective_colour_sample(image, x, y) for x, y in picks]
+    return reference_model.apply_selective_colour(image, {"colours": colours, "range": range_percent, "strength": strength})
+
+
+def _chroma(rgb):
+    return np.ptp(np.asarray(rgb), axis=-1)
+
+
+def test_selective_colour_keeps_the_picked_colour_and_greys_the_rest():
+    image = make_rendering_goldens.selective_colour_input(48, 64)
+    out = _selective(image, [(0.12, 0.5)])
+    red, blue, grey = out[:, :16], out[:, 16:32], out[:, 48:]
+    np.testing.assert_allclose(red, image[:, :16], atol=1e-6)        # kept exactly
+    assert _chroma(blue).max() < 1e-6                                 # black and white
+    assert _chroma(grey).max() < 1e-6
+
+
+def test_selective_colour_strength_zero_and_no_colours_leave_the_frame_unchanged():
+    image = make_rendering_goldens.selective_colour_input(48, 64)
+    np.testing.assert_allclose(_selective(image, [(0.12, 0.5)], strength=0), image, atol=1e-6)
+    np.testing.assert_allclose(_selective(image, []), image, atol=0)
+
+
+def test_selective_colour_keeps_luminance_where_it_greys():
+    image = make_rendering_goldens.selective_colour_input(48, 64)
+    out = _selective(image, [(0.12, 0.5)])
+    weights = np.array([0.2126, 0.7152, 0.0722])
+    before = reference_model.srgb_to_linear(image[:, 16:32]) @ weights
+    after = reference_model.srgb_to_linear(out[:, 16:32]) @ weights
+    np.testing.assert_allclose(after, before, atol=1e-6)
+
+
+def test_wider_range_keeps_more_neighbouring_shades():
+    image = make_rendering_goldens.selective_colour_input(48, 64)
+    oklab = reference_model.linear_to_oklab(reference_model.srgb_to_linear(image))
+    red = [reference_model.selective_colour_sample(image, 0.12, 0.5)]
+    narrow = reference_model.selective_colour_keep(oklab, red, 0).sum()
+    wide = reference_model.selective_colour_keep(oklab, red, 100).sum()
+    assert wide > narrow
+
+
+def test_selective_colour_keeps_a_red_in_shadow_but_not_pale_skin_or_grey():
+    shades = np.array([[[0.82, 0.12, 0.10], [0.30, 0.05, 0.05], [0.80, 0.55, 0.45], [0.55, 0.55, 0.55], [0.70, 0.25, 0.25]]])
+    oklab = reference_model.linear_to_oklab(reference_model.srgb_to_linear(shades))
+    keep = reference_model.selective_colour_keep(oklab, [oklab[0, 0]], 40)[0]
+    red, shadow, skin, grey, lips = keep
+    assert red == 1 and shadow == 1 and skin == 0 and grey == 0
+    assert lips == 1   # colour matching only: red lips are red, and stay (the proposal says so)
+
+
+def test_a_picked_skin_tone_does_not_keep_a_saturated_red():
+    shades = np.array([[[0.80, 0.55, 0.45], [0.82, 0.12, 0.10], [0.75, 0.52, 0.42]]])
+    oklab = reference_model.linear_to_oklab(reference_model.srgb_to_linear(shades))
+    skin, red, other_skin = reference_model.selective_colour_keep(oklab, [oklab[0, 0]], 40)[0]
+    assert skin == 1 and other_skin == 1 and red == 0

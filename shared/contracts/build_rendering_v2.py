@@ -22,7 +22,9 @@ PRESETS = REPO / "experiments/presets"
 # 1 = contract fixes 1 (docs/v1/contract-fixes-1.md): background.focus constants, pull-push, grain colour/aliasing.
 # 2 = contract fixes 2 (docs/v1/contract-fixes-2.md): Remove on the source before auto, geometry after the layered
 #     stages, perspective defined, light leak measured along the farthest-corner ray as the approved CSS does.
-CONTRACT_REVISION = 3
+# 3 = background.focus subject colour from the de-contaminated estimate wherever the matte is above 0.02.
+# 4 = effects.selectiveColour (owner request 2026-10-04), after the light leak, before vignette and grain.
+CONTRACT_REVISION = 4
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -267,6 +269,19 @@ def stages():
                                             "x": num(0, 100, 18, PERCENT), "y": num(0, 100, 14, PERCENT), "rotation": num(-180, 180, 0, "degrees")},
               "constants": light_leak_constants(), "equation": "rendering-v2.md#light-leak",
               "status": "provisional"},
+             {"id": "selectiveColour",
+              "params": {"colours": {"type": "array", "maxItems": 8, "items": "OKLab [L, a, b] of a kept colour, sampled when it was picked",
+                                     "default": [], "note": "empty: the operator does nothing"},
+                         "range": num(0, 100, 40, PERCENT), "strength": num(0, 100, 100, PERCENT)},
+              "constants": {"space": "OKLCh of the linear frame; saturation s = C / max(L, 0.05)",
+                            "hueWindow": "W = 6 + 0.5·range degrees; byHue = clamp((W − |Δhue|)/(0.5·W), 0, 1)",
+                            "saturationGate": "start = 0.65 − 0.0055·range, full = start + 0.25; gate = smoothstep(start, full, min(r, 1/r)), r = s_pixel / s_pick",
+                            "neutralPick": "s_pick < 0.04: match = 1 − smoothstep(0.04, 0.08, s_pixel)",
+                            "keep": "max over kept colours of byHue·gate (or the neutral match)",
+                            "blend": "linear RGB: out = Y + (in − Y)·(keep + (1 − keep)·(1 − strength/100)), Y = 0.2126R + 0.7152G + 0.0722B",
+                            "sample": "a picked colour is OKLab of the mean linear colour of the stage input over a square of side "
+                                      "max(3, round(1 % of the long edge)) px centred on the tapped pixel, clipped to the frame"},
+              "equation": "rendering-v2.md#selective-colour", "reference": "shared/look-pack/reference_model.py apply_selective_colour"},
              {"id": "presetVignette", "operator": "vignette", "source": "preset recipe.finishing.vignette (amount × look strength)"},
              {"id": "userVignette", "operator": "vignette",
               "maps": "amount = −effects.vignette.amount, midpoint = size, feather = softness, roundness 0, style 1, highlightContrast 0"},

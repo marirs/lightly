@@ -3,7 +3,7 @@
  "formatVersion": 1,
  "renderingContract": {
   "version": 2,
-  "revision": 3
+  "revision": 4
  },
  "generatedBy": "shared/contracts/make_rendering_goldens.py",
  "arrays": "little-endian float32, row-major; images are HxWx3 sRGB-encoded in [0, 1] unless named otherwise",
@@ -13,7 +13,8 @@
   "pullPush": "max abs 1e-4",
   "focusRender": "ΔE00 mean ≤ 1.0 and p99 ≤ 4 against `expected` (depth-evaluation.md §R9)",
   "grain": "noise max abs 1e-4; expected max abs 2e-4 (inside `crop` [row, column, height, width] when set)",
-  "lightLeak": "farthestCornerPx max abs 1e-4; premultiplied and expected max abs 2e-4 (pixel centres at +0.5)"
+  "lightLeak": "farthestCornerPx max abs 1e-4; premultiplied and expected max abs 2e-4 (pixel centres at +0.5)",
+  "selectiveColour": "params.colours (the sampled picks) max abs 1e-4; keep and expected max abs 2e-4"
  },
  "backgroundFocus": {
   "constants": {
@@ -1066,6 +1067,246 @@
      3
     ],
     "sha256": "95390a7d2f4d498ef0d4e0a1d54193b31e0db93ac0fb9b4fadd41a3fdc73b55d"
+   }
+  }
+ ],
+ "selectiveColour": [
+  {
+   "name": "red-range40-full",
+   "height": 48,
+   "width": 64,
+   "picks": [
+    [
+     0.12,
+     0.5
+    ]
+   ],
+   "params": {
+    "colours": [
+     [
+      0.4076467,
+      0.1338462,
+      0.0720255
+     ]
+    ],
+    "range": 40,
+    "strength": 100
+   },
+   "input": {
+    "file": "selective-red-range40-full-input.f32",
+    "shape": [
+     48,
+     64,
+     3
+    ],
+    "sha256": "5950e735c4676098fc7a6031cec0b40497e18d9b5d4b4e148d72352f504eda9b"
+   },
+   "keep": {
+    "file": "selective-red-range40-full-keep.f32",
+    "shape": [
+     48,
+     64
+    ],
+    "sha256": "0c48addb3d16d1feedd800620ba47963036cb918a0e6257ec4ae5ff084c422c4"
+   },
+   "expected": {
+    "file": "selective-red-range40-full-expected.f32",
+    "shape": [
+     48,
+     64,
+     3
+    ],
+    "sha256": "16ee3fe7551b6dde4943dd346f2965e2d574c4a4d5dd4a28aa8c32b833e52aa6"
+   }
+  },
+  {
+   "name": "red-range0-full",
+   "height": 48,
+   "width": 64,
+   "picks": [
+    [
+     0.12,
+     0.5
+    ]
+   ],
+   "params": {
+    "colours": [
+     [
+      0.4076467,
+      0.1338462,
+      0.0720255
+     ]
+    ],
+    "range": 0,
+    "strength": 100
+   },
+   "input": {
+    "file": "selective-red-range0-full-input.f32",
+    "shape": [
+     48,
+     64,
+     3
+    ],
+    "sha256": "5950e735c4676098fc7a6031cec0b40497e18d9b5d4b4e148d72352f504eda9b"
+   },
+   "keep": {
+    "file": "selective-red-range0-full-keep.f32",
+    "shape": [
+     48,
+     64
+    ],
+    "sha256": "0c48addb3d16d1feedd800620ba47963036cb918a0e6257ec4ae5ff084c422c4"
+   },
+   "expected": {
+    "file": "selective-red-range0-full-expected.f32",
+    "shape": [
+     48,
+     64,
+     3
+    ],
+    "sha256": "16ee3fe7551b6dde4943dd346f2965e2d574c4a4d5dd4a28aa8c32b833e52aa6"
+   }
+  },
+  {
+   "name": "red-blue-range60-half",
+   "height": 48,
+   "width": 64,
+   "picks": [
+    [
+     0.12,
+     0.5
+    ],
+    [
+     0.37,
+     0.2
+    ]
+   ],
+   "params": {
+    "colours": [
+     [
+      0.4076467,
+      0.1338462,
+      0.0720255
+     ],
+     [
+      0.2794758,
+      -0.0057379,
+      -0.1104942
+     ]
+    ],
+    "range": 60,
+    "strength": 50
+   },
+   "input": {
+    "file": "selective-red-blue-range60-half-input.f32",
+    "shape": [
+     48,
+     64,
+     3
+    ],
+    "sha256": "5950e735c4676098fc7a6031cec0b40497e18d9b5d4b4e148d72352f504eda9b"
+   },
+   "keep": {
+    "file": "selective-red-blue-range60-half-keep.f32",
+    "shape": [
+     48,
+     64
+    ],
+    "sha256": "5013808524e224e7dc6c76f2c125b339656206b5f34e40d4ff8caae556a72137"
+   },
+   "expected": {
+    "file": "selective-red-blue-range60-half-expected.f32",
+    "shape": [
+     48,
+     64,
+     3
+    ],
+    "sha256": "ddf5ff33971bd3d00748617efb5a6dbf3673a9dd7507ab0854ec69e426e54ea0"
+   }
+  },
+  {
+   "name": "skin-range40-full",
+   "height": 47,
+   "width": 61,
+   "picks": [
+    [
+     0.62,
+     0.9
+    ]
+   ],
+   "params": {
+    "colours": [
+     [
+      0.6669102,
+      0.0603563,
+      0.0555752
+     ]
+    ],
+    "range": 40,
+    "strength": 100
+   },
+   "input": {
+    "file": "selective-skin-range40-full-input.f32",
+    "shape": [
+     47,
+     61,
+     3
+    ],
+    "sha256": "fe824c7ddaa778b90c43944523e7cc1ab6535de55d74dfb627547dd347e50801"
+   },
+   "keep": {
+    "file": "selective-skin-range40-full-keep.f32",
+    "shape": [
+     47,
+     61
+    ],
+    "sha256": "f72e0f24000746b2c0a3325a621db5d6a6498acce162bc45415ee7117f67571a"
+   },
+   "expected": {
+    "file": "selective-skin-range40-full-expected.f32",
+    "shape": [
+     47,
+     61,
+     3
+    ],
+    "sha256": "a5d2b122378e366e54e1f3ad0c0619d6f4d0cf3a28afbe05f007878500cdc1d0"
+   }
+  },
+  {
+   "name": "none",
+   "height": 48,
+   "width": 64,
+   "picks": [],
+   "params": {
+    "colours": [],
+    "range": 40,
+    "strength": 100
+   },
+   "input": {
+    "file": "selective-none-input.f32",
+    "shape": [
+     48,
+     64,
+     3
+    ],
+    "sha256": "5950e735c4676098fc7a6031cec0b40497e18d9b5d4b4e148d72352f504eda9b"
+   },
+   "keep": {
+    "file": "selective-none-keep.f32",
+    "shape": [
+     48,
+     64
+    ],
+    "sha256": "f3cc103136423a57975750907ebc1d367e2985ac6338976d4d5a439f50323f4a"
+   },
+   "expected": {
+    "file": "selective-none-expected.f32",
+    "shape": [
+     48,
+     64,
+     3
+    ],
+    "sha256": "5950e735c4676098fc7a6031cec0b40497e18d9b5d4b4e148d72352f504eda9b"
    }
   }
  ]
