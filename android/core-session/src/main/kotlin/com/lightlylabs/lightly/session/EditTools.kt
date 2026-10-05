@@ -3,6 +3,7 @@
 
 package com.lightlylabs.lightly.session
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
@@ -286,7 +287,32 @@ data class RemoveStroke(val radius: Double, val points: List<NormalisedPoint>, v
 @Serializable enum class GrainStyle { @SerialName("fine") FINE, @SerialName("film") FILM, @SerialName("coarse") COARSE }
 
 @Serializable
-data class EffectsTool(val lightLeak: LightLeak, val grain: UserGrain, val vignette: UserVignette)
+data class EffectsTool(
+    val lightLeak: LightLeak,
+    val grain: UserGrain,
+    val vignette: UserVignette,
+    /** Effects › Selective Colour (rendering-v2 revision 4). Optional in edit-recipe-v1: null (not written) means no
+     *  kept colours, so recipes written before it stay valid and byte-identical. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val selectiveColour: SelectiveColourTool? = null,
+)
+
+/** Kept colours (never empty: no colours is `selectiveColour = null`), Range and Strength. */
+@Serializable
+data class SelectiveColourTool(val colours: List<KeptColourRecipe>, val range: Double, val strength: Double) {
+    init {
+        require(colours.size in 1..8) { "selective colour keeps 1..8 colours, was ${colours.size}" }
+        requirePercent(range, "range"); requirePercent(strength, "strength")
+    }
+}
+
+/** OKLab sampled from the effects stage input when picked; x, y where it was picked, as fractions of the source photo. */
+@Serializable
+data class KeptColourRecipe(val oklab: List<Double>, val x: Double, val y: Double) {
+    init {
+        require(oklab.size == 3 && oklab.all { it.isFinite() }) { "oklab must be three numbers" }
+        require(x in 0.0..1.0 && y in 0.0..1.0) { "pick point must be a fraction of the photo" }
+    }
+}
 
 @Serializable
 data class LightLeak(val enabled: Boolean, val style: LeakStyle, val intensity: Double, val x: Double, val y: Double, val rotation: Double) {

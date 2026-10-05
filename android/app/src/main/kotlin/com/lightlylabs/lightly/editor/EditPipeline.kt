@@ -12,6 +12,7 @@ import com.lightlylabs.lightly.develop.EffectsStage
 import com.lightlylabs.lightly.develop.FrameView
 import com.lightlylabs.lightly.develop.GeometryParams
 import com.lightlylabs.lightly.develop.GeometryTransform
+import com.lightlylabs.lightly.develop.KeptColour
 import com.lightlylabs.lightly.develop.LowResPlane
 import com.lightlylabs.lightly.develop.PixelRect
 import com.lightlylabs.lightly.export.ExportRenderPlan
@@ -42,6 +43,9 @@ object EditMapping {
             e.lightLeak.enabled, e.lightLeak.style.name.lowercase(), e.lightLeak.intensity, e.lightLeak.x, e.lightLeak.y, e.lightLeak.rotation,
             e.grain.enabled, e.grain.style.name.lowercase(), e.grain.amount, e.grain.size, e.grain.roughness, e.grain.seed,
             e.vignette.enabled, e.vignette.amount, e.vignette.size, e.vignette.softness,
+            selectiveColours = e.selectiveColour?.colours.orEmpty().map { KeptColour(it.oklab[0], it.oklab[1], it.oklab[2]) },
+            selectiveRange = e.selectiveColour?.range ?: 40.0,
+            selectiveStrength = e.selectiveColour?.strength ?: 100.0,
         )
     }
 
