@@ -75,3 +75,6 @@ scripts/heavy ios-device bash experiments/depth/portrait_edges/ios_device_run.sh
 iOS device build: Xcode automatic signing, existing team, registered device:
 `xcodebuild -scheme Lightly -configuration Debug -destination id=<device> -allowProvisioningUpdates
 CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=<team> build`.
+
+## Device saved copies (2026-10-05, 273c5e6 on the iPhone 11 Pro Max): still pending
+`portrait_edges/ios_device_saves.sh` ran the red-wall portrait (dark, then light) with `--save-copy --save-to-documents`. No saved file appeared within 150 s in either case, and the run stopped there (review budget). The live mattes from the same app path were retrieved earlier, so Background opens on the device; why the DEBUG save path does not complete there is not yet diagnosed (device logs needed). The dark-studio portrait cases were not run.
