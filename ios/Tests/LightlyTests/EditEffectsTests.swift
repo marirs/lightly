@@ -305,6 +305,34 @@ final class EditEffectsSessionTests: XCTestCase {
         XCTAssertTrue(session.canRedo, "the redo step is not destroyed by a late pick")
     }
 
+    /// Moving Range (not released) while a pick is held in sampling: the pick is discarded when it completes and the
+    /// slider's preview stays on screen (a committed pick would replace it with the committed Range).
+    func testMovingASliderWhileAPickSamplesDiscardsThePickAndKeepsThePreview() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, previewLongEdge: 480)
+        session.pickSelectiveColour(frameX: 0.5, frameY: 0.5)
+        await session.settleRendering()
+        XCTAssertEqual(keptColours(session).count, 1)
+        let gate = SamplingGate()
+        session.pickSamplingGate = { await gate.wait() }
+        session.pickSelectiveColour(frameX: 0.2, frameY: 0.8)           // held in sampling
+        session.previewEffects { $0.selectiveColour.range = 90 }        // Range moves, finger still down
+        await session.settleRenderingExceptPicks()
+        let dragged = try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage)
+        await gate.open()                                               // sampling completes
+        await session.settleRendering()
+        XCTAssertEqual(keptColours(session).count, 1, "the stale pick is discarded")
+        XCTAssertEqual(session.recipe.tools.effects.selectiveColour.range, 40, "nothing was committed")
+        XCTAssertEqual(try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage), dragged, "the slider preview remains on screen")
+    }
+
+    /// Rapid picks still land in order when nothing else changes (the slider rule must not break them).
+    func testRapidPicksStillLandWhenNoSliderMoves() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, previewLongEdge: 480)
+        for (x, y) in [(0.1, 0.1), (0.9, 0.9), (0.5, 0.5)] { session.pickSelectiveColour(frameX: x, frameY: y) }
+        await session.settleRendering()
+        XCTAssertEqual(keptColours(session).map(\.x), [0.1, 0.9, 0.5])
+    }
+
     /// Leaving the photo while a pick is still sampling: nothing lands on the closed session.
     func testClosingDuringSamplingDiscardsThePendingPick() async throws {
         let session = try await EditorTestSupport.readySession(library: library, previewLongEdge: 480)
@@ -520,5 +548,21 @@ final class RemoveModelTimingTests: XCTestCase {
         let line = "LAMA_TIMING simulator load_ms=\(Int(loadTime.components.seconds * 1000 + loadTime.components.attoseconds / 1_000_000_000_000_000)) stroke_ms=\(ms) photo=\(photo.image.width)x\(photo.image.height)"
         print(line)
         XCTContext.runActivity(named: line) { _ in }
+    }
+}
+
+
+/// Holds a pick in sampling until the test opens it.
+actor SamplingGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+    func open() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters = []
     }
 }

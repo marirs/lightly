@@ -672,7 +672,9 @@ final class EditorSession {
         let epoch = editEpoch
         let previous = pickTask
         pendingPicks += 1
+        let gate = pickSamplingGate
         pickTask = Task { [weak self] in
+            await gate?()
             let lab = try? await Task.detached(priority: .userInitiated) {
                 // Stages up to Selective Colour only: no border, no watermark.
                 let frame = try Self.renderFrameBeforeBorder(job, base: base.pixels, width: base.width, height: base.height,
@@ -715,6 +717,8 @@ final class EditorSession {
 
     /// The sampling render of the latest pick (awaited by `settleRendering`).
     @ObservationIgnored private var pickTask: Task<Void, Never>?
+    /// Tests only: awaited before a pick samples, so a test can hold a pick "still sampling" while it acts.
+    @ObservationIgnored var pickSamplingGate: (@Sendable () async -> Void)?
     /// Picks still sampling (they count towards the eight-colour limit).
     @ObservationIgnored private var pendingPicks = 0
     /// Advances on every change of the edit except a pick's own result: a pick sampled before it is stale.
@@ -1114,6 +1118,9 @@ final class EditorSession {
     /// Develop (spatial and finishing) when the preset has them; an interactive one (dragging)
     /// shows the global stage only, so the photo keeps up with the finger.
     private func render(_ target: EditRecipe, final: Bool) {
+        // An interactive frame is a control moving (a slider, a drag) before it commits: a pick still sampling
+        // is stale from this moment, or it would land mid-drag and replace the preview with committed values.
+        if !final { editEpoch &+= 1 }
         guard !isClosed, scheduler != nil else { return }
         generation += 1
         let current = generation
@@ -1193,6 +1200,11 @@ final class EditorSession {
     /// Waits for every issued render. For tests and measurements; the app never waits on renders.
     func settleRendering() async {
         await pickTask?.value
+        await settleRenderingExceptPicks()
+    }
+
+    /// Waits for every issued render but not for picks still sampling. For tests.
+    func settleRenderingExceptPicks() async {
         while let (revision, task) = outstanding.first {
             await task.value
             outstanding[revision] = nil
