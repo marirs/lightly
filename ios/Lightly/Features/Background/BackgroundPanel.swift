@@ -68,11 +68,14 @@ struct BackgroundPanelView: View {
             content
         }
         .task { session.analyseSubjectIfNeeded() }
+        // After Cancel, choosing Focus & Blur or Change background starts the cancelled analysis again (as on Android).
+        .onChange(of: model.mode) { session.analyseSubjectIfNeeded() }
     }
 
     @ViewBuilder
     private var content: some View {
-        switch session.subjectState {
+        // Only Focus & Blur waits for depth; Change background and Refine edges need the matte alone.
+        switch session.backgroundState(needsDepth: model.mode == .focus) {
         case .notStarted, .separating:
             DevelopNotice(icon: .info, bold: nil, text: "Finding the subject…",
                           actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])

@@ -308,4 +308,34 @@ class BackgroundViewModelTest {
         vm.undo()
         assertTrue(vm.uiState.value.session!!.current.tools.background.subject.refinements.isEmpty())
     }
+
+    @Test
+    fun `Change background is usable before depth finishes, Focus and Blur waits for it`() = runTest {
+        var seenWhileDepthRuns: SeparationState? = null
+        lateinit var vm: EditorViewModel
+        val slowDepth = DepthEstimator { input -> seenWhileDepthRuns = vm.uiState.value.separation; depthDouble.estimate(input) }
+        vm = Harness(this, slowDepth, segmenterDouble).ready(this)
+        vm.selectTool(EditorTool.BACKGROUND)
+        advanceUntilIdle()
+        val partial = assertIs<SeparationState.Finished>(seenWhileDepthRuns, "the matte is published before depth runs")
+        assertTrue(partial.matteAvailable && partial.depthPending)
+        assertEquals(BackgroundPanelState.Separating, BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.FOCUS), partial, null))
+        assertIs<BackgroundPanelState.Change>(BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.CHANGE), partial, null))
+        assertEquals(BackgroundPanelState.Refine, BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.REFINE), partial, null))
+        val finished = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        assertTrue(finished.depthAvailable && !finished.depthPending)
+    }
+
+    @Test
+    fun `a segmenter that throws leaves the recoverable failure, not a crash`() = runTest {
+        val vm = Harness(this, depthDouble, SubjectSegmenter { _, _, _ -> throw IllegalStateException("interpreter failed") }).ready(this)
+        vm.selectTool(EditorTool.BACKGROUND)
+        advanceUntilIdle()
+        val finished = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        assertEquals(false, finished.matteAvailable)
+        vm.selectBackgroundSub(BackgroundSub.CHANGE)
+        assertEquals(BackgroundPanelState.Failed, BackgroundPanelState.of(vm.uiState.value.background, finished, null))
+        // Focus & Blur still has depth.
+        assertEquals(BackgroundPanelState.Focus, BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.FOCUS), finished, null))
+    }
 }

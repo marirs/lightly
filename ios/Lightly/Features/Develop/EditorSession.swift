@@ -96,7 +96,26 @@ final class EditorSession {
         case failed
     }
 
+    /// The subject matte only: Change background and Refine edges need nothing else.
     private(set) var subjectState: SubjectState = .notStarted
+
+    /// Depth, estimated alongside the matte but independently: only Focus & Blur (and the no-subject
+    /// blur) waits for it, so a slow or failed depth model never holds up Change background.
+    enum DepthState: Equatable { case notStarted, estimating, ready, failed }
+    private(set) var depthState: DepthState = .notStarted
+
+    /// What the Background panel shows for an operation. Operations that blur need depth as well as
+    /// the matte; while depth is pending they show "Finding the subject…", and when it fails the
+    /// approved "Couldn't separate the subject." with Try again (never a matte-only blur, §R8).
+    func backgroundState(needsDepth: Bool) -> SubjectState {
+        let blurs = needsDepth || subjectState == .noSubject
+        guard blurs, subjectState == .ready || subjectState == .noSubject else { return subjectState }
+        switch depthState {
+        case .notStarted, .estimating: return .separating
+        case .failed: return .failed
+        case .ready: return subjectState
+        }
+    }
     /// Faces and people (Portrait), once analysed.
     private(set) var people: PeopleAnalysis?
     /// The subject matte as an image, for the refine-edges tint.
@@ -154,6 +173,7 @@ final class EditorSession {
     /// Model results for Background and Portrait, at the preview resolution.
     @ObservationIgnored private var sceneCache = SceneCache()
     @ObservationIgnored private var subjectTask: Task<Void, Never>?
+    @ObservationIgnored private var depthTask: Task<Void, Never>?
     /// Resolving a tap's focal plane (setFocusTarget).
     @ObservationIgnored private var focusTask: Task<Void, Never>?
     /// Person segmentation for the hair operators (ensurePersonMatte).
@@ -411,47 +431,73 @@ final class EditorSession {
 
     // MARK: - Background (slice 3)
 
-    /// Runs subject separation and depth once for this photo ("Finding the subject…").
+    /// Starts subject separation and depth for this photo ("Finding the subject…"), each once.
     func analyseSubjectIfNeeded() {
-        guard subjectState == .notStarted else { return }
-        startSubjectSeparation()
+        if subjectState == .notStarted { startSubjectMatte() }
+        if depthState == .notStarted { startDepth() }
     }
 
+    /// Try again: reruns only what failed.
     func retrySubjectSeparation() {
-        guard subjectState == .failed else { return }
-        startSubjectSeparation()
+        if subjectState == .failed { startSubjectMatte() }
+        if depthState == .failed { startDepth() }
     }
 
     /// Cancel: nothing changes ("Cancelled · nothing changed"); the next use starts again.
     func cancelSubjectSeparation() {
-        guard subjectState == .separating else { return }
-        subjectTask?.cancel()
-        subjectTask = nil
-        subjectState = .notStarted
-        showToast("Cancelled · nothing changed")
+        var cancelled = false
+        if subjectState == .separating {
+            subjectTask?.cancel()
+            subjectTask = nil
+            subjectState = .notStarted
+            cancelled = true
+        }
+        if depthState == .estimating {
+            depthTask?.cancel()
+            depthTask = nil
+            depthState = .notStarted
+            cancelled = true
+        }
+        if cancelled { showToast("Cancelled · nothing changed") }
     }
 
-    private func startSubjectSeparation() {
+    // Previously the matte, depth and the person matte were awaited together, so one slow
+    // analysis (e.g. the depth model compiling on first use) held the whole Background tool on
+    // "Finding the subject…". Each now finishes on its own; the person matte is Portrait's
+    // (ensurePersonMatte) and is no longer computed here.
+    private func startSubjectMatte() {
         guard let sceneAnalyser else { subjectState = .failed; return }
         subjectState = .separating
         let image = originalPreview
-        let data = photo.originalData
-        DiagnosticTrace.note("subject: started \(image.width)x\(image.height)")
+        DiagnosticTrace.note("subject: matte started \(image.width)x\(image.height)")
         subjectTask = Task { [weak self] in
             let started = ContinuousClock.now
-            func elapsed() -> String { "\((ContinuousClock.now - started).components.seconds) s" }
             do {
-                async let matte = Self.traced("subject matte", started) { try await sceneAnalyser.subjectMatte(for: image) }
-                async let depth = Self.traced("depth", started) { try await sceneAnalyser.disparity(for: image, originalData: data) }
-                async let personMatte = Self.traced("person matte", started) { await sceneAnalyser.personMatte(for: image) }
-                let (m, d, p) = try await (matte, depth, personMatte)
+                let matte = try await Self.traced("subject matte", started) { try await sceneAnalyser.subjectMatte(for: image) }
                 try Task.checkCancellation()
-                DiagnosticTrace.note("subject: finished after \(elapsed()), subject \(m != nil)")
-                self?.finishSubjectSeparation(matte: m, disparity: d, personMatte: p)
+                self?.finishSubjectMatte(matte)
             } catch {
-                DiagnosticTrace.note("subject: \(Task.isCancelled ? "cancelled" : "failed") after \(elapsed()): \(String(describing: error))")
-                guard !Task.isCancelled else { return }
-                self?.subjectState = .failed
+                guard !Task.isCancelled, let self, !self.isClosed else { return }
+                self.subjectState = .failed
+            }
+        }
+    }
+
+    private func startDepth() {
+        guard let sceneAnalyser else { depthState = .failed; return }
+        depthState = .estimating
+        let image = originalPreview
+        let data = photo.originalData
+        DiagnosticTrace.note("subject: depth started")
+        depthTask = Task { [weak self] in
+            let started = ContinuousClock.now
+            do {
+                let disparity = try await Self.traced("depth", started) { try await sceneAnalyser.disparity(for: image, originalData: data) }
+                try Task.checkCancellation()
+                self?.finishDepth(disparity)
+            } catch {
+                guard !Task.isCancelled, let self, !self.isClosed else { return }
+                self.depthState = .failed
             }
         }
     }
@@ -468,12 +514,10 @@ final class EditorSession {
         }
     }
 
-    private func finishSubjectSeparation(matte: SubjectMatte?, disparity: DisparityMap, personMatte: FloatImage?) {
+    private func finishSubjectMatte(_ matte: SubjectMatte?) {
         guard !isClosed else { return }
         sceneCache.subject = matte
         sceneCache.subjectAnalysed = true
-        sceneCache.disparity = disparity
-        sceneCache.personMatte = personMatte
         for name in BackgroundPanelModel.bundledImages where sceneCache.replacementImages[name] == nil {
             sceneCache.replacementImages[name] = BundledBackgrounds.image(name)
         }
@@ -483,6 +527,15 @@ final class EditorSession {
             defaultFocusTarget = (Double(centroid.x), Double(centroid.y))
         }
         subjectState = matte == nil ? .noSubject : .ready
+        analysisRevision += 1
+        persistSession()
+        renderCommitted()
+    }
+
+    private func finishDepth(_ disparity: DisparityMap) {
+        guard !isClosed else { return }
+        sceneCache.disparity = disparity
+        depthState = .ready
         analysisRevision += 1
         persistSession()
         renderCommitted()
@@ -606,7 +659,7 @@ final class EditorSession {
 
     /// Hair edits use the person matte; computed once when Portrait is first used.
     private func ensurePersonMatte() {
-        guard sceneCache.personMatte == nil, let sceneAnalyser, subjectState != .separating else { return }
+        guard sceneCache.personMatte == nil, let sceneAnalyser else { return }
         let image = originalPreview
         guard personMatteTask == nil else { return }
         // Tracked so a closed session's segmentation is awaited (capture sessions) and not left
@@ -1467,6 +1520,8 @@ final class EditorSession {
                 defaultFocusTarget = (Double(centroid.x), Double(centroid.y))
             }
             subjectState = analysis.subject == nil ? .noSubject : .ready
+            // Depth that was pending or failed when the session was stored runs again on next use.
+            depthState = analysis.disparity == nil ? .notStarted : .ready
         }
         autoState = AutoState(rawValue: saved.autoState) ?? .unavailable
         history = saved.history
@@ -1501,6 +1556,7 @@ final class EditorSession {
         // Subject separation and depth run for seconds on the CPU; a closed session's result
         // has nowhere to go.
         subjectTask?.cancel()
+        depthTask?.cancel()
         removeTask?.cancel()
         let scheduler = scheduler
         Task { await scheduler?.close() }
@@ -1571,6 +1627,7 @@ final class EditorSession {
     func debugAwaitQuiescence() async {
         await startTask?.value
         await subjectTask?.value
+        await depthTask?.value
         await focusTask?.value
         await personMatteTask?.value
         await removeTask?.value
@@ -1581,12 +1638,20 @@ final class EditorSession {
     /// Holds an approved Background state for a capture (`bg-separating`, `bg-failed`).
     func debugHoldSubjectState(_ state: SubjectState) {
         subjectTask?.cancel()
+        depthTask?.cancel()
         subjectState = state
+        switch state {
+        case .separating: depthState = .estimating
+        case .failed: depthState = .failed
+        default: break
+        }
     }
 
     /// Waits until subject separation has finished (captures of Background screens).
     func debugWaitForSubject() async {
-        while subjectState == .separating || subjectState == .notStarted { try? await Task.sleep(for: .milliseconds(50)) }
+        while subjectState == .separating || subjectState == .notStarted || depthState == .estimating || depthState == .notStarted {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
     }
 
     /// Design captures and UI tests: put the session in an approved state directly.

@@ -330,7 +330,7 @@ struct EditorScreen: View {
     @ViewBuilder
     private func backgroundMarks(size: CGSize) -> some View {
         let background = session.recipe.tools.background
-        switch (session.subjectState, backgroundPanel.mode) {
+        switch (session.backgroundState(needsDepth: backgroundPanel.mode == .focus), backgroundPanel.mode) {
         case (.separating, _):
             // `.progress` sits at the centre of the photo (left/top 50 %, translate −50 %).
             StageOperationProgress(title: "Finding the subject…", identifier: "background.separating",

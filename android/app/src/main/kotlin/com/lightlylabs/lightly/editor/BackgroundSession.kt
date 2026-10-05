@@ -90,7 +90,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * Embedded depth first (Dynamic Depth, GDepth), else the depth estimator; then the segmenter.
      * Never throws for an unavailable capability: that is recorded as a missing result.
      */
-    suspend fun analyse(loaded: LoadedPhoto): SeparationState.Finished {
+    suspend fun analyse(loaded: LoadedPhoto, onMatte: (SeparationState.Finished) -> Unit = {}): SeparationState.Finished {
         // The analysis is long CPU work with no suspension point, so cancelling its job does not stop it. A
         // separation started for an earlier photo must not install its matte and depth after [reset] (Choose
         // another photo): results are installed only when no reset happened since this run began.
@@ -102,6 +102,28 @@ class BackgroundSession(private val env: EditorEnvironment) {
             val i = p * 4
             (0.299f * (display.pixels[i].toInt() and 0xff) + 0.587f * (display.pixels[i + 1].toInt() and 0xff) + 0.114f * (display.pixels[i + 2].toInt() and 0xff)) / 255f
         })
+        // The matte first, published on its own: Change background and Refine edges need nothing else,
+        // so a slow depth estimate no longer holds them on "Finding the subject…".
+        var matte: FloatPlane? = null
+        var noSubject = false
+        try {
+            matte = env.segmenter.segment(display.pixels, display.width, display.height)
+            if (matte == null) noSubject = true else newMatteModel = env.segmenterModelRef
+        } catch (unavailable: SegmentationUnavailableException) {
+            matte = null
+        } catch (failure: RuntimeException) {
+            // A runtime failure of the segmenter is the approved recoverable failure, never a crash.
+            diagnostic("segmentation failed: $failure")
+            matte = null
+        }
+        synchronized(installLock) {
+            if (epoch == startedEpoch) {
+                matteModel = newMatteModel
+                noClearSubject = noSubject
+                analysis = BackgroundAnalysis(display.width, display.height, null, matte)
+            }
+        }
+        onMatte(SeparationState.Finished(depthAvailable = false, matteAvailable = matte != null, noClearSubject = noSubject, depthPending = true))
         var depth: com.lightlylabs.lightly.background.NormalisedDepth? = null
         val embedded = runCatching { loaded.readOriginal() }.getOrNull()?.let { bytes ->
             runCatching { EmbeddedDepthReader.read(bytes, env.depthImageDecoder) }.getOrNull()?.let { map -> map to env.exifOrientation(bytes) }
@@ -123,14 +145,6 @@ class BackgroundSession(private val env: EditorEnvironment) {
                 diagnostic("depth estimate failed: $failure")
                 depth = null
             }
-        }
-        var matte: FloatPlane? = null
-        var noSubject = false
-        try {
-            matte = env.segmenter.segment(display.pixels, display.width, display.height)
-            if (matte == null) noSubject = true else newMatteModel = env.segmenterModelRef
-        } catch (unavailable: SegmentationUnavailableException) {
-            matte = null
         }
         synchronized(installLock) {
             if (epoch == startedEpoch) {

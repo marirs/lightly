@@ -30,13 +30,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** The session's lifecycle (prototype screens loading → editor; recovery states from slice 1). */
@@ -326,7 +326,7 @@ class EditorViewModel(
         state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi(), portrait = PortraitUi(selectedFace = it.portrait.selectedFace)) }
         refreshAfterCropEditingChange(wasCropEditing)
         if (tool == EditorTool.BORDER) openBorderOnPreferredType()
-        if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
+        if (tool == EditorTool.BACKGROUND && separationNeedsRestart()) startSeparation()
     }
 
     // --- Background (slice 3) -------------------------------------------------------------------
@@ -342,7 +342,13 @@ class EditorViewModel(
             // Capture of the approved "Couldn't separate the subject" state (debug builds only, injected:
             // with the vision models this photo separates, so the failure is no longer what a user sees).
             if (debugFailSeparation) { state.update { it.copy(separation = SeparationState.Finished(depthAvailable = false, matteAvailable = false, noClearSubject = false)) }; return@launch }
-            val finished = backgroundSession.analyse(current.loaded)
+            val finished = backgroundSession.analyse(current.loaded) { matteOnly ->
+                // Change background and Refine edges are usable now; Focus & Blur waits for depth.
+                if (isActive && isCurrent(current.generation)) {
+                    state.update { it.copy(separation = matteOnly) }
+                    state.value.session?.let { requestPreview(it.current, globalOnly = false) }
+                }
+            }
             // The analysis is long CPU work with no suspension point: if the editor was cleared
             // meanwhile (left, or recreated), its preview scheduler is closed; stop here.
             ensureActive()
@@ -357,15 +363,27 @@ class EditorViewModel(
 
     fun cancelSeparation() {
         separationJob?.cancel()
-        state.update { it.copy(separation = SeparationState.NotStarted) }
+        // With the matte already in, Cancel stops only the pending depth: Change background keeps working,
+        // and Focus & Blur starts depth again on next use (selectBackgroundSub).
+        state.update { s ->
+            val keepsMatte = (s.separation as? SeparationState.Finished)?.depthPending == true
+            s.copy(separation = if (keepsMatte) s.separation else SeparationState.NotStarted)
+        }
         showToast(OPERATION_CANCELLED)
+    }
+
+    /** Separation not running and not complete: never started, cancelled, or cancelled while depth was pending. */
+    private fun separationNeedsRestart(): Boolean = when (val s = state.value.separation) {
+        SeparationState.NotStarted -> true
+        is SeparationState.Finished -> s.depthPending && separationJob?.isActive != true
+        SeparationState.Separating -> false
     }
 
     fun retrySeparation() = startSeparation()
 
     fun selectBackgroundSub(sub: BackgroundSub) {
         state.update { it.copy(background = it.background.copy(sub = sub, sliderDrag = null)) }
-        if (state.value.separation == SeparationState.NotStarted) startSeparation()
+        if (separationNeedsRestart()) startSeparation()
     }
 
     fun selectReplacementKind(kind: ReplacementKind) = state.update { it.copy(background = it.background.copy(kind = kind)) }
