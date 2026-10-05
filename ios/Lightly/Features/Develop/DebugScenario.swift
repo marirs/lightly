@@ -52,6 +52,7 @@ struct DebugScenario {
         case "bg-refine": return EditorUI(tool: .background, backgroundMode: .refine)
         case "bg-change-image", "bg-separating", "bg-failed": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .image)
         case "bg-change-colour": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .colour)
+        case "bg-colour-light", "bg-colour-dark": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .colour)
         case "bg-change-gradient": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .gradient)
         case "pt-skin", "pt-landscape-photo", "pt-multi", "pt-no-usable-face": return EditorUI(tool: .portrait)
         case "pt-under": return EditorUI(tool: .portrait, portraitTab: .under)
@@ -99,6 +100,14 @@ struct DebugScenario {
         case "bg-motion": background { $0.focus.blur = 55; $0.focus.style = .motion }
         case "bg-change-image": background { $0.replacement = image0 }
         case "bg-change-colour": background { $0.replacement = .colour(BackgroundPanelModel.swatches[3]) }
+        // Edge-quality checks over a light and a dark plain colour (as Android's bg-export-light/-dark).
+        case "bg-colour-light", "bg-colour-dark":
+            background { $0.replacement = .colour(screenID == "bg-colour-light" ? "#F4F1EC" : "#1F2328") }
+            // Edge checks need the saved copy too (as Android's bg-export-*): DEBUG launch flag only.
+            if DebugArguments.current.contains("--save-copy") {
+                await session.settleRendering()
+                session.saveCopy()
+            }
         case "bg-change-gradient":
             let g = BackgroundPanelModel.gradients[0]
             background { $0.replacement = .gradient(angle: g.angle, stops: g.stops) }
