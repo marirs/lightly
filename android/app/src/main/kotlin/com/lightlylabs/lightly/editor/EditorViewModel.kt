@@ -1167,6 +1167,7 @@ class EditorViewModel(
         val previous = pickJob
         pendingPicks += 1
         pickJob = scope.launch {
+            env.beforePickSample()
             val lab = runCatching {
                 withContext(env.renderDispatcher) {
                     val library = env.library.await()
@@ -1631,6 +1632,9 @@ class EditorViewModel(
 
     /** Latest-wins: every call replaces the pending request; at most one render is in flight. */
     private fun requestPreview(edit: EditState, globalOnly: Boolean) {
+        // A preview of an uncommitted edit is a control moving (a slider, a drag) before it commits: a pick still
+        // sampling is stale from this moment, or it would land mid-drag and replace the preview with committed values.
+        if (edit != state.value.session?.current) editEpoch++
         // While Save copy runs, its full-resolution render needs the heap: a Background preview at the
         // same time ran the 192 MB heap out of memory (Refocus.fillMasked, 12 MP replacement + blur on
         // the Pixel 9 Pro emulator). Keep the latest request and submit it when the export ends; the

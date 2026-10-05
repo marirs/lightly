@@ -102,6 +102,8 @@ class EditorEnvironment(
     val debugExportCapOverride: () -> Int? = { null },
     /** Test seam: runs at the start of every preview render (a deliberately slow preview in tests). No-op in the app. */
     val beforePreviewRender: () -> Unit = {},
+    /** Test seam: awaited before a Selective Colour pick samples, so a test can hold a pick "still sampling". No-op in the app. */
+    val beforePickSample: suspend () -> Unit = {},
     /**
      * Edit › Remove's model (LaMa), loaded on first use; null when this build does not carry it (release
      * gate "pending legal sign-off (training data: Places2)") or it cannot load: the approved failure state.

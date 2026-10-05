@@ -143,6 +143,8 @@ class EditEffectsTest {
 
     private var savedSize: Pair<Int, Int>? = null
     private var savedPixels: ByteArray? = null
+    /** When set, a Selective Colour pick waits on it before sampling ("still sampling"). */
+    private var holdPick: CompletableDeferred<Unit>? = null
 
     private fun TestScope.ready(inpainter: Inpainter?, savedState: SavedStateHandle = SavedStateHandle(), patchDirectory: java.io.File? = null, open: Boolean = true): EditorViewModel {
         val dispatcher = StandardTestDispatcher(testScheduler)
@@ -171,6 +173,7 @@ class EditEffectsTest {
             debugBuild = true,
             inpainter = { inpainter },
             removePatchDirectory = patchDirectory,
+            beforePickSample = { holdPick?.await() },
         )
         val vm = EditorViewModel(savedState, env, CoroutineScope(SupervisorJob() + dispatcher))
         if (open) vm.openPhoto("content://photo/1")
@@ -272,6 +275,35 @@ class EditEffectsTest {
         assertTrue(vm.kept().isEmpty())
         assertFalse(vm.uiState.value.session!!.current.tools.effects.vignette.enabled, "Undo stays undone")
         assertTrue(vm.uiState.value.canRedo, "the redo step is not destroyed by a late pick")
+    }
+
+    @Test
+    fun `moving a slider while a pick is still sampling discards it and keeps the slider preview`() = runTest {
+        val vm = ready(null)
+        vm.selectTool(EditorTool.EFFECTS); vm.selectEffectsSub(EffectsSub.SELECTIVE)
+        vm.pickSelectiveColour(0.5, 0.5); advanceUntilIdle()
+        assertEquals(1, vm.kept().size)
+        holdPick = CompletableDeferred()
+        vm.toggleAddingColour()
+        vm.pickSelectiveColour(0.2, 0.8); advanceUntilIdle()           // held in sampling
+        vm.onEffectsSlider("selectiveRange", 90.0); advanceUntilIdle()  // Range moves, finger still down
+        val dragged = vm.uiState.value.preview!!.pixels.copyOf()
+        holdPick!!.complete(Unit); advanceUntilIdle()                   // sampling completes
+        assertEquals(1, vm.kept().size, "the stale pick is discarded")
+        assertEquals(40.0, vm.uiState.value.session!!.current.tools.effects.selectiveColour!!.range, "nothing was committed")
+        assertTrue(dragged.contentEquals(vm.uiState.value.preview!!.pixels), "the slider preview remains on screen")
+        assertEquals("selectiveRange" to 90.0, vm.uiState.value.effects.sliderDrag, "the slider is still being dragged")
+        holdPick = null
+    }
+
+    @Test
+    fun `rapid picks still land in tap order when no slider moves`() = runTest {
+        val vm = ready(null)
+        listOf(0.1 to 0.1, 0.9 to 0.9, 0.5 to 0.5).forEach { (x, y) -> vm.pickSelectiveColour(x, y) }
+        advanceUntilIdle()
+        val xs = vm.kept().map { it.x }
+        assertEquals(3, xs.size)
+        listOf(0.1, 0.9, 0.5).forEachIndexed { i, x -> assertEquals(x, xs[i], 1e-9) }   // tap order
     }
 
     @Test
