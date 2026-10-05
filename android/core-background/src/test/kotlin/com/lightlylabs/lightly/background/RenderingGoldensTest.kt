@@ -44,13 +44,13 @@ class RenderingGoldensTest {
     private fun JsonArray.doubles() = map { it.jsonPrimitive.double }
 
     @Test
-    fun `the goldens are for rendering-v2 revision 3 and our constants equal the contract's`() {
+    fun `the goldens are for rendering-v2 revision 4 and our constants equal the contract's`() {
         val version = index.getValue("renderingContract").jsonObject
         assertEquals(2, version.getValue("version").jsonPrimitive.int)
-        // Revision 2 (contract fixes 2) kept every background.focus golden byte-identical.
-        assertEquals(3, version.getValue("revision").jsonPrimitive.int)
+        // Revisions 2 and 4 kept every background.focus golden byte-identical.
+        assertEquals(4, version.getValue("revision").jsonPrimitive.int)
         val contract = Json.parseToJsonElement(File(checkNotNull(System.getProperty("lightly.renderingContract"))).readText()).jsonObject
-        assertEquals(3, contract.getValue("revision").jsonPrimitive.int, "bundled contract revision")
+        assertEquals(4, contract.getValue("revision").jsonPrimitive.int, "bundled contract revision")
         val stage = contract.getValue("stages").jsonArray.map { it.jsonObject }.first { it.getValue("id").jsonPrimitive.content == "background.focus" }
         val constants = stage.getValue("operators").jsonArray[0].jsonObject.getValue("constants").jsonObject
         assertEquals(Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE, constants.getValue("maxBlurRadius").jsonObject.num("value"))

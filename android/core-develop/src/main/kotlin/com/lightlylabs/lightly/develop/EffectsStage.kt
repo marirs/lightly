@@ -30,13 +30,17 @@ data class EffectsParams(
     val vignetteAmount: Double = 35.0,
     val vignetteSize: Double = 60.0,
     val vignetteSoftness: Double = 60.0,
+    /** Effects › Selective Colour (rendering-v2 revision 4): no colours, no effect (there is no On switch). */
+    val selectiveColours: List<KeptColour> = emptyList(),
+    val selectiveRange: Double = 40.0,
+    val selectiveStrength: Double = 100.0,
 ) {
-    val anyEnabled: Boolean get() = leakEnabled || grainEnabled || vignetteEnabled
+    val anyEnabled: Boolean get() = leakEnabled || grainEnabled || vignetteEnabled || selectiveColours.isNotEmpty()
 }
 
 /**
  * Stage 10, `effects` (rendering-v2 §1, §6), on the frame after geometry, in the contract order
- * light leak → preset vignette → user vignette → preset grain → user grain.
+ * light leak → selective colour → preset vignette → user vignette → preset grain → user grain.
  *
  * The person's effects are added on top of the preset's own vignette and grain, never replace them
  * (the approved "added to it, not replaced" notice). [presetFinishing] is already scaled by the
@@ -45,16 +49,19 @@ data class EffectsParams(
  */
 class EffectsStage(effects: EffectsParams, presetFinishing: FinishingRecipe, model: DevelopModel, private val frameWidth: Int, private val frameHeight: Int) {
     private val leak = if (effects.leakEnabled) LightLeak.of(effects, frameWidth, frameHeight) else null
+    // After the leak, so a coloured leak does not bring colour back (rendering-v2 revision 4).
+    private val selectiveColour = SelectiveColour.of(effects)
     private val presetVignette = presetFinishing.vignette?.takeIf { it.amount != 0.0 }?.let { FinishingPass(it, null, model.experimental, frameWidth, frameHeight) }
     private val userVignette = if (effects.vignetteEnabled) FinishingPass(userVignette(effects), null, model.experimental, frameWidth, frameHeight) else null
     private val presetGrain = presetFinishing.grain?.takeIf { it.amount != 0.0 }?.let { FinishingPass(null, it, model.experimental, frameWidth, frameHeight) }
     private val userGrain = if (effects.grainEnabled) FinishingPass(null, userGrain(effects), model.experimental, frameWidth, frameHeight) else null
 
-    val isEmpty: Boolean get() = leak == null && presetVignette == null && userVignette == null && presetGrain == null && userGrain == null
+    val isEmpty: Boolean get() = leak == null && selectiveColour == null && presetVignette == null && userVignette == null && presetGrain == null && userGrain == null
 
     /** Applies the stage to rgb (sRGB-encoded, [0, 1]) at frame pixel (x, y). [work] holds ≥ 6 doubles. */
     fun apply(rgb: FloatArray, x: Int, y: Int, work: DoubleArray) {
         leak?.apply(rgb, x, y)
+        selectiveColour?.apply(rgb, work)
         presetVignette?.apply(rgb, x, y, work)
         userVignette?.apply(rgb, x, y, work)
         presetGrain?.apply(rgb, x, y, work)
