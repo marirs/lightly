@@ -67,6 +67,7 @@ struct DebugScenario {
         case "ed-adjust-detail": return EditorUI(tool: .edit, editSub: .adjust, editGroup: .detail)
         case "ed-remove", "ed-removing", "ed-remove-failed": return EditorUI(tool: .edit, editSub: .remove)
         case "fx-leak": return EditorUI(tool: .effects, effectsSub: .leak)
+        case "fx-selective": return EditorUI(tool: .effects, effectsSub: .selective)
         case "fx-grain", "fx-preset-conflict": return EditorUI(tool: .effects, effectsSub: .grain)
         case "fx-vignette", "fx-combined": return EditorUI(tool: .effects, effectsSub: .vignette)
         case "bd-none", "bd-solid", "bd-frame", "bd-polaroid": return EditorUI(tool: .border)
