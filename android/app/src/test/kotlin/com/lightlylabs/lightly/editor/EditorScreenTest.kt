@@ -157,7 +157,7 @@ class EditorScreenTest {
         show(vm)
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
         compose.waitForIdle()
-        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Original", "Free", "4:5", "Drag the corners to crop. Pinch to zoom.").forEach {
+        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Original", "Free", "4:5", "Drag a corner or an edge to crop. Drag inside to move.").forEach {
             compose.onNodeWithText(it).assertExists()
         }
         compose.onNodeWithText("Remove").performClick()

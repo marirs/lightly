@@ -65,7 +65,7 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
                     }
                 }
             }
-            PanelNote("Drag the corners to crop. Pinch to zoom.")
+            PanelNote("Drag a corner or an edge to crop. Drag inside to move.")
         }
         EditSub.ROTATE -> ChipRow {
             listOf(

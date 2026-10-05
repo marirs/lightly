@@ -257,6 +257,30 @@ class EditorViewModelTest {
         assertContentEquals(expected.pixels, written)
     }
 
+    /** Free crop (owner amendment 2026-10-05): the crop editor previews the whole frame; Save copy writes the crop; Undo/Redo. */
+    @Test
+    fun `the crop editor previews the whole frame while Save copy, Undo and Redo use the crop`() = runTest {
+        val (vm, harness) = ready()
+        val full = vm.uiState.value.preview!!.let { it.width to it.height }
+        vm.commitCrop(com.lightlylabs.lightly.session.NormalisedRect(0.25, 0.0, 0.5, 1.0)); advanceUntilIdle()
+        assertEquals(com.lightlylabs.lightly.session.CropAspect.FREE, vm.uiState.value.session!!.current.tools.edit.geometry.crop.aspect)
+        assertEquals(full.first / 2, vm.uiState.value.preview!!.width, "outside Crop the preview is cropped")
+
+        vm.selectTool(EditorTool.EDIT); vm.selectEditSub(EditSub.CROP); advanceUntilIdle()
+        assertTrue(vm.isCropEditing())
+        assertEquals(full, vm.uiState.value.preview!!.let { it.width to it.height }, "the crop editor shows the whole frame")
+
+        vm.saveCopy(); advanceUntilIdle()
+        val written = harness.gateway.files.values.single().toByteArray()
+        assertEquals(48 * 64 * 4, written.size, "Save copy writes the crop (48 x 64 of the 96 x 64 photo), not the crop editor's view")
+
+        vm.commitCrop(com.lightlylabs.lightly.session.NormalisedRect(0.0, 0.0, 0.8, 0.8)); advanceUntilIdle()
+        vm.undo(); advanceUntilIdle()
+        assertEquals(com.lightlylabs.lightly.session.NormalisedRect(0.25, 0.0, 0.5, 1.0), vm.uiState.value.session!!.current.tools.edit.geometry.crop.rect)
+        vm.redo(); advanceUntilIdle()
+        assertEquals(com.lightlylabs.lightly.session.NormalisedRect(0.0, 0.0, 0.8, 0.8), vm.uiState.value.session!!.current.tools.edit.geometry.crop.rect)
+    }
+
     @Test
     fun `leaving asks first only when there are unsaved changes`() = runTest {
         val (vm, _) = ready()

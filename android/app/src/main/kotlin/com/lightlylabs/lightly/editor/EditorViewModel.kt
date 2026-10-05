@@ -322,7 +322,9 @@ class EditorViewModel(
         if (tool !in state.value.tools) return
         if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
         // Prototype `tool`: sub, op and group reset; a removal already running keeps running.
+        val wasCropEditing = isCropEditing()
         state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi(), portrait = PortraitUi(selectedFace = it.portrait.selectedFace)) }
+        refreshAfterCropEditingChange(wasCropEditing)
         if (tool == EditorTool.BORDER) openBorderOnPreferredType()
         if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
     }
@@ -523,7 +525,11 @@ class EditorViewModel(
 
     // --- Edit (slice 4) ---------------------------------------------------------------------------
 
-    fun selectEditSub(sub: EditSub) = state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null)) }
+    fun selectEditSub(sub: EditSub) {
+        val was = isCropEditing()
+        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null)) }
+        refreshAfterCropEditingChange(was)
+    }
 
     fun selectAdjustGroup(group: AdjustGroup) = state.update { it.copy(edit = it.edit.copy(group = group)) }
 
@@ -606,49 +612,18 @@ class EditorViewModel(
         commitEdit { withEditSlider(it, field, value) }
     }
 
-    /**
-     * Crop › a corner dragged by (dx, dy) of the displayed frame (corner 0 top-left, 1 top-right, 2 bottom-left,
-     * 3 bottom-right): one step. A fixed aspect is kept; cropping an uncropped photo makes it Free.
-     */
-    fun dragCropCorner(corner: Int, dx: Double, dy: Double) = commitEdit { e ->
+    /** Crop: the rectangle a finished drag left (CropGeometry), one undo step. Cropping an uncropped photo makes it Free. */
+    fun commitCrop(rect: com.lightlylabs.lightly.session.NormalisedRect) = commitEdit { e ->
         val g = e.geometry
-        val r = g.crop.rect
-        val (tw, th) = turnedDisplaySize(g.quarterTurns)
-        var left = r.x; var top = r.y; var right = r.x + r.width; var bottom = r.y + r.height
-        val mx = dx * r.width
-        val my = dy * r.height
-        if (corner % 2 == 0) left += mx else right += mx
-        if (corner < 2) top += my else bottom += my
-        left = left.coerceIn(0.0, right - MIN_CROP); right = right.coerceIn(left + MIN_CROP, 1.0)
-        top = top.coerceIn(0.0, bottom - MIN_CROP); bottom = bottom.coerceIn(top + MIN_CROP, 1.0)
-        val ratio = EditOptions.ratio(g.crop.aspect)
-        if (ratio != null) {
-            // Keep w/h in pixels: shrink the side that is too long, anchored at the opposite corner.
-            val widthPx = (right - left) * tw
-            val heightPx = (bottom - top) * th
-            if (widthPx / heightPx > ratio) {
-                val w = heightPx * ratio / tw
-                if (corner % 2 == 0) left = right - w else right = left + w
-            } else {
-                val h = widthPx / ratio / th
-                if (corner < 2) top = bottom - h else bottom = top + h
-            }
-        }
-        val aspect = if (g.crop.aspect == com.lightlylabs.lightly.session.CropAspect.ORIGINAL) com.lightlylabs.lightly.session.CropAspect.FREE else g.crop.aspect
-        e.copy(geometry = g.copy(crop = com.lightlylabs.lightly.session.Crop(aspect, rectOf(left, top, right, bottom))))
+        val aspect = if (g.crop.aspect == com.lightlylabs.lightly.session.CropAspect.ORIGINAL && rect != FULL_RECT) com.lightlylabs.lightly.session.CropAspect.FREE else g.crop.aspect
+        e.copy(geometry = g.copy(crop = com.lightlylabs.lightly.session.Crop(aspect, rectOf(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height))))
     }
 
-    /** Crop › pinch: zoom the crop about its centre by [zoom] (> 1 = closer), kept inside the frame and its aspect. One step. */
-    fun pinchCrop(zoom: Double) = commitEdit { e ->
-        val g = e.geometry
-        val r = g.crop.rect
-        val scale = (1 / zoom).coerceIn(MIN_CROP / minOf(r.width, r.height), minOf(1 / r.width, 1 / r.height))
-        val w = r.width * scale
-        val h = r.height * scale
-        val left = (r.x + r.width / 2 - w / 2).coerceIn(0.0, 1.0 - w)
-        val top = (r.y + r.height / 2 - h / 2).coerceIn(0.0, 1.0 - h)
-        val aspect = if (g.crop.aspect == com.lightlylabs.lightly.session.CropAspect.ORIGINAL) com.lightlylabs.lightly.session.CropAspect.FREE else g.crop.aspect
-        e.copy(geometry = g.copy(crop = com.lightlylabs.lightly.session.Crop(aspect, rectOf(left, top, left + w, top + h))))
+    /** The committed crop rectangle, the locked pixel ratio (null = Free or Original) and the frame's width / height. */
+    fun cropState(): Triple<com.lightlylabs.lightly.session.NormalisedRect, Double?, Double>? {
+        val g = state.value.session?.current?.tools?.edit?.geometry ?: return null
+        val (w, h) = turnedDisplaySize(g.quarterTurns)
+        return Triple(g.crop.rect, EditOptions.ratio(g.crop.aspect), w.toDouble() / h.coerceAtLeast(1))
     }
 
     private fun rectOf(left: Double, top: Double, right: Double, bottom: Double): com.lightlylabs.lightly.session.NormalisedRect {
@@ -660,8 +635,31 @@ class EditorViewModel(
     /** The committed geometry at the display proxy's resolution (marks and touches map through it). */
     fun displayGeometry(ui: EditorUiState = state.value): com.lightlylabs.lightly.develop.GeometryTransform? {
         val display = ui.original ?: return null
-        val recipe = ui.session?.current ?: return null
+        val committed = ui.session?.current ?: return null
+        val recipe = if (isCropEditing(ui)) uncroppedForCropEditor(committed) else committed
         return com.lightlylabs.lightly.develop.GeometryTransform(EditMapping.geometry(recipe), display.width, display.height)
+    }
+
+    /**
+     * Edit › Crop is open (owner amendment 2026-10-05, free crop, as iOS): previews show the straightened frame uncropped
+     * with the crop rectangle drawn over it in that frame's fractions; Border and Watermark are left out of those previews.
+     * Save copy and every other tool use the committed, cropped recipe.
+     */
+    fun isCropEditing(ui: EditorUiState = state.value): Boolean = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP
+
+    private fun uncroppedForCropEditor(edit: EditState): EditState {
+        val tools = edit.tools
+        val geometry = tools.edit.geometry
+        return edit.copy(tools = tools.copy(
+            edit = tools.edit.copy(geometry = geometry.copy(crop = geometry.crop.copy(rect = FULL_RECT))),
+            border = tools.border.copy(type = com.lightlylabs.lightly.session.BorderType.NONE),
+            watermark = tools.watermark.copy(type = com.lightlylabs.lightly.session.WatermarkType.NONE, signature = null, text = null, logo = null),
+        ))
+    }
+
+    /** Re-renders when opening or leaving Crop changes what the stage shows. */
+    private fun refreshAfterCropEditingChange(wasCropEditing: Boolean) {
+        if (wasCropEditing != isCropEditing()) state.value.session?.let { requestPreview(it.current, globalOnly = false) }
     }
 
     /**
@@ -1652,7 +1650,9 @@ class EditorViewModel(
             heldPreview = edit to globalOnly
             return
         }
-        requestedRevision = scheduler?.submit(PreviewRequest(edit, globalOnly)) ?: requestedRevision
+        // Free crop (owner amendment 2026-10-05): while Edit › Crop is open the preview is the straightened frame uncropped.
+        val shown = if (isCropEditing()) uncroppedForCropEditor(edit) else edit
+        requestedRevision = scheduler?.submit(PreviewRequest(shown, globalOnly)) ?: requestedRevision
     }
 
     private var lastPreviewRequest: Pair<EditState, Boolean>? = null
@@ -1949,7 +1949,6 @@ class EditorViewModel(
 
         /** The uncropped rect, and the smallest crop side (fraction of the frame) a gesture can leave. */
         private val FULL_RECT = com.lightlylabs.lightly.session.NormalisedRect(0.0, 0.0, 1.0, 1.0)
-        private const val MIN_CROP = 0.1
 
         /** Prototype `cancelOp` toast. */
         const val OPERATION_CANCELLED = "Cancelled · nothing changed"
