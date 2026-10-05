@@ -1,8 +1,16 @@
-# Proposal: Effects › Selective Colour (not approved)
+# Proposal: Effects › Selective Colour
 
-Requested by the owner on 2026-10-04 as an addition to the approved UX. Nothing here is approved. The approved prototype in `../../app/` is unchanged: this page loads it as it is and adds one Effects tab and its states (`proposal.js`).
+Requested by the owner on 2026-10-04 as an addition to the approved UX. The approved prototype in `../../app/` is unchanged: this page loads it as it is and adds one Effects tab and its states (`proposal.js`).
 
 Open it from the repository root server (`python3 -m http.server 8765`) at http://127.0.0.1:8765/docs/ui/proposals/selective-colour/index.html. The proposed screens are under **Effects** in the Screen index, named `PROPOSAL · Selective Colour · …`.
+
+## Status (recorded 2026-10-05)
+
+- **Reference the apps implement: this page at commit `330cf5b`**, screens `fx-selective-empty`, `fx-selective-picked` and `fx-selective-multi` (the panel layout below). The owner described this layout ("show the selected colour on top, the controls at the bottom, Clear to the right, a (+) to add another"), asked for a × on each colour when there is more than one, and on seeing `330cf5b` wrote: "Ok this is better.. can you continue the work now". That message is the only acceptance on record: it was taken as approval of the **panel layout** to implement. It is not a visual acceptance of the built apps (not yet given).
+- **Not separately confirmed** (implemented as written here, open for the owner): the defaults (Range 40, Strength 100); one Range and one Strength shared by every kept colour (not per colour); at most eight kept colours.
+- **Pipeline order:** after Light Leaks, before Grain and Vignette, as the owner's review of 2026-10-04 recommended.
+- **In this page, not in the apps:** the temporary blue overlay (after a pick, while Range is dragged). **Removed from the design:** painting an area (the owner's layout has no place for it).
+- **Proposal 2 (switches on Light Leaks, Grain, Vignette):** not approved; the apps keep the approved switches.
 
 ## Panel (Effects › Selective Colour)
 
@@ -35,11 +43,11 @@ Owner, 2026-10-05. Changes approved screens, so it needs explicit approval befor
 - Undo/Redo: a pick, a colour removal and Clear are one step each; one slider drag is one step.
 - Compare shows the original; preview and Save copy use the same renderer; the session restores picks and values.
 
-## Decisions needed
+## Open decisions
 
-1. Selective Colour: the layout above (fourth Effects tab; colours, (+), Clear; Range, Strength).
-2. Defaults: Range 40, Strength 100.
-3. Order in the pipeline: after Light Leaks, before Grain and Vignette.
-4. Proposal 2: remove the On/Off switch from Light Leaks, Grain and Vignette.
+1. Defaults: Range 40, Strength 100 (implemented; not separately confirmed).
+2. One shared Range and Strength for all kept colours, or per colour (shared is implemented).
+3. The temporary blue overlay (in this page; not implemented in the apps).
+4. Proposal 2: remove the On/Off switch from Light Leaks, Grain and Vignette (not approved; not implemented).
 
 Photo appearance on this page is an in-browser illustration (canvas, Lab colour distance), like the rest of the prototype's CSS simulations; it is not the native renderer.

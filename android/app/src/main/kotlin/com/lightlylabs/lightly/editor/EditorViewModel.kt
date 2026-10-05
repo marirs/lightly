@@ -1136,7 +1136,7 @@ class EditorViewModel(
         if (release) commitEffects(move) else requestPreview(session.current.copy(tools = session.current.tools.copy(effects = move(session.current.tools.effects))), globalOnly = false)
     }
 
-    // --- Effects › Selective Colour (owner-approved layout, 2026-10-05) ------------------------------
+    // --- Effects › Selective Colour (docs/ui/proposals/selective-colour at 330cf5b) ---------------
 
     /** (+): the next tap on the photo keeps another colour. */
     fun toggleAddingColour() = state.update { it.copy(effects = it.effects.copy(addingColour = !it.effects.addingColour)) }

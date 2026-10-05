@@ -132,7 +132,7 @@ struct EffectsPanelView: View {
         slider("Softness", \.vignette.softness, 0...100)
     }
 
-    // MARK: Selective Colour (owner-approved layout, 2026-10-05)
+    // MARK: Selective Colour (reference: docs/ui/proposals/selective-colour at 330cf5b; status in its README)
 
     /// Nothing kept: one instruction. Then the kept colours, (+) and Clear on one row, Range and Strength below.
     /// No On switch: a kept colour applies the effect.

@@ -161,7 +161,7 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
     if ((sub == EffectsSub.GRAIN || sub == EffectsSub.VIGNETTE) && on(sub) && vm.presetHasOwn(sub, ui)) {
         Notice(LightlyIcons.Info, AnnotatedString("The applied preset already includes its own ${if (sub == EffectsSub.GRAIN) "grain" else "vignette"}. This one is added to it, not replaced."))
     }
-    // Selective Colour has no On switch: a kept colour applies it (owner-approved layout, 2026-10-05).
+    // Selective Colour has no On switch: a kept colour applies it (reference: docs/ui/proposals/selective-colour at 330cf5b; status in its README).
     if (sub != EffectsSub.SELECTIVE) OnOffRow(on(sub), name = sub.label) { vm.toggleEffect(sub) }
     when (sub) {
         EffectsSub.LEAK -> {
@@ -200,7 +200,7 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
 }
 
 /**
- * Effects › Selective Colour, the owner-approved layout (docs/ui/proposals/selective-colour, 2026-10-05): nothing kept,
+ * Effects › Selective Colour, as in docs/ui/proposals/selective-colour at 330cf5b (status in its README): nothing kept,
  * one instruction; then the kept colours (28 dp dots in 48 dp targets; with more than one, a small × removes just that
  * colour), (+) to add another (the next tap on the photo) and Clear on one row; Range and Strength below.
  */

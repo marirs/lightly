@@ -106,13 +106,13 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Combined effects | `fx-combined` | 4 | missing | missing |  |
 | Preset already contains grain · shown, not doubled silently | `fx-preset-conflict` | 4 | missing | missing |  |
 
-**Requested addition (owner, 2026-10-04): Effects › Selective Colour.** Not in the approved prototype yet. The design goes into `docs/ui/` first, and the UI is wired only after the owner approves it. The colour-matching engine may be built in the meantime.
+**Requested addition (owner, 2026-10-04): Effects › Selective Colour.** Reference: `docs/ui/proposals/selective-colour` at `330cf5b`; what was accepted, and what is still open, is in its README "Status". Not visually accepted in the apps yet.
 
 | Screen / state | id | Slice | iOS | Android | Notes |
 |---|---|---|---|---|---|
-| Selective Colour · tap photo to pick, removable swatches, multiple picks, Range, Strength, Clear selection | `fx-selective` (proposed) | 4 | missing | missing | Design pending approval |
-| Scope: Matching colours (default) / Selected area | `fx-selective-scope` (proposed) | 4 | missing | missing | Area selection must not be claimed as object selection if it only matches colour |
-| Temporary overlay of what stays coloured; area Add/Remove refinement | `fx-selective-refine` (proposed) | 4 | missing | missing | Selections stored in photo coordinates; one drag = one undo step; Compare, restore, export |
+| Nothing kept: "Tap a colour in the photo to keep it." | `fx-selective-empty` | 4 | partial | partial | Implemented (fd8f657, 980d8b1); awaiting visual acceptance |
+| Kept colours, (+), Clear; × per colour when more than one; Range, Strength | `fx-selective-picked`, `fx-selective-multi` | 4 | partial | partial | Up to 8 colours; Range and Strength shared by all colours (open decision); pick race fixed (4d6c436, f1a1dd5) |
+| Temporary overlay of what stays coloured | (proposal only) | 4 | missing | missing | Open decision |
 
 ## Watermark
 

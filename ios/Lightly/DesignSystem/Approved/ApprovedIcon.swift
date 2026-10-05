@@ -11,7 +11,7 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
     case undo, redo, compare, develop, background, portrait, edit, effects, watermark, border, star, info, warn, share
     // Background (slice 3): refine brush, add, bokeh shapes.
     case brush, erase, plus, circle, hex, heart, starShape
-    /// Effects › Selective Colour (owner-approved proposal 2026-10-05): eyedropper.
+    /// Effects › Selective Colour (reference: docs/ui/proposals/selective-colour at 330cf5b; status in its README): eyedropper.
     case picker
     // Edit (slice 4): Rotate left/right, Flip horizontal/vertical.
     case rotl, rotr, fliph, flipv
