@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -200,14 +201,16 @@ private fun Modifier.tab(entry: CategoryEntry, onSelect: (String) -> Unit) = thi
 @Composable
 private fun ScrollingTabs(model: DevelopPanelModel, onSelect: (String) -> Unit, modifier: Modifier) {
     val scroll = rememberScrollState()
-    // The selected tab's left edge in window coordinates, as currently scrolled.
-    var selectedWindowX by remember { mutableFloatStateOf(Float.NaN) }
+    // Each tab's left edge within the scrolling row (px, padding included).
+    val tabStarts = remember { mutableStateMapOf<String, Float>() }
     val density = LocalDensity.current
-    // Prototype buildRulers: scrollLeft = max(0, on.offsetLeft - 120), where offsetLeft is measured from
-    // the screen's left edge (the device frame is the offset parent), so the selected tab lands 120 dp in.
-    LaunchedEffect(model.categoryId, selectedWindowX) {
-        if (selectedWindowX.isNaN() || scroll.maxValue == 0) return@LaunchedEffect
-        val target = (scroll.value + selectedWindowX - with(density) { 120.dp.toPx() }).roundToInt().coerceIn(0, scroll.maxValue)
+    // Owner amendment 2026-10-05 (as iOS): the tab before the selected one starts 18 dp in, fully visible past the 16 dp
+    // fade; replaces the prototype's "selected tab 120 dp in", which left the previous tab half hidden beside Auto.
+    LaunchedEffect(model.categoryId, tabStarts.size, scroll.maxValue) {
+        val ids = model.categories.map { it.id }
+        val index = ids.indexOf(model.categoryId).takeIf { it >= 0 } ?: return@LaunchedEffect
+        val previous = tabStarts[ids[maxOf(index - 1, 0)]] ?: return@LaunchedEffect
+        val target = (previous - with(density) { 18.dp.toPx() }).roundToInt().coerceIn(0, scroll.maxValue)
         if (abs(target - scroll.value) > 1) scroll.scrollTo(target)
     }
     Row(
@@ -230,7 +233,7 @@ private fun ScrollingTabs(model: DevelopPanelModel, onSelect: (String) -> Unit, 
     ) {
         model.categories.forEach { entry ->
             Box(
-                Modifier.tab(entry, onSelect).then(if (entry.selected) Modifier.onGloballyPositioned { selectedWindowX = it.positionInWindow().x } else Modifier),
+                Modifier.tab(entry, onSelect).onGloballyPositioned { tabStarts[entry.id] = it.positionInParent().x },
                 contentAlignment = Alignment.Center,
             ) { TabLabel(entry) }
         }

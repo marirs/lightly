@@ -208,6 +208,45 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["The original is unchanged."].exists)
     }
 
+    /// One interaction pass over the owner's 2026-10-05 feedback, as a person does it, with screenshots
+    /// (LIGHTLY_VERIFY_DIR): open a photo, apply a Landscape preset, browse Portrait, open Background, crop freely
+    /// (a corner, then moving the rectangle), Save copy through the real Photos writer. The runner checks the saved
+    /// file and the unchanged original.
+    func testOwnerFeedbackInteractionPass() {
+        let mattes = "\(EditorCaptureUITests.repositoryRoot)/ios/Tests/Fixtures/SubjectMattes/portrait_medium_02.png"
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02"), "--subject-matte-fixture", mattes])
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        saveScreenshot("pass-1-opened")
+        element("develop.category.landscape").tap()
+        dragRuler(by: 5)
+        XCTAssertTrue(waitFor { self.label("develop.name") != "Original" })
+        let applied = label("develop.name")
+        saveScreenshot("pass-2-landscape-applied")
+        element("develop.category.portrait").tap()
+        XCTAssertTrue(waitFor { self.label("develop.context") == "Applied from Landscape" })
+        XCTAssertEqual(label("develop.name"), applied, "browsing keeps naming the applied preset")
+        saveScreenshot("pass-3-browsing-portrait")
+        element("tool.background").tap()
+        XCTAssertTrue(waitFor(timeout: 60) { !self.element("background.separating").exists })
+        saveScreenshot("pass-4-background")
+        element("tool.edit").tap()
+        let photo = element("editor.photo")
+        XCTAssertTrue(photo.waitForExistence(timeout: timeout))
+        saveScreenshot("pass-5-crop-whole-frame")
+        // Bottom-right corner inwards, then move the rectangle left by dragging inside it.
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.99))
+            .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.75)))
+        sleep(2)
+        saveScreenshot("pass-6-corner-dragged")
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.4))
+            .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)))
+        sleep(2)
+        saveScreenshot("pass-7-moved")
+        app.buttons["editor.saveCopy"].tap()
+        XCTAssertTrue(app.staticTexts["Saved as a new photo"].waitForExistence(timeout: 120), "no Saved sheet")
+        saveScreenshot("pass-8-saved")
+    }
+
     func testClosingWithUnsavedEditsAsks() {
         openEditor()
         dragRuler(by: 3)

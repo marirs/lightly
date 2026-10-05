@@ -29,10 +29,10 @@ struct CategoryTabStrip: View {
                             })
                     }
                 }
-                // 18 pt: the first tab starts past the 16 pt fade of the mask, so Favourites is not half hidden beside
-                // Auto (owner feedback 2026-10-05); the fade still hints that the row scrolls.
-                .padding(.leading, 18).padding(.trailing, 18)
             }
+            // 18 pt margins: a tab scrolled to the leading edge starts past the 16 pt fade of the mask, so no label is
+            // half hidden beside Auto (owner feedback 2026-10-05); the fade still hints that the row scrolls.
+            .contentMargins(.horizontal, 18, for: .scrollContent)
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .frame(maxWidth: .infinity, minHeight: 44)
             .background(GeometryReader { proxy in
@@ -55,15 +55,13 @@ struct CategoryTabStrip: View {
                 .init(color: .black, location: max(1 - 24 / width, 0.5)), .init(color: .clear, location: 1)]
     }
 
-    /// Scrolls so the selected tab's leading edge sits 120 pt from the screen edge: with
-    /// `scrollTo(anchor: x)`, the point at fraction x of the tab meets fraction x of the viewport,
-    /// so x = target / (viewport width − tab width).
+    /// Scrolls so the tab before the selected one starts at the leading margin, fully visible (owner amendment
+    /// 2026-10-05; replaces the prototype's "selected tab 120 pt in", which left the previous tab half hidden under the
+    /// fade beside Auto). The first two tabs scroll the row to its start.
     private func position(_ reader: ScrollViewProxy) {
-        let id = model.currentCategoryID
-        guard let width = tabWidths[id], viewport.width > width else { return }
-        let target = Self.selectedTabScreenX - viewport.minX
-        let fraction = min(max(target / (viewport.width - width), 0), 1)
-        reader.scrollTo(id, anchor: UnitPoint(x: fraction, y: 0.5))
+        let ids = model.categoryItems.map(\.id)
+        guard let index = ids.firstIndex(of: model.currentCategoryID) else { return }
+        reader.scrollTo(ids[max(index - 1, 0)], anchor: .leading)
     }
 
     private struct TabWidths: PreferenceKey {
