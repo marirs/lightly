@@ -20,6 +20,8 @@ The app shows the Privacy Policy, Terms of Use, About (version and build) and Su
 ## Owner details still needed
 Only these are missing. Every draft marks them `[OWNER: …]`.
 
+Status 2026-10-05: the domain is known (`lightlylabs.app`, product spec §header; company name "Lightly Labs"). The website's legal drafts could not be reused: `https://lightlylabs.app` refused the connection, and no website source is in this workspace. Needed from the owner: the website's Privacy Policy and Terms text (or their location), and the contact email. The drafts here stay as they are until then.
+
 | Detail | Used in |
 |---|---|
 | Legal entity name | Privacy Policy, Terms, store listings |

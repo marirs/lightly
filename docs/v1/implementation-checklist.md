@@ -163,7 +163,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 |---|---|---|---|---|---|
 | More (from the editor) | `more` | 1 | verified | verified |  |
 | Preferences | `preferences` | 1 | verified | verified |  |
-| Manage favourites · reorder up to five | `pref-favourites` | 1 | defective | verified | iOS Favourites reorder UI test failing (slice-2 review); root cause open |
+| Manage favourites · reorder up to five | `pref-favourites` | 1 | verified | verified | iOS reorder defect fixed in 9df579b/476ab35; testFavouritesCanBeRemovedAndReordered passes (2026-10-05 at 0904c81) |
 | Saved signature | `pref-signature` | 1 | decision | verified | iOS: slice-1 #1 phone pages inside the More sheet; W3 |
 | Preferred border · None by default | `pref-border` | 1 | verified | verified |  |
 | Legal | `legal` | 1 | decision | decision | Slice-1 #1 (sheet vs full page) awaits decision |
@@ -220,7 +220,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Category change alone never changes the applied Look; a new Look replaces only the Develop Look | 2 | implemented | implemented | Unit-tested |
 | Stop zero reads Auto only when Auto correction is applied; otherwise Original | 2 | blocked | blocked | D1: no Auto model, so stop zero always reads Original |
 | Amount secondary; re-selecting the applied preset keeps its Amount | 2 | implemented | implemented | Unit-tested |
-| Favourites: up to five shortcuts, manage/reorder in Preferences, replace when full | 2 | defective | implemented | iOS Favourites reorder UI test failing (root cause open) |
+| Favourites: up to five shortcuts, manage/reorder in Preferences, replace when full | 2 | implemented | implemented | iOS reorder UI test passes (2026-10-05) |
 | Hold-to-compare shows the original; accessible toggle | 2 | verified | verified |  |
 | Preview and export evaluate the same committed recipe; latest-request-wins previews | 2 | decision | decision | Preview and export agree on one device; with the provisional W1 sizing the saved watermark/blur size depends on the editing device (owner sizing policy pending) |
 | Auto is real image-adaptive correction, or the approved unavailable state | 2 | blocked | blocked | D1: the approved unavailable state ships |
@@ -232,7 +232,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Border: None/Solid/Photo Frame/Polaroid with larger bottom margin and margin signature | 5 | implemented | verified | iOS Border screens not recaptured since slice 1 |
 | Save copy: new JPEG, original unchanged, bounded memory, no duplicate on cancel; same metadata policy for Share | 5 | implemented | implemented | Original unchanged and cancel tested; device memory at 48 MP unverified (needs dev devices) |
 | Metadata: four switch combinations verified on saved files; colour profile kept; no stale dimensions/orientation/thumbnail | 5 | implemented | decision | iOS unit-tested on saved files; Android LensModel and picked-photo GPS (above) |
-| Recovery: load failure, permissions, storage full, export failure, lost access, unavailable models, cancelled tools; edits preserved | 6 | defective | implemented | iOS restore UI test R2 fails after a Save test (scene flag lost); see Recovery notes below |
+| Recovery: load failure, permissions, storage full, export failure, lost access, unavailable models, cancelled tools; edits preserved | 6 | implemented | implemented | iOS restore after a system kill fixed (c230f28): Save → restore and close → restore UI pairs pass; force-quit on a device unverified |
 | Accessibility: large text, VoiceOver/TalkBack, contrast, 44 pt targets | 6 | implemented | implemented | One large-text cell per platform checked (2026-10-04); VoiceOver/TalkBack not run end to end |
 | Layouts: hinge/posture aware, safe areas, gesture areas, all reference sizes | 6 | defective | decision | iOS iPad top bar ≈4 pt low (open); Android system-bar offset S1 (decision); most cells unverified |
 | Icon and preset-pack packaging verified before every install | 6 | verified | verified | Build-time checks on every assemble / release config (a993c4d) |
@@ -242,7 +242,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 - **Recovery:**
   - Storage full and export failed are implemented as alerts on both platforms. Neither has been run under a forced condition or captured.
   - Lost photo access and model-unavailable mid-session: unit-tested only.
-  - iOS restore after a system kill: defect R2 (the UI test passes alone, fails after a Save test).
+  - iOS restore after a system kill: R2 fixed in c230f28 (the launch read UIApplication.openSessions, which was empty although the same scene reconnected); the force-quit path on a physical device is unverified.
   - Android restore after process death: tested, including Remove patches.
   - Device-level kill/restore with a 48 MP original: not run.
 - **Accessibility:**
