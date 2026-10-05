@@ -123,6 +123,21 @@ class PeopleAndSegmentationTest {
     }
 
     @Test
+    fun `the sharpened refinement narrows the soft band of an upsampled object matte`() {
+        // A 4-pixel-wide binary object upsampled 16x: bilinear leaves a soft band; the sharpened refinement keeps the
+        // same edge position (0.5 crossing) with fewer partly transparent pixels.
+        val low = FloatPlane(8, 8, FloatArray(64) { if (it % 8 in 2..5) 1f else 0f })
+        val image = RgbaImage(128, 128, ByteArray(128 * 128 * 4) { if (it % 4 == 3) -1 else 100 })
+        val soft = { m: FloatPlane -> m.values.count { it > 0.05f && it < 0.95f } }
+        val plain = MatteRefiner.refine(low, image)
+        val sharp = MatteRefiner.refineSharpened(low, image)
+        assertTrue(soft(sharp) < soft(plain) / 2, "soft pixels ${soft(sharp)} vs ${soft(plain)}")
+        assertTrue(sharp[64, 64] > 0.95f && sharp[2, 64] < 0.05f)
+        assertTrue(sharp.values.all { it in 0f..1f })
+        assertEquals(0.5f, MatteRefiner.smoothstep(0.5f), 1e-6f)
+    }
+
+    @Test
     fun `the refined matte stays within 0 and 1 and follows the low-resolution matte`() {
         val low = FloatPlane(4, 4, FloatArray(16) { if (it % 4 < 2) 1f else 0f })
         val refined = MatteRefiner.refine(low, blank)

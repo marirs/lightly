@@ -26,6 +26,29 @@ object MatteRefiner {
         return PlaneOps.guidedFilter(luma(image), up, radius, EPSILON)
     }
 
+    /**
+     * For a near-binary low-resolution matte (U²-Netp's objects): bilinear upsampling, then a smoothstep from
+     * [SHARPEN_LOW] to [SHARPEN_HIGH] before the same guided filter. Upsampling a 320 × 320 matte ~5× left a soft band
+     * 3–11× wider than Vision's around objects, and the old background showed through it on a replacement (a light halo
+     * around the boat). On seven photos with Vision mattes (experiments/android-vision/scripts/u2netp_edges.py,
+     * 2026-10-05) this narrowed the band to 1.6× Vision's and reduced the halo (ring brightness 3.96× → 3.63× the
+     * replacement's, mean); it does not remove it. Not used for people (their matte is not near-binary: hair).
+     */
+    fun refineSharpened(lowRes: FloatPlane, image: RgbaImage): FloatPlane {
+        val up = PlaneOps.resizeBilinear(lowRes, image.width, image.height)
+        val sharpened = FloatPlane(up.width, up.height, FloatArray(up.values.size) { i -> smoothstep(up.values[i]) })
+        val radius = max(1, (max(image.width, image.height) * RADIUS_FRACTION).roundToInt())
+        return PlaneOps.guidedFilter(luma(image), sharpened, radius, EPSILON)
+    }
+
+    const val SHARPEN_LOW = 0.4f
+    const val SHARPEN_HIGH = 0.6f
+
+    internal fun smoothstep(value: Float): Float {
+        val t = ((value - SHARPEN_LOW) / (SHARPEN_HIGH - SHARPEN_LOW)).coerceIn(0f, 1f)
+        return t * t * (3 - 2 * t)
+    }
+
     fun luma(image: RgbaImage): FloatPlane = FloatPlane(image.width, image.height, FloatArray(image.width * image.height) { i ->
         val o = i * 4
         (0.299f * (image.pixels[o].toInt() and 0xff) + 0.587f * (image.pixels[o + 1].toInt() and 0xff) + 0.114f * (image.pixels[o + 2].toInt() and 0xff)) / 255f
@@ -183,7 +206,7 @@ class SubjectSaliency(private val model: TensorModel) {
     }
 
     fun matteOrNull(low: FloatPlane, image: RgbaImage): FloatPlane? =
-        if (!hasClearSubject(low)) null else MatteRefiner.refine(low, image)
+        if (!hasClearSubject(low)) null else MatteRefiner.refineSharpened(low, image)
 
     fun input(image: RgbaImage): FloatArray = normalise(ReferenceResize.resize(image, INPUT, INPUT))
 
