@@ -6,7 +6,7 @@
 # Run through the lock: scripts/heavy package-review bash scripts/package_review.sh   (INSTALL=0: package only)
 set -u
 REPO=$(cd "$(dirname "$0")/.." && pwd); cd "$REPO"
-[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "refusing: tracked changes present"; exit 2; }
+[ -z "$(git status --porcelain --untracked-files=no -- ios android shared)" ] || { echo "refusing: tracked changes in ios/, android/ or shared/"; exit 2; }  # docs and other folders do not go into the builds
 C=$(git rev-parse --short=7 HEAD); OUT=$HOME/.codex/artifacts/lightly/v1/review-builds; A=$OUT/android/$C; I=$OUT/ios/$C; mkdir -p "$A" "$I"
 echo "== checkpoint $C $(date +%T)"
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
