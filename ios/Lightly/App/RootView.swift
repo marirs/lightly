@@ -122,7 +122,10 @@ struct RootView: View {
         // `--open-photo <path>`: a file on the host (the simulator reads it directly), opened through
         // the real open path, so captures show the prototype's own photographs.
         if let flag = arguments.firstIndex(of: "--open-photo"), arguments.indices.contains(flag + 1) {
-            let url = URL(fileURLWithPath: arguments[flag + 1])
+            // A relative path names a file in the app's Documents (a device run copies it there with devicectl;
+            // device execution unverified as of 2026-10-05).
+            let path = arguments[flag + 1]
+            let url = path.hasPrefix("/") ? URL(fileURLWithPath: path) : URL.documentsDirectory.appending(path: path)
             await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
         }
         // `--capture-commands <file>`: design captures step through a cell's screens in this one

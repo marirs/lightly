@@ -138,7 +138,11 @@ struct OnDeviceSceneAnalyser: SceneAnalysing {
             try Task.checkCancellation()
             guard let observation = request.results?.first, !observation.allInstances.isEmpty else { return nil }
             let buffer = try observation.generateScaledMaskForImage(forInstances: observation.allInstances, from: handler)
-            return SubjectMatte(matte: Self.floatImage(from: buffer), model: SubjectMatte.visionModel)
+            let matte = Self.floatImage(from: buffer)
+            #if DEBUG
+            DebugSubjectMatteDump.writeIfRequested(matte)
+            #endif
+            return SubjectMatte(matte: matte, model: SubjectMatte.visionModel)
         }.value
     }
 
@@ -409,6 +413,28 @@ final class DepthEstimatorProvider: @unchecked Sendable {
         }
     }
 }
+
+#if DEBUG
+/// `--dump-subject-matte <name>` (DEBUG): writes the live Vision matte (8-bit grey PNG, the image's size) to the
+/// app's Documents, so device runs can be compared with the recorded macOS fixtures. Same encoding as those fixtures
+/// (ios/Tools/make_subject_matte_fixtures.swift): 8-bit, tagged linear grey, byte = value × 255.
+/// Device execution unverified as of 2026-10-05 (built, not yet run on a phone).
+enum DebugSubjectMatteDump {
+    static func writeIfRequested(_ matte: FloatImage) {
+        let arguments = DebugArguments.current
+        guard let flag = arguments.firstIndex(of: "--dump-subject-matte"), arguments.indices.contains(flag + 1) else { return }
+        var bytes = matte.data.map { UInt8((min(max($0, 0), 1) * 255).rounded()) }
+        // A bare file name only: the argument never writes outside Documents.
+        let url = URL.documentsDirectory.appending(path: URL(fileURLWithPath: arguments[flag + 1]).lastPathComponent)
+        guard let context = CGContext(data: &bytes, width: matte.width, height: matte.height, bitsPerComponent: 8, bytesPerRow: matte.width,
+                                      space: CGColorSpace(name: CGColorSpace.linearGray)!, bitmapInfo: CGImageAlphaInfo.none.rawValue),
+              let image = context.makeImage(),
+              let destination = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(destination, image, nil)
+        CGImageDestinationFinalize(destination)
+    }
+}
+#endif
 
 #if DEBUG && targetEnvironment(simulator)
 /// `--subject-matte-fixture <file>` (DEBUG, Simulator only): a matte computed by

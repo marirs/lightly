@@ -149,6 +149,14 @@ struct DebugArgumentsLibraryWriter: PhotoLibraryWriting {
         if arguments.contains("--slow-library-writer") {
             return try await DebugInertLibraryWriter(delay: .seconds(600)).save(data, fileExtension: fileExtension)
         }
+        // `--save-to-documents <name>`: device edge checks pull the saved copy from the app's Documents
+        // (devicectl) instead of the photo library, so no permission prompt has to be answered on the phone.
+        // A bare file name only. Device execution unverified as of 2026-10-05 (built, not yet run on a phone).
+        if let flag = arguments.firstIndex(of: "--save-to-documents"), arguments.indices.contains(flag + 1) {
+            let url = URL.documentsDirectory.appending(path: URL(fileURLWithPath: arguments[flag + 1]).lastPathComponent)
+            do { try data.write(to: url) } catch { throw LightlyError.exportFailed }
+            return
+        }
         try await fallback.save(data, fileExtension: fileExtension)
     }
 }
