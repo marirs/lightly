@@ -55,6 +55,18 @@ class LookPreset internal constructor(
 
 class LookCategory(val id: String, val name: String, val presets: List<LookPreset>)
 
+/** Parses shared/look-pack/names/display-names.json ({"formatVersion": 1, "names": {id: name}}); empty when absent or unknown. */
+object PresetDisplayNames {
+    const val ASSET_PATH = "catalogue/display-names.json"
+
+    fun parse(json: String?): Map<String, String> {
+        if (json.isNullOrBlank()) return emptyMap()
+        val root = Json.parseToJsonElement(json).jsonObject
+        if (root["formatVersion"]?.jsonPrimitive?.int != 1) return emptyMap()
+        return root["names"]?.jsonObject?.mapValues { it.value.jsonPrimitive.content }.orEmpty()
+    }
+}
+
 /**
  * Reader for the format-3 look pack written by `shared/look-pack/build_pack.py` (`manifest.json`).
  *
@@ -85,13 +97,17 @@ class LookPack(
          * `categories` are parsed normally (they are small); each preset entry is located, its display
          * fields read, and the entry's text range kept for lazy parsing.
          */
-        fun parse(json: String, model: DevelopModel): LookPack {
+        /**
+         * [displayNames]: readable names by preset id, shared with iOS (shared/look-pack/names/display-names.json),
+         * applied over the manifest's catalogue names; ids, versions and recipes are unchanged.
+         */
+        fun parse(json: String, model: DevelopModel, displayNames: Map<String, String> = emptyMap()): LookPack {
             val scanner = JsonScanner(json)
             val header = mutableMapOf<String, JsonElement>()
             val categories = mutableListOf<LookCategory>()
             scanner.objectFields { key ->
                 if (key == "categories") {
-                    scanner.arrayItems { categories += scanCategory(scanner, json) }
+                    scanner.arrayItems { categories += scanCategory(scanner, json, displayNames) }
                 } else {
                     header[key] = scanner.valueElement()
                 }
@@ -115,7 +131,7 @@ class LookPack(
             }
         }
 
-        private fun scanCategory(scanner: JsonScanner, json: String): LookCategory {
+        private fun scanCategory(scanner: JsonScanner, json: String, displayNames: Map<String, String>): LookCategory {
             var id: String? = null
             var name: String? = null
             val pending = mutableListOf<(String) -> LookPreset>()
@@ -123,7 +139,7 @@ class LookPack(
                 when (key) {
                     "id" -> id = scanner.string()
                     "name" -> name = scanner.string()
-                    "presets" -> scanner.arrayItems { pending += scanPreset(scanner, json) }
+                    "presets" -> scanner.arrayItems { pending += scanPreset(scanner, json, displayNames) }
                     else -> scanner.skipValue()
                 }
             }
@@ -132,7 +148,7 @@ class LookPack(
         }
 
         /** Reads the display fields of one preset entry and remembers its text range. */
-        private fun scanPreset(scanner: JsonScanner, json: String): (String) -> LookPreset {
+        private fun scanPreset(scanner: JsonScanner, json: String, displayNames: Map<String, String>): (String) -> LookPreset {
             val start = scanner.position
             var id: String? = null
             var displayName: String? = null
@@ -170,7 +186,7 @@ class LookPack(
             require(recipeVersion == RECIPE_VERSION) { "Preset $presetId recipeVersion $recipeVersion" }
             require(hasRecipe) { "Preset $presetId has no recipe" }
             require(stop >= 1) { "Preset $presetId has no stop" }
-            val name = requireNotNull(displayName) { "Preset $presetId has no displayName" }
+            val name = displayNames[presetId] ?: requireNotNull(displayName) { "Preset $presetId has no displayName" }
             val version = requireNotNull(lookVersion) { "Preset $presetId has no lookVersion" }
             val complete = requireNotNull(completeness) { "Preset $presetId has no completeness" }
             val hasGrain = requireNotNull(grain) { "Preset $presetId has no effects" }

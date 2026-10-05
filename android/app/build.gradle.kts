@@ -84,8 +84,10 @@ fun visionModelsEnabled(buildType: String) =
     visionModels.values.all { visionModelsDirectory.resolve(it[0]).isFile } && (buildType == "debug" || visionModelsRelease)
 
 /** Marketing version and build number shared with iOS (version.properties, scripts/version.sh). */
-val lightlyMarketingVersion: String = rootDir.parentFile.resolve("version.properties").readLines()
-    .first { it.startsWith("marketingVersion=") }.substringAfter("=").trim()
+/** "1.0.0", or "1.0.0-dev" when ios/, android/ or shared/ has uncommitted changes (scripts/version.sh decides both). */
+val lightlyMarketingVersion: String = providers.exec {
+    commandLine("bash", rootDir.parentFile.resolve("scripts/version.sh").path)
+}.standardOutput.asText.get().trim().substringBefore(" ")
 val lightlyBuildNumber: Int = ((findProperty("lightlyBuildNumber") as String?) ?: providers.exec {
     commandLine("bash", rootDir.parentFile.resolve("scripts/version.sh").path, "--build")
 }.standardOutput.asText.get().trim()).toInt()
@@ -337,11 +339,17 @@ abstract class VerifyLookPackTask : DefaultTask() {
 // versioned in the repository and bundled verbatim under assets/catalogue/, so the app and the design
 // read the same ids (favourites in slice 1; Develop in slice 2). A missing file fails the build.
 val presetCatalogueFile: File = rootDir.parentFile.resolve("presets/develop-design-ui.json")
+/** Readable preset display names shared with iOS (shared/look-pack/display_names.py), bundled as catalogue/display-names.json. */
+val presetDisplayNamesFile: File = rootDir.parentFile.resolve("shared/look-pack/names/display-names.json")
 
 abstract class BundlePresetCatalogueTask : DefaultTask() {
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val catalogueFile: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val displayNamesFile: RegularFileProperty
 
     @get:OutputDirectory
     abstract val assetsDirectory: DirectoryProperty
@@ -351,6 +359,7 @@ abstract class BundlePresetCatalogueTask : DefaultTask() {
         val assetsRoot = assetsDirectory.get().asFile
         assetsRoot.deleteRecursively()
         catalogueFile.get().asFile.copyTo(assetsRoot.resolve("catalogue/develop-design-ui.json"))
+        displayNamesFile.get().asFile.copyTo(assetsRoot.resolve("catalogue/display-names.json"))
     }
 }
 
@@ -616,6 +625,7 @@ androidComponents {
 
         val bundleCatalogue = tasks.register<BundlePresetCatalogueTask>("bundle${variantName}PresetCatalogue") {
             catalogueFile.set(presetCatalogueFile)
+            displayNamesFile.set(presetDisplayNamesFile)
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleCatalogue, BundlePresetCatalogueTask::assetsDirectory)
 

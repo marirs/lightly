@@ -142,7 +142,7 @@ class EditorViewModelTest {
         vm.selectCategory("cinematic")
         advanceUntilIdle()
         assertEquals(hiking.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("Applied: 05 Hiking 05", vm.panelModel()!!.context)
+        assertEquals("Applied from Landscape", vm.panelModel()!!.context)
         assertEquals(2, vm.uiState.value.session!!.history.entries.size)
     }
 
@@ -171,6 +171,45 @@ class EditorViewModelTest {
         assertEquals(second, vm.uiState.value.session!!.current)
     }
 
+    /** Owner feedback 2026-10-05: apply Landscape -> browse Portrait -> apply Portrait -> Undo -> Redo, all consistent. */
+    @Test
+    fun `browsing and applying across categories with undo and redo keep photo, underline, dot and name in agreement`() = runTest {
+        val (vm, _) = ready()
+        fun model() = vm.panelModel()!!
+        fun dotted() = model().categories.filter { it.dotted && !it.isFavourites }.map { it.id }
+        vm.selectCategory("landscape"); vm.onRulerDrag(3); vm.onRulerRelease(3); advanceUntilIdle()
+        val landscape = BundledPack.preset("landscape", 3)
+        assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId)
+        assertEquals("landscape", model().categoryId); assertEquals(listOf("landscape"), dotted()); assertEquals(landscape.displayName, model().name)
+
+        vm.selectCategory("portrait"); advanceUntilIdle()
+        assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "browsing changes nothing")
+        assertEquals("portrait", model().categoryId); assertEquals(listOf("landscape"), dotted())
+        assertEquals(landscape.displayName, model().name); assertEquals("Applied from Landscape", model().context)
+
+        vm.onRulerDrag(2); vm.onRulerRelease(2); advanceUntilIdle()
+        val portrait = BundledPack.preset("portrait", 2)
+        assertEquals(portrait.id, vm.uiState.value.session!!.current.look?.lookId)
+        assertEquals("portrait", model().categoryId); assertEquals(listOf("portrait"), dotted()); assertEquals(portrait.displayName, model().name)
+
+        vm.undo(); advanceUntilIdle()
+        assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId)
+        assertEquals("landscape", model().categoryId, "after Undo the underline returns to the applied category")
+        assertEquals(listOf("landscape"), dotted()); assertEquals(landscape.displayName, model().name); assertEquals(3, model().stop)
+
+        vm.redo(); advanceUntilIdle()
+        assertEquals(portrait.id, vm.uiState.value.session!!.current.look?.lookId)
+        assertEquals("portrait", model().categoryId); assertEquals(listOf("portrait"), dotted()); assertEquals(2, model().stop)
+    }
+
+    @Test
+    fun `unavailable Auto explains itself only when tapped`() = runTest {
+        val (vm, _) = ready()
+        assertNull(vm.panelModel()!!.notice)
+        vm.toggleAuto()
+        assertEquals(EditorViewModel.AUTO_UNAVAILABLE, vm.uiState.value.toast)
+    }
+
     @Test
     fun `favourites hold five, a sixth star shows the full notice, and Replace swaps one`() = runTest {
         val (vm, harness) = ready()
@@ -185,7 +224,7 @@ class EditorViewModelTest {
         vm.replaceFavourite(five[2])
         assertEquals(five.take(2) + hiking.id + five.drop(3), harness.favourites.favourites.value)
         assertNull(vm.uiState.value.overlay)
-        assertEquals(DevelopNotice.AutoUnavailable, vm.panelModel()!!.notice)
+        assertNull(vm.panelModel()!!.notice)
         vm.toggleStar() // unstar
         assertFalse(hiking.id in harness.favourites.favourites.value)
     }

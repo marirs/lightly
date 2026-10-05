@@ -16,11 +16,27 @@ class DevelopPanelModelTest {
         DevelopPanelModel.derive(pack, look, auto, favourites, ui, amounts)
 
     @Test
-    fun `categories are Favourites first, then the catalogue in order with counts`() {
+    fun `categories are Favourites first, then the catalogue in order, without counts`() {
         val model = derive()
         assertEquals(listOf("favourites", "portrait", "landscape", "film", "cinematic", "street", "travel", "wedding", "golden-hour", "black-white"), model.categories.map { it.id })
-        assertEquals(listOf("0/5", "158", "518", "253", "564", "373", "483", "152", "69", "21"), model.categories.map { it.count })
         assertEquals("Black & White", model.categories.last().label)
+    }
+
+    @Test
+    fun `the shared readable names apply over the catalogue names, ids and versions unchanged`() {
+        // shared/look-pack/names/display-names.json (owner feedback 2026-10-05), bundled as catalogue/display-names.json.
+        val root = java.io.File(checkNotNull(System.getProperty("lightly.lookPackDir"))).parentFile.parentFile.parentFile
+        val names = com.lightlylabs.lightly.develop.PresetDisplayNames.parse(root.resolve("shared/look-pack/names/display-names.json").readText())
+        val packDir = java.io.File(checkNotNull(System.getProperty("lightly.lookPackDir")))
+        val model = com.lightlylabs.lightly.develop.DevelopModel.parse(java.io.File(checkNotNull(System.getProperty("lightly.renderingContract"))).readText())
+        val renamed = com.lightlylabs.lightly.develop.LookPack.parse(packDir.resolve("manifest.json").readText(), model, names)
+        val original = pack.preset(hiking.id)!!
+        val shown = renamed.preset(hiking.id)!!
+        assertEquals("05 Hiking 05", original.displayName)
+        assertEquals("Hiking 5", shown.displayName)
+        assertEquals(original.lookVersion, shown.lookVersion)
+        assertEquals(original.stop, shown.stop)
+        assertEquals(pack.presetCount, renamed.presetCount)
     }
 
     @Test
@@ -53,13 +69,19 @@ class DevelopPanelModelTest {
     }
 
     @Test
-    fun `browsing another category keeps the applied Look and shows the Applied line`() {
+    fun `browsing another category keeps naming the applied preset, never Original`() {
+        // Owner amendment 2026-10-05: the underline moves (categoryId), the dot stays, the name row names the applied preset.
         val model = derive(look(hiking), ui = DevelopUi(category = "cinematic"))
         assertEquals("cinematic", model.categoryId)
         assertEquals(0, model.stop)
-        assertEquals("Applied: 05 Hiking 05", model.context)
-        assertEquals("0 / 564", model.position)
+        assertEquals("05 Hiking 05", model.name)
+        assertEquals("Applied from Landscape", model.context)
+        assertEquals("37 / 518", model.position, "the applied preset's own position, once")
+        assertTrue(model.presetShown)
         assertTrue(model.categories.first { it.id == "landscape" }.dotted)
+        assertTrue(model.categories.first { it.id == "cinematic" }.selected)
+        // Dragging to stop zero previews the original and says so.
+        assertEquals("Original", derive(look(hiking), ui = DevelopUi(category = "cinematic", dragStop = 0)).name)
     }
 
     @Test
@@ -76,7 +98,7 @@ class DevelopPanelModelTest {
         val portrait = BundledPack.preset("portrait", 13)
         val favs = listOf(portrait.id, hiking.id, BundledPack.preset("film", 12).id)
         val model = derive(look(hiking), favourites = favs, ui = DevelopUi(category = "favourites"))
-        assertEquals("3/5", model.categories.first().count)
+        assertTrue(model.categories.first().dotted, "Favourites contains the applied preset")
         assertEquals(favs, model.presets.map { it.id })
         assertEquals(2, model.stop)
         assertTrue(model.starred)
@@ -84,7 +106,7 @@ class DevelopPanelModelTest {
 
     @Test
     fun `a full favourites notice takes precedence over the Auto notice`() {
-        assertEquals(DevelopNotice.AutoUnavailable, derive().notice)
+        assertNull(derive().notice, "unavailable Auto has no standing notice (owner amendment 2026-10-05)")
         assertEquals(DevelopNotice.AutoFailed, derive(auto = AutoState.FAILED).notice)
         assertEquals(DevelopNotice.FavouritesFull, derive(ui = DevelopUi(favouritesFull = true)).notice)
         assertNull(derive(auto = AutoState.APPLIED).notice)

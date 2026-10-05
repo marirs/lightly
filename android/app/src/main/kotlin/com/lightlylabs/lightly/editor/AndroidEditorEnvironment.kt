@@ -75,6 +75,8 @@ object AndroidEditorEnvironment {
                     Log.i(LOG_TAG, "manifest parse + index: ${"%.0f".format(millis)} ms")
                 },
                 onBake = { millis -> Log.i(LOG_TAG, "bake 33³: ${"%.1f".format(millis)} ms") },
+                displayNames = com.lightlylabs.lightly.develop.PresetDisplayNames.parse(
+                    runCatching { app.assets.open(com.lightlylabs.lightly.develop.PresetDisplayNames.ASSET_PATH).use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()),
             )
         }
         val exportTileEdge = 1024

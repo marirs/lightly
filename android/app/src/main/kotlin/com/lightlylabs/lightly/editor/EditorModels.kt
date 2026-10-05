@@ -119,12 +119,14 @@ data class DevelopUi(
     val favouritesFull: Boolean = false,
 )
 
-/** One entry of the category tabs or list. */
-data class CategoryEntry(val id: String, val label: String, val count: String, val selected: Boolean, val dotted: Boolean, val isFavourites: Boolean)
+/**
+ * One entry of the category tabs or list. No preset count (owner amendment 2026-10-05). [selected]: the browsed category
+ * (orange underline); [dotted]: it contains the applied preset (blue dot), Favourites included.
+ */
+data class CategoryEntry(val id: String, val label: String, val selected: Boolean, val dotted: Boolean, val isFavourites: Boolean)
 
 sealed interface DevelopNotice {
     data object AutoFailed : DevelopNotice
-    data object AutoUnavailable : DevelopNotice
     data object FavouritesFull : DevelopNotice
 }
 
@@ -174,10 +176,17 @@ data class DevelopPanelModel(
                 else -> 0
             }
             val stop = (ui.dragStop ?: committedStop).coerceIn(0, list.size)
-            val shown = if (stop > 0) list[stop - 1] else null
+            val onRuler = if (stop > 0) list[stop - 1] else null
             val base = if (auto == AutoState.APPLIED) "Auto" else "Original"
-            val inList = applied != null && list.any { it.id == applied.id }
-            val context = if (applied != null && shown == null && stop == 0 && !inList) "Applied: ${applied.displayName}" else ""
+            // At rest, the applied preset is named even when it is not on this category's ruler; "Original" only while
+            // dragging to stop 0, when the preview is the original (owner amendment 2026-10-05).
+            val offRuler = if (onRuler == null && ui.dragStop == null) applied else null
+            val shown = onRuler ?: offRuler
+            val offRulerCategory = offRuler?.let { pack.category(it.categoryId) }
+            val context = if (offRulerCategory != null) "Applied from ${offRulerCategory.name}" else ""
+            val position = if (offRuler != null && offRulerCategory != null) {
+                "${offRulerCategory.presets.indexOfFirst { it.id == offRuler.id } + 1} / ${offRulerCategory.presets.size}"
+            } else "$stop / ${list.size}"
             val amount = when {
                 shown == null -> 100
                 ui.amountDrag != null && shown.id == applied?.id -> ui.amountDrag
@@ -185,14 +194,14 @@ data class DevelopPanelModel(
                 else -> rememberedAmounts[shown.id] ?: 100
             }
             val categories = buildList {
-                add(CategoryEntry(FAVOURITES, "Favourites", "${favourites.size}/$MAX_FAVOURITES", current == FAVOURITES, dotted = false, isFavourites = true))
+                add(CategoryEntry(FAVOURITES, "Favourites", current == FAVOURITES, dotted = applied != null && applied.id in favourites, isFavourites = true))
                 pack.categories.forEach { c ->
-                    add(CategoryEntry(c.id, c.name, c.presets.size.toString(), c.id == current, dotted = applied?.categoryId == c.id, isFavourites = false))
+                    add(CategoryEntry(c.id, c.name, c.id == current, dotted = applied?.categoryId == c.id, isFavourites = false))
                 }
             }
+            // Unavailable Auto: no standing notice (owner amendment 2026-10-05); tapping Auto explains it.
             val notice = when {
                 ui.favouritesFull -> DevelopNotice.FavouritesFull
-                auto == AutoState.UNAVAILABLE -> DevelopNotice.AutoUnavailable
                 auto == AutoState.FAILED -> DevelopNotice.AutoFailed
                 else -> null
             }
@@ -202,7 +211,7 @@ data class DevelopPanelModel(
                 presets = list,
                 stop = stop,
                 name = shown?.displayName ?: base,
-                position = "$stop / ${list.size}",
+                position = position,
                 presetShown = shown != null,
                 starred = shown != null && shown.id in favourites,
                 amount = amount,

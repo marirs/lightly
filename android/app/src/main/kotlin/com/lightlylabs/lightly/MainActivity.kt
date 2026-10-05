@@ -396,7 +396,9 @@ internal class AppGraph private constructor(context: Context) {
 
     init {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            readAsset(context, PresetCatalogue.ASSET_PATH)?.let { json -> catalogueState.value = PresetCatalogue.parse(json) }
+            readAsset(context, PresetCatalogue.ASSET_PATH)?.let { json ->
+                catalogueState.value = PresetCatalogue.parse(json, com.lightlylabs.lightly.develop.PresetDisplayNames.parse(readAsset(context, com.lightlylabs.lightly.develop.PresetDisplayNames.ASSET_PATH)))
+            }
         }
     }
 

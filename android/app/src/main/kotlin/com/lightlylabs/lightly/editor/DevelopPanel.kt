@@ -93,6 +93,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.graphics.StrokeCap
 
 /**
  * Prototype `developPanel`: Auto, categories (tabs on phones, wrapped tabs in wide layouts, a list in
@@ -160,16 +162,38 @@ private fun TabLabel(entry: CategoryEntry) {
     val colors = lightlyColors
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (entry.isFavourites) LightlyIcon(LightlyIcons.Star, size = 15.dp, tint = if (entry.selected) colors.ink else colors.ink2)
-        Text(entry.label, style = lightlyTextStyle(15.sp, if (entry.selected) FontWeight.SemiBold else FontWeight.Normal, if (entry.selected) colors.ink else colors.ink2), maxLines = 1)
-        Text(entry.count, style = lightlyTextStyle(12.sp, color = colors.ink3), modifier = Modifier.padding(start = 3.dp), maxLines = 1)
+        BrowsedLabel(entry)
         if (entry.dotted) Box(Modifier.padding(start = 3.dp).size(5.dp).background(colors.sel, CircleShape))
     }
+}
+
+/**
+ * The category name with the browsed category's 2 dp orange underline, 6 dp below the text and as wide as it (owner
+ * amendment 2026-10-05). A shape, not only a colour: browsing and the applied dot differ without relying on colour.
+ */
+@Composable
+private fun BrowsedLabel(entry: CategoryEntry, modifier: Modifier = Modifier) {
+    val colors = lightlyColors
+    Text(
+        entry.label,
+        style = lightlyTextStyle(15.sp, if (entry.selected) FontWeight.SemiBold else FontWeight.Normal, if (entry.selected) colors.ink else colors.ink2),
+        maxLines = 1,
+        modifier = modifier.drawBehind {
+            if (entry.selected) {
+                val y = size.height + 6.dp.toPx() - 1.dp.toPx()
+                drawLine(colors.browse, Offset(0f, y), Offset(size.width, y), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+            }
+        },
+    )
 }
 
 private fun Modifier.tab(entry: CategoryEntry, onSelect: (String) -> Unit) = this
     .heightIn(min = 44.dp)
     .clickable(role = Role.Tab) { onSelect(entry.id) }
-    .semantics { selected = entry.selected }
+    .semantics {
+        selected = entry.selected
+        if (entry.dotted) stateDescription = "Contains the applied preset"
+    }
     .testTagResource(EditorTags.category(entry.id))
 
 /** `.tabs` on phones: one scrolling row, faded at both ends; the selected tab is scrolled to 120 dp in. */
@@ -198,7 +222,9 @@ private fun ScrollingTabs(model: DevelopPanelModel, onSelect: (String) -> Unit, 
                 drawRect(Brush.horizontalGradient(0f to Color.Transparent, start to Color.Black, end to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
             }
             .horizontalScroll(scroll)
-            .padding(start = 14.dp, end = 18.dp),
+            // 18 dp: the first tab starts past the 16 dp edge fade, so Favourites is not half hidden beside Auto
+            // (owner feedback 2026-10-05); the fade still hints that the row scrolls.
+            .padding(start = 18.dp, end = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -238,8 +264,9 @@ private fun CategoryList(model: DevelopPanelModel, onSelect: (String) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (entry.isFavourites) LightlyIcon(LightlyIcons.Star, size = 15.dp, tint = if (entry.selected) colors.ink else colors.ink2)
-                Text(entry.label, style = lightlyTextStyle(15.sp, if (entry.selected) FontWeight.SemiBold else FontWeight.Normal, if (entry.selected) colors.ink else colors.ink2), modifier = Modifier.weight(1f))
-                Text(entry.count, style = lightlyTextStyle(12.sp, color = colors.ink3))
+                BrowsedLabel(entry)
+                if (entry.dotted) Box(Modifier.padding(start = 6.dp).size(5.dp).background(colors.sel, CircleShape))
+                Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -254,7 +281,6 @@ private fun DevelopNoticeView(notice: DevelopNotice, vm: EditorViewModel) {
             bold("Automatic correction didn't finish.", " Your photo is unchanged and presets still work."),
             listOf("Retry" to vm::retryAuto, "Continue with original" to vm::continueWithOriginal),
         )
-        DevelopNotice.AutoUnavailable -> Notice(LightlyIcons.Info, AnnotatedString("Automatic correction isn't available on this device. Presets still work."))
         DevelopNotice.FavouritesFull -> Notice(
             LightlyIcons.Star,
             bold("Favourites holds five presets.", " Remove one in Preferences, or replace one now."),

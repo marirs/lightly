@@ -27,6 +27,8 @@ data class LightlyColors(
     val tickMajor: Color,
     val sel: Color,
     val selSoft: Color,
+    /** The browsed Develop category's underline (owner amendment 2026-10-05; iOS ApprovedColor.browse). */
+    val browse: Color,
     val scrim: Color,
     val sheet: Color,
     val danger: Color,
@@ -38,14 +40,14 @@ data class LightlyColors(
         val Light = LightlyColors(
             bg = Color(0xFFFFFFFF), bg2 = Color(0xFFF6F6F7), canvas = Color(0xFFEEEEF0),
             ink = Color(0xFF121214), ink2 = Color(0xFF55555C), ink3 = Color(0xFF6C6C74), hair = Color(0xFFE3E3E6),
-            track = Color(0xFFDEDEE2), tick = Color(0xFFC6C6CC), tickMajor = Color(0xFF8A8A92), sel = Color(0xFF2257D2), selSoft = Color(0x142257D2),
+            track = Color(0xFFDEDEE2), tick = Color(0xFFC6C6CC), tickMajor = Color(0xFF8A8A92), sel = Color(0xFF2257D2), selSoft = Color(0x142257D2), browse = Color(0xFFC25E00),
             scrim = Color(0x52000000), sheet = Color(0xFFFFFFFF), danger = Color(0xFFC2342B),
             segmentOn = Color(0xFFFFFFFF), isDark = false,
         )
         val Dark = LightlyColors(
             bg = Color(0xFF1C1C1E), bg2 = Color(0xFF232326), canvas = Color(0xFF111113),
             ink = Color(0xFFF2F2F4), ink2 = Color(0xFFAEAEB4), ink3 = Color(0xFF94949C), hair = Color(0xFF2E2E32),
-            track = Color(0xFF38383D), tick = Color(0xFF45454B), tickMajor = Color(0xFF85858D), sel = Color(0xFF7AA2FF), selSoft = Color(0x247AA2FF),
+            track = Color(0xFF38383D), tick = Color(0xFF45454B), tickMajor = Color(0xFF85858D), sel = Color(0xFF7AA2FF), selSoft = Color(0x247AA2FF), browse = Color(0xFFFF9F43),
             scrim = Color(0x80000000), sheet = Color(0xFF26262A), danger = Color(0xFFFF6B5E),
             segmentOn = Color(0xFF3A3A3F), isDark = true,
         )

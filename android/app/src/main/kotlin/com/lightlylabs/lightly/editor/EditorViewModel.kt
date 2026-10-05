@@ -308,9 +308,12 @@ class EditorViewModel(
         commit(session.commit { it.copy(auto = autoOff(USE_ORIGINAL_MODEL_VERSION)) }, AutoState.OFF)
     }
 
-    /** The Auto switch toggles only a real, applied correction; unavailable or failed Auto does nothing. */
+    /**
+     * The Auto switch toggles only a real, applied correction. DEFERRED(D1): with no model the switch is always
+     * unavailable; tapping it explains that (owner amendment 2026-10-05: no standing notice, nothing promised).
+     */
     fun toggleAuto() {
-        // DEFERRED(D1): with no model the switch is always in its unavailable state.
+        if (state.value.auto == AutoState.UNAVAILABLE) showToast(AUTO_UNAVAILABLE)
     }
 
     // --- tools ----------------------------------------------------------------------------------
@@ -1353,13 +1356,14 @@ class EditorViewModel(
     /** Undo and Redo restore the whole recipe (every tool, and Auto), and drop any transient Develop UI. */
     fun undo() {
         val session = state.value.session?.takeIf { it.canUndo }?.undo() ?: return
-        state.update { it.copy(develop = it.develop.copy(dragStop = null, amountDrag = null)) }
+        // Browsing returns to the applied preset's category (owner amendment 2026-10-05: underline, dot and photo agree).
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, amountDrag = null, category = null)) }
         commit(session, autoStateOf(session.current.auto))
     }
 
     fun redo() {
         val session = state.value.session?.takeIf { it.canRedo }?.redo() ?: return
-        state.update { it.copy(develop = it.develop.copy(dragStop = null, amountDrag = null)) }
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, amountDrag = null, category = null)) }
         commit(session, autoStateOf(session.current.auto))
     }
 
@@ -1949,6 +1953,8 @@ class EditorViewModel(
 
         /** Prototype `cancelOp` toast. */
         const val OPERATION_CANCELLED = "Cancelled · nothing changed"
+        /** Tapping the unavailable Auto (owner amendment 2026-10-05); the same words as iOS. */
+        const val AUTO_UNAVAILABLE = "Automatic correction isn't available. Presets still work."
         private const val TOAST_MILLIS = 1400L
 
         /** Marks "Continue with original" in the saved recipe; never resolved against a model. */

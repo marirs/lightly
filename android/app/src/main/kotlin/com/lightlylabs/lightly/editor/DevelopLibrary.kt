@@ -79,7 +79,7 @@ class DevelopLibrary(
         const val SUPPORTED_CONTRACT_REVISION = 5
 
         /** Parses the bundled files; [parseMillis] receives the manifest parse + index time. */
-        fun load(manifest: String, contract: String, bakePool: ExecutorService, parallelism: Int, parseMillis: (Double) -> Unit = {}, onBake: (Double) -> Unit = {}): DevelopLibrary {
+        fun load(manifest: String, contract: String, bakePool: ExecutorService, parallelism: Int, parseMillis: (Double) -> Unit = {}, onBake: (Double) -> Unit = {}, displayNames: Map<String, String> = emptyMap()): DevelopLibrary {
             // rendering-v2 revision 2 (contract fixes 2: stage order, perspective, light leak; revision 1's
             // background.focus constants unchanged): the background.focus constants this app renders
             // with (Refocus.FocusConstants) are that revision's; the build checks the same (RenderingContractFacts).
@@ -89,7 +89,7 @@ class DevelopLibrary(
             require(revision == SUPPORTED_CONTRACT_REVISION) { "rendering-v2 revision $revision; this app implements $SUPPORTED_CONTRACT_REVISION" }
             val model = DevelopModel.parse(contract)
             val start = System.nanoTime()
-            val pack = LookPack.parse(manifest, model)
+            val pack = LookPack.parse(manifest, model, displayNames)
             parseMillis((System.nanoTime() - start) / 1e6)
             val watermarkSizes = requireNotNull(WatermarkSizes.fromContract(contract)) { "rendering-v2 has no watermark size constants" }
             return DevelopLibrary(model, pack, bakePool, parallelism, onBake = onBake, watermarkSizes = watermarkSizes)

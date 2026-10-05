@@ -22,7 +22,8 @@ class PresetCatalogue private constructor(private val presetsById: Map<String, C
         val EMPTY = PresetCatalogue(emptyMap())
 
         /** Parses the catalogue JSON. Throws on a malformed file: a broken bundle is a build error. */
-        fun parse(json: String): PresetCatalogue {
+        /** [displayNames]: the shared readable names (catalogue/display-names.json), applied over the catalogue's. */
+        fun parse(json: String, displayNames: Map<String, String> = emptyMap()): PresetCatalogue {
             val categories = JSONObject(json).getJSONArray("categories")
             val presets = LinkedHashMap<String, CataloguePreset>()
             for (categoryIndex in 0 until categories.length()) {
@@ -32,7 +33,7 @@ class PresetCatalogue private constructor(private val presetsById: Map<String, C
                 for (presetIndex in 0 until categoryPresets.length()) {
                     val preset = categoryPresets.getJSONObject(presetIndex)
                     val id = preset.getString("id")
-                    presets[id] = CataloguePreset(id, preset.getString("displayName"), categoryName)
+                    presets[id] = CataloguePreset(id, displayNames[id] ?: preset.getString("displayName"), categoryName)
                 }
             }
             return PresetCatalogue(presets)

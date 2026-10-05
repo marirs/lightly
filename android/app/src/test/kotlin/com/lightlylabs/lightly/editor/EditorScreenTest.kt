@@ -110,7 +110,7 @@ class EditorScreenTest {
         compose.onNodeWithTag(EditorTags.UNDO).assertIsNotEnabled()
         compose.onNodeWithText("Save copy").assertIsDisplayed()
         compose.onNodeWithText("Original").assertIsDisplayed()
-        compose.onNodeWithText("Automatic correction isn't available on this device. Presets still work.").assertIsDisplayed()
+        compose.onNodeWithText("Automatic correction isn't available on this device. Presets still work.").assertDoesNotExist() // no standing notice (owner amendment 2026-10-05)
         compose.onNodeWithText("0 / 518").assertIsDisplayed()
         EditorTool.entries.forEach { compose.onNodeWithTag(EditorTags.tool(it)).assertExists() }
     }
