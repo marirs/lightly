@@ -1149,31 +1149,52 @@ class EditorViewModel(
      * Keeps the colour under a tap at ([frameX], [frameY]), fractions of the displayed frame. Sampled from Selective
      * Colour's own input (the frame before it, at the preview size), not from the photo on screen, which may already
      * be black and white there. Stored as OKLab with the tap point in source-photo coordinates. One undo step.
+     *
+     * Sampling is asynchronous, so a result can land after the person has moved on. It is kept only if nothing but
+     * picks changed the edit since the tap ([editEpoch]: Clear, a removal, a slider, Undo, Redo or any other commit
+     * discards it) and the same photo is open; picks land in tap order, and picks still sampling count towards the
+     * eight-colour limit.
      */
     fun pickSelectiveColour(frameX: Double, frameY: Double) {
         val ui = state.value
         val edit = ui.session?.current ?: return
         val display = ui.original ?: return
-        if ((edit.tools.effects.selectiveColour?.colours?.size ?: 0) >= MAX_KEPT_COLOURS) return
+        if ((edit.tools.effects.selectiveColour?.colours?.size ?: 0) + pendingPicks >= MAX_KEPT_COLOURS) return
         val (sx, sy) = displayGeometry(ui)?.sourceFromFrame(frameX, frameY) ?: (frameX to frameY)
         state.update { it.copy(effects = it.effects.copy(addingColour = false)) }
+        val generation = photoGeneration
+        val epoch = editEpoch
+        val previous = pickJob
+        pendingPicks += 1
         pickJob = scope.launch {
-            val lab = withContext(env.renderDispatcher) {
-                val library = env.library.await()
-                val frame = EditPipeline(library.model, env.previewRenderer)
-                    .renderSelectiveColourInput(patched(display, edit), edit, library.planFor(edit), sourceStages(edit, library, BackgroundSession.PREVIEW_CAP))
-                com.lightlylabs.lightly.develop.SelectiveColour.sample(frame, frameX, frameY)
-            }
-            val kept = com.lightlylabs.lightly.session.KeptColourRecipe(listOf(lab.lightness, lab.a, lab.b), sx.coerceIn(0.0, 1.0), sy.coerceIn(0.0, 1.0))
-            commitEffects { e ->
-                val current = e.selectiveColour
-                e.copy(selectiveColour = current?.copy(colours = current.colours + kept) ?: com.lightlylabs.lightly.session.SelectiveColourTool(listOf(kept), 40.0, 100.0))
+            val lab = runCatching {
+                withContext(env.renderDispatcher) {
+                    val library = env.library.await()
+                    val frame = EditPipeline(library.model, env.previewRenderer)
+                        .renderSelectiveColourInput(patched(display, edit), edit, library.planFor(edit), sourceStages(edit, library, BackgroundSession.PREVIEW_CAP))
+                    com.lightlylabs.lightly.develop.SelectiveColour.sample(frame, frameX, frameY)
+                }
+            }.getOrNull()
+            previous?.join()   // land in tap order
+            pendingPicks -= 1
+            val kept = state.value.session?.current?.tools?.effects?.selectiveColour?.colours?.size ?: 0
+            if (lab == null || !isCurrent(generation) || editEpoch != epoch || kept >= MAX_KEPT_COLOURS) return@launch
+            val colour = com.lightlylabs.lightly.session.KeptColourRecipe(listOf(lab.lightness, lab.a, lab.b), sx.coerceIn(0.0, 1.0), sy.coerceIn(0.0, 1.0))
+            committingPick = true
+            try {
+                commitEffects { e ->
+                    val current = e.selectiveColour
+                    e.copy(selectiveColour = current?.copy(colours = current.colours + colour) ?: com.lightlylabs.lightly.session.SelectiveColourTool(listOf(colour), 40.0, 100.0))
+                }
+            } finally {
+                committingPick = false
             }
         }
     }
 
     /** The × on one kept colour. One undo step; removing the last one is the same as Clear. */
     fun removeSelectiveColour(index: Int) = commitEffects { e ->
+        editEpoch++   // a pick still sampling no longer applies
         val current = e.selectiveColour ?: return@commitEffects e
         if (index !in current.colours.indices) return@commitEffects e
         val left = current.colours.filterIndexed { i, _ -> i != index }
@@ -1182,12 +1203,18 @@ class EditorViewModel(
 
     /** Clear: no kept colours (Range and Strength back to their defaults). One undo step. */
     fun clearSelectiveColour() {
+        editEpoch++   // even with nothing kept yet, a pick still sampling no longer applies
         state.update { it.copy(effects = it.effects.copy(addingColour = false)) }
         if (state.value.session?.current?.tools?.effects?.selectiveColour != null) commitEffects { it.copy(selectiveColour = null) }
     }
 
     /** The latest pick's sampling render (tests wait for it). */
     internal var pickJob: Job? = null
+    /** Picks still sampling (they count towards the eight-colour limit). */
+    private var pendingPicks = 0
+    /** Advances on every commit except a pick's own result (Undo and Redo commit too): a pick sampled before it is stale. */
+    private var editEpoch = 0L
+    private var committingPick = false
 
     /**
      * The approved notice: the applied preset already has its own grain (or vignette) and the person's is on.
@@ -1532,6 +1559,7 @@ class EditorViewModel(
     // --- commit and preview ---------------------------------------------------------------------
 
     private fun commit(session: EditSession, auto: AutoState) {
+        if (!committingPick) editEpoch++
         savedState[KEY_SESSION] = SavedEdits.encodeEditSession(session)
         state.update { it.copy(session = session, auto = auto) }
         requestPreview(session.current, globalOnly = false)

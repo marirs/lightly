@@ -247,6 +247,55 @@ class EditEffectsTest {
         assertEquals(null, vm.uiState.value.session!!.current.tools.effects.selectiveColour, "each pick was one step")
     }
 
+    private fun EditorViewModel.kept() = uiState.value.session!!.current.tools.effects.selectiveColour?.colours.orEmpty()
+
+    @Test
+    fun `Clear while a pick is still sampling discards it`() = runTest {
+        val vm = ready(null)
+        vm.pickSelectiveColour(0.5, 0.5); advanceUntilIdle()
+        assertEquals(1, vm.kept().size)
+        vm.toggleAddingColour()
+        vm.pickSelectiveColour(0.2, 0.8)   // still sampling…
+        vm.clearSelectiveColour()          // …when Clear is tapped
+        advanceUntilIdle()
+        assertTrue(vm.kept().isEmpty(), "a pick sampled before Clear is discarded")
+    }
+
+    @Test
+    fun `Undo while a pick is still sampling discards it and keeps the redo step`() = runTest {
+        val vm = ready(null)
+        vm.toggleEffect(EffectsSub.VIGNETTE); advanceUntilIdle()
+        vm.pickSelectiveColour(0.5, 0.5)
+        vm.undo()
+        advanceUntilIdle()
+        assertTrue(vm.kept().isEmpty())
+        assertFalse(vm.uiState.value.session!!.current.tools.effects.vignette.enabled, "Undo stays undone")
+        assertTrue(vm.uiState.value.canRedo, "the redo step is not destroyed by a late pick")
+    }
+
+    @Test
+    fun `switching photos while a pick is still sampling discards it`() = runTest {
+        val vm = ready(null)
+        vm.pickSelectiveColour(0.5, 0.5)
+        vm.openPhoto("content://photo/2")
+        advanceUntilIdle()
+        assertTrue(vm.kept().isEmpty())
+    }
+
+    @Test
+    fun `rapid picks land in tap order and count towards the eight-colour limit`() = runTest {
+        val vm = ready(null)
+        repeat(6) { i -> vm.selectEffectsSub(EffectsSub.SELECTIVE); vm.toggleAddingColour(); vm.pickSelectiveColour(0.05 + i * 0.01, 0.5); advanceUntilIdle() }
+        assertEquals(6, vm.kept().size)
+        listOf(0.1 to 0.1, 0.9 to 0.9, 0.5 to 0.5).forEach { (x, y) -> vm.pickSelectiveColour(x, y) }
+        advanceUntilIdle()
+        val kept = vm.kept()
+        assertEquals(EditorViewModel.MAX_KEPT_COLOURS, kept.size, "the third rapid pick is refused at the limit")
+        assertEquals(0.1, kept[6].x, 1e-9); assertEquals(0.9, kept[7].x, 1e-9)   // tap order
+        vm.undo(); advanceUntilIdle()
+        assertEquals(7, vm.kept().size, "each pick is its own undo step")
+    }
+
     @Test
     fun `the used dots follow the approved toolUsed rules`() = runTest {
         val vm = ready(null)
