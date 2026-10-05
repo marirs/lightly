@@ -3,7 +3,7 @@
 # ~/.codex/artifacts/lightly/v1/review-builds/{android,ios}/<commit>/ with SHA256SUMS, then installs them on the review
 # emulator (emulator-5554), the review simulator (D75D820D…) and, if connected, the dev iPhone 11 Pro Max.
 # Debug configuration (the vision, depth and Remove models are packaged in debug only; release gates unchanged).
-# Run through the lock: scripts/heavy package-review bash scripts/package_review.sh
+# Run through the lock: scripts/heavy package-review bash scripts/package_review.sh   (INSTALL=0: package only)
 set -u
 REPO=$(cd "$(dirname "$0")/.." && pwd); cd "$REPO"
 [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "refusing: tracked changes present"; exit 2; }
@@ -26,10 +26,13 @@ SIM=/tmp/lightly-dd-review-sim/Build/Products/Debug-iphonesimulator; DEV=/tmp/li
 (cd "$I" && shasum -a 256 *.zip > SHA256SUMS && cat SHA256SUMS)
 echo "binary sha256 sim $(shasum -a 256 $SIM/Lightly.app/Lightly | cut -c1-16) iphone $(shasum -a 256 $DEV/Lightly.app/Lightly | cut -c1-16)"
 codesign -dvv $DEV/Lightly.app 2>&1 | grep -E "Authority=Apple Dev|TeamIdentifier"
+# INSTALL=0 packages only: the review devices keep the build the owner is testing.
+if [ "${INSTALL:-1}" = 1 ]; then
 echo "== install $(date +%T)"
 adb -s emulator-5554 install -r "$A/lightly-debug-$C-with-models.apk" | tail -1
 xcrun simctl install D75D820D-B43C-4330-8E6F-0FBEB2FA9D02 $SIM/Lightly.app && echo "review simulator D75D820D installed"
 if xcrun devicectl list devices 2>/dev/null | grep -q "4C50E425-9BEA-58DB-9D5E-2BF46A9F0A6C.*available"; then
   xcrun devicectl device install app --device 4C50E425-9BEA-58DB-9D5E-2BF46A9F0A6C $DEV/Lightly.app 2>&1 | grep -iE "installed|error" | head -2
 else echo "iPhone 11 Pro Max not connected: install pending"; fi
+else echo "== not installed (INSTALL=0): review devices keep their current builds"; fi
 echo "== done $(date +%T)"
