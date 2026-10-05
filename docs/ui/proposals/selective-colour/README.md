@@ -11,8 +11,8 @@ Open it from the repository root server (`python3 -m http.server 8765`) at http:
 | `fx-selective-empty` | Effects › Selective Colour switched on, nothing picked yet: **Pick** is active, "Tap the photo on a colour to keep it." |
 | `fx-selective-picked` | One colour kept (the red arrow), **Matching colours**, Range 40, Strength 100. The lips are red too and stay partly in colour: that is what colour matching does. |
 | `fx-selective-overlay` | The temporary blue overlay (Background › Refine's tint) while Range is dragged: what will stay in colour. |
-| `fx-selective-multi` | Several colours kept (sky, red door, orange sign), each a removable chip. **Pick** comes first in the row, so adding another colour stays in reach; the chips scroll. |
-| `fx-selective-area-painting` | **Painted area** while painting: the blue tint shows the painted area. It disappears a moment after the stroke. |
+| `fx-selective-multi` | Several colours kept (sky, red door, orange sign), each a removable chip. **Keep** and **Pick** are pinned; only the colour chips scroll, so adding another colour stays in reach. |
+| `fx-selective-area-painting` | **Painted area** while painting: drag on the photo to paint a stroke at the Brush size; the blue tint shows the painted area while the finger is down and for a moment after, then the result. |
 | `fx-selective-area` | Painted area, Add, the result without the overlay. One dab caught the lips, so they stay red. |
 | `fx-selective-area-remove` | Painted area, Remove, the result: the lips are taken back out of the painted area. |
 | `fx-selective-leak` | With a Light Leak on: Selective Colour is applied after the leak, so the leak's colour does not come back outside the kept colours. |

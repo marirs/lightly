@@ -141,12 +141,13 @@ effectsPanel = function (s, ui, L) {
   if (sel.on) {
     const picking = ui.picking || !sel.picks.length;
     const chips = sel.picks.map((p, i) => `<button class="opt" data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}"><span style="width:22px;height:22px;border-radius:11px;border:1px solid var(--hair);background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}"></span>${icon('close', 16)}</button>`).join('');
-    // Pick comes first: with several colours the chips scroll (`.chiprow`), and adding one more stays in reach.
-    body += `<div class="chiprow" style="align-items:center"><span style="min-width:84px;color:var(--ink2)">Keep</span><button class="opt ${picking ? 'on' : ''}" data-act="selPicking" aria-pressed="${picking}">${icon('plus', 18)}Pick</button>${chips}</div>`;
+    // "Keep" and Pick are pinned; only the colour chips scroll (`.chiprow`), so adding another colour stays
+    // in reach however many there are.
+    body += `<div style="display:flex;align-items:center;gap:8px;padding-left:18px"><span style="min-width:76px;color:var(--ink2)">Keep</span><button class="opt ${picking ? 'on' : ''}" data-act="selPicking" aria-pressed="${picking}" style="flex:0 0 auto">${icon('plus', 18)}Pick</button><div class="chiprow" style="flex:1 1 auto;min-width:0;padding-left:0;align-items:center">${chips}</div></div>`;
     body += `<div class="note">${picking ? 'Tap the photo on a colour to keep it. Everything else turns black and white.' : 'Tap a colour to remove it.'}</div>`;
     body += seg([['match', 'Matching colours'], ['area', 'Painted area']], sel.scope, 'selScope');
     if (sel.scope === 'match') body += `<div class="note">The picked colours stay wherever they appear in the photo.</div>`;
-    else body += `<div class="note">Paint where the picked colours stay. Outside the painted area, the photo turns black and white.</div>` + seg([['add', `${icon('brush', 16)}&nbsp;Add`], ['erase', `${icon('erase', 16)}&nbsp;Remove`]], ui.brush || 'add', 'brush') + sl('Brush size', 40, 'ui.brushSize');
+    else body += `<div class="note">Paint where the picked colours stay. Outside the painted area, the photo turns black and white.</div>` + seg([['add', `${icon('brush', 16)}&nbsp;Add`], ['erase', `${icon('erase', 16)}&nbsp;Remove`]], ui.brush || 'add', 'brush') + sl('Brush size', selBrushSize(ui), 'ui.selBrush');
     body += sl('Range', sel.range, 'fx.sel.range') + sl('Strength', sel.strength, 'fx.sel.strength');
     body += `<div style="display:flex;justify-content:flex-end;padding:0 10px"><button class="btn quiet" data-act="selClear" ${sel.picks.length || sel.area.length ? '' : 'disabled'}>Clear selection</button></div>`;
   }
@@ -156,6 +157,9 @@ PANELS.effects = effectsPanel;   // the approved panel map captured the original
 const selTab = (s, ui) => { const sel = s.fx.sel, dotted = sel.on && sel.picks.length; return `<button class="${dotted ? 'dotted' : ''}" data-act="sub:sel">Selective Colour</button>`; };
 
 /* ---------------------------------------------------------------- interactions */
+// Brush size 0..100 -> dab radius 2 %..15 % of the photo's height. A view setting, not an edit (no undo step).
+const selBrushSize = (ui) => ui.selBrush ?? 40;
+const selBrushRadius = (ui) => 0.02 + selBrushSize(ui) / 100 * 0.13;
 const approvedAct = Prototype.prototype.act;
 Prototype.prototype.act = function (a, el) {
   const [verb, arg] = a.split(/:(.*)/s), sel = this.s.fx.sel, r = () => this.render();
@@ -175,10 +179,52 @@ Prototype.prototype.render = function () {
   const at = (e) => { const b = stage.querySelector('.imgbox').getBoundingClientRect(); return { x:(e.clientX - b.left) / b.width, y:(e.clientY - b.top) / b.height }; };
   const picking = ui.picking || !sel.picks.length;
   if (picking) stage.onclick = (e) => { const p = at(e); if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) return; sel.picks.push(p); ui.picking = false; ui.selOverlay = true; this.commit(); this.render(); setTimeout(() => { ui.selOverlay = false; this.render(); }, 1200); };
-  else if (sel.scope === 'area') stage.onclick = (e) => { const p = at(e); sel.area.push({ ...p, r:0.06, mode:ui.brush === 'erase' ? 'erase' : 'add' }); ui.selOverlay = true; this.commit(); this.render(); clearTimeout(this.selTimer); this.selTimer = setTimeout(() => { ui.selOverlay = false; this.render(); }, 1200); };
+  else if (sel.scope === 'area') this.wireSelStroke(stage);
+  this.wireSelBrushSize();
   // Range drag shows the overlay while the finger is down (one undo step on release, as every slider).
   const range = this.host.querySelector('.trk[data-path="fx.sel.range"]');
   if (range) { const down = range.onpointerdown, up = range.onpointerup; range.onpointerdown = (e) => { ui.selOverlay = true; down(e); }; range.onpointerup = (e) => { ui.selOverlay = false; up(e); this.render(); }; }
+};
+
+/** Painted area: a dragged stroke at the Brush size. While the finger is down the painted area (blue) and
+ *  the stroke are shown; on release the stroke becomes one undo step, then the overlay clears to the result. */
+Prototype.prototype.wireSelStroke = function (stage) {
+  const sel = this.s.fx.sel, ui = this.ui;
+  stage.onpointerdown = (e) => {
+    const box = stage.querySelector('.imgbox'), b = box.getBoundingClientRect();
+    const r = selBrushRadius(ui), mode = ui.brush === 'erase' ? 'erase' : 'add';
+    stage.setPointerCapture(e.pointerId); clearTimeout(this.selTimer);
+    const painted = renderSel(this.s.photo, sel);
+    if (painted) box.insertAdjacentHTML('beforeend', `<div class="maskTint" style="-webkit-mask-image:url(${painted.tint});mask-image:url(${painted.tint});-webkit-mask-size:100% 100%;mask-size:100% 100%"></div>`);
+    const cv = document.createElement('canvas'), dpr = window.devicePixelRatio || 1;
+    cv.width = b.width * dpr; cv.height = b.height * dpr;
+    cv.style.cssText = `position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:${mode === 'add' ? 0.32 : 0.55}`;
+    box.appendChild(cv);
+    const g = cv.getContext('2d'); g.fillStyle = mode === 'add' ? 'rgb(47,107,235)' : '#fff';
+    const dabs = [];
+    const dab = (ev) => {
+      const x = (ev.clientX - b.left) / b.width, y = (ev.clientY - b.top) / b.height, last = dabs.at(-1);
+      if (last && Math.hypot((x - last.x) * b.width, (y - last.y) * b.height) < r * b.height * 0.35) return;
+      dabs.push({ x, y, r, mode }); g.beginPath(); g.arc(x * cv.width, y * cv.height, r * cv.height, 0, 2 * Math.PI); g.fill();
+    };
+    dab(e);
+    stage.onpointermove = dab;
+    stage.onpointerup = stage.onpointercancel = () => {
+      stage.onpointermove = stage.onpointerup = stage.onpointercancel = null;
+      sel.area.push(...dabs); ui.selOverlay = true; this.commit(); this.render();
+      this.selTimer = setTimeout(() => { ui.selOverlay = false; this.render(); }, 1200);
+    };
+  };
+};
+/** Brush size is a view setting: dragging moves the thumb and value in place, without an undo step. */
+Prototype.prototype.wireSelBrushSize = function () {
+  const t = this.host.querySelector('.trk[data-path="ui.selBrush"]'); if (!t) return;
+  const set = (e) => {
+    const r = t.getBoundingClientRect(), v = Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 100);
+    this.ui.selBrush = v; t.querySelector('i').style.width = v + '%'; t.querySelector('b').style.left = v + '%'; t.parentElement.querySelector('.v').textContent = v;
+  };
+  t.onpointerdown = (e) => { t.setPointerCapture(e.pointerId); set(e); t.onpointermove = set; };
+  t.onpointerup = t.onpointercancel = () => { t.onpointermove = null; };
 };
 
 /* ---------------------------------------------------------------- screens (journey: effects) */
