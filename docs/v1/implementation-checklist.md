@@ -59,9 +59,9 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Focus & Blur · Swirl | `bg-swirl` | 3 | missing | missing |  |
 | Focus & Blur · Motion | `bg-motion` | 3 | missing | missing |  |
 | Refine edges (brush) | `bg-refine` | 3 | missing | missing |  |
-| Change background · image, position, scale | `bg-change-image` | 3 | missing | missing |  |
-| Change background · solid colour | `bg-change-colour` | 3 | missing | missing |  |
-| Change background · gradient | `bg-change-gradient` | 3 | missing | missing |  |
+| Change background · image, position, scale | `bg-change-image` | 3 | partial | partial | Release blocker (2026-10-05): hair-edge quality after replacement unresolved — iOS red spill; Android teal cast and grey haze. Experimental checkpoint a5a4b48, not approved. experiments/depth/results/portrait-edges-2026-10-05/README.md |
+| Change background · solid colour | `bg-change-colour` | 3 | partial | partial | Release blocker (2026-10-05): hair-edge quality after replacement unresolved — iOS red spill; Android teal cast and grey haze. Experimental checkpoint a5a4b48, not approved. experiments/depth/results/portrait-edges-2026-10-05/README.md |
+| Change background · gradient | `bg-change-gradient` | 3 | partial | partial | Release blocker (2026-10-05): hair-edge quality after replacement unresolved — iOS red spill; Android teal cast and grey haze. Experimental checkpoint a5a4b48, not approved. experiments/depth/results/portrait-edges-2026-10-05/README.md |
 | After replacement, the same Focus & Blur still works | `bg-replaced-blur` | 3 | missing | missing |  |
 | Finding the subject · cancellable | `bg-separating` | 3 | missing | missing |  |
 | Subject separation failed · edits kept | `bg-failed` | 3 | missing | missing |  |
