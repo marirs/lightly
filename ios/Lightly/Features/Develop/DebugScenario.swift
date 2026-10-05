@@ -105,7 +105,9 @@ struct DebugScenario {
             background { $0.replacement = .colour(screenID == "bg-colour-light" ? "#F4F1EC" : "#1F2328") }
             // Edge checks need the saved copy too (as Android's bg-export-*): DEBUG launch flag only.
             if DebugArguments.current.contains("--save-copy") {
+                SaveTrace.note("scenario \(screenID): settling")
                 await session.settleRendering()
+                SaveTrace.note("scenario \(screenID): settled, saving")
                 session.saveCopy()
             }
         case "bg-change-gradient":

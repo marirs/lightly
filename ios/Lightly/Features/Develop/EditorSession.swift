@@ -1223,8 +1223,13 @@ final class EditorSession {
     /// the preview, applies the metadata switches, and adds it as a new photo. A transient preview
     /// is never what gets saved.
     func saveCopy() {
-        guard phase == .ready, saveState != .saving, let renderer = library.renderer, let cache = library.cache else { return }
+        guard phase == .ready, saveState != .saving, let renderer = library.renderer, let cache = library.cache else {
+            // Why a Save copy request did nothing (device diagnosis: a silent no-op looked like a hang).
+            SaveTrace.note("save ignored: phase=\(String(describing: self.phase)) saving=\(self.saveState == .saving) renderer=\(self.library.renderer != nil) cache=\(self.library.cache != nil)")
+            return
+        }
         saveState = .saving
+        SaveTrace.note("save started \(self.photo.image.width)x\(self.photo.image.height)")
         let job = committedJob()
         let image = photo.image
         let originalData = photo.originalData
@@ -1238,22 +1243,30 @@ final class EditorSession {
                     let rendered = try Self.renderPixels(job, base: pixels, width: image.width, height: image.height,
                                                          renderer: renderer, cache: cache)
                     try Task.checkCancellation()
+                    SaveTrace.note("save rendered \(rendered.width)x\(rendered.height)")
                     let output = try MetalLUTRenderer.makeImage(rgba8: rendered.pixels, width: rendered.width, height: rendered.height)
-                    return try exporter.encode(output, originalData: originalData, settings: settings)
+                    let encoded = try exporter.encode(output, originalData: originalData, settings: settings)
+                    SaveTrace.note("save encoded \(encoded.count) bytes")
+                    return encoded
                 }
                 // The render runs detached (seconds at 48 MP); Cancel stops it between tiles.
                 let data = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
                 // Cancelled before writing: nothing is written, so there is never a duplicate.
                 try Task.checkCancellation()
                 try await writer.save(data, fileExtension: settings.format.fileExtension)
+                SaveTrace.note("save written")
                 self?.finishSave(.saved(data))
             } catch is CancellationError {
+                SaveTrace.note("save cancelled")
                 self?.finishSave(.idle)
             } catch LightlyError.permissionDenied {
+                SaveTrace.note("save failed: Photos permission denied")
                 self?.finishSave(.permissionDenied)
             } catch LightlyError.storageFull {
+                SaveTrace.note("save failed: storage full")
                 self?.finishSave(.storageFull)
             } catch {
+                SaveTrace.note("save failed: \(String(describing: error))")
                 self?.finishSave(.failed)
             }
         }

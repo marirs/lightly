@@ -154,7 +154,11 @@ struct DebugArgumentsLibraryWriter: PhotoLibraryWriting {
         // A bare file name only. Device execution unverified as of 2026-10-05 (built, not yet run on a phone).
         if let flag = arguments.firstIndex(of: "--save-to-documents"), arguments.indices.contains(flag + 1) {
             let url = URL.documentsDirectory.appending(path: URL(fileURLWithPath: arguments[flag + 1]).lastPathComponent)
-            do { try data.write(to: url) } catch { throw LightlyError.exportFailed }
+            do { try data.write(to: url) } catch {
+                SaveTrace.note("documents write failed: \(String(describing: error))")
+                throw LightlyError.exportFailed
+            }
+            SaveTrace.note("documents write \(data.count) bytes to \(url.lastPathComponent)")
             return
         }
         try await fallback.save(data, fileExtension: fileExtension)
