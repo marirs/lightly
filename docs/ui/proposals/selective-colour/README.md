@@ -4,21 +4,20 @@ Requested by the owner on 2026-10-04 as an addition to the approved UX. Nothing 
 
 Open it from the repository root server (`python3 -m http.server 8765`) at http://127.0.0.1:8765/docs/ui/proposals/selective-colour/index.html. The proposed screens are under **Effects** in the Screen index, named `PROPOSAL · Selective Colour · …`.
 
-## Panel (Effects › Selective Colour)
+## Panel (Effects › Selective Colour), one panel
 
 ```
 Light Leaks   Grain   Vignette   Selective Colour •
-[eyedropper]  ●  ●  ●                         Clear
-Range     ───────●──────────  40
-Strength  ─────────────────●  100
-[brush] Refine area
+[eyedropper] [brush] [eraser] │ ●  ●  ●          Clear
+Range       ───────●──────────  40
+Strength    ─────────────────●  100
+Brush size  ──────●───────────  40     (only with the brush or eraser)
 ```
 
-- No On switch: picking a colour applies the effect; tapping a dot removes that colour; Clear removes them all.
-- The eyedropper is pinned; the colour dots (28 pt, in 44 pt touch targets) scroll after it.
-- Colour matching is the default: the picked colours stay wherever they appear in the photo. It does not know what an object is: picking a red dress also keeps red lips.
-- **Refine area** is manual refinement, the same pattern as Background › Refine edges: Add/Remove brushes, Brush size, Done. When an area is painted, only the picked colours inside it stay in colour ("Limited to the painted area."). The app does not find the dress or the balloon.
-- The blue overlay (Refine's tint) shows for a moment after a pick, while Range is dragged and while painting; otherwise the result is shown.
+- The three tools set what a touch on the photo does: the eyedropper picks a colour to keep; the brush paints the area where kept colours stay; the eraser removes from that area. No separate page.
+- No On switch: picking a colour applies the effect; tapping a dot removes that colour; Clear removes colours and painted area.
+- Colour matching is the default: the picked colours stay wherever they appear in the photo. It does not know what an object is: picking a red dress also keeps red lips. Painting an area is manual refinement: once painted, only the picked colours inside it stay in colour. The app does not find the dress or the balloon.
+- The blue overlay (Background › Refine's tint) shows for a moment after a pick, while Range is dragged and while painting; otherwise the result is shown.
 
 Screens under **Effects** in the Screen index: `fx-selective-empty`, `fx-selective-picked`, `fx-selective-overlay`, `fx-selective-multi`, `fx-selective-area-painting`, `fx-selective-area`, `fx-selective-area-remove`, `fx-selective-leak`.
 
@@ -36,7 +35,7 @@ Owner, 2026-10-05. Changes approved screens, so it needs explicit approval befor
 
 ## Decisions needed
 
-1. Selective Colour: the panel above (fourth Effects tab, eyedropper and dots, Range, Strength, Refine area).
+1. Selective Colour: the one-panel design above (fourth Effects tab; eyedropper, brush, eraser; dots; Range, Strength, Brush size).
 2. Defaults: Range 40, Strength 100.
 3. Order in the pipeline: after Light Leaks, before Grain and Vignette.
 4. Proposal 2: remove the On/Off switch from Light Leaks, Grain and Vignette.
