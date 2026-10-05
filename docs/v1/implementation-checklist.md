@@ -234,7 +234,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Metadata: four switch combinations verified on saved files; colour profile kept; no stale dimensions/orientation/thumbnail | 5 | implemented | decision | iOS unit-tested on saved files; Android LensModel and picked-photo GPS (above) |
 | Recovery: load failure, permissions, storage full, export failure, lost access, unavailable models, cancelled tools; edits preserved | 6 | implemented | implemented | iOS restore after a system kill fixed (c230f28): Save → restore and close → restore UI pairs pass; force-quit on a device unverified |
 | Accessibility: large text, VoiceOver/TalkBack, contrast, 44 pt targets | 6 | implemented | implemented | One large-text cell per platform checked (2026-10-04); VoiceOver/TalkBack not run end to end |
-| Layouts: hinge/posture aware, safe areas, gesture areas, all reference sizes | 6 | defective | decision | iOS iPad top bar ≈4 pt low (open); Android system-bar offset S1 (decision); most cells unverified |
+| Layouts: hinge/posture aware, safe areas, gesture areas, all reference sizes | 6 | decision | decision | iOS iPad: content 8 pt lower = the iPadOS status bar (M2, owner decision; the separate "4 pt" offset was a measurement error, 2026-10-05); Android system-bar offset S1 (decision); most cells unverified |
 | Icon and preset-pack packaging verified before every install | 6 | verified | verified | Build-time checks on every assemble / release config (a993c4d) |
 
 ## What remains unverified (2026-10-05)
