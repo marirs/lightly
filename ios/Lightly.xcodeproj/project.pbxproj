@@ -50,6 +50,7 @@
 		28777644D38E3394D3CF77E9 /* FavouritePresetsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D493885E7EDF092F019E29B5 /* FavouritePresetsStore.swift */; };
 		28AB7BED7ADBFBD754A8B37A /* LightlySpacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5E951CDF0E1372C5B186635 /* LightlySpacing.swift */; };
 		28ACD849AF6D1DD7B576EB8F /* ExportColorPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4765D240C1C6B67BBBF6D211 /* ExportColorPipelineTests.swift */; };
+		29421BFBF9F7097BD787EDEB /* PresetDisplayNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612FFE3BB7E069143989C3C6 /* PresetDisplayNames.swift */; };
 		2A3164B35F9561066ECB898E /* EditorSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7499A72CE634A1B1D7519737 /* EditorSheets.swift */; };
 		2AEF02E3E47B22B604D6A86A /* SizingEvidenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2797DA99F15FDF9AD665BD34 /* SizingEvidenceTests.swift */; };
 		2C19E196DEDEA053146A440A /* ControlChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E2FC6144CED7C87AECBD10 /* ControlChrome.swift */; };
@@ -151,6 +152,7 @@
 		A3E992E60B53DC93139C669A /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B01ADF952F90032D15D7396 /* PreferencesStore.swift */; };
 		A4ABF036EFFAC372E5F3CB02 /* EditorSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E37E7DE8E0A4C2E71E499BA /* EditorSessionTests.swift */; };
 		A5749FB802097B23FBDF7AEB /* SavedSignature.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73309592BCC58E1FAA5F08E /* SavedSignature.swift */; };
+		A6340EA772B2431FBE84D86E /* display-names.json in Resources */ = {isa = PBXBuildFile; fileRef = 932F7ADF10D5088CCDBF9989 /* display-names.json */; };
 		A757CFC23EE7514AD6E03676 /* LightlyTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6CCC548E65CB9D717533968 /* LightlyTypography.swift */; };
 		A805C2A832C73ABBC0C10769 /* MetalLUTRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D81EC476633A84CEB509F0 /* MetalLUTRendererTests.swift */; };
 		A8A5DB8603B5D1E409712440 /* ToneCurveTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E29D6055E50108F4E09182E /* ToneCurveTable.swift */; };
@@ -326,6 +328,7 @@
 		60273B07655FC75C3E4C4360 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		602B87B584FE4EC9792BA832 /* SignatureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignatureStore.swift; sourceTree = "<group>"; };
 		605E6468C88A2B50C779BECC /* CormorantGaramond-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "CormorantGaramond-OFL.txt"; sourceTree = "<group>"; };
+		612FFE3BB7E069143989C3C6 /* PresetDisplayNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetDisplayNames.swift; sourceTree = "<group>"; };
 		614765C58D29E4A3F31B500C /* EditStageMarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditStageMarks.swift; sourceTree = "<group>"; };
 		6238855D071990606106390E /* PhotoDeveloping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDeveloping.swift; sourceTree = "<group>"; };
 		62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPipelineLoadTests.swift; sourceTree = "<group>"; };
@@ -356,6 +359,7 @@
 		87B8C011B45EA042A8B4D617 /* PhotoOrientationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoOrientationTests.swift; sourceTree = "<group>"; };
 		88C299F77044937D968CADC6 /* SignatureInkExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignatureInkExtractor.swift; sourceTree = "<group>"; };
 		8F0CAEE54FB407F0FD56BCC3 /* BorderStageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BorderStageTests.swift; sourceTree = "<group>"; };
+		932F7ADF10D5088CCDBF9989 /* display-names.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "display-names.json"; sourceTree = "<group>"; };
 		946E87F41D28B673539E8E10 /* PresetIDMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetIDMigrations.swift; sourceTree = "<group>"; };
 		98808A5F4DDED70E40233B3A /* SnapshotAssertion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotAssertion.swift; sourceTree = "<group>"; };
 		9B36E2108477D914C078154A /* AppIconPackagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconPackagingTests.swift; sourceTree = "<group>"; };
@@ -498,6 +502,14 @@
 			path = Lightly;
 			sourceTree = "<group>";
 		};
+		10C199CA1071E68B4857A03B /* look-pack */ = {
+			isa = PBXGroup;
+			children = (
+				669A590983E822F399958908 /* names */,
+			);
+			path = "look-pack";
+			sourceTree = "<group>";
+		};
 		120B09B716865717E09C62AE /* Support */ = {
 			isa = PBXGroup;
 			children = (
@@ -620,6 +632,7 @@
 				266D47CD1F0D2D6BD438D2A5 /* DevelopPresetCatalogue.swift */,
 				D493885E7EDF092F019E29B5 /* FavouritePresetsStore.swift */,
 				A9FE8BA8FCBFBB9BAC04F50A /* LightlyPreset.swift */,
+				612FFE3BB7E069143989C3C6 /* PresetDisplayNames.swift */,
 				946E87F41D28B673539E8E10 /* PresetIDMigrations.swift */,
 			);
 			path = Presets;
@@ -657,6 +670,7 @@
 			children = (
 				B956007132DB104D3811D0E5 /* contracts */,
 				09B092363F9CC8AAD8799F84 /* fonts */,
+				10C199CA1071E68B4857A03B /* look-pack */,
 			);
 			path = shared;
 			sourceTree = "<group>";
@@ -801,6 +815,14 @@
 				9F8C15C002CB4E2AC227DBD9 /* Welcome */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		669A590983E822F399958908 /* names */ = {
+			isa = PBXGroup;
+			children = (
+				932F7ADF10D5088CCDBF9989 /* display-names.json */,
+			);
+			path = names;
 			sourceTree = "<group>";
 		};
 		6FB21B87FCF3502823FBBD03 /* Export */ = {
@@ -1314,6 +1336,7 @@
 				79DFAEFE13F1C28BDEDF1CF4 /* backlit_02.jpg in Resources */,
 				728F49138594C1493CACFB8D /* backlit_02_thumb.jpg in Resources */,
 				8AFB9B90744721FE3714600C /* develop-design-ui.json in Resources */,
+				A6340EA772B2431FBE84D86E /* display-names.json in Resources */,
 				FD4AA02CB36944E280BFDED1 /* landscape_01.jpg in Resources */,
 				E6B888285B280AF8E75EFE60 /* landscape_01_thumb.jpg in Resources */,
 				98FADAF3396D2C9277A0A86B /* legal.json in Resources */,
@@ -1584,6 +1607,7 @@
 				CC9371CD587D9FB4214E0355 /* PortraitRenderer.swift in Sources */,
 				322E411B01D279B920334A34 /* PreferencesPages.swift in Sources */,
 				A3E992E60B53DC93139C669A /* PreferencesStore.swift in Sources */,
+				29421BFBF9F7097BD787EDEB /* PresetDisplayNames.swift in Sources */,
 				5C225DD6623E7D52231F0D6D /* PresetIDMigrations.swift in Sources */,
 				C5A16BCA5553FB13C2F4C12E /* PresetPack.swift in Sources */,
 				8C12973AB782BD36F8645934 /* PresetRecipe.swift in Sources */,

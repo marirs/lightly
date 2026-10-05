@@ -47,6 +47,10 @@ targets:
       # verbatim; favourites (slice 1) and the Develop panel (slice 2) read it.
       - path: ../presets/develop-design-ui.json
         buildPhase: resources
+      # Readable preset display names (owner feedback 2026-10-05), shared with Android; applied over the pack's and the
+      # catalogue's names when they load (shared/look-pack/display_names.py). Ids, versions and recipes are unchanged.
+      - path: ../shared/look-pack/names/display-names.json
+        buildPhase: resources
       # Rendering contract v2, verbatim: the Develop model constants (and their digest) the app bakes
       # preset LUTs with. Read at launch by DevelopModel; the preset pack is refused if it was built
       # against other constants.

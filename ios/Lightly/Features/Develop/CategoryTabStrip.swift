@@ -29,7 +29,9 @@ struct CategoryTabStrip: View {
                             })
                     }
                 }
-                .padding(.leading, 14).padding(.trailing, 18)
+                // 18 pt: the first tab starts past the 16 pt fade of the mask, so Favourites is not half hidden beside
+                // Auto (owner feedback 2026-10-05); the fade still hints that the row scrolls.
+                .padding(.leading, 18).padding(.trailing, 18)
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .frame(maxWidth: .infinity, minHeight: 44)

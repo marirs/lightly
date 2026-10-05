@@ -35,7 +35,7 @@ struct DevelopPanelView: View {
             notice
             nameRow
             contextLine
-            if model.isAmountOpen, model.presetAtStop != nil {
+            if model.isAmountOpen, model.namedPreset != nil {
                 amountRow
             } else {
                 StopRuler(model: model)
@@ -109,9 +109,9 @@ struct DevelopPanelView: View {
                     HStack(spacing: 0) {
                         if item.isFavourites { ApprovedIconView(icon: .star, size: 15) }
                         Text(item.name).approvedText(15, weight: isOn ? .semibold : .regular)
-                        // No applied-category dot here: the prototype draws it only inside `.tabs`.
+                            .overlay(alignment: .bottom) { BrowsedUnderline(isOn: isOn).offset(y: 6) }
+                        if item.holdsAppliedPreset { AppliedDot().padding(.leading, 6) }
                         Spacer(minLength: 8)
-                        Text(item.count).approvedText(12).monospacedDigit().foregroundStyle(c(ApprovedColor.inkTertiary))
                     }
                     .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkSecondary))
                     .padding(.horizontal, 8)
@@ -120,6 +120,8 @@ struct DevelopPanelView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(Text(item.name))
+                .accessibilityValue(Text(item.holdsAppliedPreset ? "Contains the applied preset" : ""))
                 .accessibilityAddTraits(isOn ? .isSelected : [])
                 .accessibilityIdentifier("develop.category.\(item.id)")
             }
@@ -139,15 +141,14 @@ struct DevelopPanelView: View {
             DevelopNotice(icon: .warn, bold: "Automatic correction didn't finish.", text: " Your photo is unchanged and presets still work.",
                           actions: [("Retry", "develop.auto.retry", { model.session.retryAuto() }),
                                     ("Continue with original", "develop.auto.original", { model.session.continueWithOriginal() })])
-        } else if model.session.autoState == .unavailable {
-            DevelopNotice(icon: .info, bold: nil, text: "Automatic correction isn't available on this device. Presets still work.", actions: [])
         }
+        // Unavailable Auto: no standing notice (owner amendment 2026-10-05); tapping Auto explains it (EditorSession.toggleAuto).
     }
 
     // MARK: Name row
 
     private var nameRow: some View {
-        let preset = model.presetAtStop
+        let preset = model.namedPreset
         return HStack(spacing: 4) {
             Button { model.toggleStar() } label: {
                 ApprovedIconView(icon: .star, size: 20, filled: model.isPresetAtStopFavourite)
@@ -406,14 +407,8 @@ struct CategoryTab: View {
             HStack(spacing: 4) {
                 if item.isFavourites { ApprovedIconView(icon: .star, size: 15) }
                 Text(item.name).approvedText(15, weight: isOn ? .semibold : .regular)
-                Text(item.count)
-                    .approvedText(12)
-                    .monospacedDigit()
-                    .foregroundStyle(c(ApprovedColor.inkTertiary))
-                    .padding(.leading, 3)
-                if item.holdsAppliedPreset {
-                    Circle().fill(c(ApprovedColor.selection)).frame(width: 5, height: 5).padding(.leading, 3)
-                }
+                    .overlay(alignment: .bottom) { BrowsedUnderline(isOn: isOn).offset(y: 6) }
+                if item.holdsAppliedPreset { AppliedDot().padding(.leading, 3) }
             }
             .lineLimit(1)
             .fixedSize()
@@ -422,8 +417,33 @@ struct CategoryTab: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text("\(item.name), \(item.isFavourites ? "\(model.favourites.presetIDs.count) of 5" : "\(item.count) presets")"))
+        .accessibilityLabel(Text(item.name))
+        .accessibilityValue(Text(item.holdsAppliedPreset ? "Contains the applied preset" : ""))
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("develop.category.\(item.id)")
+    }
+}
+
+/// The browsed category: a 2 pt orange underline under its name (owner amendment 2026-10-05). A shape, not only a
+/// colour, so browsing and "applied" (the dot) differ without relying on colour.
+struct BrowsedUnderline: View {
+    let isOn: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Capsule()
+            .fill(ApprovedColor.browse.resolved(colorScheme))
+            .frame(height: 2)
+            .opacity(isOn ? 1 : 0)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The category holding the applied preset: a 5 pt dot in the selection colour (approved `.tabs .dot`).
+struct AppliedDot: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Circle().fill(ApprovedColor.selection.resolved(colorScheme)).frame(width: 5, height: 5).accessibilityHidden(true)
     }
 }

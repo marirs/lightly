@@ -20,6 +20,10 @@ final class DevelopPanelModel {
 
     /// The category the person chose to browse; nil follows the applied preset.
     private(set) var browsedCategoryID: String?
+    /// The session's history revision when browsing began (or the panel last committed). Undo, Redo or a step made
+    /// elsewhere moves it, and browsing then returns to the applied preset's category (owner amendment 2026-10-05:
+    /// underline, dot and photo agree).
+    private var browsedAtHistoryRevision: Int?
     /// The stop under the needle while dragging (`ui.stop`); nil when settled.
     private(set) var draggingStop: Int?
     /// Hold-still fine control while dragging (`ui.fine`).
@@ -40,11 +44,10 @@ final class DevelopPanelModel {
 
     // MARK: - Categories
 
+    /// A category tab. No preset count (owner amendment 2026-10-05): the position shows once, beside the name.
     struct CategoryItem: Equatable, Identifiable {
         let id: String
         let name: String
-        /// "158", or "2/5" for Favourites.
-        let count: String
         let isFavourites: Bool
         /// The applied preset's category (the selection-coloured dot).
         let holdsAppliedPreset: Bool
@@ -52,17 +55,19 @@ final class DevelopPanelModel {
 
     var categoryItems: [CategoryItem] {
         let applied = session.appliedPreset
-        let favouritesItem = CategoryItem(id: Self.favouritesID, name: "Favourites",
-                                          count: "\(favourites.presetIDs.count)/\(FavouritePresetsStore.capacity)",
-                                          isFavourites: true, holdsAppliedPreset: false)
+        let favouritesItem = CategoryItem(id: Self.favouritesID, name: "Favourites", isFavourites: true,
+                                          holdsAppliedPreset: applied.map { favourites.contains($0.id) } ?? false)
         return [favouritesItem] + session.library.pack.categories.map { category in
-            CategoryItem(id: category.id, name: category.name, count: "\(category.presets.count)", isFavourites: false,
+            CategoryItem(id: category.id, name: category.name, isFavourites: false,
                          holdsAppliedPreset: applied?.categoryID == category.id)
         }
     }
 
+    /// The browsed category (the orange underline): the one chosen, until the history moves; then the applied
+    /// preset's category.
     var currentCategoryID: String {
-        browsedCategoryID ?? session.appliedPreset?.categoryID ?? Self.defaultCategoryID
+        let browsing = browsedAtHistoryRevision == session.historyRevision ? browsedCategoryID : nil
+        return browsing ?? session.appliedPreset?.categoryID ?? Self.defaultCategoryID
     }
 
     var isFavouritesMode: Bool { currentCategoryID == Self.favouritesID }
@@ -78,6 +83,7 @@ final class DevelopPanelModel {
     /// Choosing a category only browses it; the applied Look stays.
     func selectCategory(_ id: String) {
         browsedCategoryID = id
+        browsedAtHistoryRevision = session.historyRevision
         draggingStop = nil
         isAmountOpen = false
     }
@@ -101,15 +107,31 @@ final class DevelopPanelModel {
     /// Stop zero reads Auto only when Auto is applied, otherwise Original.
     var baseName: String { session.autoState == .applied ? "Auto" : "Original" }
 
-    var displayedName: String { presetAtStop?.displayName ?? baseName }
+    /// The applied preset while it is not on this category's ruler and the ruler is at rest: the name row then
+    /// shows it, never "Original" (owner amendment 2026-10-05). Dragging to stop zero previews the original and says so.
+    var appliedPresetOffRuler: PresetPack.Preset? {
+        guard draggingStop == nil, presetAtStop == nil, let applied = session.appliedPreset else { return nil }
+        return applied
+    }
 
-    var positionText: String { "\(stop) / \(stopCount)" }
+    /// The preset the name row, star and Amount refer to.
+    var namedPreset: PresetPack.Preset? { presetAtStop ?? appliedPresetOffRuler }
 
-    /// "Applied: …" when another category is browsed and the ruler sits at zero.
+    var displayedName: String { namedPreset?.displayName ?? baseName }
+
+    /// The named preset's place in its own list ("37 / 158"), shown once, beside its name.
+    var positionText: String {
+        if let applied = appliedPresetOffRuler, let category = session.library.pack.category(id: applied.categoryID),
+           let index = category.presets.firstIndex(where: { $0.id == applied.id }) {
+            return "\(index + 1) / \(category.presets.count)"
+        }
+        return "\(stop) / \(stopCount)"
+    }
+
+    /// Under the name: where the applied preset comes from while another category is browsed.
     var contextLine: String? {
-        guard let applied = session.appliedPreset, presetAtStop == nil, stop == 0 else { return nil }
-        let shownHere = isFavouritesMode ? favourites.contains(applied.id) : applied.categoryID == currentCategoryID
-        return shownHere ? nil : "Applied: \(applied.displayName)"
+        guard let applied = appliedPresetOffRuler, let category = session.library.pack.category(id: applied.categoryID) else { return nil }
+        return "Applied from \(category.name)"
     }
 
     /// The finger moved the needle to `stop`: preview it (photo and labels), commit nothing.
@@ -130,7 +152,10 @@ final class DevelopPanelModel {
         let target = clamped == 0 ? nil : currentPresets[clamped - 1]
         // Prototype `wireRuler`: commit only when the stop names another Look than the applied one
         // (stop zero means no Look). Releasing where it started changes nothing.
+        let stillBrowsing = browsedAtHistoryRevision == session.historyRevision
         session.applyLook(target)
+        // Applying from the browsed category (Favourites included) keeps it browsed.
+        if stillBrowsing { browsedAtHistoryRevision = session.historyRevision }
     }
 
     /// VoiceOver increment/decrement: one stop, committed.
@@ -143,7 +168,7 @@ final class DevelopPanelModel {
     var amountValue: Double { draggingAmount ?? session.appliedAmount }
     var amountButtonTitle: String { "Amount \(Int(amountValue.rounded()))" }
 
-    func openAmount() { if presetAtStop != nil { isAmountOpen = true } }
+    func openAmount() { if namedPreset != nil { isAmountOpen = true } }
     func closeAmount() { isAmountOpen = false }
 
     func amountChanged(_ value: Double) {
@@ -158,7 +183,7 @@ final class DevelopPanelModel {
 
     // MARK: - Favourites
 
-    var isPresetAtStopFavourite: Bool { presetAtStop.map { favourites.contains($0.id) } ?? false }
+    var isPresetAtStopFavourite: Bool { namedPreset.map { favourites.contains($0.id) } ?? false }
 
     /// The star: add, remove, or (with five already) the full notice.
     func toggleStar() {

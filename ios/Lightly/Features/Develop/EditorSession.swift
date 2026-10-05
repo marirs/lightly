@@ -58,7 +58,10 @@ final class EditorSession {
     /// nil until Vision has answered; Portrait is offered only when true.
     private(set) var hasPerson: Bool?
     private(set) var history: [EditRecipe]
-    private(set) var historyIndex = 0
+    private(set) var historyIndex = 0 { didSet { historyRevision &+= 1 } }
+    /// Increases on every change of the history position (commit, Undo, Redo, restore), even when Undo returns to an
+    /// earlier index; the Develop panel uses it to stop browsing once the history moves.
+    private(set) var historyRevision = 0
     private(set) var displayedImage: CGImage
     /// Where the photo sits inside the displayed canvas (fractions; the whole canvas without a
     /// border): the prototype's `.imgbox` inside `.frame`, which marks and touches use.
@@ -332,7 +335,11 @@ final class EditorSession {
             next.auto.strength = autoState == .applied ? 0 : 1
             autoState = autoState == .applied ? .off : .applied
             commit(next)
-        case .unavailable, .failed:
+        case .unavailable:
+            // No standing notice in the panel (owner amendment 2026-10-05): the explanation appears only when Auto is
+            // tapped, and promises nothing.
+            showToast("Automatic correction isn't available. Presets still work.")
+        case .failed:
             return
         }
     }

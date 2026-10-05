@@ -149,13 +149,64 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(session.appliedPreset, applied)
         XCTAssertEqual(session.history.count, 2)
         XCTAssertEqual(model.stop, 0)
-        XCTAssertEqual(model.contextLine, "Applied: \(applied.displayName)")
-        XCTAssertEqual(model.positionText, "0 / \(second.presets.count)")
+        // Owner amendment 2026-10-05: the name row keeps naming the applied preset, never "Original".
+        XCTAssertEqual(model.displayedName, applied.displayName)
+        XCTAssertEqual(model.contextLine, "Applied from \(first.name)")
+        XCTAssertEqual(model.positionText, "1 / \(first.presets.count)", "The applied preset's own position, once")
         XCTAssertTrue(model.categoryItems.first { $0.id == first.id }!.holdsAppliedPreset, "The applied category keeps its dot")
+        XCTAssertEqual(model.currentCategoryID, second.id, "The underline is on the browsed category")
 
         model.selectCategory(first.id)
         XCTAssertNil(model.contextLine)
         XCTAssertEqual(model.stop, 1)
+    }
+
+    /// Owner feedback 2026-10-05: apply Landscape → browse Portrait → apply Portrait → Undo → Redo. At every step the
+    /// photo's Look, the underline (browsed category), the dot (applied category) and the name row agree.
+    func testBrowsingAndApplyingAcrossCategoriesWithUndoAndRedoStayConsistent() async throws {
+        let session = try await EditorTestSupport.readySession(library: library)
+        let model = panel(session)
+        let landscape = try XCTUnwrap(pack.category(id: "landscape")), portrait = try XCTUnwrap(pack.category(id: "portrait"))
+        func dotted() -> [String] { model.categoryItems.filter { $0.holdsAppliedPreset && !$0.isFavourites }.map(\.id) }
+
+        model.selectCategory(landscape.id); model.dragEnded(at: 3)
+        let landscapePreset = landscape.presets[2]
+        XCTAssertEqual(session.appliedPreset?.id, landscapePreset.id)
+        XCTAssertEqual(model.currentCategoryID, landscape.id); XCTAssertEqual(dotted(), [landscape.id])
+        XCTAssertEqual(model.displayedName, landscapePreset.displayName)
+
+        model.selectCategory(portrait.id)
+        XCTAssertEqual(session.appliedPreset?.id, landscapePreset.id, "Browsing changes nothing")
+        XCTAssertEqual(model.currentCategoryID, portrait.id, "The underline moves at once")
+        XCTAssertEqual(dotted(), [landscape.id], "The dot stays with the applied preset")
+        XCTAssertEqual(model.displayedName, landscapePreset.displayName, "Not 'Original': the Landscape preset is still applied")
+        XCTAssertEqual(model.contextLine, "Applied from \(landscape.name)")
+
+        model.dragEnded(at: 2)
+        let portraitPreset = portrait.presets[1]
+        XCTAssertEqual(session.appliedPreset?.id, portraitPreset.id)
+        XCTAssertEqual(model.currentCategoryID, portrait.id); XCTAssertEqual(dotted(), [portrait.id])
+        XCTAssertEqual(model.displayedName, portraitPreset.displayName); XCTAssertNil(model.contextLine)
+
+        session.undo()
+        XCTAssertEqual(session.appliedPreset?.id, landscapePreset.id)
+        XCTAssertEqual(model.currentCategoryID, landscape.id, "After Undo the underline returns to the applied category")
+        XCTAssertEqual(dotted(), [landscape.id]); XCTAssertEqual(model.displayedName, landscapePreset.displayName)
+        XCTAssertEqual(model.stop, 3); XCTAssertNil(model.contextLine)
+
+        session.redo()
+        XCTAssertEqual(session.appliedPreset?.id, portraitPreset.id)
+        XCTAssertEqual(model.currentCategoryID, portrait.id); XCTAssertEqual(dotted(), [portrait.id])
+        XCTAssertEqual(model.displayedName, portraitPreset.displayName); XCTAssertEqual(model.stop, 2)
+    }
+
+    func testUnavailableAutoExplainsItselfOnlyWhenTapped() async throws {
+        let session = try await EditorTestSupport.readySession(library: library)
+        XCTAssertEqual(session.autoState, .unavailable)
+        XCTAssertNil(session.toast)
+        session.toggleAuto()
+        XCTAssertEqual(session.toast, "Automatic correction isn't available. Presets still work.")
+        XCTAssertEqual(session.history.count, 1, "Nothing changes")
     }
 
     func testDefaultCategoryIsLandscapeAndFavouritesComeFirst() async throws {
@@ -163,8 +214,7 @@ final class EditorSessionTests: XCTestCase {
         let model = panel(session)
         XCTAssertEqual(model.currentCategoryID, "landscape")
         XCTAssertEqual(model.categoryItems.first?.id, DevelopPanelModel.favouritesID)
-        XCTAssertEqual(model.categoryItems.first?.count, "0/5")
-        XCTAssertEqual(Array(model.categoryItems.dropFirst().map(\.count)), pack.categories.map { "\($0.presets.count)" })
+        XCTAssertEqual(Array(model.categoryItems.dropFirst().map(\.id)), pack.categories.map(\.id), "No counts; categories in order")
     }
 
     func testANewLookReplacesOnlyTheDevelopLook() async throws {
@@ -243,7 +293,7 @@ final class EditorSessionTests: XCTestCase {
         model.dragEnded(at: presets[0].stop == 1 ? 1 : 1)
         model.toggleStar()
         XCTAssertTrue(model.isPresetAtStopFavourite)
-        XCTAssertEqual(model.categoryItems.first?.count, "1/5")
+        XCTAssertEqual(model.favourites.presetIDs.count, 1)
         model.toggleStar()
         XCTAssertFalse(model.isPresetAtStopFavourite)
 
@@ -270,7 +320,8 @@ final class EditorSessionTests: XCTestCase {
         model.dragEnded(at: 2)
         XCTAssertEqual(session.appliedPreset?.id, picks[1].id)
         XCTAssertEqual(model.stop, 2)
-        XCTAssertFalse(model.categoryItems.contains { $0.id == DevelopPanelModel.favouritesID && $0.holdsAppliedPreset })
+        // The dot means "contains the applied preset" (owner amendment 2026-10-05): Favourites holds it.
+        XCTAssertTrue(model.categoryItems.contains { $0.id == DevelopPanelModel.favouritesID && $0.holdsAppliedPreset })
     }
 
     // MARK: - Compare and history

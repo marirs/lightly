@@ -104,8 +104,11 @@ final class EditorFlowUITests: XCTestCase {
     func testPickedPhotoDevelopsByItselfIntoTheApprovedUnavailableState() throws {
         try openFirstLibraryPhoto()
         XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
-        XCTAssertTrue(app.staticTexts["Automatic correction isn't available on this device. Presets still work."].exists)
+        // No standing Auto notice (owner amendment 2026-10-05); tapping Auto explains it.
+        XCTAssertFalse(element("develop.notice").exists)
         XCTAssertEqual(label("develop.name"), "Original")
+        element("develop.auto").tap()
+        XCTAssertTrue(app.staticTexts["Automatic correction isn't available. Presets still work."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["editor.undo"].isEnabled)
         for tool in ["develop", "background", "edit", "effects", "watermark", "border"] {
             XCTAssertTrue(element("tool.\(tool)").exists, "\(tool) is listed")
@@ -139,11 +142,11 @@ final class EditorFlowUITests: XCTestCase {
 
     func testBrowsingAnotherCategoryKeepsTheLookAndShowsTheContextLine() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Hiking 5" })
         element("develop.category.cinematic").tap()
-        XCTAssertTrue(waitFor { self.label("develop.context") == "Applied: 05 Hiking 05" })
-        XCTAssertEqual(label("develop.position"), "0 / 564")
-        XCTAssertEqual(label("develop.name"), "Original")
+        XCTAssertTrue(waitFor { self.label("develop.context") == "Applied from Landscape" })
+        XCTAssertEqual(label("develop.position"), "37 / 518", "The applied preset's position, beside its name")
+        XCTAssertEqual(label("develop.name"), "Hiking 5", "The applied preset, not 'Original'")
         XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Browsing made no undo step")
         // Landscape is scrolled out of sight to the left: swipe the row back, then choose it.
         let landscape = element("develop.category.landscape")
@@ -152,7 +155,7 @@ final class EditorFlowUITests: XCTestCase {
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 200, dy: 0)))
         }
         landscape.tap()
-        XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Hiking 5" })
         XCTAssertEqual(label("develop.position"), "37 / 518")
     }
 
@@ -183,7 +186,7 @@ final class EditorFlowUITests: XCTestCase {
 
     func testSaveCopyShowsSavingThenSavedAndKeepEditing() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "05 Hiking 05" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Hiking 5" })
         app.buttons["editor.saveCopy"].tap()
         XCTAssertTrue(element("saved.keepEditing").waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Saved as a new photo"].exists)

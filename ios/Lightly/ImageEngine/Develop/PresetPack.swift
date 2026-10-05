@@ -144,25 +144,27 @@ enum PresetPackLoader {
         let catalogueDigest = bundle.url(forResource: "develop-design-ui", withExtension: "json")
             .flatMap { try? Data(contentsOf: $0) }
             .map(sha256Hex)
-        let result = load(from: directory, model: model, expectedCatalogueSha256: catalogueDigest)
+        let result = load(from: directory, model: model, expectedCatalogueSha256: catalogueDigest,
+                          displayNames: PresetDisplayNames.loadBundled(from: bundle))
         report(result)
         return result
     }
 
-    static func load(from directory: URL, model: DevelopModel?, expectedCatalogueSha256: String?) -> PresetPackLoadResult {
+    static func load(from directory: URL, model: DevelopModel?, expectedCatalogueSha256: String?,
+                     displayNames: [String: String] = [:]) -> PresetPackLoadResult {
         let clock = ContinuousClock()
         let start = clock.now
         let url = directory.appendingPathComponent(manifestFileName)
         guard let data = try? Data(contentsOf: url) else {
             return PresetPackLoadResult(pack: .empty, problem: .missing, droppedPresets: [], parseDuration: clock.now - start)
         }
-        let outcome = read(data, model: model, expectedCatalogueSha256: expectedCatalogueSha256)
+        let outcome = read(data, model: model, expectedCatalogueSha256: expectedCatalogueSha256, displayNames: displayNames)
         return PresetPackLoadResult(pack: outcome.pack, problem: outcome.problem, droppedPresets: outcome.dropped,
                                     parseDuration: clock.now - start)
     }
 
     // swiftlint:disable:next function_body_length cyclomatic_complexity
-    static func read(_ data: Data, model: DevelopModel?, expectedCatalogueSha256: String?)
+    static func read(_ data: Data, model: DevelopModel?, expectedCatalogueSha256: String?, displayNames: [String: String] = [:])
         -> (pack: PresetPack, problem: PresetPackProblem?, dropped: [DroppedPreset]) {
         func failed(_ problem: PresetPackProblem) -> (PresetPack, PresetPackProblem?, [DroppedPreset]) { (.empty, problem, []) }
         let root: [String: Any]
@@ -205,7 +207,7 @@ enum PresetPackLoader {
             }
             var presets: [PresetPack.Preset] = []
             for raw in rawPresets {
-                switch readPreset(raw, categoryID: categoryID) {
+                switch readPreset(raw, categoryID: categoryID, displayNames: displayNames) {
                 case .success(let preset): presets.append(preset)
                 case .failure(let reason): dropped.append(DroppedPreset(presetID: raw["id"] as? String ?? "?", reason: reason.description))
                 }
@@ -220,7 +222,7 @@ enum PresetPackLoader {
         let description: String
     }
 
-    private static func readPreset(_ raw: [String: Any], categoryID: String) -> Result<PresetPack.Preset, PresetError> {
+    private static func readPreset(_ raw: [String: Any], categoryID: String, displayNames: [String: String]) -> Result<PresetPack.Preset, PresetError> {
         guard let id = raw["id"] as? String, let name = raw["displayName"] as? String, let stop = raw["stop"] as? Int,
               let lookVersion = raw["lookVersion"] as? String, let operators = raw["operators"] as? [String],
               let rawRecipe = raw["recipe"], let completeness = raw["completeness"] as? String,
@@ -244,7 +246,7 @@ enum PresetPackLoader {
             (raw[key] as? [[String: Any]] ?? []).compactMap { $0["code"] as? String }
         }
         return .success(PresetPack.Preset(
-            id: id, displayName: name, stop: stop, categoryID: categoryID, lookVersion: lookVersion,
+            id: id, displayName: displayNames[id] ?? name, stop: stop, categoryID: categoryID, lookVersion: lookVersion,
             operators: operators, recipe: recipe, completeness: completeness,
             approximated: codes("approximated"), unsupported: codes("unsupported"), notApplied: codes("notApplied"),
             hasGrain: effects["grain"] as? Bool ?? false, hasVignette: effects["vignette"] as? Bool ?? false,

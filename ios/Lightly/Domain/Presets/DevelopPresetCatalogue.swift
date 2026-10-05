@@ -71,12 +71,22 @@ struct DevelopPresetCatalogue: Sendable, Equatable {
         return DevelopPresetCatalogue(categories: file.categories)
     }
 
+    /// The same catalogue with the shared readable display names applied (PresetDisplayNames).
+    func renamed(_ names: [String: String]) -> DevelopPresetCatalogue {
+        guard !names.isEmpty else { return self }
+        return DevelopPresetCatalogue(categories: categories.map { category in
+            Category(id: category.id, name: category.name, presets: category.presets.map { preset in
+                Preset(id: preset.id, displayName: names[preset.id] ?? preset.displayName, stop: preset.stop)
+            })
+        })
+    }
+
     /// The catalogue bundled with the app, or `.empty` when it is missing or unreadable (the
     /// favourites list then shows no names rather than wrong ones).
     static func loadBundled(from bundle: Bundle = .main) -> DevelopPresetCatalogue {
         guard let url = bundle.url(forResource: "develop-design-ui", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let catalogue = try? decode(data) else { return .empty }
-        return catalogue
+        return catalogue.renamed(PresetDisplayNames.loadBundled(from: bundle))
     }
 }
