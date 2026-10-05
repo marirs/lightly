@@ -218,6 +218,20 @@ Approved copy: "Change background needs a person or object in front". The segmen
     - The other five no-people photos are correctly "none". All 4 subject photos are found (people photos take the person path in the app).
     - No small-subject photo was available locally, so small subjects are untested.
     - The 2 % rule therefore stays experimental and is a release blocker. A better decision needs new evidence, not tuning on this set.
+  - **Independent check (2026-10-05): no area threshold on U²-Netp can decide "no subject".**
+    - Set: 41 PD12M photos (CC0, local `experiments/auto/data/pd12m/eval_originals`). Chosen by caption only, without people, seeded random 20261005.
+    - Labelled by eye from the photos before any model output (`u2netp_independent/labels.json`): 5 clear subjects (orchid, cat, boat and swan, Buddha statue, chandelier), 29 without a separable subject, 7 ambiguous.
+    - The rule as it stands: all 5 subjects found. 10 of the 29 scenes without a subject come out as "subject", e.g. rock formations at 35.6 % and a facade seen through a window at 33.4 %. Those are higher than the weakest real subject (8.4 %), so no threshold on this area separates the classes.
+    - Small subjects: the pool had none usable; the "small" captions were mostly suns, and one harbour has tiny distant boats. Still untested.
+    - Script: `scripts/u2netp_independent.py`; results in `u2netp_independent/results.json`.
+  - **The four disputed held-out scenes, judged by eye:**
+    - landscape_01 (mountain ridge): no usable separable subject.
+    - wellexposed_01 and wellexposed_03: the mask covers the sky between buildings, not an object. Clearly wrong.
+    - night_01 (a lit building filling the frame): debatable. A sky replacement behind it is conceivable, but it is not "a person or object in front" (the approved copy). Vision finds none.
+  - **Next viable approach (not built):** a different signal, not a new threshold. Candidates:
+    - a depth step along the mask's boundary (a separable subject stands in front of its background; a mountain, facade or sky region does not);
+    - a mask that must not be the sky.
+    - Each must be judged on new labelled photos, including genuinely small subjects, before it is relied on. Until then the object cut-out stays experimental and gated.
   - **Bar scene and Portrait (written requirement):** the approved prototype's bar photo is `faces: [], people: true` (`docs/ui/app/data.js`). `toolsFor` offers Portrait, and the panel shows the "No face can be edited" notice. Android matches.
     - Defect: Android draws a face ring around the disco ball (its unusable face detection). The prototype marks only the people (dim rings).
 
