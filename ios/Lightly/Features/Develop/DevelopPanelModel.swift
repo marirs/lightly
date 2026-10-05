@@ -26,6 +26,8 @@ final class DevelopPanelModel {
     private var browsedAtHistoryRevision: Int?
     /// The stop under the needle while dragging (`ui.stop`); nil when settled.
     private(set) var draggingStop: Int?
+    /// The stop a drag started from; releasing there changes nothing.
+    @ObservationIgnored private var dragStartStop: Int?
     /// Hold-still fine control while dragging (`ui.fine`).
     private(set) var isFine = false
     /// The Amount slider replaces the ruler (`ui.amount`).
@@ -119,23 +121,24 @@ final class DevelopPanelModel {
 
     var displayedName: String { namedPreset?.displayName ?? baseName }
 
-    /// The named preset's place in its own list ("37 / 158"), shown once, beside its name.
+    /// The ruler's position beside the name ("12 / 158"). Empty while the name row shows a preset applied from
+    /// another category: a position there would read as this ruler's, so the applied preset's own position goes
+    /// into the context line instead (owner request 2026-10-05: name, position and ruler must not mix states).
     var positionText: String {
-        if let applied = appliedPresetOffRuler, let category = session.library.pack.category(id: applied.categoryID),
-           let index = category.presets.firstIndex(where: { $0.id == applied.id }) {
-            return "\(index + 1) / \(category.presets.count)"
-        }
-        return "\(stop) / \(stopCount)"
+        appliedPresetOffRuler == nil ? "\(stop) / \(stopCount)" : ""
     }
 
-    /// Under the name: where the applied preset comes from while another category is browsed.
+    /// Under the name, while another category is browsed: the applied preset's category and its place there
+    /// ("Applied from Landscape · 37 / 518").
     var contextLine: String? {
         guard let applied = appliedPresetOffRuler, let category = session.library.pack.category(id: applied.categoryID) else { return nil }
-        return "Applied from \(category.name)"
+        guard let index = category.presets.firstIndex(where: { $0.id == applied.id }) else { return "Applied from \(category.name)" }
+        return "Applied from \(category.name) · \(index + 1) / \(category.presets.count)"
     }
 
     /// The finger moved the needle to `stop`: preview it (photo and labels), commit nothing.
     func dragChanged(to stop: Int) {
+        if draggingStop == nil { dragStartStop = self.stop }
         let clamped = min(max(stop, 0), stopCount)
         guard clamped != draggingStop else { return }
         draggingStop = clamped
@@ -147,8 +150,16 @@ final class DevelopPanelModel {
     /// Released on `stop`: one undo step if it differs from the applied Look, else nothing.
     func dragEnded(at stop: Int) {
         let clamped = min(max(stop, 0), stopCount)
+        let startedAt = dragStartStop
+        dragStartStop = nil
         draggingStop = nil
         isFine = false
+        // Released where the drag started: a cancel. Without this, browsing another category (whose ruler rests
+        // at stop 0) and touching the ruler would commit "no Look" and drop the applied preset.
+        if startedAt == clamped {
+            session.cancelLookPreview()
+            return
+        }
         let target = clamped == 0 ? nil : currentPresets[clamped - 1]
         // Prototype `wireRuler`: commit only when the stop names another Look than the applied one
         // (stop zero means no Look). Releasing where it started changes nothing.

@@ -421,6 +421,18 @@ struct EditorScreen: View {
         case .crop:
             CropFrameMark(rect: cropDraft ?? session.recipe.tools.edit.geometry.cropRect)
             cropGestureArea(size: size)
+            #if DEBUG
+            // UI tests only (--expose-crop): the committed aspect and rectangle, to check each handle's effect.
+            if DebugArguments.current.contains("--expose-crop") {
+                let g = session.recipe.tools.edit.geometry
+                Color.clear.frame(width: 1, height: 1)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("edit.cropRect")
+                    .accessibilityValue(String(format: "%@ %.4f %.4f %.4f %.4f", g.cropAspect.rawValue, g.cropRect.x, g.cropRect.y,
+                                               g.cropRect.width, g.cropRect.height))
+                    .allowsHitTesting(false)
+            }
+            #endif
         case .straighten, .perspective:
             ThirdsGridMark()
         case .remove:

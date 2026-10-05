@@ -83,4 +83,41 @@ final class CropGeometryTests: XCTestCase {
         session.redo()
         XCTAssertEqual(session.recipe.tools.edit.geometry.cropRect, .init(x: 0, y: 0, width: 0.8, height: 0.8))
     }
+
+    /// Rotation and straightening, then a free crop: the saved copy is the preview at full resolution (same
+    /// aspect, same content). Compared at the preview's size, mean difference per channel.
+    func testSavedCopyMatchesThePreviewAfterRotatingStraighteningAndCropping() async throws {
+        let photo = try await EditorTestSupport.photo(width: 1_280, height: 852)
+        let session = try await EditorTestSupport.readySession(photo: photo, previewLongEdge: 640)
+        session.commitEdit {
+            $0.geometry.quarterTurns = 1
+            $0.geometry.straighten = -6
+            $0.geometry.cropAspect = .free
+            $0.geometry.cropRect = .init(x: 0.15, y: 0.1, width: 0.6, height: 0.7)
+        }
+        await session.settleRendering()
+        let preview = session.displayedImage
+        let exported = try await session.exportedData()
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(exported as CFData, nil))
+        let export = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        XCTAssertEqual(Double(export.width) / Double(export.height), Double(preview.width) / Double(preview.height), accuracy: 0.01,
+                       "same aspect")
+        XCTAssertGreaterThan(export.height, export.width, "the quarter turn is in the saved copy")
+        let a = try rgba(preview, width: preview.width, height: preview.height)
+        let b = try rgba(export, width: preview.width, height: preview.height)
+        var total = 0.0
+        for i in 0..<a.count where i % 4 != 3 { total += abs(Double(a[i]) - Double(b[i])) }
+        let mean = total / Double(a.count / 4 * 3)
+        XCTAssertLessThan(mean, 4, "the saved copy shows what the preview shows (mean |Δ| \(mean) of 255)")
+    }
+
+    private func rgba(_ image: CGImage, width: Int, height: Int) throws -> [UInt8] {
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = try XCTUnwrap(CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                              space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return pixels
+    }
 }

@@ -376,6 +376,9 @@ final class EditorSession {
 
     /// Applies a preset, replacing only the Develop Look (one undo step). nil removes the Look.
     /// Re-selecting the applied preset changes nothing, so its Amount is kept.
+    /// A ruler drag released where it started: back to the committed photo, nothing recorded.
+    func cancelLookPreview() { renderCommitted() }
+
     func applyLook(_ preset: PresetPack.Preset?) {
         guard preset?.id != recipe.look?.lookId else { return renderCommitted() }
         if let preset { Self.logRenderingCoverage(of: preset) }

@@ -1265,7 +1265,7 @@ class EditorViewModel(
 
     /** Browsing another category never changes the applied Look (not an undo step). */
     fun selectCategory(categoryId: String) {
-        state.update { it.copy(develop = it.develop.copy(category = categoryId, dragStop = null, amountOpen = false)) }
+        state.update { it.copy(develop = it.develop.copy(category = categoryId, dragStop = null, dragStart = null, amountOpen = false)) }
     }
 
     /** The needle crossed [stop] while dragging: preview only (the drag render is develop.global). */
@@ -1273,7 +1273,7 @@ class EditorViewModel(
         val model = panelModel() ?: return
         val clamped = stop.coerceIn(0, model.presets.size)
         if (state.value.develop.dragStop == clamped) return
-        state.update { it.copy(develop = it.develop.copy(dragStop = clamped)) }
+        state.update { it.copy(develop = it.develop.copy(dragStop = clamped, dragStart = it.develop.dragStart ?: model.stop)) }
         val session = state.value.session ?: return
         requestPreview(session.current.copy(look = lookAt(model, clamped)), globalOnly = true)
         prefetchAround(model, clamped)
@@ -1286,11 +1286,15 @@ class EditorViewModel(
     /** Release: ONE undo step, and only when the Look actually changes. No interpolation between stops. */
     fun onRulerRelease(stop: Int) {
         val model = panelModel()
-        state.update { it.copy(develop = it.develop.copy(dragStop = null, fine = false)) }
+        val startedAt = state.value.develop.dragStart
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, fine = false)) }
         val session = state.value.session ?: return
         if (model == null) return
-        val look = lookAt(model, stop.coerceIn(0, model.presets.size))
-        if (look?.lookId == session.current.look?.lookId) {
+        val clamped = stop.coerceIn(0, model.presets.size)
+        // Released where the drag started: a cancel. Browsing another category rests its ruler at stop 0, so
+        // without this a touch on it would commit "no Look" and drop the applied preset.
+        val look = lookAt(model, clamped)
+        if (clamped == startedAt || look?.lookId == session.current.look?.lookId) {
             requestPreview(session.current, globalOnly = false)
             return
         }
@@ -1373,13 +1377,13 @@ class EditorViewModel(
     fun undo() {
         val session = state.value.session?.takeIf { it.canUndo }?.undo() ?: return
         // Browsing returns to the applied preset's category (owner amendment 2026-10-05: underline, dot and photo agree).
-        state.update { it.copy(develop = it.develop.copy(dragStop = null, amountDrag = null, category = null)) }
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null)) }
         commit(session, autoStateOf(session.current.auto))
     }
 
     fun redo() {
         val session = state.value.session?.takeIf { it.canRedo }?.redo() ?: return
-        state.update { it.copy(develop = it.develop.copy(dragStop = null, amountDrag = null, category = null)) }
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null)) }
         commit(session, autoStateOf(session.current.auto))
     }
 

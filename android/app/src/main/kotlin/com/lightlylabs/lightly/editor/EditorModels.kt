@@ -111,6 +111,8 @@ data class DevelopUi(
     val category: String? = null,
     /** The stop under the needle while a finger drags the ruler. */
     val dragStop: Int? = null,
+    /** The stop a ruler drag started from; releasing there is a cancel (nothing recorded). */
+    val dragStart: Int? = null,
     /** Hold-still fine mode during a drag. */
     val fine: Boolean = false,
     val amountOpen: Boolean = false,
@@ -183,10 +185,14 @@ data class DevelopPanelModel(
             val offRuler = if (onRuler == null && ui.dragStop == null) applied else null
             val shown = onRuler ?: offRuler
             val offRulerCategory = offRuler?.let { pack.category(it.categoryId) }
-            val context = if (offRulerCategory != null) "Applied from ${offRulerCategory.name}" else ""
-            val position = if (offRuler != null && offRulerCategory != null) {
-                "${offRulerCategory.presets.indexOfFirst { it.id == offRuler.id } + 1} / ${offRulerCategory.presets.size}"
-            } else "$stop / ${list.size}"
+            // While another category is browsed, the applied preset's own position goes into the context line;
+            // beside the name it would read as this ruler's (owner request 2026-10-05).
+            val context = if (offRuler != null && offRulerCategory != null) {
+                val index = offRulerCategory.presets.indexOfFirst { it.id == offRuler.id }
+                if (index >= 0) "Applied from ${offRulerCategory.name} · ${index + 1} / ${offRulerCategory.presets.size}"
+                else "Applied from ${offRulerCategory.name}"
+            } else ""
+            val position = if (offRuler != null) "" else "$stop / ${list.size}"
             val amount = when {
                 shown == null -> 100
                 ui.amountDrag != null && shown.id == applied?.id -> ui.amountDrag

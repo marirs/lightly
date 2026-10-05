@@ -142,7 +142,7 @@ class EditorViewModelTest {
         vm.selectCategory("cinematic")
         advanceUntilIdle()
         assertEquals(hiking.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("Applied from Landscape", vm.panelModel()!!.context)
+        assertTrue(vm.panelModel()!!.context.startsWith("Applied from Landscape · 37 / "))
         assertEquals(2, vm.uiState.value.session!!.history.entries.size)
     }
 
@@ -185,7 +185,19 @@ class EditorViewModelTest {
         vm.selectCategory("portrait"); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "browsing changes nothing")
         assertEquals("portrait", model().categoryId); assertEquals(listOf("landscape"), dotted())
-        assertEquals(landscape.displayName, model().name); assertEquals("Applied from Landscape", model().context)
+        assertEquals(landscape.displayName, model().name)
+        assertEquals("Applied from Landscape · 3 / ${BundledPack.library.pack.category("landscape")!!.presets.size}", model().context)
+        assertEquals("", model().position); assertEquals(0, model().stop)
+        val steps = vm.uiState.value.session!!.history.entries.size
+
+        // Dragging Portrait names what is under the needle with this ruler's position; back to the start is a cancel.
+        vm.onRulerDrag(4); advanceUntilIdle()
+        assertEquals(BundledPack.preset("portrait", 4).displayName, model().name); assertEquals("", model().context)
+        assertTrue(model().position.startsWith("4 / "))
+        vm.onRulerDrag(0); vm.onRulerRelease(0); advanceUntilIdle()
+        assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "releasing where the drag started changes nothing")
+        assertEquals(steps, vm.uiState.value.session!!.history.entries.size)
+        assertEquals(landscape.displayName, model().name); assertEquals("portrait", model().categoryId)
 
         vm.onRulerDrag(2); vm.onRulerRelease(2); advanceUntilIdle()
         val portrait = BundledPack.preset("portrait", 2)

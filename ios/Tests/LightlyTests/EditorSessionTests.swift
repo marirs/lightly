@@ -151,8 +151,8 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(model.stop, 0)
         // Owner amendment 2026-10-05: the name row keeps naming the applied preset, never "Original".
         XCTAssertEqual(model.displayedName, applied.displayName)
-        XCTAssertEqual(model.contextLine, "Applied from \(first.name)")
-        XCTAssertEqual(model.positionText, "1 / \(first.presets.count)", "The applied preset's own position, once")
+        XCTAssertEqual(model.contextLine, "Applied from \(first.name) · 1 / \(first.presets.count)", "The applied preset's own position, in its context")
+        XCTAssertEqual(model.positionText, "", "No position beside the name that would read as this ruler's")
         XCTAssertTrue(model.categoryItems.first { $0.id == first.id }!.holdsAppliedPreset, "The applied category keeps its dot")
         XCTAssertEqual(model.currentCategoryID, second.id, "The underline is on the browsed category")
 
@@ -180,8 +180,27 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(model.currentCategoryID, portrait.id, "The underline moves at once")
         XCTAssertEqual(dotted(), [landscape.id], "The dot stays with the applied preset")
         XCTAssertEqual(model.displayedName, landscapePreset.displayName, "Not 'Original': the Landscape preset is still applied")
-        XCTAssertEqual(model.contextLine, "Applied from \(landscape.name)")
+        XCTAssertEqual(model.contextLine, "Applied from \(landscape.name) · 3 / \(landscape.presets.count)")
+        XCTAssertEqual(model.positionText, "")
+        XCTAssertEqual(model.stop, 0, "The Portrait ruler rests at its start")
 
+        // Dragging the Portrait ruler names what is under the needle, with this ruler's position.
+        let historyBefore = session.history.count
+        model.dragChanged(to: 4)
+        XCTAssertEqual(model.displayedName, portrait.presets[3].displayName)
+        XCTAssertEqual(model.positionText, "4 / \(portrait.presets.count)"); XCTAssertNil(model.contextLine)
+        // Back to where it started and released: a cancel. The Landscape preset stays applied.
+        model.dragChanged(to: 0)
+        model.dragEnded(at: 0)
+        XCTAssertEqual(session.appliedPreset?.id, landscapePreset.id, "Releasing where the drag started changes nothing")
+        XCTAssertEqual(session.history.count, historyBefore)
+        XCTAssertEqual(model.displayedName, landscapePreset.displayName)
+        XCTAssertEqual(model.currentCategoryID, portrait.id, "Still browsing Portrait")
+        // A touch on the resting ruler (no movement past stop 0) also changes nothing.
+        model.dragChanged(to: 0); model.dragEnded(at: 0)
+        XCTAssertEqual(session.appliedPreset?.id, landscapePreset.id)
+
+        model.dragChanged(to: 2)
         model.dragEnded(at: 2)
         let portraitPreset = portrait.presets[1]
         XCTAssertEqual(session.appliedPreset?.id, portraitPreset.id)
@@ -193,6 +212,7 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(model.currentCategoryID, landscape.id, "After Undo the underline returns to the applied category")
         XCTAssertEqual(dotted(), [landscape.id]); XCTAssertEqual(model.displayedName, landscapePreset.displayName)
         XCTAssertEqual(model.stop, 3); XCTAssertNil(model.contextLine)
+        XCTAssertEqual(model.positionText, "3 / \(landscape.presets.count)")
 
         session.redo()
         XCTAssertEqual(session.appliedPreset?.id, portraitPreset.id)

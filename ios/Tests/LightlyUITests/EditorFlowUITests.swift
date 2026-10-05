@@ -247,6 +247,163 @@ final class EditorFlowUITests: XCTestCase {
         saveScreenshot("pass-8-saved")
     }
 
+    /// Owner check 2026-10-05: browsing Portrait while a Landscape preset is applied, then cancelling, committing,
+    /// Undo and Redo. The name row, position, context line and ruler each describe their own state at every step.
+    /// Screenshots to LIGHTLY_VERIFY_DIR.
+    func testRulerHeaderStaysCoherentWhileBrowsing() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        // An empty Text is not in the accessibility tree: absent reads as "".
+        func text(_ id: String) -> String { element(id).exists ? label(id) : "" }
+        element("develop.category.landscape").tap()
+        dragRuler(by: 5)
+        XCTAssertTrue(waitFor { self.label("develop.name") != "Original" })
+        let applied = label("develop.name")
+        let appliedPosition = text("develop.position")
+        XCTAssertFalse(appliedPosition.isEmpty)
+        saveScreenshot("ruler-1-landscape-applied")
+
+        element("develop.category.portrait").tap()
+        XCTAssertTrue(waitFor { text("develop.context").hasPrefix("Applied from Landscape · ") })
+        XCTAssertEqual(label("develop.name"), applied)
+        XCTAssertEqual(text("develop.context"), "Applied from Landscape · \(appliedPosition)")
+        XCTAssertEqual(text("develop.position"), "", "no position beside the Landscape name while the Portrait ruler shows")
+        saveScreenshot("ruler-2-browsing-portrait")
+
+        // A drag on the resting Portrait ruler that ends where it started (pulled the other way, held at stop 0) is a
+        // cancel; before the fix it committed "no Look" and dropped the Landscape preset.
+        let ruler = element("develop.ruler")
+        let centre = ruler.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        centre.press(forDuration: 0.05, thenDragTo: centre.withOffset(CGVector(dx: 60, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        sleep(1)
+        XCTAssertEqual(label("develop.name"), applied, "the Landscape preset stays applied")
+        XCTAssertTrue(text("develop.context").hasPrefix("Applied from Landscape"))
+        saveScreenshot("ruler-3-after-touch-cancel")
+
+        dragRuler(by: 2)
+        XCTAssertTrue(waitFor { self.label("develop.name") != applied })
+        let portrait = label("develop.name")
+        XCTAssertEqual(text("develop.context"), "")
+        let portraitPosition = text("develop.position")
+        XCTAssertTrue(portraitPosition.range(of: #"^[1-9]\d* / \d+$"#, options: .regularExpression) != nil, portraitPosition)
+        XCTAssertNotEqual(portraitPosition, appliedPosition, "this ruler's position, not Landscape's")
+        saveScreenshot("ruler-4-portrait-applied")
+
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == applied })
+        XCTAssertEqual(text("develop.position"), appliedPosition, "after Undo the Landscape ruler and position are back")
+        XCTAssertEqual(text("develop.context"), "")
+        saveScreenshot("ruler-5-after-undo")
+
+        app.buttons["editor.redo"].tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == portrait })
+        XCTAssertEqual(text("develop.context"), "")
+        XCTAssertEqual(text("develop.position"), portraitPosition)
+        saveScreenshot("ruler-6-after-redo")
+    }
+
+    /// Owner check 2026-10-05: every corner and edge, moving, a locked ratio then Free, and cropping after a rotation and
+    /// straightening; each step checked against the committed rectangle. Screenshots to LIGHTLY_VERIFY_DIR.
+    func testCropHandlesMoveOnlyTheirOwnSides() {
+        relaunch(arguments: ["--reset-preferences", "--expose-crop", "--open-photo", photoPath("landscape_02")])
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        element("tool.edit").tap()
+        let photo = element("editor.photo")
+        XCTAssertTrue(photo.waitForExistence(timeout: timeout))
+        func crop() -> (aspect: String, x: Double, y: Double, w: Double, h: Double) {
+            let parts = (element("edit.cropRect").value as? String ?? "").split(separator: " ").map(String.init)
+            guard parts.count == 5 else { XCTFail("no crop readout"); return ("", 0, 0, 1, 1) }
+            return (parts[0], Double(parts[1])!, Double(parts[2])!, Double(parts[3])!, Double(parts[4])!)
+        }
+        func drag(_ from: CGVector, _ to: CGVector) {
+            photo.coordinate(withNormalizedOffset: from)
+                .press(forDuration: 0.15, thenDragTo: photo.coordinate(withNormalizedOffset: to), withVelocity: .slow, thenHoldForDuration: 0.1)
+            sleep(1)
+        }
+        let eps = 0.004
+        func sides(_ c: (aspect: String, x: Double, y: Double, w: Double, h: Double)) -> [Double] { [c.x, c.y, c.x + c.w, c.y + c.h] }
+        /// Which of left, top, right, bottom changed.
+        func changed(_ a: [Double], _ b: [Double]) -> [Bool] { zip(a, b).map { abs($0 - $1) > eps } }
+
+        var before = sides(crop())
+        XCTAssertEqual(before, [0, 0, 1, 1], "starts as the whole frame")
+        saveScreenshot("crop-0-whole")
+        let corners: [(String, CGVector, CGVector, [Bool])] = [
+            ("top-left", CGVector(dx: 0.01, dy: 0.01), CGVector(dx: 0.12, dy: 0.15), [true, true, false, false]),
+            ("top-right", CGVector(dx: 0.99, dy: 0.15), CGVector(dx: 0.88, dy: 0.25), [false, true, true, false]),
+            ("bottom-right", CGVector(dx: 0.88, dy: 0.99), CGVector(dx: 0.8, dy: 0.85), [false, false, true, true]),
+            ("bottom-left", CGVector(dx: 0.12, dy: 0.85), CGVector(dx: 0.2, dy: 0.75), [true, false, false, true]),
+        ]
+        for (name, from, to, expected) in corners {
+            drag(from, to)
+            let after = sides(crop())
+            XCTAssertEqual(changed(before, after), expected, "\(name) corner: \(before) → \(after)")
+            before = after
+            saveScreenshot("crop-corner-\(name)")
+        }
+        // Edges, at the middle of each side of the current rectangle.
+        func mid(_ s: [Double]) -> (x: Double, y: Double) { ((s[0] + s[2]) / 2, (s[1] + s[3]) / 2) }
+        let edges: [(String, (([Double]) -> (CGVector, CGVector)), [Bool])] = [
+            ("left", { s in (CGVector(dx: s[0], dy: mid(s).y), CGVector(dx: s[0] + 0.05, dy: mid(s).y + 0.04)) }, [true, false, false, false]),
+            ("right", { s in (CGVector(dx: s[2], dy: mid(s).y), CGVector(dx: s[2] - 0.05, dy: mid(s).y - 0.04)) }, [false, false, true, false]),
+            ("top", { s in (CGVector(dx: mid(s).x, dy: s[1]), CGVector(dx: mid(s).x + 0.04, dy: s[1] + 0.05)) }, [false, true, false, false]),
+            ("bottom", { s in (CGVector(dx: mid(s).x, dy: s[3]), CGVector(dx: mid(s).x - 0.04, dy: s[3] - 0.05)) }, [false, false, false, true]),
+        ]
+        for (name, points, expected) in edges {
+            let (from, to) = points(before)
+            drag(from, to)
+            let after = sides(crop())
+            XCTAssertEqual(changed(before, after), expected, "\(name) edge: \(before) → \(after)")
+            before = after
+            saveScreenshot("crop-edge-\(name)")
+        }
+        // Move: inside the rectangle; the size stays.
+        let size = (before[2] - before[0], before[3] - before[1])
+        drag(CGVector(dx: mid(before).x, dy: mid(before).y), CGVector(dx: mid(before).x - 0.06, dy: mid(before).y + 0.05))
+        var after = sides(crop())
+        XCTAssertEqual(after[2] - after[0], size.0, accuracy: eps); XCTAssertEqual(after[3] - after[1], size.1, accuracy: eps)
+        XCTAssertEqual(after[0], before[0] - 0.06, accuracy: 0.01, "moved left"); XCTAssertEqual(after[1], before[1] + 0.05, accuracy: 0.01, "moved down")
+        before = after
+        saveScreenshot("crop-moved")
+
+        // 1:1 locks the ratio, also while a corner is dragged; Free releases it.
+        element("edit.aspect.1:1").tap()
+        sleep(1)
+        let frame = photo.frame
+        func pixelRatio() -> Double { let c = crop(); return c.w * frame.width / (c.h * frame.height) }
+        XCTAssertEqual(crop().aspect, "1:1"); XCTAssertEqual(pixelRatio(), 1, accuracy: 0.02)
+        before = sides(crop())
+        drag(CGVector(dx: before[2], dy: before[3]), CGVector(dx: before[2] - 0.08, dy: before[3] - 0.02))
+        XCTAssertEqual(pixelRatio(), 1, accuracy: 0.02, "the corner keeps 1:1")
+        saveScreenshot("crop-ratio-locked")
+        element("edit.aspect.free").tap()
+        sleep(1)
+        XCTAssertEqual(crop().aspect, "free")
+        before = sides(crop())
+        drag(CGVector(dx: before[2], dy: mid(before).y), CGVector(dx: before[2] - 0.1, dy: mid(before).y))
+        after = sides(crop())
+        XCTAssertEqual(changed(before, after), [false, false, true, false], "Free: the right edge alone")
+        saveScreenshot("crop-free-again")
+
+        // Rotate and straighten, then crop.
+        element("edit.sub.Rotate").tap()
+        element("edit.rotateRight").tap()
+        element("edit.sub.Straighten").tap()
+        let angle = app.sliders["slider.angle"]
+        if angle.waitForExistence(timeout: 5) { angle.adjust(toNormalizedSliderPosition: 0.43) }
+        element("edit.sub.Crop").tap()
+        sleep(2)
+        saveScreenshot("crop-after-rotate-straighten")
+        before = sides(crop())
+        drag(CGVector(dx: before[0], dy: before[1]), CGVector(dx: before[0] + 0.1, dy: before[1] + 0.08))
+        after = sides(crop())
+        XCTAssertEqual(changed(before, after), [true, true, false, false], "top-left after rotation: \(before) → \(after)")
+        saveScreenshot("crop-after-rotate-straighten-cropped")
+        element("edit.sub.Rotate").tap()
+        sleep(2)
+        saveScreenshot("crop-result-shown")
+    }
+
     func testClosingWithUnsavedEditsAsks() {
         openEditor()
         dragRuler(by: 3)
