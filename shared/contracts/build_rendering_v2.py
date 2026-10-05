@@ -24,7 +24,8 @@ PRESETS = REPO / "experiments/presets"
 #     stages, perspective defined, light leak measured along the farthest-corner ray as the approved CSS does.
 # 3 = background.focus subject colour from the de-contaminated estimate wherever the matte is above 0.02.
 # 4 = effects.selectiveColour (owner request 2026-10-04), after the light leak, before vignette and grain.
-CONTRACT_REVISION = 4
+# 5 = background.replace composites the estimated foreground colour (Germer multilevel), not the observed pixel.
+CONTRACT_REVISION = 5
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -221,7 +222,15 @@ def stages():
                                 "The replacement first receives the photo's global colour (auto, develop.global at strength, "
                                 "adjustColour), as in the approved prototype; no spatial operator is applied to it.",
                         "placement": "revision 2: x, y, scale place the replacement in the source frame; edit.geometry then maps it with the photo",
-                        "params": {"x": num(0, 100, 50, PERCENT), "y": num(0, 100, 50, PERCENT), "scale": num(100, 200, 100, PERCENT)}}]},
+                        "foreground": {"revision": 5,
+                                "rule": "out = F·a + R·(1 − a) in linear RGB, F the estimated foreground colour, not the observed pixel",
+                                "estimate": "Germer et al. 2020 multilevel foreground estimation (pymatting estimate_foreground_ml): regularisation 1e-5, "
+                                            "gradient weight 1, 10 Gauss-Seidel iterations on levels up to 32 px, 2 above, nearest-neighbour level resizing, "
+                                            "levels w = round(W^(i/n)), n = ceil(log2(max(W, H))); F and B start from the means of a > 0.9 and a < 0.1",
+                                "resolution": "estimated at the working resolution (the Background cap); a larger frame uses F_full = clamp(I_full + up(F_W − I_W), 0, 1) "
+                                              "with bilinear up-sampling, so the photo's own detail is kept and only the colour correction is up-sampled",
+                                "reference": "experiments/depth/refocus.py estimate_foreground, replace_composite"},
+              "params": {"x": num(0, 100, 50, PERCENT), "y": num(0, 100, 50, PERCENT), "scale": num(100, 200, 100, PERCENT)}}]},
         {"order": 7, "id": "background.focus", "frame": "source", "recipe": "editState.tools.background.focus",
          "operators": [{"id": "depthBlur",
                         "params": {"blur": num(0, 100, 0, PERCENT), "depthOfField": num(0, 100, 40, PERCENT, "'Focus depth' slider"),

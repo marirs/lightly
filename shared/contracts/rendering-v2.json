@@ -1,7 +1,7 @@
 {
  "contract": "lightly-rendering",
  "version": 2,
- "revision": 4,
+ "revision": 5,
  "changeLog": "shared/contracts/rendering-v2.md#change-log",
  "prose": "shared/contracts/rendering-v2.md",
  "generatedBy": "shared/contracts/build_rendering_v2.py",
@@ -797,6 +797,13 @@
      "id": "replaceBackground",
      "note": "subject matte (segmentation) composites the subject over the replacement (image, colour or gradient). The replacement first receives the photo's global colour (auto, develop.global at strength, adjustColour), as in the approved prototype; no spatial operator is applied to it.",
      "placement": "revision 2: x, y, scale place the replacement in the source frame; edit.geometry then maps it with the photo",
+     "foreground": {
+      "revision": 5,
+      "rule": "out = F·a + R·(1 − a) in linear RGB, F the estimated foreground colour, not the observed pixel",
+      "estimate": "Germer et al. 2020 multilevel foreground estimation (pymatting estimate_foreground_ml): regularisation 1e-5, gradient weight 1, 10 Gauss-Seidel iterations on levels up to 32 px, 2 above, nearest-neighbour level resizing, levels w = round(W^(i/n)), n = ceil(log2(max(W, H))); F and B start from the means of a > 0.9 and a < 0.1",
+      "resolution": "estimated at the working resolution (the Background cap); a larger frame uses F_full = clamp(I_full + up(F_W − I_W), 0, 1) with bilinear up-sampling, so the photo's own detail is kept and only the colour correction is up-sampled",
+      "reference": "experiments/depth/refocus.py estimate_foreground, replace_composite"
+     },
      "params": {
       "x": {
        "type": "number",

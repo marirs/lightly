@@ -76,7 +76,7 @@ class DevelopLibrary(
         const val ASSET_CONTRACT = "lookpack/rendering-v2.json"
 
         /** The rendering-v2 revision this app implements. */
-        const val SUPPORTED_CONTRACT_REVISION = 4
+        const val SUPPORTED_CONTRACT_REVISION = 5
 
         /** Parses the bundled files; [parseMillis] receives the manifest parse + index time. */
         fun load(manifest: String, contract: String, bakePool: ExecutorService, parallelism: Int, parseMillis: (Double) -> Unit = {}, onBake: (Double) -> Unit = {}): DevelopLibrary {

@@ -168,3 +168,16 @@ def test_a_picked_skin_tone_does_not_keep_a_saturated_red():
     oklab = reference_model.linear_to_oklab(reference_model.srgb_to_linear(shades))
     skin, red, other_skin = reference_model.selective_colour_keep(oklab, [oklab[0, 0]], 40)[0]
     assert skin == 1 and other_skin == 1 and red == 0
+
+
+# --- background.replace foreground estimate (revision 5) ------------------------------------------
+
+def test_the_foreground_estimate_removes_the_old_walls_colour_from_soft_edges():
+    alpha, image = make_rendering_goldens.hair_over_wall(40, 56)
+    foreground = refocus.estimate_foreground(image, alpha)
+    soft = (alpha > 0.2) & (alpha < 0.95)
+    red_wall = soft.copy(); red_wall[:, :28] = False
+    observed_red = (image[..., 0] - image[..., 1])[red_wall].mean()
+    estimated_red = (foreground[..., 0] - foreground[..., 1])[red_wall].mean()
+    assert estimated_red < 0.3 * observed_red   # measured: 75 % of the wall's red removed at soft edges
+    assert np.abs(foreground[alpha > 0.999] - image[alpha > 0.999]).max() < 0.02   # solid subject unchanged

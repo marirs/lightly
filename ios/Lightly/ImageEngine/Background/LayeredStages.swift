@@ -62,12 +62,25 @@ enum LayeredStages {
                 BackgroundStage.applyRefinements(background.subject.refinements, to: &m)
                 return m
             }
-            // Sharp composite at full resolution: the subject over the (replaced) background.
+            // Sharp composite at full resolution: the subject over the (replaced) background. The subject's colour
+            // is the estimated foreground (rendering-v2 revision 5): estimated at the working size, its correction
+            // F − I up-sampled to the frame, so the old background's colour leaves hair while the frame keeps its
+            // own detail. Before revision 5 the observed pixel was composited (the old wall's colour in hair).
             var composite = full
             if let replacementFull, let matteFull {
+                let scale = min(1, Float(cap) / Float(max(width, height)))
+                let ww = max(1, Int((Float(width) * scale).rounded())), wh = max(1, Int((Float(height) * scale).rounded()))
+                let photoWorking = full.resized(width: ww, height: wh)
+                var matteWorking = matteFull.resized(width: ww, height: wh)
+                for i in 0..<matteWorking.data.count { matteWorking.data[i] = min(max(matteWorking.data[i], 0), 1) }
+                let shift = ForegroundShiftCache.shared.shift(photo: photoWorking, matte: matteWorking)
+                let shiftFull = shift.resized(width: width, height: height)
                 for i in 0..<composite.pixelCount {
                     let a = matteFull.data[i]
-                    for c in 0..<3 { composite.data[i * 3 + c] = full.data[i * 3 + c] * a + replacementFull.data[i * 3 + c] * (1 - a) }
+                    for c in 0..<3 {
+                        let subject = min(max(full.data[i * 3 + c] + shiftFull.data[i * 3 + c], 0), 1)
+                        composite.data[i * 3 + c] = subject * a + replacementFull.data[i * 3 + c] * (1 - a)
+                    }
                 }
             }
             if background.focus.blur > 0 {
@@ -115,5 +128,29 @@ enum LayeredStages {
             full = PortraitRenderer.render(full, faces: faces, personMatte: person)
         }
         return full.rgba8FromLinear()
+    }
+}
+
+
+/// background.replace's F − I at the working size (rendering-v2 revision 5). The estimate depends on the photo and
+/// the matte only, not on the replacement or the blur, and is sequential by definition: a render that changes only
+/// those reuses it. One entry, keyed by content, so memory stays bounded.
+final class ForegroundShiftCache: @unchecked Sendable {
+    static let shared = ForegroundShiftCache()
+    private let lock = NSLock()
+    private var last: (key: Int, shift: FloatImage)?
+
+    func shift(photo: FloatImage, matte: FloatImage) -> FloatImage {
+        var hasher = Hasher()
+        hasher.combine(photo.width); hasher.combine(photo.height)
+        photo.data.withUnsafeBytes { hasher.combine(bytes: $0) }
+        matte.data.withUnsafeBytes { hasher.combine(bytes: $0) }
+        let key = hasher.finalize()
+        if let hit = lock.withLock({ last?.key == key ? last?.shift : nil }) { return hit }
+        let foreground = ForegroundEstimate.estimate(photo, alpha: matte)
+        var shift = foreground
+        for i in 0..<shift.data.count { shift.data[i] -= photo.data[i] }
+        lock.withLock { last = (key, shift) }
+        return shift
     }
 }

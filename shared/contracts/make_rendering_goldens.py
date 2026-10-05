@@ -1,4 +1,5 @@
-"""Write the parity goldens for background.focus, grain, the light leak and selective colour (rendering-v2 revision 4).
+"""Write the parity goldens for background.focus, background.replace's foreground estimate (revision 5), grain, the light
+leak and selective colour (rendering-v2 revision 5).
 
     python shared/contracts/make_rendering_goldens.py          # rewrite shared/fixtures/rendering/
     python shared/contracts/make_rendering_goldens.py --check  # exit 1 if the committed files are out of date
@@ -238,6 +239,34 @@ def selective_colour_cases(files: Files) -> list:
     return out
 
 
+def hair_over_wall(height: int, width: int):
+    """A dark subject with soft, strand-like edges over a saturated red wall: alpha (H x W) and the linear image
+    observed = a * hair + (1 - a) * wall. The left part has a light-grey wall, so F must not take red there."""
+    yy, xx = np.mgrid[0:height, 0:width].astype(np.float64)
+    strands = 0.5 + 0.5 * np.sin(xx * 1.7 + yy * 0.35)
+    edge = np.clip((xx - width * 0.35) / (width * 0.3), 0, 1)
+    alpha = np.clip(edge * (0.55 + 0.45 * strands), 0, 1)
+    alpha[:, int(width * 0.75):] = 1.0
+    hair = np.stack([0.05 + 0.03 * yy / height, 0.04 + 0.0 * yy, 0.035 + 0.0 * yy], -1)
+    wall = np.where((xx < width * 0.5)[..., None], np.array([0.6, 0.6, 0.6]), np.array([0.7, 0.04, 0.03]))
+    return alpha.astype(np.float32), (alpha[..., None] * hair + (1 - alpha[..., None]) * wall).astype(np.float32)
+
+
+def foreground_cases(files: Files) -> list:
+    out = []
+    for name, height, width in (("hair-over-wall", 40, 56), ("hair-over-wall-odd", 37, 61)):
+        alpha, image = hair_over_wall(height, width)
+        foreground = refocus.estimate_foreground(image, alpha)
+        replacement = np.broadcast_to(np.array([0.9, 0.88, 0.85], np.float32), image.shape)
+        out.append({"name": name, "height": height, "width": width,
+                    "image": files.array(f"foreground-{name}-image.f32", image),
+                    "alpha": files.array(f"foreground-{name}-alpha.f32", alpha),
+                    "foreground": files.array(f"foreground-{name}-expected.f32", foreground),
+                    "replacement": [0.9, 0.88, 0.85],
+                    "composite": files.array(f"foreground-{name}-composite.f32", refocus.replace_composite(image, alpha, replacement, foreground))})
+    return out
+
+
 def build() -> dict[str, bytes]:
     files = Files()
     scene_inputs = synthetic_scene()
@@ -255,6 +284,7 @@ def build() -> dict[str, bytes]:
             "grain": "noise max abs 1e-4; expected max abs 2e-4 (inside `crop` [row, column, height, width] when set)",
             "lightLeak": "farthestCornerPx max abs 1e-4; premultiplied and expected max abs 2e-4 (pixel centres at +0.5)",
             "selectiveColour": "params.colours (the sampled picks) max abs 1e-4; keep and expected max abs 2e-4",
+            "foreground": "foreground and composite max abs 1e-4 (linear RGB; float32 Gauss-Seidel in row-major order)",
         },
         "backgroundFocus": {
             "constants": next(s for s in contract["stages"] if s["id"] == "background.focus")["operators"][0]["constants"],
@@ -270,6 +300,7 @@ def build() -> dict[str, bytes]:
         "grain": grain_cases(files),
         "lightLeak": light_leak_cases(files),
         "selectiveColour": selective_colour_cases(files),
+        "foreground": foreground_cases(files),
     }
     blobs = {"index.json": (json.dumps(index, indent=1, ensure_ascii=False) + "\n").encode()}
     blobs.update(files.blobs)

@@ -3,7 +3,7 @@
  "formatVersion": 1,
  "renderingContract": {
   "version": 2,
-  "revision": 4
+  "revision": 5
  },
  "generatedBy": "shared/contracts/make_rendering_goldens.py",
  "arrays": "little-endian float32, row-major; images are HxWx3 sRGB-encoded in [0, 1] unless named otherwise",
@@ -14,7 +14,8 @@
   "focusRender": "ΔE00 mean ≤ 1.0 and p99 ≤ 4 against `expected` (depth-evaluation.md §R9)",
   "grain": "noise max abs 1e-4; expected max abs 2e-4 (inside `crop` [row, column, height, width] when set)",
   "lightLeak": "farthestCornerPx max abs 1e-4; premultiplied and expected max abs 2e-4 (pixel centres at +0.5)",
-  "selectiveColour": "params.colours (the sampled picks) max abs 1e-4; keep and expected max abs 2e-4"
+  "selectiveColour": "params.colours (the sampled picks) max abs 1e-4; keep and expected max abs 2e-4",
+  "foreground": "foreground and composite max abs 1e-4 (linear RGB; float32 Gauss-Seidel in row-major order)"
  },
  "backgroundFocus": {
   "constants": {
@@ -1307,6 +1308,98 @@
      3
     ],
     "sha256": "5950e735c4676098fc7a6031cec0b40497e18d9b5d4b4e148d72352f504eda9b"
+   }
+  }
+ ],
+ "foreground": [
+  {
+   "name": "hair-over-wall",
+   "height": 40,
+   "width": 56,
+   "image": {
+    "file": "foreground-hair-over-wall-image.f32",
+    "shape": [
+     40,
+     56,
+     3
+    ],
+    "sha256": "3055dc603f6b4e904c7858c107a88bdd667a4873d48903517ebcfbd81d4d0b3e"
+   },
+   "alpha": {
+    "file": "foreground-hair-over-wall-alpha.f32",
+    "shape": [
+     40,
+     56
+    ],
+    "sha256": "d2caa73f8f80ca14cdc0c03193b790f7dc3579aecc1db92f3d1ba7b3dd496de0"
+   },
+   "foreground": {
+    "file": "foreground-hair-over-wall-expected.f32",
+    "shape": [
+     40,
+     56,
+     3
+    ],
+    "sha256": "4134b8652d80770b00561c3054ef6b949193899390d6983ba96b7d0fc2f42b1c"
+   },
+   "replacement": [
+    0.9,
+    0.88,
+    0.85
+   ],
+   "composite": {
+    "file": "foreground-hair-over-wall-composite.f32",
+    "shape": [
+     40,
+     56,
+     3
+    ],
+    "sha256": "d7f07265fff12bd167394bf4a57956dfdb2631c288712eb3954be15b129b37ee"
+   }
+  },
+  {
+   "name": "hair-over-wall-odd",
+   "height": 37,
+   "width": 61,
+   "image": {
+    "file": "foreground-hair-over-wall-odd-image.f32",
+    "shape": [
+     37,
+     61,
+     3
+    ],
+    "sha256": "43f83c2c948182e22f2a2e72e56e8baf13cdf91813c113fbbe04b9de72d14933"
+   },
+   "alpha": {
+    "file": "foreground-hair-over-wall-odd-alpha.f32",
+    "shape": [
+     37,
+     61
+    ],
+    "sha256": "64bf6697f6c1dc57135dce0e70bcd71a14811ac480ebe45c908b6600b2667c24"
+   },
+   "foreground": {
+    "file": "foreground-hair-over-wall-odd-expected.f32",
+    "shape": [
+     37,
+     61,
+     3
+    ],
+    "sha256": "8347685c14005679f3f5f64f78c483a690ee85c386784adf542cda8af353ad4c"
+   },
+   "replacement": [
+    0.9,
+    0.88,
+    0.85
+   ],
+   "composite": {
+    "file": "foreground-hair-over-wall-odd-composite.f32",
+    "shape": [
+     37,
+     61,
+     3
+    ],
+    "sha256": "a8cf9f0fabf2527255e27083c75eff81bc980ee6dab8aaf139e6f67870d072d6"
    }
   }
  ]

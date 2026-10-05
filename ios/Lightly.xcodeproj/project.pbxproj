@@ -162,6 +162,7 @@
 		AF3068C12D2AA429BC68E088 /* BackgroundStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 374C9DA528662769BAC2E58B /* BackgroundStage.swift */; };
 		B0CB8BBB3E65ADF2216C556B /* SelectiveColour.swift in Sources */ = {isa = PBXBuildFile; fileRef = 589B20DEDA287BBFDECFC78C /* SelectiveColour.swift */; };
 		B4EB867E80655134C201B76C /* LookThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0649541002DE319818590B79 /* LookThumbnailRenderer.swift */; };
+		B5D1293D35952685EF0825A4 /* ForegroundEstimate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74554523BE88DFCC4DFCC811 /* ForegroundEstimate.swift */; };
 		B6739D58E6179B180EBD12E7 /* DevelopRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB2867C5D49814A9B978C7E /* DevelopRecipe.swift */; };
 		B699A9D372FCF406B8691C47 /* DevelopStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127C9E7A1DEDE2FE50A1E961 /* DevelopStage.swift */; };
 		B701785EB4C4C65E0B938740 /* ApprovedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD4A10733669174E8BA4FFEA /* ApprovedComponents.swift */; };
@@ -337,6 +338,7 @@
 		6AC9184CE83B8B964E4E52A7 /* AdjustStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdjustStage.swift; sourceTree = "<group>"; };
 		6DE53EB1E9EA9A6AAE8D08CD /* PreviewRenderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRenderScheduler.swift; sourceTree = "<group>"; };
 		70E5B42B5EF1A7569F113C7B /* Allura-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Allura-Regular.ttf"; sourceTree = "<group>"; };
+		74554523BE88DFCC4DFCC811 /* ForegroundEstimate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundEstimate.swift; sourceTree = "<group>"; };
 		7499A72CE634A1B1D7519737 /* EditorSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSheets.swift; sourceTree = "<group>"; };
 		75AFA2AE4E25D4D088F4D701 /* Entitlements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entitlements.swift; sourceTree = "<group>"; };
 		7772E8B98209919C954C1C84 /* ExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTests.swift; sourceTree = "<group>"; };
@@ -599,6 +601,7 @@
 			children = (
 				374C9DA528662769BAC2E58B /* BackgroundStage.swift */,
 				F562D6AAAFF8E0B3E9EF0F8A /* FloatImage.swift */,
+				74554523BE88DFCC4DFCC811 /* ForegroundEstimate.swift */,
 				3CE2F7A07A25E24259BAFBFE /* LayeredStages.swift */,
 				5259504E0F41B9DA1589840A /* RefocusRenderer.swift */,
 				EBA59668B377D73510341753 /* SceneAnalysis.swift */,
@@ -1540,6 +1543,7 @@
 				AEC0A17586E7CD2A92D0BE05 /* ExportSettings.swift in Sources */,
 				28777644D38E3394D3CF77E9 /* FavouritePresetsStore.swift in Sources */,
 				C25C62CEA4AECE1FC3C8DF11 /* FloatImage.swift in Sources */,
+				B5D1293D35952685EF0825A4 /* ForegroundEstimate.swift in Sources */,
 				BCCA018D7D15F59DCD920127 /* GeometryStage.swift in Sources */,
 				69A3EE4B84611E234CB7E2D5 /* HistogramAnalyser.swift in Sources */,
 				9BC4A72EFF69E4ABD3DB6E9E /* ImageAnalyser.swift in Sources */,

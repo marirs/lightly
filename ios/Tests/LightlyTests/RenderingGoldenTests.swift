@@ -38,7 +38,7 @@ final class RenderingGoldenTests: XCTestCase {
 
     func testTheGoldensAreRevisionTwoAndTheBundledContractMatches() throws {
         let contract = try XCTUnwrap(try Self.index()["renderingContract"] as? [String: Any])
-        XCTAssertEqual(contract["revision"] as? Int, 4)
+        XCTAssertEqual(contract["revision"] as? Int, 5)
         let data = try Data(contentsOf: DevelopParityTests.fixture("shared/contracts/rendering-v2.json"))
         XCTAssertNoThrow(try DevelopModel.load(contractData: data), "DevelopModel accepts revision 2 and its focus constants")
         let constants = try XCTUnwrap(try focus["constants"] as? [String: Any])
@@ -332,6 +332,30 @@ final class RenderingGoldenTests: XCTestCase {
             }
             XCTAssertLessThanOrEqual(worstKeep, 2e-4, "\(name) keep")
             XCTAssertLessThanOrEqual(worstOutput, 2e-4, "\(name) output")
+        }
+    }
+
+    /// The `foreground` goldens (rendering-v2 revision 5): background.replace's foreground estimate and composite.
+    func testForegroundEstimateMatchesTheGoldens() throws {
+        let cases = try XCTUnwrap(try Self.index()["foreground"] as? [[String: Any]])
+        XCTAssertEqual(cases.count, 2)
+        for item in cases {
+            let name = try XCTUnwrap(item["name"] as? String)
+            let height = try XCTUnwrap(item["height"] as? Int), width = try XCTUnwrap(item["width"] as? Int)
+            let image = FloatImage(width: width, height: height, channels: 3, data: try Self.floats(item["image"]).values)
+            let alpha = FloatImage(width: width, height: height, channels: 1, data: try Self.floats(item["alpha"]).values)
+            let expected = try Self.floats(item["foreground"]).values
+            let composite = try Self.floats(item["composite"]).values
+            let replacement = try XCTUnwrap(item["replacement"] as? [Double]).map(Float.init)
+            let foreground = ForegroundEstimate.estimate(image, alpha: alpha)
+            var worstF: Float = 0, worstComposite: Float = 0
+            for i in 0..<expected.count {
+                worstF = max(worstF, abs(foreground.data[i] - expected[i]))
+                let a = alpha.data[i / 3]
+                worstComposite = max(worstComposite, abs(foreground.data[i] * a + replacement[i % 3] * (1 - a) - composite[i]))
+            }
+            XCTAssertLessThanOrEqual(worstF, 1e-4, "\(name) foreground")
+            XCTAssertLessThanOrEqual(worstComposite, 1e-4, "\(name) composite")
         }
     }
 

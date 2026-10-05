@@ -232,6 +232,67 @@ class Scene:
     subject: Plane | None
 
 
+# ---------------------------------------------------------------- background.replace (rendering-v2 revision 5)
+# The subject's colour where the matte is soft (hair, fur, motion edges) is a mix of subject and old background.
+# Compositing the observed pixel over a replacement keeps the old background's colour there (red wall through hair).
+# Revision 5 composites the estimated foreground F instead: Germer et al., "Fast multi-level foreground estimation"
+# (2020), as in pymatting's estimate_foreground_ml (MIT): regularisation 1e-5, gradient weight 1, 10 iterations on
+# levels up to 32 px, 2 above, nearest-neighbour level resizing, Gauss-Seidel updates in row-major order.
+FOREGROUND_REGULARIZATION = 1e-5
+FOREGROUND_GRADIENT_WEIGHT = 1.0
+FOREGROUND_SMALL_ITERATIONS = 10
+FOREGROUND_BIG_ITERATIONS = 2
+FOREGROUND_SMALL_SIZE = 32
+
+
+def _resize_nearest(src: np.ndarray, height: int, width: int) -> np.ndarray:
+    h, w = src.shape[:2]
+    ys = np.clip(np.arange(height) * h // height, 0, h - 1)
+    xs = np.clip(np.arange(width) * w // width, 0, w - 1)
+    return src[ys][:, xs].copy()
+
+
+def estimate_foreground(image: np.ndarray, alpha: np.ndarray) -> np.ndarray:
+    """Foreground colour F (H x W x 3, linear, clipped to [0, 1]) of `image` (linear) given `alpha`, in float32."""
+    image = np.asarray(image, np.float32)
+    alpha = np.asarray(alpha, np.float32)
+    h0, w0, depth = image.shape
+    f_mean = image[alpha > 0.9].sum(0) / np.float32((alpha > 0.9).sum() + 1e-5)
+    b_mean = image[alpha < 0.1].sum(0) / np.float32((alpha < 0.1).sum() + 1e-5)
+    f_prev = np.zeros((1, 1, depth), np.float32) + f_mean.astype(np.float32)
+    b_prev = np.zeros((1, 1, depth), np.float32) + b_mean.astype(np.float32)
+    levels = int(math.ceil(math.log2(max(w0, h0))))
+    reg, gw = np.float32(FOREGROUND_REGULARIZATION), np.float32(FOREGROUND_GRADIENT_WEIGHT)
+    for level in range(levels + 1):
+        w = round(w0 ** (level / levels)); h = round(h0 ** (level / levels))
+        img = _resize_nearest(image, h, w); a_ = _resize_nearest(alpha, h, w)
+        f = _resize_nearest(f_prev, h, w); b = _resize_nearest(b_prev, h, w)
+        iterations = FOREGROUND_SMALL_ITERATIONS if (w <= FOREGROUND_SMALL_SIZE and h <= FOREGROUND_SMALL_SIZE) else FOREGROUND_BIG_ITERATIONS
+        for _ in range(iterations):
+            for y in range(h):
+                for x in range(w):
+                    a0 = a_[y, x]; a1 = np.float32(1) - a0
+                    a00, a01, a11 = a0 * a0, a0 * a1, a1 * a1
+                    bf = a0 * img[y, x].copy(); bb = a1 * img[y, x].copy()
+                    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                        x2 = min(max(x + dx, 0), w - 1); y2 = min(max(y + dy, 0), h - 1)
+                        da = reg + gw * abs(a0 - a_[y2, x2])
+                        a00 += da; a11 += da
+                        bf = bf + da * f[y2, x2]; bb = bb + da * b[y2, x2]
+                    inv = np.float32(1) / (a00 * a11 - a01 * a01)
+                    f[y, x] = np.clip(inv * a11 * bf - inv * a01 * bb, 0, 1)
+                    b[y, x] = np.clip(-inv * a01 * bf + inv * a00 * bb, 0, 1)
+        f_prev, b_prev = f, b
+    return f_prev
+
+
+def replace_composite(image: np.ndarray, alpha: np.ndarray, replacement: np.ndarray, foreground: np.ndarray | None = None) -> np.ndarray:
+    """background.replace without blur, linear RGB: F * a + R * (1 - a), F = estimate_foreground(image, alpha)."""
+    a = np.clip(alpha, 0, 1)[..., None]
+    f = estimate_foreground(image, alpha) if foreground is None else foreground
+    return f * a + replacement * (1 - a)
+
+
 def build_scene(image_srgb: np.ndarray, disparity_full: np.ndarray, matte: np.ndarray | None,
                 replacement_srgb: np.ndarray | None = None,
                 replacement_disparity: np.ndarray | None = None) -> Scene:

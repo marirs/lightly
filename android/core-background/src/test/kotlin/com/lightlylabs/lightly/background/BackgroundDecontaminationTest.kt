@@ -57,4 +57,17 @@ class BackgroundDecontaminationTest {
         // Without decontamination the excess is up to (1 − a)·(0.9 − 0.1) ≈ 0.6 in linear red.
         assertTrue(worstRedExcess < 0.03f, "red fringe on the soft edge: excess $worstRedExcess")
     }
+
+    @Test
+    fun `the foreground estimate runs once for renders that change only the replacement or the blur`() {
+        val developed = ByteArray(w * h * 4) { i -> if (i % 4 == 3) -1 else encode(if (i % 4 == 0) 0.6f else 0.2f) }
+        val matte = FloatPlane(w, h, FloatArray(w * h) { alphaAt(it % w) })
+        val analysis = BackgroundAnalysis(w, h, null, matte)
+        val before = BackgroundStage.foregroundEstimates
+        for (colour in listOf(0.2f, 0.7f)) {
+            val replacement = FloatImage(w, h, 3, FloatArray(w * h * 3) { colour })
+            BackgroundStage.renderWorking(developed, analysis, BackgroundPlan(replacement, FocusParams(0.0, 40.0, "lens", "round", 50.0), 0.5), Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW)
+        }
+        assertTrue(BackgroundStage.foregroundEstimates - before == 1, "estimated ${BackgroundStage.foregroundEstimates - before} times")
+    }
 }
