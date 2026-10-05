@@ -210,9 +210,12 @@ final class BundledContentTests: XCTestCase {
 
     func testVersionAndBuildComeFromTheBundle() {
         let version = AppVersion(bundle: .main)
-        XCTAssertEqual(version.version, Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
-        XCTAssertEqual(version.build, Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
         XCTAssertFalse(version.version.isEmpty)
+        // Git-derived on every build (BuildInfo.json, or the stamped Info.plist): never the project's placeholder 0.
+        let build = try? XCTUnwrap(Int(version.build))
+        XCTAssertNotNil(build)
+        XCTAssertGreaterThan(build ?? 0, 261_000_000, "YYMMDD + sequence")
+        XCTAssertTrue(version.version.hasPrefix("1.0.0"))
     }
 }
 

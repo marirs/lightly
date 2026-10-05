@@ -84,7 +84,16 @@ struct AppVersion: Sendable, Equatable {
         self.build = build
     }
 
+    /// `BuildInfo.json` (written from git on every build by ios/Tools/write_build_info.sh) when present, so builds made
+    /// from the Xcode IDE show their real version and build; otherwise the Info.plist values.
     init(bundle: Bundle = .main) {
+        struct BuildInfo: Decodable { let version: String; let build: String }
+        if let url = bundle.url(forResource: "BuildInfo", withExtension: "json"), let data = try? Data(contentsOf: url),
+           let info = try? JSONDecoder().decode(BuildInfo.self, from: data) {
+            version = info.version
+            build = info.build
+            return
+        }
         version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
         build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
     }

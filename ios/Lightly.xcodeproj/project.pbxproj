@@ -14,6 +14,7 @@
 				B1494605EFDF8208C65F8D88 /* Bundle Look pack */,
 				EEDA03FC9510D14BEDBECBB2 /* Bundle depth model */,
 				08F9E8E1D898402E2FB2315C /* Bundle Remove model */,
+				A96115CF6F91062597F5F51B /* Write build info */,
 			);
 			dependencies = (
 			);
@@ -1384,6 +1385,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/Tools/bundle_remove_model.sh\"";
+		};
+		A96115CF6F91062597F5F51B /* Write build info */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Write build info";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Tools/write_build_info.sh\"";
 		};
 		B1494605EFDF8208C65F8D88 /* Bundle Look pack */ = {
 			isa = PBXShellScriptBuildPhase;

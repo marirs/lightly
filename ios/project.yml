@@ -194,6 +194,10 @@ aggregateTargets:
       - name: Bundle Remove model
         script: '"${SRCROOT}/Tools/bundle_remove_model.sh"'
         basedOnDependencyAnalysis: false
+      # Version and build for About from git, on every build (Xcode IDE builds included).
+      - name: Write build info
+        script: '"${SRCROOT}/Tools/write_build_info.sh"'
+        basedOnDependencyAnalysis: false
     settings:
       base:
         ENABLE_USER_SCRIPT_SANDBOXING: NO
