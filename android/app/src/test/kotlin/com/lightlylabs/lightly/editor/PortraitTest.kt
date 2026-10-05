@@ -115,6 +115,16 @@ class PortraitTest {
     }
 
     @Test
+    fun `with no usable face, the faces get the dim rings and a pose detection only when no face was found`() {
+        // The bar photo (2026-10-05): an unusable face at the bar, and the pose detector's false "person" on the lamp.
+        val atTheBar = face(0.45, presence = 0f)
+        val lamp = NormalisedRect(0.29, 0.0, 0.3, 0.18)
+        assertEquals(listOf(atTheBar.box), unusableMarks(PeopleAnalysis(listOf(atTheBar), listOf(lamp))))
+        assertEquals(listOf(lamp), unusableMarks(PeopleAnalysis(emptyList(), listOf(lamp))), "someone seen from behind")
+        assertEquals(emptyList(), unusableMarks(PeopleAnalysis(listOf(face(0.4)), listOf(lamp))), "a usable face: no dim rings")
+    }
+
+    @Test
     fun `people without a usable face get the approved notice`() {
         val vm = editor(PeopleAnalysis(listOf(face(0.4, presence = 0f)), listOf(NormalisedRect(0.1, 0.1, 0.1, 0.1))))
         show(vm)

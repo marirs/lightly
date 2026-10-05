@@ -9,6 +9,7 @@ import com.lightlylabs.lightly.editor.EditorPhase
 import com.lightlylabs.lightly.editor.EditorViewModel
 import com.lightlylabs.lightly.editor.PersonPresence
 import java.io.File
+import kotlinx.coroutines.launch
 import com.lightlylabs.lightly.prefs.Appearance
 import com.lightlylabs.lightly.prefs.PreferencesStore
 
@@ -115,6 +116,7 @@ object DebugLaunchOptions {
         editor.debugHoldSeparation = screen == "bg-separating"
         editor.debugFailSeparation = screen == "bg-failed"
         editor.debugHoldRemove = screen == "ed-removing"
+        switchTarget = File(File(path).parentFile, "subject_swan.jpg").absolutePath
         editor.openPhoto("file://" + File(path).absolutePath)
         shell.navigate(if (screen == "more") AppNavigator.openMore(AppNavigator.openEditor()) else AppNavigator.openEditor())
         if (screen == "developing") {
@@ -254,6 +256,25 @@ object DebugLaunchOptions {
                 api.redo(); flowLog("redone ${api.summary()}")
                 api.saveCopy(); flowLog("save requested")
             }
+            // Choose another photo while separation is running (logcat tag LightlyFlow): the swan opens through
+            // openPhoto as the picker's result does; its separation finishes; the first photo's late result must not
+            // replace it. The picker itself is system UI and is not driven here.
+            "bg-switch-flow" -> {
+                api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.CHANGE)
+                flowLog("separating first photo ${api.summary()}")
+                api.openPhoto("file://$switchTarget")
+                kotlinx.coroutines.MainScope().launch {
+                    while (api.phase != com.lightlylabs.lightly.editor.EditorPhase.Ready) kotlinx.coroutines.delay(100)
+                    flowLog("second photo ready ${api.analysisSummary()}")
+                    api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.CHANGE) {
+                        flowLog("second photo separated ${api.summary()} ${api.analysisSummary()}")
+                        kotlinx.coroutines.MainScope().launch {
+                            kotlinx.coroutines.delay(20_000)
+                            flowLog("20 s later ${api.summary()} ${api.analysisSummary()}")
+                        }
+                    }
+                }
+            }
             // Cancel "Finding the subject…" at once, then start it again as Retry does (logcat tag LightlyFlow).
             "bg-cancel-flow" -> {
                 api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
@@ -271,6 +292,9 @@ object DebugLaunchOptions {
             "pt-hidden" -> { api.applyPreset("landscape", 120); api.rebaseHistory() }
         }
     }
+
+    /** The second photo of bg-switch-flow (next to the launched photo). */
+    private var switchTarget: String = ""
 
     private fun flowLog(message: String) { android.util.Log.i("LightlyFlow", message) }
 

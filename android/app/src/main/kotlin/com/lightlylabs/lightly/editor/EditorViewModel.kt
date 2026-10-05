@@ -127,6 +127,10 @@ class EditorViewModel(
     }
     private var separationJob: Job? = null
 
+    /** The installed subject/depth analysis and the discarded stale separations (tests). */
+    internal val backgroundAnalysisForTests get() = backgroundSession.analysis
+    internal val backgroundStaleResultsForTests get() = backgroundSession.staleResultsDiscarded
+
     /** Portrait: the people analysis, the person matte and stage 9 (slice 3). */
     private val portraitSession = PortraitSession()
     private var personMatteJob: Job? = null
@@ -1771,6 +1775,12 @@ class EditorViewModel(
     /** The handful of state changes the capture script needs, applied as the user would (commits included). */
     inner class DebugEditorApi {
         val library: DevelopLibrary? get() = this@EditorViewModel.library
+
+        /** Opens another photo exactly as the picker's result does after "Choose another photo" (debug flow checks). */
+        fun openPhoto(assetId: String) = this@EditorViewModel.openPhoto(assetId)
+        val phase: EditorPhase get() = state.value.phase
+        /** The installed subject/depth analysis size, and separations discarded as stale. */
+        fun analysisSummary(): String = "analysis=${backgroundSession.analysis?.let { "${it.width}x${it.height}" }} staleDiscarded=${backgroundSession.staleResultsDiscarded}"
 
         /** Undo, Redo and Cancel as the top bar and the "Finding the subject…" Cancel do (debug flow checks). */
         fun undo() = this@EditorViewModel.undo()

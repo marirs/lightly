@@ -125,13 +125,21 @@ fun PortraitMarks(vm: EditorViewModel, ui: EditorUiState) {
                     description = "Face ${index + 1}", testTag = PortraitTags.ring(index)) { vm.selectPortraitFace(index) }
             }
         } else {
-            // iOS: the people rectangles and the boxes of faces that cannot be edited.
-            (people.people + people.faces.map(DetectedFace::box)).forEach { rect ->
+            unusableMarks(people).forEach { rect ->
                 FaceRing(toFrame(rect), maxWidth.value, maxHeight.value, dim = true, tag = null, description = null, testTag = null, onClick = null)
             }
         }
     }
 }
+
+/**
+ * Prototype `marksFor` with no usable face: dim rings on the people's faces. The faces that cannot be edited are
+ * those marks; pose detections are used only when no face was found (someone seen from behind), so a false pose
+ * detection elsewhere in the photo (the lamp in the bar photo, 2026-10-05) gets no ring. Same rule as iOS
+ * `PeopleAnalysis.unusableMarks`.
+ */
+internal fun unusableMarks(people: com.lightlylabs.lightly.vision.PeopleAnalysis): List<NormalisedRect> =
+    if (people.usableFaces.isNotEmpty()) emptyList() else people.faces.map(DetectedFace::box).ifEmpty { people.people }
 
 /** A rect on the displayed frame, normalised, that may extend past it (rings are drawn, never stored). */
 data class FrameRect(val x: Double, val y: Double, val width: Double, val height: Double)

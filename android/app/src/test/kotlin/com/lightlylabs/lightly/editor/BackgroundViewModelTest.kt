@@ -64,12 +64,12 @@ class BackgroundViewModelTest {
         override fun delete(handle: String) { files.remove(handle) }
     }
 
-    private inner class Harness(test: TestScope, depth: DepthEstimator?, segmenter: SubjectSegmenter?) {
+    private inner class Harness(test: TestScope, depth: DepthEstimator?, segmenter: SubjectSegmenter?, private val display: (String) -> Rgba8Image = { image(48, 32) }) {
         val dispatcher = StandardTestDispatcher(test.testScheduler)
         val gateway = Gateway()
         val env = EditorEnvironment(
             photoLoader = PhotoLoader { asset ->
-                LoadedPhoto(SourceRef(asset, SourceFingerprint("ab".repeat(32), 1000, 48, 32), 1), image(24, 16), image(48, 32), FullResolutionSource { image(96, 64) })
+                LoadedPhoto(SourceRef(asset, SourceFingerprint(asset.hashCode().toUInt().toString(16).padStart(64, 'a'), 1000, 48, 32), 1), image(24, 16), display(asset), FullResolutionSource { image(96, 64) })
             },
             photoAccess = object : PhotoAccessGrants {
                 override fun retain(assetId: String) = true
@@ -192,6 +192,34 @@ class BackgroundViewModelTest {
         // A corner is background: it takes the colour (graded by the photo's global colour, here identity).
         val o = 0
         assertEquals(listOf(0x3C, 0x4A, 0x55), (0 until 3).map { preview.pixels[o + it].toInt() and 0xff }, "corner pixel")
+    }
+
+    @Test
+    fun `a separation still running when another photo is chosen never reaches the new photo`() = runTest {
+        // Photo 1 (48 × 32) separates slowly and, like the real analysis (CPU work with no suspension point),
+        // does not stop when its job is cancelled. Photo 2 (60 × 40) is chosen meanwhile and separates first.
+        val photo1Released = CompletableDeferred<Unit>()
+        val segmenter = SubjectSegmenter { _, w, h ->
+            if (w == 48) kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { photo1Released.await() }
+            FloatPlane(w, h, FloatArray(w * h) { 1f })
+        }
+        val harness = Harness(this, depthDouble, segmenter, display = { asset -> if (asset.endsWith("/1")) image(48, 32) else image(60, 40) })
+        val vm = harness.ready(this)
+        vm.selectTool(EditorTool.BACKGROUND); vm.selectBackgroundSub(BackgroundSub.CHANGE); advanceUntilIdle()
+        assertEquals(SeparationState.Separating, vm.uiState.value.separation)
+
+        vm.openPhoto("content://photo/2"); advanceUntilIdle()
+        vm.selectTool(EditorTool.BACKGROUND); vm.selectBackgroundSub(BackgroundSub.CHANGE); advanceUntilIdle()
+        assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        assertEquals(60, vm.backgroundAnalysisForTests?.width)
+
+        photo1Released.complete(Unit); advanceUntilIdle()
+        // Photo 1's late result is discarded: photo 2 keeps its own matte, and its state is unchanged.
+        assertEquals(60, vm.backgroundAnalysisForTests?.width, "photo 2's analysis was replaced by photo 1's")
+        assertEquals(1, vm.backgroundStaleResultsForTests)
+        assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        vm.chooseBackgroundColour("#3C4A55"); advanceUntilIdle()
+        assertEquals(60, assertNotNull(vm.uiState.value.preview).width)
     }
 
     @Test

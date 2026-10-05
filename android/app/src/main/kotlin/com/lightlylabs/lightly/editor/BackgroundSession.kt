@@ -37,6 +37,12 @@ private const val REPLACEMENT_CACHE_SIZE = 2
 class BackgroundSession(private val env: EditorEnvironment) {
     @Volatile var analysis: BackgroundAnalysis? = null
         private set
+
+    /** Advanced by [reset]; an [analyse] run installs its results only in the epoch it started in. */
+    private val installLock = Any()
+    private var epoch = 0L
+    /** Separations that finished after a reset and were discarded (tests). */
+    @Volatile internal var staleResultsDiscarded = 0
     var noClearSubject = false
         private set
 
@@ -85,6 +91,12 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * Never throws for an unavailable capability: that is recorded as a missing result.
      */
     suspend fun analyse(loaded: LoadedPhoto): SeparationState.Finished {
+        // The analysis is long CPU work with no suspension point, so cancelling its job does not stop it. A
+        // separation started for an earlier photo must not install its matte and depth after [reset] (Choose
+        // another photo): results are installed only when no reset happened since this run began.
+        val startedEpoch = synchronized(installLock) { epoch }
+        var newDepthModel: ModelRef? = null
+        var newMatteModel: ModelRef? = null
         val display = loaded.display
         val grey = FloatPlane(display.width, display.height, FloatArray(display.pixelCount) { p ->
             val i = p * 4
@@ -97,13 +109,13 @@ class BackgroundSession(private val env: EditorEnvironment) {
         if (embedded != null) {
             val (map, orientation) = embedded
             depth = DepthMaps.normalised(DepthOrigin.EMBEDDED, Orientation.apply(map.disparity, orientation), grey)
-            depthModel = ModelRef("embedded-depth", map.source.name.lowercase().replace('_', '-'))
+            newDepthModel = ModelRef("embedded-depth", map.source.name.lowercase().replace('_', '-'))
         } else {
             try {
                 val raw = env.depthEstimator.estimate(DepthModelInput.fromRgba8(display.pixels, display.width, display.height))
                 depth = DepthMaps.normalised(DepthOrigin.ESTIMATED, raw, grey)
                 logDepthSummary(raw, depth.nearness)
-                depthModel = env.depthModelRef
+                newDepthModel = env.depthModelRef
             } catch (unavailable: DepthUnavailableException) {
                 depth = null
             } catch (failure: RuntimeException) {
@@ -113,15 +125,24 @@ class BackgroundSession(private val env: EditorEnvironment) {
             }
         }
         var matte: FloatPlane? = null
-        noClearSubject = false
+        var noSubject = false
         try {
             matte = env.segmenter.segment(display.pixels, display.width, display.height)
-            if (matte == null) noClearSubject = true else matteModel = env.segmenterModelRef
+            if (matte == null) noSubject = true else newMatteModel = env.segmenterModelRef
         } catch (unavailable: SegmentationUnavailableException) {
             matte = null
         }
-        analysis = BackgroundAnalysis(display.width, display.height, depth, matte)
-        return SeparationState.Finished(depthAvailable = depth != null, matteAvailable = matte != null, noClearSubject = noClearSubject)
+        synchronized(installLock) {
+            if (epoch == startedEpoch) {
+                depthModel = newDepthModel
+                matteModel = newMatteModel
+                noClearSubject = noSubject
+                analysis = BackgroundAnalysis(display.width, display.height, depth, matte)
+            } else {
+                staleResultsDiscarded++
+            }
+        }
+        return SeparationState.Finished(depthAvailable = depth != null, matteAvailable = matte != null, noClearSubject = noSubject)
     }
 
     /** Logcat (tag LightlyDepth); a no-op where android.util.Log is not available (JVM unit tests). */
@@ -138,6 +159,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
     }
 
     fun reset() {
+        synchronized(installLock) { epoch++ }
         analysis = null
         faces = emptyList()
         noClearSubject = false
