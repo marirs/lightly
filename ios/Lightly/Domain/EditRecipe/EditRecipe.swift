@@ -213,9 +213,23 @@ struct EditRecipe: Equatable, Sendable {
             var enabled: Bool
             var amount, size, softness: Double
         }
+        /// Effects › Selective Colour (rendering-v2 revision 4). No colours: no effect (there is no On switch).
+        struct SelectiveColour: Equatable, Sendable {
+            /// A kept colour: OKLab sampled from the effects stage input when it was picked, and where it was
+            /// picked, as fractions of the source photo (for the interface; the render reads only `oklab`).
+            struct Kept: Equatable, Sendable {
+                var oklab: SIMD3<Double>
+                var x, y: Double
+            }
+            var colours: [Kept]
+            var range: Double
+            var strength: Double
+            static let none = SelectiveColour(colours: [], range: 40, strength: 100)
+        }
         var lightLeak: LightLeak
         var grain: Grain
         var vignette: Vignette
+        var selectiveColour: SelectiveColour = .none
     }
 
     struct Watermark: Equatable, Sendable {

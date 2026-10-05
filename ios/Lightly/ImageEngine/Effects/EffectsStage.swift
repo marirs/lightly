@@ -2,24 +2,27 @@ import Foundation
 import simd
 
 /// Stage 10, `effects` (rendering-v2 §1, §6): on the frame, after geometry, in the contract order
-/// light leak → preset vignette → user vignette → preset grain → user grain.
+/// light leak → selective colour → preset vignette → user vignette → preset grain → user grain.
 ///
 /// The user's effects are added on top of the preset's own vignette and grain, never replacing
 /// them (the approved "added to it, not replaced" notice). The preset's amounts are scaled by the
 /// Develop Amount; the user's are not.
 struct EffectsStage: Sendable {
     let leak: LightLeakEvaluator?
+    /// After the leak, so a coloured leak does not bring colour back (rendering-v2 revision 4).
+    let selectiveColour: SelectiveColourEvaluator?
     let presetVignette: DevelopPixelOperators.VignetteEvaluator?
     let userVignette: DevelopPixelOperators.VignetteEvaluator?
     let presetGrain: DevelopPixelOperators.GrainEvaluator?
     let userGrain: DevelopPixelOperators.GrainEvaluator?
 
-    var isEmpty: Bool { leak == nil && presetVignette == nil && userVignette == nil && presetGrain == nil && userGrain == nil }
+    var isEmpty: Bool { leak == nil && selectiveColour == nil && presetVignette == nil && userVignette == nil && presetGrain == nil && userGrain == nil }
 
     init(effects: EditRecipe.Effects, presetFinishing: PresetRecipe.Finishing, presetStrength: Double,
          frameWidth: Int, frameHeight: Int, model: DevelopModel) {
         leak = effects.lightLeak.enabled
             ? LightLeakEvaluator(effects.lightLeak, frameWidth: frameWidth, frameHeight: frameHeight) : nil
+        selectiveColour = SelectiveColourEvaluator(effects.selectiveColour)
         presetVignette = presetFinishing.vignette.flatMap {
             DevelopPixelOperators.VignetteEvaluator($0, strength: presetStrength, frameWidth: frameWidth, frameHeight: frameHeight, model: model)
         }
@@ -60,6 +63,7 @@ struct EffectsStage: Sendable {
                     let o = (y * width + x) * 4
                     var colour = SIMD3<Float>(Float(base[o]) / 255, Float(base[o + 1]) / 255, Float(base[o + 2]) / 255)
                     if let leak { colour = leak.apply(colour, x: x, y: y) }
+                    if let selectiveColour { colour = selectiveColour.apply(colour) }
                     if let presetVignette { colour = presetVignette.apply(colour, x: x, y: y) }
                     if let userVignette { colour = userVignette.apply(colour, x: x, y: y) }
                     if let presetGrain { colour = presetGrain.apply(colour, x: x, y: y) }

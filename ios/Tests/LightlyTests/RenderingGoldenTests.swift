@@ -38,7 +38,7 @@ final class RenderingGoldenTests: XCTestCase {
 
     func testTheGoldensAreRevisionTwoAndTheBundledContractMatches() throws {
         let contract = try XCTUnwrap(try Self.index()["renderingContract"] as? [String: Any])
-        XCTAssertEqual(contract["revision"] as? Int, 3)
+        XCTAssertEqual(contract["revision"] as? Int, 4)
         let data = try Data(contentsOf: DevelopParityTests.fixture("shared/contracts/rendering-v2.json"))
         XCTAssertNoThrow(try DevelopModel.load(contractData: data), "DevelopModel accepts revision 2 and its focus constants")
         let constants = try XCTUnwrap(try focus["constants"] as? [String: Any])
@@ -293,6 +293,44 @@ final class RenderingGoldenTests: XCTestCase {
                 }
             }
             XCTAssertLessThanOrEqual(worstOverlay, 2e-4, "\(name) premultiplied")
+            XCTAssertLessThanOrEqual(worstOutput, 2e-4, "\(name) output")
+        }
+    }
+
+    /// The `selectiveColour` goldens (rendering-v2 revision 4): the sampled picks, the keep weights and the output.
+    func testSelectiveColourMatchesTheGoldens() throws {
+        let cases = try XCTUnwrap(try Self.index()["selectiveColour"] as? [[String: Any]])
+        XCTAssertEqual(cases.count, 5)
+        for item in cases {
+            let name = try XCTUnwrap(item["name"] as? String)
+            let height = try XCTUnwrap(item["height"] as? Int), width = try XCTUnwrap(item["width"] as? Int)
+            let p = try XCTUnwrap(item["params"] as? [String: Any])
+            let input = try Self.floats(item["input"]).values
+            let keepExpected = try Self.floats(item["keep"]).values
+            let expected = try Self.floats(item["expected"]).values
+            let picks = try XCTUnwrap(item["picks"] as? [[Double]])
+            let colours = try XCTUnwrap(p["colours"] as? [[Double]])
+            for (pick, colour) in zip(picks, colours) {
+                let sampled = SelectiveColourEvaluator.sample(width: width, height: height, xFraction: pick[0], yFraction: pick[1]) { x, y in
+                    let o = (y * width + x) * 3
+                    return DevelopGlobalProgram.srgbToLinear(SIMD3<Double>(Double(input[o]), Double(input[o + 1]), Double(input[o + 2])))
+                }
+                for c in 0..<3 { XCTAssertEqual(sampled[c], colour[c], accuracy: 1e-4, "\(name) pick") }
+            }
+            let selective = EditRecipe.Effects.SelectiveColour(
+                colours: colours.map { .init(oklab: SIMD3($0[0], $0[1], $0[2]), x: 0, y: 0) },
+                range: try XCTUnwrap(p["range"] as? Double), strength: try XCTUnwrap(p["strength"] as? Double))
+            let evaluator = SelectiveColourEvaluator(selective)
+            XCTAssertEqual(evaluator == nil, colours.isEmpty, name)
+            var worstKeep = 0.0, worstOutput: Float = 0
+            for i in 0..<(width * height) {
+                let rgb = SIMD3<Float>(input[i * 3], input[i * 3 + 1], input[i * 3 + 2])
+                let lab = DevelopGlobalProgram.linearToOKLab(DevelopGlobalProgram.srgbToLinear(SIMD3<Double>(rgb)))
+                worstKeep = max(worstKeep, abs((evaluator?.keep(lab) ?? 0) - Double(keepExpected[i])))
+                let out = evaluator?.apply(rgb) ?? rgb
+                worstOutput = max(worstOutput, abs(out.x - expected[i * 3]), abs(out.y - expected[i * 3 + 1]), abs(out.z - expected[i * 3 + 2]))
+            }
+            XCTAssertLessThanOrEqual(worstKeep, 2e-4, "\(name) keep")
             XCTAssertLessThanOrEqual(worstOutput, 2e-4, "\(name) output")
         }
     }
