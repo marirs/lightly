@@ -46,14 +46,14 @@ struct PhotoKitLibraryWriter: PhotoLibraryWriting {
         } catch let error as NSError where isOutOfSpace(error) {
             throw LightlyError.storageFull
         } catch {
-            SaveTrace.note("photos write failed: \(String(describing: error))")
+            DiagnosticTrace.note("photos write failed: \(String(describing: error))")
             throw LightlyError.exportFailed
         }
     }
 
     private func requestAddOnlyAuthorization() async throws {
         let current = PHPhotoLibrary.authorizationStatus(for: .addOnly)
-        SaveTrace.note("photos add-only authorization: \(current.rawValue)")
+        DiagnosticTrace.note("photos add-only authorization: \(current.rawValue)")
 
         switch current {
         case .authorized, .limited:

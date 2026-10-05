@@ -239,7 +239,11 @@ struct OnDeviceSceneAnalyser: SceneAnalysing {
             return DisparityMap(disparity: embedded, source: .embedded,
                                 model: EditRecipe.ModelRef(id: "embedded-disparity", version: "avdepthdata"))
         }
-        guard let depthEstimator = depthEstimators.estimator() else {
+        DiagnosticTrace.note("subject: depth model loading")
+        let loadStarted = ContinuousClock.now
+        let loadedEstimator = depthEstimators.estimator()
+        DiagnosticTrace.note("subject: depth model \(loadedEstimator == nil ? "unavailable" : "ready") after \((ContinuousClock.now - loadStarted).components.seconds) s")
+        guard let depthEstimator = loadedEstimator else {
             throw SceneAnalysisError.depthUnavailable("no depth model in this build")
         }
         return try await depthEstimator.estimate(image)

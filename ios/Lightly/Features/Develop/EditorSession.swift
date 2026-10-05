@@ -429,18 +429,35 @@ final class EditorSession {
         subjectState = .separating
         let image = originalPreview
         let data = photo.originalData
+        DiagnosticTrace.note("subject: started \(image.width)x\(image.height)")
         subjectTask = Task { [weak self] in
+            let started = ContinuousClock.now
+            func elapsed() -> String { "\((ContinuousClock.now - started).components.seconds) s" }
             do {
-                async let matte = sceneAnalyser.subjectMatte(for: image)
-                async let depth = sceneAnalyser.disparity(for: image, originalData: data)
-                async let personMatte = sceneAnalyser.personMatte(for: image)
+                async let matte = Self.traced("subject matte", started) { try await sceneAnalyser.subjectMatte(for: image) }
+                async let depth = Self.traced("depth", started) { try await sceneAnalyser.disparity(for: image, originalData: data) }
+                async let personMatte = Self.traced("person matte", started) { await sceneAnalyser.personMatte(for: image) }
                 let (m, d, p) = try await (matte, depth, personMatte)
                 try Task.checkCancellation()
+                DiagnosticTrace.note("subject: finished after \(elapsed()), subject \(m != nil)")
                 self?.finishSubjectSeparation(matte: m, disparity: d, personMatte: p)
             } catch {
+                DiagnosticTrace.note("subject: \(Task.isCancelled ? "cancelled" : "failed") after \(elapsed()): \(String(describing: error))")
                 guard !Task.isCancelled else { return }
                 self?.subjectState = .failed
             }
+        }
+    }
+
+    /// Runs one stage of subject separation and logs when it ends and how (DiagnosticTrace).
+    private static func traced<T: Sendable>(_ stage: String, _ started: ContinuousClock.Instant, _ work: @Sendable () async throws -> T) async throws -> T {
+        do {
+            let value = try await work()
+            DiagnosticTrace.note("subject: \(stage) done at \((ContinuousClock.now - started).components.seconds) s")
+            return value
+        } catch {
+            DiagnosticTrace.note("subject: \(stage) failed at \((ContinuousClock.now - started).components.seconds) s: \(String(describing: error))")
+            throw error
         }
     }
 
@@ -1225,11 +1242,11 @@ final class EditorSession {
     func saveCopy() {
         guard phase == .ready, saveState != .saving, let renderer = library.renderer, let cache = library.cache else {
             // Why a Save copy request did nothing (device diagnosis: a silent no-op looked like a hang).
-            SaveTrace.note("save ignored: phase=\(String(describing: self.phase)) saving=\(self.saveState == .saving) renderer=\(self.library.renderer != nil) cache=\(self.library.cache != nil)")
+            DiagnosticTrace.note("save ignored: phase=\(String(describing: self.phase)) saving=\(self.saveState == .saving) renderer=\(self.library.renderer != nil) cache=\(self.library.cache != nil)")
             return
         }
         saveState = .saving
-        SaveTrace.note("save started \(self.photo.image.width)x\(self.photo.image.height)")
+        DiagnosticTrace.note("save started \(self.photo.image.width)x\(self.photo.image.height)")
         let job = committedJob()
         let image = photo.image
         let originalData = photo.originalData
@@ -1243,10 +1260,10 @@ final class EditorSession {
                     let rendered = try Self.renderPixels(job, base: pixels, width: image.width, height: image.height,
                                                          renderer: renderer, cache: cache)
                     try Task.checkCancellation()
-                    SaveTrace.note("save rendered \(rendered.width)x\(rendered.height)")
+                    DiagnosticTrace.note("save rendered \(rendered.width)x\(rendered.height)")
                     let output = try MetalLUTRenderer.makeImage(rgba8: rendered.pixels, width: rendered.width, height: rendered.height)
                     let encoded = try exporter.encode(output, originalData: originalData, settings: settings)
-                    SaveTrace.note("save encoded \(encoded.count) bytes")
+                    DiagnosticTrace.note("save encoded \(encoded.count) bytes")
                     return encoded
                 }
                 // The render runs detached (seconds at 48 MP); Cancel stops it between tiles.
@@ -1254,19 +1271,19 @@ final class EditorSession {
                 // Cancelled before writing: nothing is written, so there is never a duplicate.
                 try Task.checkCancellation()
                 try await writer.save(data, fileExtension: settings.format.fileExtension)
-                SaveTrace.note("save written")
+                DiagnosticTrace.note("save written")
                 self?.finishSave(.saved(data))
             } catch is CancellationError {
-                SaveTrace.note("save cancelled")
+                DiagnosticTrace.note("save cancelled")
                 self?.finishSave(.idle)
             } catch LightlyError.permissionDenied {
-                SaveTrace.note("save failed: Photos permission denied")
+                DiagnosticTrace.note("save failed: Photos permission denied")
                 self?.finishSave(.permissionDenied)
             } catch LightlyError.storageFull {
-                SaveTrace.note("save failed: storage full")
+                DiagnosticTrace.note("save failed: storage full")
                 self?.finishSave(.storageFull)
             } catch {
-                SaveTrace.note("save failed: \(String(describing: error))")
+                DiagnosticTrace.note("save failed: \(String(describing: error))")
                 self?.finishSave(.failed)
             }
         }
