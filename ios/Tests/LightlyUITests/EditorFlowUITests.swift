@@ -404,6 +404,87 @@ final class EditorFlowUITests: XCTestCase {
         saveScreenshot("crop-result-shown")
     }
 
+    /// Owner check 2026-10-05: Cancel → leave the tool → reopen → retry. Cancel returns to the panel (no indicator),
+    /// navigation works, reopening does not restart the analysis, and the next Background edit does.
+    func testBackgroundCancelLeaveReopenRetry() {
+        let mattes = "\(EditorCaptureUITests.repositoryRoot)/ios/Tests/Fixtures/SubjectMattes/portrait_medium_02.png"
+        relaunch(arguments: ["--reset-preferences", "--slow-subject-matte", "--open-photo", photoPath("portrait_medium_02"),
+                             "--subject-matte-fixture", mattes])
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        element("tool.background").tap()
+        XCTAssertTrue(element("background.cancel").waitForExistence(timeout: timeout), "Finding the subject… with Cancel")
+        saveScreenshot("cancel-1-finding")
+        element("background.cancel").tap()
+        XCTAssertTrue(waitFor { !self.element("background.cancel").exists && !self.element("background.separating").exists },
+                      "the indicator clears")
+        XCTAssertTrue(element("slider.blur").waitForExistence(timeout: timeout), "back to the Focus & Blur controls")
+        saveScreenshot("cancel-2-panel")
+
+        element("tool.develop").tap()
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "navigation works")
+        element("tool.background").tap()
+        sleep(2)
+        XCTAssertFalse(element("background.cancel").exists, "reopening does not restart the cancelled analysis")
+        XCTAssertTrue(element("slider.blur").exists)
+        saveScreenshot("cancel-3-reopened")
+
+        element("background.mode.change").tap()
+        let image = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'background.image.' AND identifier != 'background.image.add'")).firstMatch
+        XCTAssertTrue(image.waitForExistence(timeout: timeout))
+        image.tap()
+        XCTAssertTrue(element("background.cancel").waitForExistence(timeout: timeout), "the next edit retries the analysis")
+        saveScreenshot("cancel-4-retrying")
+        XCTAssertTrue(waitFor(timeout: 60) { !self.element("background.cancel").exists }, "and it finishes")
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
+        sleep(2)
+        saveScreenshot("cancel-5-replaced")
+    }
+
+    /// Owner check 2026-10-05: Straighten moved explicitly, then a free crop, then Save copy (to Documents, pulled
+    /// and compared with the preview on the host). Writes the photo's frame next to the screenshots.
+    func testStraightenThenFreeCropThenSave() throws {
+        relaunch(arguments: ["--reset-preferences", "--expose-crop", "--save-to-documents", "straighten-crop.jpg",
+                             "--open-photo", photoPath("landscape_02")])
+        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        element("tool.edit").tap()
+        element("edit.sub.Straighten").tap()
+        let angle = element("slider.angle")
+        XCTAssertTrue(angle.waitForExistence(timeout: timeout))
+        // The track runs between the label ("Angle", 18 pt inset + ~45 pt + 12 pt) and the value (12 + 36 + 18 pt).
+        let row = angle.frame
+        let trackStart = 75.0, trackEnd = row.width - 66
+        let centre = angle.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: (trackStart + trackEnd) / 2, dy: row.height / 2))
+        centre.press(forDuration: 0.1, thenDragTo: centre.withOffset(CGVector(dx: (trackEnd - trackStart) * 0.1, dy: 0)))
+        let degrees = Int(angle.value as? String ?? "") ?? 0
+        XCTAssertTrue((5...15).contains(degrees), "Straighten moved: \(String(describing: angle.value))")
+        saveScreenshot("straighten-1-angle")
+        element("edit.sub.Crop").tap()
+        let photo = element("editor.photo")
+        func drag(_ from: CGVector, _ to: CGVector) {
+            photo.coordinate(withNormalizedOffset: from)
+                .press(forDuration: 0.15, thenDragTo: photo.coordinate(withNormalizedOffset: to), withVelocity: .slow, thenHoldForDuration: 0.1)
+            sleep(1)
+        }
+        drag(CGVector(dx: 0.01, dy: 0.01), CGVector(dx: 0.25, dy: 0.1))
+        drag(CGVector(dx: 0.99, dy: 0.99), CGVector(dx: 0.85, dy: 0.7))
+        let crop = element("edit.cropRect").value as? String ?? ""
+        XCTAssertTrue(crop.hasPrefix("free "), crop)
+        saveScreenshot("straighten-2-cropping")
+        // A sub-tool without marks shows the cropped result as it will be saved.
+        element("edit.sub.Rotate").tap()
+        sleep(2)
+        saveScreenshot("straighten-3-preview")
+        if let directory = ProcessInfo.processInfo.environment["LIGHTLY_VERIFY_DIR"] {
+            let f = element("editor.photo").frame
+            let scale = Double(XCUIScreen.main.screenshot().image.size.width > 0 ? XCUIScreen.main.screenshot().image.scale : 3)
+            try "\(f.minX * scale) \(f.minY * scale) \(f.width * scale) \(f.height * scale) \(crop)"
+                .write(toFile: "\(directory)/straighten-3-preview.frame", atomically: true, encoding: .utf8)
+        }
+        app.buttons["editor.saveCopy"].tap()
+        XCTAssertTrue(app.staticTexts["Saved as a new photo"].waitForExistence(timeout: 120), "no Saved sheet")
+        saveScreenshot("straighten-4-saved")
+    }
+
     func testClosingWithUnsavedEditsAsks() {
         openEditor()
         dragRuler(by: 3)

@@ -114,6 +114,10 @@ struct OnDeviceSceneAnalyser: SceneAnalysing {
     /// Vision foreground instance mask (all instances), soft, at the image's size. nil = no
     /// clear subject.
     func subjectMatte(for image: CGImage) async throws -> SubjectMatte? {
+        #if DEBUG
+        // UI tests of Cancel only (--slow-subject-matte): long enough to tap Cancel; cancellation ends it.
+        if DebugArguments.current.contains("--slow-subject-matte") { try await Task.sleep(for: .seconds(8)) }
+        #endif
         do {
             return try await Self.visionSubjectMatte(for: image)
         } catch {
