@@ -649,6 +649,51 @@ final class EditorSession {
         commit(next)
     }
 
+    // MARK: - Selective Colour
+
+    /// Keeps the colour under a tap at (`frameX`, `frameY`), fractions of the displayed frame. The colour is
+    /// sampled from Selective Colour's own input (the frame before it, at the preview size), not from the
+    /// photo on screen, which may already be black and white there. One undo step.
+    func pickSelectiveColour(frameX: Double, frameY: Double) {
+        guard phase == .ready, let base = previewBase, let renderer = library.renderer, let cache = library.cache,
+              recipe.tools.effects.selectiveColour.colours.count < Self.maximumKeptColours else { return }
+        var job = committedJob()
+        job.layeredCap = LayeredStages.previewCap
+        job.stopBeforeSelectiveColour = true
+        let source = geometryTransform.isIdentity ? CGPoint(x: frameX, y: frameY)
+            : geometryTransform.source(fromFrame: CGPoint(x: frameX, y: frameY))
+        let x = min(max(Double(source.x), 0), 1), y = min(max(Double(source.y), 0), 1)
+        pickTask = Task { [weak self] in
+            let lab = try? await Task.detached(priority: .userInitiated) {
+                // Stages up to Selective Colour only: no border, no watermark.
+                let frame = try Self.renderFrameBeforeBorder(job, base: base.pixels, width: base.width, height: base.height,
+                                                             renderer: renderer, cache: cache)
+                return SelectiveColourEvaluator.sample(frame.pixels, width: frame.width, height: frame.height,
+                                                       xFraction: frameX, yFraction: frameY)
+            }.value
+            guard let self, let lab, !self.isClosed else { return }
+            self.commitEffects { $0.selectiveColour.colours.append(.init(oklab: lab, x: x, y: y)) }
+        }
+    }
+
+    /// Removes one kept colour (the × on its dot). One undo step.
+    func removeSelectiveColour(at index: Int) {
+        guard recipe.tools.effects.selectiveColour.colours.indices.contains(index) else { return }
+        commitEffects { $0.selectiveColour.colours.remove(at: index) }
+    }
+
+    /// Clear: no kept colours, Range and Strength back to their defaults. One undo step.
+    func clearSelectiveColour() {
+        guard recipe.tools.effects.selectiveColour != .none else { return }
+        commitEffects { $0.selectiveColour = .none }
+    }
+
+    /// The sampling render of the latest pick (awaited by `settleRendering`).
+    @ObservationIgnored private var pickTask: Task<Void, Never>?
+
+    /// edit-recipe-v1 `selectiveColour.colours` maxItems.
+    static let maximumKeptColours = 8
+
     func previewBorder(_ change: (inout EditRecipe.Border) -> Void) {
         var next = recipe
         change(&next.tools.border)
@@ -877,8 +922,12 @@ final class EditorSession {
         }
 
         static func hasUserEffects(_ effects: EditRecipe.Effects) -> Bool {
-            effects.lightLeak.enabled || effects.grain.enabled || effects.vignette.enabled
+            effects.lightLeak.enabled || effects.grain.enabled || effects.vignette.enabled || !effects.selectiveColour.colours.isEmpty
         }
+
+        /// Stop at Selective Colour's input (the frame after geometry, with the light leak): what a pick samples
+        /// (rendering-v2 §6 Selective colour). Never shown.
+        var stopBeforeSelectiveColour = false
     }
 
     /// A rendered frame; geometry can change its size.
@@ -929,7 +978,7 @@ final class EditorSession {
     /// Stages 1–10 (everything up to the border).
     nonisolated private static func renderFrameBeforeBorder(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
                                                             renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
-        guard job.usesEditOrEffects else {
+        guard job.usesEditOrEffects || job.stopBeforeSelectiveColour else {
             return RenderedFrame(pixels: try renderDevelopAndLayered(job, base: base, width: width, height: height,
                                                                      renderer: renderer, cache: cache),
                                  width: width, height: height)
@@ -966,6 +1015,15 @@ final class EditorSession {
         let transform = GeometryTransform(job.edit.geometry, sourceWidth: width, sourceHeight: height)
         let frame = transform.render(pixels, width: width, height: height)
         guard job.includePixelStages else { return RenderedFrame(pixels: frame.pixels, width: frame.width, height: frame.height) }
+        if job.stopBeforeSelectiveColour {
+            // Only the stage before Selective Colour, the light leak; no preset finishing (it comes after).
+            var leakOnly = EditRecipe.Tools.neutral(grainSeed: 0).effects
+            leakOnly.lightLeak = job.effects.lightLeak
+            let leak = EffectsStage(effects: leakOnly, presetFinishing: .init(), presetStrength: 0,
+                                    frameWidth: frame.width, frameHeight: frame.height, model: renderer.model)
+            return RenderedFrame(pixels: leak.apply(frame.pixels, width: frame.width, height: frame.height),
+                                 width: frame.width, height: frame.height)
+        }
         let effects = EffectsStage(effects: job.effects, presetFinishing: plan?.finishing ?? .init(),
                                    presetStrength: plan?.finishingStrength ?? 0,
                                    frameWidth: frame.width, frameHeight: frame.height, model: renderer.model)
@@ -1102,6 +1160,7 @@ final class EditorSession {
 
     /// Waits for every issued render. For tests and measurements; the app never waits on renders.
     func settleRendering() async {
+        await pickTask?.value
         while let (revision, task) = outstanding.first {
             await task.value
             outstanding[revision] = nil

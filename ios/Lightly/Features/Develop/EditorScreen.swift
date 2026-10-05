@@ -308,6 +308,7 @@ struct EditorScreen: View {
                     editMarks(size: size)
                 case .effects:
                     if effectsPanel.sub == .leak { leakDragArea(size: size) }
+                    if effectsPanel.picksOnTap { selectiveColourTapArea(size: size) }
                 case .watermark:
                     if watermarkPanel.isUsed, !watermarkPanel.isOnBorder { watermarkDragArea(size: size) }
                 default:
@@ -542,6 +543,17 @@ struct EditorScreen: View {
                     let y = min(max(value.location.y / size.height * 100, 0), 100).rounded()
                     session.commitEffects { $0.lightLeak.x = x; $0.lightLeak.y = y }
                 })
+            .accessibilityHidden(true)
+    }
+
+    /// Selective Colour: a tap keeps the colour under it (the first one, or after (+)).
+    private func selectiveColourTapArea(size: CGSize) -> some View {
+        Color.clear.contentShape(Rectangle())
+            .onTapGesture { location in
+                let x = min(max(location.x / size.width, 0), 1), y = min(max(location.y / size.height, 0), 1)
+                effectsPanel.isAddingColour = false
+                session.pickSelectiveColour(frameX: x, frameY: y)
+            }
             .accessibilityHidden(true)
     }
 

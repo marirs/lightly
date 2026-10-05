@@ -257,6 +257,41 @@ final class EditEffectsSessionTests: XCTestCase {
         XCTAssertEqual(a.x, b.x, accuracy: 0.02); XCTAssertEqual(a.y, b.y, accuracy: 0.02); XCTAssertEqual(a.z, b.z, accuracy: 0.02)
     }
 
+    /// Selective Colour: a pick keeps the colour sampled before the effect, turns the rest black and white
+    /// in the preview and the saved copy alike, and is one undo step.
+    func testSelectiveColourPickIsOneStepAndGreysTheRest() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, previewLongEdge: 480)
+        await session.settleRendering()
+        let before = Self.meanChroma(session.displayedImage)
+        session.pickSelectiveColour(frameX: 0.5, frameY: 0.5)
+        await session.settleRendering()
+        let kept = try XCTUnwrap(session.recipe.tools.effects.selectiveColour.colours.first)
+        XCTAssertTrue(kept.oklab.x.isFinite && kept.oklab.y.isFinite && kept.oklab.z.isFinite)
+        XCTAssertEqual(kept.x, 0.5, accuracy: 1e-9); XCTAssertEqual(kept.y, 0.5, accuracy: 1e-9)
+        let after = Self.meanChroma(session.displayedImage)
+        XCTAssertLessThan(after, before, "Outside the kept colour the preview is black and white")
+        let data = try await session.exportedData()
+        let exported = try XCTUnwrap(CGImageSourceCreateImageAtIndex(try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil)), 0, nil))
+        XCTAssertEqual(Self.meanChroma(exported), after, accuracy: 0.03, "The saved copy matches the preview")
+        session.undo()
+        XCTAssertTrue(session.recipe.tools.effects.selectiveColour.colours.isEmpty, "One pick is one undo step")
+    }
+
+    /// Mean of max − min over the channels (0 for black and white), on an 8-bit sRGB copy.
+    private static func meanChroma(_ image: CGImage) -> Double {
+        let width = 64, height = 64
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        var total = 0.0
+        for p in 0..<(width * height) {
+            let r = Double(pixels[p * 4]), g = Double(pixels[p * 4 + 1]), b = Double(pixels[p * 4 + 2])
+            total += (max(r, g, b) - min(r, g, b)) / 255
+        }
+        return total / Double(width * height)
+    }
+
     func testRemoveCommitsOneStepWithItsPatchAndUndoStrokeRemovesIt() async throws {
         let session = try await EditorTestSupport.readySession(library: library, inpainter: FlatInpainter())
         session.removeStroke(points: [.init(x: 0.5, y: 0.5), .init(x: 0.55, y: 0.5)], radius: 0.03)
