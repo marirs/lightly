@@ -30,7 +30,7 @@ data class EditUi(
 )
 
 /** Prototype `effectsPanel` tabs. */
-enum class EffectsSub(val label: String) { LEAK("Light Leaks"), GRAIN("Grain"), VIGNETTE("Vignette") }
+enum class EffectsSub(val label: String) { LEAK("Light Leaks"), GRAIN("Grain"), VIGNETTE("Vignette"), SELECTIVE("Selective Colour") }
 
 /**
  * Transient Border UI. [shown] is the tab on screen (prototype `ui.sub || s.border.type`); null follows the
@@ -68,7 +68,12 @@ object WatermarkOptions {
     const val PEN_WIDTH = 70 * com.lightlylabs.lightly.signatures.DrawnSignature.STROKE_WIDTH_PER_HEIGHT
 }
 
-data class EffectsUi(val sub: EffectsSub = EffectsSub.LEAK, val sliderDrag: Pair<String, Double>? = null)
+data class EffectsUi(
+    val sub: EffectsSub = EffectsSub.LEAK,
+    val sliderDrag: Pair<String, Double>? = null,
+    /** Selective Colour: (+) was tapped, so the next tap on the photo keeps another colour. */
+    val addingColour: Boolean = false,
+)
 
 object EditOptions {
     /** Prototype `ASPECTS`, in order, with their chip labels. */

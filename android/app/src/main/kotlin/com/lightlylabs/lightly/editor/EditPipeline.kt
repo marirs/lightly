@@ -9,6 +9,7 @@ import com.lightlylabs.lightly.develop.DevelopRenderPlan
 import com.lightlylabs.lightly.develop.DevelopRenderer
 import com.lightlylabs.lightly.develop.EffectsParams
 import com.lightlylabs.lightly.develop.EffectsStage
+import com.lightlylabs.lightly.develop.FinishingRecipe
 import com.lightlylabs.lightly.develop.FrameView
 import com.lightlylabs.lightly.develop.GeometryParams
 import com.lightlylabs.lightly.develop.GeometryTransform
@@ -102,17 +103,32 @@ class EditPipeline(
      * [background] composes Background on the developed, adjusted source-coordinate image, if active.
      */
     fun renderPreview(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
-        val withoutFinishing = developPlan.withoutFinishing()
-        var image = if (withoutFinishing.isIdentity) source else renderer.render(source, withoutFinishing)
-        AdjustStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)?.let { image = renderer.render(image, it) }
-        background?.let { image = it(image) }
-        image = GeometryTransform(EditMapping.geometry(state), image.width, image.height).render(image)
+        var image = frameBeforeEffects(source, state, developPlan, background)
         image = EffectsStage(EditMapping.effects(state), developPlan.finishing, model, image.width, image.height).apply(image)
         val border = EditMapping.border(state)
         val placement = BorderStage.placement(border, image.width, image.height)
         val canvas = BorderStage.apply(border, image)
         // Stage 12, on the canvas after the border.
         return watermark?.layer(canvas.width, canvas.height, PixelRect(placement.side, placement.top, image.width, image.height))?.compositeOnto(canvas) ?: canvas
+    }
+
+    /**
+     * Selective Colour's own input at the preview size: every stage before it (Develop without finishing,
+     * Adjust, Background, geometry) and the light leak, the one effect that runs before it. What a pick samples
+     * (rendering-v2 §6 Selective colour). The preset's finishing comes after it, so it is not applied.
+     */
+    fun renderSelectiveColourInput(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
+        val image = frameBeforeEffects(source, state, developPlan, background)
+        val leakOnly = EditMapping.effects(state).copy(grainEnabled = false, vignetteEnabled = false, selectiveColours = emptyList())
+        return EffectsStage(leakOnly, FinishingRecipe.NEUTRAL, model, image.width, image.height).apply(image)
+    }
+
+    private fun frameBeforeEffects(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
+        val withoutFinishing = developPlan.withoutFinishing()
+        var image = if (withoutFinishing.isIdentity) source else renderer.render(source, withoutFinishing)
+        AdjustStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)?.let { image = renderer.render(image, it) }
+        background?.let { image = it(image) }
+        return GeometryTransform(EditMapping.geometry(state), image.width, image.height).render(image)
     }
 
     /**

@@ -2,6 +2,7 @@ package com.lightlylabs.lightly.editor
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,7 +44,10 @@ fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
             EditSub.REMOVE -> RemoveMarks(vm, ui)
             else -> Unit
         }
-        EditorTool.EFFECTS -> if (ui.effects.sub == EffectsSub.LEAK) LeakDrag(vm)
+        EditorTool.EFFECTS -> when {
+            ui.effects.sub == EffectsSub.LEAK -> LeakDrag(vm)
+            vm.picksOnTap(ui) -> SelectiveColourTap(vm)
+        }
         EditorTool.WATERMARK -> ui.session?.current?.tools?.let { tools ->
             // "Or drag the watermark on the photo": on the photo only (a watermark on the border is centred).
             if (tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE && !WatermarkStage.isOnBorder(tools.watermark, tools.border.type)) WatermarkDrag(vm, WatermarkStage.anchor(tools.watermark))
@@ -193,6 +197,18 @@ private fun WatermarkDrag(vm: EditorViewModel, start: Pair<Double, Double>) {
                 if (moved) vm.dragWatermark(start, ((last.x - down.position.x) / size.width).toDouble(), ((last.y - down.position.y) / size.height).toDouble(), release = true)
             }
         }.semantics { contentDescription = "Drag the watermark on the photo" },
+    )
+}
+
+/** Selective Colour: a tap keeps the colour under it (the first one, or after (+)). */
+@Composable
+private fun SelectiveColourTap(vm: EditorViewModel) {
+    Box(
+        Modifier.fillMaxSize().pointerInput(Unit) {
+            detectTapGestures { offset ->
+                vm.pickSelectiveColour((offset.x / size.width).toDouble().coerceIn(0.0, 1.0), (offset.y / size.height).toDouble().coerceIn(0.0, 1.0))
+            }
+        }.semantics { contentDescription = "Tap a colour in the photo to keep it" },
     )
 }
 

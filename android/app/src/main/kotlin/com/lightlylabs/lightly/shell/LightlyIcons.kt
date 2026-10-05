@@ -89,6 +89,9 @@ object LightlyIcons {
     val Brush = lineIcon("brush", "M14.5 4.5l5 5-8 8H6.5v-5z", "M4 20h7")
     val Erase = lineIcon("erase", "M8 20h12M5.5 14.5l7-7 5 5-5.5 5.5H9z")
     val Plus = lineIcon("plus", "M12 5v14M5 12h14")
+    /** Effects › Selective Colour (owner-approved proposal 2026-10-05): eyedropper. */
+    val Picker = lineIcon("picker", "M14.6 4.6A2.6 2.6 0 0 1 18.3 4.6L19.4 5.7A2.6 2.6 0 0 1 19.4 9.4L17.2 11.6L12.4 6.8Z",
+        "M11.2 7.6l5.2 5.2", "M13.6 10.2L6.4 17.4L5 20L7.6 18.6L14.8 11.4")
     val Circle = lineIcon("circle", circle(12f, 12f, 7f))
     val Hex = lineIcon("hex", "M12 4.5l6.5 3.75v7.5L12 19.5l-6.5-3.75v-7.5z")
     val Heart = lineIcon("heart", "M12 19s-7-4.4-7-9.5A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7 2.5C19 14.6 12 19 12 19z")

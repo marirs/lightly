@@ -1,6 +1,18 @@
 package com.lightlylabs.lightly.editor
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -140,13 +152,17 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
     if (roomy) PanelTitle("Effects")
     val fx = ui.session?.current?.tools?.effects ?: return@Column
     val sub = ui.effects.sub
-    fun on(s: EffectsSub) = when (s) { EffectsSub.LEAK -> fx.lightLeak.enabled; EffectsSub.GRAIN -> fx.grain.enabled; EffectsSub.VIGNETTE -> fx.vignette.enabled }
+    fun on(s: EffectsSub) = when (s) {
+        EffectsSub.LEAK -> fx.lightLeak.enabled; EffectsSub.GRAIN -> fx.grain.enabled; EffectsSub.VIGNETTE -> fx.vignette.enabled
+        EffectsSub.SELECTIVE -> fx.selectiveColour != null
+    }
     OptionTabs(EffectsSub.entries.map { it to it.label }, sub, vm::selectEffectsSub, dotted = ::on, tagPrefix = "effects-tab")
     // The approved notice sits between the tabs and the body.
-    if (sub != EffectsSub.LEAK && on(sub) && vm.presetHasOwn(sub, ui)) {
+    if ((sub == EffectsSub.GRAIN || sub == EffectsSub.VIGNETTE) && on(sub) && vm.presetHasOwn(sub, ui)) {
         Notice(LightlyIcons.Info, AnnotatedString("The applied preset already includes its own ${if (sub == EffectsSub.GRAIN) "grain" else "vignette"}. This one is added to it, not replaced."))
     }
-    OnOffRow(on(sub), name = sub.label) { vm.toggleEffect(sub) }
+    // Selective Colour has no On switch: a kept colour applies it (owner-approved layout, 2026-10-05).
+    if (sub != EffectsSub.SELECTIVE) OnOffRow(on(sub), name = sub.label) { vm.toggleEffect(sub) }
     when (sub) {
         EffectsSub.LEAK -> {
             ChipRow {
@@ -179,7 +195,80 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
             EffectsSlider(vm, ui, "Size", "vignetteSize", fx.vignette.size, 0.0, 100.0)
             EffectsSlider(vm, ui, "Softness", "vignetteSoftness", fx.vignette.softness, 0.0, 100.0)
         }
+        EffectsSub.SELECTIVE -> SelectiveColourBody(vm, ui, fx.selectiveColour)
     }
+}
+
+/**
+ * Effects › Selective Colour, the owner-approved layout (docs/ui/proposals/selective-colour, 2026-10-05): nothing kept,
+ * one instruction; then the kept colours (28 dp dots in 48 dp targets; with more than one, a small × removes just that
+ * colour), (+) to add another (the next tap on the photo) and Clear on one row; Range and Strength below.
+ */
+@Composable
+private fun SelectiveColourBody(vm: EditorViewModel, ui: EditorUiState, selective: com.lightlylabs.lightly.session.SelectiveColourTool?) {
+    if (selective == null) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp).semantics(mergeDescendants = true) {}.testTag("effects-selective-hint"),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            LightlyIcon(LightlyIcons.Picker, size = 20.dp, tint = lightlyColors.ink2)
+            androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
+            Text("Tap a colour in the photo to keep it.", style = lightlyTextStyle(15.sp, color = lightlyColors.ink2))
+        }
+        return
+    }
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 8.dp, top = 6.dp, end = 8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        val removable = selective.colours.size > 1
+        selective.colours.forEachIndexed { index, kept -> KeptColourDot(kept, removable, index) { vm.removeSelectiveColour(index) } }
+        AddColourButton(adding = ui.effects.addingColour, enabled = selective.colours.size < EditorViewModel.MAX_KEPT_COLOURS, onClick = vm::toggleAddingColour)
+        QuietSmallButton("Clear", vm::clearSelectiveColour, Modifier.testTag("effects-selective-clear"))
+    }
+    if (ui.effects.addingColour) PanelNote("Tap another colour in the photo.")
+    EffectsSlider(vm, ui, "Range", "selectiveRange", selective.range, 0.0, 100.0)
+    EffectsSlider(vm, ui, "Strength", "selectiveStrength", selective.strength, 0.0, 100.0)
+}
+
+@Composable
+private fun KeptColourDot(kept: com.lightlylabs.lightly.session.KeptColourRecipe, removable: Boolean, index: Int, onRemove: () -> Unit) {
+    val colour = remember(kept) { displayColour(kept.oklab) }
+    val target = Modifier.size(48.dp)
+    val modifier = if (removable) target.clickable(onClickLabel = "Remove colour ${index + 1}", role = Role.Button, onClick = onRemove)
+        .semantics { contentDescription = "Remove colour ${index + 1}" }.testTag("effects-selective-remove-$index")
+        else target.semantics { contentDescription = "Kept colour" }.testTag("effects-selective-colour-$index")
+    androidx.compose.foundation.layout.Box(modifier, contentAlignment = androidx.compose.ui.Alignment.Center) {
+        androidx.compose.foundation.layout.Box(Modifier.size(28.dp).clip(CircleShape).background(colour).border(1.dp, lightlyColors.hair, CircleShape))
+        if (removable) {
+            androidx.compose.foundation.layout.Box(
+                Modifier.align(androidx.compose.ui.Alignment.Center).offset(x = 12.dp, y = (-12).dp).size(16.dp).clip(CircleShape).background(lightlyColors.ink),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) { LightlyIcon(LightlyIcons.Close, size = 10.dp, tint = lightlyColors.bg) }
+        }
+    }
+}
+
+@Composable
+private fun AddColourButton(adding: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val tint = if (adding) lightlyColors.sel else lightlyColors.ink2
+    androidx.compose.foundation.layout.Box(
+        Modifier.size(48.dp).clickable(enabled = enabled, onClickLabel = "Add another colour", role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Add another colour"; selected = adding }.testTag("effects-selective-add"),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f, pathEffect = if (adding) null else androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
+        androidx.compose.foundation.Canvas(Modifier.size(28.dp)) { drawCircle(tint, radius = size.minDimension / 2 - 1f, style = stroke) }
+        LightlyIcon(LightlyIcons.Plus, size = 15.dp, tint = tint)
+    }
+}
+
+/** A kept colour as shown on its dot: its OKLab in sRGB. */
+private fun displayColour(oklab: List<Double>): androidx.compose.ui.graphics.Color {
+    val linear = DoubleArray(3)
+    com.lightlylabs.lightly.develop.ColourMath.oklabToLinear(oklab[0], oklab[1], oklab[2], linear)
+    fun encode(v: Double) = com.lightlylabs.lightly.develop.ColourMath.linearToSrgb(v).coerceIn(0.0, 1.0).toFloat()
+    return androidx.compose.ui.graphics.Color(encode(linear[0]), encode(linear[1]), encode(linear[2]))
 }
 
 @Composable

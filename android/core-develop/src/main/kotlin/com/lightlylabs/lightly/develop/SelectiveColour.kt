@@ -18,7 +18,7 @@ data class KeptColour(val lightness: Double, val a: Double, val b: Double)
  * red. Colour matching only: it does not know what an object is (picking red keeps red lips too).
  * Reference: shared/look-pack/reference_model.py `apply_selective_colour`.
  */
-internal class SelectiveColour private constructor(colours: List<KeptColour>, range: Double, strength: Double) {
+class SelectiveColour private constructor(colours: List<KeptColour>, range: Double, strength: Double) {
     private val pickSaturation = DoubleArray(colours.size) { saturationOf(colours[it].lightness, colours[it].a, colours[it].b) }
     private val pickHue = DoubleArray(colours.size) { hueOf(colours[it].a, colours[it].b) }
     private val hueWindow = 6 + 0.5 * range

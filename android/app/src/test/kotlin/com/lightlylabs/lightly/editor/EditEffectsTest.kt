@@ -208,6 +208,45 @@ class EditEffectsTest {
         assertTrue(vm.uiState.value.session!!.current.tools.effects.vignette.enabled)
     }
 
+    /** Mean of max − min over the channels (0 for black and white). */
+    private fun meanChroma(image: Rgba8Image): Double {
+        var total = 0.0
+        for (p in 0 until image.width * image.height) {
+            val r = image.pixels[p * 4].toInt() and 0xff; val g = image.pixels[p * 4 + 1].toInt() and 0xff; val b = image.pixels[p * 4 + 2].toInt() and 0xff
+            total += (maxOf(r, g, b) - minOf(r, g, b)) / 255.0
+        }
+        return total / (image.width * image.height)
+    }
+
+    @Test
+    fun `Selective Colour keeps a picked colour, greys the rest, and a pick, a removal and Clear are one step each`() = runTest {
+        val vm = ready(null)
+        vm.selectTool(EditorTool.EFFECTS)
+        vm.selectEffectsSub(EffectsSub.SELECTIVE)
+        advanceUntilIdle()
+        assertTrue(vm.picksOnTap(), "the first tap on the photo picks")
+        val before = meanChroma(vm.uiState.value.preview!!)
+        vm.pickSelectiveColour(0.5, 0.5)
+        advanceUntilIdle()
+        val selective = vm.uiState.value.session!!.current.tools.effects.selectiveColour!!
+        assertEquals(1, selective.colours.size)
+        assertEquals(0.5, selective.colours[0].x, 1e-9); assertEquals(0.5, selective.colours[0].y, 1e-9)
+        assertFalse(vm.picksOnTap(), "after the first colour, only (+) arms a pick")
+        assertTrue(meanChroma(vm.uiState.value.preview!!) < before, "outside the kept colour the preview is black and white")
+        vm.toggleAddingColour()
+        assertTrue(vm.picksOnTap())
+        vm.pickSelectiveColour(0.1, 0.9); advanceUntilIdle()
+        assertEquals(2, vm.uiState.value.session!!.current.tools.effects.selectiveColour!!.colours.size)
+        vm.removeSelectiveColour(0); advanceUntilIdle()
+        assertEquals(1, vm.uiState.value.session!!.current.tools.effects.selectiveColour!!.colours.size)
+        vm.undo(); advanceUntilIdle()
+        assertEquals(2, vm.uiState.value.session!!.current.tools.effects.selectiveColour!!.colours.size, "a removal is one step")
+        vm.clearSelectiveColour(); advanceUntilIdle()
+        assertEquals(null, vm.uiState.value.session!!.current.tools.effects.selectiveColour)
+        vm.undo(); vm.undo(); vm.undo(); advanceUntilIdle()
+        assertEquals(null, vm.uiState.value.session!!.current.tools.effects.selectiveColour, "each pick was one step")
+    }
+
     @Test
     fun `the used dots follow the approved toolUsed rules`() = runTest {
         val vm = ready(null)

@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -1092,6 +1093,7 @@ class EditorViewModel(
             EffectsSub.LEAK -> e.copy(lightLeak = e.lightLeak.copy(enabled = !e.lightLeak.enabled))
             EffectsSub.GRAIN -> e.copy(grain = e.grain.copy(enabled = !e.grain.enabled))
             EffectsSub.VIGNETTE -> e.copy(vignette = e.vignette.copy(enabled = !e.vignette.enabled))
+            EffectsSub.SELECTIVE -> e   // no On switch: a kept colour applies it
         }
     }
 
@@ -1110,6 +1112,8 @@ class EditorViewModel(
             "vignetteAmount" -> e.copy(vignette = e.vignette.copy(amount = p))
             "vignetteSize" -> e.copy(vignette = e.vignette.copy(size = p))
             "vignetteSoftness" -> e.copy(vignette = e.vignette.copy(softness = p))
+            "selectiveRange" -> e.selectiveColour?.let { e.copy(selectiveColour = it.copy(range = p)) } ?: e
+            "selectiveStrength" -> e.selectiveColour?.let { e.copy(selectiveColour = it.copy(strength = p)) } ?: e
             else -> e
         }
     }
@@ -1132,6 +1136,59 @@ class EditorViewModel(
         if (release) commitEffects(move) else requestPreview(session.current.copy(tools = session.current.tools.copy(effects = move(session.current.tools.effects))), globalOnly = false)
     }
 
+    // --- Effects › Selective Colour (owner-approved layout, 2026-10-05) ------------------------------
+
+    /** (+): the next tap on the photo keeps another colour. */
+    fun toggleAddingColour() = state.update { it.copy(effects = it.effects.copy(addingColour = !it.effects.addingColour)) }
+
+    /** True when a tap on the photo keeps a colour: the first one, or after (+). */
+    fun picksOnTap(ui: EditorUiState = state.value): Boolean =
+        ui.effects.sub == EffectsSub.SELECTIVE && ((ui.session?.current?.tools?.effects?.selectiveColour == null) || ui.effects.addingColour)
+
+    /**
+     * Keeps the colour under a tap at ([frameX], [frameY]), fractions of the displayed frame. Sampled from Selective
+     * Colour's own input (the frame before it, at the preview size), not from the photo on screen, which may already
+     * be black and white there. Stored as OKLab with the tap point in source-photo coordinates. One undo step.
+     */
+    fun pickSelectiveColour(frameX: Double, frameY: Double) {
+        val ui = state.value
+        val edit = ui.session?.current ?: return
+        val display = ui.original ?: return
+        if ((edit.tools.effects.selectiveColour?.colours?.size ?: 0) >= MAX_KEPT_COLOURS) return
+        val (sx, sy) = displayGeometry(ui)?.sourceFromFrame(frameX, frameY) ?: (frameX to frameY)
+        state.update { it.copy(effects = it.effects.copy(addingColour = false)) }
+        pickJob = scope.launch {
+            val lab = withContext(env.renderDispatcher) {
+                val library = env.library.await()
+                val frame = EditPipeline(library.model, env.previewRenderer)
+                    .renderSelectiveColourInput(patched(display, edit), edit, library.planFor(edit), sourceStages(edit, library, BackgroundSession.PREVIEW_CAP))
+                com.lightlylabs.lightly.develop.SelectiveColour.sample(frame, frameX, frameY)
+            }
+            val kept = com.lightlylabs.lightly.session.KeptColourRecipe(listOf(lab.lightness, lab.a, lab.b), sx.coerceIn(0.0, 1.0), sy.coerceIn(0.0, 1.0))
+            commitEffects { e ->
+                val current = e.selectiveColour
+                e.copy(selectiveColour = current?.copy(colours = current.colours + kept) ?: com.lightlylabs.lightly.session.SelectiveColourTool(listOf(kept), 40.0, 100.0))
+            }
+        }
+    }
+
+    /** The × on one kept colour. One undo step; removing the last one is the same as Clear. */
+    fun removeSelectiveColour(index: Int) = commitEffects { e ->
+        val current = e.selectiveColour ?: return@commitEffects e
+        if (index !in current.colours.indices) return@commitEffects e
+        val left = current.colours.filterIndexed { i, _ -> i != index }
+        e.copy(selectiveColour = if (left.isEmpty()) null else current.copy(colours = left))
+    }
+
+    /** Clear: no kept colours (Range and Strength back to their defaults). One undo step. */
+    fun clearSelectiveColour() {
+        state.update { it.copy(effects = it.effects.copy(addingColour = false)) }
+        if (state.value.session?.current?.tools?.effects?.selectiveColour != null) commitEffects { it.copy(selectiveColour = null) }
+    }
+
+    /** The latest pick's sampling render (tests wait for it). */
+    internal var pickJob: Job? = null
+
     /**
      * The approved notice: the applied preset already has its own grain (or vignette) and the person's is on.
      */
@@ -1143,7 +1200,7 @@ class EditorViewModel(
         return when (sub) {
             EffectsSub.GRAIN -> (preset.recipe.finishing.grain?.amount ?: 0.0) != 0.0
             EffectsSub.VIGNETTE -> (preset.recipe.finishing.vignette?.amount ?: 0.0) != 0.0
-            EffectsSub.LEAK -> false
+            EffectsSub.LEAK, EffectsSub.SELECTIVE -> false
         }
     }
 
@@ -1398,6 +1455,15 @@ class EditorViewModel(
     }
 
     /** [display] with the recipe's applied Remove patches composited (cached for the current list). */
+    /** Background (stages 7–8) then Portrait (9) on the developed, adjusted source-coordinate image; null when neither is active. */
+    private fun sourceStages(edit: EditState, library: DevelopLibrary, backgroundCap: Int): ((Rgba8Image) -> Rgba8Image)? {
+        val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer, maxBlurFraction(edit), backgroundCap)
+        val background = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap) } }
+        // Stage 9 (Portrait) follows Background (7–8), in source coordinates, before geometry.
+        val portrait = edit.tools.portrait.takeIf(portraitSession::isActive)
+        return if (portrait == null) background else { developed: Rgba8Image -> portraitSession.render(background?.invoke(developed) ?: developed, portrait) }
+    }
+
     private fun patched(display: Rgba8Image, edit: EditState): Rgba8Image {
         val digests = EditMapping.patchDigests(edit)
         if (digests.isEmpty()) return display
@@ -1488,10 +1554,7 @@ class EditorViewModel(
                 val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer, maxBlurFraction(edit), backgroundCap)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
-                    val background = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap) } }
-                    // Stage 9 (Portrait) follows Background (7–8), in source coordinates, before geometry.
-                    val portrait = edit.tools.portrait.takeIf(portraitSession::isActive)
-                    val compose = if (portrait == null) background else { developed: Rgba8Image -> portraitSession.render(background?.invoke(developed) ?: developed, portrait) }
+                    val compose = sourceStages(edit, library, backgroundCap)
                     EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit, library)).renderPreview(patched(display, edit), edit, plan, compose)
                 } else {
                     // With Background active the drag preview keeps the full proxy: the stage works at the analysis size.
@@ -1804,6 +1867,8 @@ class EditorViewModel(
     }
 
     companion object {
+        /** edit-recipe-v1 `selectiveColour.colours` maxItems. */
+        const val MAX_KEPT_COLOURS = 8
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
         const val SAVE_CANCELLED = "Save cancelled · nothing was written"
