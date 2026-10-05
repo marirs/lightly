@@ -16,7 +16,7 @@ After a pick:       ●  ●  (+)  Clear
                     Strength  ───────────────●
 ```
 
-- The kept colours sit on top; (+) beside them adds another (tap (+), then the photo); Clear is right beside them. Tapping a colour removes it.
+- The kept colours sit on top; (+) beside them adds another (tap (+), then the photo); Clear is right beside them. With more than one colour, each has a small × that removes just that colour.
 - Below: the controls only.
 - No On switch: picking a colour applies the effect.
 - Colour matching: the kept colours stay wherever they appear in the photo; it does not know what an object is (a red dress also keeps red lips). Painting an area is not in this layout.

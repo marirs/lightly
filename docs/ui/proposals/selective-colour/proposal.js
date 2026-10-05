@@ -147,7 +147,12 @@ effectsPanel = function (s, ui, L) {
   if (!sel.picks.length) return head + `<div style="display:flex;align-items:center;gap:10px;padding:14px 18px 12px;color:var(--ink2);font-size:calc(15px * var(--ts))">${icon('picker', 20)}<span>Tap a colour in the photo to keep it.</span></div>`;
   // After a pick: the kept colours, then (+) to add another, then Clear right beside them. Controls below.
   const target = 'width:44px;height:44px;display:grid;place-items:center;flex:0 0 auto;background:none;border:0;padding:0';
-  const dots = sel.picks.map((p, i) => `<button data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}" style="${target}"><span style="width:28px;height:28px;border-radius:14px;border:1px solid var(--hair);background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}"></span></button>`).join('');
+  // With more than one colour, each gets a small × to remove just that colour (with one, Clear does it).
+  const several = sel.picks.length > 1;
+  const removeBadge = `<span style="position:absolute;right:-4px;top:-4px;width:16px;height:16px;border-radius:8px;background:var(--ink);color:var(--bg);display:grid;place-items:center">${icon('close', 10)}</span>`;
+  const dots = sel.picks.map((p, i) => several
+    ? `<button data-act="selRemove:${i}" aria-label="Remove colour ${i + 1}" style="${target}"><span style="position:relative;width:28px;height:28px;border-radius:14px;border:1px solid var(--hair);background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}">${removeBadge}</span></button>`
+    : `<span role="img" aria-label="Kept colour" style="${target}"><span style="width:28px;height:28px;border-radius:14px;border:1px solid var(--hair);background:${selImages[s.photo] ? labToCss(sampleLab(s.photo, p.x, p.y)) : '#999'}"></span></span>`).join('');
   const adding = !!ui.selAdding;
   const plus = `<button data-act="selAdd" aria-pressed="${adding}" aria-label="Add another colour" style="${target};color:${adding ? 'var(--sel)' : 'var(--ink2)'}"><span style="width:28px;height:28px;border-radius:14px;border:1px ${adding ? 'solid var(--sel)' : 'dashed var(--ink3)'};display:grid;place-items:center">${icon('plus', 15)}</span></button>`;
   let body = `<div style="display:flex;align-items:center;padding:6px 10px 2px 8px;overflow-x:auto;scrollbar-width:none">${dots}${plus}<button class="btn quiet small" data-act="selClear" style="flex:0 0 auto">Clear</button></div>`;
