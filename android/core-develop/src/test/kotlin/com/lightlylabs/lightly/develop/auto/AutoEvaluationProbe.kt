@@ -32,6 +32,8 @@ class AutoEvaluationProbe {
             val originalCorrection = AutoAnalysis.analyse(original, f)
             val autoOriginal = corrected(original, originalCorrection)
             lines += "%-18s original: Auto moved it ΔE %.1f".format(name, deltaE(autoOriginal, original))
+            // For visual review: each original and its Auto result (originals/<name>-auto.png).
+            File(dir, "originals").mkdirs(); save(autoOriginal, File(dir, "originals/$name-auto.png"))
             lines += "                     " + originalCorrection.notes.drop(1).dropLast(1).joinToString("; ")
             for ((label, gains) in listOf("under -1.5EV" to doubleArrayOf(0.354, 0.354, 0.354), "warm cast" to doubleArrayOf(1.18, 1.0, 0.78))) {
                 val degraded = degrade(original, gains)
@@ -47,6 +49,15 @@ class AutoEvaluationProbe {
         lines += counts.entries.joinToString("; ") { "${it.key}: ${it.value}" }
         File(dir, "eval.txt").writeText(lines.joinToString("\n") + "\n")
         lines.forEach { println("PROBE $it") }
+    }
+
+    private fun save(image: AutoAnalysis.Image, file: File) {
+        val out = java.awt.image.BufferedImage(image.width, image.height, java.awt.image.BufferedImage.TYPE_INT_RGB)
+        for (y in 0 until image.height) for (x in 0 until image.width) {
+            val i = (y * image.width + x) * 4
+            out.setRGB(x, y, ((image.rgba[i].toInt() and 0xff) shl 16) or ((image.rgba[i + 1].toInt() and 0xff) shl 8) or (image.rgba[i + 2].toInt() and 0xff))
+        }
+        ImageIO.write(out, "png", file)
     }
 
     private fun load(file: File): AutoAnalysis.Image {

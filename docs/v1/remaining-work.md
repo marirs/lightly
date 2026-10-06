@@ -134,6 +134,9 @@ Closed as stale (evidence re-checked 2026-10-06):
   (other processes hit ENOSPC; the system kept room for the media write), so the alert path could not be triggered
   there; it stays unit-tested only.
 - Lost photo access and model-unavailable mid-session: unit-tested only.
+- iOS snapshot `SliceOneSnapshotTests/testFavourites` (2026-10-07): fails on two causes, so its baseline is not
+  updated: the requested readable names, and 858a06f's note renderer (same line breaks; glyph anti-aliasing differs and
+  its fractional height moves every row below by under a pixel).
 - Large text: one cell per platform; every other cell unverified. Screen readers: no end-to-end pass. 44 pt targets not
   measured across layouts.
 - Saved-file metadata combinations on Android after slice 1; 48 MP memory and time on dev devices.
@@ -233,8 +236,9 @@ counsel on MODNet's (undocumented) and U²-Netp's (DUTS-TR) training data, then 
 - **Settled-frame memory (2026-10-07):** the settled Background preview renders its scene at Save copy's 768 px
   (`SETTLED_CAP`; v3 differs from iOS's 1024). One settled frame's transient fell from ~95 MB to ~50 MB (JVM heap
   bisection: a frame needs 135 MB at 1024 px, 85 MB at 768, test inputs included). 13.5 MP stress on the emulator
-  (stress12/13): **0 app-visible failures**; peak used after GC **52 MB** before Save copy (was 186–191); one runtime
-  OOM line, during Save copy (its 54 MB decode, retried by the runtime; Save copy completes, 190 MB peak there).
+  (stress12/13): **0 app-visible failures**; peak used after GC **52 MB** before Save copy (was 186–191), **peak in use
+  before a GC 155 MB** (ART GC records: used after + freed; includes garbage not yet collected; heap 192 MB); one runtime
+  OOM line, during Save copy (its 54 MB decode, retried by the runtime; Save copy completes; in use before a GC reaches the full 192 MB there).
   Drag frames at DRAG_CAP 480 (320 missed the soft-edge bound once the matte got sharper: edge ΔE 3.0 vs 2.3):
   3 frames during the sweeps, 1.1–1.4 s each on the CPU emulator; **phone timing pending (D-1)**.
   Note: stress9–11 ran an older install (my storage-full test left the spare emulator full, so installs failed);
