@@ -232,6 +232,18 @@ Approved copy: "Change background needs a person or object in front". The segmen
     - a depth step along the mask's boundary (a separable subject stands in front of its background; a mountain, facade or sky region does not);
     - a mask that must not be the sky.
     - Each must be judged on new labelled photos, including genuinely small subjects, before it is relied on. Until then the object cut-out stays experimental and gated.
+  - **Depth step along the mask boundary (A5 diagnostic, 2026-10-06; `scripts/u2netp_depth_step.py`, `work/u2netp-depth-step.json`).**
+    Nearness (the app's Depth Anything V2 Small, `DepthModelInput` preprocessing, normalised to the photo's p1–p99) just
+    inside the confident mask's edge minus just outside (7 px bands, frame border excluded); labels set before any model
+    output (independent set) or by eye (held-out scenes); nothing fitted.
+    - Subjects (7: the independent set's 5, boat, swan): step +0.13 to +0.77.
+    - Scenes without a subject that the area rule calls a subject (14 of 37): −0.51 to +0.18; all but two ≤ +0.02.
+      The two: indep00 (+0.15) and indep30, rock formations (+0.18).
+    - "Area ≥ 2 % and step ≥ 0.1" would keep all 7 subjects and call 2 of 37 scenes a subject (the area rule alone: 14).
+      The 0.1 was read off these numbers and the classes overlap (weakest subject +0.13), so it is a finding, not a
+      validated rule: it needs newly labelled photos, including small subjects, before it is relied on.
+    - It needs the depth model, which is behind its own legal gate: without depth, objects cannot be decided at all.
+    - Not wired; the object cut-out stays experimental and gated (owner decision on its 1.0 scope).
   - **Bar scene and Portrait (written requirement):** the approved prototype's bar photo is `faces: [], people: true` (`docs/ui/app/data.js`). `toolsFor` offers Portrait, and the panel shows the "No face can be edited" notice. Android matches.
     - Defect: Android draws a face ring around the disco ball (its unusable face detection). The prototype marks only the people (dim rings).
 
