@@ -35,6 +35,12 @@ tasks.withType<Test>().configureEach {
     inputs.dir(rootDir.parentFile.resolve("shared/fixtures/rendering"))
     inputs.file(rootDir.parentFile.resolve("shared/contracts/rendering-v2.json"))
     inputs.property("depthFixturesDir", depthFixturesDir.absolutePath)
+    // BackgroundSpeedProbe (completion plan A1) runs only with -Plightly.probe; it prints timings, never fails.
+    if (project.hasProperty("lightly.probe")) {
+        systemProperty("lightly.probe", "true")
+        outputs.upToDateWhen { false }
+        testLogging.showStandardStreams = true
+    }
 }
 
 // Peak-heap bound (BackgroundMemoryTest): Background with a subject matte in a 150 MB JVM heap, so an

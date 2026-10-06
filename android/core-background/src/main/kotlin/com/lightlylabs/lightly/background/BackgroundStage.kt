@@ -87,8 +87,11 @@ class ReplacementPixels(val width: Int, val height: Int, val rgba: ByteArray) {
         val y1 = minOf(y0 + 1, height - 1)
         val fx = (x - x0).toFloat()
         val fy = (y - y0).toFloat()
+        // Speed (2026-10-06): the decode table holds srgbToLinear of each byte, the same values the per-pixel pow gave
+        // (12 pow calls per pixel were ~19 % of a Background drag frame).
+        val table = SrgbBytes.TO_LINEAR
         for (c in 0 until 3) {
-            fun at(xx: Int, yy: Int) = Refocus.srgbToLinear((rgba[(yy * width + xx) * 4 + c].toInt() and 0xff) / 255f)
+            fun at(xx: Int, yy: Int) = table[rgba[(yy * width + xx) * 4 + c].toInt() and 0xff]
             out[c] = (at(x0, y0) * (1 - fx) + at(x1, y0) * fx) * (1 - fy) + (at(x0, y1) * (1 - fx) + at(x1, y1) * fx) * fy
         }
     }
@@ -213,7 +216,7 @@ object BackgroundStage {
         // Per-element loops below run rows in parallel (forEachRow); the arithmetic is unchanged.
         val sharp = FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { i ->
             val p = i / 3
-            val photo = Refocus.srgbToLinear((developed[p * 4 + i % 3].toInt() and 0xff) / 255f)
+            val photo = SrgbBytes.TO_LINEAR[developed[p * 4 + i % 3].toInt() and 0xff]
             if (replacementSrgb == null) photo else { val a = matte!!.values[p].coerceIn(0f, 1f); (photo + shift!!.data[i]).coerceIn(0f, 1f) * a + Refocus.srgbToLinear(replacementSrgb.data[i]) * (1 - a) }
         })
         // iOS: how far the blurred result departs from the sharp composite, relative to 0.02; softened.
@@ -246,14 +249,14 @@ object BackgroundStage {
     @Volatile internal var foregroundEstimates = 0
 
     private fun computeForegroundShift(developed: ByteArray, w: Int, h: Int, matte: FloatPlane): FloatImage {
-        val photo = FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { SRGB_TO_LINEAR[developed[(it / 3) * 4 + it % 3].toInt() and 0xff] })
+        val photo = FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { SrgbBytes.TO_LINEAR[developed[(it / 3) * 4 + it % 3].toInt() and 0xff] })
         val foreground = ForegroundEstimate.estimate(photo, FloatPlane(w, h, FloatArray(w * h) { matte.values[it].coerceIn(0f, 1f) }))
         return FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { foreground.data[it] - photo.data[it] })
     }
 
     private fun renderScene(developed: ByteArray, w: Int, h: Int, nearness: FloatPlane, matte: FloatPlane?, plan: BackgroundPlan, blur: Double, layersPerSide: Int, checkpoint: () -> Unit = {}): FloatImage {
         val scene = Refocus.buildScene(
-            FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { Refocus.srgbToLinear((developed[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f) }), nearness, matte,
+            FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { SrgbBytes.TO_LINEAR[developed[(it / 3) * 4 + it % 3].toInt() and 0xff] }), nearness, matte,
             plan.replacement?.let { r -> FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { Refocus.srgbToLinear(r.data[it]) }) })
         val subjectInFocus = scene.subject != null && (plan.focusTarget?.let { (x, y) -> Refocus.focusIsOnSubject(scene, x, y) } ?: true)
         return Refocus.render(scene, plan.focus.copy(blur = blur), plan.focalNearness, layersPerSide, subjectInFocus, consumeScene = true, checkpoint = checkpoint)
@@ -269,32 +272,52 @@ object BackgroundStage {
         val out = ByteArray(region.size)
         val sx = working.width.toDouble() / frameWidth
         val sy = working.height.toDouble() / frameHeight
-        // Rows in parallel (0.6–0.7 s single-threaded for a 1065×1600 preview on the Pixel 9 Pro emulator);
-        // every pixel's arithmetic is unchanged. 8-bit sRGB decodes through a table of the same function.
+        val ww = working.width
+        val wh = working.height
+        val matte = if (replacement != null) working.matte?.values else null
+        val weight = working.weight?.values
+        val blurred = working.blurred?.data
+        val sharp = working.sharp?.data
+        val shift = working.foregroundShift?.data
+        // Rows in parallel; every pixel's arithmetic is unchanged. Speed (2026-10-06): the bilinear position in the
+        // working images is computed once per pixel, not once per plane and channel (the same clamp, truncation and
+        // weights as WorkingBackground.sample / FloatPlane.sample, so the same floats), and 8-bit sRGB decodes and
+        // encodes through exact tables of the same functions (SrgbBytes).
         java.util.stream.IntStream.range(0, height).parallel().forEach { row ->
             if (row % 64 == 0) checkpoint()
             val repl = FloatArray(3)
             val fy = y + row
-            val wy = (fy + 0.5) * sy - 0.5
+            val wy = ((fy + 0.5) * sy - 0.5).coerceIn(0.0, (wh - 1).toDouble())
+            val y0 = wy.toInt()
+            val y1 = minOf(y0 + 1, wh - 1)
+            val ty = (wy - y0).toFloat()
             for (column in 0 until width) {
                 val fx = x + column
-                val wx = (fx + 0.5) * sx - 0.5
+                val wx = ((fx + 0.5) * sx - 0.5).coerceIn(0.0, (ww - 1).toDouble())
+                val x0 = wx.toInt()
+                val x1 = minOf(x0 + 1, ww - 1)
+                val tx = (wx - x0).toFloat()
+                val p00 = y0 * ww + x0
+                val p10 = y0 * ww + x1
+                val p01 = y1 * ww + x0
+                val p11 = y1 * ww + x1
                 val i = (row * width + column) * 4
-                val a = if (replacement != null && working.matte != null) working.matte.sample(wx, wy).coerceIn(0f, 1f) else 1f
-                if (replacement != null && a < 1f) replacement.sampleLinear((fx + 0.5) / frameWidth, (fy + 0.5) / frameHeight, repl)
-                val w = working.weight?.sample(wx, wy) ?: 0f
+                val a = if (matte != null) lerp2(matte, p00, p10, p01, p11, tx, ty).coerceIn(0f, 1f) else 1f
+                val replaced = replacement != null && a < 1f
+                if (replaced) replacement!!.sampleLinear((fx + 0.5) / frameWidth, (fy + 0.5) / frameHeight, repl)
+                val w = if (weight != null) lerp2(weight, p00, p10, p01, p11, tx, ty) else 0f
                 for (c in 0 until 3) {
-                    val full = SRGB_TO_LINEAR[region[i + c].toInt() and 0xff]
-                    var v = if (replacement != null && a < 1f) {
-                        val subject = working.foregroundShift?.let { (full + working.sample(it, wx, wy, c)).coerceIn(0f, 1f) } ?: full
+                    val full = SrgbBytes.TO_LINEAR[region[i + c].toInt() and 0xff]
+                    var v = if (replaced) {
+                        val subject = if (shift != null) (full + lerp2(shift, p00 * 3 + c, p10 * 3 + c, p01 * 3 + c, p11 * 3 + c, tx, ty)).coerceIn(0f, 1f) else full
                         subject * a + repl[c] * (1 - a)
                     } else full
-                    if (working.blurred != null) {
-                        val b = working.sample(working.blurred, wx, wy, c)
-                        val keep = v + (b - working.sample(working.sharp!!, wx, wy, c))
+                    if (blurred != null) {
+                        val b = lerp2(blurred, p00 * 3 + c, p10 * 3 + c, p01 * 3 + c, p11 * 3 + c, tx, ty)
+                        val keep = v + (b - lerp2(sharp!!, p00 * 3 + c, p10 * 3 + c, p01 * 3 + c, p11 * 3 + c, tx, ty))
                         v = keep * (1 - w) + b * w
                     }
-                    out[i + c] = encode(Refocus.linearToSrgb(v))
+                    out[i + c] = SrgbBytes.encodeLinear(v)
                 }
                 out[i + 3] = region[i + 3]
             }
@@ -302,8 +325,14 @@ object BackgroundStage {
         return out
     }
 
-    /** [Refocus.srgbToLinear] of each 8-bit value, exactly as computed per pixel before. */
-    private val SRGB_TO_LINEAR = FloatArray(256) { Refocus.srgbToLinear(it / 255f) }
+    /** Bilinear interpolation of four samples, in the exact expression of WorkingBackground.sample / FloatPlane.sample. */
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun lerp2(d: FloatArray, i00: Int, i10: Int, i01: Int, i11: Int, fx: Float, fy: Float): Float {
+        val top = d[i00] * (1 - fx) + d[i10] * fx
+        val bottom = d[i01] * (1 - fx) + d[i11] * fx
+        return top * (1 - fy) + bottom * fy
+    }
+
 
     /**
      * Full-resolution result from a working-resolution render: where the visible content is in focus
