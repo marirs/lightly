@@ -26,6 +26,8 @@ enum AutoUnavailableReason: Equatable, Sendable {
 /// What an enhancer produced for one photo.
 enum AutoResult: Equatable, Sendable {
     case lut(LUT3D)
+    /// Core Image auto enhancement: its filters and parameters (stored with the session) and their baked LUT.
+    case coreImage(CoreImageAutoCorrection, LUT3D)
     case unavailable(AutoUnavailableReason)
 }
 

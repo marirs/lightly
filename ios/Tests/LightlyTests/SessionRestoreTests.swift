@@ -217,4 +217,30 @@ final class SessionRestoreTests: XCTestCase {
         XCTAssertTrue(restored.recipe.tools.effects.grain.enabled)
         XCTAssertTrue(restored.hasUnsavedEdits)
     }
+
+    /// Core Image Auto: the stored filters rebuild the correction; nothing analyses the photo again.
+    func testCoreImageAutoComesBackFromTheStoredCorrectionWithoutAnalysingAgain() async throws {
+        let store = EditSessionStore(directory: sessionDirectory)
+        let photo = try await EditorTestSupport.photo(width: 1_200, height: 800)
+        let before = try await EditorTestSupport.readySession(photo: photo, library: library, autoEnhancer: CoreImageAutoEnhancer(), sessionStore: store)
+        before.sceneSessionID = { "scene-A" }
+        XCTAssertEqual(before.autoState, .applied)
+        before.applyLook(library.pack.categories[0].presets[0])
+        await before.settleRendering()
+        store.flush()
+        let export = try await before.exportedData()
+        before.close()
+
+        let saved = try XCTUnwrap(EditSessionStore(directory: sessionDirectory).load())
+        XCTAssertNotNil(saved.autoCorrection, "the filters and parameters are stored with the session")
+        let reopened = try await ImageIOPhotoLoader().loadPhoto(from: saved.original, source: .photoLibrary)
+        let counting = CountingAutoEnhancer()
+        let after = try await EditorTestSupport.readySession(photo: reopened, library: library, autoEnhancer: counting,
+                                                             sessionStore: EditSessionStore(directory: sessionDirectory), restoring: saved)
+        await after.settleRendering()
+        XCTAssertEqual(counting.calls, 0, "Auto is not recomputed")
+        XCTAssertEqual(after.autoState, .applied)
+        let restoredExport = try await after.exportedData()
+        XCTAssertEqual(restoredExport, export, "the same correction in Save copy")
+    }
 }

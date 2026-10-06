@@ -46,6 +46,7 @@
 		17A78F250473DE57E6813B4F /* HairMatteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125BF56B9F1392424FD89CCC /* HairMatteTests.swift */; };
 		1AE728C94894582F5D5EA239 /* DesignCaptureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8500BFF4CA6673C1D4DF0396 /* DesignCaptureUITests.swift */; };
 		1C0C8991356A89DD9DAEE2AC /* WatermarkFonts.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC8867C92181E47646B33115 /* WatermarkFonts.swift */; };
+		1D8E11DA2A334E99DCFEE4BC /* CoreImageAutoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC72857982EE4A5982A1B91 /* CoreImageAutoTests.swift */; };
 		2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */; };
 		21ECEFFC568E5D4079FFC7B9 /* CropGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7C94EEE92F650E5802946F /* CropGeometry.swift */; };
 		228FFCD1BC0744D1F47D9682 /* SnapshotEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99944887E73D0A1E77E396D /* SnapshotEnvironment.swift */; };
@@ -101,6 +102,7 @@
 		62962F950C63ED926A5A97DC /* DebugFixedRecipeDeveloper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3F3D3C685B0B45184C248B /* DebugFixedRecipeDeveloper.swift */; };
 		65D28BAAB3D3017E91D77DA7 /* EditPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 554F4D00143EBE896F0C6A9D /* EditPanel.swift */; };
 		67C7AAD1D84537B383F5A083 /* PhotoLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8A94F87126D1A33CEA46F7 /* PhotoLoading.swift */; };
+		6840E6D83BD866009E4163B9 /* CoreImageAutoEnhancer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5315072B6D2CB07D0C7AE4E1 /* CoreImageAutoEnhancer.swift */; };
 		6908D58686846907E067F55E /* PhotoDeveloping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6238855D071990606106390E /* PhotoDeveloping.swift */; };
 		69A3EE4B84611E234CB7E2D5 /* HistogramAnalyser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A457853F665261A32FA677B7 /* HistogramAnalyser.swift */; };
 		6B5BA898B6123AB52CD10D5B /* PresetLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED6748D67469348D11E4C57 /* PresetLookupTests.swift */; };
@@ -323,6 +325,7 @@
 		4F2E65626053875D0712B9B6 /* PortableRandom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableRandom.swift; sourceTree = "<group>"; };
 		5259504E0F41B9DA1589840A /* RefocusRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefocusRenderer.swift; sourceTree = "<group>"; };
 		529B651D4F3A99C24DA64E71 /* MetalLUTRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalLUTRenderer.swift; sourceTree = "<group>"; };
+		5315072B6D2CB07D0C7AE4E1 /* CoreImageAutoEnhancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreImageAutoEnhancer.swift; sourceTree = "<group>"; };
 		554F4D00143EBE896F0C6A9D /* EditPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPanel.swift; sourceTree = "<group>"; };
 		555ECAAA9CEC0D7AF48ADE7E /* PresetCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetCatalogTests.swift; sourceTree = "<group>"; };
 		57E0C032B547D3552614F911 /* EditSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditSessionStore.swift; sourceTree = "<group>"; };
@@ -387,6 +390,7 @@
 		A9FE8BA8FCBFBB9BAC04F50A /* LightlyPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyPreset.swift; sourceTree = "<group>"; };
 		ABE2E0E9F910229CF50E0172 /* ReleaseBundleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseBundleTests.swift; sourceTree = "<group>"; };
 		AC657E4B8E0A661768561F9B /* wellexposed_02.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = wellexposed_02.jpg; sourceTree = "<group>"; };
+		ACC72857982EE4A5982A1B91 /* CoreImageAutoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreImageAutoTests.swift; sourceTree = "<group>"; };
 		ADA4EAB50B3A00B6B61BE60B /* RecoveryMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryMessageView.swift; sourceTree = "<group>"; };
 		ADA7F3DD90E84FEC19D1DB17 /* AnalysingDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysingDeveloper.swift; sourceTree = "<group>"; };
 		AE21BA5AF0A8476987024B19 /* PresetPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetPack.swift; sourceTree = "<group>"; };
@@ -751,6 +755,7 @@
 				62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */,
 				68AD1F5D2E9C382F30B5F059 /* ColorPipelineRenderTests.swift */,
 				B701BCDE146455B7448BDFA1 /* ControlContrastTests.swift */,
+				ACC72857982EE4A5982A1B91 /* CoreImageAutoTests.swift */,
 				FFD78A0BC6A4E1B58CD2D17B /* CropGeometryTests.swift */,
 				6A191C69BE2462A4FEE75919 /* DeferredWorkTests.swift */,
 				9FE37F379E52CD8BB1A9B8E6 /* DevelopParityTests.swift */,
@@ -1219,6 +1224,7 @@
 			isa = PBXGroup;
 			children = (
 				35BE71B0D623CB01C0D3E079 /* AutoEnhancer.swift */,
+				5315072B6D2CB07D0C7AE4E1 /* CoreImageAutoEnhancer.swift */,
 				A8A2C7B54376BC007C76E30E /* LUT3D.swift */,
 				D966F6DE946474C26273E04A /* LUTKernelSource.swift */,
 				529B651D4F3A99C24DA64E71 /* MetalLUTRenderer.swift */,
@@ -1490,6 +1496,7 @@
 				2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */,
 				E2530F2A80A145DB5A03FA45 /* ColorPipelineRenderTests.swift in Sources */,
 				6D26C71C7DA23615F20A3D04 /* ControlContrastTests.swift in Sources */,
+				1D8E11DA2A334E99DCFEE4BC /* CoreImageAutoTests.swift in Sources */,
 				8793EDAD4DC0F90D2C19BC38 /* CropGeometryTests.swift in Sources */,
 				ABF41ACB403B2485A5C75CB9 /* DeferredWorkTests.swift in Sources */,
 				C8492A221BBEB380A1DA692E /* DevelopParityTests.swift in Sources */,
@@ -1574,6 +1581,7 @@
 				4C4B1B342F45110F5B45AEB0 /* ColorPipeline.swift in Sources */,
 				0515CC84E2377F443226B9D9 /* ContextualTool.swift in Sources */,
 				2C19E196DEDEA053146A440A /* ControlChrome.swift in Sources */,
+				6840E6D83BD866009E4163B9 /* CoreImageAutoEnhancer.swift in Sources */,
 				21ECEFFC568E5D4079FFC7B9 /* CropGeometry.swift in Sources */,
 				713EA1515DB18632B61053A9 /* DebugCaptureDriver.swift in Sources */,
 				62962F950C63ED926A5A97DC /* DebugFixedRecipeDeveloper.swift in Sources */,

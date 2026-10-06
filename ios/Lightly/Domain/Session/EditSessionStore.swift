@@ -28,6 +28,8 @@ struct PersistedEditSession: Sendable {
     /// removes the app in the app switcher, so this tells a system kill from a force-quit.
     var sceneSessionID: String?
     var analysis: PersistedAnalysis
+    /// Core Image Auto: the filters and parameters that were applied (iOS 1.0 Auto).
+    var autoCorrection: CoreImageAutoCorrection? = nil
 }
 
 /// Keeps the working session on disk while it has unsaved edits, so that when the system ends
@@ -58,10 +60,11 @@ final class EditSessionStore: @unchecked Sendable {
         write { directory in try self.writeFile(data, named: "original.bin", in: directory) }
     }
 
-    func saveHistory(_ history: [EditRecipe], index: Int, autoState: String, sceneSessionID: String?) {
+    func saveHistory(_ history: [EditRecipe], index: Int, autoState: String, sceneSessionID: String?, autoCorrection: [String: Any]? = nil) {
         // JSON Lines: a header line, then one canonical recipe per line (canonical JSON is compact).
         var header: [String: Any] = ["format": 1, "index": index, "autoState": autoState]
         if let sceneSessionID { header["scene"] = sceneSessionID }
+        if let autoCorrection { header["autoCorrection"] = autoCorrection }
         var data = (try? JSONSerialization.data(withJSONObject: header, options: [.sortedKeys])) ?? Data()
         data.append(0x0A)
         for recipe in history {
@@ -152,7 +155,8 @@ final class EditSessionStore: @unchecked Sendable {
                 }) ?? PersistedAnalysis()
             }
             return PersistedEditSession(original: original, history: history, index: index, autoState: auto,
-                                        sceneSessionID: header["scene"] as? String, analysis: analysis)
+                                        sceneSessionID: header["scene"] as? String, analysis: analysis,
+                                        autoCorrection: CoreImageAutoCorrection(json: header["autoCorrection"]))
         }
     }
 

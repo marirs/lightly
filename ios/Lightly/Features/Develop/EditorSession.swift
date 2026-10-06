@@ -200,6 +200,8 @@ final class EditorSession {
     @ObservationIgnored private var originalPreview: CGImage
     @ObservationIgnored private var scheduler: LatestWinsRenderScheduler<RenderJob>?
     @ObservationIgnored private var autoLUT: LUT3D?
+    /// The Core Image Auto correction behind `autoLUT` (stored with the session; a restore rebuilds the LUT from it).
+    @ObservationIgnored private var autoCorrection: CoreImageAutoCorrection?
     /// Per-preset Amount the person chose in this session, so re-selecting a preset restores it.
     @ObservationIgnored private var amountMemory: [String: Double] = [:]
     /// Model results for Background and Portrait, at the preview resolution.
@@ -346,12 +348,19 @@ final class EditorSession {
         let result: AutoResult = if let proxy { await autoEnhancer.autoLUT(forAnalysisProxy: proxy) } else { .unavailable(.analysisFailed) }
         guard !isClosed else { return }
         switch result {
-        case .lut(let lut):
-            autoLUT = lut
-            autoState = .applied
-            // DEFERRED(D1): the real model id, version and weights belong in `auto` once a model
-            // ships; no code path reaches this branch in this build.
+        case .lut, .coreImage:
             var start = recipe
+            if case .coreImage(let correction, let lut) = result {
+                autoLUT = lut
+                autoCorrection = correction
+                start.auto = EditRecipe.Auto(modelId: CoreImageAutoCorrection.recipeModelID, modelVersion: CoreImageAutoCorrection.recipeModelVersion,
+                                             weights: [0, 0, 0], guardrail: nil, strength: 1)
+                DiagnosticTrace.note("auto: Core Image applied \(correction.filters.map(\.name)), omitted \(correction.omitted)")
+            } else if case .lut(let lut) = result {
+                // DEFERRED(D1): a trained model's id, version and weights belong in `auto` once one ships.
+                autoLUT = lut
+            }
+            autoState = .applied
             start.auto.strength = 1
             if history.count == 1 {
                 // Auto is the starting point, not an edit: it replaces the untouched initial entry.
@@ -1579,7 +1588,8 @@ final class EditorSession {
             sessionStore.saveOriginal(photo.originalData)
             sessionPersisted = true
         }
-        sessionStore.saveHistory(history, index: historyIndex, autoState: autoState.rawValue, sceneSessionID: sceneSessionID())
+        sessionStore.saveHistory(history, index: historyIndex, autoState: autoState.rawValue, sceneSessionID: sceneSessionID(),
+                                 autoCorrection: autoCorrection?.json)
         if analysisPersistedRevision != analysisRevision {
             sessionStore.saveAnalysis(PersistedAnalysis(hasPerson: hasPerson, people: people, subjectAnalysed: sceneCache.subjectAnalysed,
                                                         subject: sceneCache.subject, disparity: sceneCache.disparity,
@@ -1590,8 +1600,9 @@ final class EditorSession {
 
     /// Opens a stored session exactly as it was: its history and position, its Auto state and the
     /// model results it was edited with.
-    // DEFERRED(D1): no Auto model ships, so no Auto LUT is stored; once one does, store its LUT
-    // with the session so a restored "applied" Auto renders without running the model.
+    // Auto: the Core Image correction (filters and parameters) is stored with the history; the LUT is rebuilt from it,
+    // never by analysing the photo again. A stored applied/off Auto without its correction restores as unavailable,
+    // never as a different result.
     private func applyRestored(_ saved: PersistedEditSession) {
         let analysis = saved.analysis
         hasPerson = analysis.hasPerson ?? false
@@ -1615,6 +1626,15 @@ final class EditorSession {
             depthState = analysis.disparity == nil ? .notStarted : .ready
         }
         autoState = AutoState(rawValue: saved.autoState) ?? .unavailable
+        if autoState == .applied || autoState == .off {
+            if let correction = saved.autoCorrection, let lut = correction.lut() {
+                autoCorrection = correction
+                autoLUT = lut
+            } else {
+                DiagnosticTrace.note("restore: Auto \(saved.autoState) without its stored correction: shown as unavailable")
+                autoState = .unavailable
+            }
+        }
         history = saved.history
         historyIndex = saved.index
         editEpoch &+= 1

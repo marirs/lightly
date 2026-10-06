@@ -44,7 +44,8 @@ struct DependencyContainer {
     /// No production Auto model exists, so Auto is explicitly unavailable.
     /// The research (FiveK-derived) weights must never be bundled.
     private static func makeAutoEnhancer() -> any AutoEnhancing {
-        let enhancer = ModelNotBundledAutoEnhancer()
+        // iOS 1.0 Auto: Core Image auto enhancement (owner approval 2026-10-06), not a trained model.
+        let enhancer = CoreImageAutoEnhancer()
         #if DEBUG
         // Design captures and UI tests reach the approved "didn't finish" state (`--auto-fails`)
         // or a slow Auto (`--auto-delay-seconds`); read at each run (DebugCaptureDriver).
