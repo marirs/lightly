@@ -99,4 +99,23 @@ final class CoreImageAutoTests: XCTestCase {
             if before.spansRange { XCTAssertFalse(correction.filters.contains { $0.name == "CIToneCurve" }, "\(name): no tone curve") }
         }
     }
+
+    /// Tiled Save copy: the Auto stage is a per-pixel LUT, so tile boundaries cannot change it. Same LUT on a 12 MP
+    /// photo with 256 px tiles and in one pass: identical bytes.
+    func testTheAutoLUTIsIdenticalAcrossTileBoundaries() throws {
+        let photos = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../experiments/lut3d/photos").standardized
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(photos.appendingPathComponent("portrait_deep_01.jpg") as CFURL, nil))
+        let full = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let proxy = try XCTUnwrap(CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceThumbnailMaxPixelSize: 1024,
+            kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true] as CFDictionary))
+        // A strong correction for the check: every proposed per-pixel filter at Core Image's own values.
+        let correction = CoreImageAutoCorrection.analyse(proxy)
+        let lut = try XCTUnwrap(CoreImageAutoCorrection(filters: correction.filters, omitted: []).lut())
+        let renderer = try MetalLUTRenderer()
+        let pixels = try MetalLUTRenderer.rgba8Bytes(of: full)
+        let tiled = try renderer.apply([lut], toRGBA8: pixels, width: full.width, height: full.height, maximumTileSide: 256)
+        let whole = try renderer.apply([lut], toRGBA8: pixels, width: full.width, height: full.height, maximumTileSide: 8192)
+        XCTAssertGreaterThan(full.width * full.height, 12_000_000, "a 12 MP-class photo")
+        XCTAssertTrue(tiled == whole, "tile boundaries change nothing")
+    }
 }
