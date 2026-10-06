@@ -197,7 +197,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
         faces = emptyList()
         noClearSubject = false
         synchronized(replacementPlanes) { replacementPlanes.clear() }
-        workingAnalysis = null
+        workingAnalyses.clear()
     }
 
     /** A photo just picked for Change background: converted now, so the first render needn't reload it. */
@@ -206,7 +206,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
     }
 
     /** Before Save copy: the working-size analysis is rebuilt at the export size anyway; free it for the export. */
-    fun trimForExport() { workingAnalysis = null }
+    fun trimForExport() { workingAnalyses.clear() }
 
     /** The recipe's derived references for what the analysis produced (digest of the map's float bytes). */
     fun withDerivedRefs(tool: BackgroundTool): BackgroundTool {
@@ -278,10 +278,11 @@ class BackgroundSession(private val env: EditorEnvironment) {
         /** The working resolution's long edge (iOS LayeredStages caps: [INTERACTIVE_CAP], [PREVIEW_CAP], [EXPORT_CAP]). */
         cap: Int = PREVIEW_CAP,
         /**
-         * A moving control's frame composited at the working size (2026-10-06): the replacement is drawn and graded at
-         * that size only, not at the analysis size and then reduced (7 s per drag frame on the CPU emulator).
+         * The size the replacement is drawn and graded at for the composite; null = the analysis size. A moving
+         * control's frame passes its own (smaller) frame size (2026-10-06): drawing and grading at the analysis size
+         * and then reducing cost 7 s per drag frame on the CPU emulator.
          */
-        replacementAtWorkingSize: Boolean = false,
+        replacementSize: Pair<Int, Int>? = null,
     ): BackgroundPlan? {
         val t0 = System.nanoTime()
         val a = refined(tool) ?: return null
@@ -291,7 +292,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
         // The replacement twice: at the analysis size, sampled for the full-resolution composite, and at the
         // working size, where Focus & Blur places it behind the subject.
         val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
-        val (fw, fh) = if (replacementAtWorkingSize) ww to wh else a.width to a.height
+        val (fw, fh) = replacementSize ?: (a.width to a.height)
         val full = tool.replacement?.takeIf { a.matte != null }?.let { r -> replacementPixels(r, fw, fh, developPlan(), renderer) }
         val tFull = System.nanoTime()
         if (full == null && blur <= 0.0) return null
@@ -320,6 +321,9 @@ class BackgroundSession(private val env: EditorEnvironment) {
     private val positionedReplacements = java.util.Collections.synchronizedMap(object : LinkedHashMap<Pair<Replacement, Pair<Int, Int>>, Rgba8Image>(2, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Replacement, Pair<Int, Int>>, Rgba8Image>?) = size > 2
     })
+
+    /** Draws [r] at w × h into the positioned cache ahead of use (the drag frame's size). */
+    fun preparePositioned(r: Replacement, w: Int, h: Int) { positioned(r, w, h) }
 
     private fun positioned(r: Replacement, w: Int, h: Int): Rgba8Image? {
         positionedReplacements[r to (w to h)]?.let { return it }
@@ -369,10 +373,10 @@ class BackgroundSession(private val env: EditorEnvironment) {
         // Depth and matte at the working size depend only on the analysis, the Refine edges strokes and
         // the cap, not on blur or replacement settings: resized once, not on every preview (0.2–0.3 s).
         val key = WorkingKey(analysis, tool.subject.refinements, ww, wh)
-        val small = if (ww == a.width && wh == a.height) a else workingAnalysis?.takeIf { it.first == key }?.second
+        val small = if (ww == a.width && wh == a.height) a else workingAnalyses[key]
             ?: BackgroundAnalysis(ww, wh,
                 a.depth?.let { d -> com.lightlylabs.lightly.background.NormalisedDepth(d.origin, ops.resizeBilinear(d.nearness, ww, wh)) },
-                a.matte?.let { ops.resizeBilinear(it, ww, wh) }).also { workingAnalysis = key to it }
+                a.matte?.let { ops.resizeBilinear(it, ww, wh) }).also { workingAnalyses[key] = it }
         val tResized = System.nanoTime()
         return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide, checkpoint).also {
             stageTiming?.invoke("working ${ww}x$wh refine=${ms(tRefined - t0)} resize=${ms(tResized - tRefined)} renderWorking=${ms(System.nanoTime() - tResized)}")
@@ -384,7 +388,11 @@ class BackgroundSession(private val env: EditorEnvironment) {
         override fun equals(other: Any?) = other is WorkingKey && other.analysis === analysis && other.refinements == refinements && other.width == width && other.height == height
         override fun hashCode() = System.identityHashCode(analysis) * 31 + refinements.hashCode() * 17 + width * 7 + height
     }
-    @Volatile private var workingAnalysis: Pair<WorkingKey, BackgroundAnalysis>? = null
+    // Two entries (2026-10-06): a ruler drag's frames (DRAG_CAP) and the settled frame (PREVIEW_CAP) alternate; with
+    // one entry every switch resized the depth and matte again (0.2-0.3 s). The DRAG_CAP entry is ~0.5 MB.
+    private val workingAnalyses = java.util.Collections.synchronizedMap(object : LinkedHashMap<WorkingKey, BackgroundAnalysis>(2, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<WorkingKey, BackgroundAnalysis>?) = size > 2
+    })
 
     /** Debug-only per-stage preview timing (set by the app in debug builds; null in release). */
     @Volatile var stageTiming: ((String) -> Unit)? = null
@@ -444,6 +452,13 @@ class BackgroundSession(private val env: EditorEnvironment) {
 
         /** The working caps (BackgroundStage: iOS LayeredStages' 640 and 1024; Save copy 768, see there). */
         const val INTERACTIVE_CAP = BackgroundStage.INTERACTIVE_CAP
+        /**
+         * The working size of a ruler-drag frame with Background active (completion plan A1, 2026-10-06): only the
+         * blurred scene is rendered this small; the composite runs at the drag frame's own size (the half-size proxy),
+         * so the subject keeps that detail. Chosen by the drag-order comparison (background and edge ΔE to the settled
+         * frame) and the frame time.
+         */
+        const val DRAG_CAP = 320
         const val PREVIEW_CAP = BackgroundStage.PREVIEW_CAP
         const val EXPORT_CAP = BackgroundStage.EXPORT_CAP
 
@@ -456,8 +471,10 @@ class BackgroundSession(private val env: EditorEnvironment) {
             val out = ByteArray(width * height * 4)
             val sx = image.width.toDouble() / width
             val sy = image.height.toDouble() / height
-            val acc = DoubleArray(4)
-            for (y in 0 until height) {
+            // Rows in parallel (2026-10-06: 0.35-0.6 s for a drag frame's 533×800 → 213×320 on the emulator); each
+            // output pixel's arithmetic is unchanged.
+            java.util.stream.IntStream.range(0, height).parallel().forEach { y ->
+                val acc = DoubleArray(4)
                 val y0 = y * sy
                 val y1 = (y + 1) * sy
                 for (x in 0 until width) {

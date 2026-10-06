@@ -149,3 +149,14 @@ hardware rounds as D-1/D-2 arrive → A9/A12 after D-3.
 - 2026-10-06: plan created. Closed: none. Remaining: A1–A12. Estimate: 13–22 d (+3–5 d conditional) — first estimate.
 - 2026-10-06: A2 closed (existing logs: identical depth for identical proxies across fresh processes; the variation
   was a resized test screen). Remaining: A1, A3–A12. Estimate unchanged at 13–22 d: A2's 0.5–1 d was inside the range.
+- 2026-10-06 (A1 in progress): exact speedups (sRGB tables, one bilinear position per pixel, reflect tables, parallel
+  proxy resize; every output byte-identical: goldens, exhaustive encode check, 13.5 MP Save copy sha d0f8bcec…
+  unchanged); drag frames composite at the half-size proxy with the blurred scene at DRAG_CAP 320 (to the settled
+  frame: background mean ΔE 0.26, soft edge 2.24, within the A1 bounds; subject = the half-size proxy every drag
+  frame uses); replacement graded with the drag plan; the settled develop stops between row chunks when preempted;
+  working analysis and positioned replacement cached per size. Emulator: settled Background frame 13–18 s → 4–6 s;
+  drag frame best 0.73 s, but emulator timings vary 5–10× for identical work under host load, so they cannot verify
+  the ≥ 4 frames/s target; JVM (10 cores): drag-frame Background stage 100 ms, settled 220 ms. Heap during the stress:
+  77–112 MB used after GC (was 186–191). Closed: none yet (A1 needs the phone measurement, D-1, and O1).
+  Remaining: A1, A3–A12. Estimate unchanged at 13–22 d: A1 steps 1–4 took less than planned, but the frame-rate
+  target cannot be confirmed without D-1, which keeps the conditional GPU path (+3–5 d) open.

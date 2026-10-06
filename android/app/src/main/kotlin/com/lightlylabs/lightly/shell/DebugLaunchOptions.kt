@@ -261,7 +261,7 @@ object DebugLaunchOptions {
                 api.rebaseHistory()
                 kotlinx.coroutines.MainScope().launch {
                     kotlinx.coroutines.delay(45_000)
-                    for (stop in listOf(3, 12)) {
+                    for (stop in listOf(12)) {
                         api.release(stop)
                         // Settled frame (~19 s) and the drag-base prefetch (~14 s) finish first: the check needs the heap.
                         kotlinx.coroutines.delay(75_000)

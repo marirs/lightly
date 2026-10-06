@@ -38,6 +38,7 @@ tasks.withType<Test>().configureEach {
     // BackgroundSpeedProbe (completion plan A1) runs only with -Plightly.probe; it prints timings, never fails.
     if (project.hasProperty("lightly.probe")) {
         systemProperty("lightly.probe", "true")
+        project.findProperty("lightly.probe.only")?.let { systemProperty("lightly.probe.only", it.toString()) }
         outputs.upToDateWhen { false }
         testLogging.showStandardStreams = true
     }

@@ -378,6 +378,11 @@ object Refocus {
         // the image skip the per-tap border reflection.
         val data = image.data
         val dst = out.data
+        // Border pixels (2026-10-06, speed): the reflected column and row of every offset the taps reach, looked up
+        // instead of computed per tap (PlaneOps.reflect's indices exactly; at a drag frame's 213×320 most pixels lie
+        // within a kernel radius of the border).
+        val reflectX = IntArray(w + 2 * half) { PlaneOps.reflect(it - half, w) }
+        val reflectY = IntArray(h + 2 * half) { PlaneOps.reflect(it - half, h) }
         java.util.stream.IntStream.range(0, h).parallel().forEach { y ->
             val acc = FloatArray(ch)
             val rowInside = y - half >= 0 && y + half < h
@@ -392,8 +397,8 @@ object Refocus {
                     }
                 } else {
                     for (t in tapX.indices) {
-                        val sx = PlaneOps.reflect(x - tapX[t], w)
-                        val sy = PlaneOps.reflect(y - tapY[t], h)
+                        val sx = reflectX[x - tapX[t] + half]
+                        val sy = reflectY[y - tapY[t] + half]
                         val base = (sy * w + sx) * ch
                         val wt = tapW[t]
                         for (c in 0 until ch) acc[c] += data[base + c] * wt

@@ -41,8 +41,8 @@ class BackgroundSpeedProbe {
 
     private fun timed(label: String, block: () -> Unit): Double {
         var best = Double.MAX_VALUE
-        repeat(3) { val t = System.nanoTime(); block(); best = minOf(best, (System.nanoTime() - t) / 1e6) }
-        println("PROBE $label: best of 3 = ${"%.0f".format(best)} ms")
+        repeat(8) { val t = System.nanoTime(); block(); best = minOf(best, (System.nanoTime() - t) / 1e6) }
+        println("PROBE $label: best of 8 = ${"%.0f".format(best)} ms")
         return best
     }
 
@@ -54,8 +54,10 @@ class BackgroundSpeedProbe {
         val display = ByteArray(dw * dh * 4) { if (it % 4 == 3) -1 else ((it * 31) % 251).toByte() }
         val full = ReplacementPixels(dw, dh, ByteArray(dw * dh * 4) { if (it % 4 == 3) -1 else 60 })
         val sampler = Sampler().also { it.isDaemon = true; it.start() }
-        for ((label, cap, layers) in listOf(Triple("drag 640", BackgroundStage.INTERACTIVE_CAP, Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW),
-                                           Triple("settled 1024", BackgroundStage.PREVIEW_CAP, Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW))) {
+        for ((label, cap, layers) in listOf(Triple("drag 320", 320, Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW),
+                                           Triple("drag 640", BackgroundStage.INTERACTIVE_CAP, Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW),
+                                           Triple("settled 1024", BackgroundStage.PREVIEW_CAP, Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW))
+                                           .filter { System.getProperty("lightly.probe.only")?.let { only -> it.first.contains(only) } ?: true }) {
             val (ww, wh) = BackgroundStage.workingSize(dw, dh, cap)
             val (developed, analysis, replacement) = scene(ww, wh)
             var working: WorkingBackground? = null
@@ -67,7 +69,8 @@ class BackgroundSpeedProbe {
                 val graded = ByteArray(developed.size) { i -> if (i % 4 == 3) -1 else (developed[i] + run).toByte() }
                 working = BackgroundStage.renderWorking(graded, analysis, plan(replacement, full), layers)
             }
-            val frame = if (cap == BackgroundStage.INTERACTIVE_CAP) ww to wh else dw to dh
+            // A drag frame is composited at the half-size proxy (426×640 here), a settled frame at the display size.
+            val frame = if (cap < BackgroundStage.PREVIEW_CAP) (dw / 2) to (dh / 2) else dw to dh
             val region = ByteArray(frame.first * frame.second * 4) { if (it % 4 == 3) -1 else 90 }
             timed("$label applyRegion ${frame.first}x${frame.second}") { BackgroundStage.applyRegion(region, 0, 0, frame.first, frame.second, frame.first, frame.second, working!!, full) }
         }

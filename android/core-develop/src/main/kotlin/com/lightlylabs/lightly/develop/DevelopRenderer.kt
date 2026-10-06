@@ -39,7 +39,18 @@ class FrameView(val image: Rgba8Image, val originX: Int, val originY: Int, val f
  * - the spatial operators run in one OKLab pass; the reference returns to clipped sRGB between
  *   operators, which differs only for colours that leave the sRGB gamut in between.
  */
-class DevelopRenderer(private val executor: ExecutorService? = null, private val parallelism: Int = 1) {
+class DevelopRenderer(
+    private val executor: ExecutorService? = null,
+    private val parallelism: Int = 1,
+    /** Checked before each chunk of rows; true stops the render with a CancellationException (see [cancellable]). */
+    private val isCancelled: () -> Boolean = { false },
+) {
+    /**
+     * This renderer, stopping between chunks of rows once [isCancelled] is true (2026-10-06): a superseded preview's
+     * develop at the display size (3-5 s on the emulator) otherwise ran to the end beside the frame that replaced it.
+     * Rendered pixels are unchanged; only whether the render finishes.
+     */
+    fun cancellable(isCancelled: () -> Boolean) = DevelopRenderer(executor, parallelism, isCancelled)
 
     /** Pixels of context a tile needs around it for [plan]'s spatial operators on a frame of this size. */
     fun apron(plan: DevelopRenderPlan, frameWidth: Int, frameHeight: Int): Int {
@@ -330,15 +341,23 @@ class DevelopRenderer(private val executor: ExecutorService? = null, private val
     }
 
     private fun parallel(count: Int, body: (Int, Int) -> Unit) {
+        if (isCancelled()) throw java.util.concurrent.CancellationException("render superseded")
         if (executor == null || parallelism <= 1 || count < 64) {
             body(0, count)
             return
         }
-        val chunk = (count + parallelism - 1) / parallelism
-        executor.invokeAll((0 until count step chunk).map { first -> Callable { body(first, min(count, first + chunk)) } }).forEach { it.get() }
+        // Four chunks per thread: a cancelled render stops within one chunk (rows are independent, so the chunking
+        // changes no pixel).
+        val chunk = (count + CHUNKS_PER_THREAD * parallelism - 1) / (CHUNKS_PER_THREAD * parallelism)
+        executor.invokeAll((0 until count step chunk).map { first ->
+            Callable { if (!isCancelled()) body(first, min(count, first + chunk)) }
+        }).forEach { it.get() }
+        if (isCancelled()) throw java.util.concurrent.CancellationException("render superseded")
     }
 
     companion object {
+        private const val CHUNKS_PER_THREAD = 4
+
         /** 2×2 box average to half size (odd edges keep their last row/column), alpha kept from the top-left. */
         fun halfSize(image: Rgba8Image): Rgba8Image {
             if (image.width < 2 || image.height < 2) return image
