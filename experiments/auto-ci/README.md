@@ -59,3 +59,32 @@ and, with a face, move skin lightness ≤ 5 L and chroma ≤ 15 %; vibrance step
 
 Mostly a light touch: on these photos, which are already well made, the guards remove most of Core Image's tonal
 proposals. Device check pending (iOS Core Image on the phone).
+
+## Correction (2026-10-06, later): highlight/shadow is local; Auto evaluated on controlled degradations
+
+**CIHighlightShadowAdjust is not per-pixel.** The earlier 800 px check (max 2/255) was misleading. At 1600 px, the
+filter through the app's 33³ LUT differs from the filter itself by p99.9 13–20/255, max up to 24/255, almost all in
+shadows and on edges; at 65³ the error is unchanged, so it is not grid resolution (`lut_worst.swift`, per filter:
+tone curve, face balance and vibrance stay within 0.5–6/255; highlight/shadow alone 15–20/255). It is again **not
+applied** (recorded as omitted). Auto is the reduced Core Image set, not the complete enhancement.
+
+**Guards revised after review.** No fixed skin-hue band (pooled face colour cannot define a correct skin colour):
+face balance only with a measured global cast (the photo's least-coloured 20 % of mid-tones away from grey) and only
+as far as it reduces it; vibrance skipped when a cast is measured (it amplified casts). Face lightness: a face lit well
+above its scene is low-key and kept (±5 L); a face clearly below its scene, or a photo with no highlights (p99 < 0.7),
+may be lifted by up to 20 L.
+
+**Controlled evaluation** (`eval/main.swift`, `eval/eval.txt`, `eval/eval-sheet.jpg`). The approved set has no
+underexposed or colour-cast originals, so each photo is degraded with a known amount in linear light (synthetic, not
+real captures): −1.5 EV, and a warm cast (R ×1.18, B ×0.78). Mean CIELAB distance to the original before → after Auto:
+
+| | Improved | Unchanged | Worse |
+|---|---|---|---|
+| −1.5 EV (12 photos) | 10 (e.g. sunset 23.2→17.5, wellexposed 20.5→13.5, night 12.0→7.4) | 2 (portraits medium_01, deep_01: skin guards block the lift) | 0 |
+| Warm cast (12) | 4 portraits via face balance (deep_01 6.4→2.7, medium_01 7.5→5.4) | 5 (no neutrals, or no cast detected) | 3 (backlit_01 8.1→10.1: its warm sunset light reads as a cast; landscape_03 7.3→8.6: cast not detected, vibrance; deep_03 2.7→4.2) |
+| Originals (12): Auto's own change | ΔE 0–4.3 (5 untouched) | | |
+
+**Limits, stated:** Core Image's proposal has no general white-balance correction, so Auto is not a cast corrector;
+intentional warm light and a cast cannot be told apart from the pixels; low-key vs underexposed is a heuristic.
+Real underexposed or cast photos (not synthetic) and the iPhone's own Core Image are unverified. General Auto quality
+is not claimed.

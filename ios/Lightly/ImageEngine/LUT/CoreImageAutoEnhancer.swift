@@ -7,13 +7,13 @@ import OSLog
 /// It is neither the Apple Photos algorithm nor a model we trained, and the app never says otherwise.
 ///
 /// - Composition is never changed: `.crop` and `.level` (straightening) are off; red-eye correction is off.
-/// - The proposed filters (face balance, vibrance, tone curve, highlight/shadow) pass the image-dependent guards in
-///   `CoreImageAutoGuards` (no redder skin, no new clipping, no relit faces, no tone change to a photo that already
-///   spans its range). Every proposed filter is per-pixel as Core Image proposes it (highlight/shadow with Radius 0
-///   reproduces through a LUT within 0.15/255 on average, experiments/auto-ci), so the guarded chain is baked into the
-///   Auto LUT at stage 1 of the existing pipeline: the same LUT for preview and Save copy, on the original's pixels,
-///   with no tile boundaries (nothing is enhanced twice). A highlight/shadow proposal with a radius above 0 would be
-///   local: it is then not applied and recorded in `omitted`.
+/// - The per-pixel proposals (face balance, vibrance, tone curve) pass the image-dependent guards in
+///   `CoreImageAutoGuards` and are baked into the Auto LUT at stage 1 of the existing pipeline: the same LUT for preview
+///   and Save copy, on the original's pixels, with no tile boundaries (nothing is enhanced twice).
+/// - **Not applied: CIHighlightShadowAdjust** (recorded in `omitted`). It is local, not per-pixel: through a LUT its
+///   shadows differ from the filter by up to 18–20/255 at 1600 px (experiments/auto-ci/lut_worst.swift; an earlier
+///   800 px check showing 2/255 was misleading). Auto is therefore the reduced Core Image set, not the complete
+///   enhancement; supporting it would need a spatial stage whose preview and export agree.
 /// - The correction is the filters and their parameters. The session stores them (`json`), and a restored session
 ///   rebuilds the LUT from them (`lut()`) without analysing the photo again.
 struct CoreImageAutoCorrection: Equatable, Sendable {
@@ -30,7 +30,7 @@ struct CoreImageAutoCorrection: Equatable, Sendable {
     /// Recipe `auto.modelId` / `modelVersion` for this correction (the recipe's three weights are unused: zeros).
     static let recipeModelID = "coreimage-auto"
     static let recipeModelVersion = "1"
-    static let appliedFilterNames: Set<String> = ["CIFaceBalance", "CIVibrance", "CIToneCurve", "CIHighlightShadowAdjust"]
+    static let appliedFilterNames: Set<String> = ["CIFaceBalance", "CIVibrance", "CIToneCurve"]
 
     var filters: [Filter]
     /// Proposed by Core Image but not applied (a guard removed it, or it is not per-pixel).
@@ -45,9 +45,8 @@ struct CoreImageAutoCorrection: Equatable, Sendable {
         var proposed = CIImage(cgImage: image).autoAdjustmentFilters(options: options)
         var omitted: [String] = []
         proposed.removeAll { filter in
-            let local = filter.name == "CIHighlightShadowAdjust" && ((filter.value(forKey: "inputRadius") as? NSNumber)?.doubleValue ?? 0) > 0
-            let drop = local || !appliedFilterNames.contains(filter.name)
-            if drop { omitted.append(local ? "CIHighlightShadowAdjust (radius > 0: local)" : filter.name) }
+            let drop = !appliedFilterNames.contains(filter.name)
+            if drop { omitted.append(filter.name == "CIHighlightShadowAdjust" ? "CIHighlightShadowAdjust (local: not applied)" : filter.name) }
             return drop
         }
         let guarded = CoreImageAutoGuards.guarded(proposed, proxy: image)

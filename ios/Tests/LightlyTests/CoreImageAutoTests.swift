@@ -91,7 +91,11 @@ final class CoreImageAutoTests: XCTestCase {
             print("\(name): \(correction.filters.map(\.name)) omitted \(correction.omitted)")
             XCTAssertLessThanOrEqual(after.highlightClip, before.highlightClip + 0.002, "\(name): highlight clipping")
             XCTAssertLessThanOrEqual(after.shadowClip, before.shadowClip + 0.002, "\(name): shadow clipping")
-            if let h0 = before.skinHue, let h1 = after.skinHue { XCTAssertLessThanOrEqual(abs(h1 - h0), 2, "\(name): skin hue") }
+            // Skin colour moves only through face balance, and that only with a measured global cast.
+            if let h0 = before.skinHue, let h1 = after.skinHue, !correction.filters.contains(where: { $0.name == "CIFaceBalance" }) {
+                XCTAssertLessThanOrEqual(abs(h1 - h0), 2, "\(name): skin hue")
+            }
+            XCTAssertFalse(correction.filters.contains { $0.name == "CIHighlightShadowAdjust" }, "\(name): local filter not applied")
             if before.spansRange { XCTAssertFalse(correction.filters.contains { $0.name == "CIToneCurve" }, "\(name): no tone curve") }
         }
     }

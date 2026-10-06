@@ -7,22 +7,24 @@ import Vision
 /// unguarded filters on the approved photos (experiments/auto-ci/README.md, per-filter comparison):
 ///
 /// - **CIFaceBalance** turned skin redder (Lab hue 59°→50°, 50°→43°, 46°→42°) by pulling every face toward one target.
-///   It now runs only when the measured skin hue lies outside the band where skin plausibly sits (`skinHueBand`), and
-///   only as far as that band's edge: a face already in the band is not "corrected".
+///   It now runs only with independent evidence of a global colour cast (near-neutral pixels away from grey), and only
+///   as far as it reduces that cast; skin colour itself is never forced toward a "correct" value.
 /// - **CIToneCurve** stretched the black point of photos that already span their range (landscapes darkened, p1 26→7)
 ///   and lifted upper mid-tones into clipping (sunset 1.2→2.9 %). It runs only when the photo does not already span
 ///   its range (`spansRange`).
-/// - **CIToneCurve and CIHighlightShadowAdjust** (Radius 0 as proposed: per-pixel, baked exactly into the Auto LUT) are
+/// - **CIToneCurve** (and CIHighlightShadowAdjust when a caller passes it; the app does not, it is local) are
 ///   then applied together at the largest strength (1, ¾, ½, ¼, 0) that adds no highlight or shadow clipping beyond
 ///   `clipTolerance`, measured on the proxy.
-/// - With a face, the tonal filters may move the skin's lightness by at most 5 L and its chroma by 15 % (the low-key
-///   studio portrait was brightened 30→43 L by the unguarded chain).
+/// - With a face, the tonal filters keep the skin's chroma within 15 %. A face at or above its (dark) scene is low-key
+///   and keeps its lightness within 5 L (the unguarded chain relit the studio portrait 30→43 L); a face clearly darker
+///   than its scene (backlit, underexposed) may be lifted toward the scene's median lightness.
 /// - **CIVibrance** keeps Core Image's amount unless it alone adds clipping (then the same step-down).
 ///
 /// Pure Core Image and Vision, so the same code runs in the app and in the Mac comparison (experiments/auto-ci).
 enum CoreImageAutoGuards {
     /// CIELAB hue angle of plausible skin across tones (measured skin clusters roughly 40–60°; a little margin).
-    static let skinHueBand: ClosedRange<Double> = 40...62
+    /// A global cast counts when the near-neutral pixels' mean CIELAB (a, b) is at least this far from grey.
+    static let castThreshold = 3.0
     /// New clipping allowed: 0.1 percentage points of the pixels.
     static let clipTolerance = 0.001
     /// A photo "spans its range" when its 1st luma percentile is at most 15 % and its 99th at least 85 %.
@@ -31,6 +33,11 @@ enum CoreImageAutoGuards {
     struct Stats: Equatable {
         var highlightClip: Double, shadowClip: Double, p1: Double, p99: Double, meanLuma: Double
         var skinHue: Double?, skinChroma: Double?, skinLightness: Double?
+        /// Mean CIELAB (a, b) of the least-coloured 20 % of mid-tone pixels (20 < L < 90): the photo's neutrals.
+        var neutralCast: (a: Double, b: Double)?
+        /// Median CIELAB lightness of the whole photo.
+        var medianLightness: Double = 50
+        static func == (x: Stats, y: Stats) -> Bool { x.highlightClip == y.highlightClip && x.p1 == y.p1 && x.p99 == y.p99 }
         var spansRange: Bool { p1 <= spanLow && p99 >= spanHigh }
     }
 
@@ -48,7 +55,10 @@ enum CoreImageAutoGuards {
         let named = Dictionary(proposed.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         var kept: [CIFilter] = []
 
-        if let vibrance = named["CIVibrance"] {
+        let hasCast = base.neutralCast.map { hypot($0.a, $0.b) >= castThreshold } ?? false
+        if named["CIVibrance"] != nil, hasCast {
+            notes.append("vibrance not applied: it would amplify the measured colour cast")
+        } else if let vibrance = named["CIVibrance"] {
             let amount = (vibrance.value(forKey: "inputAmount") as? NSNumber)?.doubleValue ?? 0
             let t = largestStep { t in
                 let f = vibrance.copy() as! CIFilter; f.setValue(amount * t, forKey: "inputAmount")
@@ -59,19 +69,25 @@ enum CoreImageAutoGuards {
         }
 
         if let balance = named["CIFaceBalance"] {
-            if let hue = base.skinHue, !skinHueBand.contains(hue) {
-                let edge = hue < skinHueBand.lowerBound ? skinHueBand.lowerBound : skinHueBand.upperBound
-                // Largest strength whose skin hue does not pass the band edge, i.e. moves toward it no further.
+            // No fixed "correct skin colour" (2026-10-06 review): beards, make-up, coloured light and several faces make
+            // pooled face colour unreliable. Face balance runs only with independent evidence of a global cast: the
+            // near-neutral pixels' mean colour. It is applied at the largest strength that reduces that cast without
+            // reversing it.
+            let cast = base.neutralCast
+            if let cast, hypot(cast.a, cast.b) >= castThreshold {
                 var strength = 0.0
-                for s in stride(from: 1.0, through: 0.05, by: -0.05) {
+                for s in [1.0, 0.75, 0.5, 0.25] {
                     let f = balance.copy() as! CIFilter; f.setValue(s, forKey: "inputStrength")
-                    guard let after = stats(apply(kept + [f], to: input), faces: faces, context: context).skinHue else { continue }
-                    if abs(after - edge) <= abs(hue - edge) && (hue < edge ? after <= edge + 1 : after >= edge - 1) { strength = s; break }
+                    guard let after = stats(apply(kept + [f], to: input), faces: faces, context: context).neutralCast else { continue }
+                    let before = hypot(cast.a, cast.b), now = hypot(after.a, after.b)
+                    let reversed = after.a * cast.a + after.b * cast.b < 0 && now > castThreshold
+                    if now < before && !reversed { strength = s; break }
                 }
                 if strength > 0 { let f = balance.copy() as! CIFilter; f.setValue(strength, forKey: "inputStrength"); kept.append(f) }
-                notes.append(String(format: "face balance strength %.2f: skin hue %.0f° outside %.0f–%.0f°", strength, hue, skinHueBand.lowerBound, skinHueBand.upperBound))
+                notes.append(String(format: "face balance strength %.2f: neutral cast a %.1f b %.1f", strength, cast.a, cast.b))
             } else {
-                notes.append(base.skinHue.map { String(format: "face balance not applied: skin hue %.0f° already plausible", $0) } ?? "face balance not applied: no face measured")
+                notes.append(cast.map { String(format: "face balance not applied: no global cast (neutrals a %.1f b %.1f)", $0.a, $0.b) }
+                             ?? "face balance not applied: too few neutral pixels to judge a cast")
             }
         }
 
@@ -131,12 +147,27 @@ enum CoreImageAutoGuards {
     /// Auto must not relight people: with a face, the tonal filters may move its CIELAB lightness by at most
     /// `skinLightnessTolerance` and its chroma by at most `skinChromaTolerance` (a low-key portrait stays low-key).
     static let skinLightnessTolerance = 5.0, skinChromaTolerance = 0.15
+    /// A face this many L below the photo's median lightness reads as backlit or underexposed, not low-key.
+    static let backlitMargin = 10.0
+    /// A face this many L above the photo's median lightness is a lit subject in a low-key photo.
+    static let lowKeyMargin = 15.0
+    /// No highlights: the 99th luma percentile below this reads as underexposed.
+    static let underexposedP99 = 0.7
+    /// The most a backlit or underexposed face may be lifted, in L.
+    static let liftLimit = 20.0
 
     private static func keepsSkin(_ image: CIImage, base: Stats, faces: [CGRect], context: CIContext) -> Bool {
         guard !faces.isEmpty, let l0 = base.skinLightness, let c0 = base.skinChroma else { return true }
         let s = stats(image, faces: faces, context: context)
         guard let l1 = s.skinLightness, let c1 = s.skinChroma else { return true }
-        return abs(l1 - l0) <= skinLightnessTolerance && abs(c1 / max(c0, 1e-6) - 1) <= skinChromaTolerance
+        guard abs(c1 / max(c0, 1e-6) - 1) <= skinChromaTolerance else { return false }
+        // Low-key: the face is lit well above its (dark) scene; it keeps its lightness. Backlit (the face clearly below
+        // its scene) or underexposed (no highlights anywhere): the face may be lifted, by at most `liftLimit` L. Otherwise
+        // the face keeps its lightness. Heuristic: an intentionally dark photo with no lit subject reads as underexposed.
+        let lowKey = l0 >= base.medianLightness + lowKeyMargin
+        let needsLift = !lowKey && (l0 < base.medianLightness - backlitMargin || base.p99 < underexposedP99)
+        if needsLift { return l1 >= l0 - skinLightnessTolerance && l1 <= l0 + liftLimit }
+        return abs(l1 - l0) <= skinLightnessTolerance
     }
 
     static func apply(_ filters: [CIFilter], to image: CIImage) -> CIImage {
@@ -162,7 +193,9 @@ enum CoreImageAutoGuards {
         var px = [UInt8](repeating: 0, count: w * h * 4)
         context.render(image, toBitmap: &px, rowBytes: w * 4, bounds: image.extent, format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB))
         var histogram = [Int](repeating: 0, count: 256)
+        var lHistogram = [Int](repeating: 0, count: 101)
         var high = 0, low = 0, sum = 0.0
+        var neutralSamples: [(c: Double, a: Double, b: Double)] = []
         for i in stride(from: 0, to: px.count, by: 4) {
             let r = Int(px[i]), g = Int(px[i + 1]), b = Int(px[i + 2])
             if max(r, g, b) >= 254 { high += 1 }
@@ -170,6 +203,11 @@ enum CoreImageAutoGuards {
             let y = (2126 * r + 7152 * g + 722 * b) / 10000
             histogram[min(y, 255)] += 1
             sum += Double(y)
+            if (i / 4) % 4 == 0 {   // every 4th pixel for the CIELAB measures
+                let lab = Self.lab(Double(r), Double(g), Double(b))
+                lHistogram[min(max(Int(lab.l), 0), 100)] += 1
+                if lab.l > 20 && lab.l < 90 { neutralSamples.append((hypot(lab.a, lab.b), lab.a, lab.b)) }
+            }
         }
         let n = Double(w * h)
         func percentile(_ q: Double) -> Double {
@@ -194,8 +232,18 @@ enum CoreImageAutoGuards {
             }
             if m > 0 { a /= m; b /= m; skinHue = atan2(b, a) * 180 / .pi; skinChroma = hypot(a, b); skinLightness = l / m }
         }
-        return Stats(highlightClip: Double(high) / n, shadowClip: Double(low) / n, p1: percentile(0.01), p99: percentile(0.99),
-                     meanLuma: sum / n / 255, skinHue: skinHue, skinChroma: skinChroma, skinLightness: skinLightness)
+        var stats = Stats(highlightClip: Double(high) / n, shadowClip: Double(low) / n, p1: percentile(0.01), p99: percentile(0.99),
+                          meanLuma: sum / n / 255, skinHue: skinHue, skinChroma: skinChroma, skinLightness: skinLightness)
+        let sampled = lHistogram.reduce(0, +)
+        // The photo's least-coloured 20 % (mid-tones) stand in for its neutrals: a cast moves them all the same way, which a
+        // fixed chroma cut-off missed (a warm cast pushed the neutrals past it).
+        if neutralSamples.count >= max(50, sampled / 10) {
+            let least = neutralSamples.sorted { $0.c < $1.c }.prefix(neutralSamples.count / 5)
+            stats.neutralCast = (least.map(\.a).reduce(0, +) / Double(least.count), least.map(\.b).reduce(0, +) / Double(least.count))
+        }
+        var acc = 0
+        for (l, c) in lHistogram.enumerated() { acc += c; if acc * 2 >= sampled { stats.medianLightness = Double(l); break } }
+        return stats
     }
 
     static func lab(_ r: Double, _ g: Double, _ b: Double) -> (l: Double, a: Double, b: Double) {
