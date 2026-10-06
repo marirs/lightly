@@ -23,6 +23,7 @@ for i in $(seq 1 30); do
   sleep 10
 done
 adb -s $A logcat -d -v threadtime > "$O/logcat.txt"
-adb -s $A shell rm -f /sdcard/Download/lightly-fill.bin /sdcard/Download/ui.xml
+# rm fails on this FUSE path ("Bad address"); truncate frees the space reliably, then rm is attempted.
+adb -s $A shell truncate -s 0 /sdcard/Download/lightly-fill.bin; adb -s $A shell rm -f /sdcard/Download/lightly-fill.bin /sdcard/Download/ui.xml
 adb -s $A shell df -k /data | tail -1
 adb -s $A emu kill >/dev/null 2>&1; sleep 2

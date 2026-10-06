@@ -1273,7 +1273,7 @@ class EditorViewModel(
                 withContext(env.renderDispatcher) {
                     val library = env.library.await()
                     val frame = EditPipeline(library.model, env.previewRenderer)
-                        .renderSelectiveColourInput(patched(display, edit), edit, planOf(library, edit), sourceStages(edit, library, BackgroundSession.PREVIEW_CAP))
+                        .renderSelectiveColourInput(patched(display, edit), edit, planOf(library, edit), sourceStages(edit, library, BackgroundSession.SETTLED_CAP))
                     com.lightlylabs.lightly.develop.SelectiveColour.sample(frame, frameX, frameY)
                 }
             }.getOrNull()
@@ -1712,7 +1712,7 @@ class EditorViewModel(
                 val backgroundCap = when {
                     workingSizeFrame -> BackgroundSession.DRAG_CAP
                     request.payload.globalOnly -> BackgroundSession.INTERACTIVE_CAP
-                    else -> BackgroundSession.PREVIEW_CAP
+                    else -> BackgroundSession.SETTLED_CAP
                 }
                 // A drag frame grades the replacement with its own (17³, global-only) plan, as it grades the photo: the
                 // full plan baked a 33³ LUT for every Look passed during a drag (~0.2 s per frame on the emulator).
@@ -2109,8 +2109,8 @@ class EditorViewModel(
             val layers = com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW
             fun developed(plan: com.lightlylabs.lightly.develop.DevelopRenderPlan) = if (plan.isIdentity) display else renderer.render(display, plan)
             fun settled(plan: com.lightlylabs.lightly.develop.DevelopRenderPlan): Rgba8Image? {
-                val background = backgroundSession.planFor(tool, { plan }, renderer, blurFraction, BackgroundSession.PREVIEW_CAP) ?: return null
-                return backgroundSession.render(developed(plan), background, layers, tool, BackgroundSession.PREVIEW_CAP)
+                val background = backgroundSession.planFor(tool, { plan }, renderer, blurFraction, BackgroundSession.SETTLED_CAP) ?: return null
+                return backgroundSession.render(developed(plan), background, layers, tool, BackgroundSession.SETTLED_CAP)
             }
             val dragPlan = planOf(library, edit, globalOnly = true)
             val matte = backgroundSession.analysis?.matte

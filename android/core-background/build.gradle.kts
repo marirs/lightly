@@ -39,6 +39,8 @@ tasks.withType<Test>().configureEach {
     if (project.hasProperty("lightly.probe")) {
         systemProperty("lightly.probe", "true")
         project.findProperty("lightly.probe.only")?.let { systemProperty("lightly.probe.only", it.toString()) }
+        project.findProperty("lightly.probe.heap")?.let { maxHeapSize = "${it}m" }
+        project.findProperty("lightly.probe.cap")?.let { systemProperty("lightly.probe.cap", it.toString()) }
         outputs.upToDateWhen { false }
         testLogging.showStandardStreams = true
     }

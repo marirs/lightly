@@ -230,6 +230,15 @@ counsel on MODNet's (undocumented) and U²-Netp's (DUTS-TR) training data, then 
   0.45–0.50 (≤ 0.07 % over 3), soft edge 1.8–2.1, subject 0.9–1.6 (the global-only drag plan, as on any drag). Cost on
   the CPU emulator: 3.7–7.2 s per drag frame; one frame appeared during the 13.5 MP sweeps. **Live preview with
   Background active is therefore not complete on the emulator;** device timing unmeasured (no physical Android device).
+- **Settled-frame memory (2026-10-07):** the settled Background preview renders its scene at Save copy's 768 px
+  (`SETTLED_CAP`; v3 differs from iOS's 1024). One settled frame's transient fell from ~95 MB to ~50 MB (JVM heap
+  bisection: a frame needs 135 MB at 1024 px, 85 MB at 768, test inputs included). 13.5 MP stress on the emulator
+  (stress12/13): **0 app-visible failures**; peak used after GC **52 MB** before Save copy (was 186–191); one runtime
+  OOM line, during Save copy (its 54 MB decode, retried by the runtime; Save copy completes, 190 MB peak there).
+  Drag frames at DRAG_CAP 480 (320 missed the soft-edge bound once the matte got sharper: edge ΔE 3.0 vs 2.3):
+  3 frames during the sweeps, 1.1–1.4 s each on the CPU emulator; **phone timing pending (D-1)**.
+  Note: stress9–11 ran an older install (my storage-full test left the spare emulator full, so installs failed);
+  their numbers are not used.
 - **Depth variation explained (A2, 2026-10-06):** preprocessing input, not inference. Two fresh processes with the
   same 1067×1600 display proxy gave identical depth statistics (after8, after9: min 0.318, p50 3.165); the differing
   run had an 853×1280 proxy because the spare emulator's screen was still resized by the drag-order runs (test setup).

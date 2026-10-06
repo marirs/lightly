@@ -78,4 +78,23 @@ class BackgroundSpeedProbe {
         val total = sampler.counts.values.sum().toDouble()
         sampler.counts.entries.sortedByDescending { it.value }.take(25).forEach { println("PROBE sample ${"%5.1f".format(it.value * 100 / total)} % ${it.key}") }
     }
+
+    /**
+     * One settled Background frame at the app's sizes (1067 × 1600 display, 1024 px working, replacement + blur, a new
+     * Look so the foreground estimate runs). Run in a JVM capped with -Plightly.probe.heap=<MB>: the smallest cap at
+     * which it completes is its live set plus its transient peak (completion plan A1, memory).
+     */
+    @Test
+    fun `settled frame within the probe heap`() {
+        assumeTrue(System.getProperty("lightly.probe") == "true")
+        val (dw, dh) = 1067 to 1600
+        val cap = System.getProperty("lightly.probe.cap")?.toInt() ?: BackgroundStage.PREVIEW_CAP
+        val (ww, wh) = BackgroundStage.workingSize(dw, dh, cap)
+        val (developed, analysis, replacement) = scene(ww, wh)
+        val full = ReplacementPixels(dw, dh, ByteArray(dw * dh * 4) { if (it % 4 == 3) -1 else 60 })
+        val region = ByteArray(dw * dh * 4) { if (it % 4 == 3) -1 else 90 }
+        val working = BackgroundStage.renderWorking(developed, analysis, plan(replacement, full), Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW)
+        BackgroundStage.applyRegion(region, 0, 0, dw, dh, dw, dh, working, full)
+        println("PROBE settled frame completed within ${Runtime.getRuntime().maxMemory() / 1_048_576} MB")
+    }
 }

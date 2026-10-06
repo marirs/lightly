@@ -279,7 +279,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
         renderer: DevelopRenderer,
         maxBlurFraction: Double = com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE,
         /** The working resolution's long edge (iOS LayeredStages caps: [INTERACTIVE_CAP], [PREVIEW_CAP], [EXPORT_CAP]). */
-        cap: Int = PREVIEW_CAP,
+        cap: Int = SETTLED_CAP,
         /**
          * The size the replacement is drawn and graded at for the composite; null = the analysis size. A moving
          * control's frame passes its own (smaller) frame size (2026-10-06): drawing and grading at the analysis size
@@ -391,7 +391,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
         override fun equals(other: Any?) = other is WorkingKey && other.analysis === analysis && other.refinements == refinements && other.width == width && other.height == height
         override fun hashCode() = System.identityHashCode(analysis) * 31 + refinements.hashCode() * 17 + width * 7 + height
     }
-    // Two entries (2026-10-06): a ruler drag's frames (DRAG_CAP) and the settled frame (PREVIEW_CAP) alternate; with
+    // Two entries (2026-10-06): a ruler drag's frames (DRAG_CAP) and the settled frame (SETTLED_CAP) alternate; with
     // one entry every switch resized the depth and matte again (0.2-0.3 s). The DRAG_CAP entry is ~0.5 MB.
     private val workingAnalyses = java.util.Collections.synchronizedMap(object : LinkedHashMap<WorkingKey, BackgroundAnalysis>(2, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<WorkingKey, BackgroundAnalysis>?) = size > 2
@@ -458,11 +458,20 @@ class BackgroundSession(private val env: EditorEnvironment) {
         /**
          * The working size of a ruler-drag frame with Background active (completion plan A1, 2026-10-06): only the
          * blurred scene is rendered this small; the composite runs at the drag frame's own size (the half-size proxy),
-         * so the subject keeps that detail. Chosen by the drag-order comparison (background and edge ΔE to the settled
-         * frame) and the frame time.
+         * so the subject keeps that detail. Chosen by the drag-order comparison against the settled frame (bounds:
+         * background mean ΔE ≤ 1, soft edge ≤ 2.5): with the closed-form matte's sharper edges, 320 px gave edge 3.0 on
+         * portrait_medium_02, 480 px 2.3 (background 0.26).
          */
-        const val DRAG_CAP = 320
+        const val DRAG_CAP = 480
         const val PREVIEW_CAP = BackgroundStage.PREVIEW_CAP
+        /**
+         * v3 differs: iOS renders the settled preview's scene at 1024 px; Android at Save copy's 768 px (2026-10-06,
+         * completion plan A1 memory). At 1024 px one settled frame needed ~95 MB on top of the editor's 74 MB resident
+         * in the 192 MB heap (an app-visible OutOfMemoryError in the 13.5 MP stress); the transient scales with the
+         * pixel count (768² / 1024² = 0.56). The settled preview then shows the scene at the resolution Save copy
+         * renders it; the composite stays at the display size, so the subject keeps its detail.
+         */
+        const val SETTLED_CAP = BackgroundStage.EXPORT_CAP
         const val EXPORT_CAP = BackgroundStage.EXPORT_CAP
 
         /**
