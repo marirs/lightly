@@ -42,9 +42,11 @@ fun interface PreviewRenderer<in P, out R> {
  * - **Bounded:** one in-flight slot and one pending slot. A new request *replaces* the pending one,
  *   so a slider drag never builds a queue. The in-flight render is not cancelled by a newer request
  *   (GPU work that is already submitted finishes anyway), its result is just not published.
- * - **Latest wins:** a result is published only if its revision is still the latest requested one,
- *   it was not cancelled, and the session is open. Publication happens under the same lock that
- *   issues revisions, so a result can never be published after a newer request was accepted.
+ * - **Latest wins, frames only move forward:** a rendered result is published when it is newer than the
+ *   result on screen, was not cancelled, and the session is open; an older result never replaces a newer
+ *   one. A superseded result is still shown (2026-10-06): during a continuous ruler drag every finished
+ *   render has already been superseded, and publishing only the latest requested revision left the photo
+ *   frozen until the finger stopped. A failure is published only for the latest request.
  * - **cancel(through):** cancels only work whose revision is `<= through`. Newer work is untouched.
  *   (On iOS the first implementation cancelled the shared task, which also killed the newer pending
  *   request; the regression test for that is the first test in RenderSchedulerTest.)
@@ -80,6 +82,7 @@ class RenderScheduler<P : Any, R : Any>(
     // All fields below are guarded by [lock].
     private var lastIssuedRevision = 0L
     private var cancelledThroughRevision = 0L
+    private var lastPublishedRevision = 0L
     private var pending: RenderRequest<P>? = null
     private var inFlight: InFlight<P>? = null
     private var closed = false
@@ -168,16 +171,20 @@ class RenderScheduler<P : Any, R : Any>(
             RenderOutcome.Failed(failure)
         }
         val published = synchronized(lock) {
-            isPublishableLocked(request).also { publishable ->
-                if (publishable) publishedResult.value = RenderResult(request.sessionId, request.revision, outcome)
+            isPublishableLocked(request, outcome).also { publishable ->
+                if (publishable) {
+                    publishedResult.value = RenderResult(request.sessionId, request.revision, outcome)
+                    lastPublishedRevision = request.revision
+                }
             }
         }
         if (!published && outcome is RenderOutcome.Failed) onUnpublishedFailure(request, outcome.error)
     }
 
-    private fun isPublishableLocked(request: RenderRequest<P>): Boolean =
+    private fun isPublishableLocked(request: RenderRequest<P>, outcome: RenderOutcome<R>): Boolean =
         !closed &&
             request.sessionId == sessionId &&
-            request.revision == lastIssuedRevision &&
-            request.revision > cancelledThroughRevision
+            request.revision > cancelledThroughRevision &&
+            request.revision > lastPublishedRevision &&
+            (outcome is RenderOutcome.Rendered || request.revision == lastIssuedRevision)
 }

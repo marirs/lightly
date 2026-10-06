@@ -141,7 +141,7 @@ class RenderSchedulerTest {
     // --- Latest wins / bounded work --------------------------------------------------------------
 
     @Test
-    fun `N rapid requests render at most twice and only the last publishes`() = runTest {
+    fun `N rapid requests render at most twice and publish in order, ending on the last`() = runTest {
         val h = harness()
 
         val revisions = (1..20).map { index -> h.scheduler.submit("drag-$index") }
@@ -149,7 +149,9 @@ class RenderSchedulerTest {
 
         assertEquals((1L..20L).toList(), revisions, "revisions increase monotonically")
         assertTrue(h.renderer.started.size <= 2, "rendered ${h.renderer.started}")
-        assertEquals(listOf(RenderResult("session-A", 20L, RenderOutcome.Rendered("rendered:drag-20"))), h.publishedHistory)
+        // The first render (already running) is shown when it lands, then the last request; nothing in between.
+        assertEquals(listOf(1L, 20L), h.publishedHistory.map { it.revision })
+        assertEquals(RenderOutcome.Rendered("rendered:drag-20"), h.publishedHistory.last().outcome)
     }
 
     @Test
@@ -172,7 +174,7 @@ class RenderSchedulerTest {
     }
 
     @Test
-    fun `a stale result that finishes while a newer request is pending is dropped`() = runTest {
+    fun `a superseded result newer than the screen is shown, then the latest`() = runTest {
         val h = harness()
         h.scheduler.submit("old")
         runCurrent()
@@ -180,10 +182,22 @@ class RenderSchedulerTest {
 
         advanceTimeBy(101) // "old" has finished; "new" just started
         runCurrent()
-        assertTrue(h.publishedHistory.isEmpty(), "revision 1 is not the latest requested revision")
+        assertEquals(listOf(1L), h.publishedHistory.map { it.revision }, "a continuous drag shows each finished frame")
 
         advanceUntilIdle()
-        assertEquals(listOf(2L), h.publishedHistory.map { it.revision })
+        assertEquals(listOf(1L, 2L), h.publishedHistory.map { it.revision })
+    }
+
+    @Test
+    fun `an older result never replaces a newer one on screen`() = runTest {
+        // Revision 1 ignores cancellation and finishes after revision 2 was published (cancelled through 1 meanwhile
+        // is the normal path; here a slow renderer makes 1 finish last without any cancel).
+        val h = harness(SlowFakeRenderer(renderMillis = 100))
+        h.scheduler.submit("a"); runCurrent()
+        h.scheduler.submit("b")
+        advanceUntilIdle()
+        val revisions = h.publishedHistory.map { it.revision }
+        assertEquals(revisions.sorted().distinct(), revisions, "published revisions only increase")
     }
 
     // --- Session lifetime ------------------------------------------------------------------------
