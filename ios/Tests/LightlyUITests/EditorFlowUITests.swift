@@ -101,15 +101,19 @@ final class EditorFlowUITests: XCTestCase {
         start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
     }
 
-    func testPickedPhotoDevelopsByItselfIntoTheApprovedUnavailableState() throws {
+    /// iOS 1.0 Auto is Core Image auto enhancement (owner approval 2026-10-06): applied at open as the starting state
+    /// (stop zero reads "Auto"); the Auto switch turns it off as one Undo step.
+    func testPickedPhotoDevelopsByItselfWithCoreImageAuto() throws {
         try openFirstLibraryPhoto()
         XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
-        // No standing Auto notice (owner amendment 2026-10-05); tapping Auto explains it.
         XCTAssertFalse(element("develop.notice").exists)
-        XCTAssertEqual(label("develop.name"), "Original")
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Auto" }, "Auto applied: \(self.label("develop.name"))")
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Auto is the starting state, not an edit")
         element("develop.auto").tap()
-        XCTAssertTrue(app.staticTexts["Automatic correction isn't available. Presets still work."].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["editor.undo"].isEnabled)
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Original" })
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "switching Auto off is one step")
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Auto" })
         for tool in ["develop", "background", "edit", "effects", "watermark", "border"] {
             XCTAssertTrue(element("tool.\(tool)").exists, "\(tool) is listed")
         }
@@ -133,7 +137,8 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertNotEqual(applied, "Original")
         XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
         app.buttons["editor.undo"].tap()
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Original" })
+        // Stop zero reads Auto now that Core Image Auto is applied at open.
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Auto" })
         XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Exactly one step")
         app.buttons["editor.redo"].tap()
         XCTAssertTrue(waitFor { self.label("develop.name") == applied })

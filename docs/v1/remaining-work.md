@@ -10,9 +10,13 @@ Build on the review devices: **0c45e50, 1.0.0 (261005066)** (review simulator, r
 ## iOS
 
 ### Functional defects
-1. **Change background hair edges: red spill.** Release blocker. Confirmed with live Vision on the iPhone 11 Pro Max
-   (experiments/depth/results/portrait-edges-2026-10-05/). Not fixed. At the red pixels the Vision matte is 1.0 (fully
-   subject), so no compositing rule can change them; a fix needs a different matte, not a colour correction.
+1. **Change background hair edges: red spill.** Release blocker until verified on the phone. Cause established with the
+   live iPhone matte: the instance mask is a smooth blob at curly hair, so wall between the curls is "subject" (75 % of
+   the red pixels: matte ≥ 0.98, passed through unchanged). Fix 21bf473: Vision person segmentation `.accurate`
+   refines the matte in the hair zone around faces. App saved copies (Simulator, live instance matte, macOS person
+   matte): red 6,120 → 48 (dark), 5,080 → 26 (light); regression portrait unchanged. Residual: faint dark-teal tint on
+   a few wisps on dark backgrounds. Unverified on the phone (`.accurate` result and time).
+   (`experiments/depth/results/portrait-edges-2026-10-06/`)
 
 ### Unverified on the physical device (iPhone 11 Pro Max)
 The Mac cannot launch the app on this phone (developer disk image unavailable over the network), so each item needs the
@@ -37,14 +41,22 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    **User force-quit** (swiped away in the app switcher): the session is discarded by design, as the platform does;
    whether to keep it is owner question W9.
 
-### Unfinished features
-7. **Auto** (D1): no model ships; the approved unavailable state ships. Unfinished requirement.
-8. **Gated models** (counsel sign-off, legal-proposals §3.5): depth (Focus & Blur), LaMa (Remove). With the gates closed,
-   a release build shows the failure states.
+### Unfinished features and the submission build
+7. **Auto: Core Image auto enhancement** (owner approval 2026-10-06, c939a8d): implemented and Simulator-tested.
+   Findings on the approved photos (`experiments/auto-ci/README.md`): warmer skin (visible orange shift on one
+   portrait), more highlight clipping on the sunset, already-good landscapes darkened. Device check pending. Not the
+   Photos algorithm, not a trained model.
+8. **Release configuration (checked 2026-10-06, Release Simulator build):** no ML model is bundled (depth and LaMa gates
+   `NO`, counsel sign-off pending, legal-proposals §3.5). In the submission build Focus & Blur works only on photos
+   with embedded depth (iPhone Portrait mode) and shows the depth-failure state otherwise; Remove always fails.
+   Change background, Portrait (Vision) and Auto (Core Image) work. A Debug build hides none of this only if tested in
+   Release; the review builds are Debug.
 9. Grain (M9) and vignette (G2) calibration: needs Lightroom references.
 
 ### Owner decisions (iOS-specific)
-10. M2 iPad status-bar offset; M4 SF text metrics; P1 Portrait ring proportion; slice-1 #1 More pages inside the sheet.
+10. Whether to submit with Focus & Blur limited to embedded depth and Remove unavailable, or wait for sign-off.
+11. Auto findings above: accept Core Image's results as they are, or not ship Auto on by default.
+12. M2 iPad status-bar offset; M4 SF text metrics; P1 Portrait ring proportion; slice-1 #1 More pages inside the sheet.
 
 ## Android
 
