@@ -1459,7 +1459,7 @@ class EditorViewModel(
     /** Builds the export plans and starts the export; false when the exporter refused. */
     private fun startExport(loaded: LoadedPhoto, library: DevelopLibrary, committed: EditState): Boolean {
         val plan = library.planFor(committed)
-        val backgroundPlan = backgroundSession.planFor(committed.tools.background, plan, env.previewRenderer, maxBlurFraction(committed), exportCap)
+        val backgroundPlan = backgroundSession.planFor(committed.tools.background, { plan }, env.previewRenderer, maxBlurFraction(committed), exportCap)
         val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, backgroundPlan) else ExportRenderPlan { frame ->
             // One renderer and clarity base per frame; tiles read their apron from the full frame.
             val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
@@ -1532,7 +1532,7 @@ class EditorViewModel(
     /** [display] with the recipe's applied Remove patches composited (cached for the current list). */
     /** Background (stages 7–8) then Portrait (9) on the developed, adjusted source-coordinate image; null when neither is active. */
     private fun sourceStages(edit: EditState, library: DevelopLibrary, backgroundCap: Int): ((Rgba8Image) -> Rgba8Image)? {
-        val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer, maxBlurFraction(edit), backgroundCap)
+        val backgroundPlan = backgroundSession.planFor(edit.tools.background, { library.planFor(edit) }, env.previewRenderer, maxBlurFraction(edit), backgroundCap)
         val background = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap) } }
         // Stage 9 (Portrait) follows Background (7–8), in source coordinates, before geometry.
         val portrait = edit.tools.portrait.takeIf(portraitSession::isActive)
@@ -1627,7 +1627,7 @@ class EditorViewModel(
                 val plan = library.planFor(edit, request.payload.globalOnly)
                 // iOS LayeredStages: Focus & Blur at 640 px while a slider moves, 1024 px settled.
                 val backgroundCap = if (request.payload.globalOnly) BackgroundSession.INTERACTIVE_CAP else BackgroundSession.PREVIEW_CAP
-                val backgroundPlan = backgroundSession.planFor(edit.tools.background, library.planFor(edit), env.previewRenderer, maxBlurFraction(edit), backgroundCap)
+                val backgroundPlan = backgroundSession.planFor(edit.tools.background, { library.planFor(edit) }, env.previewRenderer, maxBlurFraction(edit), backgroundCap)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
                     val compose = sourceStages(edit, library, backgroundCap)

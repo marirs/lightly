@@ -250,7 +250,11 @@ class BackgroundSession(private val env: EditorEnvironment) {
      */
     fun planFor(
         tool: BackgroundTool,
-        developPlan: DevelopRenderPlan,
+        /**
+         * The Look's plan, for grading a replacement only. Lazy (2026-10-06): building it bakes the Look's LUT, and every
+         * ruler-drag frame paid a full 33³ bake here even with no Background edit.
+         */
+        developPlan: () -> DevelopRenderPlan,
         renderer: DevelopRenderer,
         maxBlurFraction: Double = com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE,
         /** The working resolution's long edge (iOS LayeredStages caps: [INTERACTIVE_CAP], [PREVIEW_CAP], [EXPORT_CAP]). */
@@ -263,7 +267,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
         val blur = if (a.depth == null) 0.0 else focus.blur
         // The replacement twice: at the analysis size, sampled for the full-resolution composite, and at the
         // working size, where Focus & Blur places it behind the subject.
-        val full = tool.replacement?.takeIf { a.matte != null }?.let { r -> replacementPixels(r, a.width, a.height, developPlan, renderer) }
+        val full = tool.replacement?.takeIf { a.matte != null }?.let { r -> replacementPixels(r, a.width, a.height, developPlan(), renderer) }
         val tFull = System.nanoTime()
         if (full == null && blur <= 0.0) return null
         val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
