@@ -190,6 +190,13 @@ final class EditorSession {
     @ObservationIgnored private var analysisPersistedRevision = -1
 
     @ObservationIgnored private var previewBase: (pixels: [UInt8], width: Int, height: Int)?
+    /// The preview base at a quarter of the pixels (half the long edge: 800 on a phone), for ruler-drag frames only.
+    @ObservationIgnored private var dragBase: (pixels: [UInt8], width: Int, height: Int)?
+    @ObservationIgnored private var prefetchTask: Task<Void, Never>?
+    #if DEBUG
+    /// Every frame put on screen, in order: (request generation, preset id, drag frame). Tests of the live ruler.
+    @ObservationIgnored private(set) var debugPublished: [(generation: UInt64, lookID: String?, dragFrame: Bool)] = []
+    #endif
     @ObservationIgnored private var originalPreview: CGImage
     @ObservationIgnored private var scheduler: LatestWinsRenderScheduler<RenderJob>?
     @ObservationIgnored private var autoLUT: LUT3D?
@@ -277,6 +284,13 @@ final class EditorSession {
             else { return nil }
             return (pixels, preview.width, preview.height, rebuilt)
         }.value
+        let dragSource = prepared?.image
+        let drag = await Task.detached(priority: .userInitiated) { () -> (pixels: [UInt8], width: Int, height: Int)? in
+            guard let dragSource, let small = AnalysisProxy.downscaled(dragSource, maximumLongEdge: max(longEdge / 2, 1)),
+                  let pixels = try? MetalLUTRenderer.rgba8Bytes(of: small) else { return nil }
+            return (pixels, small.width, small.height)
+        }.value
+        dragBase = drag
         guard !isClosed else { return }
         if let prepared {
             previewBase = (prepared.pixels, prepared.width, prepared.height)
@@ -393,7 +407,20 @@ final class EditorSession {
 
     /// Shows a preset (or none) without committing it: the ruler while dragging.
     func previewLook(_ preset: PresetPack.Preset?) {
-        render(recipeWithLook(preset), final: false)
+        render(recipeWithLook(preset), final: false, dragFrame: true)
+    }
+
+    /// Bakes the drag LUTs of the stops next to the needle off the main actor, so the next crossed stop does not
+    /// wait for its bake. Latest call wins; already-baked presets are skipped.
+    func prefetchDragLooks(_ presets: [PresetPack.Preset]) {
+        guard let cache = library.cache else { return }
+        prefetchTask?.cancel()
+        prefetchTask = Task.detached(priority: .utility) {
+            for preset in presets where !cache.containsDragLUT(for: preset) {
+                if Task.isCancelled { return }
+                _ = cache.lut(for: preset, dimension: DevelopLUTCache.dragDimension)
+            }
+        }
     }
 
     /// Abandons a preview and shows the committed recipe again.
@@ -1082,6 +1109,10 @@ final class EditorSession {
         /// frame is requested. Queuing both at once would let the full frame replace the waiting
         /// fast one, and the photo would lag the release by a whole spatial render.
         var followUpWithFullFrame = false
+        /// A ruler drag's frame (2026-10-06): the reduced preview base and the coarse drag LUT, so every newly crossed
+        /// stop renders while the finger moves. The settled selection renders at normal preview quality.
+        var dragFrame = false
+        var lutDimension: Int { dragFrame ? DevelopLUTCache.dragDimension : LUT3D.contractDimension }
         /// Background and Portrait (stages 7–9), when the recipe uses them.
         var layered: LayeredStages.Inputs?
         /// Working-resolution cap for Focus & Blur (LayeredStages).
@@ -1124,8 +1155,10 @@ final class EditorSession {
 
     private func makeScheduler() {
         guard let base = previewBase, let renderer = library.renderer, let cache = library.cache else { return }
+        let dragBase = dragBase
         scheduler = LatestWinsRenderScheduler { job in
-            let frame = try Self.renderPixels(job, base: base.pixels, width: base.width, height: base.height,
+            let source = job.dragFrame ? (dragBase ?? base) : base
+            let frame = try Self.renderPixels(job, base: source.pixels, width: source.width, height: source.height,
                                               renderer: renderer, cache: cache)
             return try MetalLUTRenderer.makeImage(rgba8: frame.pixels, width: frame.width, height: frame.height)
         }
@@ -1175,7 +1208,7 @@ final class EditorSession {
                                                    toRGBA8: pixels, width: width, height: height,
                                                    maximumTileSide: MetalLUTRenderer.defaultMaximumTileSide)
         }
-        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache) }
+        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache, lutDimension: job.lutDimension) }
         if let plan {
             pixels = try renderer.render(plan, pixels: pixels, width: width, height: height,
                                          includePixelStages: job.includePixelStages, includeFinishing: false)
@@ -1226,7 +1259,7 @@ final class EditorSession {
                                                    toRGBA8: pixels, width: width, height: height,
                                                    maximumTileSide: MetalLUTRenderer.defaultMaximumTileSide)
         }
-        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache) }
+        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache, lutDimension: job.lutDimension) }
         guard var layered = job.layered, LayeredStages.isActive(layered) else {
             guard let plan else { return pixels }
             return try renderer.render(plan, pixels: pixels, width: width, height: height, includePixelStages: job.includePixelStages)
@@ -1266,7 +1299,7 @@ final class EditorSession {
     /// Requests a preview of `target`. A final render shows the global stage first, then the full
     /// Develop (spatial and finishing) when the preset has them; an interactive one (dragging)
     /// shows the global stage only, so the photo keeps up with the finger.
-    private func render(_ requested: EditRecipe, final: Bool) {
+    private func render(_ requested: EditRecipe, final: Bool, dragFrame: Bool = false) {
         let target = isCropEditing ? Self.uncropped(requested) : requested
         // An interactive frame is a control moving (a slider, a drag) before it commits: a pick still sampling
         // is stale from this moment, or it would land mid-drag and replace the preview with committed values.
@@ -1303,6 +1336,7 @@ final class EditorSession {
             job.layeredCap = LayeredStages.interactiveCap
             if !final { job.includePixelStages = true }
         }
+        job.dragFrame = dragFrame && dragBase != nil
         submit(job)
     }
 
@@ -1335,6 +1369,9 @@ final class EditorSession {
         guard job.generation >= publishedGeneration else { return }
         if job.generation == publishedGeneration, publishedWasFull, !job.includePixelStages { return }
         displayedImage = image
+        #if DEBUG
+        debugPublished.append((job.generation, job.look?.id, job.dragFrame))
+        #endif
         displayedImageBox = BorderStage.imageBox(job.border, canvasWidth: image.width, canvasHeight: image.height)
         publishedGeneration = job.generation
         publishedWasFull = job.includePixelStages
@@ -1604,6 +1641,7 @@ final class EditorSession {
     /// Ends the session when the photo is closed or replaced: in-flight renders are dropped and
     /// nothing that finishes later changes this screen.
     func close() {
+        prefetchTask?.cancel()
         isClosed = true
         startTask?.cancel()
         saveTask?.cancel()

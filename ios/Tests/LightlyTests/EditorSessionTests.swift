@@ -520,4 +520,59 @@ final class EditorSessionTests: XCTestCase {
         try XCTSkipIf(_isDebugAssertConfiguration(), "Unoptimised build: staleness recorded, not asserted")
         XCTAssertLessThanOrEqual(worst, .milliseconds(100))
     }
+
+    /// Owner request 2026-10-06: the photo previews each newly crossed stop while the finger moves (reduced-size drag
+    /// frames), the latest request wins, release commits one Undo step at normal preview quality, Undo restores.
+    func testRulerDragPreviewsEveryCrossedStopAndTheLatestWins() async throws {
+        let photo = try await EditorTestSupport.photo(width: 2_400, height: 1_600)
+        let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 1_600)
+        let model = panel(session)
+        // The category with the most presets in this test pack.
+        let landscape = try XCTUnwrap(pack.categories.max { $0.presets.count < $1.presets.count })
+        let count = landscape.presets.count
+        XCTAssertGreaterThanOrEqual(count, 4, "needs a few stops")
+        model.selectCategory(landscape.id)
+        let fullWidth = session.displayedImage.width
+        let steps = session.history.count
+
+        // Slow drag: every stop crossed is shown before the finger moves on.
+        var frameTimes: [Duration] = []
+        for stop in 1...min(6, count) {
+            let start = ContinuousClock.now
+            model.dragChanged(to: stop)
+            await session.settleRendering()
+            frameTimes.append(ContinuousClock.now - start)
+            let last = try XCTUnwrap(session.debugPublished.last)
+            XCTAssertEqual(last.lookID, landscape.presets[stop - 1].id, "stop \(stop) is on screen during the drag")
+            XCTAssertTrue(last.dragFrame)
+            XCTAssertLessThan(session.displayedImage.width, fullWidth, "a reduced-size drag frame")
+        }
+        print("drag frame times (simulator, cold LUTs except prefetched): \(frameTimes)")
+
+        // Fast scrub and reverse without waiting: only the newest request may end on screen; frames never go backwards.
+        let before = session.debugPublished.count
+        let target = max(2, count / 2)
+        for _ in 0..<3 {   // several sweeps, so many more requests than stops
+            for stop in 1...count { model.dragChanged(to: stop) }
+            for stop in stride(from: count, through: target, by: -1) { model.dragChanged(to: stop) }
+        }
+        await session.settleRendering()
+        let scrub = session.debugPublished[before...]
+        XCTAssertEqual(scrub.last?.lookID, landscape.presets[target - 1].id, "the latest selection is what stays on screen")
+        XCTAssertEqual(Array(scrub.map(\.generation)), scrub.map(\.generation).sorted(), "no older frame after a newer one")
+        XCTAssertLessThan(scrub.count, 3 * (2 * count - target + 1) / 2, "intermediate renders were skipped, not queued for playback")
+        XCTAssertEqual(session.history.count, steps, "dragging records nothing")
+
+        model.dragEnded(at: target)
+        await session.settleRendering()
+        XCTAssertEqual(session.history.count, steps + 1, "one Undo step for the whole drag")
+        XCTAssertEqual(session.appliedPreset?.id, landscape.presets[target - 1].id)
+        XCTAssertEqual(session.displayedImage.width, fullWidth, "the settled selection at normal preview quality")
+        XCTAssertFalse(try XCTUnwrap(session.debugPublished.last).dragFrame)
+
+        session.undo()
+        await session.settleRendering()
+        XCTAssertNil(session.appliedPreset, "Undo restores the previous edit")
+        XCTAssertEqual(session.history.count, steps + 1)
+    }
 }

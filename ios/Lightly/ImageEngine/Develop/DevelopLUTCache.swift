@@ -20,22 +20,27 @@ final class DevelopLUTCache: @unchecked Sendable {
     fileprivate var recency: [String] = []
     fileprivate var bakeDurations: [Duration] = []
 
-    init(model: DevelopModel, capacity: Int = 24) {
+    init(model: DevelopModel, capacity: Int = 48) {
         self.model = model
         self.capacity = max(1, capacity)
     }
 
-    /// The preset's global LUT, baked on first use.
-    func lut(for preset: PresetPack.Preset) -> LUT3D {
-        if let hit = cached(preset.lookVersion) { return hit }
+    /// The coarser LUT a ruler drag previews with (2026-10-06): 17³ bakes about 7× faster than 33³, so each newly
+    /// crossed stop shows while the finger moves; the settled selection renders with the contract's 33³.
+    static let dragDimension = 17
+
+    /// The preset's global LUT, baked on first use. `dimension` other than the contract's is for drag previews only.
+    func lut(for preset: PresetPack.Preset, dimension: Int = LUT3D.contractDimension) -> LUT3D {
+        let key = dimension == LUT3D.contractDimension ? preset.lookVersion : "\(preset.lookVersion)#\(dimension)"
+        if let hit = cached(key) { return hit }
         let clock = ContinuousClock()
         let start = clock.now
-        let baked = DevelopGlobalProgram(recipe: preset.recipe.global, model: model).bakeLUT()
+        let baked = DevelopGlobalProgram(recipe: preset.recipe.global, model: model).bakeLUT(dimension: dimension)
         let elapsed = clock.now - start
         lock.withLock {
             bakeDurations.append(elapsed)
-            entries[preset.lookVersion] = baked
-            touch(preset.lookVersion)
+            entries[key] = baked
+            touch(key)
             while recency.count > capacity {
                 entries[recency.removeFirst()] = nil
             }
@@ -45,6 +50,10 @@ final class DevelopLUTCache: @unchecked Sendable {
 
     func contains(lookVersion: String) -> Bool {
         lock.withLock { entries[lookVersion] != nil }
+    }
+
+    func containsDragLUT(for preset: PresetPack.Preset) -> Bool {
+        lock.withLock { entries["\(preset.lookVersion)#\(Self.dragDimension)"] != nil }
     }
 
     /// Every bake so far (performance evidence).

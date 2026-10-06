@@ -30,9 +30,10 @@ struct DevelopRenderPlan: Sendable {
     var hasPixelStages: Bool { !spatial.isEmpty || !finishing.isEmpty }
 
     /// The plan for a Look at `strength` (Amount / 100). Strength 0 changes nothing.
-    static func look(_ preset: PresetPack.Preset, strength: Double, cache: DevelopLUTCache) -> DevelopRenderPlan {
+    static func look(_ preset: PresetPack.Preset, strength: Double, cache: DevelopLUTCache,
+                     lutDimension: Int = LUT3D.contractDimension) -> DevelopRenderPlan {
         guard strength > 0 else { return .identity }
-        let lut = cache.lut(for: preset)
+        let lut = cache.lut(for: preset, dimension: lutDimension)
         var spatial = preset.recipe.spatial
         if var nr = spatial.noiseReduction {
             nr.luminance *= strength

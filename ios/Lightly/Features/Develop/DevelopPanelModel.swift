@@ -143,6 +143,9 @@ final class DevelopPanelModel {
         guard clamped != draggingStop else { return }
         draggingStop = clamped
         session.previewLook(clamped == 0 ? nil : currentPresets[clamped - 1])
+        // The next stops either way, so a crossed stop rarely waits for its bake.
+        let presets = currentPresets
+        session.prefetchDragLooks([clamped + 1, clamped - 1, clamped + 2, clamped - 2].filter { $0 >= 1 && $0 <= presets.count }.map { presets[$0 - 1] })
     }
 
     func setFine(_ fine: Bool) { isFine = fine }
