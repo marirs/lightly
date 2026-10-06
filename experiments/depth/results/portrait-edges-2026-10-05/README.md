@@ -78,3 +78,16 @@ CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=<team> build
 
 ## Device saved copies (2026-10-05, 273c5e6 on the iPhone 11 Pro Max): still pending
 `portrait_edges/ios_device_saves.sh` ran the red-wall portrait (dark, then light) with `--save-copy --save-to-documents`. No saved file appeared within 150 s in either case, and the run stopped there (review budget). The live mattes from the same app path were retrieved earlier, so Background opens on the device; why the DEBUG save path does not complete there is not yet diagnosed (device logs needed). The dark-studio portrait cases were not run.
+
+## 2026-10-06: one bounded rule tested on the recorded stages (not adopted)
+Rule: where the foreground estimate had to be clipped (a channel at 0 or 255 that the observed pixel is not), apply no
+colour shift at that pixel. On `stages/*.npz`, head soft band (teal = cyan > 8, red excess = mean max(0, R − (G+B)/2)):
+
+| Case | Off | On (shipped) | Rule |
+|---|---|---|---|
+| pm02 dark | 325 / 17.8 | 52,733 / 1.3 | 15,211 / 7.6 |
+| pm02 light | 0 / 8.4 | 2,425 / 4.0 | 1,215 / 5.9 |
+| pd03 light | 102 / 5.9 | 97 / 6.2 | 97 / 6.2 |
+| pd03 dark | 974 / 3.5 | 594 / 4.3 | 594 / 4.3 |
+
+It trades teal for the red fringe it was meant to remove; no code change.

@@ -69,7 +69,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Change background · image, position, scale | `bg-change-image` | 3 | defective | defective | Release blocker: hair-edge quality after replacement unresolved (iOS red spill, confirmed with live Vision on the iPhone 11 Pro Max; Android teal cast and grey haze); Android object edges halo, swan keeps grass (2026-10-05). experiments/depth/results/portrait-edges-2026-10-05/README.md |
 | Change background · solid colour | `bg-change-colour` | 3 | defective | defective | Release blocker: hair-edge quality after replacement unresolved (iOS red spill, confirmed with live Vision on the iPhone 11 Pro Max; Android teal cast and grey haze); Android object edges halo, swan keeps grass (2026-10-05). experiments/depth/results/portrait-edges-2026-10-05/README.md |
 | Change background · gradient | `bg-change-gradient` | 3 | defective | defective | Release blocker: hair-edge quality after replacement unresolved (iOS red spill, confirmed with live Vision on the iPhone 11 Pro Max; Android teal cast and grey haze); Android object edges halo, swan keeps grass (2026-10-05). experiments/depth/results/portrait-edges-2026-10-05/README.md |
-| After replacement, the same Focus & Blur still works | `bg-replaced-blur` | 3 | defective | defective | Replacement edge defects below; Android blur glow at 768 px (checks-2026-10-04) |
+| After replacement, the same Focus & Blur still works | `bg-replaced-blur` | 3 | defective | defective | Replacement edge defects below. (The Android 768 px blur glow of checks-2026-10-04 was fixed in e56b907; goldens pass 2026-10-06.) |
 | Finding the subject · cancellable | `bg-separating` | 3 | decision | verified | iOS M4 (SF line height); Android: cancel + retry run with real models (2026-10-05) |
 | Subject separation failed · edits kept | `bg-failed` | 3 | decision | decision | M9/S8 (its setup applies Glow) |
 | No clear subject | `bg-no-subject` | 3 | verified | verified | Android: U²-Netp decides (experimental, debug/gated; held-out check fails on 4 of 9 scenes, release blocker); lake shows the approved state (2026-10-05) |
@@ -85,7 +85,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Hair & Beard | `pt-hair` | 3 | verified | implemented |  |
 | Portrait on a landscape-orientation photograph | `pt-landscape-photo` | 3 | decision | implemented | iOS P1 |
 | Several faces · choose a face, separate adjustments | `pt-multi` | 3 | decision | implemented | P2: licensed group photo instead of the approved one-face screen. Design gap: No licensed multi-person photograph is available locally. The face picker is implemented (one chip and ring per face) but only a one-face photo can be shown. |
-| People found, but no usable face | `pt-no-usable-face` | 3 | blocked | defective | iOS P3: Vision in the Simulator finds no person in the bar photo, needs the iPhone. Android: approved notice shown (2026-10-05) but a face ring is drawn on the disco ball |
+| People found, but no usable face | `pt-no-usable-face` | 3 | blocked | defective | iOS P3: Vision in the Simulator finds no person in the bar photo, needs the iPhone. Android: approved notice shown; the disco-ball ring was fixed in 0904c81 (re-checked 2026-10-06), but one dim ring sits beside the middle person's head, over the shelf |
 | No person · Portrait tool hidden | `pt-hidden` | 3 | verified | verified | Android: boat and swan hide Portrait with real models (2026-10-05) |
 
 ## Edit
@@ -183,7 +183,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Finding the subject · cancellable | `bg-separating` | 6 | decision | verified | iOS M4 (SF line height); Android: cancel + retry run with real models (2026-10-05) |
 | Subject separation failed · edits kept | `bg-failed` | 6 | decision | decision | M9/S8 (its setup applies Glow) |
 | No clear subject | `bg-no-subject` | 6 | verified | verified | Android: U²-Netp decides (experimental, debug/gated; held-out check fails on 4 of 9 scenes, release blocker); lake shows the approved state (2026-10-05) |
-| People found, but no usable face | `pt-no-usable-face` | 6 | blocked | defective | iOS P3: Vision in the Simulator finds no person in the bar photo, needs the iPhone. Android: approved notice shown (2026-10-05) but a face ring is drawn on the disco ball |
+| People found, but no usable face | `pt-no-usable-face` | 6 | blocked | defective | iOS P3: Vision in the Simulator finds no person in the bar photo, needs the iPhone. Android: approved notice shown; the disco-ball ring was fixed in 0904c81 (re-checked 2026-10-06), but one dim ring sits beside the middle person's head, over the shelf |
 | Removing · cancellable | `ed-removing` | 6 | decision | verified | iOS M4 |
 | Remove failed · edits kept | `ed-remove-failed` | 6 | verified | verified |  |
 | Leaving with unsaved changes | `leave-unsaved` | 6 | implemented | implemented | Recapture pending (stale since slice 4) |
