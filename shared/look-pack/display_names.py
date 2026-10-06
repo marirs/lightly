@@ -67,6 +67,36 @@ lettered = {}
 for n, members in groups.items():
     for letter, pid in zip(string.ascii_uppercase, sorted(members, key=order.get)):
         lettered[pid] = f'{n} · {letter}'
+# Final proposal (2026-10-06, awaiting the owner's choice): same name within one category -> stable variant numbers.
+# The member whose catalogue name has no numbering or code prefix of its own ("Nordic 01", not "01 Nordic 01" or
+# "P13 - ...") keeps the plain name; the others get " · Variant 2", " · Variant 3" (preset-id order breaks ties). The
+# name's own number is kept and never doubled. Names differing only by category stay plain (the UI shows the category
+# where they could be confused). --numbered-preview FILE writes the table; --apply-numbered writes display-names.json,
+# keeping every name an id already has there, so reordering or extending the catalogue never renames a preset.
+def numbered_names():
+    by_cat_name = collections.defaultdict(list)
+    for cat, pid, _ in presets: by_cat_name[(cat, proposed[pid])].append(pid)
+    out = {}
+    for (cat, n), members in by_cat_name.items():
+        if len(members) < 2: continue
+        prefixed = lambda pid: bool(re.match(r'^\s*(?:\d+\s|[A-Z]{0,4}\d+\s+-\s)', original[pid]))
+        ordered = sorted(members, key=lambda pid: (prefixed(pid), pid))
+        out[ordered[0]] = n
+        for k, pid in enumerate(ordered[1:], start=2): out[pid] = f'{n} · Variant {k}'
+    return out
+if '--numbered-preview' in sys.argv:
+    path = sys.argv[sys.argv.index('--numbered-preview') + 1]
+    numbered = numbered_names()
+    category_of = {pid: cat for cat, pid, _ in presets}
+    with open(path, 'w') as f:
+        for pid in sorted(numbered, key=lambda p: (category_of[p], numbered[p])):
+            f.write(f'| {category_of[pid]} | {original[pid]} | {numbered[pid]} | `{pid}` |\n')
+    print(len(numbered), 'presets in', len({(category_of[p], proposed[p]) for p in numbered}), 'groups')
+    sys.exit(0)
+if '--apply-numbered' in sys.argv:
+    existing = json.load(open(OUT)).get('names', {}) if os.path.exists(OUT) else {}
+    final.update(numbered_names())
+    final.update({pid: n for pid, n in existing.items() if pid in final and n != proposed.get(pid)})  # ids keep assigned names
 if '--preview' in sys.argv:
     path = sys.argv[sys.argv.index('--preview') + 1]
     with open(path, 'w') as f:
