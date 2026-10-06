@@ -215,7 +215,10 @@ counsel on MODNet's (undocumented) and U²-Netp's (DUTS-TR) training data, then 
   0.45–0.50 (≤ 0.07 % over 3), soft edge 1.8–2.1, subject 0.9–1.6 (the global-only drag plan, as on any drag). Cost on
   the CPU emulator: 3.7–7.2 s per drag frame; one frame appeared during the 13.5 MP sweeps. **Live preview with
   Background active is therefore not complete on the emulator;** device timing unmeasured (no physical Android device).
-- **Open, not investigated:** depth estimates of the same 13.5 MP photo differed between runs (raw p50 3.234 vs 3.165),
-  so the blur and the saved bytes differ (6f6cd784… vs d0f8bcec…); saved copies are not a cross-run reference until
-  this is explained. Separation code is unchanged by the fixes above.
+- **Depth variation explained (A2, 2026-10-06):** preprocessing input, not inference. Two fresh processes with the
+  same 1067×1600 display proxy gave identical depth statistics (after8, after9: min 0.318, p50 3.165); the differing
+  run had an 853×1280 proxy because the spare emulator's screen was still resized by the drag-order runs (test setup).
+  Within a session the analysis is computed once per photo (cached by input-tensor hash) and preview and Save copy
+  read the same `BackgroundSession.analysis`. Note: the proxy, and so the depth, follows the screen size (a Fold's
+  inner and outer screens give slightly different blur for the same photo).
 - Manifest text held for lazy preset parsing: 12.9 MB resident (UTF-16); could be halved with byte offsets (not done).

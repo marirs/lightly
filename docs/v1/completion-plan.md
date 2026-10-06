@@ -44,7 +44,10 @@ Next steps, in order:
 
 Estimate: steps 1–5 3–5 d (M); plus 3–5 d (M) only if step 6 requires the GPU path.
 
-### A2. Android depth variation between runs (bounded diagnostic)
+### A2. Android depth variation between runs — CLOSED 2026-10-06
+Result: preprocessing input (display proxy 853×1280 vs 1067×1600 from a resized emulator screen in my test setup);
+inference deterministic for identical input (two fresh processes, identical statistics); one analysis per session,
+shared by preview and Save copy. No code change. Original entry:
 Outcome: the source is named (inference, preprocessing or state reuse) and the requirement is set: within one unchanged
 editing session the same analysis is reused for every preview and Save copy (verify, fix if not); across fresh
 inference runs, byte-identity is required only if the diagnostic shows the variation is ours (preprocessing/state), not
@@ -144,3 +147,5 @@ hardware rounds as D-1/D-2 arrive → A9/A12 after D-3.
 
 ## Status log
 - 2026-10-06: plan created. Closed: none. Remaining: A1–A12. Estimate: 13–22 d (+3–5 d conditional) — first estimate.
+- 2026-10-06: A2 closed (existing logs: identical depth for identical proxies across fresh processes; the variation
+  was a resized test screen). Remaining: A1, A3–A12. Estimate unchanged at 13–22 d: A2's 0.5–1 d was inside the range.
