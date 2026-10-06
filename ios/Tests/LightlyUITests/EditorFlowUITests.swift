@@ -19,6 +19,10 @@ final class EditorFlowUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
+        // Start clean (2026-10-06): XCUITest's terminate() ends the app the way the system does, so the scene session
+        // survives and a plain launch restores the previous test's unsaved edit (the designed system-kill restore).
+        // --reset-preferences clears the stored session (DEBUG). The restore test relaunches without it on purpose.
+        app.launchArguments = ["--reset-preferences"]
         app.launch()
     }
 
