@@ -44,11 +44,13 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    whether to keep it is owner question W9.
 
 ### Features: technical readiness vs distribution approval
-7. **Auto (Core Image auto enhancement):** technically implemented; quality guarded (83b4e49). Per-filter causes of the
-   earlier regressions found (face balance → redder skin; tone curve → clipping and darkened good photos; tonal pair →
-   relit low-key portrait); image-dependent guards remove each on the approved photos (`experiments/auto-ci/README.md`,
-   Simulator test on eight photos). Highlight/shadow is now applied (per-pixel at Radius 0, exact in the LUT). Not
-   complete: unverified on the phone; on these already well-made photos the guarded result is mostly a light touch.
+7. **Auto (Core Image auto enhancement):** implemented with image-dependent guards (b16e6e4). Controlled evaluation on
+   synthetic degradations of the approved photos (`experiments/auto-ci/README.md`): −1.5 EV improved 10/12; warm cast
+   improved 4 portraits, worse 3 (warm light read as a cast; cast undetected); originals moved ΔE 0–4.3. **Not
+   complete:** not a cast corrector (Core Image proposes no general white balance); low-key vs underexposed is a
+   heuristic; CIHighlightShadowAdjust is local (LUT error up to 20/255) and **not applied**, so Auto is the reduced
+   Core Image set; real (not synthetic) underexposed/cast photos and the phone unverified. The Auto LUT is identical
+   across Save-copy tile boundaries (test, 13.5 MP).
 8. **Focus & Blur:** technically ready with the depth model (Debug builds). **Distribution blocked**: the depth model's
    release gate (training-data sign-off, legal-proposals §3.5). Without it, the Release build blurs only photos with
    embedded depth and shows the depth-failure state otherwise. That reduced behaviour is **not approved** and must not
@@ -120,6 +122,22 @@ Closed as stale (evidence re-checked 2026-10-06):
 - Saved-file metadata combinations on Android after slice 1; 48 MP memory and time on dev devices.
 - Tablet and Fold cells of the sized screens: one iOS check (iPad 13 landscape) only.
 
+## Submission blockers and the exact approvals that resolve them
+Neither scope reduction (Remove failing, Focus & Blur limited to embedded depth) is approved; the register's
+"ship without the model" options (dependencies.md items 1B, 2B) are not decisions.
+- **Depth Anything V2 Small** (Focus & Blur, both platforms; dependencies.md item 1): counsel's sign-off on (1) whether
+  trained weights are an adaptation of the training images (ShareAlike/NC sets Hypersim, VKITTI 2; research-only
+  ImageNet-21K, SA-1B, BDD100K) and (2) whether the authors could license Small as Apache-2.0. Then: iOS
+  `LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF: "YES"` (ios/project.yml); Android `-PlightlyDepthLegalSignOff=true`;
+  ship the Apache-2.0 notice and the "converted" statement. Pinned: Apple Core ML package @ cfef6f6f, Android
+  conversion from Depth-Anything-V2-Small-hf @ 5426e4f.
+- **LaMa big-lama** (Remove, both platforms; item 2): counsel's sign-off on the Places2 training images (same legal
+  question); provenance verified (README → Hugging Face smartywu/big-lama @ 05cb2be7, SHA-256 f1b358ca…). Then: iOS
+  `LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF: "YES"`; Android `-PlightlyRemoveLegalSignOff=true`; notices.
+- **Android vision models** (item 3: faces, pose, selfie segmenter, MODNet, U²-Netp): the owner's D3 resolution, then
+  `-PlightlyVisionModels=true`. Without it an Android release hides Portrait and Background shows its failure state
+  for subjects. MODNet and U²-Netp also need counsel on their training data (undocumented; DUTS-TR).
+
 ## Owner decisions (both platforms)
 1. **Depth-failure message: provisional, not approved.** Installed: "Couldn't measure depth. Blur needs it. Change
    background still works." Candidate: "Couldn't estimate depth. Try again to use Focus & Blur." Unchanged until chosen.
@@ -131,5 +149,14 @@ Closed as stale (evidence re-checked 2026-10-06):
 5. No store submission until the owner says so.
 
 ## Test infrastructure
-- iOS UI test `testPickedPhotoDevelopsByItselfWithCoreImageAuto` passes alone but fails after a test that leaves an
-  edited session (the relaunch restores into the editor instead of Welcome). Needs session clean-up between UI tests.
+- Resolved (33cb001): the order-dependent UI failure was the test's start state, not session leakage. XCUITest's
+  terminate() ends the app as the system does, so a plain launch correctly restored the previous test's edit; setUp now
+  starts clean (--reset-preferences). The failing pair passes in sequence; the restore test still passes.
+
+## Android memory (checked 2026-10-06, spare emulator, 192 MB heap, 13.5 MP)
+- Second render lane: only light frames (no Background/Portrait) run concurrently (da90aa7). Develop-only stress: two
+  lanes 130 MB peak heap, 0 OOM; single lane 137 MB, 0 OOM; both saved.
+- **Pre-existing defect:** the Background (replacement + blur) stress hits bursts of failed 11 MB allocations with
+  ~22 MB free (large-object fragmentation) with one lane as well (1, 25, 13 OOM; two-lane restricted 11, 11); every run
+  saved. A failed Background preview shows the approved failure state, so the user can see "Couldn't separate the
+  subject" from memory pressure. Device heap limits (typically larger) unmeasured: no physical Android device.
