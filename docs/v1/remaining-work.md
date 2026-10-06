@@ -122,21 +122,50 @@ Closed as stale (evidence re-checked 2026-10-06):
 - Saved-file metadata combinations on Android after slice 1; 48 MP memory and time on dev devices.
 - Tablet and Fold cells of the sized screens: one iOS check (iPad 13 landscape) only.
 
+## Release configuration: what actually works (checked 2026-10-06)
+Built in Release: iOS Simulator Release build (no `.mlmodelc` in the bundle; both gates `NO`); Android
+`assembleRelease` (no `.tflite` in the APK; the Debug APK carries depth, LaMa and six vision models).
+
+| Feature | iOS Release | Android Release |
+|---|---|---|
+| Develop (presets, ruler, Amount, Favourites) | works | works |
+| Auto | works (Core Image auto, reduced set: see Auto) | **unavailable** (no model; approved unavailable state) |
+| Background › Change background | works (Vision) | **fails for every photo** (no segmenter: approved failure state) |
+| Background › Focus & Blur | **only photos with embedded depth**; others: depth failure state | **only photos with embedded depth** |
+| Portrait | works (Vision) | **hidden** (no person detection) |
+| Edit › Remove | **always fails** | **always fails** |
+| Edit (crop, rotate, straighten, perspective, adjust), Effects, Watermark, Border, Save copy | work | work |
+
+None of the bold rows is an approved scope. No submission while any control is knowingly non-functional or a promised
+feature is silently hidden. The gates stay closed until the approvals below.
+
 ## Submission blockers and the exact approvals that resolve them
 Neither scope reduction (Remove failing, Focus & Blur limited to embedded depth) is approved; the register's
 "ship without the model" options (dependencies.md items 1B, 2B) are not decisions.
-- **Depth Anything V2 Small** (Focus & Blur, both platforms; dependencies.md item 1): counsel's sign-off on (1) whether
-  trained weights are an adaptation of the training images (ShareAlike/NC sets Hypersim, VKITTI 2; research-only
-  ImageNet-21K, SA-1B, BDD100K) and (2) whether the authors could license Small as Apache-2.0. Then: iOS
-  `LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF: "YES"` (ios/project.yml); Android `-PlightlyDepthLegalSignOff=true`;
-  ship the Apache-2.0 notice and the "converted" statement. Pinned: Apple Core ML package @ cfef6f6f, Android
-  conversion from Depth-Anything-V2-Small-hf @ 5426e4f.
-- **LaMa big-lama** (Remove, both platforms; item 2): counsel's sign-off on the Places2 training images (same legal
-  question); provenance verified (README → Hugging Face smartywu/big-lama @ 05cb2be7, SHA-256 f1b358ca…). Then: iOS
-  `LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF: "YES"`; Android `-PlightlyRemoveLegalSignOff=true`; notices.
-- **Android vision models** (item 3: faces, pose, selfie segmenter, MODNet, U²-Netp): the owner's D3 resolution, then
-  `-PlightlyVisionModels=true`. Without it an Android release hides Portrait and Background shows its failure state
-  for subjects. MODNet and U²-Netp also need counsel on their training data (undocumented; DUTS-TR).
+
+**Established (recorded in dependencies.md, with sources):**
+- Depth Anything V2 Small: code Apache-2.0; the Small weights are stated Apache-2.0 by the authors (Base/Large/Giant
+  are CC-BY-NC-4.0); Apple's Core ML package is tagged apache-2.0. Training data per the paper: synthetic sets
+  (BlendedMVS, Hypersim, IRS, TartanAir, VKITTI 2) and pseudo-labelled real sets including research-only ImageNet-21K,
+  SA-1B ("research purposes only") and BDD100K; VKITTI 2 is CC BY-NC-SA, Hypersim CC BY-SA. Several dataset terms were
+  not checked (Google Landmarks, LSUN, Objects365, TartanAir, BlendedMVS, IRS).
+- LaMa big-lama: code Apache-2.0 (Samsung Research); no separate weights licence upstream; our weights are
+  byte-identical to the file the official README links (Hugging Face smartywu/big-lama @ 05cb2be7). Training data
+  Places2, whose recorded download terms say non-commercial research and no redistribution of the images (not
+  re-verified: the site refused connections).
+- Apache-2.0 obligations if shipped: licence text, attribution notices, and a statement that the files were converted.
+
+**Not established (legal interpretation; only counsel can answer; no conclusion is drawn here):**
+1. Whether trained weights are an adaptation of their training images, so that NC/ShareAlike or research-only image
+   terms could reach the weights through copyright.
+2. Whether the model authors had the right to license the weights as Apache-2.0 given that lineage.
+3. Whether dataset terms accepted by the authors bind a later user of the weights (on their face they bind the
+   downloader).
+
+**Then, to resolve:** counsel's sign-off on 1–3 for each model; then iOS `LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF`
+/ `LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF: "YES"` (ios/project.yml) and Android `-PlightlyDepthLegalSignOff=true`
+/ `-PlightlyRemoveLegalSignOff=true`, plus the notices. Android vision models (item 3): the owner's D3 resolution and
+counsel on MODNet's (undocumented) and U²-Netp's (DUTS-TR) training data, then `-PlightlyVisionModels=true`.
 
 ## Owner decisions (both platforms)
 1. **Depth-failure message: provisional, not approved.** Installed: "Couldn't measure depth. Blur needs it. Change
@@ -156,7 +185,13 @@ Neither scope reduction (Remove failing, Focus & Blur limited to embedded depth)
 ## Android memory (checked 2026-10-06, spare emulator, 192 MB heap, 13.5 MP)
 - Second render lane: only light frames (no Background/Portrait) run concurrently (da90aa7). Develop-only stress: two
   lanes 130 MB peak heap, 0 OOM; single lane 137 MB, 0 OOM; both saved.
-- **Pre-existing defect:** the Background (replacement + blur) stress hits bursts of failed 11 MB allocations with
-  ~22 MB free (large-object fragmentation) with one lane as well (1, 25, 13 OOM; two-lane restricted 11, 11); every run
-  saved. A failed Background preview shows the approved failure state, so the user can see "Couldn't separate the
-  subject" from memory pressure. Device heap limits (typically larger) unmeasured: no physical Android device.
+- **Background memory (fixed 506a23e):** heap dump and allocation trace identified the churn (~20 fresh 11 MB layer
+  buffers per preview, the replacement rebuilt per frame, 34 MB of float planes resident, full-plane boxing). After the
+  fix, the same 13.5 MP case (edit, three sweeps with a reversal, Save copy): 0 failures seen by the app in 3 runs,
+  Save copy byte-identical 3000×4500. The runtime still prints "Throwing OutOfMemoryError" ~6 times per run, also for
+  allocations that then succeed. A failed preview no longer shows "Couldn't separate the subject"; it keeps the last
+  frame and retries once (no approved copy for a preview that cannot render: owner question).
+- Ruler with Background active: drag frames from a cached composite; with the edit settled, 20 frames during the
+  sweeps, first after 115 ms. Within ~14 s of a Background change on the CPU emulator the cached composite is not
+  ready and the photo changes only when it is (device timing unmeasured).
+- Manifest text held for lazy preset parsing: 12.9 MB resident (UTF-16); could be halved with byte offsets (not done).
