@@ -45,9 +45,11 @@ launch line is still missing after the owner opens the app, logging is diagnosed
 
 ### Features: technical readiness vs distribution approval
 7. **Auto (Core Image auto enhancement):** implemented with image-dependent guards (b16e6e4). Controlled evaluation on
-   synthetic degradations of the approved photos (`experiments/auto-ci/README.md`): −1.5 EV improved 10/12; warm cast
-   improved 4 portraits, worse 3 (warm light read as a cast; cast undetected); originals moved ΔE 0–4.3. **Not
-   complete:** not a cast corrector (Core Image proposes no general white balance); low-key vs underexposed is a
+   synthetic degradations of the 12 approved photos (`experiments/auto-ci/eval/eval.txt`; development evidence only):
+   24 degraded cases, each in exactly one class by mean ΔE to the original (±0.5): **13 improved, 8 unchanged,
+   3 worse** (13 + 8 + 3 = 24). By degradation: −1.5 EV 10 improved, 2 unchanged, 0 worse; warm cast 3 improved,
+   6 unchanged, 3 worse (warm light read as a cast; cast undetected). The 12 undegraded originals moved ΔE 0–4.3.
+   **Not complete:** not a cast corrector (Core Image proposes no general white balance); low-key vs underexposed is a
    heuristic; CIHighlightShadowAdjust is local (LUT error up to 20/255) and **not applied**, so Auto is the reduced
    Core Image set; real (not synthetic) underexposed/cast photos and the phone unverified. The Auto LUT is identical
    across Save-copy tile boundaries (test, 13.5 MP).
@@ -168,6 +170,9 @@ Neither scope reduction (Remove failing, Focus & Blur limited to embedded depth)
 counsel on MODNet's (undocumented) and U²-Netp's (DUTS-TR) training data, then `-PlightlyVisionModels=true`.
 
 ## Owner decisions (both platforms)
+- **Preview that cannot render (proposal, Android; not implemented in the UI):** after the retry fails, a notice over
+  the photo: "Couldn't update the preview." with one action, "Try again" (re-requests the current edit). It stays until
+  a frame renders; the controls and the edit are unchanged. Needs the owner's approval of copy and placement.
 1. **Depth-failure message: provisional, not approved.** Installed: "Couldn't measure depth. Blur needs it. Change
    background still works." Candidate: "Couldn't estimate depth. Try again to use Focus & Blur." Unchanged until chosen.
 2. **Preset names:** `release/preset-name-proposal.md` (variant numbers bound to ids; category line in Favourites).
@@ -185,13 +190,32 @@ counsel on MODNet's (undocumented) and U²-Netp's (DUTS-TR) training data, then 
 ## Android memory (checked 2026-10-06, spare emulator, 192 MB heap, 13.5 MP)
 - Second render lane: only light frames (no Background/Portrait) run concurrently (da90aa7). Develop-only stress: two
   lanes 130 MB peak heap, 0 OOM; single lane 137 MB, 0 OOM; both saved.
-- **Background memory (fixed 506a23e):** heap dump and allocation trace identified the churn (~20 fresh 11 MB layer
-  buffers per preview, the replacement rebuilt per frame, 34 MB of float planes resident, full-plane boxing). After the
-  fix, the same 13.5 MP case (edit, three sweeps with a reversal, Save copy): 0 failures seen by the app in 3 runs,
-  Save copy byte-identical 3000×4500. The runtime still prints "Throwing OutOfMemoryError" ~6 times per run, also for
-  allocations that then succeed. A failed preview no longer shows "Couldn't separate the subject"; it keeps the last
-  frame and retries once (no approved copy for a preview that cannot render: owner question).
-- Ruler with Background active: drag frames from a cached composite; with the edit settled, 20 frames during the
-  sweeps, first after 115 ms. Within ~14 s of a Background change on the CPU emulator the cached composite is not
-  ready and the photo changes only when it is (device timing unmeasured).
+- **Background memory (506a23e), qualified:** three successful exports; no app-observed allocation failures; runtime
+  OOM diagnostics remain. The runtime's "Throwing OutOfMemoryError" lines are real throws, not log noise. With thread
+  ids (`-v threadtime`) and every catch site logging (below), the same 11 MB allocations show the throwing thread
+  continuing at once and its frame publishing: ART's large-object space fails (address-space fragmentation) and ART
+  clears the exception and retries in the main space (`art/runtime/gc/heap-inl.h`). That retry is internal; the
+  heap is still near its limit: during settled Background frames 186–191 MB of 192 MB stayed in use after GC (after9),
+  and a debug comparison render beside them failed outright (11 MB request, 10–11 MB free). With the meminfo sampler
+  off (it caused an explicit GC every ~2 s), peak after GC was 175 MB; allocation-triggered GCs 50, 978 ms in total,
+  55 ms at most (drag-order run6, 852×1280 proxy).
+- **Failures that were masked, fixed (2026-10-06):** (1) the replacement photo's decode was wrapped in
+  `runCatching`: an OutOfMemoryError there became "photo unreadable" with no trace, and the frame could render
+  without the chosen background. Errors now propagate and fail the render; only an unreadable photo is "no
+  replacement", logged. (2) The drag-base prefetch dropped its failures; the prefetch is gone (see Ruler).
+- **Preview failure:** the last frame stays while the failed edit is retried once; the retry is the failed request's
+  own edit, only when nothing newer was requested, and a newer request or cancel supersedes it. If the retry fails,
+  `previewFailed` is set (cleared by the next rendered frame); the edit is untouched (Undo, Redo, Save copy). **Not
+  shown: the notice needs approved copy (proposal below).** Until then the stale frame is not marked.
+- **Ruler with Background active (2026-10-06):** the cached-composite drag frame (the Look applied after
+  the Background composite) previewed a different edit: on release the background's colour and banding and the subject
+  edge changed (mean ΔE 4.0–5.9 in the background, 51–75 % of its pixels over ΔE 3; two Looks, 12 MP, replacement +
+  blur; `experiments/android-vision/work/drag-order`). Drag frames now keep the pipeline order at the lower working
+  resolution (Look on the half-size proxy, then Background at 640 px): to the settled frame, background mean ΔE
+  0.45–0.50 (≤ 0.07 % over 3), soft edge 1.8–2.1, subject 0.9–1.6 (the global-only drag plan, as on any drag). Cost on
+  the CPU emulator: 3.7–7.2 s per drag frame; one frame appeared during the 13.5 MP sweeps. **Live preview with
+  Background active is therefore not complete on the emulator;** device timing unmeasured (no physical Android device).
+- **Open, not investigated:** depth estimates of the same 13.5 MP photo differed between runs (raw p50 3.234 vs 3.165),
+  so the blur and the saved bytes differ (6f6cd784… vs d0f8bcec…); saved copies are not a cross-run reference until
+  this is explained. Separation code is unchanged by the fixes above.
 - Manifest text held for lazy preset parsing: 12.9 MB resident (UTF-16); could be halved with byte offsets (not done).

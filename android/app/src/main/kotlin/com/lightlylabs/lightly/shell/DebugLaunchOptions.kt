@@ -253,6 +253,26 @@ object DebugLaunchOptions {
                     api.saveCopy()
                 }
             }
+            // Drag-order check (2026-10-06, logcat LightlyDragCompare): replacement + blur, then two Looks committed in
+            // turn; each, once settled, rendered as the drag frame and as the settled frame (EditorViewModel.compareDragOrder).
+            "bg-drag-compare" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
+                api.background(firstImage)
+                api.focus(60.0, null)
+                api.rebaseHistory()
+                kotlinx.coroutines.MainScope().launch {
+                    kotlinx.coroutines.delay(45_000)
+                    for (stop in listOf(3, 12)) {
+                        api.release(stop)
+                        // Settled frame (~19 s) and the drag-base prefetch (~14 s) finish first: the check needs the heap.
+                        kotlinx.coroutines.delay(75_000)
+                        val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            runCatching { api.compareDragOrder(java.io.File("/data/user/0/com.lightlylabs.lightly/files/drag-compare"), "stop$stop") }.getOrElse { android.util.Log.w("LightlyDragCompare", "stop$stop failed", it); "stop$stop failed: $it" }
+                        }
+                        report.lines().forEach { android.util.Log.i("LightlyDragCompare", it) }
+                    }
+                    android.util.Log.i("LightlyDragCompare", "done")
+                }
+            }
             // The same without Background: light frames, so the interactive lane runs beside settled renders.
             "dev-stress-drag-save", "dev-stress-drag-save-single" -> kotlinx.coroutines.MainScope().launch {
                 kotlinx.coroutines.delay(15_000)

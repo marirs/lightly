@@ -76,7 +76,17 @@ class BackgroundSession(private val env: EditorEnvironment) {
         val photo = when (asset) {
             is AssetRef.Bundled -> env.bundledBackground(asset.id)
             // Renders run off the main thread; the loader decodes at the display proxy size.
-            is AssetRef.Photo -> runCatching { kotlinx.coroutines.runBlocking { env.photoLoader.load(asset.assetId).display } }.getOrNull()
+            // Only an unreadable photo (deleted, access revoked, undecodable) is "no replacement". An Error such as
+            // OutOfMemoryError propagates and fails the render (2026-10-06): caught here, it became "unreadable" with no
+            // trace, and the frame could render without the chosen background, a different edit than the controls show.
+            is AssetRef.Photo -> try {
+                kotlinx.coroutines.runBlocking { env.photoLoader.load(asset.assetId).display }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (unreadable: Exception) {
+                runCatching { android.util.Log.w("LightlyBackground", "replacement photo unreadable", unreadable) }
+                null
+            }
             is AssetRef.File -> null
         } ?: return null
         synchronized(replacementPlanes) { replacementPlanes[asset] = photo }
@@ -182,7 +192,6 @@ class BackgroundSession(private val env: EditorEnvironment) {
 
     fun reset() {
         positionedReplacements.clear()
-        dragBaseCache = null
         synchronized(installLock) { epoch++ }
         analysis = null
         faces = emptyList()
@@ -197,45 +206,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
     }
 
     /** Before Save copy: the working-size analysis is rebuilt at the export size anyway; free it for the export. */
-    fun trimForExport() { workingAnalysis = null; dragBaseCache = null }
-
-    /** Identity of a drag base: the analysis (by reference) and the Background settings. */
-    private class DragBaseKey(val analysis: BackgroundAnalysis?, val tool: BackgroundTool) {
-        override fun equals(other: Any?) = other is DragBaseKey && other.analysis === analysis && other.tool == tool
-        override fun hashCode() = System.identityHashCode(analysis) * 31 + tool.hashCode()
-    }
-    @Volatile private var dragBaseCache: Pair<DragBaseKey, Rgba8Image>? = null
-
-    /**
-     * The Background composite without the Look, at the interactive working size, for ruler-drag frames (2026-10-06).
-     * A Background frame cost 6-16 s on the CPU emulator, so none appeared during a drag; the Look is a global colour
-     * transform (and the replacement is graded with it), so a drag frame applies the dragged Look to this base instead.
-     * Approximate (grading and blur do not commute exactly); the settled frame after release is exact. Cached per
-     * analysis and Background settings; null without a Background effect.
-     */
-    fun dragBase(tool: BackgroundTool, display: Rgba8Image, unlooked: DevelopRenderPlan, renderer: DevelopRenderer, maxBlurFraction: Double,
-                 checkpoint: () -> Unit = {}): Rgba8Image? {
-        val key = DragBaseKey(analysis, tool)
-        dragBaseCache?.takeIf { it.first == key }?.let { return it.second }
-        // Single flight: the prefetch and every drag frame ask for the same base; one computes it, the rest wait.
-        // (Computed by several callers at once, three Background renders ran together and exhausted the heap.)
-        synchronized(dragBaseLock) {
-            dragBaseCache?.takeIf { it.first == key }?.let { return it.second }
-            return computeDragBase(key, tool, display, unlooked, renderer, maxBlurFraction, checkpoint)
-        }
-    }
-    private val dragBaseLock = Any()
-
-    private fun computeDragBase(key: DragBaseKey, tool: BackgroundTool, display: Rgba8Image, unlooked: DevelopRenderPlan, renderer: DevelopRenderer,
-                                maxBlurFraction: Double, checkpoint: () -> Unit): Rgba8Image? {
-        val plan = planFor(tool, { unlooked }, renderer, maxBlurFraction, INTERACTIVE_CAP, replacementAtWorkingSize = true) ?: return null
-        checkpoint()
-        val base = if (unlooked.isIdentity) display else renderer.render(display, unlooked)
-        val (ww, wh) = BackgroundStage.workingSize(display.width, display.height, INTERACTIVE_CAP)
-        val small = if (ww == base.width && wh == base.height) base else resize(base, ww, wh)
-        return render(small, plan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, tool, INTERACTIVE_CAP, checkpoint)
-            .also { dragBaseCache = key to it }
-    }
+    fun trimForExport() { workingAnalysis = null }
 
     /** The recipe's derived references for what the analysis produced (digest of the map's float bytes). */
     fun withDerivedRefs(tool: BackgroundTool): BackgroundTool {
