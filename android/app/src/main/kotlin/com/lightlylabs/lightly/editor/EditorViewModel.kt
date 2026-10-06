@@ -1667,8 +1667,11 @@ class EditorViewModel(
             parentScope = scope,
             renderDispatcher = env.renderDispatcher,
             // A ruler drag or slider frame never waits behind a settled render (2026-10-06).
-            interactiveDispatcher = env.interactiveRenderDispatcher,
-            isInteractive = { it.globalOnly },
+            interactiveDispatcher = if (debugSingleRenderLane) null else env.interactiveRenderDispatcher,
+            // Only light frames run beside a settled render: with Background or Portrait active a drag frame builds the
+            // same large planes as the settled one, and two at once exhausted the 192 MB heap on a 12 MP photo
+            // (spare emulator, 2026-10-06). Those frames keep the single lane (latest wins, as before).
+            isInteractive = { it.globalOnly && it.state?.let { edit -> !usesHeavyStages(edit) } == true },
             onUnpublishedFailure = { request, error ->
                 runCatching { android.util.Log.w("LightlyDevelop", "superseded preview render failed (revision ${request.revision})", error) }
             },
@@ -1742,6 +1745,12 @@ class EditorViewModel(
 
     // Debug benchmark bookkeeping (docs/v1/slice2-android.md › Performance).
     @Volatile internal var publishedRevision: Long = -1
+    /** Background (replacement or blur) or Portrait: preview frames that build full-size planes. */
+    private fun usesHeavyStages(edit: EditState): Boolean {
+        val background = edit.tools.background
+        return background.replacement != null || background.focus.blur > 0 || portraitSession.isActive(edit.tools.portrait)
+    }
+
     /** Debug builds: the name row as shown, for device checks without UI dumps (logcat LightlyRuler). */
     private fun logRuler(event: String) {
         if (!env.debugBuild) return
@@ -1778,6 +1787,8 @@ class EditorViewModel(
     internal var debugHoldSeparation: Boolean = false
     /** Debug Cancel checks only (screen "bg-slow"): separation starts 8 s late, cancellably. */
     internal var debugSlowSeparation: Boolean = false
+    /** Debug memory baseline only: no interactive render lane (the scheduler as before 2026-10-06). */
+    internal var debugSingleRenderLane: Boolean = false
 
     /** Debug captures only: separation ends in the approved failure state without running (bg-failed). */
     internal var debugFailSeparation: Boolean = false
@@ -1954,6 +1965,10 @@ class EditorViewModel(
 
         /** Save copy of the committed recipe, as the button does (debug export checks). */
         fun saveCopy() = this@EditorViewModel.saveCopy()
+
+        /** A ruler drag step and its release, as the finger does (memory stress checks). */
+        fun drag(stop: Int) = onRulerDrag(stop)
+        fun release(stop: Int) = onRulerRelease(stop)
 
         /** One Portrait slider released at [value] on the chosen face (one step). */
         fun portrait(field: String, value: Double) = onPortraitSliderRelease(field, value)

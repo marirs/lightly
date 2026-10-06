@@ -117,6 +117,7 @@ object DebugLaunchOptions {
         editor.debugFailSeparation = screen == "bg-failed"
         // Cancel checks only: separation waits 8 s (cancellable) before analysing, long enough to tap Cancel.
         editor.debugSlowSeparation = screen == "bg-slow"
+        editor.debugSingleRenderLane = screen.endsWith("-single")
         editor.debugHoldRemove = screen == "ed-removing"
         switchTarget = File(File(path).parentFile, "subject_swan.jpg").absolutePath
         editor.openPhoto("file://" + File(path).absolutePath)
@@ -229,6 +230,41 @@ object DebugLaunchOptions {
                 val (angle, stops) = bg.GRADIENTS[0]
                 it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Gradient(angle, listOf(
                     com.lightlylabs.lightly.session.GradientStop(stops[0], 0.0), com.lightlylabs.lightly.session.GradientStop(stops[1], 1.0))))
+            }
+            // Memory stress (2026-10-06, logcat LightlyFlow): 12 MP photo, replacement + blur, then three continuous ruler
+            // sweeps with a reversal (interactive frames beside settled Background renders), then Save copy. "-single":
+            // the same without the interactive render lane (baseline).
+            "bg-stress-drag-save", "bg-stress-drag-save-single" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
+                api.background(firstImage)
+                api.focus(60.0, null)
+                api.rebaseHistory()
+                kotlinx.coroutines.MainScope().launch {
+                    kotlinx.coroutines.delay(15_000)
+                    flowLog("drags start")
+                    repeat(3) { round ->
+                        for (stop in 1..12) { api.drag(stop + round); kotlinx.coroutines.delay(60) }
+                        for (stop in 11 downTo 7) { api.drag(stop + round); kotlinx.coroutines.delay(60) }
+                        api.release(7 + round)
+                        kotlinx.coroutines.delay(1_000)
+                    }
+                    kotlinx.coroutines.delay(2_000)
+                    flowLog("save requested")
+                    api.saveCopy()
+                }
+            }
+            // The same without Background: light frames, so the interactive lane runs beside settled renders.
+            "dev-stress-drag-save", "dev-stress-drag-save-single" -> kotlinx.coroutines.MainScope().launch {
+                kotlinx.coroutines.delay(15_000)
+                flowLog("drags start")
+                repeat(3) { round ->
+                    for (stop in 1..12) { api.drag(stop + round); kotlinx.coroutines.delay(60) }
+                    for (stop in 11 downTo 7) { api.drag(stop + round); kotlinx.coroutines.delay(60) }
+                    api.release(7 + round)
+                    kotlinx.coroutines.delay(1_000)
+                }
+                kotlinx.coroutines.delay(2_000)
+                flowLog("save requested")
+                api.saveCopy()
             }
             "bg-replaced-blur" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
                 api.background(firstImage)
