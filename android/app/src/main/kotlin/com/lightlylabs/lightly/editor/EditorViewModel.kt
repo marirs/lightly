@@ -246,7 +246,8 @@ class EditorViewModel(
             val shown = if (presence == PersonPresence.PENDING) debugPresence ?: presence else presence
             state.update { it.copy(tools = EditorTools.visible(shown, env.debugBuild), people = people) }
             if (restoredSession != null && restoredSession.current.source.fingerprint == loaded.source.fingerprint) {
-                // Restore: replay the saved recipe; Auto is not re-run (spec §4.6).
+                // Restore: replay the saved recipe; Auto is not re-run (spec §4.6): its stored correction rebuilds the LUT.
+                installAutoCorrection(savedState.get<String>(KEY_AUTO_CORRECTION)?.let(com.lightlylabs.lightly.develop.auto.AutoCorrection::fromJson))
                 cleanState = restoredSession.history.entries.first()
                 commit(restoredSession, autoStateOf(restoredSession.current.auto))
                 state.update { it.copy(phase = EditorPhase.Ready) }
@@ -263,15 +264,26 @@ class EditorViewModel(
         state.value = EditorUiState(phase = EditorPhase.PhotoAccessLost)
     }
 
-    /** Automatic Develop. Without a model the photo opens unchanged with the approved "isn't available" notice. */
+    /** Automatic Develop: Android's own Auto analysis at photo open (no model; every build). */
     private suspend fun develop(loaded: LoadedPhoto, generation: Long, retry: Boolean) {
         if (!isCurrent(generation)) return
-        val result = env.autoDeveloper.develop(loaded.source.fingerprint, loaded.analysis)
+        val faces = portraitSession.people?.usableFaces.orEmpty().map { f ->
+            com.lightlylabs.lightly.develop.auto.AutoAnalysis.Face(f.box.x, f.box.y, f.box.width, f.box.height)
+        }
+        val autoStarted = System.nanoTime()
+        val result = env.autoDeveloper.develop(loaded.source.fingerprint, loaded.analysis, faces)
+        val autoMillis = (System.nanoTime() - autoStarted) / 1_000_000
         if (!isCurrent(generation)) return
         val (auto, autoState) = when (result) {
-            // DEFERRED(D1): no model ships, so no Auto LUT can be resolved and a "Developed" result
-            // cannot render. It would be shown as unavailable rather than presented as Auto.
-            is DevelopResult.Developed -> noModelAuto() to AutoState.UNAVAILABLE
+            is DevelopResult.Developed -> {
+                val correction = result.correction
+                if (correction == null) noModelAuto() to AutoState.UNAVAILABLE
+                else {
+                    installAutoCorrection(correction)
+                    runCatching { android.util.Log.i("LightlyAuto", "Auto ${loaded.analysis.width}x${loaded.analysis.height} in $autoMillis ms: ${correction.notes.joinToString("; ")}") }
+                    result.auto to AutoState.APPLIED
+                }
+            }
             is DevelopResult.Failed -> autoOff(DEVELOP_FAILED_MODEL_VERSION) to AutoState.FAILED
             DevelopResult.NoModelInThisBuild -> noModelAuto() to AutoState.UNAVAILABLE
         }
@@ -286,6 +298,20 @@ class EditorViewModel(
         state.update { it.copy(phase = EditorPhase.Ready) }
     }
 
+    /** The photo's Auto correction and its stage-1 LUT; stored with the session (restore rebuilds the LUT from it). */
+    @Volatile private var autoCorrection: com.lightlylabs.lightly.develop.auto.AutoCorrection? = null
+    @Volatile private var autoLut: com.lightlylabs.lightly.render.lut.Lut3D? = null
+
+    private fun installAutoCorrection(correction: com.lightlylabs.lightly.develop.auto.AutoCorrection?) {
+        autoCorrection = correction
+        autoLut = correction?.lut()
+        if (correction != null) savedState[KEY_AUTO_CORRECTION] = correction.toJson() else savedState.remove<String>(KEY_AUTO_CORRECTION)
+    }
+
+    /** The edit's Develop plan with this photo's Auto LUT at the recipe's Auto strength (every preview and Save copy). */
+    private fun planOf(library: DevelopLibrary, edit: EditState, globalOnly: Boolean = false): com.lightlylabs.lightly.develop.DevelopRenderPlan =
+        library.planFor(edit, globalOnly, autoLut.takeIf { edit.auto.modelId == com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_ID })
+
     private fun noModelAuto() = autoOff(NO_MODEL_IN_BUILD_MODEL_VERSION)
 
     private fun autoOff(markerVersion: String) =
@@ -294,8 +320,10 @@ class EditorViewModel(
     private fun autoStateOf(auto: AutoResult): AutoState = when {
         auto.modelVersion == NO_MODEL_IN_BUILD_MODEL_VERSION -> AutoState.UNAVAILABLE
         auto.modelVersion == DEVELOP_FAILED_MODEL_VERSION -> AutoState.FAILED
+        auto.modelId == com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_ID && autoLut != null ->
+            if (auto.strength > 0f) AutoState.APPLIED else AutoState.OFF
         auto.strength == 0f -> AutoState.OFF
-        else -> AutoState.UNAVAILABLE // a stored Auto from another build cannot render here (D1)
+        else -> AutoState.UNAVAILABLE // a stored Auto this build cannot rebuild (no stored correction)
     }
 
     /** Approved failure state › Retry: one user-initiated run. */
@@ -318,7 +346,16 @@ class EditorViewModel(
      * unavailable; tapping it explains that (owner amendment 2026-10-05: no standing notice, nothing promised).
      */
     fun toggleAuto() {
-        if (state.value.auto == AutoState.UNAVAILABLE) showToast(AUTO_UNAVAILABLE)
+        when (state.value.auto) {
+            AutoState.APPLIED, AutoState.OFF -> {
+                val session = state.value.session ?: return
+                if (autoLut == null) return
+                val on = state.value.auto == AutoState.OFF
+                commit(session.commit { it.copy(auto = it.auto.copy(strength = if (on) 1f else 0f)) }, if (on) AutoState.APPLIED else AutoState.OFF)
+            }
+            AutoState.UNAVAILABLE -> showToast(AUTO_UNAVAILABLE)
+            AutoState.FAILED -> Unit
+        }
     }
 
     // --- tools ----------------------------------------------------------------------------------
@@ -1236,7 +1273,7 @@ class EditorViewModel(
                 withContext(env.renderDispatcher) {
                     val library = env.library.await()
                     val frame = EditPipeline(library.model, env.previewRenderer)
-                        .renderSelectiveColourInput(patched(display, edit), edit, library.planFor(edit), sourceStages(edit, library, BackgroundSession.PREVIEW_CAP))
+                        .renderSelectiveColourInput(patched(display, edit), edit, planOf(library, edit), sourceStages(edit, library, BackgroundSession.PREVIEW_CAP))
                     com.lightlylabs.lightly.develop.SelectiveColour.sample(frame, frameX, frameY)
                 }
             }.getOrNull()
@@ -1492,7 +1529,7 @@ class EditorViewModel(
 
     /** Builds the export plans and starts the export; false when the exporter refused. */
     private fun startExport(loaded: LoadedPhoto, library: DevelopLibrary, committed: EditState): Boolean {
-        val plan = library.planFor(committed)
+        val plan = planOf(library, committed)
         val backgroundPlan = backgroundSession.planFor(committed.tools.background, { plan }, env.previewRenderer, maxBlurFraction(committed), exportCap)
         val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, backgroundPlan) else ExportRenderPlan { frame ->
             // One renderer and clarity base per frame; tiles read their apron from the full frame.
@@ -1566,7 +1603,7 @@ class EditorViewModel(
     /** [display] with the recipe's applied Remove patches composited (cached for the current list). */
     /** Background (stages 7–8) then Portrait (9) on the developed, adjusted source-coordinate image; null when neither is active. */
     private fun sourceStages(edit: EditState, library: DevelopLibrary, backgroundCap: Int): ((Rgba8Image) -> Rgba8Image)? {
-        val backgroundPlan = backgroundSession.planFor(edit.tools.background, { library.planFor(edit) }, env.previewRenderer, maxBlurFraction(edit), backgroundCap)
+        val backgroundPlan = backgroundSession.planFor(edit.tools.background, { planOf(library, edit) }, env.previewRenderer, maxBlurFraction(edit), backgroundCap)
         val background = backgroundPlan?.let { bp -> { developed: Rgba8Image -> backgroundSession.render(developed, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap) } }
         // Stage 9 (Portrait) follows Background (7–8), in source coordinates, before geometry.
         val portrait = edit.tools.portrait.takeIf(portraitSession::isActive)
@@ -1669,7 +1706,7 @@ class EditorViewModel(
                 val library = env.library.await()
                 val edit = request.payload.state ?: return@PreviewRenderer display
                 val start = System.nanoTime()
-                val plan = library.planFor(edit, request.payload.globalOnly)
+                val plan = planOf(library, edit, request.payload.globalOnly)
                 // iOS LayeredStages: Focus & Blur at 640 px while a slider moves, 1024 px settled.
                 val workingSizeFrame = request.payload.globalOnly && !portraitSession.isActive(edit.tools.portrait) && !EditMapping.usesEditOrEffects(edit)
                 val backgroundCap = when {
@@ -1679,7 +1716,7 @@ class EditorViewModel(
                 }
                 // A drag frame grades the replacement with its own (17³, global-only) plan, as it grades the photo: the
                 // full plan baked a 33³ LUT for every Look passed during a drag (~0.2 s per frame on the emulator).
-                val backgroundPlan = backgroundSession.planFor(edit.tools.background, { if (workingSizeFrame) plan else library.planFor(edit) }, renderer,
+                val backgroundPlan = backgroundSession.planFor(edit.tools.background, { if (workingSizeFrame) plan else planOf(library, edit) }, renderer,
                     maxBlurFraction(edit), backgroundCap, replacementSize = if (workingSizeFrame) dragProxy.width to dragProxy.height else null)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
@@ -2075,7 +2112,7 @@ class EditorViewModel(
                 val background = backgroundSession.planFor(tool, { plan }, renderer, blurFraction, BackgroundSession.PREVIEW_CAP) ?: return null
                 return backgroundSession.render(developed(plan), background, layers, tool, BackgroundSession.PREVIEW_CAP)
             }
-            val dragPlan = library.planFor(edit, globalOnly = true)
+            val dragPlan = planOf(library, edit, globalOnly = true)
             val matte = backgroundSession.analysis?.matte
             outDir.mkdirs()
             fun shown(image: Rgba8Image) = if (image.width == display.width) image else BackgroundSession.resize(image, display.width, display.height)
@@ -2095,7 +2132,7 @@ class EditorViewModel(
                 val developedProxy = if (dragPlan.isIdentity) proxy else renderer.render(proxy, dragPlan)
                 write("A-drag$cap", shown(backgroundSession.render(developedProxy, dragBackground, layers, tool, cap)))
             }
-            write("C-settled", settled(library.planFor(edit)) ?: return "no settled plan")
+            write("C-settled", settled(planOf(library, edit)) ?: return "no settled plan")
             val pairs = listOf(BackgroundSession.DRAG_CAP, 480, BackgroundSession.INTERACTIVE_CAP).map { "A-drag$it" to "D-settled-globalOnly" } + listOf("C-settled" to "D-settled-globalOnly")
             return pairs.joinToString("\n") { (first, second) ->
                 val stats = DragOrderComparison.compare(java.io.File(outDir, "$label-$first.rgba"), java.io.File(outDir, "$label-$second.rgba"), display.width, display.height, matte)
@@ -2158,6 +2195,8 @@ class EditorViewModel(
         const val MAX_KEPT_COLOURS = 8
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
+        /** The photo's Auto correction (AutoCorrection JSON), stored beside the session. */
+        const val KEY_AUTO_CORRECTION = "editor.auto.correction.json"
         const val SAVE_CANCELLED = "Save cancelled · nothing was written"
 
         /** The prototype's watermark sizes at size 34 (`watermarkHTML`), in CSS px = dp. */

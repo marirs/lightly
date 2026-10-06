@@ -88,8 +88,19 @@ object AndroidEditorEnvironment {
         return EditorEnvironment(
             photoLoader = ContentResolverPhotoLoader(resolver, ProxyDecoder(), minOf(screenLongestPx, PREVIEW_LONG_EDGE_PX), allowFileUris = BuildConfig.DEBUG),
             photoAccess = ContentResolverPhotoAccessGrants(resolver),
-            // DEFERRED(D1): no production Auto model or inference engine is bundled; research weights must never ship.
-            autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
+            // Auto (2026-10-06): Lightly's own analysis (AutoAnalysis), no model; runs in every build, Release included.
+            autoDeveloper = AutoDeveloper { _, analysis, faces ->
+                withContext(Dispatchers.Default) {
+                    try {
+                        val correction = com.lightlylabs.lightly.develop.auto.AutoAnalysis.analyse(
+                            com.lightlylabs.lightly.develop.auto.AutoAnalysis.Image(analysis.width, analysis.height, analysis.pixels), faces)
+                        DevelopResult.Developed(com.lightlylabs.lightly.session.AutoResult(com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_ID,
+                            com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_VERSION, listOf(0f, 0f, 0f), null, 1f), correction)
+                    } catch (failure: Exception) {
+                        DevelopResult.Failed("Auto analysis failed: $failure")
+                    }
+                }
+            },
             // Model results are cached per exact input for the process (AnalysisCache): reopening a photo reuses them.
             personDetector = vision?.let { models -> AnalysisCache.people(PersonDetector { image -> withContext(Dispatchers.Default) { models.peopleAnalyser()?.analyse(image.toVision()) } }) } ?: PendingPersonDetector,
             segmenter = vision?.let { models ->

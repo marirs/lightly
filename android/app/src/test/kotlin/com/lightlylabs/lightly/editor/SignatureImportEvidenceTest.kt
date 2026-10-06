@@ -126,7 +126,7 @@ class SignatureImportEvidenceTest {
                 LoadedPhoto(SourceRef(asset, SourceFingerprint("cd".repeat(32), 1, image.width, image.height), 1), image, image, FullResolutionSource { image })
             },
             photoAccess = object : PhotoAccessGrants { override fun retain(assetId: String) = true; override fun release(assetId: String) {} },
-            autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
+            autoDeveloper = AutoDeveloper { _, _, _ -> DevelopResult.NoModelInThisBuild },
             personDetector = PendingPersonDetector,
             library = CompletableDeferred(BundledPack.library),
             previewRenderer = DevelopRenderer(),

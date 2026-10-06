@@ -112,7 +112,7 @@ class WatermarkTest {
         val env = EditorEnvironment(
             photoLoader = PhotoLoader { asset -> LoadedPhoto(SourceRef(asset, SourceFingerprint("ab".repeat(32), 1, 96, 64), 1), image(24, 16), image(48, 32), FullResolutionSource { image(96, 64) }) },
             photoAccess = object : PhotoAccessGrants { override fun retain(assetId: String) = true; override fun release(assetId: String) {} },
-            autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
+            autoDeveloper = AutoDeveloper { _, _, _ -> DevelopResult.NoModelInThisBuild },
             personDetector = PendingPersonDetector,
             library = CompletableDeferred(BundledPack.library),
             previewRenderer = DevelopRenderer(),

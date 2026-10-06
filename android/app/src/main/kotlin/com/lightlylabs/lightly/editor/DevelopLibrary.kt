@@ -58,13 +58,14 @@ class DevelopLibrary(
     fun isCached(preset: LookPreset, dimension: Int = Lut3D.CONTRACT_DIMENSION): Boolean = synchronized(cache) { cache.containsKey("${preset.lookVersion}@$dimension") }
 
     /**
-     * The render plan of [state] (Auto off: no model ships, D1). A Look whose id is not in this pack, or
-     * whose version differs, is left out and never substituted (edit-recipe README › resolution rules).
+     * The render plan of [state]. [autoLut]: the photo's Auto LUT (stage 1), applied at the recipe's Auto strength; null
+     * when the photo has none. A Look whose id is not in this pack, or whose version differs, is left out and never
+     * substituted (edit-recipe README › resolution rules).
      */
-    fun planFor(state: EditState, globalOnly: Boolean = false): DevelopRenderPlan {
+    fun planFor(state: EditState, globalOnly: Boolean = false, autoLut: Lut3D? = null): DevelopRenderPlan {
         val preset = preset(state.look)
         val dimension = if (globalOnly) DRAG_DIMENSION else Lut3D.CONTRACT_DIMENSION
-        val plan = DevelopRenderPlan.of(model, autoLut = null, autoStrength = 0f, lookLut = preset?.let { lutFor(it, dimension) }, recipe = preset?.recipe, strength = state.look?.strength ?: 0f)
+        val plan = DevelopRenderPlan.of(model, autoLut = autoLut, autoStrength = if (autoLut != null) state.auto.strength else 0f, lookLut = preset?.let { lutFor(it, dimension) }, recipe = preset?.recipe, strength = state.look?.strength ?: 0f)
         return if (globalOnly) plan.globalOnly() else plan
     }
 

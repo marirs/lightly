@@ -90,7 +90,7 @@ class AccessibilityTest {
                 override fun retain(assetId: String) = true
                 override fun release(assetId: String) = Unit
             },
-            autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
+            autoDeveloper = AutoDeveloper { _, _, _ -> DevelopResult.NoModelInThisBuild },
             personDetector = PendingPersonDetector,
             library = CompletableDeferred(BundledPack.library),
             previewRenderer = DevelopRenderer(),

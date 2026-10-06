@@ -159,7 +159,7 @@ class EditEffectsTest {
                 override fun retain(assetId: String) = true
                 override fun release(assetId: String) {}
             },
-            autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
+            autoDeveloper = AutoDeveloper { _, _, _ -> DevelopResult.NoModelInThisBuild },
             personDetector = PendingPersonDetector,
             library = CompletableDeferred(library),
             previewRenderer = DevelopRenderer(),

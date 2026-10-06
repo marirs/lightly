@@ -43,4 +43,11 @@ tasks.withType<Test>().configureEach {
     inputs.dir(repoRoot.resolve("shared/fixtures/rendering")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("renderingGoldens")
     // The full pack is git-ignored and large: record its path, not its contents.
     inputs.property("builtPackManifest", builtPackManifest.absolutePath)
+    // AutoEvaluationProbe (completion plan A3) runs only with -Plightly.probe; it writes experiments/auto-android/eval.txt.
+    if (project.hasProperty("lightly.probe")) {
+        systemProperty("lightly.probe", "true")
+        systemProperty("lightly.autoEvalDir", repoRoot.resolve("experiments/auto-android").absolutePath)
+        outputs.upToDateWhen { false }
+        testLogging.showStandardStreams = true
+    }
 }

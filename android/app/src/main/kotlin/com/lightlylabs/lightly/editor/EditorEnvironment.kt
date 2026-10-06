@@ -34,7 +34,11 @@ fun interface PhotoLoader {
 }
 
 sealed interface DevelopResult {
-    data class Developed(val auto: AutoResult) : DevelopResult
+    /**
+     * Auto ran. [correction]: the analysed correction (Android's own engine, `AutoCorrection`); its LUT is the stage-1
+     * Auto LUT, and it is stored with the session so a restore rebuilds the LUT without analysing again.
+     */
+    data class Developed(val auto: AutoResult, val correction: com.lightlylabs.lightly.develop.auto.AutoCorrection? = null) : DevelopResult
 
     /** The model ran (or tried to) and produced no Auto result: the approved failure state with Retry. */
     data class Failed(val message: String) : DevelopResult
@@ -47,7 +51,8 @@ sealed interface DevelopResult {
 }
 
 fun interface AutoDeveloper {
-    suspend fun develop(fingerprint: SourceFingerprint, analysis: Rgba8Image): DevelopResult
+    /** [faces]: the usable faces of the photo (normalised, origin top-left), for the skin guard. */
+    suspend fun develop(fingerprint: SourceFingerprint, analysis: Rgba8Image, faces: List<com.lightlylabs.lightly.develop.auto.AutoAnalysis.Face>): DevelopResult
 }
 
 /** The favourite preset ids, shared with Preferences › Favourite presets (slice 1). */

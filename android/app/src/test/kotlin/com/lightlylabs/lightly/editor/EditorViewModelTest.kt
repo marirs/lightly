@@ -61,7 +61,8 @@ class EditorViewModelTest {
         override fun update(change: (List<String>) -> List<String>) { state.value = change(state.value) }
     }
 
-    private class Harness(test: TestScope, private val loadDelays: Map<String, Long> = emptyMap()) {
+    private class Harness(test: TestScope, private val loadDelays: Map<String, Long> = emptyMap(),
+                          private val auto: AutoDeveloper = AutoDeveloper { _, _, _ -> DevelopResult.NoModelInThisBuild }) {
         val dispatcher = StandardTestDispatcher(test.testScheduler)
         val gateway = MemoryGateway()
         val favourites = Favourites()
@@ -79,7 +80,7 @@ class EditorViewModelTest {
                 override fun retain(assetId: String) = true
                 override fun release(assetId: String) { released += assetId }
             },
-            autoDeveloper = AutoDeveloper { _, _ -> DevelopResult.NoModelInThisBuild },
+            autoDeveloper = auto,
             personDetector = PendingPersonDetector,
             library = CompletableDeferred(o.library),
             previewRenderer = DevelopRenderer(),
@@ -93,7 +94,7 @@ class EditorViewModelTest {
             debugBuild = true,
         )
 
-        fun vm(o: EditorViewModelTest) = EditorViewModel(SavedStateHandle(), env(o), CoroutineScope(SupervisorJob() + dispatcher))
+        fun vm(o: EditorViewModelTest, saved: SavedStateHandle = SavedStateHandle()) = EditorViewModel(saved, env(o), CoroutineScope(SupervisorJob() + dispatcher))
     }
 
     @AfterTest
@@ -117,6 +118,44 @@ class EditorViewModelTest {
         assertFalse(ui.canUndo)
         assertNotNull(ui.preview)
         assertEquals("Original", vm.panelModel()!!.name)
+    }
+
+    private val brightening = com.lightlylabs.lightly.develop.auto.AutoCorrection(exposure = 1.5)
+    private val analysedAuto = AutoDeveloper { _, _, _ ->
+        DevelopResult.Developed(com.lightlylabs.lightly.session.AutoResult(com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_ID,
+            com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_VERSION, listOf(0f, 0f, 0f), null, 1f), brightening)
+    }
+
+    @Test
+    fun `Auto is applied at open as the starting point, renders, and the switch is one undo step`() = runTest {
+        val (vm, _) = ready(Harness(this, auto = analysedAuto))
+        val ui = vm.uiState.value
+        assertEquals(AutoState.APPLIED, ui.auto)
+        assertEquals(com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_ID, ui.session!!.current.auto.modelId)
+        assertEquals(1f, ui.session!!.current.auto.strength)
+        assertFalse(ui.canUndo, "Auto is the starting point, not an edit")
+        assertFalse(ui.preview!!.pixels.contentEquals(ui.original!!.pixels), "the Auto LUT reaches the preview")
+        vm.toggleAuto(); advanceUntilIdle()
+        assertEquals(AutoState.OFF, vm.uiState.value.auto)
+        assertEquals(0f, vm.uiState.value.session!!.current.auto.strength)
+        assertTrue(vm.uiState.value.preview!!.pixels.contentEquals(vm.uiState.value.original!!.pixels), "off shows the original")
+        vm.undo(); advanceUntilIdle()
+        assertEquals(1f, vm.uiState.value.session!!.current.auto.strength)
+    }
+
+    @Test
+    fun `a restored session rebuilds Auto from its stored correction without analysing again`() = runTest {
+        val saved = SavedStateHandle()
+        val first = Harness(this, auto = analysedAuto)
+        Dispatchers.setMain(first.dispatcher)
+        first.vm(this@EditorViewModelTest, saved).openPhoto("content://photo/1"); advanceUntilIdle()
+        var analysed = 0
+        val second = Harness(this, auto = AutoDeveloper { a, b, c -> analysed++; analysedAuto.develop(a, b, c) })
+        val vm = second.vm(this@EditorViewModelTest, saved)
+        advanceUntilIdle()
+        assertEquals(0, analysed)
+        assertEquals(AutoState.APPLIED, vm.uiState.value.auto)
+        assertFalse(vm.uiState.value.preview!!.pixels.contentEquals(vm.uiState.value.original!!.pixels))
     }
 
     @Test
