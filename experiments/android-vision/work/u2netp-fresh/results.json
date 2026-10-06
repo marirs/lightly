@@ -1,0 +1,842 @@
+[
+ {
+  "name": "0",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "1",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "2",
+  "label": "ambiguous",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "3",
+  "label": "none",
+  "area": 0.2669,
+  "step": -0.003,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "4",
+  "label": "ambiguous",
+  "area": 0.0321,
+  "step": 0.074,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "5",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "6",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "7",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "8",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "9",
+  "label": "none",
+  "area": 0.183,
+  "step": -0.002,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "10",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "11",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "12",
+  "label": "none",
+  "area": 0.0095,
+  "step": -0.005,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "13",
+  "label": "none",
+  "area": 0.0209,
+  "step": -0.005,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "14",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "15",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "16",
+  "label": "none",
+  "area": 0.0598,
+  "step": 0.0,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "17",
+  "label": "ambiguous",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "18",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "19",
+  "label": "none",
+  "area": 0.0015,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "20",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "21",
+  "label": "none",
+  "area": 0.0014,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "22",
+  "label": "ambiguous",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "23",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "24",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "25",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "26",
+  "label": "none",
+  "area": 0.1106,
+  "step": -0.114,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "27",
+  "label": "subject",
+  "area": 0.1976,
+  "step": 0.129,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "28",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "29",
+  "label": "none",
+  "area": 0.1151,
+  "step": -0.043,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "30",
+  "label": "none",
+  "area": 0.0493,
+  "step": -0.022,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "31",
+  "label": "none",
+  "area": 0.0188,
+  "step": 0.408,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "32",
+  "label": "subject",
+  "area": 0.1404,
+  "step": 0.375,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "33",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "34",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "35",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "36",
+  "label": "none",
+  "area": 0.0008,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "37",
+  "label": "none",
+  "area": 0.0106,
+  "step": -0.009,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "38",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "39",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "40",
+  "label": "none",
+  "area": 0.1088,
+  "step": -0.014,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "41",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "42",
+  "label": "none",
+  "area": 0.0157,
+  "step": 0.001,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "43",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "44",
+  "label": "none",
+  "area": 0.0281,
+  "step": -0.138,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "45",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "46",
+  "label": "ambiguous",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "47",
+  "label": "subject",
+  "area": 0.2262,
+  "step": 0.098,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "48",
+  "label": "subject",
+  "area": 0.0656,
+  "step": 0.231,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "49",
+  "label": "none",
+  "area": 0.1125,
+  "step": 0.135,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "50",
+  "label": "ambiguous",
+  "area": 0.0581,
+  "step": -0.027,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "51",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "52",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "53",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "54",
+  "label": "none",
+  "area": 0.0054,
+  "step": -0.005,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "55",
+  "label": "none",
+  "area": 0.0404,
+  "step": -0.017,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "56",
+  "label": "none",
+  "area": 0.0001,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "57",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "58",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "59",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "60",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "61",
+  "label": "subject",
+  "area": 0.1118,
+  "step": 0.146,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "62",
+  "label": "ambiguous",
+  "area": 0.0656,
+  "step": 0.021,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "63",
+  "label": "none",
+  "area": 0.3218,
+  "step": -0.008,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "64",
+  "label": "none",
+  "area": 0.0866,
+  "step": 0.058,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "65",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "66",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "67",
+  "label": "ambiguous",
+  "area": 0.0246,
+  "step": 0.114,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "68",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "69",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "70",
+  "label": "none",
+  "area": 0.2192,
+  "step": -0.038,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "71",
+  "label": "none",
+  "area": 0.081,
+  "step": 0.194,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "72",
+  "label": "subject",
+  "area": 0.2226,
+  "step": 0.006,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "73",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "74",
+  "label": "none",
+  "area": 0.0553,
+  "step": 0.051,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B0",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B1",
+  "label": "ambiguous",
+  "area": 0.0441,
+  "step": 0.006,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B2",
+  "label": "subject",
+  "area": 0.0782,
+  "step": 0.422,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "B3",
+  "label": "ambiguous",
+  "area": 0.1779,
+  "step": 0.105,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "B4",
+  "label": "none",
+  "area": 0.2565,
+  "step": 0.053,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B5",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B6",
+  "label": "ambiguous",
+  "area": 0.1339,
+  "step": -0.001,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B7",
+  "label": "subject",
+  "area": 0.1322,
+  "step": 0.157,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "B8",
+  "label": "none",
+  "area": 0.0478,
+  "step": -0.017,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B9",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B10",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B11",
+  "label": "none",
+  "area": 0.0894,
+  "step": -0.002,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B12",
+  "label": "none",
+  "area": 0.4122,
+  "step": 0.124,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "B13",
+  "label": "none",
+  "area": 0.1333,
+  "step": -0.018,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B14",
+  "label": "none",
+  "area": 0.0178,
+  "step": -0.006,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B15",
+  "label": "none",
+  "area": 0.0026,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B16",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B17",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B18",
+  "label": "subject",
+  "area": 0.2734,
+  "step": 0.189,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "B19",
+  "label": "subject",
+  "area": 0.1352,
+  "step": 0.255,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "B20",
+  "label": "subject",
+  "area": 0.0393,
+  "step": 0.138,
+  "area_rule": true,
+  "rule": true
+ },
+ {
+  "name": "B21",
+  "label": "none",
+  "area": 0.0281,
+  "step": 0.004,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B22",
+  "label": "none",
+  "area": 0.0384,
+  "step": 0.003,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B23",
+  "label": "none",
+  "area": 0.0552,
+  "step": 0.063,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B24",
+  "label": "subject",
+  "area": 0.0096,
+  "step": 0.126,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B25",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B26",
+  "label": "none",
+  "area": 0.0306,
+  "step": -0.03,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B27",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ },
+ {
+  "name": "B28",
+  "label": "none",
+  "area": 0.3082,
+  "step": 0.001,
+  "area_rule": true,
+  "rule": false
+ },
+ {
+  "name": "B29",
+  "label": "none",
+  "area": 0.0,
+  "step": null,
+  "area_rule": false,
+  "rule": false
+ }
+]

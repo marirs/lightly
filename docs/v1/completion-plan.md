@@ -168,3 +168,9 @@ hardware rounds as D-1/D-2 arrive → A9/A12 after D-3.
   depth model; decision O5). A3 established: Android needs its own Auto analysis (no Core Image), see O2.
   Remaining: A1 (phone timing, O1 notice), A3, A4 residual, A5, A7–A12. Estimate unchanged at 13–22 d: A4 and A6 took
   about their planned time; A4's residual and A5's validation are not yet sized.
+- 2026-10-06 (night): **A3 implemented** (23f97e3, Android Auto; eval 20/3/1, originals up to ΔE 7.9; UI and device
+  runs pending). **A5 validated on a fresh set: not solved** (9/12 subjects, 3/82 false; labels before the run).
+  **M4 fixed** (1ef2c0d, iOS preset name line breaks). **A7 blocked** on Lightroom exports (owner). A11: forced storage
+  full not reachable on the emulator. Matting refinement confirmed once per photo (separation only, cached by pixels).
+  Decisions sheet: `owner-decisions.md`. Remaining: A1 (phone, D1), A4 residual, A5, A7, A8–A12, M2 (match). Estimate
+  unchanged at 13–22 d; A5 now needs a new approach (not sized) and A7 waits for the exports.

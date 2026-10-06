@@ -69,7 +69,7 @@ launch line is still missing after the owner opens the app, logging is diagnosed
     drag frame. Unverified on the phone (the trace now records "first drag frame visible after N ms").
 
 ### Owner decisions (iOS-specific)
-12. M2 iPad status-bar offset; M4 SF text metrics; P1 Portrait ring proportion; slice-1 #1 More pages inside the sheet.
+12. See `owner-decisions.md` (M2 iPad top bar; M4 preset-name wrapping fixed in 1ef2c0d).
 
 ## Android
 
@@ -78,8 +78,12 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    foreground-colour estimate. One bounded rule was tested on the recorded stages (2026-10-06): skip the estimate where
    it had to be clipped. `portrait_medium_02` dark: teal 52,733 → 15,211 px, but red excess 1.3 → 7.6 (the red fringe
    returns); not adopted.
-2. **Object cut-out (U²-Netp):** halo reduced, not fixed; the no-subject rule fails held-out photos (4/9 and 10/29).
-   Experimental, behind the vision gate.
+2. **Object cut-out (U²-Netp, in 1.0 scope):** halo reduced, not fixed. **No-subject rule not solved.** Area alone fails
+   (held-out 4/9, independent 10/29). Area ≥ 2 % plus a depth step ≥ 0.1 along the mask edge (threshold read off those
+   sets) on a **fresh labelled set** (105 PD12M photos, labels committed before the run, 3eed7b8;
+   `work/u2netp-fresh/results.json`): subjects found 9/12 (missed: cars, a museum display case, potted plants), false
+   subjects 3/82 (church interior, chandelier room, car seat); area alone 11/12 and 26/82. Missing a quarter of real
+   subjects is not shippable. Small subjects: both found, but only 2 existed in the pool. Needs the depth model (gated).
 3. Portrait on the bar photo (`pt-no-usable-face`): one dim ring sits beside the middle person's head, over the shelf,
    instead of on the person (emulator, real models, 2026-10-06, `experiments/android-vision/work/bar-ring/`, on disk, not tracked). The
    approved notice is shown. Cause not established (face-box placement). Low impact.
@@ -108,7 +112,15 @@ Closed as stale (evidence re-checked 2026-10-06):
    swipes the app away is not recorded.
 
 ### Unfinished features
-6. **Auto** (D1), as iOS.
+6. **Auto (implemented 23f97e3):** Lightly's own analysis with the iOS guards (vibrance, cast balance at most half the
+   measured cast, exposure gain at most +1 EV; no tone curve), baked into the stage-1 LUT, stored for restore, works in
+   Release. Controlled evaluation (iOS protocol, synthetic, development evidence only; `experiments/auto-android/eval.txt`):
+   24 cases, 20 improved / 3 unchanged / 1 worse; **originals moved ΔE 0.5–7.9 (portrait_deep_01 7.9, backlit_01 5.8,
+   portrait_deep_03 5.6: more than iOS's 0–4.3)**. Not run on the emulator UI or a device yet.
+   Saved-edit portability: recipes record Auto by model id; neither app has a path that moves a saved edit to another
+   platform or device in 1.0, so nothing was built. If transfer is ever in scope, storing the resolved Auto LUT (33³, or
+   the correction's parameters for the same engine) in the recipe reproduces an applied Auto exactly on either
+   platform, because both apply the Auto LUT at stage 1 by the same contract.
 7. **Gated models**, as iOS, plus U²-Netp object cut-out (experimental).
 8. Grain (M9) and vignette (G2) calibration, as iOS.
 
@@ -117,7 +129,10 @@ Closed as stale (evidence re-checked 2026-10-06):
    (`ACCESS_MEDIA_LOCATION`).
 
 ## Unverified on both platforms (carried over from the checklist, 2026-10-05)
-- Storage full and export failed: implemented as alerts, never run under a forced condition.
+- Storage full and export failed: implemented as alerts. Forced on the Android emulator (2026-10-06,
+  `work/forced/storage_full.sh`): with 20 MB and then ~1 MB free after the photo was open, Save copy still completed
+  (other processes hit ENOSPC; the system kept room for the media write), so the alert path could not be triggered
+  there; it stays unit-tested only.
 - Lost photo access and model-unavailable mid-session: unit-tested only.
 - Large text: one cell per platform; every other cell unverified. Screen readers: no end-to-end pass. 44 pt targets not
   measured across layouts.
@@ -131,7 +146,7 @@ Built in Release: iOS Simulator Release build (no `.mlmodelc` in the bundle; bot
 | Feature | iOS Release | Android Release |
 |---|---|---|
 | Develop (presets, ruler, Amount, Favourites) | works | works |
-| Auto | works (Core Image auto, reduced set: see Auto) | **unavailable** (no model; approved unavailable state) |
+| Auto | works (Core Image auto, reduced set: see Auto) | works (Lightly's own analysis, 23f97e3; see Android Auto) |
 | Background › Change background | works (Vision) | **fails for every photo** (no segmenter: approved failure state) |
 | Background › Focus & Blur | **only photos with embedded depth**; others: depth failure state | **only photos with embedded depth** |
 | Portrait | works (Vision) | **hidden** (no person detection) |
