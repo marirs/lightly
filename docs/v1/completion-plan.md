@@ -160,3 +160,11 @@ hardware rounds as D-1/D-2 arrive → A9/A12 after D-3.
   77–112 MB used after GC (was 186–191). Closed: none yet (A1 needs the phone measurement, D-1, and O1).
   Remaining: A1, A3–A12. Estimate unchanged at 13–22 d: A1 steps 1–4 took less than planned, but the frame-rate
   target cannot be confirmed without D-1, which keeps the conditional GPU path (+3–5 d) open.
+- 2026-10-06 (later): **A6 closed** (87c8199: dim rings from the person matte; bar photo shows two rings on the middle
+  and right-hand heads, as the prototype). **A4 fixed except a residual** (663d0f6: closed-form matting of MODNet's
+  matte; emulator Save copies: haze about halved, red gone, light-background teal 2,355 → 322 px; a reduced dark-teal
+  cast remains on pm02's left curls over the dark replacement; device time pending). **A5 diagnosed** (f491b45: depth
+  step along the mask boundary leaves 2 of 37 scenes misread vs 14 by area; not validated on new photos; needs the
+  depth model; decision O5). A3 established: Android needs its own Auto analysis (no Core Image), see O2.
+  Remaining: A1 (phone timing, O1 notice), A3, A4 residual, A5, A7–A12. Estimate unchanged at 13–22 d: A4 and A6 took
+  about their planned time; A4's residual and A5's validation are not yet sized.
