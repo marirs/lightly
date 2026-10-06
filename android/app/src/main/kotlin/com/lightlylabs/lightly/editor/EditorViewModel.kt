@@ -237,7 +237,7 @@ class EditorViewModel(
             val library = env.library.await()
             if (!isCurrent(generation)) return@launch
             // Faces, landmarks and people, once per photo, off the main thread (the detector dispatches).
-            val people = env.personDetector.analyse(loaded.analysis)
+            val people = env.personDetector.analyse(loaded.analysis)?.let { found -> withPersonHeads(found, loaded) }
             if (!isCurrent(generation)) return@launch
             portraitSession.setPeople(people)
             backgroundSession.setFaces(people?.faces.orEmpty())
@@ -549,6 +549,24 @@ class EditorViewModel(
         if (edited.tools.portrait == session.current.tools.portrait) return
         commit(session.commit { s -> s.copy(tools = s.tools.copy(portrait = edited.tools.portrait)) }, state.value.auto)
         ensurePersonMatte(edited.tools.portrait)
+    }
+
+    /**
+     * People found but no usable face: the dim rings go on the heads in the person matte ([com.lightlylabs.lightly.vision.PersonHeads]).
+     * The matte is made once per photo here, only in that case; without a segmenter (or if it fails, logged) the rings
+     * keep the detectors' boxes.
+     */
+    private suspend fun withPersonHeads(people: com.lightlylabs.lightly.vision.PeopleAnalysis, loaded: LoadedPhoto): com.lightlylabs.lightly.vision.PeopleAnalysis {
+        if (!people.hasPerson || people.usableFaces.isNotEmpty()) return people
+        val matte = try {
+            env.personMatte(loaded.analysis)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            runCatching { android.util.Log.w("LightlyPortrait", "person matte for the dim rings failed", failure) }
+            null
+        } ?: return people
+        return people.copy(heads = com.lightlylabs.lightly.vision.PersonHeads.from(matte))
     }
 
     /** Hair & Beard limits itself to the person matte: computed once, the first time it is needed (iOS `ensurePersonMatte`). */

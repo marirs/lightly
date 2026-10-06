@@ -138,8 +138,13 @@ fun PortraitMarks(vm: EditorViewModel, ui: EditorUiState) {
  * detection elsewhere in the photo (the lamp in the bar photo, 2026-10-05) gets no ring. Same rule as iOS
  * `PeopleAnalysis.unusableMarks`.
  */
-internal fun unusableMarks(people: com.lightlylabs.lightly.vision.PeopleAnalysis): List<NormalisedRect> =
-    if (people.usableFaces.isNotEmpty()) emptyList() else people.faces.map(DetectedFace::box).ifEmpty { people.people }
+internal fun unusableMarks(people: com.lightlylabs.lightly.vision.PeopleAnalysis): List<NormalisedRect> = when {
+    people.usableFaces.isNotEmpty() -> emptyList()
+    // Heads from the person matte when it found people (2026-10-06): on the bar photo the detectors' boxes lay on the
+    // bottles and the disco ball, while the matte holds the two people the prototype rings (PersonHeads).
+    people.heads.isNotEmpty() -> people.heads
+    else -> people.faces.map(DetectedFace::box).ifEmpty { people.people }
+}
 
 /** A rect on the displayed frame, normalised, that may extend past it (rings are drawn, never stored). */
 data class FrameRect(val x: Double, val y: Double, val width: Double, val height: Double)

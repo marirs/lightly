@@ -213,6 +213,11 @@ data class PeopleAnalysis(
     val faces: List<DetectedFace>,
     /** People without a usable face (the approved dim rings), normalised. */
     val people: List<NormalisedRect>,
+    /**
+     * Heads found in the person matte ([PersonHeads]) when no face is usable; when present they are the dim rings.
+     * Empty when every face is usable or no person matte was made.
+     */
+    val heads: List<NormalisedRect> = emptyList(),
 ) {
     val hasPerson get() = faces.isNotEmpty() || people.isNotEmpty()
     /** Left to right whatever order they were given in ("Face 1, 2, 3" read as the photo does). */
