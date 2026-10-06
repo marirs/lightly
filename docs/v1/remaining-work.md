@@ -4,7 +4,7 @@ The one list of what stands between the current builds and release. Items leave 
 nothing here is "done". Row-level status lives in `implementation-checklist.md`; this list replaces its former
 "What remains unverified" section.
 
-Build on the review devices: **0c45e50, 1.0.0 (261005066)** (review simulator, review emulator, iPhone 11 Pro Max).
+Not for submission. No limitation listed here is an approved scope cut.
 1.1 (not 1.0): Eraser.
 
 ## iOS
@@ -14,8 +14,10 @@ Build on the review devices: **0c45e50, 1.0.0 (261005066)** (review simulator, r
    live iPhone matte: the instance mask is a smooth blob at curly hair, so wall between the curls is "subject" (75 % of
    the red pixels: matte ≥ 0.98, passed through unchanged). Fix 21bf473: Vision person segmentation `.accurate`
    refines the matte in the hair zone around faces. App saved copies (Simulator, live instance matte, macOS person
-   matte): red 6,120 → 48 (dark), 5,080 → 26 (light); regression portrait unchanged. Residual: faint dark-teal tint on
-   a few wisps on dark backgrounds. Unverified on the phone (`.accurate` result and time).
+   matte): red 6,120 → 48 (dark), 5,080 → 26 (light); regression portrait unchanged. Promising **fixture** evidence,
+   not a device fix: unverified on the phone (live instance + person segmentation, light/dark replacements, hair, ears,
+   held objects). Residual: faint dark-teal tint on a few wisps on dark backgrounds. DEBUG builds now keep the three
+   mattes and the saved bytes in Documents/evidence (`scripts/iphone_evidence.sh`).
    (`experiments/depth/results/portrait-edges-2026-10-06/`)
 
 ### Unverified on the physical device (iPhone 11 Pro Max)
@@ -41,21 +43,28 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    **User force-quit** (swiped away in the app switcher): the session is discarded by design, as the platform does;
    whether to keep it is owner question W9.
 
-### Unfinished features and the submission build
-7. **Auto: Core Image auto enhancement** (owner approval 2026-10-06, c939a8d): implemented and Simulator-tested.
-   Findings on the approved photos (`experiments/auto-ci/README.md`): warmer skin (visible orange shift on one
-   portrait), more highlight clipping on the sunset, already-good landscapes darkened. Device check pending. Not the
-   Photos algorithm, not a trained model.
-8. **Release configuration (checked 2026-10-06, Release Simulator build):** no ML model is bundled (depth and LaMa gates
-   `NO`, counsel sign-off pending, legal-proposals §3.5). In the submission build Focus & Blur works only on photos
-   with embedded depth (iPhone Portrait mode) and shows the depth-failure state otherwise; Remove always fails.
-   Change background, Portrait (Vision) and Auto (Core Image) work. A Debug build hides none of this only if tested in
-   Release; the review builds are Debug.
-9. Grain (M9) and vignette (G2) calibration: needs Lightroom references.
+### Features: technical readiness vs distribution approval
+7. **Auto (Core Image auto enhancement):** technically implemented; quality guarded (83b4e49). Per-filter causes of the
+   earlier regressions found (face balance → redder skin; tone curve → clipping and darkened good photos; tonal pair →
+   relit low-key portrait); image-dependent guards remove each on the approved photos (`experiments/auto-ci/README.md`,
+   Simulator test on eight photos). Highlight/shadow is now applied (per-pixel at Radius 0, exact in the LUT). Not
+   complete: unverified on the phone; on these already well-made photos the guarded result is mostly a light touch.
+8. **Focus & Blur:** technically ready with the depth model (Debug builds). **Distribution blocked**: the depth model's
+   release gate (training-data sign-off, legal-proposals §3.5). Without it, the Release build blurs only photos with
+   embedded depth and shows the depth-failure state otherwise. That reduced behaviour is **not approved** and must not
+   ship as if it were the feature.
+9. **Remove:** technically ready with LaMa (Debug builds). **Distribution blocked**: LaMa's release gate (Places2
+   sign-off). In the Release build Remove always fails: a **release blocker**, not a finished feature. Eraser (1.1) does
+   not change 1.0's Remove scope.
+10. **Release build (checked 2026-10-06):** no ML model bundled (both gates `NO`); Change background, Portrait (Vision)
+    and Auto (Core Image) work. Prepared and ready to flip when sign-off arrives: the bundling scripts
+    (`ios/Tools/bundle_depth_model.sh`, `bundle_remove_model.sh`, pinned hashes) and the Info.plist gates. Not
+    submittable while 8 and 9 stand: a submission must not contain knowingly non-functional controls.
+11. **Live preset preview:** fixed on both platforms (drag frames on a reduced base with a coarse LUT; latest-wins with
+    forward-only publication; a drag frame no longer waits behind a settled render). Simulator: 57–144 ms to the first
+    drag frame. Unverified on the phone (the trace now records "first drag frame visible after N ms").
 
 ### Owner decisions (iOS-specific)
-10. Whether to submit with Focus & Blur limited to embedded depth and Remove unavailable, or wait for sign-off.
-11. Auto findings above: accept Core Image's results as they are, or not ship Auto on by default.
 12. M2 iPad status-bar offset; M4 SF text metrics; P1 Portrait ring proportion; slice-1 #1 More pages inside the sheet.
 
 ## Android
@@ -87,7 +96,10 @@ Closed as stale (evidence re-checked 2026-10-06):
    ruler, the LiteRT vision models (faces, landmarks, pose, MODNet, U²-Netp, depth) that have never run on hardware,
    tiled Save copy with memory caps, session restore, and the crop-handle gesture exclusion. Renderer still CPU (the GL
    renderer is not wired), so the earlier timing caveat stands.
-5. Emulator-verified 2026-10-05: ruler header/cancel/Undo/Redo, free crop (edges match the saved file), Background
+5. Live preset preview (spare emulator, real touches, 2026-10-06): drag during the initial full render → first drag frame
+   after 1,385 ms (was ~23 s); slow drag → 23–208 ms, one frame per stop; continuous fast scrub with reversal →
+   42–58 ms, frames every 30–85 ms; release → fast frame after 19–136 ms; Undo → 57 ms; names coherent (LightlyRuler log).
+   Emulator-verified 2026-10-05: ruler header/cancel/Undo/Redo, free crop (edges match the saved file), Background
    Cancel → reopen → retry. Restore after process death: tested on the emulator (slice 4/5); behaviour after the user
    swipes the app away is not recorded.
 
@@ -117,3 +129,7 @@ Closed as stale (evidence re-checked 2026-10-06):
 4. W1 watermark/blur sizing policy; S1 blur strength; S3 default focus; E1 straighten zoom; E2/Q1 perspective;
    P2 multi-face photo; F1 substitute Film preset; Selective Colour overlay; ruler fine-mode timing; About version scheme.
 5. No store submission until the owner says so.
+
+## Test infrastructure
+- iOS UI test `testPickedPhotoDevelopsByItselfWithCoreImageAuto` passes alone but fails after a test that leaves an
+  edited session (the relaunch restores into the editor instead of Welcome). Needs session clean-up between UI tests.
