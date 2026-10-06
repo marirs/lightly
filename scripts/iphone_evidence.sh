@@ -7,8 +7,12 @@ set -u
 D=4C50E425-9BEA-58DB-9D5E-2BF46A9F0A6C; APP=com.lightlylabs.lightly
 EXPECTED=${1:-$(scripts/version.sh | awk '{print $2}')}
 OUT=~/.codex/artifacts/lightly/v1/iphone-evidence/$(date +%Y%m%d-%H%M%S); mkdir -p "$OUT"
-installed=$(xcrun devicectl device info apps --device $D --bundle-id $APP 2>/dev/null | awk '/com.lightlylabs.lightly/ {print $NF}')
+# The JSON output, not the table: the table's columns changed and the build parsed as "unknown" (2026-10-06).
+xcrun devicectl device info apps --device $D --bundle-id $APP --json-output "$OUT/apps.json" >/dev/null 2>&1
+installed=$(python3 -c "import json,sys; a=json.load(open(sys.argv[1]))['result']['apps']; print(a[0]['bundleVersion'] if a else '')" "$OUT/apps.json" 2>/dev/null)
 echo "installed build: ${installed:-unknown} (expected $EXPECTED)"
+# Size and modification time of the trace on the phone: an empty or old trace shows that nothing wrote to it since.
+xcrun devicectl device info files --device $D --domain-type appDataContainer --domain-identifier $APP --subdirectory Documents 2>/dev/null | grep "save-trace.log" | sed 's/^/on device: /'
 xcrun devicectl device copy from --device $D --domain-type appDataContainer --domain-identifier $APP --source Documents/save-trace.log --destination "$OUT/save-trace.log" >/dev/null 2>&1 \
   || { echo "trace: could not copy Documents/save-trace.log (device not reachable, or the app has never written it)"; exit 1; }
 lines=$(wc -l < "$OUT/save-trace.log" | tr -d ' ')
