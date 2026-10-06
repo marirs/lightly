@@ -232,7 +232,7 @@ final class EditorFlowUITests: XCTestCase {
         let applied = label("develop.name")
         saveScreenshot("pass-2-landscape-applied")
         element("develop.category.portrait").tap()
-        XCTAssertTrue(waitFor { self.label("develop.context") == "Applied from Landscape" })
+        XCTAssertTrue(waitFor { self.label("develop.context").hasPrefix("Applied from Landscape") })  // "· N / M" since ab0a18b (owner amendment)
         XCTAssertEqual(label("develop.name"), applied, "browsing keeps naming the applied preset")
         saveScreenshot("pass-3-browsing-portrait")
         element("tool.background").tap()

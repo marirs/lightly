@@ -164,13 +164,13 @@ struct DevelopPanelView: View {
             .accessibilityAddTraits(model.isPresetAtStopFavourite ? .isSelected : [])
             .accessibilityIdentifier("develop.star")
 
-            Text(model.displayedName)
-                .font(.system(size: ApprovedType.scaledSize(17, for: dynamicTypeSize), weight: .semibold))
-                .tracking(-0.01 * ApprovedType.scaledSize(17, for: dynamicTypeSize))
-                .foregroundStyle(c(ApprovedColor.ink))
+            // The reference's line breaks (M4): SwiftUI `Text` pushed "Winter" down so the name did not end on one
+            // word ("Landscape 15 - / Winter Wonderland" where the approved screen has "Landscape 15 - Winter /
+            // Wonderland"); ApprovedParagraph breaks at the last word that fits, as the notes do (858a06f).
+            ApprovedParagraph(text: model.displayedName, pointSize: 17, weight: .semibold, colour: c(ApprovedColor.ink),
+                              trackingEm: -0.01, naturalLineHeight: true, identifier: "develop.name")
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityIdentifier("develop.name")
 
             Text(model.positionText)
                 .approvedText(13)

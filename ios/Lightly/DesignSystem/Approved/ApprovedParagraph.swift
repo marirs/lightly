@@ -14,6 +14,12 @@ struct ApprovedParagraph: View {
     let pointSize: CGFloat
     var weight: Font.Weight = .regular
     let colour: Color
+    /// Letter spacing in em (the preset name: −0.01 em).
+    var trackingEm: CGFloat = 0
+    /// The font's own line height instead of the approved 1.35 line box (the preset name, which `Text` drew so).
+    var naturalLineHeight = false
+    /// Set on the drawing view itself, so UI tests find it by identifier.
+    var identifier: String?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -21,29 +27,35 @@ struct ApprovedParagraph: View {
         let size = ApprovedType.scaledSize(pointSize, for: dynamicTypeSize)
         let font = ApprovedType.uiFont(size: size, weight: weight)
         // As `ApprovedTextStyle`: the extra leading goes between lines and half above and below.
-        let extraLeading = max(0, size * ApprovedType.lineHeightMultiple - font.lineHeight)
-        ReferenceLineBreakingLabel(text: text, font: font, colour: UIColor(colour), lineSpacing: extraLeading)
+        let extraLeading = naturalLineHeight ? 0 : max(0, size * ApprovedType.lineHeightMultiple - font.lineHeight)
+        ReferenceLineBreakingLabel(text: text, font: font, colour: UIColor(colour), lineSpacing: extraLeading, kern: trackingEm * size, identifier: identifier)
             .padding(.vertical, extraLeading / 2)
     }
 }
 
-private struct ReferenceLineBreakingLabel: UIViewRepresentable {
+struct ReferenceLineBreakingLabel: UIViewRepresentable {
     let text: String
     let font: UIFont
     let colour: UIColor
     let lineSpacing: CGFloat
+    var kern: CGFloat = 0
+    var identifier: String?
 
     func makeUIView(context: Context) -> ParagraphDrawingView { ParagraphDrawingView() }
 
     func updateUIView(_ view: ParagraphDrawingView, context: Context) {
+        view.attributedText = Self.referenceText(text, font: font, colour: colour, lineSpacing: lineSpacing, kern: kern)
+        view.accessibilityIdentifier = identifier
+    }
+
+    /// The drawn text: word wrapping with no line-break strategy (the point of this view: no orphan push-out, nor any
+    /// other adjustment), so each line breaks at the last word that fits, as the reference does. Shared with the tests.
+    static func referenceText(_ text: String, font: UIFont, colour: UIColor, lineSpacing: CGFloat, kern: CGFloat) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = lineSpacing
         paragraph.lineBreakMode = .byWordWrapping
-        // The point of this view: no orphan push-out (nor any other strategy adjustment).
         paragraph.lineBreakStrategy = []
-        view.attributedText = NSAttributedString(string: text, attributes: [
-            .font: font, .foregroundColor: colour, .paragraphStyle: paragraph,
-        ])
+        return NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: colour, .paragraphStyle: paragraph, .kern: kern])
     }
 
     /// The text's own fractional layout height, as SwiftUI `Text` reports it (a `UILabel` rounds
