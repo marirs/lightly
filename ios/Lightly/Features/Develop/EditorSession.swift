@@ -282,6 +282,11 @@ final class EditorSession {
     private func open() async {
         let image = photo.image
         let longEdge = previewLongEdge
+        // The source as the app received it (the picker's bytes): the baseline an "original unchanged" check compares.
+        let original = photo.originalData
+        Task.detached(priority: .utility) {
+            DiagnosticTrace.note("source: \(image.width)x\(image.height), \(original.count) bytes sha256 \(EditorSession.sha256(original))")
+        }
         let prepared = await Task.detached(priority: .userInitiated) { () -> (pixels: [UInt8], width: Int, height: Int, image: CGImage)? in
             guard let preview = AnalysisProxy.downscaled(image, maximumLongEdge: longEdge),
                   let pixels = try? MetalLUTRenderer.rgba8Bytes(of: preview),
@@ -567,6 +572,13 @@ final class EditorSession {
                     let refined = await Task.detached(priority: .userInitiated) {
                         SubjectMatte.refinedAtHair(instance: instance.matte, person: person, faces: faces)
                     }.value
+                    #if DEBUG
+                    // Device check of the hair refinement: the three mattes behind this Change background.
+                    let stamp = DiagnosticTrace.stamp
+                    DiagnosticTrace.evidence(matte: instance.matte, named: "matte-\(stamp)-instance.png")
+                    DiagnosticTrace.evidence(matte: person, named: "matte-\(stamp)-person.png")
+                    DiagnosticTrace.evidence(matte: refined, named: "matte-\(stamp)-refined.png")
+                    #endif
                     matte = SubjectMatte(matte: refined, model: SubjectMatte.hairRefinedModel)
                 }
                 try Task.checkCancellation()
@@ -696,6 +708,9 @@ final class EditorSession {
             background.focus.depth.map = Self.derivedRef(disparity.disparity, model: disparity.model)
         }
     }
+
+    /// Hex SHA-256 (trace identities of the source and saved bytes; never their content).
+    nonisolated static func sha256(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
 
     private static func derivedRef(_ image: FloatImage, model: EditRecipe.ModelRef) -> EditRecipe.DerivedRef {
         let bytes = image.data.withUnsafeBufferPointer { Data(buffer: $0) }
@@ -1461,7 +1476,11 @@ final class EditorSession {
                 // Cancelled before writing: nothing is written, so there is never a duplicate.
                 try Task.checkCancellation()
                 try await writer.save(data, fileExtension: settings.format.fileExtension)
-                DiagnosticTrace.note("save written")
+                DiagnosticTrace.note("save written: \(data.count) bytes sha256 \(Self.sha256(data))")
+                #if DEBUG
+                // The exact bytes handed to Photos, for the device check (Photos' own copy cannot be read from the Mac).
+                DiagnosticTrace.evidence(data, named: "save-\(DiagnosticTrace.stamp).\(settings.format.fileExtension)")
+                #endif
                 self?.finishSave(.saved(data))
             } catch is CancellationError {
                 DiagnosticTrace.note("save cancelled")
