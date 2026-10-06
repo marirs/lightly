@@ -193,6 +193,9 @@ final class EditorSession {
     /// The preview base at a quarter of the pixels (half the long edge: 800 on a phone), for ruler-drag frames only.
     @ObservationIgnored private var dragBase: (pixels: [UInt8], width: Int, height: Int)?
     @ObservationIgnored private var prefetchTask: Task<Void, Never>?
+    /// When the current ruler drag first asked for a frame (time to the first visible drag frame, traced).
+    @ObservationIgnored private var dragStartedAt: ContinuousClock.Instant? { didSet { if dragStartedAt == nil { firstDragFrameTraced = false } } }
+    @ObservationIgnored private var firstDragFrameTraced = false
     #if DEBUG
     /// Every frame put on screen, in order: (request generation, preset id, drag frame). Tests of the live ruler.
     @ObservationIgnored private(set) var debugPublished: [(generation: UInt64, lookID: String?, dragFrame: Bool)] = []
@@ -416,8 +419,12 @@ final class EditorSession {
 
     /// Shows a preset (or none) without committing it: the ruler while dragging.
     func previewLook(_ preset: PresetPack.Preset?) {
+        if dragStartedAt == nil { dragStartedAt = .now }
         render(recipeWithLook(preset), final: false, dragFrame: true)
     }
+
+    /// The ruler drag ended or was cancelled: the next drag measures its first frame again.
+    func endDragMeasurement() { dragStartedAt = nil }
 
     /// Bakes the drag LUTs of the stops next to the needle off the main actor, so the next crossed stop does not
     /// wait for its bake. Latest call wins; already-baked presets are skipped.
@@ -1165,7 +1172,7 @@ final class EditorSession {
     private func makeScheduler() {
         guard let base = previewBase, let renderer = library.renderer, let cache = library.cache else { return }
         let dragBase = dragBase
-        scheduler = LatestWinsRenderScheduler { job in
+        scheduler = LatestWinsRenderScheduler(supersedesRunning: { new, running in new.dragFrame && !running.dragFrame }) { job in
             let source = job.dragFrame ? (dragBase ?? base) : base
             let frame = try Self.renderPixels(job, base: source.pixels, width: source.width, height: source.height,
                                               renderer: renderer, cache: cache)
@@ -1378,6 +1385,10 @@ final class EditorSession {
         guard job.generation >= publishedGeneration else { return }
         if job.generation == publishedGeneration, publishedWasFull, !job.includePixelStages { return }
         displayedImage = image
+        if job.dragFrame, let started = dragStartedAt, firstDragFrameTraced == false {
+            firstDragFrameTraced = true
+            DiagnosticTrace.note("ruler: first drag frame visible after \((ContinuousClock.now - started).components.attoseconds / 1_000_000_000_000_000 + (ContinuousClock.now - started).components.seconds * 1000) ms")
+        }
         #if DEBUG
         debugPublished.append((job.generation, job.look?.id, job.dragFrame))
         #endif

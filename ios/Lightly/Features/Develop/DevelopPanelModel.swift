@@ -155,6 +155,7 @@ final class DevelopPanelModel {
         let clamped = min(max(stop, 0), stopCount)
         let startedAt = dragStartStop
         dragStartStop = nil
+        session.endDragMeasurement()
         draggingStop = nil
         isFine = false
         // Released where the drag started: a cancel. Without this, browsing another category (whose ruler rests

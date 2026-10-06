@@ -53,7 +53,10 @@ actor LatestWinsRenderScheduler<Request: Sendable> {
 
     private let renderWork: RenderWork
 
-    private var inFlight: (revision: UInt64, task: Task<Void, Never>)?
+    private var inFlight: (revision: UInt64, request: Request, task: Task<Void, Never>)?
+    /// True when a newly accepted request should stop the running one (2026-10-06): a drag frame stops a settled full
+    /// render, whose result is older anyway, so a slow full render cannot hold up the frames of a moving control.
+    private let supersedesRunning: (@Sendable (_ new: Request, _ running: Request) -> Bool)?
     private var pending: Job?
     private var newestAcceptedRevision: UInt64 = 0
     private var isClosed = false
@@ -64,8 +67,9 @@ actor LatestWinsRenderScheduler<Request: Sendable> {
     /// Renders actually started, as opposed to requests received.
     private(set) var startedRenderCount = 0
 
-    init(render: @escaping RenderWork) {
+    init(supersedesRunning: (@Sendable (_ new: Request, _ running: Request) -> Bool)? = nil, render: @escaping RenderWork) {
         self.renderWork = render
+        self.supersedesRunning = supersedesRunning
     }
 
     /// Requests a render and waits for its outcome.
@@ -124,13 +128,15 @@ actor LatestWinsRenderScheduler<Request: Sendable> {
         } else {
             pending?.continuation.resume(returning: .superseded)
             pending = job
+            // Cooperative: the render checks for cancellation between stages and then resolves as cancelled.
+            if let running = inFlight, supersedesRunning?(job.request, running.request) == true { running.task.cancel() }
         }
         recordOutstandingCount()
     }
 
     private func start(_ job: Job) {
         startedRenderCount += 1
-        inFlight = (job.revision, Task { await self.execute(job) })
+        inFlight = (job.revision, job.request, Task { await self.execute(job) })
     }
 
     private func execute(_ job: Job) async {

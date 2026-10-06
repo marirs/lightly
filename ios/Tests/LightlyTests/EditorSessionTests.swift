@@ -575,4 +575,32 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertNil(session.appliedPreset, "Undo restores the previous edit")
         XCTAssertEqual(session.history.count, steps + 1)
     }
+
+    /// Starvation (2026-10-06): a drag that starts while a settled full render runs gets its frame without waiting for
+    /// that render (the drag frame cancels it), and nothing older replaces it.
+    func testADragDuringASettledRenderIsNotHeldUp() async throws {
+        let photo = try await EditorTestSupport.photo(width: 2_400, height: 1_600)
+        let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 1_600)
+        let model = panel(session)
+        let category = try XCTUnwrap(pack.categories.max { $0.presets.count < $1.presets.count })
+        model.selectCategory(category.id)
+        await session.settleRendering()
+        // Commit a preset: a fast frame, then the full frame with pixel stages (the slow settled render).
+        model.dragChanged(to: 2); model.dragEnded(at: 2)
+        let before = session.debugPublished.count
+        let start = ContinuousClock.now
+        model.dragChanged(to: 3)
+        while !(session.debugPublished.last.map { $0.dragFrame && $0.lookID == category.presets[2].id } ?? false) {
+            try await Task.sleep(for: .milliseconds(5))
+            if ContinuousClock.now - start > .seconds(10) { XCTFail("no drag frame"); break }
+        }
+        let firstFrame = ContinuousClock.now - start
+        await session.settleRendering()
+        print("first drag frame during a settled render after \(firstFrame)")
+        let after = session.debugPublished[before...]
+        XCTAssertEqual(Array(after.map(\.generation)), after.map(\.generation).sorted(), "frames only move forward")
+        XCTAssertEqual(session.debugPublished.last?.lookID, category.presets[2].id)
+        model.dragEnded(at: 3)
+        await session.settleRendering()
+    }
 }
