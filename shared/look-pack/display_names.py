@@ -33,6 +33,8 @@ def clean(name: str, category: str) -> str:
     if m and m.group(1) == m.group(3): n = f'{m.group(2)} {m.group(3)}'
     n = re.sub(r'^(?:[A-Z]{0,3}\d+)\s+-\s+', '', n)
     n = re.sub(r'\(\s*' + re.escape(category) + r'\s*\)\s*', '', n, flags=re.I)
+    # Rules 2 and 3 together left a separator in front ("5 - (Portrait) - Glow" -> "- Glow"): drop it.
+    n = re.sub(r'^[\s\-\u2013\u00b7|]+', '', n)
     n = re.sub(r'\s+\|\s+', ' · ', n)
     n = re.sub(r'(?<=[A-Za-z])-(\d+)\b', r' \1', n)
     n = re.sub(r'\b0+(\d)', r'\1', n)
