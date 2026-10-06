@@ -101,6 +101,49 @@ protocol SceneAnalysing: Sendable {
     func disparity(for image: CGImage, originalData: Data) async throws -> DisparityMap
     /// Person segmentation (hair region for Portrait); nil when there is no person.
     func personMatte(for image: CGImage) async -> FloatImage?
+    /// Person segmentation at the quality that keeps hair detail (Change background's hair outline); nil when there
+    /// is no person or it cannot run.
+    func hairDetailMatte(for image: CGImage) async -> FloatImage?
+}
+
+extension SceneAnalysing {
+    func hairDetailMatte(for image: CGImage) async -> FloatImage? { nil }
+}
+
+extension SubjectMatte {
+    /// The instance mask refined at the hair (2026-10-06). Live iPhone evidence: the foreground-instance mask is a
+    /// smooth blob at curly hair, so wall seen between the curls is alpha 1 and keeps its colour after a replacement
+    /// (75 % of the red pixels left in the red-wall portrait had matte >= 0.98 and passed through unchanged). Vision's
+    /// person segmentation at `.accurate` keeps the hair detail. Around each face (the hair zone: 1.5 face widths to
+    /// either side, 1.5 face heights above, softened over a quarter face width) the matte is min(instance, person);
+    /// elsewhere the instance mask is unchanged, so objects a person holds stay cut out.
+    static let hairRefinedModel = EditRecipe.ModelRef(id: "vision-foreground-instance-mask+person-hair", version: "ios-17")
+
+    static func refinedAtHair(instance: FloatImage, person: FloatImage, faces: [EditRecipe.Rect]) -> FloatImage {
+        guard !faces.isEmpty else { return instance }
+        let p = person.width == instance.width && person.height == instance.height ? person : person.resized(width: instance.width, height: instance.height)
+        var out = instance
+        let w = Double(instance.width), h = Double(instance.height)
+        for y in 0..<instance.height {
+            let fy = (Double(y) + 0.5) / h
+            for x in 0..<instance.width {
+                let fx = (Double(x) + 0.5) / w
+                var weight = 0.0
+                for f in faces {
+                    let feather = max(f.width * 0.25, 1e-3)
+                    let left = f.x - 1.5 * f.width, right = f.x + 2.5 * f.width
+                    let top = f.y - 1.5 * f.height, bottom = f.y + 1.5 * f.height
+                    func ramp(_ d: Double) -> Double { min(max(d / feather, 0), 1) }
+                    weight = max(weight, ramp(fx - left) * ramp(right - fx) * ramp(fy - top) * ramp(bottom - fy))
+                }
+                guard weight > 0 else { continue }
+                let i = y * instance.width + x
+                let a = instance.data[i], refined = min(a, p.data[i])
+                out.data[i] = a - Float(weight) * (a - refined)
+            }
+        }
+        return out
+    }
 }
 
 /// Vision and Core ML on the device: nothing leaves the phone.
@@ -159,6 +202,20 @@ struct OnDeviceSceneAnalyser: SceneAnalysing {
     }
 
     // MARK: Person matte
+
+    func hairDetailMatte(for image: CGImage) async -> FloatImage? {
+        await Task.detached(priority: .userInitiated) {
+            #if DEBUG && targetEnvironment(simulator)
+            // The Simulator cannot run person segmentation reliably; DEBUG runs may stand in the macOS result.
+            if let fixture = DebugPersonMatteFixture.load(size: (image.width, image.height)) { return fixture }
+            #endif
+            let request = VNGeneratePersonSegmentationRequest()
+            request.qualityLevel = .accurate
+            let handler = VNImageRequestHandler(cgImage: image, options: [:])
+            guard (try? handler.perform([request])) != nil, let buffer = request.results?.first?.pixelBuffer else { return nil }
+            return Self.floatImage(from: buffer).resized(width: image.width, height: image.height)
+        }.value
+    }
 
     func personMatte(for image: CGImage) async -> FloatImage? {
         await Task.detached(priority: .utility) {
@@ -453,6 +510,22 @@ enum DebugSubjectMatteDump {
 #endif
 
 #if DEBUG && targetEnvironment(simulator)
+/// `--person-matte-fixture <file>` (DEBUG, Simulator only): Vision person segmentation (.accurate) computed on macOS
+/// for the photo being opened, 8-bit grey PNG.
+enum DebugPersonMatteFixture {
+    static func load(size: (Int, Int)) -> FloatImage? {
+        let arguments = DebugArguments.current
+        guard let flag = arguments.firstIndex(of: "--person-matte-fixture"), arguments.indices.contains(flag + 1),
+              let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: arguments[flag + 1]) as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        var bytes = [UInt8](repeating: 0, count: image.width * image.height)
+        guard let context = CGContext(data: &bytes, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width,
+                                      space: CGColorSpace(name: CGColorSpace.linearGray)!, bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return FloatImage(width: image.width, height: image.height, channels: 1, data: bytes.map { Float($0) / 255 }).resized(width: size.0, height: size.1)
+    }
+}
+
 /// `--subject-matte-fixture <file>` (DEBUG, Simulator only): a matte computed by
 /// `VNGenerateForegroundInstanceMaskRequest` on macOS for the photo being opened (`.png`, 8-bit
 /// grey), or `<name>.none` when that request found no subject. Used only when the request

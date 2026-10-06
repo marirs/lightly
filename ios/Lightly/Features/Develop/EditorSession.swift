@@ -510,11 +510,22 @@ final class EditorSession {
         guard let sceneAnalyser else { subjectState = .failed; return }
         subjectState = .separating
         let image = originalPreview
-        DiagnosticTrace.note("subject: matte started \(image.width)x\(image.height)")
+        let faces = people?.faces.map(\.box) ?? []
+        DiagnosticTrace.note("subject: matte started \(image.width)x\(image.height), faces \(faces.count)")
         subjectTask = Task { [weak self] in
             let started = ContinuousClock.now
             do {
-                let matte = try await Self.traced("subject matte", started) { try await sceneAnalyser.subjectMatte(for: image) }
+                var matte = try await Self.traced("subject matte", started) { try await sceneAnalyser.subjectMatte(for: image) }
+                try Task.checkCancellation()
+                // Hair detail: only for a photo with faces (see SubjectMatte.refinedAtHair).
+                if let instance = matte, !faces.isEmpty,
+                   let person = try await Self.traced("hair detail matte", started, { await sceneAnalyser.hairDetailMatte(for: image) }) {
+                    try Task.checkCancellation()
+                    let refined = await Task.detached(priority: .userInitiated) {
+                        SubjectMatte.refinedAtHair(instance: instance.matte, person: person, faces: faces)
+                    }.value
+                    matte = SubjectMatte(matte: refined, model: SubjectMatte.hairRefinedModel)
+                }
                 try Task.checkCancellation()
                 self?.finishSubjectMatte(matte)
             } catch {
