@@ -237,22 +237,7 @@ Every row applies to all supported layouts: phones and folded foldables (portrai
 | Layouts: hinge/posture aware, safe areas, gesture areas, all reference sizes | 6 | decision | decision | iOS iPad: content 8 pt lower = the iPadOS status bar (M2, owner decision; the separate "4 pt" offset was a measurement error, 2026-10-05); Android system-bar offset S1 (decision); most cells unverified |
 | Icon and preset-pack packaging verified before every install | 6 | verified | verified | Build-time checks on every assemble / release config (a993c4d) |
 
-## What remains unverified (2026-10-05)
+## What remains
 
-- **Recovery:**
-  - Storage full and export failed are implemented as alerts on both platforms. Neither has been run under a forced condition or captured.
-  - Lost photo access and model-unavailable mid-session: unit-tested only.
-  - iOS restore after a system kill: R2 fixed in c230f28 (the launch read UIApplication.openSessions, which was empty although the same scene reconnected); the force-quit path on a physical device is unverified.
-  - Android restore after process death: tested, including Remove patches.
-  - Device-level kill/restore with a 48 MP original: not run.
-- **Accessibility:**
-  - Large text: one cell per platform (iPhone 17 and Pixel 9 Pro, light), Edit/Effects/Border/Watermark only. Every other cell is unverified.
-  - VoiceOver and TalkBack: labels and values are unit-tested (iOS 980cac3, Android AccessibilityTest), but no end-to-end screen-reader pass on a device.
-  - Contrast: tested in code; 44 pt targets not measured across layouts.
-- **Export:**
-  - Saved files checked: Android slice 4/5 export scenarios, Background colour replacement and objects (2026-10-05); iOS colour replacement (simulator).
-  - Not checked: metadata combinations on Android saved files after slice 1; memory and time at 48 MP on dev devices; the iOS saved copy from the iPhone (pending reconnection).
-- **Sizing:**
-  - The watermark and Focus & Blur sizes use a provisional display-relative approach (W1), so the saved size depends on the editing device (iPhone 17 vs iPad 13: 162 vs 73 px).
-  - Owner sizing policy pending; proposal: store the resolved fraction in the recipe.
-  - Tablet and Fold cells of the sized screens: one focused check on iOS (iPad 13 landscape) only.
+Moved to the single remaining-work list, `docs/v1/remaining-work.md` (per platform: defects, unverified device
+behaviour, unfinished features, owner decisions).
