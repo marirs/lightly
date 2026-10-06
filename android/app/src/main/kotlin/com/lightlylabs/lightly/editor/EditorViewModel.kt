@@ -1448,6 +1448,7 @@ class EditorViewModel(
         state.update { it.copy(overlay = EditorOverlay.SAVING) }
         scope.launch {
             scheduler?.cancelAllAndAwaitIdle()
+            backgroundSession.trimForExport()
             exportPreparationsStarted++
             val started = !userCancelledSave && isCurrent(current.generation) && startExport(current.loaded, library, committed)
             if (!started) {
@@ -1637,13 +1638,29 @@ class EditorViewModel(
             sessionId = "photo-$generation",
             renderer = PreviewRenderer<PreviewRequest, Rgba8Image> { request ->
                 env.beforePreviewRender()
+                // Stops a superseded render between Background stages and layers (CPU work does not see cancellation).
+                val renderJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+                val checkpoint = { if (renderJob?.isActive == false) throw kotlinx.coroutines.CancellationException("preview superseded") }
                 val library = env.library.await()
                 val edit = request.payload.state ?: return@PreviewRenderer display
                 val start = System.nanoTime()
                 val plan = library.planFor(edit, request.payload.globalOnly)
                 // iOS LayeredStages: Focus & Blur at 640 px while a slider moves, 1024 px settled.
                 val backgroundCap = if (request.payload.globalOnly) BackgroundSession.INTERACTIVE_CAP else BackgroundSession.PREVIEW_CAP
-                val backgroundPlan = backgroundSession.planFor(edit.tools.background, { library.planFor(edit) }, env.previewRenderer, maxBlurFraction(edit), backgroundCap)
+                val workingSizeFrame = request.payload.globalOnly && !portraitSession.isActive(edit.tools.portrait) && !EditMapping.usesEditOrEffects(edit)
+                // A ruler drag with Background active: the dragged Look on the cached Background composite (see dragBase).
+                if (workingSizeFrame && usesHeavyStages(edit)) {
+                    backgroundSession.dragBase(edit.tools.background, display, library.planFor(edit.copy(look = null), globalOnly = true), env.previewRenderer, maxBlurFraction(edit), checkpoint)
+                        ?.let { base ->
+                            val image = if (plan.isIdentity) base else env.previewRenderer.render(base, plan)
+                            val millis = (System.nanoTime() - start) / 1e6
+                            renderMillis += millis
+                            env.onPreviewRendered(millis, true)
+                            return@PreviewRenderer image
+                        }
+                }
+                val backgroundPlan = backgroundSession.planFor(edit.tools.background, { library.planFor(edit) }, env.previewRenderer, maxBlurFraction(edit), backgroundCap,
+                    replacementAtWorkingSize = workingSizeFrame)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
                     val compose = sourceStages(edit, library, backgroundCap)
@@ -1656,7 +1673,16 @@ class EditorViewModel(
                         val tDevelop = System.nanoTime()
                     val developed = if (plan.isIdentity) source else env.previewRenderer.render(source, plan)
                     backgroundSession.stageTiming?.invoke("develop ${source.width}x${source.height}=${"%.0f".format((System.nanoTime() - tDevelop) / 1e6)}ms globalOnly=${request.payload.globalOnly}")
-                    val composed = if (backgroundPlan == null) developed else backgroundSession.render(developed, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap)
+                    checkpoint()
+                    // A moving control's Background frame is composited at the working size and scaled up on screen
+                    // (2026-10-06): the full-size composite took 4.5-12 s per frame on the CPU emulator, so no frame
+                    // appeared during a drag. The settled frame after release is full size. (Portrait's regions are in
+                    // display coordinates, so a Portrait-active frame stays full size.)
+                    val backgroundFrame = if (workingSizeFrame) {
+                        val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(developed.width, developed.height, backgroundCap)
+                        if (ww == developed.width && wh == developed.height) developed else BackgroundSession.resize(developed, ww, wh)
+                    } else developed
+                    val composed = if (backgroundPlan == null) developed else backgroundSession.render(backgroundFrame, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap, checkpoint)
                     if (portraitActive) portraitSession.render(composed, edit.tools.portrait) else composed
                 }
                 val millis = (System.nanoTime() - start) / 1e6
@@ -1668,10 +1694,13 @@ class EditorViewModel(
             renderDispatcher = env.renderDispatcher,
             // A ruler drag or slider frame never waits behind a settled render (2026-10-06).
             interactiveDispatcher = if (debugSingleRenderLane) null else env.interactiveRenderDispatcher,
-            // Only light frames run beside a settled render: with Background or Portrait active a drag frame builds the
-            // same large planes as the settled one, and two at once exhausted the 192 MB heap on a 12 MP photo
-            // (spare emulator, 2026-10-06). Those frames keep the single lane (latest wins, as before).
-            isInteractive = { it.globalOnly && it.state?.let { edit -> !usesHeavyStages(edit) } == true },
+            // A moving control's frame runs beside a settled render. Background drag frames are composited at the
+            // working size (below), a fraction of a settled frame's planes; Portrait-active frames stay full size and
+            // keep the single lane (two full-size frames at once exhausted the 192 MB heap, 13.5 MP, 2026-10-06).
+            isInteractive = { it.globalOnly && it.state?.let { edit -> !portraitSession.isActive(edit.tools.portrait) } == true },
+            // A heavy frame of a moving control (Background active) stays on the single lane but stops a running
+            // settled render, so the photo still follows the ruler instead of changing only after release.
+            preempts = { it.globalOnly },
             onUnpublishedFailure = { request, error ->
                 runCatching { android.util.Log.w("LightlyDevelop", "superseded preview render failed (revision ${request.revision})", error) }
             },
@@ -1683,16 +1712,19 @@ class EditorViewModel(
                 // A failed render keeps the last preview; say why in logcat (tag LightlyDevelop), never silently.
                 (result?.outcome as? RenderOutcome.Failed)?.let { failed ->
                     runCatching { android.util.Log.w("LightlyDevelop", "preview render failed", failed.error) }
-                    // The photo would stay unblurred and unreplaced while the panel claims the effect: show the
-                    // approved Background failure state instead ("Couldn't separate the subject", Try again).
-                    val background = state.value.session?.current?.tools?.background
-                    if (result.sessionId == "photo-$photoGeneration" && background != null && (background.replacement != null || background.focus.blur > 0)) {
-                        state.update { it.copy(separation = SeparationState.Finished(depthAvailable = false, matteAvailable = false, noClearSubject = false)) }
+                    // A render failure is not a separation failure (owner, 2026-10-06): the separation state is left as
+                    // it is, the last good preview stays, and the render is requested once more. There is no approved
+                    // message for a preview that cannot render (open question for the owner).
+                    if (result.sessionId == "photo-$photoGeneration" && !previewRetried) {
+                        previewRetried = true
+                        state.value.session?.let { requestPreview(it.current, globalOnly = false) }
                     }
                 }
                 val rendered = (result?.outcome as? RenderOutcome.Rendered)?.value ?: return@collect
                 if (result.sessionId == "photo-$photoGeneration") {
+                    previewRetried = false
                     state.update { it.copy(preview = rendered) }
+                    prefetchDragBase()
                     publishedRevision = result.revision
                     // Time from the first movement of a ruler drag to the first frame of that drag on screen.
                     if (firstDragRevision > 0 && result.revision >= firstDragRevision) {
@@ -1745,6 +1777,22 @@ class EditorViewModel(
 
     // Debug benchmark bookkeeping (docs/v1/slice2-android.md › Performance).
     @Volatile internal var publishedRevision: Long = -1
+    /**
+     * After a frame lands, prepares the drag base for the current Background settings off the render threads, so the
+     * first ruler-drag frame does not wait for a Background render.
+     */
+    private fun prefetchDragBase() {
+        val edit = state.value.session?.current ?: return
+        if (!usesHeavyStages(edit) || portraitSession.isActive(edit.tools.portrait) || EditMapping.usesEditOrEffects(edit)) return
+        val display = photo?.loaded?.display ?: return
+        val library = library ?: return
+        if (dragBaseJob?.isActive == true) return
+        dragBaseJob = scope.launch(env.prefetchDispatcher) {
+            runCatching { backgroundSession.dragBase(edit.tools.background, display, library.planFor(edit.copy(look = null), globalOnly = true), env.previewRenderer, maxBlurFraction(edit)) }
+        }
+    }
+    private var dragBaseJob: Job? = null
+
     /** Background (replacement or blur) or Portrait: preview frames that build full-size planes. */
     private fun usesHeavyStages(edit: EditState): Boolean {
         val background = edit.tools.background
@@ -1757,6 +1805,9 @@ class EditorViewModel(
         val model = panelModel() ?: return
         runCatching { android.util.Log.i("LightlyRuler", "$event: ${model.name} | ${model.position} | ${model.context}") }
     }
+
+    /** One retry after a failed preview render (reset by the next successful frame). */
+    @Volatile private var previewRetried = false
 
     /** First-visible-frame measurement of a ruler drag (logcat LightlyDevelop). */
     @Volatile private var dragStartedNanos = 0L

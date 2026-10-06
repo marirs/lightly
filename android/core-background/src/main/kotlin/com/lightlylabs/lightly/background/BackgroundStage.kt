@@ -196,7 +196,7 @@ object BackgroundStage {
      * are already at the working size; [plan]'s replacement too. The layered renderer runs only here;
      * [applyRegion] then brings the result to the frame at any size.
      */
-    fun renderWorking(developed: ByteArray, analysis: BackgroundAnalysis, plan: BackgroundPlan, layersPerSide: Int): WorkingBackground {
+    fun renderWorking(developed: ByteArray, analysis: BackgroundAnalysis, plan: BackgroundPlan, layersPerSide: Int, checkpoint: () -> Unit = {}): WorkingBackground {
         val w = analysis.width
         val h = analysis.height
         require(developed.size == w * h * 4) { "frame is not ${w}x$h" }
@@ -206,7 +206,7 @@ object BackgroundStage {
         if (blur <= 0.0) return WorkingBackground(w, h, matte, null, null, null, shift)
         require(plan.replacement == null || matte != null) { "a replacement needs a subject matte" }
         // Memory: the linear photo and replacement exist only inside renderScene; the scene's colours are expanded in place.
-        val blurred = renderScene(developed, w, h, analysis.depth!!.nearness, matte, plan, blur, layersPerSide)
+        val blurred = renderScene(developed, w, h, analysis.depth!!.nearness, matte, plan, blur, layersPerSide, checkpoint)
         // The sharp composite at the working size (the subject over the replaced background), made after the
         // scene is gone, from the bytes and the plan's (unexpanded) replacement.
         val replacementSrgb = plan.replacement
@@ -251,12 +251,12 @@ object BackgroundStage {
         return FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { foreground.data[it] - photo.data[it] })
     }
 
-    private fun renderScene(developed: ByteArray, w: Int, h: Int, nearness: FloatPlane, matte: FloatPlane?, plan: BackgroundPlan, blur: Double, layersPerSide: Int): FloatImage {
+    private fun renderScene(developed: ByteArray, w: Int, h: Int, nearness: FloatPlane, matte: FloatPlane?, plan: BackgroundPlan, blur: Double, layersPerSide: Int, checkpoint: () -> Unit = {}): FloatImage {
         val scene = Refocus.buildScene(
             FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { Refocus.srgbToLinear((developed[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f) }), nearness, matte,
             plan.replacement?.let { r -> FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { Refocus.srgbToLinear(r.data[it]) }) })
         val subjectInFocus = scene.subject != null && (plan.focusTarget?.let { (x, y) -> Refocus.focusIsOnSubject(scene, x, y) } ?: true)
-        return Refocus.render(scene, plan.focus.copy(blur = blur), plan.focalNearness, layersPerSide, subjectInFocus, consumeScene = true)
+        return Refocus.render(scene, plan.focus.copy(blur = blur), plan.focalNearness, layersPerSide, subjectInFocus, consumeScene = true, checkpoint = checkpoint)
     }
 
     /**
@@ -265,13 +265,14 @@ object BackgroundStage {
      * at full resolution (matte upsampled), then, with a blur, full detail plus the working-resolution change
      * where the result is sharp and the working-resolution blur where it is defocused.
      */
-    fun applyRegion(region: ByteArray, x: Int, y: Int, width: Int, height: Int, frameWidth: Int, frameHeight: Int, working: WorkingBackground, replacement: ReplacementPixels?): ByteArray {
+    fun applyRegion(region: ByteArray, x: Int, y: Int, width: Int, height: Int, frameWidth: Int, frameHeight: Int, working: WorkingBackground, replacement: ReplacementPixels?, checkpoint: () -> Unit = {}): ByteArray {
         val out = ByteArray(region.size)
         val sx = working.width.toDouble() / frameWidth
         val sy = working.height.toDouble() / frameHeight
         // Rows in parallel (0.6–0.7 s single-threaded for a 1065×1600 preview on the Pixel 9 Pro emulator);
         // every pixel's arithmetic is unchanged. 8-bit sRGB decodes through a table of the same function.
         java.util.stream.IntStream.range(0, height).parallel().forEach { row ->
+            if (row % 64 == 0) checkpoint()
             val repl = FloatArray(3)
             val fy = y + row
             val wy = (fy + 0.5) * sy - 0.5

@@ -1,5 +1,7 @@
 package com.lightlylabs.lightly.editor
 
+import com.lightlylabs.lightly.background.selectWhere
+
 import com.lightlylabs.lightly.background.BackgroundAnalysis
 import com.lightlylabs.lightly.background.BackgroundPlan
 import com.lightlylabs.lightly.background.BackgroundStage
@@ -61,21 +63,24 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * bundled backgrounds from the app, picked photos through the photo loader (access retained
      * when picked).
      */
-    private val replacementPlanes = object : LinkedHashMap<AssetRef, List<com.lightlylabs.lightly.background.FloatPlane>>(4, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<AssetRef, List<com.lightlylabs.lightly.background.FloatPlane>>?) =
-            size > REPLACEMENT_CACHE_SIZE
+    // Memory (2026-10-06): the decoded photo is kept as RGBA bytes (11 MB for 1366×2048), not as three float planes
+    // (34 MB) for the whole session. The planes are made only when the positioned replacement is rebuilt (a new
+    // replacement, position or size: see [positioned]) and then dropped.
+    private val replacementPlanes = object : LinkedHashMap<AssetRef, Rgba8Image>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<AssetRef, Rgba8Image>?) = size > REPLACEMENT_CACHE_SIZE
     }
 
-    /** The planes for [asset], converting or reloading it when not cached; null when it can't be read. */
+    /** The planes for [asset], from its cached pixels or reloading it; null when it can't be read. */
     internal fun replacementPlanesFor(asset: AssetRef): List<com.lightlylabs.lightly.background.FloatPlane>? {
-        synchronized(replacementPlanes) { replacementPlanes[asset]?.let { return it } }
+        synchronized(replacementPlanes) { replacementPlanes[asset]?.let { return toPlanes(it) } }
         val photo = when (asset) {
             is AssetRef.Bundled -> env.bundledBackground(asset.id)
             // Renders run off the main thread; the loader decodes at the display proxy size.
             is AssetRef.Photo -> runCatching { kotlinx.coroutines.runBlocking { env.photoLoader.load(asset.assetId).display } }.getOrNull()
             is AssetRef.File -> null
         } ?: return null
-        return toPlanes(photo).also { planes -> synchronized(replacementPlanes) { replacementPlanes[asset] = planes } }
+        synchronized(replacementPlanes) { replacementPlanes[asset] = photo }
+        return toPlanes(photo)
     }
 
     /** How many replacement assets are held (for tests). */
@@ -176,6 +181,8 @@ class BackgroundSession(private val env: EditorEnvironment) {
     fun discardPending() { synchronized(installLock) { epoch++ } }
 
     fun reset() {
+        positionedReplacements.clear()
+        dragBaseCache = null
         synchronized(installLock) { epoch++ }
         analysis = null
         faces = emptyList()
@@ -186,8 +193,48 @@ class BackgroundSession(private val env: EditorEnvironment) {
 
     /** A photo just picked for Change background: converted now, so the first render needn't reload it. */
     fun rememberReplacementPhoto(asset: AssetRef, image: Rgba8Image) {
-        val planes = toPlanes(image)
-        synchronized(replacementPlanes) { replacementPlanes[asset] = planes }
+        synchronized(replacementPlanes) { replacementPlanes[asset] = image }
+    }
+
+    /** Before Save copy: the working-size analysis is rebuilt at the export size anyway; free it for the export. */
+    fun trimForExport() { workingAnalysis = null; dragBaseCache = null }
+
+    /** Identity of a drag base: the analysis (by reference) and the Background settings. */
+    private class DragBaseKey(val analysis: BackgroundAnalysis?, val tool: BackgroundTool) {
+        override fun equals(other: Any?) = other is DragBaseKey && other.analysis === analysis && other.tool == tool
+        override fun hashCode() = System.identityHashCode(analysis) * 31 + tool.hashCode()
+    }
+    @Volatile private var dragBaseCache: Pair<DragBaseKey, Rgba8Image>? = null
+
+    /**
+     * The Background composite without the Look, at the interactive working size, for ruler-drag frames (2026-10-06).
+     * A Background frame cost 6-16 s on the CPU emulator, so none appeared during a drag; the Look is a global colour
+     * transform (and the replacement is graded with it), so a drag frame applies the dragged Look to this base instead.
+     * Approximate (grading and blur do not commute exactly); the settled frame after release is exact. Cached per
+     * analysis and Background settings; null without a Background effect.
+     */
+    fun dragBase(tool: BackgroundTool, display: Rgba8Image, unlooked: DevelopRenderPlan, renderer: DevelopRenderer, maxBlurFraction: Double,
+                 checkpoint: () -> Unit = {}): Rgba8Image? {
+        val key = DragBaseKey(analysis, tool)
+        dragBaseCache?.takeIf { it.first == key }?.let { return it.second }
+        // Single flight: the prefetch and every drag frame ask for the same base; one computes it, the rest wait.
+        // (Computed by several callers at once, three Background renders ran together and exhausted the heap.)
+        synchronized(dragBaseLock) {
+            dragBaseCache?.takeIf { it.first == key }?.let { return it.second }
+            return computeDragBase(key, tool, display, unlooked, renderer, maxBlurFraction, checkpoint)
+        }
+    }
+    private val dragBaseLock = Any()
+
+    private fun computeDragBase(key: DragBaseKey, tool: BackgroundTool, display: Rgba8Image, unlooked: DevelopRenderPlan, renderer: DevelopRenderer,
+                                maxBlurFraction: Double, checkpoint: () -> Unit): Rgba8Image? {
+        val plan = planFor(tool, { unlooked }, renderer, maxBlurFraction, INTERACTIVE_CAP, replacementAtWorkingSize = true) ?: return null
+        checkpoint()
+        val base = if (unlooked.isIdentity) display else renderer.render(display, unlooked)
+        val (ww, wh) = BackgroundStage.workingSize(display.width, display.height, INTERACTIVE_CAP)
+        val small = if (ww == base.width && wh == base.height) base else resize(base, ww, wh)
+        return render(small, plan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, tool, INTERACTIVE_CAP, checkpoint)
+            .also { dragBaseCache = key to it }
     }
 
     /** The recipe's derived references for what the analysis produced (digest of the map's float bytes). */
@@ -259,6 +306,11 @@ class BackgroundSession(private val env: EditorEnvironment) {
         maxBlurFraction: Double = com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE,
         /** The working resolution's long edge (iOS LayeredStages caps: [INTERACTIVE_CAP], [PREVIEW_CAP], [EXPORT_CAP]). */
         cap: Int = PREVIEW_CAP,
+        /**
+         * A moving control's frame composited at the working size (2026-10-06): the replacement is drawn and graded at
+         * that size only, not at the analysis size and then reduced (7 s per drag frame on the CPU emulator).
+         */
+        replacementAtWorkingSize: Boolean = false,
     ): BackgroundPlan? {
         val t0 = System.nanoTime()
         val a = refined(tool) ?: return null
@@ -267,10 +319,11 @@ class BackgroundSession(private val env: EditorEnvironment) {
         val blur = if (a.depth == null) 0.0 else focus.blur
         // The replacement twice: at the analysis size, sampled for the full-resolution composite, and at the
         // working size, where Focus & Blur places it behind the subject.
-        val full = tool.replacement?.takeIf { a.matte != null }?.let { r -> replacementPixels(r, a.width, a.height, developPlan(), renderer) }
+        val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
+        val (fw, fh) = if (replacementAtWorkingSize) ww to wh else a.width to a.height
+        val full = tool.replacement?.takeIf { a.matte != null }?.let { r -> replacementPixels(r, fw, fh, developPlan(), renderer) }
         val tFull = System.nanoTime()
         if (full == null && blur <= 0.0) return null
-        val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
         val replacement = full?.let { r ->
             val small = if (ww == r.width && wh == r.height) Rgba8Image(r.width, r.height, r.rgba) else resize(Rgba8Image(r.width, r.height, r.rgba), ww, wh)
             FloatImage(ww, wh, 3, FloatArray(ww * wh * 3) { (small.pixels[(it / 3) * 4 + it % 3].toInt() and 0xff) / 255f })
@@ -286,8 +339,19 @@ class BackgroundSession(private val env: EditorEnvironment) {
             focusTarget = focus.target?.let { it.x to it.y }, replacementFull = full)
     }
 
-    /** The replacement drawn at w × h, graded with the photo's global colour, as sRGB RGBA8. */
-    private fun replacementPixels(r: Replacement, w: Int, h: Int, developPlan: DevelopRenderPlan, renderer: DevelopRenderer): com.lightlylabs.lightly.background.ReplacementPixels? {
+    /**
+     * The replacement positioned at w × h (before grading), for the last replacement and size only (2026-10-06). It
+     * depends on neither the Look nor Amount, yet was rebuilt on every preview: a 3-channel float image, three resized
+     * planes and an RGBA copy, ~41 MB of large objects per ruler-drag frame at 1067×1600, which with the blur layers
+     * fragmented the 192 MB heap (13.5 MP stress, Pixel 9 Pro emulator).
+     */
+    // Two entries: a drag frame's working size and the settled frame's analysis size alternate during a drag.
+    private val positionedReplacements = java.util.Collections.synchronizedMap(object : LinkedHashMap<Pair<Replacement, Pair<Int, Int>>, Rgba8Image>(2, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Replacement, Pair<Int, Int>>, Rgba8Image>?) = size > 2
+    })
+
+    private fun positioned(r: Replacement, w: Int, h: Int): Rgba8Image? {
+        positionedReplacements[r to (w to h)]?.let { return it }
         val srgb = when (r) {
             is Replacement.Colour -> ReplacementImage.colour(w, h, r.colour)
             is Replacement.Gradient -> ReplacementImage.gradient(w, h, r.angle, r.stops.map { it.colour to it.position })
@@ -296,9 +360,15 @@ class BackgroundSession(private val env: EditorEnvironment) {
                 ReplacementImage.photo(planes, w, h, r.scale, r.x, r.y)
             }
         }
-        // The replacement receives the photo's global colour (Auto, develop.global at Amount); no spatial operator.
         val bytes = ByteArray(w * h * 4) { i -> if (i % 4 == 3) -1 else (srgb.data[(i / 4) * 3 + i % 4] * 255f + 0.5f).toInt().coerceIn(0, 255).toByte() }
-        val graded = renderer.render(Rgba8Image(w, h, bytes), developPlan.globalOnly())
+        return Rgba8Image(w, h, bytes).also { positionedReplacements[r to (w to h)] = it }
+    }
+
+    /** The replacement drawn at w × h, graded with the photo's global colour, as sRGB RGBA8. */
+    private fun replacementPixels(r: Replacement, w: Int, h: Int, developPlan: DevelopRenderPlan, renderer: DevelopRenderer): com.lightlylabs.lightly.background.ReplacementPixels? {
+        // The replacement receives the photo's global colour (Auto, develop.global at Amount); no spatial operator.
+        // The renderer writes a new image and never modifies its source, so the cached positioned pixels stay intact.
+        val graded = renderer.render(positioned(r, w, h) ?: return null, developPlan.globalOnly())
         return com.lightlylabs.lightly.background.ReplacementPixels(w, h, graded.pixels)
     }
 
@@ -318,7 +388,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * to the working size with the refined matte and depth, and rendered there. [plan] must come from
      * [planFor] with the same [cap].
      */
-    fun working(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool, cap: Int): com.lightlylabs.lightly.background.WorkingBackground {
+    fun working(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool, cap: Int, checkpoint: () -> Unit = {}): com.lightlylabs.lightly.background.WorkingBackground {
         val t0 = System.nanoTime()
         val a = refined(tool)!!
         val tRefined = System.nanoTime()
@@ -333,7 +403,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
                 a.depth?.let { d -> com.lightlylabs.lightly.background.NormalisedDepth(d.origin, ops.resizeBilinear(d.nearness, ww, wh)) },
                 a.matte?.let { ops.resizeBilinear(it, ww, wh) }).also { workingAnalysis = key to it }
         val tResized = System.nanoTime()
-        return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide).also {
+        return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide, checkpoint).also {
             stageTiming?.invoke("working ${ww}x$wh refine=${ms(tRefined - t0)} resize=${ms(tResized - tRefined)} renderWorking=${ms(System.nanoTime() - tResized)}")
         }
     }
@@ -350,11 +420,12 @@ class BackgroundSession(private val env: EditorEnvironment) {
     private fun ms(nanos: Long) = "%.0fms".format(nanos / 1e6)
 
     /** Background stage on a developed frame (the display proxy in previews): rendered at [cap], applied at the frame's size. */
-    fun render(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool, cap: Int): Rgba8Image {
-        val working = working(developed, plan, layersPerSide, tool, cap)
+    fun render(developed: Rgba8Image, plan: BackgroundPlan, layersPerSide: Int, tool: BackgroundTool, cap: Int, checkpoint: () -> Unit = {}): Rgba8Image {
+        val working = working(developed, plan, layersPerSide, tool, cap, checkpoint)
+        checkpoint()
         val t0 = System.nanoTime()
         return Rgba8Image(developed.width, developed.height,
-            BackgroundStage.applyRegion(developed.pixels, 0, 0, developed.width, developed.height, developed.width, developed.height, working, plan.replacementFull))
+            BackgroundStage.applyRegion(developed.pixels, 0, 0, developed.width, developed.height, developed.width, developed.height, working, plan.replacementFull, checkpoint))
             .also { stageTiming?.invoke("applyRegion ${developed.width}x${developed.height}=${ms(System.nanoTime() - t0)}") }
     }
 
@@ -386,7 +457,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
                     var interior = ops.erodeDisc(m, 0.5f, (0.01 * longSide).roundToInt())
                     if (interior.count { it } < 50) interior = BooleanArray(w * h) { m.values[it] > 0.5f }
                     val raw = com.lightlylabs.lightly.background.Refocus.fillMaskedPlane(nearness, FloatPlane(w, h, FloatArray(w * h) { if (interior[it]) 1f else 0f }))
-                    val values = nearness.values.filterIndexed { i, _ -> interior[i] }.toFloatArray()
+                    val values = nearness.values.selectWhere { interior[it] }
                     val median = if (values.isNotEmpty()) ops.median(values) else 0.5
                     raw.map { (median + com.lightlylabs.lightly.background.Refocus.FocusConstants.SUBJECT_DEPTH_COMPRESSION * (it - median)).toFloat() }
                 } else {

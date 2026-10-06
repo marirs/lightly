@@ -143,7 +143,7 @@ object Refocus {
         if (interior.count { it } < 50) interior = BooleanArray(w * h) { m.values[it] > 0.5f }
         val interiorWeight = FloatPlane(w, h, FloatArray(w * h) { if (interior[it]) 1f else 0f })
         val subjectRaw = fillMaskedPlane(nearness, interiorWeight)
-        val subjectValues = nearness.values.filterIndexed { i, _ -> interior[i] }.toFloatArray()
+        val subjectValues = nearness.values.selectWhere { interior[it] }
         val subjectMedian = if (subjectValues.isNotEmpty()) PlaneOps.median(subjectValues) else 0.5
         val subjectNearness = subjectRaw.map { (subjectMedian + FocusConstants.SUBJECT_DEPTH_COMPRESSION * (it - subjectMedian)).toFloat() }
 
@@ -164,7 +164,7 @@ object Refocus {
         var background = ScenePlane(backgroundColour, FloatPlane.filled(w, h, 1f), backgroundNearness)
         if (replacementLinear != null) {
             val nearestAllowed = max(0.0, subjectMedian - FocusConstants.REPLACEMENT_MIN_GAP)
-            val outside = nearness.values.filterIndexed { i, _ -> !depthBand[i] }.toFloatArray()
+            val outside = nearness.values.selectWhere { !depthBand[it] }
             val originalMedian = if (outside.isNotEmpty()) PlaneOps.median(outside) else 0.0
             background = ScenePlane(replacementLinear, FloatPlane.filled(w, h, 1f), FloatPlane.filled(w, h, min(originalMedian, nearestAllowed).toFloat()))
         }
@@ -222,6 +222,11 @@ object Refocus {
         subjectInFocus: Boolean = false,
         /** True when the caller discards [scene] afterwards: its colours are expanded in place, not copied. */
         consumeScene: Boolean = false,
+        /**
+         * Called before each layer (2026-10-06): a preview passes a check that throws when the render has been
+         * superseded, so a long settled render stops for the frame of a moving control. Save copy passes nothing.
+         */
+        checkpoint: () -> Unit = {},
     ): FloatImage {
         val w = scene.width
         val h = scene.height
@@ -249,9 +254,15 @@ object Refocus {
         // §R6.1–2: far to near "over", background before subject within a layer, then pull-push normalise.
         val behindColour = FloatImage(w, h, 3)
         val behindAlpha = FloatPlane(w, h)
+        // Memory (2026-10-06): one premultiplied layer and one blurred layer, reused for every layer of every plane.
+        // A fresh 4-channel working-size image per layer (~11 MB at 683×1024, about 20 per preview) fragmented the
+        // large-object heap until 11 MB allocations failed with ~22 MB free (13.5 MP stress, Pixel 9 Pro emulator).
+        // Each layer is consumed before the next is made, so reuse changes no arithmetic.
+        val scratch = LayerScratch(FloatImage(w, h, 4), FloatImage(w, h, 4))
         for (layer in -layersPerSide..-1) {
             for (planeIndex in planes.indices) {
-                val blurred = layerBlurred(planes[planeIndex], colours[planeIndex], cocMaps[planeIndex], layer, step, params, radiusMax) ?: continue
+                checkpoint()
+                val blurred = layerBlurred(planes[planeIndex], colours[planeIndex], cocMaps[planeIndex], layer, step, params, radiusMax, scratch) ?: continue
                 forEachRow(h) { y ->
                     for (p in y * w until (y + 1) * w) {
                         val a = blurred.data[p * 4 + 3]
@@ -266,7 +277,8 @@ object Refocus {
         for (planeIndex in planes.indices) {
             val front = FloatImage(w, h, 4)
             for (layer in 0..layersPerSide) {
-                val blurred = layerBlurred(planes[planeIndex], colours[planeIndex], cocMaps[planeIndex], layer, step, params, radiusMax) ?: continue
+                checkpoint()
+                val blurred = layerBlurred(planes[planeIndex], colours[planeIndex], cocMaps[planeIndex], layer, step, params, radiusMax, scratch) ?: continue
                 for (i in front.data.indices) front.data[i] += blurred.data[i]
             }
             forEachRow(h) { y ->
@@ -283,11 +295,18 @@ object Refocus {
         return result
     }
 
-    /** One tent layer of a plane (§R4), premultiplied and blurred; null when the layer is empty. */
-    private fun layerBlurred(plane: ScenePlane, colour: FloatImage, coc: FloatPlane, layer: Int, step: Double, params: FocusParams, radiusMax: Double): FloatImage? {
+    /** Reused working-size buffers of one [render]: the premultiplied layer and its blurred result. */
+    private class LayerScratch(val premultiplied: FloatImage, val blurred: FloatImage)
+
+    /**
+     * One tent layer of a plane (§R4), premultiplied and blurred; null when the layer is empty. The result lives in
+     * [scratch] and is valid until the next call.
+     */
+    private fun layerBlurred(plane: ScenePlane, colour: FloatImage, coc: FloatPlane, layer: Int, step: Double, params: FocusParams, radiusMax: Double, scratch: LayerScratch): FloatImage? {
         val w = colour.width
         val h = colour.height
-        val premultiplied = FloatImage(w, h, 4)
+        val premultiplied = scratch.premultiplied
+        java.util.Arrays.fill(premultiplied.data, 0f)
         // Rows in parallel (preview speed: this loop alone was ~0.55 s of a 2.7 s settled preview at
         // 682×1024 on the Pixel 9 Pro emulator); each pixel's arithmetic is unchanged.
         val any = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -306,20 +325,23 @@ object Refocus {
             if (rowAny) any.set(true)
         }
         if (!any.get()) return null
-        return blurLayer(premultiplied, abs(layer) * step, params, radiusMax)
+        return blurLayer(premultiplied, abs(layer) * step, params, radiusMax, scratch.blurred)
     }
 
-    private fun blurLayer(layer: FloatImage, radius: Double, params: FocusParams, radiusMax: Double): FloatImage {
+    /** [into]: where a full-size result is written (must not be [layer]); smaller intermediates are allocated. */
+    private fun blurLayer(layer: FloatImage, radius: Double, params: FocusParams, radiusMax: Double, into: FloatImage? = null): FloatImage {
         if (radius < 0.5) return layer
         // §R7: blur at 1/2ⁿ resolution with n the largest integer such that r/2ⁿ ≥ 6 px.
         val n = if (radius >= 12) floor(ln(radius / 6) / ln(2.0)).toInt() else 0
         val factor = 1 shl n
         val small = if (factor > 1) downsample(layer, factor) else layer
         val r = radius / factor
+        // At full size (factor 1) the convolution writes straight into [into]; at 1/2ⁿ the upsample does.
+        val direct = if (factor == 1) into else null
         val blurred = when (params.style) {
-            "lens" -> convolve(small, Kernels.bokeh(params.bokeh, r))
-            "soft" -> convolve(small, Kernels.gaussian(r))
-            "motion" -> convolve(small, Kernels.motion(r, params.styleAmount * 3.6 - 180))
+            "lens" -> convolve(small, Kernels.bokeh(params.bokeh, r), direct)
+            "soft" -> convolve(small, Kernels.gaussian(r), direct)
+            "motion" -> convolve(small, Kernels.motion(r, params.styleAmount * 3.6 - 180), direct)
             "swirl" -> {
                 val amount = params.styleAmount / 100.0
                 val disc = convolve(small, Kernels.bokeh("round", r * (1 - 0.5 * amount)))
@@ -328,17 +350,18 @@ object Refocus {
             }
             else -> throw IllegalArgumentException("unknown focus style ${params.style}")
         }
-        return if (factor > 1) upsample(blurred, layer.width, layer.height) else blurred
+        return if (factor > 1) upsample(blurred, layer.width, layer.height, into) else blurred
     }
 
     /** "same" 2-D convolution with reflected borders. */
-    fun convolve(image: FloatImage, kernel: Kernels.Kernel): FloatImage {
+    /** [into]: an image of the same size and channels to write the result to (every pixel is written). */
+    fun convolve(image: FloatImage, kernel: Kernels.Kernel, into: FloatImage? = null): FloatImage {
         if (kernel.size == 1) return image
         val w = image.width
         val h = image.height
         val ch = image.channels
         val half = kernel.size / 2
-        val out = FloatImage(w, h, ch)
+        val out = into?.takeIf { it !== image && it.width == w && it.height == h && it.channels == ch } ?: FloatImage(w, h, ch)
         // Only non-zero taps are visited (bokeh shapes are sparse squares).
         val taps = ArrayList<IntArray>()
         val weights = ArrayList<Float>()
@@ -439,8 +462,10 @@ object Refocus {
         return out
     }
 
-    fun upsample(image: FloatImage, width: Int, height: Int): FloatImage {
-        val out = FloatImage(width, height, image.channels)
+    /** [into]: an image of the target size and channels to write to (cleared first: the samples are added). */
+    fun upsample(image: FloatImage, width: Int, height: Int, into: FloatImage? = null): FloatImage {
+        val out = into?.takeIf { it !== image && it.width == width && it.height == height && it.channels == image.channels }
+            ?.also { java.util.Arrays.fill(it.data, 0f) } ?: FloatImage(width, height, image.channels)
         val sx = image.width.toDouble() / width
         val sy = image.height.toDouble() / height
         forEachRow(height) { y -> for (x in 0 until width) {

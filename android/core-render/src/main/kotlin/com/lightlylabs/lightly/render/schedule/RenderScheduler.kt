@@ -79,6 +79,11 @@ class RenderScheduler<P : Any, R : Any>(
     interactiveDispatcher: CoroutineDispatcher? = null,
     /** True for a request from a moving control (a ruler drag, a slider): it may use the interactive lane. */
     private val isInteractive: (P) -> Boolean = { false },
+    /**
+     * True for a request that cancels a running settled render even when it cannot use the interactive lane (a heavy
+     * drag frame): the frame then starts as soon as the cancelled render exits, on the main lane.
+     */
+    private val preempts: (P) -> Boolean = { false },
 ) {
     private class InFlight<P>(val request: RenderRequest<P>, val job: Job)
 
@@ -171,6 +176,8 @@ class RenderScheduler<P : Any, R : Any>(
         } else if (interactiveScope != null && interactiveInFlight == null && isInteractive(request.payload) && !isInteractive(running.request.payload)) {
             running.job.cancel(CancellationException("Settled render ${running.request.revision} superseded by an interactive request"))
             startLocked(request, interactiveLane = true)
+        } else if (preempts(request.payload) && !preempts(running.request.payload)) {
+            running.job.cancel(CancellationException("Settled render ${running.request.revision} superseded by a moving control"))
         }
     }
 

@@ -16,7 +16,8 @@ class FloatPlane(val width: Int, val height: Int, val values: FloatArray = Float
 
     fun copy() = FloatPlane(width, height, values.copyOf())
 
-    fun map(transform: (Float) -> Float) = FloatPlane(width, height, FloatArray(values.size) { transform(values[it]) })
+    // inline (2026-10-06): a non-inline (Float) -> Float boxed every value (1.7 M Float objects per call at 1067×1600).
+    inline fun map(transform: (Float) -> Float) = FloatPlane(width, height, FloatArray(values.size) { transform(values[it]) })
 
     /** Bilinear sample with half-pixel centres and clamped edges (cv2.resize INTER_LINEAR geometry). */
     fun sample(x: Double, y: Double): Float {
@@ -239,4 +240,18 @@ object PlaneOps {
     }
 
     fun sqrtSafe(value: Double) = sqrt(max(value, 0.0))
+}
+
+/**
+ * The values at the indices where [keep] is true, in index order, without boxing (2026-10-06): `filterIndexed` on a
+ * FloatArray made a List<Float> of up to 1.7 M boxed floats per call at 1067×1600, and the Background preview ran out
+ * of memory on 16-byte allocations under that churn.
+ */
+inline fun FloatArray.selectWhere(keep: (Int) -> Boolean): FloatArray {
+    var count = 0
+    for (i in indices) if (keep(i)) count++
+    val out = FloatArray(count)
+    var j = 0
+    for (i in indices) if (keep(i)) out[j++] = this[i]
+    return out
 }

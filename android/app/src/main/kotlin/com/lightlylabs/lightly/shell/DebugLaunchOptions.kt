@@ -234,12 +234,13 @@ object DebugLaunchOptions {
             // Memory stress (2026-10-06, logcat LightlyFlow): 12 MP photo, replacement + blur, then three continuous ruler
             // sweeps with a reversal (interactive frames beside settled Background renders), then Save copy. "-single":
             // the same without the interactive render lane (baseline).
-            "bg-stress-drag-save", "bg-stress-drag-save-single" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
+            "bg-stress-drag-save", "bg-stress-drag-save-single", "bg-stress-drag-save-late" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
                 api.background(firstImage)
                 api.focus(60.0, null)
                 api.rebaseHistory()
                 kotlinx.coroutines.MainScope().launch {
-                    kotlinx.coroutines.delay(15_000)
+                    // "-late": the drags start after the edit has settled (the drag base is ready).
+                    kotlinx.coroutines.delay(if (screen.endsWith("-late")) 45_000 else 15_000)
                     flowLog("drags start")
                     repeat(3) { round ->
                         for (stop in 1..12) { api.drag(stop + round); kotlinx.coroutines.delay(60) }
