@@ -122,7 +122,10 @@ class BackgroundSession(private val env: EditorEnvironment) {
         var matte: FloatPlane? = null
         var noSubject = false
         try {
+            val segmentStarted = System.nanoTime()
             matte = env.segmenter.segment(display.pixels, display.width, display.height)
+            diagnostic("subject matte ${display.width}x${display.height}: ${(System.nanoTime() - segmentStarted) / 1_000_000} ms " +
+                "(closed-form refinement ${com.lightlylabs.lightly.vision.ClosedFormMatting.lastRefineMillis} ms, ${com.lightlylabs.lightly.vision.ClosedFormMatting.lastUnknownPixels} uncertain px)")
             if (matte == null) noSubject = true else newMatteModel = env.segmenterModelRef
         } catch (unavailable: SegmentationUnavailableException) {
             matte = null

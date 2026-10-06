@@ -265,7 +265,9 @@ class VisionSubjectSegmenter(
         val analysis = people(image)
         val personMatte = if (analysis.hasPerson) {
             val boxes = analysis.faces.map { it.box } + analysis.people
-            portraitMatting()?.segment(image, boxes)
+            // MODNet's matte refined by closed-form matting in its uncertain band (teal cast and grey haze at hair,
+            // completion plan A4; ClosedFormMatting).
+            portraitMatting()?.segment(image, boxes)?.let { matte -> ClosedFormMatting.refine(rgba, width, height, matte) }
                 ?: (personSegmenter() ?: throw SegmentationUnavailableException("No person segmenter in this build")).segment(image, boxes)
         } else null
         if (personMatte != null) return personMatte
