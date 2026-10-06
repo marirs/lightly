@@ -174,3 +174,9 @@ hardware rounds as D-1/D-2 arrive → A9/A12 after D-3.
   full not reachable on the emulator. Matting refinement confirmed once per photo (separation only, cached by pixels).
   Decisions sheet: `owner-decisions.md`. Remaining: A1 (phone, D1), A4 residual, A5, A7, A8–A12, M2 (match). Estimate
   unchanged at 13–22 d; A5 now needs a new approach (not sized) and A7 waits for the exports.
+- 2026-10-07: **9bc1ea9 (261007003) installed** on the review devices (data kept, build read back). Same code used on
+  the spare devices: Android 13.5 MP Background stress 0 app-visible failures, Auto at open 1.8 s, matte once 3.8 s,
+  drag frames 1.2–2.1 s (not live-preview quality; phone pending); iOS flow tests (Auto, ruler drag, Background pass,
+  Save copy) pass. Settled-preview memory fixed (peak in use before GC 155 MB of 192; was failing). A1 open (drag-frame
+  speed, phone, D1). A3 open (originals moved: visual review with the owner). A5 open (failed validation). A7 waits for
+  the Lightroom exports (brief: release/lightroom-export-brief.md). Estimate unchanged at 13–22 d.
