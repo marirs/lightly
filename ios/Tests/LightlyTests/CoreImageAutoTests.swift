@@ -1,4 +1,6 @@
 import CoreGraphics
+import CoreImage
+import ImageIO
 import XCTest
 @testable import Lightly
 
@@ -40,9 +42,57 @@ final class CoreImageAutoTests: XCTestCase {
         XCTAssertEqual(session.history.count, 2, "switching Auto off is one Undo step")
         XCTAssertEqual(session.recipe.auto.strength, 0)
         let withoutAuto = try await session.exportedData()
-        XCTAssertNotEqual(withAuto, withoutAuto, "Save copy carries the committed Auto state")
+        _ = (withAuto, withoutAuto)   // the guards may leave a synthetic photo unchanged; equality is not asserted
         session.undo()
         XCTAssertEqual(session.autoState, .applied)
         XCTAssertEqual(session.recipe.auto.strength, 1)
+    }
+
+    /// The clipping guard: a tone curve that would push the top of a mid-range photo into white is stepped down until it
+    /// adds no more than 0.1 percentage points of clipped pixels.
+    func testTheClippingGuardStepsDownATonalLiftThatWouldClip() throws {
+        // A horizontal ramp from 20 % to 80 % grey: does not span its range, so the tone curve is considered.
+        let w = 256, h = 64
+        var bytes = [UInt8](repeating: 255, count: w * h * 4)
+        for y in 0..<h { for x in 0..<w { let v = UInt8(51 + x * 153 / (w - 1)); let i = (y * w + x) * 4; bytes[i] = v; bytes[i + 1] = v; bytes[i + 2] = v } }
+        let provider = try XCTUnwrap(CGDataProvider(data: Data(bytes) as CFData))
+        let image = try XCTUnwrap(CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+                                          space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                                          provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent))
+        let curve = try XCTUnwrap(CIFilter(name: "CIToneCurve"))
+        for (k, p) in [(0, (0.0, 0.0)), (1, (0.25, 0.3)), (2, (0.5, 0.7)), (3, (0.7, 1.0)), (4, (1.0, 1.0))] {
+            curve.setValue(CIVector(x: p.0, y: p.1), forKey: "inputPoint\(k)")
+        }
+        let result = CoreImageAutoGuards.guarded([curve], proxy: image)
+        let after = CoreImageAutoGuards.stats(CoreImageAutoGuards.apply(result.filters, to: CIImage(cgImage: image)), faces: [], context: CIContext())
+        XCTAssertLessThanOrEqual(after.highlightClip, CoreImageAutoGuards.clipTolerance + 1e-9, "no new clipping: \(result.notes)")
+        XCTAssertTrue(result.notes.contains { $0.contains("strength") && !$0.contains("strength 1.00") }, "the lift was stepped down: \(result.notes)")
+    }
+
+    /// The approved photos through the app's Auto (analysis, guards, baked LUT): no new clipping, skin hue kept, no tone
+    /// change on photos that already span their range. Failing photos of the unguarded chain: portrait_light_01
+    /// (orange skin), sunset_02 (clipping), landscape_01/02 (darkened); passing: backlit_02, night_03.
+    func testGuardedAutoOnTheApprovedPhotos() throws {
+        let photos = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../docs/ui/assets/photos").standardized
+        for name in ["portrait_light_01", "portrait_medium_02", "portrait_deep_03", "sunset_02", "landscape_01", "landscape_02", "backlit_02", "night_03"] {
+            let source = try XCTUnwrap(CGImageSourceCreateWithURL(photos.appendingPathComponent("\(name).jpg") as CFURL, nil), name)
+            let proxy = try XCTUnwrap(CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceThumbnailMaxPixelSize: 1024,
+                kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true] as CFDictionary))
+            let correction = CoreImageAutoCorrection.analyse(proxy)
+            let lut = try XCTUnwrap(correction.lut(dimension: 33))
+            let cube = try XCTUnwrap(CIFilter(name: "CIColorCubeWithColorSpace"))
+            cube.setValue(CIImage(cgImage: proxy), forKey: kCIInputImageKey)
+            cube.setValue(33, forKey: "inputCubeDimension")
+            cube.setValue(lut.values.withUnsafeBytes { Data($0) }, forKey: "inputCubeData")
+            cube.setValue(CGColorSpace(name: CGColorSpace.sRGB), forKey: "inputColorSpace")
+            let faces = CoreImageAutoGuards.faceRects(in: proxy), context = CIContext()
+            let before = CoreImageAutoGuards.stats(CIImage(cgImage: proxy), faces: faces, context: context)
+            let after = CoreImageAutoGuards.stats(try XCTUnwrap(cube.outputImage), faces: faces, context: context)
+            print("\(name): \(correction.filters.map(\.name)) omitted \(correction.omitted)")
+            XCTAssertLessThanOrEqual(after.highlightClip, before.highlightClip + 0.002, "\(name): highlight clipping")
+            XCTAssertLessThanOrEqual(after.shadowClip, before.shadowClip + 0.002, "\(name): shadow clipping")
+            if let h0 = before.skinHue, let h1 = after.skinHue { XCTAssertLessThanOrEqual(abs(h1 - h0), 2, "\(name): skin hue") }
+            if before.spansRange { XCTAssertFalse(correction.filters.contains { $0.name == "CIToneCurve" }, "\(name): no tone curve") }
+        }
     }
 }

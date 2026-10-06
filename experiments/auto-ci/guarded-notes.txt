@@ -1,0 +1,47 @@
+== portrait_light_01.jpg
+   original: p1 0.00 p99 0.79 clip 0.03%/0.00%, skin hue 59°
+   vibrance as proposed
+   face balance not applied: skin hue 59° already plausible
+   CIToneCurve + CIHighlightShadowAdjust at strength 0.00 (clipping and skin guards)
+   result: p1 0.00 p99 0.79 clip 0.13%/0.00%, skin hue 60°
+== portrait_deep_03.jpg
+   original: p1 0.00 p99 0.47 clip 0.00%/0.99%, skin hue 46°
+   vibrance as proposed
+   face balance not applied: skin hue 46° already plausible
+   CIToneCurve + CIHighlightShadowAdjust at strength 0.25 (clipping and skin guards)
+   result: p1 0.00 p99 0.51 clip 0.00%/0.99%, skin hue 46°
+== portrait_medium_02.jpg
+   original: p1 0.02 p99 1.00 clip 1.46%/0.01%, skin hue 50°
+   vibrance x0.75 (clipping guard)
+   face balance not applied: skin hue 50° already plausible
+   tone curve not applied: the photo already spans its range
+   CIHighlightShadowAdjust at strength 0.00 (clipping and skin guards)
+   result: p1 0.02 p99 1.00 clip 1.46%/0.01%, skin hue 50°
+== sunset_02.jpg
+   original: p1 0.00 p99 0.83 clip 1.21%/0.62%
+   vibrance as proposed
+   CIToneCurve + CIHighlightShadowAdjust at strength 0.00 (clipping and skin guards)
+   result: p1 0.00 p99 0.83 clip 1.21%/0.62%
+== landscape_01.jpg
+   original: p1 0.10 p99 1.00 clip 19.48%/0.00%
+   vibrance as proposed
+   tone curve not applied: the photo already spans its range
+   CIHighlightShadowAdjust at strength 0.25 (clipping and skin guards)
+   result: p1 0.10 p99 1.00 clip 19.51%/0.00%
+== landscape_02.jpg
+   original: p1 0.15 p99 0.90 clip 0.24%/0.00%
+   vibrance as proposed
+   tone curve not applied: the photo already spans its range
+   CIHighlightShadowAdjust at strength 0.25 (clipping and skin guards)
+   result: p1 0.15 p99 0.90 clip 0.24%/0.00%
+== backlit_02.jpg
+   original: p1 0.02 p99 1.00 clip 7.64%/0.00%
+   vibrance as proposed
+   tone curve not applied: the photo already spans its range
+   CIHighlightShadowAdjust at strength 0.25 (clipping and skin guards)
+   result: p1 0.02 p99 1.00 clip 7.73%/0.00%
+== night_03.jpg
+   original: p1 0.02 p99 0.81 clip 0.01%/0.00%
+   vibrance as proposed
+   CIToneCurve at strength 0.75 (clipping and skin guards)
+   result: p1 0.01 p99 0.86 clip 0.10%/0.00%

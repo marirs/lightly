@@ -7,10 +7,13 @@ import OSLog
 /// It is neither the Apple Photos algorithm nor a model we trained, and the app never says otherwise.
 ///
 /// - Composition is never changed: `.crop` and `.level` (straightening) are off; red-eye correction is off.
-/// - Only the colour filters Core Image proposes are applied (face balance, vibrance, tone curve). They are per-pixel,
-///   so the chain is baked into the Auto LUT at stage 1 of the existing pipeline, the same LUT for preview and Save
-///   copy, on the original's pixels (nothing is enhanced twice). Spatial proposals (CIHighlightShadowAdjust) are
-///   recorded in `omitted` and not applied: a local filter cannot be a LUT, and a tiled Save copy would seam.
+/// - The proposed filters (face balance, vibrance, tone curve, highlight/shadow) pass the image-dependent guards in
+///   `CoreImageAutoGuards` (no redder skin, no new clipping, no relit faces, no tone change to a photo that already
+///   spans its range). Every proposed filter is per-pixel as Core Image proposes it (highlight/shadow with Radius 0
+///   reproduces through a LUT within 0.15/255 on average, experiments/auto-ci), so the guarded chain is baked into the
+///   Auto LUT at stage 1 of the existing pipeline: the same LUT for preview and Save copy, on the original's pixels,
+///   with no tile boundaries (nothing is enhanced twice). A highlight/shadow proposal with a radius above 0 would be
+///   local: it is then not applied and recorded in `omitted`.
 /// - The correction is the filters and their parameters. The session stores them (`json`), and a restored session
 ///   rebuilds the LUT from them (`lut()`) without analysing the photo again.
 struct CoreImageAutoCorrection: Equatable, Sendable {
@@ -27,19 +30,30 @@ struct CoreImageAutoCorrection: Equatable, Sendable {
     /// Recipe `auto.modelId` / `modelVersion` for this correction (the recipe's three weights are unused: zeros).
     static let recipeModelID = "coreimage-auto"
     static let recipeModelVersion = "1"
-    static let appliedFilterNames: Set<String> = ["CIFaceBalance", "CIVibrance", "CIToneCurve"]
+    static let appliedFilterNames: Set<String> = ["CIFaceBalance", "CIVibrance", "CIToneCurve", "CIHighlightShadowAdjust"]
 
     var filters: [Filter]
+    /// Proposed by Core Image but not applied (a guard removed it, or it is not per-pixel).
     var omitted: [String]
+    /// The guards' measurements and decisions, kept with the correction for review.
+    var notes: [String] = []
 
     // MARK: Analysis
 
     static func analyse(_ image: CGImage) -> CoreImageAutoCorrection {
         let options: [CIImageAutoAdjustmentOption: Any] = [.enhance: true, .redEye: false, .crop: false, .level: false]
-        let proposed = CIImage(cgImage: image).autoAdjustmentFilters(options: options)
-        var filters: [Filter] = [], omitted: [String] = []
-        for filter in proposed {
-            guard appliedFilterNames.contains(filter.name) else { omitted.append(filter.name); continue }
+        var proposed = CIImage(cgImage: image).autoAdjustmentFilters(options: options)
+        var omitted: [String] = []
+        proposed.removeAll { filter in
+            let local = filter.name == "CIHighlightShadowAdjust" && ((filter.value(forKey: "inputRadius") as? NSNumber)?.doubleValue ?? 0) > 0
+            let drop = local || !appliedFilterNames.contains(filter.name)
+            if drop { omitted.append(local ? "CIHighlightShadowAdjust (radius > 0: local)" : filter.name) }
+            return drop
+        }
+        let guarded = CoreImageAutoGuards.guarded(proposed, proxy: image)
+        omitted += proposed.map(\.name).filter { name in !guarded.filters.contains { $0.name == name } }
+        var filters: [Filter] = []
+        for filter in guarded.filters {
             var parameters: [String: Parameter] = [:]
             for key in filter.inputKeys where key != kCIInputImageKey {
                 if let number = filter.value(forKey: key) as? NSNumber {
@@ -50,7 +64,9 @@ struct CoreImageAutoCorrection: Equatable, Sendable {
             }
             filters.append(Filter(name: filter.name, parameters: parameters))
         }
-        return CoreImageAutoCorrection(filters: filters, omitted: omitted)
+        var correction = CoreImageAutoCorrection(filters: filters, omitted: omitted)
+        correction.notes = guarded.notes
+        return correction
     }
 
     // MARK: LUT
@@ -97,7 +113,7 @@ struct CoreImageAutoCorrection: Equatable, Sendable {
     // MARK: Storage
 
     var json: [String: Any] {
-        ["engine": Self.engine, "omitted": omitted,
+        ["engine": Self.engine, "omitted": omitted, "notes": notes,
          "filters": filters.map { f in
              ["name": f.name, "parameters": f.parameters.mapValues { ["vector": $0.isVector, "values": $0.values] as [String: Any] }] as [String: Any]
          }]
@@ -122,6 +138,7 @@ struct CoreImageAutoCorrection: Equatable, Sendable {
             filters.append(Filter(name: name, parameters: parameters))
         }
         self.init(filters: filters, omitted: o["omitted"] as? [String] ?? [])
+        notes = o["notes"] as? [String] ?? []
     }
 }
 

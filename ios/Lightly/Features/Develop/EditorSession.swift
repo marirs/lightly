@@ -355,7 +355,7 @@ final class EditorSession {
                 autoCorrection = correction
                 start.auto = EditRecipe.Auto(modelId: CoreImageAutoCorrection.recipeModelID, modelVersion: CoreImageAutoCorrection.recipeModelVersion,
                                              weights: [0, 0, 0], guardrail: nil, strength: 1)
-                DiagnosticTrace.note("auto: Core Image applied \(correction.filters.map(\.name)), omitted \(correction.omitted)")
+                DiagnosticTrace.note("auto: Core Image applied \(correction.filters.map(\.name)), omitted \(correction.omitted); \(correction.notes.joined(separator: "; "))")
             } else if case .lut(let lut) = result {
                 // DEFERRED(D1): a trained model's id, version and weights belong in `auto` once one ships.
                 autoLUT = lut
