@@ -61,7 +61,11 @@ object AutoAnalysis {
         val spansRange get() = p1 <= SPAN_LOW && p99 >= SPAN_HIGH
     }
 
-    fun analyse(image: Image, faces: List<Face> = emptyList()): AutoCorrection {
+    /** The analysis runs on a copy at most this long (box-averaged): ~13 measurement passes at 1024 px took 3–5 s on the emulator. */
+    const val ANALYSIS_LONG_EDGE = 512
+
+    fun analyse(photo: Image, faces: List<Face> = emptyList()): AutoCorrection {
+        val image = reduced(photo, ANALYSIS_LONG_EDGE)
         val base = stats(image, faces, AutoCorrection())
         val notes = mutableListOf("original: p1 %.2f p99 %.2f clip %.2f%%/%.2f%%".format(base.p1, base.p99, base.highlightClip * 100, base.shadowClip * 100))
         var kept = AutoCorrection()
@@ -200,6 +204,24 @@ object AutoAnalysis {
         return Stats(high.toDouble() / n, low.toDouble() / n, percentile(0.01), percentile(0.99), percentile(0.005), percentile(0.995),
             percentile(0.5), satSum / n, medianL,
             if (skinN > 0) skinL / skinN else null, if (skinN > 0) hypot(skinA / skinN, skinB / skinN) else null, cast, neutralLinear)
+    }
+
+    /** [image] box-averaged by an integer factor so its long edge is at most [longEdge] (unchanged if already). */
+    internal fun reduced(image: Image, longEdge: Int): Image {
+        val factor = (max(image.width, image.height) + longEdge - 1) / longEdge
+        if (factor <= 1) return image
+        val w = image.width / factor
+        val h = image.height / factor
+        val out = ByteArray(w * h * 4)
+        for (y in 0 until h) for (x in 0 until w) {
+            for (c in 0 until 3) {
+                var sum = 0
+                for (dy in 0 until factor) for (dx in 0 until factor) sum += image.rgba[((y * factor + dy) * image.width + x * factor + dx) * 4 + c].toInt() and 0xff
+                out[(y * w + x) * 4 + c] = ((sum + factor * factor / 2) / (factor * factor)).toByte()
+            }
+            out[(y * w + x) * 4 + 3] = -1
+        }
+        return Image(w, h, out)
     }
 
     /** The inner 60 % of each face box (iOS measures the same region). */
