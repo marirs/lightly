@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -271,5 +272,46 @@ class RenderSchedulerTest {
         assertNull(h.scheduler.published.value)
         advanceUntilIdle()
         assertEquals(1L, h.scheduler.published.value?.revision)
+    }
+
+    // --- Starvation (2026-10-06) -----------------------------------------------------------------------
+
+    /** Settled renders take 3 s (ignoring cancellation, like CPU work); drag frames ("drag-*") take 100 ms. */
+    private class MixedRenderer : PreviewRenderer<String, String> {
+        val finished = mutableListOf<String>()
+        override suspend fun render(request: RenderRequest<String>): String {
+            withContext(NonCancellable) { delay(if (request.payload.startsWith("drag")) 100 else 3_000) }
+            finished += request.payload
+            return "rendered:${request.payload}"
+        }
+    }
+
+    @Test
+    fun `a long settled render does not hold up drag frames, and its late result never replaces them`() = runTest {
+        val renderer = MixedRenderer()
+        val scheduler = RenderScheduler(
+            sessionId = "session-A", renderer = renderer, parentScope = CoroutineScope(Job()),
+            renderDispatcher = StandardTestDispatcher(testScheduler),
+            interactiveDispatcher = StandardTestDispatcher(testScheduler),
+            isInteractive = { it.startsWith("drag") },
+        )
+        val published = mutableListOf<Pair<Long, String>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            scheduler.published.collect { r -> if (r != null) published += currentTime to ((r.outcome as RenderOutcome.Rendered).value) }
+        }
+        scheduler.submit("initial-full")
+        advanceTimeBy(200)
+        // The finger moves: a new stop every 50 ms for 1 s, then reverses for 0.5 s, while the initial render runs on.
+        val dragStart = currentTime
+        repeat(20) { i -> scheduler.submit("drag-$i"); advanceTimeBy(50) }
+        repeat(10) { i -> scheduler.submit("drag-back-${19 - i}"); advanceTimeBy(50) }
+        advanceUntilIdle()
+
+        val firstDrag = published.first { it.second.contains("drag") }
+        assertTrue(firstDrag.first - dragStart <= 150, "first drag frame visible after ${firstDrag.first - dragStart} ms")
+        val dragFrames = published.count { it.second.contains("drag") }
+        assertTrue(dragFrames >= 8, "frames keep appearing during the movement ($dragFrames)")
+        assertEquals("rendered:drag-back-10", published.last().second, "the latest selection is what stays on screen")
+        assertTrue(published.none { it.second == "rendered:initial-full" }, "the older settled result never replaces newer frames")
     }
 }

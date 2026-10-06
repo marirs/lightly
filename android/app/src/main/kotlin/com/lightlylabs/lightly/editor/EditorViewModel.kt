@@ -1291,9 +1291,13 @@ class EditorViewModel(
         val model = panelModel() ?: return
         val clamped = stop.coerceIn(0, model.presets.size)
         if (state.value.develop.dragStop == clamped) return
+        val firstMove = state.value.develop.dragStart == null
         state.update { it.copy(develop = it.develop.copy(dragStop = clamped, dragStart = it.develop.dragStart ?: model.stop)) }
         val session = state.value.session ?: return
+        if (firstMove) dragStartedNanos = System.nanoTime()
         requestPreview(session.current.copy(look = lookAt(model, clamped)), globalOnly = true)
+        if (firstMove) firstDragRevision = requestedRevision
+        logRuler("drag")
         prefetchAround(model, clamped)
     }
 
@@ -1303,6 +1307,10 @@ class EditorViewModel(
 
     /** Release: ONE undo step, and only when the Look actually changes. No interpolation between stops. */
     fun onRulerRelease(stop: Int) {
+        try { releaseRuler(stop) } finally { logRuler("release") }
+    }
+
+    private fun releaseRuler(stop: Int) {
         val model = panelModel()
         // No drag recorded (a touch without movement, or an interrupted gesture): a cancel, never a commit.
         val startedAt = state.value.develop.dragStart ?: state.value.develop.dragStop ?: model?.stop
@@ -1317,7 +1325,7 @@ class EditorViewModel(
             requestPreview(session.current, globalOnly = false)
             return
         }
-        commit(session.selectLook(look), state.value.auto)
+        commit(session.selectLook(look), state.value.auto, fastFirst = true)
     }
 
     /**
@@ -1397,13 +1405,15 @@ class EditorViewModel(
         val session = state.value.session?.takeIf { it.canUndo }?.undo() ?: return
         // Browsing returns to the applied preset's category (owner amendment 2026-10-05: underline, dot and photo agree).
         state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null)) }
-        commit(session, autoStateOf(session.current.auto))
+        commit(session, autoStateOf(session.current.auto), fastFirst = true)
+        logRuler("history")
     }
 
     fun redo() {
         val session = state.value.session?.takeIf { it.canRedo }?.redo() ?: return
         state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null)) }
-        commit(session, autoStateOf(session.current.auto))
+        commit(session, autoStateOf(session.current.auto), fastFirst = true)
+        logRuler("history")
     }
 
     fun holdCompare(held: Boolean) {
@@ -1606,10 +1616,16 @@ class EditorViewModel(
 
     // --- commit and preview ---------------------------------------------------------------------
 
-    private fun commit(session: EditSession, auto: AutoState) {
+    /**
+     * [fastFirst] (Undo, Redo, ruler release, 2026-10-06): a quick interactive-quality frame of the new state first, so
+     * the photo agrees with the name row at once; the full frame follows. Without it the previous look stayed on screen
+     * for the whole settled render (about 3 s on the CPU emulator) while the name row already showed the new one.
+     */
+    private fun commit(session: EditSession, auto: AutoState, fastFirst: Boolean = false) {
         if (!committingPick) editEpoch++
         savedState[KEY_SESSION] = SavedEdits.encodeEditSession(session)
         state.update { it.copy(session = session, auto = auto) }
+        if (fastFirst) requestPreview(session.current, globalOnly = true)
         requestPreview(session.current, globalOnly = false)
     }
 
@@ -1650,6 +1666,9 @@ class EditorViewModel(
             },
             parentScope = scope,
             renderDispatcher = env.renderDispatcher,
+            // A ruler drag or slider frame never waits behind a settled render (2026-10-06).
+            interactiveDispatcher = env.interactiveRenderDispatcher,
+            isInteractive = { it.globalOnly },
             onUnpublishedFailure = { request, error ->
                 runCatching { android.util.Log.w("LightlyDevelop", "superseded preview render failed (revision ${request.revision})", error) }
             },
@@ -1672,6 +1691,11 @@ class EditorViewModel(
                 if (result.sessionId == "photo-$photoGeneration") {
                     state.update { it.copy(preview = rendered) }
                     publishedRevision = result.revision
+                    // Time from the first movement of a ruler drag to the first frame of that drag on screen.
+                    if (firstDragRevision > 0 && result.revision >= firstDragRevision) {
+                        runCatching { android.util.Log.i("LightlyDevelop", "first drag frame visible after ${"%.0f".format((System.nanoTime() - dragStartedNanos) / 1e6)} ms") }
+                        firstDragRevision = 0
+                    }
                 }
             }
         }
@@ -1718,6 +1742,16 @@ class EditorViewModel(
 
     // Debug benchmark bookkeeping (docs/v1/slice2-android.md › Performance).
     @Volatile internal var publishedRevision: Long = -1
+    /** Debug builds: the name row as shown, for device checks without UI dumps (logcat LightlyRuler). */
+    private fun logRuler(event: String) {
+        if (!env.debugBuild) return
+        val model = panelModel() ?: return
+        runCatching { android.util.Log.i("LightlyRuler", "$event: ${model.name} | ${model.position} | ${model.context}") }
+    }
+
+    /** First-visible-frame measurement of a ruler drag (logcat LightlyDevelop). */
+    @Volatile private var dragStartedNanos = 0L
+    @Volatile private var firstDragRevision = 0L
     @Volatile internal var requestedRevision: Long = -1
 
     /** Latest revision the scheduler published anything for (rendered or failed); capture readiness. */

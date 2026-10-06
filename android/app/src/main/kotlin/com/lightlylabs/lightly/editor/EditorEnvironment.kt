@@ -74,6 +74,11 @@ class EditorEnvironment(
     val renderDispatcher: CoroutineDispatcher,
     /** Where neighbouring presets are baked ahead of the ruler (never the render thread). */
     val prefetchDispatcher: CoroutineDispatcher,
+    /**
+     * A second render thread for frames of a moving control while a settled render occupies [renderDispatcher]
+     * (RenderScheduler's interactive lane). null: one lane.
+     */
+    val interactiveRenderDispatcher: CoroutineDispatcher? = null,
     val exporter: ExportCoordinator<String, *>,
     val favourites: FavouritesStore,
     /** Debug builds show stubs for the unimplemented tools and accept the capture launch options. */

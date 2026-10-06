@@ -71,6 +71,14 @@ class RenderScheduler<P : Any, R : Any>(
      * Save copy left no trace except the runtime's own "Throwing OutOfMemoryError" lines.
      */
     private val onUnpublishedFailure: (RenderRequest<P>, Throwable) -> Unit = { _, _ -> },
+    /**
+     * Where an interactive render runs while the main lane is busy with a settled one (2026-10-06). A slow initial or
+     * settled render (23 s for a first full preview on the CPU emulator) otherwise held every drag frame behind it.
+     * null: one lane only (tests that do not exercise this).
+     */
+    interactiveDispatcher: CoroutineDispatcher? = null,
+    /** True for a request from a moving control (a ruler drag, a slider): it may use the interactive lane. */
+    private val isInteractive: (P) -> Boolean = { false },
 ) {
     private class InFlight<P>(val request: RenderRequest<P>, val job: Job)
 
@@ -85,6 +93,10 @@ class RenderScheduler<P : Any, R : Any>(
     private var lastPublishedRevision = 0L
     private var pending: RenderRequest<P>? = null
     private var inFlight: InFlight<P>? = null
+    private var interactiveInFlight: InFlight<P>? = null
+    private val interactiveScope: CoroutineScope? = interactiveDispatcher?.let {
+        CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]) + it)
+    }
     private var closed = false
 
     private val publishedResult = MutableStateFlow<RenderResult<R>?>(null)
@@ -103,7 +115,7 @@ class RenderScheduler<P : Any, R : Any>(
         lastIssuedRevision += 1
         // Replacing (not queueing) the pending request is what keeps the work bounded.
         pending = RenderRequest(sessionId, lastIssuedRevision, payload)
-        if (inFlight == null) startPendingLocked()
+        dispatchLocked()
         lastIssuedRevision
     }
 
@@ -114,24 +126,24 @@ class RenderScheduler<P : Any, R : Any>(
      * so a preview and the export never hold their large buffers at the same time.
      */
     suspend fun cancelAllAndAwaitIdle() {
-        val job: Job? = synchronized(lock) {
+        val jobs: List<Job> = synchronized(lock) {
             cancelledThroughRevision = lastIssuedRevision
             pending = null
-            inFlight?.job
+            listOfNotNull(inFlight?.job, interactiveInFlight?.job)
         }
-        job?.cancelAndJoin()
+        jobs.forEach { it.cancelAndJoin() }
     }
 
     /** Cancels requests with revision `<= through`. Requests newer than [through] keep running. */
     fun cancel(through: Long) {
-        val jobToCancel: Job? = synchronized(lock) {
+        val jobsToCancel: List<Job> = synchronized(lock) {
             cancelledThroughRevision = maxOf(cancelledThroughRevision, through)
             if ((pending?.revision ?: Long.MAX_VALUE) <= through) pending = null
-            inFlight?.takeIf { it.request.revision <= through }?.job
+            listOfNotNull(inFlight?.takeIf { it.request.revision <= through }?.job, interactiveInFlight?.takeIf { it.request.revision <= through }?.job)
         }
         // Outside the lock: a job that has not started yet completes synchronously inside cancel(),
         // and its completion handler takes the lock to start the (newer) pending request.
-        jobToCancel?.cancel(CancellationException("Render cancelled through revision $through"))
+        jobsToCancel.forEach { it.cancel(CancellationException("Render cancelled through revision $through")) }
     }
 
     /** Ends the session: drops pending work, cancels the in-flight render, publishes nothing more. */
@@ -142,14 +154,32 @@ class RenderScheduler<P : Any, R : Any>(
             pending = null
         }
         scope.cancel(CancellationException("Render session $sessionId closed"))
+        interactiveScope?.cancel(CancellationException("Render session $sessionId closed"))
     }
 
-    private fun startPendingLocked() {
+    /**
+     * Starts the pending request if a lane is free. The main lane takes anything. An interactive request whose main
+     * lane is busy with a settled render starts at once on the interactive lane, and the settled render is cancelled:
+     * its result is older than the frames now asked for (cooperative: work that ignores cancellation finishes, and its
+     * older result is then not published over a newer one).
+     */
+    private fun dispatchLocked() {
         val request = pending ?: return
+        val running = inFlight
+        if (running == null) {
+            startLocked(request, interactiveLane = false)
+        } else if (interactiveScope != null && interactiveInFlight == null && isInteractive(request.payload) && !isInteractive(running.request.payload)) {
+            running.job.cancel(CancellationException("Settled render ${running.request.revision} superseded by an interactive request"))
+            startLocked(request, interactiveLane = true)
+        }
+    }
+
+    private fun startLocked(request: RenderRequest<P>, interactiveLane: Boolean) {
         pending = null
-        // LAZY so [inFlight] is recorded before the job can possibly complete.
-        val job = scope.launch(start = CoroutineStart.LAZY) { renderAndMaybePublish(request) }
-        inFlight = InFlight(request, job)
+        val laneScope = if (interactiveLane) interactiveScope!! else scope
+        // LAZY so the in-flight slot is recorded before the job can possibly complete.
+        val job = laneScope.launch(start = CoroutineStart.LAZY) { renderAndMaybePublish(request) }
+        if (interactiveLane) interactiveInFlight = InFlight(request, job) else inFlight = InFlight(request, job)
         // invokeOnCompletion (rather than a finally block) also fires for a job cancelled before it
         // ever ran, which would otherwise leave the in-flight slot occupied forever.
         job.invokeOnCompletion { onRenderCompleted(job) }
@@ -157,9 +187,12 @@ class RenderScheduler<P : Any, R : Any>(
     }
 
     private fun onRenderCompleted(job: Job) = synchronized(lock) {
-        if (inFlight?.job !== job) return@synchronized
-        inFlight = null
-        if (!closed) startPendingLocked()
+        when {
+            inFlight?.job === job -> inFlight = null
+            interactiveInFlight?.job === job -> interactiveInFlight = null
+            else -> return@synchronized
+        }
+        if (!closed) dispatchLocked()
     }
 
     private suspend fun renderAndMaybePublish(request: RenderRequest<P>) {

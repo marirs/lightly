@@ -45,6 +45,7 @@ object AndroidEditorEnvironment {
 
     /** Preview renders run on one thread; their per-pixel work fans out on [workerPool]. */
     private val renderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-render") }.asCoroutineDispatcher()
+    private val interactiveRenderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-render-interactive") }.asCoroutineDispatcher()
     private val prefetchDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-prefetch").apply { priority = Thread.MIN_PRIORITY } }.asCoroutineDispatcher()
 
     /** Threads for bakes and row-parallel rendering: at most 4, leaving the UI thread a core. */
@@ -108,6 +109,7 @@ object AndroidEditorEnvironment {
             previewRenderer = DevelopRenderer(workerPool, parallelism),
             renderDispatcher = renderDispatcher,
             prefetchDispatcher = prefetchDispatcher,
+            interactiveRenderDispatcher = interactiveRenderDispatcher,
             exporter = ExportCoordinator(
                 saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder(), metadataStep = metadataStep(app), shareCopy = shareCopies(app)),
                 frameFactory = BitmapExportFrame.factory,
