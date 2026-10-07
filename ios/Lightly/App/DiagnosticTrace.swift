@@ -61,3 +61,35 @@ enum DiagnosticTrace {
     }
     #endif
 }
+
+#if DEBUG
+import UIKit
+
+/// Device diagnostics (2026-10-07, the depth-model stall): app lifecycle events in the trace, so a stage that stops
+/// can be placed against foreground and background; `--keep-awake` keeps the phone from auto-locking while Lightly is
+/// in front, for a watched diagnostic session. DEBUG builds only.
+@MainActor
+enum DebugLifecycleTrace {
+    private static var observers: [NSObjectProtocol] = []
+
+    static func start() {
+        if DebugArguments.current.contains("--keep-awake") {
+            UIApplication.shared.isIdleTimerDisabled = true
+            DiagnosticTrace.note("app: keep awake (idle timer disabled)")
+        }
+        let events: [(Notification.Name, String)] = [
+            (UIApplication.didBecomeActiveNotification, "active"),
+            (UIApplication.willResignActiveNotification, "will resign active"),
+            (UIApplication.didEnterBackgroundNotification, "background"),
+            (UIApplication.willEnterForegroundNotification, "will enter foreground"),
+            (UIApplication.protectedDataWillBecomeUnavailableNotification, "device locking"),
+            (UIApplication.didReceiveMemoryWarningNotification, "memory warning"),
+        ]
+        observers = events.map { name, label in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+                DiagnosticTrace.note("app: \(label)")
+            }
+        }
+    }
+}
+#endif

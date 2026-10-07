@@ -393,7 +393,21 @@ final class DepthEstimator: @unchecked Sendable {
         #else
         configuration.computeUnits = .all
         #endif
-        guard let model = try? MLModel(contentsOf: url, configuration: configuration) else { return nil }
+        #if DEBUG
+        if let units = DebugModelLoad.computeUnitsOverride() { configuration.computeUnits = units }
+        #endif
+        let started = ContinuousClock.now
+        DiagnosticTrace.note("depth: model load started, compute units \(DebugModelLoad.name(configuration.computeUnits))")
+        #if DEBUG
+        let watchdog = DebugModelLoad.watchdog(label: "depth: model load", started: started)
+        defer { watchdog.cancel() }
+        #endif
+        let model: MLModel
+        do { model = try MLModel(contentsOf: url, configuration: configuration) } catch {
+            DiagnosticTrace.note("depth: model load failed after \(DebugModelLoad.ms(since: started)) ms: \(error)")
+            return nil
+        }
+        DiagnosticTrace.note("depth: model loaded in \(DebugModelLoad.ms(since: started)) ms")
         return DepthEstimator(model: model)
     }
 
@@ -417,9 +431,13 @@ final class DepthEstimator: @unchecked Sendable {
             let inputName = model.modelDescription.inputDescriptionsByName.keys.first ?? "image"
             let provider = try MLDictionaryFeatureProvider(dictionary: [inputName: MLFeatureValue(pixelBuffer: input)])
             let output: MLFeatureProvider
+            let inferenceStarted = ContinuousClock.now
+            DiagnosticTrace.note("depth: inference started")
             do { output = try await model.prediction(from: provider) } catch {
+                DiagnosticTrace.note("depth: inference failed after \(DebugModelLoad.ms(since: inferenceStarted)) ms: \(error)")
                 throw SceneAnalysisError.depthUnavailable("\(error)")
             }
+            DiagnosticTrace.note("depth: inference done in \(DebugModelLoad.ms(since: inferenceStarted)) ms")
             try Task.checkCancellation()
             guard let name = model.modelDescription.outputDescriptionsByName.keys.first,
                   let value = output.featureValue(for: name) else { throw SceneAnalysisError.depthUnavailable("no output") }
@@ -553,3 +571,45 @@ enum DebugSubjectMatteFixture {
     }
 }
 #endif
+
+/// Model-load diagnostics (2026-10-07, the depth-model stall on the iPhone 11 Pro Max): stage times in the trace and,
+/// in DEBUG builds, a heartbeat while a load runs and `--depth-compute-units cpuOnly|cpuAndGPU|cpuAndNeuralEngine|all`.
+enum DebugModelLoad {
+    static func ms(since start: ContinuousClock.Instant) -> Int64 {
+        let d = ContinuousClock.now - start
+        return d.components.seconds * 1000 + d.components.attoseconds / 1_000_000_000_000_000
+    }
+
+    static func name(_ units: MLComputeUnits) -> String {
+        switch units {
+        case .cpuOnly: return "cpuOnly"
+        case .cpuAndGPU: return "cpuAndGPU"
+        case .cpuAndNeuralEngine: return "cpuAndNeuralEngine"
+        case .all: return "all"
+        @unknown default: return "unknown"
+        }
+    }
+
+    #if DEBUG
+    static func computeUnitsOverride() -> MLComputeUnits? {
+        let arguments = DebugArguments.current
+        guard let flag = arguments.firstIndex(of: "--depth-compute-units"), arguments.indices.contains(flag + 1) else { return nil }
+        switch arguments[flag + 1] {
+        case "cpuOnly": return .cpuOnly
+        case "cpuAndGPU": return .cpuAndGPU
+        case "cpuAndNeuralEngine": return .cpuAndNeuralEngine
+        case "all": return .all
+        default: return nil
+        }
+    }
+
+    /// Notes "still running" every 15 s until cancelled, so a stall shows when it began and that the process lived.
+    static func watchdog(label: String, started: ContinuousClock.Instant) -> DispatchSourceTimer {
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + 15, repeating: 15)
+        timer.setEventHandler { DiagnosticTrace.note("\(label) still running after \(ms(since: started) / 1000) s") }
+        timer.resume()
+        return timer
+    }
+    #endif
+}
