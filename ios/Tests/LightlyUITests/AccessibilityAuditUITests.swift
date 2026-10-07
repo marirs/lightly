@@ -15,7 +15,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         ("welcome", nil, "welcome.choosePhoto"),
         ("more", nil, "welcome.choosePhoto"),
         ("dev-preset", "lake", "develop.ruler"),
-        ("dev-amount", "lake", "develop.ruler"),
+        ("dev-amount", "lake", "develop.amount.done"),
         ("ed-crop", "lake", "edit.aspect.4:5"),
         ("ed-adjust-light", "lake", "slider.exposure"),
         ("bg-change-colour", "woman", "background.remove"),
