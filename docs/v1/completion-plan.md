@@ -180,3 +180,14 @@ hardware rounds as D-1/D-2 arrive → A9/A12 after D-3.
   Save copy) pass. Settled-preview memory fixed (peak in use before GC 155 MB of 192; was failing). A1 open (drag-frame
   speed, phone, D1). A3 open (originals moved: visual review with the owner). A5 open (failed validation). A7 waits for
   the Lightroom exports (brief: release/lightroom-export-brief.md). Estimate unchanged at 13–22 d.
+- 2026-10-07 (A1): **Measurement corrected:** every earlier Android drag timing came from the debuggable APK, which ART
+  runs unoptimised; a `benchmark` build type (release-like, profileable, scripted scenarios) is now used. **Memory:**
+  Save copy of the 13.5 MP Background edit keeps ≥ 53 MB of the 192 MB heap free (live set 123–139 MB in heap dumps
+  during the tiles; caches the export never reads freed, Look manifest as UTF-8, 512 px tiles); 0 app-visible
+  allocation failures (ART still logs a footprint-growth line that the allocation then passes). **Speed:** the drag
+  frame's Background stage is 2.2× faster with bit-identical output (A/B 132–171 → 63–75 ms, JVM, 4 threads; profile
+  with simpleperf). Spare emulator, benchmark build: drag frames median 139–149 ms, 15–21 of 18–22 within 250 ms, first
+  drag frames 140–251 ms; host load moves these figures by up to 2×. Remaining for A1: the phone measurement (D-1)
+  and the D1 notice. Favourites snapshot baseline updated (every difference traced to the authorised names and note
+  component). Estimate unchanged at 13–22 d: A1 steps 1–4 are done; the conditional GPU path is less likely but
+  stays open until a phone is measured.
