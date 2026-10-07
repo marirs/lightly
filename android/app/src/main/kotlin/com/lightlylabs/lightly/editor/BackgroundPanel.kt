@@ -73,6 +73,8 @@ fun BackgroundPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Co
             FocusSlider(vm, ui, "Blur", "blur", tool.focus.blur, 0.0, 100.0)
         }
         BackgroundPanelState.Separating -> Notice(LightlyIcons.Info, AnnotatedString("Finding the subject…"), listOf("Cancel" to vm::cancelSeparation))
+        // PROPOSED copy (owner approval pending, 2026-10-07): see BackgroundPanelState.EstimatingDepth.
+        BackgroundPanelState.EstimatingDepth -> Notice(LightlyIcons.Info, AnnotatedString("Estimating depth…"), listOf("Cancel" to vm::cancelSeparation))
         BackgroundPanelState.Failed -> Notice(LightlyIcons.Warn, bold("Couldn't separate the subject.", " Your other edits are kept."), listOf("Try again" to vm::retrySeparation))
         // PROPOSED copy (owner approval pending, 2026-10-05): see BackgroundPanelState.DepthFailed.
         BackgroundPanelState.DepthFailed -> Notice(LightlyIcons.Warn, bold("Couldn't measure depth.", " Blur needs it. Change background still works."), listOf("Try again" to vm::retrySeparation))

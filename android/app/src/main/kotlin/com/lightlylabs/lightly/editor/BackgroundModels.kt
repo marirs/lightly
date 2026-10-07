@@ -47,6 +47,12 @@ sealed interface BackgroundPanelState {
     data object NoSubject : BackgroundPanelState
     data object Separating : BackgroundPanelState
 
+    /**
+     * Focus & Blur after the subject outline arrived, while depth is still estimated. PROPOSED copy "Estimating
+     * depth…" (owner approval pending, 2026-10-07): "Finding the subject…" would be untrue once the outline is done.
+     */
+    data object EstimatingDepth : BackgroundPanelState
+
     /** The approved failure: "Couldn't separate the subject. Your other edits are kept." with Try again. */
     data object Failed : BackgroundPanelState
 
@@ -72,14 +78,13 @@ sealed interface BackgroundPanelState {
             is SeparationState.Finished -> {
                 val depthUsable = separation.depthAvailable || separation.depthCancelled
                 when {
-                    separation.noClearSubject -> when {
-                        separation.depthPending -> Separating
-                        depthUsable -> NoSubject
-                        else -> DepthFailed
-                    }
+                    // No subject: the approved notice and Blur slider at once, in either mode (prototype `backgroundPanel`
+                    // returns them first). v3 differs (2026-10-07): it waited here for depth, so Change background
+                    // showed "Finding the subject…" until the depth estimate finished.
+                    separation.noClearSubject -> if (depthUsable || separation.depthPending) NoSubject else DepthFailed
                     ui.sub == BackgroundSub.REFINE -> if (separation.matteAvailable) Refine else Failed
                     ui.sub == BackgroundSub.CHANGE -> if (separation.matteAvailable) Change(ui.kind ?: kindOf(replacement)) else Failed
-                    separation.depthPending -> Separating
+                    separation.depthPending -> EstimatingDepth
                     depthUsable -> Focus
                     separation.matteAvailable -> DepthFailed
                     else -> Failed

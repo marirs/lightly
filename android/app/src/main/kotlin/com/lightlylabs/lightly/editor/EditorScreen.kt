@@ -571,6 +571,10 @@ private fun BackgroundMarks(vm: EditorViewModel, ui: EditorUiState) {
         BackgroundPanelState.Separating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             ProgressBox("Finding the subject…", null, null, cancel = vm::cancelSeparation)
         }
+        // PROPOSED copy (owner approval pending, 2026-10-07): depth's own progress, distinct from the subject's.
+        BackgroundPanelState.EstimatingDepth -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            ProgressBox("Estimating depth…", null, null, cancel = vm::cancelSeparation)
+        }
         BackgroundPanelState.Focus, BackgroundPanelState.NoSubject -> BoxWithConstraints(
             Modifier.fillMaxSize().pointerInput(Unit) {
                 detectTapGestures { offset ->
@@ -581,6 +585,12 @@ private fun BackgroundMarks(vm: EditorViewModel, ui: EditorUiState) {
                 }
             }.semantics { contentDescription = "Tap the photo to set focus" },
         ) {
+            // No subject and a blur waiting for depth: depth's own progress (PROPOSED copy, see EstimatingDepth).
+            if (state == BackgroundPanelState.NoSubject && tool.focus.blur > 0 && (ui.separation as? SeparationState.Finished)?.depthPending == true) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ProgressBox("Estimating depth…", null, null, cancel = vm::cancelSeparation)
+                }
+            }
             // The prototype shows the target only when the photo has a subject.
             if (state == BackgroundPanelState.Focus) {
                 val (tx, ty) = vm.focusTarget.let { (x, y) -> vm.displayGeometry(ui)?.frameFromSource(x, y) ?: (x to y) }

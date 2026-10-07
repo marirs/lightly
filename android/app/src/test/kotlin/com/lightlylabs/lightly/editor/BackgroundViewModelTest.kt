@@ -342,6 +342,16 @@ class BackgroundViewModelTest {
     }
 
     @Test
+    fun `no clear subject shows the approved notice at once in either mode, never waiting for depth`() {
+        val pending = SeparationState.Finished(depthAvailable = false, matteAvailable = false, noClearSubject = true, depthPending = true)
+        for (sub in listOf(BackgroundSub.FOCUS, BackgroundSub.CHANGE)) {
+            assertEquals(BackgroundPanelState.NoSubject, BackgroundPanelState.of(BackgroundUi(sub = sub), pending, null), "$sub")
+        }
+        val depthFailed = pending.copy(depthPending = false)
+        assertEquals(BackgroundPanelState.DepthFailed, BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.CHANGE), depthFailed, null))
+    }
+
+    @Test
     fun `Change background is usable before depth finishes, Focus and Blur waits for it`() = runTest {
         var seenWhileDepthRuns: SeparationState? = null
         lateinit var vm: EditorViewModel
@@ -351,7 +361,7 @@ class BackgroundViewModelTest {
         advanceUntilIdle()
         val partial = assertIs<SeparationState.Finished>(seenWhileDepthRuns, "the matte is published before depth runs")
         assertTrue(partial.matteAvailable && partial.depthPending)
-        assertEquals(BackgroundPanelState.Separating, BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.FOCUS), partial, null))
+        assertEquals(BackgroundPanelState.EstimatingDepth, BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.FOCUS), partial, null))
         assertIs<BackgroundPanelState.Change>(BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.CHANGE), partial, null))
         assertEquals(BackgroundPanelState.Refine, BackgroundPanelState.of(BackgroundUi(sub = BackgroundSub.REFINE), partial, null))
         val finished = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
