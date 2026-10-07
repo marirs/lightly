@@ -299,44 +299,91 @@ private struct FittedFormSheetSizing: ViewModifier {
 }
 
 #if DEBUG
-/// Device memory check over repeated operations (2026-10-07): see `--mem-cycles` in RootView.
+/// Device memory check over repeated operations (2026-10-07): see `--mem-cycles` in RootView. Each operation is
+/// recorded as its footprint before, its own peak (sampled every 10 ms while it runs; the system's peak counter only
+/// ever grows over the process's life) and the footprint retained 2 s after it ends. The first save and the strokes
+/// that load the Remove model are labelled, so cold loads are not mistaken for growth.
 @MainActor
 enum DebugMemoryCycles {
+    /// Samples the current physical footprint every 10 ms between start and stop.
+    final class Sampler: @unchecked Sendable {
+        private let lock = NSLock()
+        private var maximum = 0
+        private let timer = DispatchSource.makeTimerSource(queue: .global(qos: .userInitiated))
+
+        init() {
+            maximum = SaveTiming.currentFootprintMB() ?? 0
+            timer.schedule(deadline: .now(), repeating: .milliseconds(10))
+            timer.setEventHandler { [weak self] in
+                guard let self, let now = SaveTiming.currentFootprintMB() else { return }
+                self.lock.withLock { self.maximum = max(self.maximum, now) }
+            }
+            timer.resume()
+        }
+
+        func stop() -> Int {
+            timer.cancel()
+            return lock.withLock { maximum }
+        }
+    }
+
+    static func now() -> Int { SaveTiming.currentFootprintMB() ?? -1 }
+
     static func mark(_ step: String) {
-        DiagnosticTrace.note("mem: \(step): footprint \(SaveTiming.currentFootprintMB() ?? -1) MB, peak \(SaveTiming.peakFootprintMB() ?? -1) MB")
+        DiagnosticTrace.note("mem: \(step): footprint \(now()) MB, process peak so far \(SaveTiming.peakFootprintMB() ?? -1) MB")
+    }
+
+    /// Runs one operation and records before / its own peak / retained after 2 s.
+    static func measured(_ label: String, _ operation: () async -> Void) async {
+        let before = now()
+        let sampler = Sampler()
+        await operation()
+        let peak = sampler.stop()
+        try? await Task.sleep(for: .seconds(2))
+        DiagnosticTrace.note("mem op: \(label): before \(before) MB, peak \(peak) MB, retained \(now()) MB")
     }
 
     static func run(appState: AppState, cycles: Int, photos: [String]) async {
         mark("start")
+        var savedOnce = false
         for cycle in 0..<cycles {
             for (index, name) in photos.enumerated() {
                 let url = URL.documentsDirectory.appending(path: name)
-                await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
-                guard let photo = appState.selectedPhoto else { mark("cycle \(cycle) \(name): did not open"); return }
-                let session = appState.editorSession(for: photo)
-                // waitUntilReady can return before the editor view has started the session: wait for the phase.
-                await session.debugWait { session.phase == .ready }
-                mark("cycle \(cycle) \(name) open")
+                var opened: EditorSession?
+                await measured("cycle \(cycle) open \(name)") {
+                    await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
+                    guard let photo = appState.selectedPhoto else { return }
+                    let session = appState.editorSession(for: photo)
+                    // waitUntilReady can return before the editor view has started the session: wait for the phase.
+                    await session.debugWait { session.phase == .ready }
+                    opened = session
+                }
+                guard let session = opened else { mark("cycle \(cycle) \(name): did not open"); return }
                 guard index == 0 else { continue }
-                await save(session, "cycle \(cycle) \(name) saved")
-                await session.debugRemove(points: [.init(x: 0.62, y: 0.36), .init(x: 0.72, y: 0.33)], radius: 0.03)
-                mark("cycle \(cycle) \(name) removed (\(session.removeState))")
-                await save(session, "cycle \(cycle) \(name) saved after remove")
-                // Save copy released the Remove model: another stroke must load it again and apply.
-                let strokes = session.recipe.tools.edit.remove.strokes.count
-                await session.debugRemove(points: [.init(x: 0.3, y: 0.6), .init(x: 0.38, y: 0.62)], radius: 0.03)
-                mark("cycle \(cycle) \(name) second stroke (\(session.removeState), strokes \(strokes) → \(session.recipe.tools.edit.remove.strokes.count))")
+                await measured("cycle \(cycle) save\(savedOnce ? "" : " (first in process)")") { await save(session) }
+                savedOnce = true
+                await measured("cycle \(cycle) stroke 1 (loads the Remove model)") {
+                    await session.debugRemove(points: [.init(x: 0.62, y: 0.36), .init(x: 0.72, y: 0.33)], radius: 0.03)
+                }
+                await measured("cycle \(cycle) stroke 2 (model loaded)") {
+                    await session.debugRemove(points: [.init(x: 0.45, y: 0.5), .init(x: 0.5, y: 0.52)], radius: 0.03)
+                }
+                await measured("cycle \(cycle) save with fills (releases the model)") { await save(session) }
+                await measured("cycle \(cycle) save with fills again") { await save(session) }
+                await measured("cycle \(cycle) stroke 3 (reloads the model)") {
+                    await session.debugRemove(points: [.init(x: 0.3, y: 0.6), .init(x: 0.38, y: 0.62)], radius: 0.03)
+                }
+                DiagnosticTrace.note("mem: cycle \(cycle) strokes applied \(session.recipe.tools.edit.remove.strokes.count), remove \(session.removeState)")
             }
             try? await Task.sleep(for: .seconds(5))
-            mark("cycle \(cycle) idle")
+            mark("cycle \(cycle) settled")
         }
         mark("cycles done")
     }
 
-    private static func save(_ session: EditorSession, _ step: String) async {
+    private static func save(_ session: EditorSession) async {
         session.saveCopy()
         await session.debugWait { session.saveState != .saving }
-        mark(step)
     }
 }
 #endif
