@@ -4,10 +4,12 @@
 #   scripts/heavy install-review scripts/install_review.sh <commit>
 set -u
 C=$1; OUT=$HOME/.codex/artifacts/lightly/v1/review-builds; A=$OUT/android/$C; I=$OUT/ios/$C
-[ -f "$A/lightly-debug-$C-with-models.apk" ] && [ -f "$I/lightly-ios-review-$C-sim.zip" ] && [ -f "$I/lightly-ios-review-$C-iphone.zip" ] || { echo "no packages for $C"; exit 2; }
+[ -f "$A/lightly-benchmark-$C-with-models.apk" ] && [ -f "$I/lightly-ios-review-$C-sim.zip" ] && [ -f "$I/lightly-ios-review-$C-iphone.zip" ] || { echo "no packages for $C"; exit 2; }
 T=$(mktemp -d); (cd "$T" && mkdir sim iphone && unzip -q "$I/lightly-ios-review-$C-sim.zip" -d sim && unzip -q "$I/lightly-ios-review-$C-iphone.zip" -d iphone)
 echo "== install $C $(date +%T)"
-adb -s emulator-5554 install -r "$A/lightly-debug-$C-with-models.apk" | tail -1
+# The benchmark build (release code and settings; docs/v1/android-benchmark-build.md), updated in place: same debug
+# signing key as the earlier debug installs, so data is kept.
+adb -s emulator-5554 install -r "$A/lightly-benchmark-$C-with-models.apk" | tail -1
 echo "emulator-5554: $(adb -s emulator-5554 shell dumpsys package com.lightlylabs.lightly | grep -m1 versionCode | tr -s ' ')"
 xcrun simctl install D75D820D-B43C-4330-8E6F-0FBEB2FA9D02 "$T/sim/Lightly.app" && \
   echo "simulator D75D820D: $(plutil -extract CFBundleVersion raw "$(xcrun simctl get_app_container D75D820D-B43C-4330-8E6F-0FBEB2FA9D02 com.lightlylabs.lightly)/Info.plist")"

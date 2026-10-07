@@ -13,8 +13,8 @@ echo "== checkpoint $C, version $MARKETING ($BUILD_NUMBER) $(date +%T)"
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 (cd android && ./gradlew -q :app:assembleDebug :app:assembleBenchmark) || { echo "android build failed"; exit 1; }
 cp android/app/build/outputs/apk/debug/app-debug.apk "$A/lightly-debug-$C-with-models.apk"
-# The same content built like release (not debuggable): the build to judge Android speed with. The review emulator keeps
-# the debug build (the evidence scripts read its data with run-as).
+# The same content built like release (not debuggable; docs/v1/android-benchmark-build.md): installed on the review
+# emulator. The debug APK stays in the package for scripted checks on the spare emulator (run-as needs debuggable).
 cp android/app/build/outputs/apk/benchmark/app-benchmark.apk "$A/lightly-benchmark-$C-with-models.apk"
 (cd "$A" && shasum -a 256 *.apk > SHA256SUMS && cat SHA256SUMS)
 cd ios && xcodegen generate 2>&1 | tail -1
@@ -34,7 +34,7 @@ codesign -dvv $DEV/Lightly.app 2>&1 | grep -E "Authority=Apple Dev|TeamIdentifie
 # INSTALL=0 packages only: the review devices keep the build the owner is testing.
 if [ "${INSTALL:-1}" = 1 ]; then
 echo "== install $(date +%T)"
-adb -s emulator-5554 install -r "$A/lightly-debug-$C-with-models.apk" | tail -1
+adb -s emulator-5554 install -r "$A/lightly-benchmark-$C-with-models.apk" | tail -1
 xcrun simctl install D75D820D-B43C-4330-8E6F-0FBEB2FA9D02 $SIM/Lightly.app && echo "review simulator D75D820D installed"
 if xcrun devicectl list devices 2>/dev/null | grep -q "4C50E425-9BEA-58DB-9D5E-2BF46A9F0A6C.*available"; then
   xcrun devicectl device install app --device 4C50E425-9BEA-58DB-9D5E-2BF46A9F0A6C $DEV/Lightly.app 2>&1 | grep -iE "installed|error" | head -2
