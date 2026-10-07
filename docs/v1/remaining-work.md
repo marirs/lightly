@@ -151,8 +151,10 @@ Closed as stale (evidence re-checked 2026-10-06):
   copy; Android failed every save ("Couldn't save the copy") and now saves from a private copy of the original (5490108).
   Android copy lifecycle, spare emulator 2026-10-07: edit, photo deleted, process ended by the system in the background
   (`am kill`), return through Recents → edit restored from the copy and Save copy saved; leaving the editor deletes the
-  copy; removing the task and starting again deletes a leftover copy. Not tested: return from the home-screen icon (the
-  script's task was started by an explicit intent, so the icon opened a new session). The copy is in
+  copy; removing the task and starting again deletes a leftover copy. Ordinary launcher path (launch and return with the
+  launcher's own intent, as a home-screen icon tap sends): edit (Hiking 5 at 37/518), Home, process ended by the system
+  (`am kill` once cached), icon → the same edit restored and Save copy saved. Separate, by design: an explicit
+  force-stop or swipe-away from Recents ends the session; the next start is fresh and deletes the copy. The copy is in
   `noBackupFilesDir` (excluded from backup and device transfer; the app also sets allowBackup="false").
   Still unit-tested only: model unavailable mid-session.
 - iOS snapshot `SliceOneSnapshotTests/testFavourites`: implementation baseline updated 2026-10-07 (approved references
@@ -176,10 +178,20 @@ Closed as stale (evidence re-checked 2026-10-06):
   needs a spoken walk-through on a device. **Device performance: pending** (phones).
 - **48 MP (2026-10-07), CC0 fixture 8000×6000 (PD12M c8954609…):**
   - Android, spare emulator, benchmark build: Save copy saved nothing before f79e89f (a 192 MB Java array refused by the
-    192 MB heap). Fixed: Develop and Background Save copies now save 8000×6000, no OutOfMemoryError lines, Java heap at
-    most 59 / 84 MB in use after GC while saving. 108 MP: refused with the approved "can't be opened" screen.
-  - iOS Simulator: **unverified**. The save started and was still rendering when the run's bound ended; the Simulator
-    renders this pipeline at about 25 kpx/s (a 1.6 MP save took 67 s), so 48 MP would take about 30 minutes there.
+    192 MB heap). Fixed: Develop and Background Save copies now save 8000×6000 with no OutOfMemoryError lines. 108 MP:
+    refused with the approved "can't be opened" screen.
+  - **Whole-process memory (the Java heap alone does not establish safety).** Sampled every second (dumpsys meminfo)
+    plus the kernel's resident high-water mark (VmHWM): Develop Save copy peak PSS 637 MB, VmHWM 662 MB (native heap
+    435 MB); Background Save copy peak PSS 954 MB, VmHWM 980 MB (native heap 797 MB). The spec's 600 MB at 48 MP is
+    exceeded in both. Breakdown: the source and output Bitmaps are 192 MB each (the output's pages are touched tile by
+    tile, so native memory climbs through the save); in the Background flow about 255 MB of native memory is already
+    held before the save, most likely the loaded vision and depth models (on the emulator they run without XNNPACK, so
+    their memory differs on a phone). Next: release the models before Save copy (needs safe interpreter lifetimes) and
+    measure on a phone; until then 48 MP export safety on Android is not established.
+  - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:
+    42.3 s, render 42.2 s). With Release compiler settings: 13.5 MP 4.6 s, 48 MP 18.9 s (render 17.7 s), and after
+    the bit-identical blur change (dd606d5) 13.5 MP 2.5 s, 48 MP 9.2 s (render 8.3 s), saved at 8000×6000. Review
+    builds now use Release compiler settings. Device time and memory: pending.
   - Pending on hardware: time and memory pressure on both platforms, and the iOS 48 MP save itself (the iPhone holds an
     unsaved edit session from 5 Oct that a test run would replace, so it was not run).
 - Saved-file metadata combinations on Android after slice 1.
