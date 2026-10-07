@@ -13,6 +13,13 @@ once (16:33) and restored it from source 0a9b1285…; that rebound the history h
 ## iPhone 11 Pro Max: one session, about 30 minutes. Keep the phone unlocked and on the cable throughout.
 **Before you start (me):** re-read the session files against the backup (nothing written).
 
+**Measured 7 Oct, 261007059, 48 MP fixture, `--keep-stored-session` (stored edit unchanged, SHA-256 checked):**
+Develop Save copy 1.6 s (bytes 0.37 s, render 0.97 s, encode 0.24 s), peak footprint 840 MB; one Remove stroke done
+8 s after launch, peak footprint 533 MB. **Open device failure:** Background on the same photo (no camera depth):
+the Depth Anything model load did not finish in two runs (5 and 10 minutes; no "ready" or "unavailable" line; no
+crash or jetsam report). The phone may have auto-locked during the wait, which suspends the app, so this is not yet
+a diagnosis. First step of the session: `bg-focus` with the phone unlocked and watched. Evidence: `/Users/sg/.codex/artifacts/lightly/v1/iphone-memory/20261007-165953`.
+
 **You (in this order):**
 1. Your restored edit is on screen: check it is the one you left (then keep editing it or not, as you like).
 2. **Background:** a portrait → Change background with a colour (look at the hair edge) → Focus & Blur → drag the preset
