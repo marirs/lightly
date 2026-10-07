@@ -31,36 +31,49 @@ installation guides; the WithLuke guide opens "Many thanks for purchasing my Pre
 Sources: https://solutionpresets.com/pages/terms-of-service, https://withlukestudios.com/policies/terms-of-service,
 https://www.withluke.com/ (links to withlukestudios.com for presets).
 
-## Genuinely missing (short list)
-1. Purchase records for all four packs (the owner's email or store accounts).
-2. Written permission from SolutionPresets to ship 970 converted presets and their names in Lightly.
-3. Written permission from WithLuke Studios to ship 808 converted presets (two collections) and their names.
-4. The identity and rights of the "Huliluts" seller; then permission from the author for 813 presets.
-5. Unrelated to vendors, engineering once rights are settled: `originPath` and vendor names removed from the shipped
-   iOS JSON (and whether those two files ship at all).
+## The four purchased packs and what each needs
+A receipt identifies the purchase and the seller; it does not grant redistribution. Permission must come from the
+licence that governs the pack or, failing one, from the rights holder (the presets' author, or whoever the author
+licensed to sell them).
 
-## Draft enquiries (for your review; not sent)
+| # | Pack (folder in `~/Downloads/Presets - for lightly/`) | Presets shipped | What is on disk (no licence in any) | Needed |
+|---|---|---|---|---|
+| 1 | **SolutionPresets** — products: Black Presets, Car Presets, Cinematic Presets, Influencer Bundle, iPhone - Movies Presets, and "Presets" for Android / iPhone / Desktop | 970 | 24 zips (Android, iPhone, Desktop variants), downloaded 15 Aug 2026 | Order confirmation(s) naming the products; the licence or EULA in force at purchase (the store's terms reserve copying and resale and name no product licence); written permission from SolutionPresets (solutionpresets@gmail.com) as rights holder, after confirming they authored the presets |
+| 2 | **The Ultimate Preset Bundle - Huliluts** (incl. "New Update … 20.5.2026", "Analog Film V2") | 813 | 598 XMP, 598 DNG, 597 CUBE; guides only | First: who sold it (receipt, store, URL) and who authored it. A product of the same name (790 presets per format) is sold by H&V Presets; "Huliluts" may be the author, a reseller or an unauthorised copy. Then the licence and the author's written permission. If the seller had no rights, this pack cannot be licensed through this purchase |
+| 3 | **WithLuke studios** — Master Lightroom Presets Collection, Complete Collection Video LUTs Parts 1–3, Rich Black Video LUTs | 590 | 1,180 XMP, 590 lrtemplate, 366 CUBE; Shopify zip names dated 27 Feb 2024 and 12 Nov 2025 | Order confirmation; the product licence (the store terms reserve copying and resale; no product licence found); written permission from WithLuke Studios (Luke Stackpoole, info@withlukestudios.com) |
+| 4 | **WithLuke - Master Collection** (2025, with the "2025 Additional Update", Legacy and Cinematic collections) | 218 | 497 XMP, 206 lrtemplate, 126 DNG; "WithLuke Presets User Guide 2025" ("Many thanks for purchasing my Preset Collection!") | Same seller as 3: order confirmation, product licence, and the same permission (one enquiry covers 3 and 4) |
 
-**To SolutionPresets (solutionpresets@gmail.com)** and, adapted, **to WithLuke Studios (info@withlukestudios.com)**
+For every pack the permission has to cover, in writing: converting the Lightroom settings into Lightly's own format;
+shipping them inside a paid app on iOS and Android in [markets]; showing the vendor's preset names (or our own); for
+how long; any fee and credit; and confirmation that the grantor holds the rights.
+
+Engineering, once rights are settled: remove `originPath` and vendor names from the shipped iOS JSON (and decide
+whether `presets_photo.json` and `luts_video.json` ship at all).
+
+## Draft enquiries (for your review; none is sent until you authorise it)
+
+**Enquiry A, to SolutionPresets (solutionpresets@gmail.com), pack 1. Enquiry B, to WithLuke Studios
+(info@withlukestudios.com), packs 3 and 4.** Same text, with each pack's product names and counts.
 
 Subject: Licence to include your presets in a photo-editing app
 
 > Hello,
 >
-> I bought [pack names, order numbers and dates] from you. I am building Lightly, a photo editor for iPhone, iPad and
-> Android (lightly.pro). I would like to include [number] of your presets in it, converted from your Lightroom
+> I bought [product names, order numbers and dates] from you. I am building Lightly, a photo editor for iPhone, iPad
+> and Android (lightly.pro). I would like to include [number] of your presets in it, converted from your Lightroom
 > settings into the app's own format, under your preset names [or: under names we choose], as built-in looks that
-> users apply to their own photos. The app does not export or share the preset files or settings.
+> people apply to their own photos. The app does not export or share the preset files or settings.
 >
-> Your store terms do not cover this, so I am asking for written permission. Could you tell me whether you would
-> grant a licence for this use, on what terms (fee, credit, territory, duration), and whether you are the author of
-> all the presets in these packs?
+> Your store's terms do not cover this use, so I am asking for written permission. Could you tell me whether you
+> would grant a licence for it, on what terms (fee, credit, territory, duration), and confirm that you are the author
+> of all the presets in these packs or hold the rights to license them?
 >
-> [Name, operator, address — owner facts still open]
+> [Name, operator and address: owner facts still open]
 
-**About "The Ultimate Preset Bundle - Huliluts"** (no contact yet): first find the receipt to identify the seller;
-if it was H&V Presets, send the same enquiry to H&V; if the seller cannot be identified or had no rights, these 813
-presets cannot be licensed through that purchase.
+**Enquiry C, pack 2 ("Huliluts"): not addressable yet.** The receipt or the store page must name the seller first. If
+it was H&V Presets (or another author's shop), Enquiry A's text goes to them with: "Please confirm that you are the
+author of this bundle." If the seller cannot be identified or had no rights, these 813 presets cannot be licensed
+through that purchase.
 
 ## Trademark names (separate question)
 Display names containing "Kodak", "Portra" (Kodak Portra 1–10, Portra 400 01–09, Landscape 5 - Kodak, Aerial 9 -

@@ -29,6 +29,14 @@ in 377 ms and 6 s later had no Background state from the first photo. `--mem-cyc
 before Save copy: peak 842 MB (was 956), Save copy without fills 695 MB, a second stroke after each save applied,
 idle 102–103 MB; stored edit unchanged. The "every photo" Background report is not reproduced (iPhone, these runs);
 not checked on an Android phone.
+**Restoration after the system ends the app (261007078, separate test edit in `EditSession-rtest`):** one edit, Lightly
+sent to the background (Settings opened), killed with SIGKILL, relaunched normally with no restore flag: the trace
+shows the stored session found in the same scene and the edit reopened at its step (2 steps). The owner's stored edit
+was not read or written (SHA-256 unchanged before and after).
+**Still open on the iPhone:** the spoken VoiceOver pass (a person must listen, and turning VoiceOver on is a system
+setting: owner step 7); the shipping-configuration check (gates-open Release build: Focus & Blur and a Remove stroke,
+owner step after E). Hair edges (A4), no-subject detection (A5) and the grain/vignette calibration (33 Lightroom
+exports) remain open release items.
 **Repeated 48 MP operations (`--mem-cycles 3`):** idle 108–110 MB after every cycle, peak footprint 956 MB (Save copy
 after a Remove stroke; Save copy alone 694 MB), stored edit unchanged. Normal restoration of the stored edit after the
 system ends the app is not verified on the device (only the forced restore was run).

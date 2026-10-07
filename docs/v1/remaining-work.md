@@ -221,7 +221,10 @@ Closed as stale (evidence re-checked 2026-10-06):
     cycle (no growth). Save copy 0.9–1.2 s; a stroke about 4 s. Remove now reads bands of the photo (7cfa473).
   - **iOS after 7e4286d (Remove model released before Save copy), 261007075:** peak 842 MB (Save copy of the 48 MP photo
     with Remove fills; 695 MB without fills); after the save 181–183 MB; a stroke after the save reloads the model and
-    applies; idle 102–103 MB. Open: the 147 MB a save with fills adds over a plain save (not yet located).
+    applies; idle 102–103 MB. Located (2121c8b): compositing the fills inside the render copied the
+    whole 48 MP frame (copy-on-write of the shared source); Save copy now composites them into its own buffer. On
+    261007078 the first cycle's save with fills peaked at 748 MB against 741 MB without. **Open:** the process peak
+    still rose to 807 MB and 846 MB in later cycles (a plain save included); not yet explained.
   - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:
     42.3 s, render 42.2 s). With Release compiler settings: 13.5 MP 4.6 s, 48 MP 18.9 s (render 17.7 s), and after
     the bit-identical blur change (dd606d5) 13.5 MP 2.5 s, 48 MP 9.2 s (render 8.3 s), saved at 8000×6000. Review
