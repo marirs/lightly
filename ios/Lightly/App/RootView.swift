@@ -140,6 +140,10 @@ struct RootView: View {
                 let second = path.hasPrefix("/") ? URL(fileURLWithPath: path) : URL.documentsDirectory.appending(path: path)
                 Task {
                     try? await Task.sleep(for: .seconds(delay))
+                    // The second photo opens as a person's pick would: without the first photo's scenario.
+                    var plain = DebugArguments.current
+                    if let scenario = plain.firstIndex(of: "--scenario"), plain.indices.contains(scenario + 1) { plain.removeSubrange(scenario...(scenario + 1)) }
+                    DebugArguments.replace(with: plain)
                     DiagnosticTrace.note("open: second photo requested (\(second.lastPathComponent))")
                     await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: second) }
                 }

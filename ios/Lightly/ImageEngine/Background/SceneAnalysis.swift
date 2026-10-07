@@ -307,6 +307,8 @@ struct OnDeviceSceneAnalyser: SceneAnalysing {
         guard let depthEstimator = loadedEstimator else {
             throw SceneAnalysisError.depthUnavailable("no depth model in this build")
         }
+        // The load cannot be interrupted; a run cancelled meanwhile stops here instead of also running inference.
+        try Task.checkCancellation()
         return try await depthEstimator.estimate(image)
     }
 
@@ -427,7 +429,8 @@ final class DepthEstimator: @unchecked Sendable {
     init(model: MLModel) { self.model = model }
 
     func estimate(_ image: CGImage) async throws -> DisparityMap {
-        try await Task.detached(priority: .userInitiated) { [model] in
+        // A detached task does not inherit cancellation: forward it, so a cancelled run skips work not yet started.
+        let work = Task.detached(priority: .userInitiated) { [model] in
             try Task.checkCancellation()
             guard let input = Self.pixelBuffer(image, width: Self.inputWidth, height: Self.inputHeight) else {
                 throw SceneAnalysisError.depthUnavailable("cannot prepare model input")
@@ -457,7 +460,8 @@ final class DepthEstimator: @unchecked Sendable {
             }
             let normalisedMap = Self.normalised(raw).resized(width: image.width, height: image.height)
             return DisparityMap(disparity: normalisedMap, source: .estimated, model: Self.modelRef)
-        }.value
+        }
+        return try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
     }
 
     /// [contract] `D = clamp((raw − p1)/(p99 − p1), 0, 1)`.
