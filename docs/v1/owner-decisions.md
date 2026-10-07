@@ -30,15 +30,16 @@ change the apps to the approved screen.
 | Fine | Ruler Fine state shown, not its timing | Fine starts after 0.5 s holding still, quarter speed | Feel only | slice2-review.md conflict 2 | Confirm 0.5 s / ¼ or give values |
 | M3 | About shows "Version 1.0 (1)" | Version from the build (e.g. 1.0.0 (261006021)) | Different version string | slice1-android.md M3 | Approve the build's real version (a fixed "1.0 (1)" would be false) |
 | SC | Selective Colour: temporary blue overlay while Range is dragged | No overlay | The overlay in the proposal page is absent | proposals/selective-colour README, Status | Implement the overlay if it is part of your approved layout (the README lists it as "in this page, not in the apps") |
-| M2 | iPad: top bar from 24 pt | Top bar from iPadOS's 32 pt safe area | Top bar and photo 8 pt lower | slice2-ios.md M2: at 24 pt (tried 2026-10-07) the top 6 pt of every top-bar button falls in iPadOS's 32 pt status strip and cannot be tapped (Save copy: a tap at y 28 does nothing, at y 33 saves) | Keep 32 pt: full 44 pt targets. Matching costs a 38 pt effective target on six controls |
+| M2 | iPad: top bar from 24 pt | Top bar from iPadOS's 32 pt safe area | Top bar and photo 8 pt lower | slice2-ios.md M2: at 24 pt (tried 2026-10-07) the top 6 pt of every top-bar button falls in iPadOS's 32 pt status strip and cannot be tapped (Save copy: a tap at y 28 does nothing, at y 33 saves) | See the A11 approval item (V3) |
 | Splash | Mark centred below the status bar | Android 12+ system splash centres it in the screen | Mark about 24 dp higher | slice1-android.md M6 | Platform constraint (the system splash API fixes the position): needs your acceptance |
 
-**Accessibility conflicts (A11, 2026-10-07): the approved screens against the platforms' accessibility checks**
-| Id | Approved | Check | Options |
+**A11 accessibility: one approval item (2026-10-07).** The review build already uses the iPad top bar at iPadOS's 32 pt.
+| | Change | Where it shows | Recommendation |
 |---|---|---|---|
-| AC1 | Inactive dock labels and ruler numbers in the approved tertiary ink | Xcode's audit: contrast fails (Background, Watermark, ruler "70"), nearly passes (Edit) | Keep the approved colour, or darken the inactive label colour to pass 4.5:1 |
-| AC2 | No layout beyond the large text (×1.24) | iOS at the largest accessibility size: the Focus & Blur / Change background switch clips its labels; the dock labels grow past their slots (Android: fixed by widening slots and wrapping, as iOS already did for the dock) | Allow the switch labels to wrap and shrink to fit at accessibility sizes, or cap the editor's text at the largest non-accessibility size |
-| AC3 | Top-bar icon buttons 44 (Android draws 46 dp), Image/Gradient tabs 46 dp tall | Android guideline: 48 dp targets | Keep, or enlarge the touch area to 48 dp without changing the drawing |
+| **Visible** V1 | Inactive dock labels and ruler numbers drawn darker, to pass 4.5:1 contrast (the approved tertiary ink fails Xcode's audit: Background, Watermark, ruler "70") | Both platforms, every editor screen | Approve: the darker grey only for these labels |
+| **Visible** V2 | iOS editor at accessibility text sizes (beyond the approved ×1.24): the Focus & Blur / Change background labels wrap and shrink to fit instead of being cut | iOS, accessibility sizes only | Approve (Android already wraps; the dock already widens on both) |
+| **Visible** V3 | iPad top bar stays at 32 pt, 8 pt below the approved 24 pt (at 24 pt the top 6 pt of all six top-bar buttons cannot be tapped) | iPad | Approve 32 pt |
+| **Invisible** I1 | Android touch areas to 48 dp for the top-bar icons (46 dp) and the Image / Gradient tabs (46 dp tall); drawing unchanged | Android | Approve |
 
 **Removed from this sheet:**
 - **M4 text wrapping (iOS):** fixed for notes in 858a06f and for the preset name in 1ef2c0d (test: the name breaks at the
