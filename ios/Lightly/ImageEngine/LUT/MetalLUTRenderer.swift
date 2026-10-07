@@ -94,20 +94,24 @@ final class MetalLUTRenderer: @unchecked Sendable {
         _ passes: [LUT3D], toRGBA8 pixels: [UInt8], width: Int, height: Int,
         maximumTileSide: Int = defaultMaximumTileSide
     ) throws -> [UInt8] {
-        try renderLock.withLock {
+        // Metal returns its buffers, textures and command buffers autoreleased. Off the main thread nothing drains
+        // them until the calling task ends, so every call's GPU workspace stayed alive through a whole Save copy
+        // (2026-10-07, 48 MP in the Simulator: about 1 GB left after the render). Each call drains its own.
+        try autoreleasepool { try renderLock.withLock {
             var output = [UInt8](repeating: 0, count: pixels.count)
             try render(passes, pixels: pixels, width: width, height: height, maximumTileSide: maximumTileSide) { tile, workspace in
                 try run(encode, input: workspace.finalFloats, output: workspace.encoded, lut: nil, pixelCount: tile.area)
                 Self.copyRows(from: workspace.encoded, tile: tile, imageWidth: width, bytesPerPixel: 4, into: &output)
             }
             return output
-        }
+        } }
     }
 
     /// The float result before the final clamp and encode. Exposed so tests
     /// can prove out-of-range LUT entries survive (no 8-bit clamping).
     func applyUnencoded(_ passes: [LUT3D], toRGBA8 pixels: [UInt8], width: Int, height: Int) throws -> [SIMD4<Float>] {
-        try renderLock.withLock {
+        // As `apply`: drain this call's autoreleased Metal objects (Develop calls this once per tile).
+        try autoreleasepool { try renderLock.withLock {
             var output = [SIMD4<Float>](repeating: .zero, count: width * height)
             try render(passes, pixels: pixels, width: width, height: height, maximumTileSide: Self.defaultMaximumTileSide) { tile, workspace in
                 let floats = workspace.finalFloats.contents().assumingMemoryBound(to: SIMD4<Float>.self)
@@ -118,7 +122,7 @@ final class MetalLUTRenderer: @unchecked Sendable {
                 }
             }
             return output
-        }
+        } }
     }
 
     // MARK: - Tiles

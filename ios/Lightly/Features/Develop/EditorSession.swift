@@ -1271,9 +1271,19 @@ final class EditorSession {
     // - Adjust and stages 6–8 run in source coordinates, then geometry. Detail's and Focus &
     //   Blur's radii follow the uncropped source long edge.
     // Then border (11) and watermark (12) on the canvas.
-    nonisolated private static func renderPixels(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
+    /// `base` is consumed: when the caller hands over its only reference (Save copy), the source frame is freed as soon as
+    /// the first stage has produced its output, instead of staying alive through the whole render (2026-10-07: one full
+    /// frame less at the peak, 192 MB at 48 MP). Previews pass a base they keep; for them nothing changes.
+    /// Holds a frame until the render takes it, so the caller keeps no reference of its own.
+    private final class SourceHandOff: @unchecked Sendable {
+        private var pixels: [UInt8]
+        init(_ pixels: [UInt8]) { self.pixels = pixels }
+        func take() -> [UInt8] { defer { pixels = [] }; return pixels }
+    }
+
+    nonisolated private static func renderPixels(_ job: RenderJob, base: consuming [UInt8], width: Int, height: Int,
                                                  renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
-        let frame = try renderFrameBeforeBorder(job, base: base, width: width, height: height, renderer: renderer, cache: cache)
+        let frame = try renderFrameBeforeBorder(job, base: consume base, width: width, height: height, renderer: renderer, cache: cache)
         var canvas = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
         // Stage 12 on the canvas, after the border, so a watermark can sit in its margin.
         if job.watermark.type != .none, let content = job.watermarkContent {
@@ -1287,14 +1297,14 @@ final class EditorSession {
     }
 
     /// Stages 1–10 (everything up to the border).
-    nonisolated private static func renderFrameBeforeBorder(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
+    nonisolated private static func renderFrameBeforeBorder(_ job: RenderJob, base: consuming [UInt8], width: Int, height: Int,
                                                             renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
         guard job.usesEditOrEffects || job.stopBeforeSelectiveColour else {
-            return RenderedFrame(pixels: try renderDevelopAndLayered(job, base: base, width: width, height: height,
+            return RenderedFrame(pixels: try renderDevelopAndLayered(job, base: consume base, width: width, height: height,
                                                                      renderer: renderer, cache: cache),
                                  width: width, height: height)
         }
-        var pixels = base
+        var pixels = consume base
         // Compositing here mutates a copy of `base` (the caller still holds it): a whole extra frame, 192 MB at 48 MP.
         // Save copy composites into its own buffer first instead (`removePatchesInBase`).
         if !job.removePatchesInBase { RemoveEngine.composite(job.removePatches, into: &pixels, width: width, height: height) }
@@ -1346,9 +1356,9 @@ final class EditorSession {
 
     /// The slice-2/3 stages: Auto (1) then the Look (2, 3, 10), with Background and Portrait (7–9)
     /// between the Look's spatial stage and its finishing.
-    nonisolated private static func renderDevelopAndLayered(_ job: RenderJob, base: [UInt8], width: Int, height: Int,
+    nonisolated private static func renderDevelopAndLayered(_ job: RenderJob, base: consuming [UInt8], width: Int, height: Int,
                                                             renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> [UInt8] {
-        var pixels = base
+        var pixels = consume base
         if let autoLUT = job.autoLUT, job.autoStrength > 0 {
             pixels = try renderer.lutApplier.apply([autoLUT.blendedTowardIdentity(strength: Float(job.autoStrength))],
                                                    toRGBA8: pixels, width: width, height: height,
@@ -1538,8 +1548,12 @@ final class EditorSession {
                         RemoveEngine.composite(job.removePatches, into: &pixels, width: image.width, height: image.height)
                         job.removePatchesInBase = true
                     }
+                    // Hand the only reference to the render (a closure cannot consume a captured variable): the source
+                    // frame is freed after the first stage instead of at the end of this task.
+                    let source = SourceHandOff(pixels)
+                    pixels = []
                     let rendered = try timing.measure("render") {
-                        try Self.renderPixels(job, base: pixels, width: image.width, height: image.height, renderer: renderer, cache: cache)
+                        try Self.renderPixels(job, base: source.take(), width: image.width, height: image.height, renderer: renderer, cache: cache)
                     }
                     try Task.checkCancellation()
                     DiagnosticTrace.note("save rendered \(rendered.width)x\(rendered.height)")
@@ -1939,9 +1953,22 @@ final class SaveTiming: @unchecked Sendable {
 
     func measure<T>(_ stage: String, _ body: () throws -> T) rethrows -> T {
         let start = ContinuousClock.now
+        #if DEBUG
+        // Each stage's own peak footprint (sampled every 10 ms), to locate where Save copy's peak comes from.
+        let startMB = Self.currentFootprintMB() ?? -1
+        let sampler = DebugFootprintSampler()
+        defer {
+            let peak = sampler.stop(), endMB = Self.currentFootprintMB() ?? -1
+            lock.lock(); stagePeaks.append("\(stage)=\(startMB)/\(peak)/\(endMB)MB"); lock.unlock()
+        }
+        #endif
         defer { record(stage, since: start) }
         return try body()
     }
+
+    #if DEBUG
+    private var stagePeaks: [String] = []
+    #endif
 
     func record(_ stage: String, since start: ContinuousClock.Instant) {
         let elapsed = ContinuousClock.now - start
@@ -1953,6 +1980,9 @@ final class SaveTiming: @unchecked Sendable {
         lock.lock(); var line = stages.map { "\($0.0)=\(Int($0.1.rounded()))ms" }.joined(separator: " "); lock.unlock()
         // The process's peak physical footprint so far (what iOS counts against the app's memory limit), in MB.
         if let peak = Self.peakFootprintMB() { line += " peakFootprint=\(peak)MB" }
+        #if DEBUG
+        lock.lock(); if !stagePeaks.isEmpty { line += " " + stagePeaks.joined(separator: " ") }; lock.unlock()
+        #endif
         #if DEBUG
         let configuration = "Debug"
         #else

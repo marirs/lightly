@@ -25,11 +25,18 @@ final class SaveCopyTimingTests: XCTestCase {
             let writer = SpyLibraryWriter()
             let session = try await EditorTestSupport.readySession(photo: photo, library: library, writer: writer)
             session.applyLook(preset)
+            await session.settleRendering()
+            let before = SaveTiming.currentFootprintMB() ?? -1
+            let sampler = DebugFootprintSampler()
             let start = Date()
             session.saveCopy()
             await EditorTestSupport.waitForSave(session, timeout: 3_000)
+            let peak = sampler.stop()
             guard case .saved = session.saveState else { return XCTFail("\(size) MP: \(session.saveState)") }
             print("SAVE TIMING \(size) MP total=\(Int(Date().timeIntervalSince(start) * 1000))ms \(SaveTiming.lastReport ?? "-")")
+            // The save's own memory: footprint before it, and its peak sampled every 10 ms (the process peak includes the
+            // test's loading of the photo).
+            print("SAVE MEMORY \(size) MP before=\(before)MB savePeak=\(peak)MB added=\(peak - before)MB")
         }
     }
 }

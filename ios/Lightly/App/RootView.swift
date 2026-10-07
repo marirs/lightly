@@ -299,34 +299,35 @@ private struct FittedFormSheetSizing: ViewModifier {
 }
 
 #if DEBUG
+/// Samples the current physical footprint every 10 ms between start and stop (DEBUG device and simulator checks).
+final class DebugFootprintSampler: @unchecked Sendable {
+    private let lock = NSLock()
+    private var maximum = 0
+    private let timer = DispatchSource.makeTimerSource(queue: .global(qos: .userInitiated))
+
+    init() {
+        maximum = SaveTiming.currentFootprintMB() ?? 0
+        timer.schedule(deadline: .now(), repeating: .milliseconds(10))
+        timer.setEventHandler { [weak self] in
+            guard let self, let now = SaveTiming.currentFootprintMB() else { return }
+            self.lock.withLock { self.maximum = max(self.maximum, now) }
+        }
+        timer.resume()
+    }
+
+    func stop() -> Int {
+        timer.cancel()
+        return lock.withLock { maximum }
+    }
+}
+
+
 /// Device memory check over repeated operations (2026-10-07): see `--mem-cycles` in RootView. Each operation is
 /// recorded as its footprint before, its own peak (sampled every 10 ms while it runs; the system's peak counter only
 /// ever grows over the process's life) and the footprint retained 2 s after it ends. The first save and the strokes
 /// that load the Remove model are labelled, so cold loads are not mistaken for growth.
 @MainActor
 enum DebugMemoryCycles {
-    /// Samples the current physical footprint every 10 ms between start and stop.
-    final class Sampler: @unchecked Sendable {
-        private let lock = NSLock()
-        private var maximum = 0
-        private let timer = DispatchSource.makeTimerSource(queue: .global(qos: .userInitiated))
-
-        init() {
-            maximum = SaveTiming.currentFootprintMB() ?? 0
-            timer.schedule(deadline: .now(), repeating: .milliseconds(10))
-            timer.setEventHandler { [weak self] in
-                guard let self, let now = SaveTiming.currentFootprintMB() else { return }
-                self.lock.withLock { self.maximum = max(self.maximum, now) }
-            }
-            timer.resume()
-        }
-
-        func stop() -> Int {
-            timer.cancel()
-            return lock.withLock { maximum }
-        }
-    }
-
     static func now() -> Int { SaveTiming.currentFootprintMB() ?? -1 }
 
     static func mark(_ step: String) {
@@ -336,7 +337,7 @@ enum DebugMemoryCycles {
     /// Runs one operation and records before / its own peak / retained after 2 s.
     static func measured(_ label: String, _ operation: () async -> Void) async {
         let before = now()
-        let sampler = Sampler()
+        let sampler = DebugFootprintSampler()
         await operation()
         let peak = sampler.stop()
         try? await Task.sleep(for: .seconds(2))
