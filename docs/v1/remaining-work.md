@@ -223,8 +223,16 @@ Closed as stale (evidence re-checked 2026-10-06):
     with Remove fills; 695 MB without fills); after the save 181–183 MB; a stroke after the save reloads the model and
     applies; idle 102–103 MB. Located (2121c8b): compositing the fills inside the render copied the
     whole 48 MP frame (copy-on-write of the shared source); Save copy now composites them into its own buffer. On
-    261007078 the first cycle's save with fills peaked at 748 MB against 741 MB without. **Open:** the process peak
-    still rose to 807 MB and 846 MB in later cycles (a plain save included); not yet explained.
+    261007078 the first cycle's save with fills peaked at 748 MB against 741 MB without. The later "rise" (807, 846 MB) was the
+    process's cumulative maximum plus run-to-run variation, not retained memory.
+  - **iOS bounded measurement (66f6e21, 261007080, `--mem-cycles 4`; each operation: footprint before, its own peak
+    sampled every 10 ms, footprint 2 s after):** settled 107–109 MB after every cycle; every operation retains the
+    same amount each cycle (48 MP open 141–154 MB, after Save copy 161–169, after a stroke 240–254); no growth. Peaks:
+    Save copy 756–803 MB with or without fills (first in process 793); first Remove model load 540 MB, later loads
+    325–362, a stroke with the model loaded 426–439; process peak 808 MB, reached in cycle 0 and not exceeded after.
+    **Absolute peak:** about 800 MB for a 48 MP Save copy (the source, the render and the encode buffers, about four
+    full frames of 192 MB). The app's memory limit on this phone was not measured; 800 MB is about 20 % of the
+    phone's 4 GB. Not established on 3 GB or smaller devices (the iPhone SE 3rd generation has 4 GB; untested).
   - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:
     42.3 s, render 42.2 s). With Release compiler settings: 13.5 MP 4.6 s, 48 MP 18.9 s (render 17.7 s), and after
     the bit-identical blur change (dd606d5) 13.5 MP 2.5 s, 48 MP 9.2 s (render 8.3 s), saved at 8000×6000. Review
