@@ -132,6 +132,18 @@ struct RootView: View {
             let path = arguments[flag + 1]
             let url = path.hasPrefix("/") ? URL(fileURLWithPath: path) : URL.documentsDirectory.appending(path: path)
             await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
+            // `--then-open-photo <path> [--then-after <s>]` (device check, 2026-10-07): opens a second photo the way
+            // the picker's result does, while the first photo's scenario (e.g. Background) is still working.
+            if let next = arguments.firstIndex(of: "--then-open-photo"), arguments.indices.contains(next + 1) {
+                let delay = arguments.firstIndex(of: "--then-after").flatMap { arguments.indices.contains($0 + 1) ? Double(arguments[$0 + 1]) : nil } ?? 5
+                let path = arguments[next + 1]
+                let second = path.hasPrefix("/") ? URL(fileURLWithPath: path) : URL.documentsDirectory.appending(path: path)
+                Task {
+                    try? await Task.sleep(for: .seconds(delay))
+                    DiagnosticTrace.note("open: second photo requested (\(second.lastPathComponent))")
+                    await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: second) }
+                }
+            }
         }
         // `--capture-commands <file>`: design captures step through a cell's screens in this one
         // launch (DebugCaptureDriver); runs until the app quits.
