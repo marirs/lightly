@@ -178,6 +178,7 @@
 		B699A9D372FCF406B8691C47 /* DevelopStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127C9E7A1DEDE2FE50A1E961 /* DevelopStage.swift */; };
 		B701785EB4C4C65E0B938740 /* ApprovedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD4A10733669174E8BA4FFEA /* ApprovedComponents.swift */; };
 		B81A945FDD76A6675EC20523 /* AppIconPackagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B36E2108477D914C078154A /* AppIconPackagingTests.swift */; };
+		BB6544E421DBEE0C79A2D88F /* AccessibilityAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF0B70FD5D13073941E56FAD /* AccessibilityAuditUITests.swift */; };
 		BBF12BA965DBD434F28F0EB4 /* RenderSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6DAB9C6D7730E8B0FD6DB61 /* RenderSchedulingTests.swift */; };
 		BCCA018D7D15F59DCD920127 /* GeometryStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2963E67EB4CED88A854C395 /* GeometryStage.swift */; };
 		BD596167F04D41018CB24DA7 /* Allura-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 70E5B42B5EF1A7569F113C7B /* Allura-Regular.ttf */; };
@@ -398,6 +399,7 @@
 		ADA4EAB50B3A00B6B61BE60B /* RecoveryMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryMessageView.swift; sourceTree = "<group>"; };
 		ADA7F3DD90E84FEC19D1DB17 /* AnalysingDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysingDeveloper.swift; sourceTree = "<group>"; };
 		AE21BA5AF0A8476987024B19 /* PresetPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetPack.swift; sourceTree = "<group>"; };
+		AF0B70FD5D13073941E56FAD /* AccessibilityAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditUITests.swift; sourceTree = "<group>"; };
 		B195D15F7BACDA17140BB994 /* RenderingGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderingGoldenTests.swift; sourceTree = "<group>"; };
 		B1FAE689304DCD990F6C6D43 /* CormorantGaramond-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "CormorantGaramond-Variable.ttf"; sourceTree = "<group>"; };
 		B701BCDE146455B7448BDFA1 /* ControlContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlContrastTests.swift; sourceTree = "<group>"; };
@@ -1198,6 +1200,7 @@
 		EE933B90FAD784352620378B /* LightlyUITests */ = {
 			isa = PBXGroup;
 			children = (
+				AF0B70FD5D13073941E56FAD /* AccessibilityAuditUITests.swift */,
 				8500BFF4CA6673C1D4DF0396 /* DesignCaptureUITests.swift */,
 				1176BF82FD88AA1594E84F4E /* EditorCaptureUITests.swift */,
 				D76A7AAE94D2D487DA845CFD /* EditorFlowUITests.swift */,
@@ -1553,6 +1556,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB6544E421DBEE0C79A2D88F /* AccessibilityAuditUITests.swift in Sources */,
 				1AE728C94894582F5D5EA239 /* DesignCaptureUITests.swift in Sources */,
 				DE30A3FA105565852D4DA3DE /* EditorCaptureUITests.swift in Sources */,
 				EFEBB069E41DE8FE7D3954FF /* EditorFlowUITests.swift in Sources */,
