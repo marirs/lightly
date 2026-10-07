@@ -21,6 +21,14 @@ first load 0.98 s, inference 0.9–1.0 s. Measured on 261007065–070 with the p
 Change background (no depth started; no-subject notice after under 1 s), portrait in Focus & Blur (ready about 2 s
 after opening), Cancel → reopen → retry, and a second photo opened while the first photo's depth was loading (ready
 in 507 ms; no Background work for it).
+**Checkpoint b0ab6db, 1.0.0 (261007075), installed on iPhone (read from the launch line), simulator and emulator
+(read back):** normal launch (no override) loads depth with CPU and GPU (1.1 s, inference 1.0 s); auto-lock is held off
+only while separation, depth, a stroke or Save copy runs and restored when each ends. Background analysing, then
+Develop: a 12-stop ruler drag showed 12 frames in 1.09 s (first 21 ms, longest gap 114 ms); the next photo was ready
+in 377 ms and 6 s later had no Background state from the first photo. `--mem-cycles 3` with the Remove model released
+before Save copy: peak 842 MB (was 956), Save copy without fills 695 MB, a second stroke after each save applied,
+idle 102–103 MB; stored edit unchanged. The "every photo" Background report is not reproduced (iPhone, these runs);
+not checked on an Android phone.
 **Repeated 48 MP operations (`--mem-cycles 3`):** idle 108–110 MB after every cycle, peak footprint 956 MB (Save copy
 after a Remove stroke; Save copy alone 694 MB), stored edit unchanged. Normal restoration of the stored edit after the
 system ends the app is not verified on the device (only the forced restore was run).

@@ -219,6 +219,9 @@ Closed as stale (evidence re-checked 2026-10-06):
     another photo, 5 s idle. Peak footprint 956 MB (Save copy while the Remove model is loaded); Save copy alone 694 MB;
     after a stroke 309–320 MB (model kept for the next stroke); on the next photo 99–106 MB; idle 108–110 MB in every
     cycle (no growth). Save copy 0.9–1.2 s; a stroke about 4 s. Remove now reads bands of the photo (7cfa473).
+  - **iOS after 7e4286d (Remove model released before Save copy), 261007075:** peak 842 MB (Save copy of the 48 MP photo
+    with Remove fills; 695 MB without fills); after the save 181–183 MB; a stroke after the save reloads the model and
+    applies; idle 102–103 MB. Open: the 147 MB a save with fills adds over a plain save (not yet located).
   - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:
     42.3 s, render 42.2 s). With Release compiler settings: 13.5 MP 4.6 s, 48 MP 18.9 s (render 17.7 s), and after
     the bit-identical blur change (dd606d5) 13.5 MP 2.5 s, 48 MP 9.2 s (render 8.3 s), saved at 8000×6000. Review
