@@ -250,7 +250,8 @@ class BackgroundViewModelTest {
         assertEquals(SeparationState.Separating, vm.uiState.value.separation, "the next edit retries")
         advanceUntilIdle()
         val finished = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
-        assertTrue(finished.matteAvailable && finished.depthAvailable)
+        // The retry came from Change background with a colour: the matte only, depth not started (2026-10-07).
+        assertTrue(finished.matteAvailable && finished.depthNotStarted && !finished.depthAvailable)
         assertEquals(2, vm.uiState.value.session!!.history.entries.size)
         assertEquals(Replacement.Colour("#3C4A55"), vm.uiState.value.session!!.current.tools.background.replacement, "the retrying edit is applied")
     }
@@ -339,6 +340,40 @@ class BackgroundViewModelTest {
         assertTrue(vm.refinedMatte()!!.values.sum() < before, "erasing removes subject")
         vm.undo()
         assertTrue(vm.uiState.value.session!!.current.tools.background.subject.refinements.isEmpty())
+    }
+
+    @Test
+    fun `Change background runs the matte only, Focus and Blur starts depth when it is opened`() = runTest {
+        var depthCalls = 0
+        val countingDepth = DepthEstimator { input -> depthCalls++; depthDouble.estimate(input) }
+        val vm = Harness(this, countingDepth, segmenterDouble).ready(this)
+        vm.selectBackgroundSub(BackgroundSub.CHANGE)
+        advanceUntilIdle()
+        val matteOnly = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        assertTrue(matteOnly.matteAvailable && matteOnly.depthNotStarted && !matteOnly.depthPending)
+        assertEquals(0, depthCalls, "Change background does not start depth")
+        assertIs<BackgroundPanelState.Change>(BackgroundPanelState.of(vm.uiState.value.background, matteOnly, null))
+        vm.selectBackgroundSub(BackgroundSub.FOCUS)
+        assertEquals(BackgroundPanelState.EstimatingDepth, BackgroundPanelState.of(vm.uiState.value.background, vm.uiState.value.separation, null))
+        advanceUntilIdle()
+        val withDepth = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        assertTrue(withDepth.depthAvailable && !withDepth.depthNotStarted && !withDepth.depthPending)
+        assertEquals(1, depthCalls)
+        assertEquals(BackgroundPanelState.Focus, BackgroundPanelState.of(vm.uiState.value.background, withDepth, null))
+    }
+
+    @Test
+    fun `a depth run cancelled while it computes leaves the state cancelled and installs nothing`() = runTest {
+        lateinit var vm: EditorViewModel
+        // Cancel arrives while the model computes; the computation still returns (it cannot be interrupted).
+        val cancelledMidway = DepthEstimator { input -> vm.cancelSeparation(); depthDouble.estimate(input) }
+        vm = Harness(this, cancelledMidway, segmenterDouble).ready(this)
+        vm.selectBackgroundSub(BackgroundSub.CHANGE)
+        advanceUntilIdle()
+        vm.selectBackgroundSub(BackgroundSub.FOCUS)
+        advanceUntilIdle()
+        val after = assertIs<SeparationState.Finished>(vm.uiState.value.separation)
+        assertTrue(after.depthCancelled && !after.depthAvailable && !after.depthPending, "the late result did not complete it: $after")
     }
 
     @Test

@@ -105,12 +105,11 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * Embedded depth first (Dynamic Depth, GDepth), else the depth estimator; then the segmenter.
      * Never throws for an unavailable capability: that is recorded as a missing result.
      */
-    suspend fun analyse(loaded: LoadedPhoto, onMatte: (SeparationState.Finished) -> Unit = {}): SeparationState.Finished {
+    suspend fun analyse(loaded: LoadedPhoto, withDepth: Boolean = true, onMatte: (SeparationState.Finished) -> Unit = {}): SeparationState.Finished {
         // The analysis is long CPU work with no suspension point, so cancelling its job does not stop it. A
         // separation started for an earlier photo must not install its matte and depth after [reset] (Choose
         // another photo): results are installed only when no reset happened since this run began.
         val startedEpoch = synchronized(installLock) { epoch }
-        var newDepthModel: ModelRef? = null
         var newMatteModel: ModelRef? = null
         val display = loaded.display
         val grey = FloatPlane(display.width, display.height, FloatArray(display.pixelCount) { p ->
@@ -138,10 +137,37 @@ class BackgroundSession(private val env: EditorEnvironment) {
             if (epoch == startedEpoch) {
                 matteModel = newMatteModel
                 noClearSubject = noSubject
-                analysis = BackgroundAnalysis(display.width, display.height, null, matte)
+                // A depth estimated earlier for this photo is kept (a matte-only retry must not drop it).
+                analysis = BackgroundAnalysis(display.width, display.height, analysis?.depth?.takeIf { analysis?.width == display.width }, matte)
             }
         }
+        // Depth only for the operations that need it (2026-10-07): Change background and Refine edges never start it.
+        if (!withDepth) {
+            return SeparationState.Finished(depthAvailable = false, matteAvailable = matte != null, noClearSubject = noSubject, depthNotStarted = true)
+        }
         onMatte(SeparationState.Finished(depthAvailable = false, matteAvailable = matte != null, noClearSubject = noSubject, depthPending = true))
+        val depthAvailable = estimateAndInstallDepth(loaded, grey, startedEpoch)
+        return SeparationState.Finished(depthAvailable = depthAvailable, matteAvailable = matte != null, noClearSubject = noSubject)
+    }
+
+    /**
+     * Depth on its own, after a matte-only [analyse] (Focus & Blur, or Blur with no clear subject, asked for it). The
+     * result is installed beside the matte only if no reset or Cancel happened since this run began. Returns whether
+     * depth is available.
+     */
+    suspend fun analyseDepth(loaded: LoadedPhoto): Boolean {
+        val startedEpoch = synchronized(installLock) { epoch }
+        val display = loaded.display
+        val grey = FloatPlane(display.width, display.height, FloatArray(display.pixelCount) { p ->
+            val i = p * 4
+            (0.299f * (display.pixels[i].toInt() and 0xff) + 0.587f * (display.pixels[i + 1].toInt() and 0xff) + 0.114f * (display.pixels[i + 2].toInt() and 0xff)) / 255f
+        })
+        return estimateAndInstallDepth(loaded, grey, startedEpoch)
+    }
+
+    private suspend fun estimateAndInstallDepth(loaded: LoadedPhoto, grey: FloatPlane, startedEpoch: Long): Boolean {
+        val display = loaded.display
+        var newDepthModel: ModelRef? = null
         var depth: com.lightlylabs.lightly.background.NormalisedDepth? = null
         val embedded = runCatching { loaded.readOriginal() }.getOrNull()?.let { bytes ->
             runCatching { EmbeddedDepthReader.read(bytes, env.depthImageDecoder) }.getOrNull()?.let { map -> map to env.exifOrientation(bytes) }
@@ -167,14 +193,12 @@ class BackgroundSession(private val env: EditorEnvironment) {
         synchronized(installLock) {
             if (epoch == startedEpoch) {
                 depthModel = newDepthModel
-                matteModel = newMatteModel
-                noClearSubject = noSubject
-                analysis = BackgroundAnalysis(display.width, display.height, depth, matte)
+                analysis = BackgroundAnalysis(display.width, display.height, depth, analysis?.matte)
             } else {
                 staleResultsDiscarded++
             }
         }
-        return SeparationState.Finished(depthAvailable = depth != null, matteAvailable = matte != null, noClearSubject = noSubject)
+        return depth != null
     }
 
     /** Logcat (tag LightlyDepth); a no-op where android.util.Log is not available (JVM unit tests). */

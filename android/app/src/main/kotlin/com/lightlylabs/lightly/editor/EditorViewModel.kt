@@ -211,6 +211,7 @@ class EditorViewModel(
         photo = null
         cleanState = null
         separationJob?.cancel()
+        depthJob?.cancel()
         backgroundSession.reset()
         personMatteJob?.cancel()
         portraitSession.reset()
@@ -375,12 +376,44 @@ class EditorViewModel(
         if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
     }
 
+    /** Depth is needed by Focus & Blur, and by a blur on a photo with no clear subject; nothing else starts it. */
+    private fun backgroundNeedsDepth(): Boolean =
+        state.value.background.sub == BackgroundSub.FOCUS || (state.value.session?.current?.tools?.background?.focus?.blur ?: 0.0) > 0.0
+
+    /** The depth of a matte-only analysis, once something needs it (Focus & Blur opened, or a blur committed). */
+    private fun ensureDepth() {
+        val finished = state.value.separation as? SeparationState.Finished ?: return
+        if (finished.depthNotStarted) startDepth(finished)
+    }
+
+    private var depthJob: kotlinx.coroutines.Job? = null
+
+    private fun startDepth(from: SeparationState.Finished) {
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
+        depthJob?.cancel()
+        state.update { it.copy(separation = from.copy(depthNotStarted = false, depthPending = true)) }
+        depthJob = scope.launch(env.prefetchDispatcher) {
+            val available = backgroundSession.analyseDepth(current.loaded)
+            // Like the matte: long CPU work with no suspension point. A Cancel, reset or another photo meanwhile
+            // leaves the state alone (BackgroundSession also refuses to install the stale depth).
+            ensureActive()
+            if (!isCurrent(current.generation)) return@launch
+            state.update { s ->
+                val now = s.separation as? SeparationState.Finished
+                if (now == null || !now.depthPending) s else s.copy(separation = now.copy(depthPending = false, depthAvailable = available))
+            }
+            state.value.session?.let { requestPreview(it.current, globalOnly = false) }
+        }
+    }
+
     // --- Background (slice 3) -------------------------------------------------------------------
 
     /** Depth and subject separation, once per photo, behind the approved cancellable "Finding the subject…". */
     private fun startSeparation() {
         val current = photo?.takeIf { isCurrent(it.generation) } ?: return
         separationJob?.cancel()
+        depthJob?.cancel()
+        val withDepth = backgroundNeedsDepth()
         state.update { it.copy(separation = SeparationState.Separating) }
         separationJob = scope.launch(env.prefetchDispatcher) {
             // Capture of the approved "Finding the subject…" state (debug builds only): stays separating.
@@ -389,7 +422,7 @@ class EditorViewModel(
             // Capture of the approved "Couldn't separate the subject" state (debug builds only, injected:
             // with the vision models this photo separates, so the failure is no longer what a user sees).
             if (debugFailSeparation) { state.update { it.copy(separation = SeparationState.Finished(depthAvailable = false, matteAvailable = false, noClearSubject = false)) }; return@launch }
-            val finished = backgroundSession.analyse(current.loaded) { matteOnly ->
+            val finished = backgroundSession.analyse(current.loaded, withDepth) { matteOnly ->
                 // Change background and Refine edges are usable now; Focus & Blur waits for depth.
                 if (isActive && isCurrent(current.generation)) {
                     state.update { it.copy(separation = matteOnly) }
@@ -417,6 +450,7 @@ class EditorViewModel(
      */
     fun cancelSeparation() {
         separationJob?.cancel()
+        depthJob?.cancel()
         pendingBackgroundChange = null
         backgroundSession.discardPending()
         state.update { s ->
@@ -441,6 +475,7 @@ class EditorViewModel(
     fun selectBackgroundSub(sub: BackgroundSub) {
         state.update { it.copy(background = it.background.copy(sub = sub, sliderDrag = null)) }
         if (state.value.separation == SeparationState.NotStarted) startSeparation()
+        else if (sub == BackgroundSub.FOCUS) ensureDepth()
     }
 
     fun selectReplacementKind(kind: ReplacementKind) = state.update { it.copy(background = it.background.copy(kind = kind)) }
@@ -461,6 +496,7 @@ class EditorViewModel(
         // Derived references (the depth source and map) go in before the change too: a first blur commit
         // must not build a Focus with blur > 0 and source subject-matte, which the recipe rejects.
         commit(session.commit { s -> s.copy(tools = s.tools.copy(background = backgroundSession.withDerivedRefs(change(backgroundSession.withDerivedRefs(s.tools.background))))) }, state.value.auto)
+        if ((state.value.session?.current?.tools?.background?.focus?.blur ?: 0.0) > 0.0) ensureDepth()
     }
 
     private fun withSlider(tool: com.lightlylabs.lightly.session.BackgroundTool, field: String, value: Double) = when (field) {
@@ -477,6 +513,7 @@ class EditorViewModel(
     fun onBackgroundSlider(field: String, value: Double) {
         val session = state.value.session ?: return
         state.update { it.copy(background = it.background.copy(sliderDrag = field to value)) }
+        if (field == "blur" && value > 0.0) ensureDepth()
         val edited = session.current.copy(tools = session.current.tools.copy(background = withSlider(backgroundSession.withDerivedRefs(session.current.tools.background), field, value)))
         requestPreview(edited, globalOnly = true)
     }
@@ -1540,7 +1577,7 @@ class EditorViewModel(
      * was cancelled can still be running on the CPU: its model waits for the release or reopens, never fails.
      */
     private fun releaseModelsIfIdle(reason: String) {
-        val analysing = listOf(loadJob, separationJob, personMatteJob, removeJob).any { it?.isActive == true }
+        val analysing = listOf(loadJob, separationJob, depthJob, personMatteJob, removeJob).any { it?.isActive == true }
         if (analysing) {
             if (env.debugBuild) runCatching { android.util.Log.i("LightlyExport", "models kept ($reason): an analysis is running") }
             return

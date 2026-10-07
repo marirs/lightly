@@ -105,6 +105,7 @@ object EditorTags {
 fun EditorScreen(vm: EditorViewModel, shellLayout: ShellLayout, actions: EditorActions) {
     val ui by vm.uiState.collectAsStateWithLifecycle()
     val favourites by vm.favourites.collectAsStateWithLifecycle()
+    KeepScreenOnWhileWorking(ui)
     val colors = lightlyColors
     BoxWithConstraints(Modifier.fillMaxSize().background(colors.bg)) {
         val layout = EditorLayout.decide(shellLayout, maxWidth.value, maxHeight.value)
@@ -629,5 +630,24 @@ private fun BackgroundMarks(vm: EditorViewModel, ui: EditorUiState) {
             }
         }
         else -> Unit
+    }
+}
+
+/**
+ * Keeps the screen on only while long foreground work runs (2026-10-07, as iOS KeepAwake): subject separation, depth,
+ * a Remove stroke, Save copy. Cleared as soon as none runs (completion, failure, Cancel) and when the editor leaves
+ * composition; otherwise the system's normal screen timeout applies.
+ */
+@Composable
+private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val separation = ui.separation
+    val working = separation == SeparationState.Separating ||
+        (separation is SeparationState.Finished && separation.depthPending) ||
+        ui.edit.removeOp == RemoveOp.REMOVING ||
+        ui.overlay == EditorOverlay.SAVING
+    androidx.compose.runtime.DisposableEffect(view, working) {
+        view.keepScreenOn = working
+        onDispose { view.keepScreenOn = false }
     }
 }

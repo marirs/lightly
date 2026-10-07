@@ -26,7 +26,15 @@ sealed interface SeparationState {
      * [depthPending]: the matte is in and depth is still being estimated. Change background and Refine
      * edges need only the matte, so they do not wait for it; Focus & Blur (and the no-subject blur) does.
      */
-    data class Finished(val depthAvailable: Boolean, val matteAvailable: Boolean, val noClearSubject: Boolean, val depthPending: Boolean = false, val depthCancelled: Boolean = false) : SeparationState
+    data class Finished(
+        val depthAvailable: Boolean,
+        val matteAvailable: Boolean,
+        val noClearSubject: Boolean,
+        val depthPending: Boolean = false,
+        val depthCancelled: Boolean = false,
+        /** The matte only: nothing has needed depth yet (Change background, Refine edges), so it was not started. */
+        val depthNotStarted: Boolean = false,
+    ) : SeparationState
 }
 
 /** Transient Background UI (never in history). */
@@ -81,10 +89,10 @@ sealed interface BackgroundPanelState {
                     // No subject: the approved notice and Blur slider at once, in either mode (prototype `backgroundPanel`
                     // returns them first). v3 differs (2026-10-07): it waited here for depth, so Change background
                     // showed "Finding the subject…" until the depth estimate finished.
-                    separation.noClearSubject -> if (depthUsable || separation.depthPending) NoSubject else DepthFailed
+                    separation.noClearSubject -> if (depthUsable || separation.depthPending || separation.depthNotStarted) NoSubject else DepthFailed
                     ui.sub == BackgroundSub.REFINE -> if (separation.matteAvailable) Refine else Failed
                     ui.sub == BackgroundSub.CHANGE -> if (separation.matteAvailable) Change(ui.kind ?: kindOf(replacement)) else Failed
-                    separation.depthPending -> EstimatingDepth
+                    separation.depthPending || separation.depthNotStarted -> EstimatingDepth
                     depthUsable -> Focus
                     separation.matteAvailable -> DepthFailed
                     else -> Failed
