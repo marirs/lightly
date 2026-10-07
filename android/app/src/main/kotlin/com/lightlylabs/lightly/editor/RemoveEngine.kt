@@ -1,5 +1,6 @@
 package com.lightlylabs.lightly.editor
 
+import com.lightlylabs.lightly.render.image.FrameSource
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import com.lightlylabs.lightly.session.DerivedRef
 import com.lightlylabs.lightly.session.ModelRef
@@ -21,6 +22,12 @@ interface Inpainter {
 
     /** @throws RemoveUnavailableException when the model cannot run; any other failure is a failed stroke. */
     fun inpaint(image: FloatArray, mask: FloatArray): FloatArray
+
+    /**
+     * Frees the model's runtime memory between strokes; the next [inpaint] reopens it (2026-10-07: the LaMa interpreter
+     * kept about 660 MB of native memory after one stroke on the emulator, for the rest of the process).
+     */
+    fun releaseResources() {}
 }
 
 class RemoveUnavailableException(message: String) : Exception(message)
@@ -124,11 +131,93 @@ object RemoveEngine {
     const val CONTEXT_FACTOR = 2.2
     const val FEATHER_PX = 3.0
 
-    /** [points] are normalised source coordinates; [radius] a fraction of the source long edge. */
+    /** Source rows read at a time when the model input is built from a frame (one band is at most 66 × 6 000 px). */
+    private const val BAND_ROWS = 64
+
+    /**
+     * [points] are normalised source coordinates; [radius] a fraction of the source long edge. The whole-image route:
+     * the reference for [window] (EditEffectsTest) and the route of photos already held as one image.
+     */
     fun patch(source: Rgba8Image, points: List<Pair<Double, Double>>, radius: Double, inpainter: Inpainter, cancelled: () -> Boolean = { false }): RemovePatch {
         require(points.isNotEmpty()) { "a stroke needs a point" }
-        val w = source.width
-        val h = source.height
+        val context = contextWindow(source.width, source.height, points, radius)
+        val n = MODEL_SIDE * MODEL_SIDE
+        val input = FloatArray(3 * n)
+        for (my in 0 until MODEL_SIDE) for (mx in 0 until MODEL_SIDE) {
+            val sx = context.left + (mx + 0.5) * context.scale
+            val sy = context.top + (my + 0.5) * context.scale
+            val i = my * MODEL_SIDE + mx
+            sampleRgb(source, sx - 0.5, sy - 0.5) { c, v -> input[c * n + i] = v / 255f }
+        }
+        return patch(Window(input, source.width, source.height), points, radius, inpainter, cancelled)
+    }
+
+    /**
+     * One stroke's model input (the context window resampled to 512, CHW, 0…1) of a [frameWidth] × [frameHeight] photo.
+     * Built before the model runs, so the full-resolution frame can be closed first.
+     */
+    class Window(val input: FloatArray, val frameWidth: Int, val frameHeight: Int)
+
+    /**
+     * Builds [Window] from [frame] in bands of [BAND_ROWS] source rows, reading only the columns the samples use
+     * (2026-10-07: Remove on a 48 MP photo decoded the whole photo into one 192 MB Java array, which the 192 MB app heap
+     * refused, so every stroke failed; a long stroke's window alone can be 6 000 px square). Each sample is the
+     * whole-image route's bilinear sample, edge-clamped at the photo's edges: byte-identical (EditEffectsTest).
+     */
+    fun window(frame: FrameSource, points: List<Pair<Double, Double>>, radius: Double): Window {
+        require(points.isNotEmpty()) { "a stroke needs a point" }
+        val w = frame.width
+        val h = frame.height
+        val context = contextWindow(w, h, points, radius)
+        // The clamped sample coordinates of each model column and row, as sampleRgb computes them.
+        val xs = DoubleArray(MODEL_SIDE) { mx -> (context.left + (mx + 0.5) * context.scale - 0.5).coerceIn(0.0, w - 1.0) }
+        val ys = DoubleArray(MODEL_SIDE) { my -> (context.top + (my + 0.5) * context.scale - 0.5).coerceIn(0.0, h - 1.0) }
+        val columnFirst = xs[0].toInt()
+        val columnLast = min(xs[MODEL_SIDE - 1].toInt() + 1, w - 1)
+        val n = MODEL_SIDE * MODEL_SIDE
+        val input = FloatArray(3 * n)
+        var my = 0
+        while (my < MODEL_SIDE) {
+            val bandTop = ys[my].toInt()
+            var end = my + 1
+            while (end < MODEL_SIDE && min(ys[end].toInt() + 1, h - 1) - bandTop < BAND_ROWS) end++
+            val bandBottom = min(ys[end - 1].toInt() + 1, h - 1)
+            val band = frame.region(columnFirst, bandTop, columnLast - columnFirst + 1, bandBottom - bandTop + 1)
+            for (row in my until end) for (mx in 0 until MODEL_SIDE) {
+                val i = row * MODEL_SIDE + mx
+                sampleClamped(band, columnFirst, bandTop, w, h, xs[mx], ys[row]) { c, v -> input[c * n + i] = v / 255f }
+            }
+            my = end
+        }
+        return Window(input, w, h)
+    }
+
+    fun patch(frame: FrameSource, points: List<Pair<Double, Double>>, radius: Double, inpainter: Inpainter, cancelled: () -> Boolean = { false }): RemovePatch =
+        patch(window(frame, points, radius), points, radius, inpainter, cancelled)
+
+    /** The square context window (inpaint_lib.context_window): 2.2 × the stroke's extent, at least 512, inside the photo. */
+    private class ContextWindow(val left: Int, val top: Int, val side: Int) {
+        val scale: Double get() = side.toDouble() / MODEL_SIDE // source pixels per model pixel
+    }
+
+    private fun contextWindow(w: Int, h: Int, points: List<Pair<Double, Double>>, radius: Double): ContextWindow {
+        val brush = max(1.0, radius * max(w, h))
+        val xs = points.map { it.first * w }
+        val ys = points.map { it.second * h }
+        val minX = xs.min() - brush; val maxX = xs.max() + brush
+        val minY = ys.min() - brush; val maxY = ys.max() + brush
+        val extent = max(maxX - minX, maxY - minY)
+        val side = min(max(ceil(extent * CONTEXT_FACTOR).toInt(), MODEL_SIDE), min(w, h))
+        val left = ((minX + maxX) / 2 - side / 2.0).coerceIn(0.0, (w - side).toDouble()).roundToInt()
+        val top = ((minY + maxY) / 2 - side / 2.0).coerceIn(0.0, (h - side).toDouble()).roundToInt()
+        return ContextWindow(left, top, side)
+    }
+
+    /** The rest of the pipeline from the stroke's model input: the grown hole, the model, the paste-back. */
+    fun patch(window: Window, points: List<Pair<Double, Double>>, radius: Double, inpainter: Inpainter, cancelled: () -> Boolean = { false }): RemovePatch {
+        require(points.isNotEmpty()) { "a stroke needs a point" }
+        val w = window.frameWidth
+        val h = window.frameHeight
         val brush = max(1.0, radius * max(w, h))
         val pixelPoints = points.map { (x, y) -> x * w to y * h }
         // Stroke bounds (brush) and patch bounds (brush + feather).
@@ -141,26 +230,22 @@ object RemoveEngine {
         val px1 = ceil(maxX + FEATHER_PX).toInt().coerceIn(px0 + 1, w)
         val py1 = ceil(maxY + FEATHER_PX).toInt().coerceIn(py0 + 1, h)
 
-        // Context window, as inpaint_lib.context_window.
-        val extent = max(maxX - minX, maxY - minY)
-        val side = min(max(ceil(extent * CONTEXT_FACTOR).toInt(), MODEL_SIDE), min(w, h))
-        val centreX = (minX + maxX) / 2
-        val centreY = (minY + maxY) / 2
-        val left = (centreX - side / 2.0).coerceIn(0.0, (w - side).toDouble()).roundToInt()
-        val top = (centreY - side / 2.0).coerceIn(0.0, (h - side).toDouble()).roundToInt()
-        val scale = side.toDouble() / MODEL_SIDE // source pixels per model pixel
+        val context = contextWindow(w, h, points, radius)
+        val side = context.side
+        val left = context.left
+        val top = context.top
+        val scale = context.scale
 
-        // Model input: the window resampled to 512 (identity when side == 512), and the grown hole.
+        // The grown hole (the input is the window resampled to 512, identity when side == 512).
         val n = MODEL_SIDE * MODEL_SIDE
-        val image = FloatArray(3 * n)
+        val image = window.input
+        require(image.size == 3 * n) { "model input of ${image.size} values" }
         val mask = FloatArray(n)
         val grow = if (side == MODEL_SIDE) 0.0 else scale / 2
         for (my in 0 until MODEL_SIDE) for (mx in 0 until MODEL_SIDE) {
             val sx = left + (mx + 0.5) * scale
             val sy = top + (my + 0.5) * scale
-            val i = my * MODEL_SIDE + mx
-            sampleRgb(source, sx - 0.5, sy - 0.5) { c, v -> image[c * n + i] = v / 255f }
-            mask[i] = if (distanceToStroke(sx, sy, pixelPoints) <= brush + grow) 1f else 0f
+            mask[my * MODEL_SIDE + mx] = if (distanceToStroke(sx, sy, pixelPoints) <= brush + grow) 1f else 0f
         }
         if (cancelled()) throw kotlinx.coroutines.CancellationException("Remove cancelled")
         val filled = inpainter.inpaint(image, mask)
@@ -285,6 +370,23 @@ object RemoveEngine {
         val p = image.pixels
         for (c in 0 until 3) {
             fun at(px: Int, py: Int) = (p[(py * image.width + px) * 4 + c].toInt() and 0xff).toDouble()
+            val top = at(x0, y0) * (1 - fx) + at(x1, y0) * fx
+            val bottom = at(x0, y1) * (1 - fx) + at(x1, y1) * fx
+            write(c, (top * (1 - fy) + bottom * fy).toFloat())
+        }
+    }
+
+    /**
+     * [sampleRgb] at (cx, cy), already clamped to a [w] × [h] photo, from [band], the photo's rectangle at
+     * ([bandX], [bandY]) that holds the four neighbours: the same arithmetic, so the same values.
+     */
+    private fun sampleClamped(band: Rgba8Image, bandX: Int, bandY: Int, w: Int, h: Int, cx: Double, cy: Double, write: (Int, Float) -> Unit) {
+        val x0 = cx.toInt(); val y0 = cy.toInt()
+        val x1 = min(x0 + 1, w - 1); val y1 = min(y0 + 1, h - 1)
+        val fx = cx - x0; val fy = cy - y0
+        val p = band.pixels
+        for (c in 0 until 3) {
+            fun at(px: Int, py: Int) = (p[((py - bandY) * band.width + (px - bandX)) * 4 + c].toInt() and 0xff).toDouble()
             val top = at(x0, y0) * (1 - fx) + at(x1, y0) * fx
             val bottom = at(x0, y1) * (1 - fx) + at(x1, y1) * fx
             write(c, (top * (1 - fy) + bottom * fy).toFloat())

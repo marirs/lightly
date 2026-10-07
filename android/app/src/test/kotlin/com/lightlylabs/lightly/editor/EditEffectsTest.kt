@@ -91,6 +91,61 @@ class EditEffectsTest {
         assertEquals(0, preview.pixels[o + 1].toInt() and 0xff)
     }
 
+    /** A model stand-in whose fill is the inverted input, so the patch depends on every sampled source pixel. */
+    private class InvertingInpainter : Inpainter {
+        override val model = ModelRef("test-invert", "1")
+        override fun inpaint(image: FloatArray, mask: FloatArray): FloatArray = FloatArray(image.size) { 1f - image[it] }
+    }
+
+    /** Records each region read (Remove must read only bands of its context window). */
+    private class RecordingFrame(image: Rgba8Image) : com.lightlylabs.lightly.render.image.FrameSource {
+        private val whole = com.lightlylabs.lightly.render.image.ImageFrameSource(image)
+        val reads = mutableListOf<IntArray>()
+        override val width = image.width
+        override val height = image.height
+        override fun region(x: Int, y: Int, width: Int, height: Int): Rgba8Image =
+            whole.region(x, y, width, height).also { reads += intArrayOf(x, y, width, height) }
+    }
+
+    private fun assertSamePatch(expected: RemovePatch, actual: RemovePatch, case: String) {
+        assertEquals(listOf(expected.x, expected.y, expected.width, expected.height), listOf(actual.x, actual.y, actual.width, actual.height), case)
+        assertTrue(expected.rgba.contentEquals(actual.rgba), "$case: patch pixels differ")
+    }
+
+    @Test
+    fun `Remove read by region gives the whole-image patch byte for byte and reads only bands of its window`() {
+        val strokes = listOf(listOf(0.5 to 0.5, 0.6 to 0.55), listOf(0.02 to 0.03), listOf(0.98 to 0.97, 0.9 to 0.99), listOf(0.1 to 0.9, 0.9 to 0.1))
+        for ((w, h) in listOf(300 to 200, 700 to 520, 1500 to 1100)) for ((k, points) in strokes.withIndex()) {
+            val source = image(w, h, k)
+            val radius = 12.0 / maxOf(w, h)
+            val frame = RecordingFrame(source)
+            val case = "${w}x$h stroke $k"
+            assertSamePatch(RemoveEngine.patch(source, points, radius, InvertingInpainter()), RemoveEngine.patch(frame, points, radius, InvertingInpainter()), case)
+            // Bands of at most 64 source rows (+ the bilinear neighbour row); short strokes read only the 512 px window's
+            // columns (or the photo's short side), never whole rows of a large photo.
+            assertTrue(frame.reads.isNotEmpty(), case)
+            for ((_, _, rw, rh) in frame.reads.map { it.toList() }) {
+                assertTrue(rh <= 66, "$case read ${rw}x$rh")
+                if (k < 3) assertTrue(rw <= minOf(512, w, h) + 2, "$case read ${rw}x$rh")
+            }
+        }
+    }
+
+    @Test
+    fun `Remove read by region over earlier fills matches compositing them into the whole photo`() {
+        val w = 1500; val h = 1100
+        val earlier = listOf(
+            RemoveEngine.patch(image(w, h, 1), listOf(0.45 to 0.5), 30.0 / w, RedInpainter()),
+            RemoveEngine.patch(image(w, h, 1), listOf(0.55 to 0.45, 0.6 to 0.5), 20.0 / w, InvertingInpainter()),
+        )
+        val points = listOf(0.5 to 0.48, 0.58 to 0.5)
+        val radius = 25.0 / w
+        val whole = RemoveEngine.composite(earlier, image(w, h, 1))
+        val expected = RemoveEngine.patch(whole, points, radius, InvertingInpainter())
+        val actual = RemoveEngine.patch(RemoveEngine.PatchedFrameSource(RecordingFrame(image(w, h, 1)), earlier), points, radius, InvertingInpainter())
+        assertSamePatch(expected, actual, "over earlier fills")
+    }
+
     // --- one recipe, preview and export --------------------------------------------------------------
 
     private fun editedState(): com.lightlylabs.lightly.session.EditState {

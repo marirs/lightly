@@ -337,6 +337,39 @@ object DebugLaunchOptions {
                 }
             }
             // Cancel "Finding the subject…" at once, then start it again as Retry does (logcat tag LightlyFlow).
+            // Editing after Save copy released the models (2026-10-07, logcat LightlyFlow): replacement + blur, Save copy
+            // (models released), then Background again on the kept matte, a Remove stroke (reopens the Remove model) and
+            // another photo with its own separation (reopens the vision models).
+            "bg-save-then-edit" -> api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS) {
+                api.background(firstImage)
+                api.focus(60.0, null)
+                flowLog("before save ${api.modelSummary()}")
+                api.saveCopy()
+                kotlinx.coroutines.MainScope().launch {
+                    while (api.overlay != com.lightlylabs.lightly.editor.EditorOverlay.SAVED) kotlinx.coroutines.delay(250)
+                    api.dismiss()
+                    flowLog("saved ${api.modelSummary()}")
+                    api.background { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour("#1F2328")) }
+                    api.focus(30.0, null)
+                    kotlinx.coroutines.delay(8_000)
+                    flowLog("background edited after save ${api.summary()} ${api.analysisSummary()} ${api.modelSummary()}")
+                    val stroke = api.prototypeStroke()
+                    if (stroke == null) flowLog("no stroke") else api.remove(stroke) {
+                        flowLog("removed after save ${api.summary()} ${api.modelSummary()}")
+                        // A second stroke over the first one's fill: the model reopens, the earlier fill is read in.
+                        api.remove(stroke.first.map { (x, y) -> x - 0.02 to y + 0.02 } to stroke.second) {
+                            flowLog("second stroke removed ${api.summary()} ${api.modelSummary()}")
+                            api.openPhoto("file://$switchTarget")
+                            kotlinx.coroutines.MainScope().launch {
+                                while (api.phase != com.lightlylabs.lightly.editor.EditorPhase.Ready) kotlinx.coroutines.delay(100)
+                                api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.CHANGE) {
+                                    flowLog("second photo separated ${api.summary()} ${api.analysisSummary()} ${api.modelSummary()}")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             "bg-cancel-flow" -> {
                 api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
                 api.cancelSeparation(); flowLog("cancelled ${api.summary()}")

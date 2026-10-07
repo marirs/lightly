@@ -26,6 +26,8 @@ import java.nio.channels.FileChannel
 class LiteRtLamaInpainter private constructor(private val interpreter: ReleasableInterpreter, private val imageIndex: Int, private val maskIndex: Int) : Inpainter {
     override val model: ModelRef = MODEL_REF
 
+    override fun releaseResources() = interpreter.release()
+
     override fun inpaint(image: FloatArray, mask: FloatArray): FloatArray = interpreter.use { interpreter ->
         val side = RemoveEngine.MODEL_SIDE
         val inputs = arrayOfNulls<Any>(2)
@@ -73,6 +75,7 @@ class LiteRtLamaInpainter private constructor(private val interpreter: Releasabl
                     require(opened.getOutputTensor(0).shape().toList() == listOf(1, 3, side, side)) { "unexpected output" }
                     image to mask
                 }
+                interpreter.release() // opened for the contract check only; the first stroke reopens it
                 LiteRtLamaInpainter(interpreter, imageIndex, maskIndex)
             } catch (failure: Exception) {
                 android.util.Log.w("LightlyRemove", "remove model unavailable: $failure")

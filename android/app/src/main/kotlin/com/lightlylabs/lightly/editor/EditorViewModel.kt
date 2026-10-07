@@ -798,14 +798,22 @@ class EditorViewModel(
             val result = runCatching {
                 kotlinx.coroutines.withContext(env.prefetchDispatcher) { // off the main thread; the model call blocks
                     val model = inpainter ?: throw RemoveUnavailableException("No Remove model in this build")
-                    // Full-resolution source with the earlier strokes' patches (remove-evaluation §7).
-                    val source = current.loaded.fullResolution.decode()
+                    // Full-resolution source with the earlier strokes' patches (remove-evaluation §7), read by region:
+                    // only the stroke's context window leaves the native frame (48 MP: no 192 MB Java array), and the
+                    // frame is closed before the model runs, so the two are never held together.
                     val applied = state.value.session?.current?.let { EditMapping.patchDigests(it) }.orEmpty().mapNotNull { removePatches[it] }
-                    RemoveEngine.composite(applied, source, inPlace = true)
-                    val started = System.nanoTime()
-                    val patch = RemoveEngine.patch(source, stroke.points, stroke.radius, model) { !coroutineContext.isActive }
-                    runCatching { android.util.Log.i("LightlyRemove", "stroke removed in ${(System.nanoTime() - started) / 1_000_000} ms") }
-                    patch to model.model
+                    val window = current.loaded.fullResolution.decodeFrame().use { frame ->
+                        RemoveEngine.window(RemoveEngine.PatchedFrameSource(frame, applied), stroke.points, stroke.radius)
+                    }
+                    try {
+                        val started = System.nanoTime()
+                        val patch = RemoveEngine.patch(window, stroke.points, stroke.radius, model) { !coroutineContext.isActive }
+                        runCatching { android.util.Log.i("LightlyRemove", "stroke removed in ${(System.nanoTime() - started) / 1_000_000} ms") }
+                        patch to model.model
+                    } finally {
+                        // The patch is kept; the model's memory is not held between strokes (each stroke reopens it).
+                        model.releaseResources()
+                    }
                 }
             }
             if (!isCurrent(current.generation)) return@launch
@@ -2139,6 +2147,9 @@ class EditorViewModel(
 
         /** Save copy of the committed recipe, as the button does (debug export checks). */
         fun saveCopy() = this@EditorViewModel.saveCopy()
+        val overlay: EditorOverlay? get() = state.value.overlay
+        fun dismiss() = this@EditorViewModel.dismiss()
+        fun modelSummary(): String = "models open=${ModelResources.openCount()} opened so far=${ModelResources.opened.get()}"
 
         /**
          * Drag-order check (2026-10-06): the committed edit rendered three ways, all at the display proxy's size (the size

@@ -14,7 +14,9 @@ class ReleasableInterpreter(private val open: () -> Interpreter) {
 
     init { ModelResources.register(this) }
 
-    fun <T> use(block: (Interpreter) -> T): T = synchronized(this) { block(interpreter ?: open().also { interpreter = it }) }
+    fun <T> use(block: (Interpreter) -> T): T = synchronized(this) {
+        block(interpreter ?: open().also { interpreter = it; ModelResources.opened.incrementAndGet() })
+    }
 
     fun release() = synchronized(this) {
         interpreter?.close()
@@ -28,7 +30,12 @@ class ReleasableInterpreter(private val open: () -> Interpreter) {
 object ModelResources {
     private val all = java.util.concurrent.CopyOnWriteArrayList<ReleasableInterpreter>()
 
+    /** Interpreters opened so far, first opens and reopens after a release (diagnostics: the post-save flow check). */
+    val opened = java.util.concurrent.atomic.AtomicInteger()
+
     fun register(model: ReleasableInterpreter) { all += model }
+
+    fun openCount(): Int = all.count { it.isOpen }
 
     /** Closes every open interpreter; returns how many were open. */
     fun releaseAll(): Int = all.count { model -> model.isOpen.also { if (it) model.release() } }
