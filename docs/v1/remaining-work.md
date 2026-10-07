@@ -141,11 +141,11 @@ Closed as stale (evidence re-checked 2026-10-06):
    (`ACCESS_MEDIA_LOCATION`).
 
 ## Unverified on both platforms (carried over from the checklist, 2026-10-05)
-- Storage full and export failed: implemented as alerts. Forced on the Android emulator (2026-10-06,
-  `work/forced/storage_full.sh`): with 20 MB and then ~1 MB free after the photo was open, Save copy still completed
-  (other processes hit ENOSPC; the system kept room for the media write), so the alert path could not be triggered
-  there; it stays unit-tested only.
-- Lost photo access and model-unavailable mid-session: unit-tested only.
+- **A11 forced conditions, run end to end 2026-10-07 (Simulator iPhone 17, spare emulator):** storage full and a failed
+  write show the approved alerts on both platforms, keep the edit, and Try again retries (iOS ForcedConditionsUITests;
+  Android `--es lightly.debug.saveFails`). Photo deleted while being edited, then Save copy: iOS saved from its session's
+  copy; Android failed every save ("Couldn't save the copy") and now saves from a private copy of the original (5490108).
+  Still unit-tested only: model unavailable mid-session.
 - iOS snapshot `SliceOneSnapshotTests/testFavourites`: implementation baseline updated 2026-10-07 (approved references
   untouched). Every difference from the 3 Oct baseline traces to the two authorised changes, checked region by region:
   the five names (owner-requested readable names, 369bf87); the note's glyph anti-aliasing (858a06f, paragraph
@@ -153,8 +153,17 @@ Closed as stale (evidence re-checked 2026-10-06):
   the note (each divider moves 0.2 px, rows stay 52 px apart; pixel-snapped icons round 0.2–0.7 px). Header and
   everything below the list are identical. The render at HEAD 99900a9 equals the 7 Oct 01:44 render exactly; the test
   passes on iPhone 17 / iOS 26.5.
-- Large text: one cell per platform; every other cell unverified. Screen readers: no end-to-end pass. 44 pt targets not
-  measured across layouts.
+- **A11 accessibility, 2026-10-07:** iOS: Xcode's accessibility audit on seven screens (Welcome, More, Develop preset and
+  Amount, Edit crop and Light, Change background) at the default and the largest text size, iPhone 17 and iPad Pro 11
+  (AccessibilityAuditUITests). Fixed: button titles truncated at accessibility sizes ("Choose a ph…", "Remove background
+  change"). Android: UI tree at font scale 1.0 and 2.0 (Welcome, Develop preset, Change background): every control
+  labelled; fixed: dock labels cut ("Develo", "Backgr") and "Change" for "Change background" at 2.0 (b1e3acb).
+  Open, owner decisions (owner-decisions.md, accessibility): contrast of the inactive dock labels and ruler numbers
+  (approved colours fail the audit's contrast check); the iOS editor at accessibility text sizes beyond the approved
+  large text (segment labels and dock need a layout the prototype does not define); Android top-bar icons 46 dp and the
+  Image/Gradient tabs 46 dp tall (approved 44, Android's guideline 48). M2: the 24 pt top bar was tried and reverted
+  (the top 6 pt of the top-bar buttons fell in iPadOS's status strip and did not take taps). Screen readers: labels and
+  traits checked by the audits; no spoken VoiceOver/TalkBack walk-through yet (device acceptance pass).
 - Saved-file metadata combinations on Android after slice 1; 48 MP memory and time on dev devices.
 - Tablet and Fold cells of the sized screens: one iOS check (iPad 13 landscape) only.
 

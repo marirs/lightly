@@ -33,6 +33,13 @@ change the apps to the approved screen.
 | M2 | iPad: top bar from 24 pt | Top bar from iPadOS's 32 pt safe area | Top bar and photo 8 pt lower | slice2-ios.md M2: at 24 pt (tried 2026-10-07) the top 6 pt of every top-bar button falls in iPadOS's 32 pt status strip and cannot be tapped (Save copy: a tap at y 28 does nothing, at y 33 saves) | Keep 32 pt: full 44 pt targets. Matching costs a 38 pt effective target on six controls |
 | Splash | Mark centred below the status bar | Android 12+ system splash centres it in the screen | Mark about 24 dp higher | slice1-android.md M6 | Platform constraint (the system splash API fixes the position): needs your acceptance |
 
+**Accessibility conflicts (A11, 2026-10-07): the approved screens against the platforms' accessibility checks**
+| Id | Approved | Check | Options |
+|---|---|---|---|
+| AC1 | Inactive dock labels and ruler numbers in the approved tertiary ink | Xcode's audit: contrast fails (Background, Watermark, ruler "70"), nearly passes (Edit) | Keep the approved colour, or darken the inactive label colour to pass 4.5:1 |
+| AC2 | No layout beyond the large text (×1.24) | iOS at the largest accessibility size: the Focus & Blur / Change background switch clips its labels; the dock labels grow past their slots (Android: fixed by widening slots and wrapping, as iOS already did for the dock) | Allow the switch labels to wrap and shrink to fit at accessibility sizes, or cap the editor's text at the largest non-accessibility size |
+| AC3 | Top-bar icon buttons 44 (Android draws 46 dp), Image/Gradient tabs 46 dp tall | Android guideline: 48 dp targets | Keep, or enlarge the touch area to 48 dp without changing the drawing |
+
 **Removed from this sheet:**
 - **M4 text wrapping (iOS):** fixed for notes in 858a06f and for the preset name in 1ef2c0d (test: the name breaks at the
   last word that fits at every width 140–320 pt). Not an acceptance request.
