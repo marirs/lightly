@@ -301,7 +301,8 @@ enum DebugMemoryCycles {
                 await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
                 guard let photo = appState.selectedPhoto else { mark("cycle \(cycle) \(name): did not open"); return }
                 let session = appState.editorSession(for: photo)
-                await session.waitUntilReady()
+                // waitUntilReady can return before the editor view has started the session: wait for the phase.
+                await session.debugWait { session.phase == .ready }
                 mark("cycle \(cycle) \(name) open")
                 guard index == 0 else { continue }
                 await save(session, "cycle \(cycle) \(name) saved")
