@@ -547,6 +547,47 @@ class BackgroundSession(private val env: EditorEnvironment) {
             return Rgba8Image(width, height, out)
         }
 
+        /**
+         * [resize] of a frame read by region (Save copy, 2026-10-07): each output row reads only the band of source rows
+         * it averages, and weighs them in the same order with the same arithmetic, so the result is identical to
+         * resizing the whole image. Not a downscale (a photo at or below the working size): read whole and resized as
+         * before; such a frame is small.
+         */
+        fun resize(frame: com.lightlylabs.lightly.render.image.FrameSource, width: Int, height: Int): Rgba8Image {
+            if (width >= frame.width || height >= frame.height) return resize(frame.region(0, 0, frame.width, frame.height), width, height)
+            val out = ByteArray(width * height * 4)
+            val sx = frame.width.toDouble() / width
+            val sy = frame.height.toDouble() / height
+            java.util.stream.IntStream.range(0, height).parallel().forEach { y ->
+                val acc = DoubleArray(4)
+                val y0 = y * sy
+                val y1 = (y + 1) * sy
+                val bandTop = y0.toInt()
+                val bandEnd = minOf(kotlin.math.ceil(y1).toInt(), frame.height)
+                val band = frame.region(0, bandTop, frame.width, bandEnd - bandTop)
+                for (x in 0 until width) {
+                    val x0 = x * sx
+                    val x1 = (x + 1) * sx
+                    java.util.Arrays.fill(acc, 0.0)
+                    var total = 0.0
+                    for (yy in bandTop until bandEnd) {
+                        val wy = minOf(yy + 1.0, y1) - maxOf(yy.toDouble(), y0)
+                        if (wy <= 0) continue
+                        for (xx in x0.toInt() until minOf(kotlin.math.ceil(x1).toInt(), frame.width)) {
+                            val wx = minOf(xx + 1.0, x1) - maxOf(xx.toDouble(), x0)
+                            if (wx <= 0) continue
+                            val weight = wx * wy
+                            val o = ((yy - bandTop) * frame.width + xx) * 4
+                            for (c in 0 until 4) acc[c] += (band.pixels[o + c].toInt() and 0xff) * weight
+                            total += weight
+                        }
+                    }
+                    for (c in 0 until 4) out[(y * width + x) * 4 + c] = (acc[c] / total + 0.5).toInt().coerceIn(0, 255).toByte()
+                }
+            }
+            return Rgba8Image(width, height, out)
+        }
+
         private fun resizeBilinear(image: Rgba8Image, width: Int, height: Int): Rgba8Image {
             val out = ByteArray(width * height * 4)
             val sx = image.width.toDouble() / width

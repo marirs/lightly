@@ -117,9 +117,10 @@ class EditEffectsTest {
         val source = image(96, 64, 7)
         val preview = pipeline.renderPreview(source, state, plan, null)
         val target = Rgba8ExportFrame(preview.width, preview.height)
-        val tileRenderer = pipeline.exportPlan(state, plan, emptyList(), null).prepare(Rgba8Image(96, 64, source.pixels.copyOf()))
-        assertEquals(preview.width to preview.height, tileRenderer.outputSize(source))
-        TiledExportRenderer(maxTileEdge = 24).render(source, tileRenderer, target)
+        val frame = com.lightlylabs.lightly.render.image.ImageFrameSource(Rgba8Image(96, 64, source.pixels.copyOf()))
+        val tileRenderer = pipeline.exportPlan(state, plan, emptyList(), null).prepare(frame)
+        assertEquals(preview.width to preview.height, tileRenderer.outputSize(frame))
+        TiledExportRenderer(maxTileEdge = 24).render(frame, tileRenderer, target)
         var worst = 0
         for (i in preview.pixels.indices) if (i % 4 != 3) worst = maxOf(worst, abs((preview.pixels[i].toInt() and 0xff) - (target.pixels[i].toInt() and 0xff)))
         assertEquals(0, worst, "tiled export differs from the preview by $worst levels")

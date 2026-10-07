@@ -3,6 +3,7 @@ package com.lightlylabs.lightly.export
 import com.lightlylabs.lightly.render.gpu.Tile
 import com.lightlylabs.lightly.render.gpu.TileCopy
 import com.lightlylabs.lightly.render.gpu.TilePlan
+import com.lightlylabs.lightly.render.image.FrameSource
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import com.lightlylabs.lightly.render.lut.LutPassPlan
 import com.lightlylabs.lightly.render.lut.LutPassRenderer
@@ -94,26 +95,27 @@ class ExportBufferLedger {
 /**
  * What one export renders. [prepare] is called once with the decoded full frame (so a plan can compute
  * per-frame context, such as clarity's low-resolution base), then the returned renderer is asked for
- * each tile. A tile renderer reads whatever neighbourhood (apron) it needs from the full frame itself.
+ * each tile. A tile renderer reads whatever neighbourhood (apron) it needs from the frame, by region
+ * ([FrameSource]: the whole frame is never one Java array on Android).
  */
 fun interface ExportRenderPlan {
-    fun prepare(frame: Rgba8Image): ExportTileRenderer
+    fun prepare(frame: FrameSource): ExportTileRenderer
 }
 
 fun interface ExportTileRenderer {
     /** The finished pixels of [tile] (a tile of the OUTPUT frame), exactly tile-sized. */
-    fun renderTile(frame: Rgba8Image, tile: Tile): Rgba8Image
+    fun renderTile(frame: FrameSource, tile: Tile): Rgba8Image
 
     /**
      * The output frame's size for this source: the source's size unless the recipe changes it (Edit ›
      * crop, rotate and straighten change the frame: rendering-v2 stage edit.geometry, source → frame).
      */
-    fun outputSize(source: Rgba8Image): Pair<Int, Int> = source.width to source.height
+    fun outputSize(source: FrameSource): Pair<Int, Int> = source.width to source.height
 }
 
 /** The per-pixel LUT-pass plan of M2: tiles need no apron. */
 class LutPassExportPlan(private val renderer: LutPassRenderer, val plan: LutPassPlan) : ExportRenderPlan {
-    override fun prepare(frame: Rgba8Image) = ExportTileRenderer { source, tile -> renderer.render(TileCopy.extract(source, tile), plan) }
+    override fun prepare(frame: FrameSource) = ExportTileRenderer { source, tile -> renderer.render(source.region(tile.x, tile.y, tile.width, tile.height), plan) }
 }
 
 /**
@@ -127,10 +129,10 @@ class TiledExportRenderer(
     private val maxTileEdge: Int = TilePlan.SPEC_MAX_TILE_EDGE,
     private val ledger: ExportBufferLedger = ExportBufferLedger(),
 ) {
-    suspend fun render(source: Rgba8Image, plan: ExportRenderPlan, target: ExportFrame) = render(source, plan.prepare(source), target)
+    suspend fun render(source: FrameSource, plan: ExportRenderPlan, target: ExportFrame) = render(source, plan.prepare(source), target)
 
     /** Renders with an already prepared [tileRenderer]; [target] has the renderer's output size. */
-    suspend fun render(source: Rgba8Image, tileRenderer: ExportTileRenderer, target: ExportFrame) {
+    suspend fun render(source: FrameSource, tileRenderer: ExportTileRenderer, target: ExportFrame) {
         require(target.width to target.height == tileRenderer.outputSize(source)) { "Target frame does not match the output size" }
         for (tile in TilePlan.plan(target.width, target.height, maxTileEdge).tiles) {
             coroutineContext.ensureActive() // cancel is honoured between tiles, before encoding

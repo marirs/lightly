@@ -194,17 +194,28 @@ object RemoveEngine {
      */
     fun composite(patches: List<RemovePatch>, image: Rgba8Image, inPlace: Boolean = false): Rgba8Image {
         if (patches.isEmpty()) return image
-        val out = if (inPlace) image.pixels else image.pixels.copyOf()
+        val out = if (inPlace) image else Rgba8Image(image.width, image.height, image.pixels.copyOf())
+        compositeRegion(patches, out, 0, 0, image.width, image.height)
+        return out
+    }
+
+    /**
+     * [composite] for [region], the pixels of the rectangle at ([regionX], [regionY]) of a frameWidth × frameHeight
+     * frame, in place (Save copy reads its frame by region, 2026-10-07). Each pixel gets exactly what [composite] gives
+     * it in the whole frame: the patch mapping uses the frame's size and absolute coordinates.
+     */
+    fun compositeRegion(patches: List<RemovePatch>, region: Rgba8Image, regionX: Int, regionY: Int, frameWidth: Int, frameHeight: Int) {
+        val out = region.pixels
         for (patch in patches) {
-            val sx = image.width.toDouble() / patch.sourceWidth
-            val sy = image.height.toDouble() / patch.sourceHeight
-            val x0 = floor(patch.x * sx).toInt().coerceIn(0, image.width)
-            val y0 = floor(patch.y * sy).toInt().coerceIn(0, image.height)
-            val x1 = ceil((patch.x + patch.width) * sx).toInt().coerceIn(0, image.width)
-            val y1 = ceil((patch.y + patch.height) * sy).toInt().coerceIn(0, image.height)
+            val sx = frameWidth.toDouble() / patch.sourceWidth
+            val sy = frameHeight.toDouble() / patch.sourceHeight
+            val x0 = maxOf(floor(patch.x * sx).toInt().coerceIn(0, frameWidth), regionX)
+            val y0 = maxOf(floor(patch.y * sy).toInt().coerceIn(0, frameHeight), regionY)
+            val x1 = minOf(ceil((patch.x + patch.width) * sx).toInt().coerceIn(0, frameWidth), regionX + region.width)
+            val y1 = minOf(ceil((patch.y + patch.height) * sy).toInt().coerceIn(0, frameHeight), regionY + region.height)
             val oneToOne = sx == 1.0 && sy == 1.0
             for (y in y0 until y1) for (x in x0 until x1) {
-                val o = (y * image.width + x) * 4
+                val o = ((y - regionY) * region.width + (x - regionX)) * 4
                 if (oneToOne) {
                     val p = ((y - patch.y) * patch.width + (x - patch.x)) * 4
                     val a = (patch.rgba[p + 3].toInt() and 0xff) / 255.0
@@ -224,7 +235,13 @@ object RemoveEngine {
                 }
             }
         }
-        return if (inPlace) image else Rgba8Image(image.width, image.height, out)
+    }
+
+    /** [frame] with [patches] composited into every region read (the export's source with Remove's fills). */
+    class PatchedFrameSource(private val frame: com.lightlylabs.lightly.render.image.FrameSource, private val patches: List<RemovePatch>) :
+        com.lightlylabs.lightly.render.image.FrameSource by frame {
+        override fun region(x: Int, y: Int, width: Int, height: Int): Rgba8Image =
+            frame.region(x, y, width, height).also { RemoveEngine.compositeRegion(patches, it, x, y, frame.width, frame.height) }
     }
 
     private fun blend(base: Byte, fill: Byte, a: Double): Byte {

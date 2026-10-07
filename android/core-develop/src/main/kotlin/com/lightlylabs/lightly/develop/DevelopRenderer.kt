@@ -6,6 +6,7 @@ import com.lightlylabs.lightly.develop.ColourMath.LUMA_R
 import com.lightlylabs.lightly.develop.ColourMath.linearToSrgb
 import com.lightlylabs.lightly.develop.ColourMath.smoothstep
 import com.lightlylabs.lightly.develop.ColourMath.srgbToLinear
+import com.lightlylabs.lightly.render.image.FrameSource
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
@@ -104,6 +105,56 @@ class DevelopRenderer(
         val low = FloatArray(sums.size) { (sums[it] / max(counts[it], 1)).toFloat() }
         val blurred = Planes.gaussianBlur(low, lowW, lowH, Planes.lowResSigma(sigma, factor), max(lowW, lowH))
         return LowResPlane(blurred, lowW, lowH, factor.toDouble())
+    }
+
+    /**
+     * [clarityBase] of a frame read by region (Save copy, 2026-10-07): each low-resolution row's band of `factor` source
+     * rows is read on its own, and its pixels are binned in the same order with the same arithmetic as the whole-image
+     * version, so the base is identical (DevelopRendererTest) while no more than one band per thread is held.
+     */
+    fun clarityBase(frame: FrameSource, plan: DevelopRenderPlan): LowResPlane? {
+        if (plan.spatial.clarity == 0.0) return null
+        val longEdge = max(frame.width, frame.height)
+        val sigma = plan.model.spatial.rClarity * longEdge
+        val factor = Planes.lowResFactor(sigma)
+        val lowW = (frame.width + factor - 1) / factor
+        val lowH = (frame.height + factor - 1) / factor
+        val sums = DoubleArray(lowW * lowH)
+        val counts = IntArray(lowW * lowH)
+        parallel(lowH) { firstLow, endLow ->
+            val rgb = FloatArray(3)
+            val lab = DoubleArray(3)
+            for (lowY in firstLow until endLow) {
+                val y0 = lowY * factor
+                val y1 = min(frame.height, y0 + factor)
+                if (y0 >= y1) continue
+                val band = FrameView(frame.region(0, y0, frame.width, y1 - y0), 0, y0, frame.width, frame.height)
+                val lowRow = lowY * lowW
+                for (y in y0 until y1) for (x in 0 until frame.width) {
+                    globalColour(band, x, y, plan, rgb)
+                    ColourMath.linearToOklab(srgbToLinear(rgb[0].toDouble()), srgbToLinear(rgb[1].toDouble()), srgbToLinear(rgb[2].toDouble()), lab)
+                    val bin = lowRow + x / factor
+                    sums[bin] += lab[0]
+                    counts[bin]++
+                }
+            }
+        }
+        val low = FloatArray(sums.size) { (sums[it] / max(counts[it], 1)).toFloat() }
+        val blurred = Planes.gaussianBlur(low, lowW, lowH, Planes.lowResSigma(sigma, factor), max(lowW, lowH))
+        return LowResPlane(blurred, lowW, lowH, factor.toDouble())
+    }
+
+    /**
+     * One tile of a frame read by region: the tile plus [apron] (clamped to the frame) is read, and rendered as
+     * [renderView] renders it from the whole image, which reads nothing outside that region.
+     */
+    fun renderTile(frame: FrameSource, tile: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?): Rgba8Image {
+        val apron = apron(plan, frame.width, frame.height)
+        val x0 = max(0, tile.x - apron)
+        val y0 = max(0, tile.y - apron)
+        val x1 = min(frame.width, tile.x + tile.width + apron)
+        val y1 = min(frame.height, tile.y + tile.height + apron)
+        return renderView(FrameView(frame.region(x0, y0, x1 - x0, y1 - y0), x0, y0, frame.width, frame.height), tile, plan, base)
     }
 
     /** The whole frame (previews). */

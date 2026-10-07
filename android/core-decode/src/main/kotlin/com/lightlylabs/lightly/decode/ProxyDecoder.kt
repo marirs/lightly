@@ -39,6 +39,21 @@ class ProxyDecoder {
     fun decodeForDisplay(source: ImageDecoder.Source, screenLongestPx: Int): DecodedFrame =
         decode(source) { original -> DecodeTargets.displaySize(original, screenLongestPx) }
 
+    /**
+     * The Original at full resolution as an sRGB ARGB_8888 software Bitmap (Save copy, read by region through
+     * [BitmapFrameSource]); the same decode settings as [decode].
+     */
+    fun decodeFullResolutionBitmap(source: ImageDecoder.Source): Bitmap {
+        val decoded = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            DecodeTargets.requireDecodable(PixelSize(info.size.width, info.size.height))
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            decoder.setTargetColorSpace(SRGB)
+        }
+        val srgb = toSrgbArgb8888(decoded)
+        if (srgb !== decoded) decoded.recycle()
+        return srgb
+    }
+
     fun decode(source: ImageDecoder.Source, targetFor: (PixelSize) -> PixelSize): DecodedFrame {
         var originalSize: PixelSize? = null
         var colorSpaceName: String? = null

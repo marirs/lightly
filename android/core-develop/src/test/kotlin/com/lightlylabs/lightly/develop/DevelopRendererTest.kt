@@ -92,6 +92,28 @@ class DevelopRendererTest {
     }
 
     @Test
+    fun `a frame read by region gives the same clarity base and tiles as the whole image`() {
+        // Save copy reads its frame by region (FrameSource, 2026-10-07); every float and byte must match.
+        val source = input(192, 128)
+        val (recipe, strength) = cases.getValue("combined-strength-0.7")
+        val plan = plan(recipe, strength)
+        val frame = com.lightlylabs.lightly.render.image.ImageFrameSource(source)
+        val pool = Executors.newFixedThreadPool(3)
+        try {
+            val renderer = DevelopRenderer(pool, parallelism = 3)
+            val base = renderer.clarityBase(source, plan)!!
+            // The streamed base is checked through the tiles: clarity reads it at every pixel.
+            val streamed = renderer.clarityBase(frame, plan)!!
+            for (ty in 0 until 128 step 45) for (tx in 0 until 192 step 70) {
+                val tile = PixelRect(tx, ty, minOf(70, 192 - tx), minOf(45, 128 - ty))
+                assertContentEquals(renderer.renderTile(source, tile, plan, base).pixels, renderer.renderTile(frame, tile, plan, streamed).pixels)
+            }
+        } finally {
+            pool.shutdown()
+        }
+    }
+
+    @Test
     fun `tiles with their apron render exactly like the whole frame`() {
         val source = input(192, 128)
         val (recipe, strength) = cases.getValue("combined-strength-0.7")

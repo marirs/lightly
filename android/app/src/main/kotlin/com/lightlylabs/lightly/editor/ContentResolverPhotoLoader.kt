@@ -65,6 +65,8 @@ class ContentResolverPhotoLoader(
         val copy = if (keepCopy) copyOriginal(uri) else null
         decodeAll(uri, copy, fromCopyOnly = copy != null)
     } catch (failure: Exception) {
+        // A photo that cannot be opened (too large, undecodable) keeps no copy.
+        if (keepCopy) releaseEditingCopy()
         // A restore after process death reads a URI whose grant may be gone (never persisted, or
         // revoked) or whose item was deleted. Report that distinctly so the editor can offer to
         // choose the photo again (Codex finding 4). CancellationException is neither, so it passes.
@@ -119,10 +121,16 @@ class ContentResolverPhotoLoader(
                     copy?.takeIf { it.isFile }?.readBytes() ?: resolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
                 }
             },
-            fullResolution = FullResolutionSource {
-                withContext(Dispatchers.IO) {
-                    val source = copy?.takeIf { it.isFile }?.let { ImageDecoder.createSource(it) } ?: ImageDecoder.createSource(resolver, uri)
-                    decoder.decode(source) { original -> original.also(DecodeTargets::requireDecodable) }.image
+            fullResolution = object : FullResolutionSource {
+                private fun source() = copy?.takeIf { it.isFile }?.let { ImageDecoder.createSource(it) } ?: ImageDecoder.createSource(resolver, uri)
+
+                override suspend fun decode() = withContext(Dispatchers.IO) {
+                    decoder.decode(source()) { original -> original.also(DecodeTargets::requireDecodable) }.image
+                }
+
+                // Save copy: the frame stays in a native Bitmap and is read by region (48 MP fits).
+                override suspend fun decodeFrame() = withContext(Dispatchers.IO) {
+                    com.lightlylabs.lightly.decode.BitmapFrameSource(decoder.decodeFullResolutionBitmap(source()))
                 }
             },
         )

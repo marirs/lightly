@@ -1551,7 +1551,7 @@ class EditorViewModel(
                 val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, exportCap)
                 backgroundSession.working(renderer.render(BackgroundSession.resize(frame, ww, wh), plan), bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, exportCap)
             }
-            fun renderRegion(source: Rgba8Image, region: PixelRect): Rgba8Image {
+            fun renderRegion(source: com.lightlylabs.lightly.render.image.FrameSource, region: PixelRect): Rgba8Image {
                 val developed = renderer.renderTile(source, region, plan, base)
                 return if (background == null) developed else Rgba8Image(region.width, region.height,
                     com.lightlylabs.lightly.background.BackgroundStage.applyRegion(developed.pixels, region.x, region.y, region.width, region.height, frame.width, frame.height, background, replacementFull))
@@ -1582,7 +1582,7 @@ class EditorViewModel(
         val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library))
         val patches = EditMapping.patchDigests(committed).mapNotNull { removePatches[it] }
         val background = if (pendingBackgroundPlan.get() == null) null else {
-            { frame: Rgba8Image ->
+            { frame: com.lightlylabs.lightly.render.image.FrameSource ->
                 val bp = checkNotNull(pendingBackgroundPlan.getAndSet(null)) { "the export's Background is prepared once" }
                 // Focus & Blur once at the working resolution (K = 8) from Develop + Adjust, then applied to each
                 // full-resolution source region as iOS LayeredStages does.
@@ -1599,7 +1599,7 @@ class EditorViewModel(
         // Stage 9 after Background, in source coordinates: the changed faces' crops are developed (Develop,
         // Adjust without its Clarity base, Background) and retouched once, then written into each region.
         val portrait = committed.tools.portrait.takeIf(portraitSession::isActive)
-        val composed: ((Rgba8Image) -> ((ByteArray, PixelRect, Int, Int) -> ByteArray)?)? = if (portrait == null) background else { frame: Rgba8Image ->
+        val composed: ((com.lightlylabs.lightly.render.image.FrameSource) -> ((ByteArray, PixelRect, Int, Int) -> ByteArray)?)? = if (portrait == null) background else { frame: com.lightlylabs.lightly.render.image.FrameSource ->
             val backgroundCompose = background?.invoke(frame)
             val adjustPlan = com.lightlylabs.lightly.develop.AdjustStage.plan(EditMapping.adjust(committed), library.model)
             val faces = portraitSession.exportPatches(portrait, frame.width, frame.height) { region ->

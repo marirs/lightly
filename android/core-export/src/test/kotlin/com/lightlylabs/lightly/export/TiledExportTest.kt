@@ -1,6 +1,7 @@
 package com.lightlylabs.lightly.export
 
 import com.lightlylabs.lightly.render.image.Rgba8Image
+import com.lightlylabs.lightly.render.image.asFrameSource
 import com.lightlylabs.lightly.render.lut.CpuLutPassRenderer
 import com.lightlylabs.lightly.render.lut.Lut3D
 import com.lightlylabs.lightly.render.lut.LutPassPlan
@@ -34,7 +35,7 @@ class TiledExportTest {
     @Test
     fun `tile boundary pixels are identical to an untiled render`() = runTest {
         val frame = Rgba8ExportFrame(source.width, source.height)
-        TiledExportRenderer(maxTileEdge = 64).render(source, LutPassExportPlan(CpuLutPassRenderer, plan), frame)
+        TiledExportRenderer(maxTileEdge = 64).render(source.asFrameSource(), LutPassExportPlan(CpuLutPassRenderer, plan), frame)
 
         val untiled = CpuLutPassRenderer.render(source, plan).pixels
         // Explicitly the seam rows/columns on both sides of every tile boundary, then everything.

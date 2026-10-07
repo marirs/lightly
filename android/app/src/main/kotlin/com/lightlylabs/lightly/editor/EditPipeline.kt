@@ -19,6 +19,7 @@ import com.lightlylabs.lightly.develop.PixelRect
 import com.lightlylabs.lightly.export.ExportRenderPlan
 import com.lightlylabs.lightly.export.ExportTileRenderer
 import com.lightlylabs.lightly.render.gpu.Tile
+import com.lightlylabs.lightly.render.image.FrameSource
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import com.lightlylabs.lightly.session.EditState
 import com.lightlylabs.lightly.session.RemoveStatus
@@ -141,10 +142,10 @@ class EditPipeline(
         developPlan: DevelopRenderPlan,
         patches: List<RemovePatch>,
         /** Prepares Background for a full frame: returns a composer of developed source regions, or null. */
-        background: ((frame: Rgba8Image) -> ((pixels: ByteArray, region: PixelRect, frameWidth: Int, frameHeight: Int) -> ByteArray)?)?,
-    ): ExportRenderPlan = ExportRenderPlan { frame ->
-        // The export owns its decode: patches are composited into it in place (no second full frame).
-        RemoveEngine.composite(patches, frame, inPlace = true)
+        background: ((frame: FrameSource) -> ((pixels: ByteArray, region: PixelRect, frameWidth: Int, frameHeight: Int) -> ByteArray)?)?,
+    ): ExportRenderPlan = ExportRenderPlan { decoded ->
+        // Remove's fills are composited into every region read from the frame (Save copy reads it by region).
+        val frame: FrameSource = if (patches.isEmpty()) decoded else RemoveEngine.PatchedFrameSource(decoded, patches)
         val plan = developPlan.withoutFinishing()
         val base = renderer.clarityBase(frame, plan)
         val adjustPlan = AdjustStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)
@@ -157,7 +158,7 @@ class EditPipeline(
         val placement = BorderStage.placement(border, geometry.frameWidth, geometry.frameHeight)
 
         /** One tile of the frame (stages 1–10), in frame coordinates. */
-        fun frameTile(source: Rgba8Image, out: PixelRect): Rgba8Image {
+        fun frameTile(source: FrameSource, out: PixelRect): Rgba8Image {
             val region = geometry.sourceBounds(out)
             var pixels = renderRegion(source, region, plan, base, adjustPlan, adjustBase, adjustApron)
             compose?.let { pixels = Rgba8Image(region.width, region.height, it(pixels.pixels, region, source.width, source.height)) }
@@ -166,12 +167,13 @@ class EditPipeline(
         }
         object : ExportTileRenderer {
             // Stage 11 makes the canvas: the frame plus the border.
-            override fun outputSize(source: Rgba8Image) = placement.canvasWidth to placement.canvasHeight
+            override fun outputSize(source: FrameSource) = placement.canvasWidth to placement.canvasHeight
 
             // Stage 12: rendered once for the whole canvas (it is only the watermark's box), composited per tile.
             private val layer = watermark?.layer(placement.canvasWidth, placement.canvasHeight, PixelRect(placement.side, placement.top, placement.frameWidth, placement.frameHeight))
 
-            override fun renderTile(frame: Rgba8Image, tile: Tile): Rgba8Image {
+            override fun renderTile(source: FrameSource, tile: Tile): Rgba8Image {
+                // The patched frame of this export, whatever source the tiled renderer passes (the same decode).
                 val out = PixelRect(tile.x, tile.y, tile.width, tile.height)
                 val canvas = if (border.isNone) frameTile(frame, out) else BorderStage.renderTile(border, placement, out) { region -> frameTile(frame, region) }
                 return layer?.compositeOnto(canvas, out.x, out.y) ?: canvas
@@ -180,7 +182,7 @@ class EditPipeline(
     }
 
     /** Develop then Adjust for one source region. */
-    private fun renderRegion(frame: Rgba8Image, region: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?, adjustPlan: DevelopRenderPlan?, adjustBase: LowResPlane?, adjustApron: Int): Rgba8Image {
+    private fun renderRegion(frame: FrameSource, region: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?, adjustPlan: DevelopRenderPlan?, adjustBase: LowResPlane?, adjustApron: Int): Rgba8Image {
         if (adjustPlan == null) return renderer.renderTile(frame, region, plan, base)
         // The Adjust pass reads its apron from Develop's output, so Develop renders the region grown by it.
         val x0 = max(0, region.x - adjustApron)
@@ -195,11 +197,12 @@ class EditPipeline(
      * held: the base is computed on a copy of the source at [CLARITY_BASE_LONG_EDGE] and rescaled.
      * Clarity's σ is about 5 % of the long edge, far above what the downscale removes.
      */
-    private fun adjustClarityBase(frame: Rgba8Image, plan: DevelopRenderPlan, adjustPlan: DevelopRenderPlan): LowResPlane? {
+    private fun adjustClarityBase(frame: FrameSource, plan: DevelopRenderPlan, adjustPlan: DevelopRenderPlan): LowResPlane? {
         if (adjustPlan.spatial.clarity == 0.0) return null
         val longEdge = max(frame.width, frame.height)
         val scale = minOf(1.0, CLARITY_BASE_LONG_EDGE.toDouble() / longEdge)
-        val small = if (scale < 1.0) BackgroundSession.resize(frame, max(1, (frame.width * scale).toInt()), max(1, (frame.height * scale).toInt())) else frame
+        val small = if (scale < 1.0) BackgroundSession.resize(frame, max(1, (frame.width * scale).toInt()), max(1, (frame.height * scale).toInt()))
+            else frame.region(0, 0, frame.width, frame.height)
         val developed = if (plan.isIdentity) small else renderer.render(small, plan)
         return renderer.clarityBase(developed, adjustPlan)?.rescaled(frame.width.toDouble() / small.width)
     }

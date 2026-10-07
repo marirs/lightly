@@ -1,7 +1,9 @@
 package com.lightlylabs.lightly.export
 
 import com.lightlylabs.lightly.render.gpu.TilePlan
+import com.lightlylabs.lightly.render.image.FrameSource
 import com.lightlylabs.lightly.render.image.Rgba8Image
+import com.lightlylabs.lightly.render.image.asFrameSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +22,12 @@ import kotlin.coroutines.coroutineContext
 /** Full-resolution, oriented, sRGB decode of the Original (spec §5.4 step 2). */
 fun interface FullResolutionSource {
     suspend fun decode(): Rgba8Image
+
+    /**
+     * The decode as a frame read by region; Save copy uses this. The default holds [decode]'s image; the Android loader
+     * keeps the frame in a native Bitmap instead (48 MP: no 192 MB Java array).
+     */
+    suspend fun decodeFrame(): FrameSource = decode().asFrameSource()
 }
 
 /**
@@ -145,7 +153,7 @@ class ExportCoordinator<H, F : ExportFrame>(
      * before encoding; see [ExportBufferLedger] for the budget.
      */
     private suspend fun renderThenSave(exportId: Long, job: ExportJob<H>): H {
-        var source: Rgba8Image? = job.original.decode()
+        var source: FrameSource? = job.original.decodeFrame()
         val frameBytes = ExportBufferLedger.rgba8Bytes(source!!.width, source.height)
         ledger.acquire(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
         var sourceHeld = true
@@ -160,6 +168,7 @@ class ExportCoordinator<H, F : ExportFrame>(
             try {
                 tiledRenderer.render(source, tileRenderer, target)
                 // Drop the source before encoding so the encoder runs with one full frame live.
+                source.close()
                 source = null
                 ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
                 sourceHeld = false
@@ -170,7 +179,10 @@ class ExportCoordinator<H, F : ExportFrame>(
                 ledger.release(ExportBufferLedger.Kind.FULL_FRAME, targetBytes)
             }
         } finally {
-            if (sourceHeld) ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
+            if (sourceHeld) {
+                source?.close()
+                ledger.release(ExportBufferLedger.Kind.FULL_FRAME, frameBytes)
+            }
         }
     }
 }
