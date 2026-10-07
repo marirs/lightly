@@ -60,6 +60,23 @@ final class EditSessionStore: @unchecked Sendable {
         write { directory in try self.writeFile(data, named: "original.bin", in: directory) }
     }
 
+    #if DEBUG
+    /// Records [sceneSessionID] in the stored history's header and changes nothing else: the recipe lines are kept byte
+    /// for byte (`--restore-stored-session`, device checks).
+    func rebindScene(_ sceneSessionID: String) {
+        write { directory in
+            let url = directory.appendingPathComponent("history.jsonl")
+            let data = try Data(contentsOf: url)
+            guard let end = data.firstIndex(of: 0x0A),
+                  var header = try JSONSerialization.jsonObject(with: data[..<end]) as? [String: Any] else { return }
+            header["scene"] = sceneSessionID
+            var rebuilt = try JSONSerialization.data(withJSONObject: header, options: [.sortedKeys])
+            rebuilt.append(data[end...])
+            try self.writeFile(rebuilt, named: "history.jsonl", in: directory)
+        }
+    }
+    #endif
+
     func saveHistory(_ history: [EditRecipe], index: Int, autoState: String, sceneSessionID: String?, autoCorrection: [String: Any]? = nil) {
         // JSON Lines: a header line, then one canonical recipe per line (canonical JSON is compact).
         var header: [String: Any] = ["format": 1, "index": index, "autoState": autoState]

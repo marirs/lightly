@@ -1828,6 +1828,17 @@ final class SaveTiming: @unchecked Sendable {
     private let lock = NSLock()
     private var stages: [(String, Double)] = []
 
+    /// task_vm_info's ledger peak of the physical footprint (the figure jetsam limits apply to), or nil.
+    static func peakFootprintMB() -> Int? {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        return Int(info.ledger_phys_footprint_peak / 1_048_576)
+    }
+
     /** The last report, for the timing test. */
     nonisolated(unsafe) static var lastReport: String?
 
@@ -1846,7 +1857,9 @@ final class SaveTiming: @unchecked Sendable {
     }
 
     func report() {
-        lock.lock(); let line = stages.map { "\($0.0)=\(Int($0.1.rounded()))ms" }.joined(separator: " "); lock.unlock()
+        lock.lock(); var line = stages.map { "\($0.0)=\(Int($0.1.rounded()))ms" }.joined(separator: " "); lock.unlock()
+        // The process's peak physical footprint so far (what iOS counts against the app's memory limit), in MB.
+        if let peak = Self.peakFootprintMB() { line += " peakFootprint=\(peak)MB" }
         #if DEBUG
         let configuration = "Debug"
         #else

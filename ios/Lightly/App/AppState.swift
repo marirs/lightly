@@ -326,7 +326,15 @@ final class AppState {
             return
         }
         Self.restoreLog.notice("restore: stored session with \(saved.history.count, privacy: .public) steps from scene \(saved.sceneSessionID.map { String($0.prefix(8)) } ?? "none", privacy: .public); same scene: \(saved.sceneSessionID != nil && saved.sceneSessionID == currentSceneSessionID, privacy: .public)")
-        guard let scene = saved.sceneSessionID, scene == currentSceneSessionID, selectedPhoto == nil,
+        #if DEBUG
+        // Device checks only (2026-10-07): `--restore-stored-session` restores the stored session whatever scene it was
+        // made in, and records the current scene for it, so an edit backed up from the phone and copied back can be
+        // reopened (and kept for the next ordinary launch) before and after a test that needed another photo.
+        let forced = DebugArguments.current.contains("--restore-stored-session")
+        #else
+        let forced = false
+        #endif
+        guard let scene = saved.sceneSessionID, forced || scene == currentSceneSessionID, selectedPhoto == nil,
               let photo = try? await photoLoader.loadPhoto(from: saved.original, source: .photoLibrary),
               EditorSession.sourceReference(for: photo).fingerprint == saved.history.first?.source.fingerprint
         else {
@@ -334,6 +342,13 @@ final class AppState {
             removePatches.removeAll()
             return
         }
+        #if DEBUG
+        if forced, let current = currentSceneSessionID, scene != current {
+            sessionStore.rebindScene(current)
+            Self.restoreLog.notice("restore: forced, scene rebound to \(String(current.prefix(8)), privacy: .public)")
+            DiagnosticTrace.note("restore: forced, \(saved.history.count) steps, scene \(String(scene.prefix(8))) rebound to \(String(current.prefix(8)))")
+        }
+        #endif
         pendingRestore = (photo.id, saved)
         selectedPhoto = photo
         route = .editor(SelectedPhotoReference(id: photo.id))
