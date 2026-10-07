@@ -149,6 +149,14 @@ struct RootView: View {
                 }
             }
         }
+        // `--mem-cycles <n> --mem-photos <a.jpg,b.jpg>` (device memory check, 2026-10-07): n cycles of: open photo a,
+        // Save copy, one Remove stroke, Save copy; open photo b; 5 s idle. The current and peak physical footprint
+        // are traced after each step. Use with --keep-stored-session and --save-to-documents.
+        if let flag = arguments.firstIndex(of: "--mem-cycles"), arguments.indices.contains(flag + 1), let cycles = Int(arguments[flag + 1]),
+           let list = arguments.firstIndex(of: "--mem-photos"), arguments.indices.contains(list + 1) {
+            let names = arguments[list + 1].split(separator: ",").map(String.init)
+            await DebugMemoryCycles.run(appState: appState, cycles: cycles, photos: names)
+        }
         // `--capture-commands <file>`: design captures step through a cell's screens in this one
         // launch (DebugCaptureDriver); runs until the app quits.
         await DebugCaptureDriver.runIfRequested(appState: appState)
@@ -276,3 +284,41 @@ private struct FittedFormSheetSizing: ViewModifier {
         }
     }
 }
+
+#if DEBUG
+/// Device memory check over repeated operations (2026-10-07): see `--mem-cycles` in RootView.
+@MainActor
+enum DebugMemoryCycles {
+    static func mark(_ step: String) {
+        DiagnosticTrace.note("mem: \(step): footprint \(SaveTiming.currentFootprintMB() ?? -1) MB, peak \(SaveTiming.peakFootprintMB() ?? -1) MB")
+    }
+
+    static func run(appState: AppState, cycles: Int, photos: [String]) async {
+        mark("start")
+        for cycle in 0..<cycles {
+            for (index, name) in photos.enumerated() {
+                let url = URL.documentsDirectory.appending(path: name)
+                await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
+                guard let photo = appState.selectedPhoto else { mark("cycle \(cycle) \(name): did not open"); return }
+                let session = appState.editorSession(for: photo)
+                await session.waitUntilReady()
+                mark("cycle \(cycle) \(name) open")
+                guard index == 0 else { continue }
+                await save(session, "cycle \(cycle) \(name) saved")
+                await session.debugRemove(points: [.init(x: 0.62, y: 0.36), .init(x: 0.72, y: 0.33)], radius: 0.03)
+                mark("cycle \(cycle) \(name) removed (\(session.removeState))")
+                await save(session, "cycle \(cycle) \(name) saved after remove")
+            }
+            try? await Task.sleep(for: .seconds(5))
+            mark("cycle \(cycle) idle")
+        }
+        mark("cycles done")
+    }
+
+    private static func save(_ session: EditorSession, _ step: String) async {
+        session.saveCopy()
+        await session.debugWait { session.saveState != .saving }
+        mark(step)
+    }
+}
+#endif

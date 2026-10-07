@@ -1779,6 +1779,12 @@ final class EditorSession {
 
     /// Captures of `ed-remove`: removes the stroke with the real model and waits until it is
     /// applied (or failed), then makes the result the session's initial state, like `stateFor`.
+    /// Device memory checks: one Remove stroke as the person makes it (an undo step), awaited.
+    func debugRemove(points: [EditRecipe.Point], radius: Double) async {
+        removeStroke(points: points, radius: radius)
+        await removeTask?.value
+    }
+
     func debugRemoveAsInitial(points: [EditRecipe.Point], radius: Double) async {
         removeStroke(points: points, radius: radius)
         await removeTask?.value
@@ -1881,6 +1887,17 @@ final class SaveTiming: @unchecked Sendable {
         }
         guard result == KERN_SUCCESS else { return nil }
         return Int(info.ledger_phys_footprint_peak / 1_048_576)
+    }
+
+    /// task_vm_info's current physical footprint (what the process holds now), or nil.
+    static func currentFootprintMB() -> Int? {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        return Int(info.phys_footprint / 1_048_576)
     }
 
     /** The last report, for the timing test. */
