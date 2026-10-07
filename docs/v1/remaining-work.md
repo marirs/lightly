@@ -196,11 +196,25 @@ Closed as stale (evidence re-checked 2026-10-06):
       OutOfMemoryError lines.
     - Remove at 48 MP: every stroke failed before 8998b1a (the whole photo decoded into one 192 MB Java array). Now
       the model input is built from the native frame in bands, and the frame is closed before the model runs
-      (byte-identical to the whole-image route, EditEffectsTest). A stroke peaks at PSS 932–985 MB, VmHWM 1.1 GB: the
-      LaMa interpreter during inference (on the emulator without XNNPACK). The interpreter is now closed after each
-      stroke (it kept ~660 MB native until the process ended); idle after the second photo: PSS 620 MB (was 1 258).
-    - Emulator figures only. Phone memory (XNNPACK on) is pending; 48 MP safety on Android is not established until
-      measured on the dev phone.
+      (byte-identical to the whole-image route, EditEffectsTest). The interpreter is closed after each stroke.
+    - **Repeated operations (07af12d, scenario mem-cycles, two cycles):** Develop Save copy, a Remove stroke and Save
+      copy, another photo with Background and Save copy, back to the first photo, idle. Whole-process PSS:
+      | | cycle 0 | cycle 1 |
+      |---|---|---|
+      | Develop Save copy peak | 464 MB | 476 MB |
+      | Remove stroke peak | 938 MB (native 664) | 742 MB (native 459) |
+      | Save copy after Remove | 938 → 440 MB | 491 MB |
+      | Second photo, Background, Save copy | 473 MB | 297 MB |
+      | Idle on the first photo | 101 MB | 102 MB |
+      No growth between cycles, no OutOfMemoryError. Before 07af12d the model objects kept their files mapped
+      (`.apk mmap` 258 MB after the first stroke, for the rest of the process): idle was 334 MB and Develop's
+      worst case 707 MB (native 381 + Java 56 + model file pages 270). Now `.apk mmap` is 21 MB at the end.
+    - **What remains allocated at the peaks:** Develop Save copy: the 192 MB source Bitmap and the 192 MB output
+      Bitmap (native ~380 MB) plus Java ~60 MB; going lower needs an encoder that takes rows (not started). Remove
+      stroke: LaMa fp32 inference in native memory (459–664 MB on the emulator, without XNNPACK) plus its 228 MB
+      model file mapped while it runs. Candidates, both needing a quality check before use: the fp16 LaMa conversion
+      (half the file) and the GPU delegate. Phone figures (XNNPACK on) are pending.
+    - Emulator figures only. 48 MP safety on Android is not established until measured on the dev phone.
   - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:
     42.3 s, render 42.2 s). With Release compiler settings: 13.5 MP 4.6 s, 48 MP 18.9 s (render 17.7 s), and after
     the bit-identical blur change (dd606d5) 13.5 MP 2.5 s, 48 MP 9.2 s (render 8.3 s), saved at 8000×6000. Review
