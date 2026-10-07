@@ -1460,14 +1460,16 @@ final class EditorSession {
         let writer = libraryWriter
         saveTask = Task { [weak self] in
             do {
+                let timing = SaveTiming(width: image.width, height: image.height)
                 let work = Task.detached(priority: .userInitiated) { () -> Data in
-                    let pixels = try MetalLUTRenderer.rgba8Bytes(of: image)
-                    let rendered = try Self.renderPixels(job, base: pixels, width: image.width, height: image.height,
-                                                         renderer: renderer, cache: cache)
+                    let pixels = try timing.measure("bytes") { try MetalLUTRenderer.rgba8Bytes(of: image) }
+                    let rendered = try timing.measure("render") {
+                        try Self.renderPixels(job, base: pixels, width: image.width, height: image.height, renderer: renderer, cache: cache)
+                    }
                     try Task.checkCancellation()
                     DiagnosticTrace.note("save rendered \(rendered.width)x\(rendered.height)")
-                    let output = try MetalLUTRenderer.makeImage(rgba8: rendered.pixels, width: rendered.width, height: rendered.height)
-                    let encoded = try exporter.encode(output, originalData: originalData, settings: settings)
+                    let output = try timing.measure("image") { try MetalLUTRenderer.makeImage(rgba8: rendered.pixels, width: rendered.width, height: rendered.height) }
+                    let encoded = try timing.measure("encode") { try exporter.encode(output, originalData: originalData, settings: settings) }
                     DiagnosticTrace.note("save encoded \(encoded.count) bytes")
                     return encoded
                 }
@@ -1475,7 +1477,10 @@ final class EditorSession {
                 let data = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
                 // Cancelled before writing: nothing is written, so there is never a duplicate.
                 try Task.checkCancellation()
+                let writeStart = ContinuousClock.now
                 try await writer.save(data, fileExtension: settings.format.fileExtension)
+                timing.record("write", since: writeStart)
+                timing.report()
                 DiagnosticTrace.note("save written: \(data.count) bytes sha256 \(Self.sha256(data))")
                 #if DEBUG
                 // The exact bytes handed to Photos, for the device check (Photos' own copy cannot be read from the Mac).
@@ -1809,4 +1814,46 @@ final class EditorSession {
         renderCommitted()
     }
     #endif
+}
+
+
+/**
+ * Save copy's stage times (2026-10-07), logged in every build configuration (subsystem com.lightlylabs.lightly,
+ * category SaveTiming) so Debug and Release are measured the same way; numbers only, nothing about the photo.
+ */
+final class SaveTiming: @unchecked Sendable {
+    private static let log = Logger(subsystem: "com.lightlylabs.lightly", category: "SaveTiming")
+    private let width: Int
+    private let height: Int
+    private let lock = NSLock()
+    private var stages: [(String, Double)] = []
+
+    /** The last report, for the timing test. */
+    nonisolated(unsafe) static var lastReport: String?
+
+    init(width: Int, height: Int) { self.width = width; self.height = height }
+
+    func measure<T>(_ stage: String, _ body: () throws -> T) rethrows -> T {
+        let start = ContinuousClock.now
+        defer { record(stage, since: start) }
+        return try body()
+    }
+
+    func record(_ stage: String, since start: ContinuousClock.Instant) {
+        let elapsed = ContinuousClock.now - start
+        let ms = Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15
+        lock.lock(); stages.append((stage, ms)); lock.unlock()
+    }
+
+    func report() {
+        lock.lock(); let line = stages.map { "\($0.0)=\(Int($0.1.rounded()))ms" }.joined(separator: " "); lock.unlock()
+        #if DEBUG
+        let configuration = "Debug"
+        #else
+        let configuration = "Release"
+        #endif
+        Self.log.notice("save \(self.width, privacy: .public)x\(self.height, privacy: .public) \(configuration, privacy: .public): \(line, privacy: .public)")
+        Self.lastReport = "\(width)x\(height) \(configuration): \(line)"
+        DiagnosticTrace.note("save timing \(configuration) \(line)")
+    }
 }

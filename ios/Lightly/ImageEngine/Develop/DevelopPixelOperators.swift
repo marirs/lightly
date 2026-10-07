@@ -79,31 +79,42 @@ enum DevelopPixelOperators {
         kernel = kernel.map { $0 / total }
         var horizontal = [Float](repeating: 0, count: plane.count)
         var output = [Float](repeating: 0, count: plane.count)
-        plane.withUnsafeBufferPointer { source in
-            horizontal.withUnsafeMutableBufferPointer { destination in
-                let src = source.baseAddress!, dst = destination.baseAddress!
-                DispatchQueue.concurrentPerform(iterations: height) { row in
-                    let rowStart = row * width
-                    for column in 0..<width {
-                        var sum: Float = 0
-                        for tap in -radius...radius {
-                            sum += kernel[tap + radius] * src[rowStart + reflect(column + tap, width)]
+        // Speed (2026-10-07: this blur was ~85 % of a 48 MP Save copy's render). Every output is still the sum of the
+        // same products in the same tap order (-radius ... radius, from 0), so the result is bit-identical
+        // (DevelopPixelOperatorsTests.testGaussianBlurMatchesTheDirectReference); only the bookkeeping changed:
+        // reflection only where a tap leaves the plane, the kernel read without bounds checks, and the vertical pass
+        // adding one whole source row per tap (contiguous memory) instead of one strided sample per tap.
+        kernel.withUnsafeBufferPointer { kernelBuffer in
+            let k = kernelBuffer.baseAddress!
+            plane.withUnsafeBufferPointer { source in
+                horizontal.withUnsafeMutableBufferPointer { destination in
+                    let src = source.baseAddress!, dst = destination.baseAddress!
+                    DispatchQueue.concurrentPerform(iterations: height) { row in
+                        let rowStart = row * width
+                        for column in 0..<width {
+                            var sum: Float = 0
+                            if column - radius >= 0 && column + radius < width {
+                                let base = src + rowStart + column - radius
+                                for tap in 0...(2 * radius) { sum += k[tap] * base[tap] }
+                            } else {
+                                for tap in -radius...radius { sum += k[tap + radius] * src[rowStart + reflect(column + tap, width)] }
+                            }
+                            dst[rowStart + column] = sum
                         }
-                        dst[rowStart + column] = sum
                     }
                 }
             }
-        }
-        horizontal.withUnsafeBufferPointer { source in
-            output.withUnsafeMutableBufferPointer { destination in
-                let src = source.baseAddress!, dst = destination.baseAddress!
-                DispatchQueue.concurrentPerform(iterations: height) { row in
-                    for column in 0..<width {
-                        var sum: Float = 0
+            horizontal.withUnsafeBufferPointer { source in
+                output.withUnsafeMutableBufferPointer { destination in
+                    let src = source.baseAddress!, dst = destination.baseAddress!
+                    DispatchQueue.concurrentPerform(iterations: height) { row in
+                        let out = dst + row * width
+                        // out[column] starts at 0 (the arrays are zero-filled) and receives the taps in order.
                         for tap in -radius...radius {
-                            sum += kernel[tap + radius] * src[reflect(row + tap, height) * width + column]
+                            let weight = k[tap + radius]
+                            let line = src + reflect(row + tap, height) * width
+                            for column in 0..<width { out[column] += weight * line[column] }
                         }
-                        dst[row * width + column] = sum
                     }
                 }
             }

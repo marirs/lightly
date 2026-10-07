@@ -2,7 +2,7 @@
 # package_review.sh: paired review builds from ONE committed checkpoint (HEAD, tracked tree clean), into
 # ~/.codex/artifacts/lightly/v1/review-builds/{android,ios}/<commit>/ with SHA256SUMS, then installs them on the review
 # emulator (emulator-5554), the review simulator (D75D820D…) and, if connected, the dev iPhone 11 Pro Max.
-# Debug configuration (the vision, depth and Remove models are packaged in debug only; release gates unchanged).
+# Debug configuration with Release optimisation on iOS; the Android benchmark build (models packaged in internal builds only; release gates unchanged).
 # Run through the lock: scripts/heavy package-review bash scripts/package_review.sh   (INSTALL=0: package only)
 set -u
 REPO=$(cd "$(dirname "$0")/.." && pwd); cd "$REPO"
@@ -18,9 +18,13 @@ cp android/app/build/outputs/apk/debug/app-debug.apk "$A/lightly-debug-$C-with-m
 cp android/app/build/outputs/apk/benchmark/app-benchmark.apk "$A/lightly-benchmark-$C-with-models.apk"
 (cd "$A" && shasum -a 256 *.apk > SHA256SUMS && cat SHA256SUMS)
 cd ios && xcodegen generate 2>&1 | tail -1
-xcodebuild build -project Lightly.xcodeproj -scheme Lightly -configuration Debug -destination "generic/platform=iOS Simulator" \
+# Release compiler settings on the Debug configuration (2026-10-07): the diagnostics and scripted launch arguments stay
+# (DEBUG), the code is optimised as in Release. An -Onone build rendered Save copy 88x slower (1.7 MP: 42.3 s against
+# 0.48 s), so its timings said nothing about the shipped app. The Android review build is the same idea (benchmark).
+OPT="SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule GCC_OPTIMIZATION_LEVEL=s"
+xcodebuild build -project Lightly.xcodeproj -scheme Lightly -configuration Debug $OPT -destination "generic/platform=iOS Simulator" \
   -derivedDataPath /tmp/lightly-dd-review-sim MARKETING_VERSION="$MARKETING" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" -quiet > /tmp/lightly-dd-review-sim.log 2>&1 || { grep -E "error:" /tmp/lightly-dd-review-sim.log | head; echo "ios sim build failed"; exit 1; }
-xcodebuild build -project Lightly.xcodeproj -scheme Lightly -configuration Debug -destination "generic/platform=iOS" \
+xcodebuild build -project Lightly.xcodeproj -scheme Lightly -configuration Debug $OPT -destination "generic/platform=iOS" \
   -derivedDataPath /tmp/lightly-dd-review-device -allowProvisioningUpdates MARKETING_VERSION="$MARKETING" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic \
   DEVELOPMENT_TEAM=3UDFB78DLC CODE_SIGN_IDENTITY="Apple Development" -quiet > /tmp/lightly-dd-review-device.log 2>&1 || { grep -E "error:" /tmp/lightly-dd-review-device.log | head; echo "ios device build failed"; exit 1; }
 cd "$REPO"
