@@ -80,6 +80,17 @@ struct DebugScenario {
         }
     }
 
+    /// `--save-copy` (DEBUG launch flag only): settles the scenario's rendering, then saves a copy, for
+    /// the device edge and memory checks.
+    @MainActor
+    func saveCopyIfRequested(session: EditorSession, screenID: String) async {
+        guard DebugArguments.current.contains("--save-copy") else { return }
+        DiagnosticTrace.note("scenario \(screenID): settling")
+        await session.settleRendering()
+        DiagnosticTrace.note("scenario \(screenID): settled, saving")
+        session.saveCopy()
+    }
+
     /// Slice-3 setups (prototype `screens.js`): the recipe the screen shows, as the initial state.
     @MainActor
     func applyBackgroundAndPortrait(session: EditorSession) async {
@@ -104,12 +115,7 @@ struct DebugScenario {
         case "bg-colour-light", "bg-colour-dark":
             background { $0.replacement = .colour(screenID == "bg-colour-light" ? "#F4F1EC" : "#1F2328") }
             // Edge checks need the saved copy too (as Android's bg-export-*): DEBUG launch flag only.
-            if DebugArguments.current.contains("--save-copy") {
-                DiagnosticTrace.note("scenario \(screenID): settling")
-                await session.settleRendering()
-                DiagnosticTrace.note("scenario \(screenID): settled, saving")
-                session.saveCopy()
-            }
+            await saveCopyIfRequested(session: session, screenID: screenID)
         case "bg-change-gradient":
             let g = BackgroundPanelModel.gradients[0]
             background { $0.replacement = .gradient(angle: g.angle, stops: g.stops) }
@@ -168,12 +174,19 @@ struct DebugScenario {
         case "ed-rotate": edit { $0.geometry.flipHorizontal = true }
         case "ed-straighten": edit { $0.geometry.straighten = -3 }
         case "ed-perspective": edit { $0.geometry.perspectiveVertical = 18 }
-        case "ed-adjust-light": edit { $0.adjust.exposure = 12; $0.adjust.contrast = 10; $0.adjust.highlights = -20; $0.adjust.shadows = 25 }
+        case "ed-adjust-light":
+            edit { $0.adjust.exposure = 12; $0.adjust.contrast = 10; $0.adjust.highlights = -20; $0.adjust.shadows = 25 }
+            // Device memory checks (2026-10-07): Save copy of a Develop-only edit (the Develop export path).
+            await saveCopyIfRequested(session: session, screenID: screenID)
         case "ed-adjust-colour": edit { $0.adjust.temp = 15; $0.adjust.tint = -4; $0.adjust.vibrance = 12 }
         case "ed-adjust-detail": edit { $0.adjust.sharpness = 30; $0.adjust.clarity = 15; $0.adjust.noise = 20 }
         case "ed-remove":
             // One stroke, removed by the real model (LaMa); the capture waits for its patch.
             await session.debugRemoveAsInitial(points: stroke.points, radius: stroke.radius)
+            // Device memory checks (2026-10-07): the process's peak footprint once the stroke is removed,
+            // before any save (the ledger peak only grows), then Save copy if requested.
+            DiagnosticTrace.note("scenario ed-remove: removed, peakFootprint=\(SaveTiming.peakFootprintMB().map(String.init) ?? "?")MB")
+            await saveCopyIfRequested(session: session, screenID: screenID)
         case "ed-removing", "ed-remove-failed":
             if screenID == "ed-remove-failed" { preset("landscape", 37) }
             session.debugHoldRemoveState(screenID == "ed-removing" ? .removing : .failed,
