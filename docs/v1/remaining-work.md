@@ -141,9 +141,13 @@ Closed as stale (evidence re-checked 2026-10-06):
    (`ACCESS_MEDIA_LOCATION`).
 
 ## Unverified on both platforms (carried over from the checklist, 2026-10-05)
-- **A11 forced conditions, run end to end 2026-10-07 (Simulator iPhone 17, spare emulator):** storage full and a failed
-  write show the approved alerts on both platforms, keep the edit, and Try again retries (iOS ForcedConditionsUITests;
-  Android `--es lightly.debug.saveFails`). Photo deleted while being edited, then Save copy: iOS saved from its session's
+- **A11 forced conditions, 2026-10-07 (Simulator iPhone 17, spare emulator).** Status of each:
+  - Storage full: **fault-injected** (a debug writer throws the out-of-space error); the approved alert, OK keeps the edit,
+    Try again retries. A really full device is untested on both platforms.
+  - Save failed: **fault-injected** the same way; approved alert, Keep editing keeps the edit.
+  - Photo deleted while being edited: **real condition** (file deleted), both platforms.
+  - Model unavailable mid-session: **unit-tested only**.
+  Details: Photo deleted while being edited, then Save copy: iOS saved from its session's
   copy; Android failed every save ("Couldn't save the copy") and now saves from a private copy of the original (5490108).
   Android copy lifecycle, spare emulator 2026-10-07: edit, photo deleted, process ended by the system in the background
   (`am kill`), return through Recents → edit restored from the copy and Save copy saved; leaving the editor deletes the
@@ -167,8 +171,9 @@ Closed as stale (evidence re-checked 2026-10-06):
   (approved colours fail the audit's contrast check); the iOS editor at accessibility text sizes beyond the approved
   large text (segment labels and dock need a layout the prototype does not define); Android top-bar icons 46 dp and the
   Image/Gradient tabs 46 dp tall (approved 44, Android's guideline 48). M2: the 24 pt top bar was tried and reverted
-  (the top 6 pt of the top-bar buttons fell in iPadOS's status strip and did not take taps). Screen readers: labels and
-  traits checked by the audits; no spoken VoiceOver/TalkBack walk-through yet (device acceptance pass).
+  (the top 6 pt of the top-bar buttons fell in iPadOS's status strip and did not take taps). **Screen readers: pending.**
+  The audits check labels, traits and hit areas only; they do not establish a usable VoiceOver or TalkBack flow, which
+  needs a spoken walk-through on a device. **Device performance: pending** (phones).
 - Saved-file metadata combinations on Android after slice 1; 48 MP memory and time on dev devices.
 - Tablet and Fold cells of the sized screens: one iOS check (iPad 13 landscape) only.
 
