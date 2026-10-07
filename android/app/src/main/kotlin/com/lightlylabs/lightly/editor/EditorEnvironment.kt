@@ -31,6 +31,12 @@ fun interface PhotoLoader {
      * @throws Exception with a user-presentable message for any other failure (LoadFailed).
      */
     suspend fun load(assetId: String): LoadedPhoto
+
+    /** The photo opened for editing: as [load], and the loader may keep a private copy of its original for Save copy. */
+    suspend fun loadForEditing(assetId: String): LoadedPhoto = load(assetId)
+
+    /** The editor was left: the copy kept by [loadForEditing], if any, is removed. */
+    fun releaseEditingCopy() {}
 }
 
 sealed interface DevelopResult {

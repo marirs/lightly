@@ -65,7 +65,7 @@ object AndroidEditorEnvironment {
     fun create(context: Context, screenLongestPx: Int, metadataPolicy: () -> MetadataPolicy, favourites: FavouritesStore, preferredBorder: () -> com.lightlylabs.lightly.prefs.PreferredBorder = { com.lightlylabs.lightly.prefs.PreferredBorder.NONE }): EditorEnvironment {
         val app = context.applicationContext
         val resolver = app.contentResolver
-        val gateway = UriStringGateway(ContentResolverGateway(resolver))
+        val gateway = UriStringGateway(ContentResolverGateway(resolver)).let { if (BuildConfig.DIAGNOSTICS) DebugFaultGateway(it) else it }
         val library = CoroutineScope(SupervisorJob() + Dispatchers.IO).async {
             val manifest = app.assets.open(DevelopLibrary.ASSET_MANIFEST).use { it.readBytes().toString(Charsets.UTF_8) }
             val contract = app.assets.open(DevelopLibrary.ASSET_CONTRACT).use { it.readBytes().toString(Charsets.UTF_8) }
@@ -91,7 +91,8 @@ object AndroidEditorEnvironment {
         // Loaded on first use (the first photo's people analysis), never at app start.
         val vision = LiteRtVisionModels.get(app, BuildConfig.VISION_MODELS_ENABLED)
         return EditorEnvironment(
-            photoLoader = ContentResolverPhotoLoader(resolver, ProxyDecoder(), minOf(screenLongestPx, PREVIEW_LONG_EDGE_PX), allowFileUris = BuildConfig.DIAGNOSTICS),
+            photoLoader = ContentResolverPhotoLoader(resolver, ProxyDecoder(), minOf(screenLongestPx, PREVIEW_LONG_EDGE_PX), allowFileUris = BuildConfig.DIAGNOSTICS,
+                editingCopy = java.io.File(app.noBackupFilesDir, "editing/original")),
             photoAccess = ContentResolverPhotoAccessGrants(resolver),
             // Auto (2026-10-06): Lightly's own analysis (AutoAnalysis), no model; runs in every build, Release included.
             autoDeveloper = AutoDeveloper { _, analysis, faces ->

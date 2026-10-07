@@ -218,7 +218,7 @@ class EditorViewModel(
         state.value = EditorUiState(phase = EditorPhase.Loading)
         loadJob = scope.launch {
             val loaded = try {
-                env.photoLoader.load(assetId)
+                env.photoLoader.loadForEditing(assetId)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (accessLost: PhotoAccessLostException) {
@@ -1670,12 +1670,18 @@ class EditorViewModel(
         when {
             state.value.overlay != null && state.value.overlay != EditorOverlay.SAVING -> dismiss()
             isDirty -> state.update { it.copy(overlay = EditorOverlay.LEAVE) }
-            else -> onLeave()
+            else -> leave()
         }
     }
 
     fun discardAndLeave() {
         state.update { it.copy(overlay = null) }
+        leave()
+    }
+
+    /** Leaving the editor removes the private copy of the edited photo's original (ContentResolverPhotoLoader). */
+    private fun leave() {
+        env.photoLoader.releaseEditingCopy()
         onLeave()
     }
 

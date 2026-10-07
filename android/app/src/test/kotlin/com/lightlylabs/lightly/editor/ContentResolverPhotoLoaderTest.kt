@@ -57,4 +57,24 @@ class ContentResolverPhotoLoaderTest {
         Robolectric.setupContentProvider(DeletedItemProvider::class.java, "deleted.test")
         assertFailsWith<PhotoAccessLostException> { runBlocking { loader.load("content://deleted.test/media/1000") } }
     }
+
+    /**
+     * A11 (2026-10-07): the photo deleted while it is edited. The kept copy holds the original's bytes (Save copy's
+     * full-resolution decode reads it; ImageDecoder itself does not run under Robolectric, so the decode is checked on
+     * the emulator), and leaving the editor removes it.
+     */
+    @Test
+    fun `the copy kept for editing outlives the deleted photo and is removed on release`() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val photo = java.io.File(app.cacheDir, "deleted-while-editing.jpg")
+        val bytes = ByteArray(5000) { (it * 31).toByte() }
+        photo.writeBytes(bytes)
+        val copy = java.io.File(app.noBackupFilesDir, "editing/original")
+        val keeping = ContentResolverPhotoLoader(resolver, ProxyDecoder(), screenLongestPx = 1080, allowFileUris = true, editingCopy = copy)
+        val kept = runBlocking { keeping.copyOriginal(Uri.fromFile(photo)) }
+        kotlin.test.assertTrue(photo.delete())
+        kotlin.test.assertContentEquals(bytes, kept!!.readBytes())
+        keeping.releaseEditingCopy()
+        kotlin.test.assertFalse(copy.exists(), "leaving the editor removes the copy")
+    }
 }

@@ -69,6 +69,8 @@ object DebugLaunchOptions {
 
     fun apply(intent: Intent?, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel): kotlinx.coroutines.Job? {
         if (!BuildConfig.DIAGNOSTICS || intent == null) return null
+        // A11 forced conditions: `--es lightly.debug.saveFails storage|other` (see DebugSaveFault).
+        com.lightlylabs.lightly.editor.DebugSaveFault.mode = intent.getStringExtra("lightly.debug.saveFails")
         // D3 functional check: `--es lightly.debug.visionProbe <folder>` (see VisionProbe).
         intent.getStringExtra("lightly.debug.visionProbe")?.let { folder -> return com.lightlylabs.lightly.editor.VisionProbe.run(File(folder)) }
         return apply(Request.from(intent), shell, preferences, editor)
