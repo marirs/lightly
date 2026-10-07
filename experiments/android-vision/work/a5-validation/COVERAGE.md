@@ -21,3 +21,8 @@ which is where the area-and-depth rule already stands at 3/82 on the fresh set (
 three missed, the truck is in the vocabulary, the display case is not, the vase is below the 2 % area). The download is
 therefore worth it only for recall, with an expected gain of about one subject in twelve. No download is requested until
 that trade-off is decided; the validation set (labels committed before any run) stays unused.
+
+## Decision (owner, 2026-10-07)
+EfficientDet is deferred: its expected benefit does not justify another integration now. **A5 stays open.** The
+class-agnostic rule (U²-Netp confident area and depth step) is not a solution: on the fresh set it found 9 of 12 subjects
+and called 3 of 82 subject-free photos subjects, and no threshold separates the classes.

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hair edge review</title>
+<style>
+:root { --bg:#f6f5f2; --panel:#ffffff; --ink:#1b1c1e; --muted:#6b6d72; --line:#dddcd8; --accent:#2f5bd3; --warn:#b3261e; }
+@media (prefers-color-scheme: dark) { :root { --bg:#141517; --panel:#1d1f22; --ink:#ecebe8; --muted:#9a9ca1; --line:#33363a; --accent:#8fb0ff; --warn:#ff8a80; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header { position:sticky; top:0; z-index:5; background:var(--panel); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+header h1 { font-size:15px; margin:0 12px 0 0; }
+button, select { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:5px 10px; cursor:pointer; }
+button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+main { max-width:1500px; margin:0 auto; padding:16px; }
+.note { color:var(--muted); font-size:13px; margin:0 0 14px; }
+.pair-nav { display:flex; flex-wrap:wrap; gap:4px; }
+.pair-nav button { padding:3px 7px; font-size:12px; }
+.pair-nav button.done { border-color:var(--accent); color:var(--accent); }
+.pair-nav button.current { background:var(--ink); color:var(--bg); }
+.views { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.view { background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.view h2 { font-size:14px; margin:0; padding:8px 10px; border-bottom:1px solid var(--line); }
+.scroller { height:min(70vh, 900px); overflow:auto; cursor:zoom-in; background:#808080; }
+.scroller img { display:block; transform-origin:0 0; }
+.zoombar { display:flex; gap:6px; align-items:center; margin:10px 0; flex-wrap:wrap; }
+.crops { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+.crops figure { margin:0; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px; }
+.crops img { width:100%; image-rendering:pixelated; cursor:zoom-in; display:block; }
+.crops figcaption { color:var(--muted); font-size:12px; margin-bottom:6px; }
+.answer { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-top:12px; }
+.answer fieldset { border:0; padding:0; margin:0 0 10px; }
+.answer legend { font-weight:600; margin-bottom:6px; }
+.answer label { margin-right:16px; white-space:nowrap; }
+textarea { width:100%; min-height:54px; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:6px; }
+dialog { border:0; padding:0; max-width:96vw; max-height:96vh; background:transparent; }
+dialog img { max-width:96vw; max-height:92vh; image-rendering:pixelated; }
+.lightbox { display:flex; gap:8px; }
+@media (max-width: 800px) { .views, .crops { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hair edge review</h1>
+  <button id="prev">← Previous</button>
+  <span id="position"></span>
+  <button id="next">Next →</button>
+  <span id="progress" class="note" style="margin:0"></span>
+  <button id="export" class="primary">Copy answers</button>
+  <button id="download">Download answers</button>
+</header>
+<main>
+  <p class="note">Each pair is the same Change background result with two hair-edge treatments, in random left/right order.
+  This is a visual assessment on its own: it does not change the recorded result of the earlier experiment, and choosing
+  “No difference” between two defective edges does not accept either. Answers are kept in this browser until you copy or
+  download them.</p>
+  <div class="pair-nav" id="nav"></div>
+  <div class="zoombar">
+    <span>Zoom (both sides together):</span>
+    <button data-zoom="fit">Fit</button><button data-zoom="0.5">50 %</button><button data-zoom="1">100 %</button><button data-zoom="2">200 %</button>
+    <span class="note" style="margin:0">Click an image to step the zoom; scrolling one side scrolls the other.</span>
+  </div>
+  <div class="views">
+    <div class="view"><h2>A</h2><div class="scroller" id="scrollA"><img id="imgA" alt="Result A"></div></div>
+    <div class="view"><h2>B</h2><div class="scroller" id="scrollB"><img id="imgB" alt="Result B"></div></div>
+  </div>
+  <h3 style="margin:18px 0 4px; font-size:14px">Edge crops (full resolution, where A and B differ most)</h3>
+  <div class="crops" id="crops"></div>
+  <form class="answer" id="answer">
+    <fieldset>
+      <legend>Which hair edge looks more natural?</legend>
+      <label><input type="radio" name="choice" value="A"> A</label>
+      <label><input type="radio" name="choice" value="B"> B</label>
+      <label><input type="radio" name="choice" value="no difference"> No difference</label>
+      <label><input type="radio" name="choice" value="neither acceptable"> Neither acceptable</label>
+    </fieldset>
+    <fieldset>
+      <legend>Fringe you can see (optional)</legend>
+      <label><input type="checkbox" name="fringe" value="A teal"> A teal</label>
+      <label><input type="checkbox" name="fringe" value="A red"> A red</label>
+      <label><input type="checkbox" name="fringe" value="A grey"> A grey</label>
+      <label><input type="checkbox" name="fringe" value="B teal"> B teal</label>
+      <label><input type="checkbox" name="fringe" value="B red"> B red</label>
+      <label><input type="checkbox" name="fringe" value="B grey"> B grey</label>
+    </fieldset>
+    <label for="notes" style="display:block; font-weight:600; margin-bottom:4px">Notes</label>
+    <textarea id="notes" name="notes" placeholder="Where, and what you see"></textarea>
+  </form>
+</main>
+<dialog id="lightbox"><div class="lightbox"><img id="lbA" alt=""><img id="lbB" alt=""></div></dialog>
+<script>
+const PAIRS = /*PAIRS*/[];
+const STORE = 'lightly-a4-review-v1';
+let answers = {};
+try { answers = JSON.parse(localStorage.getItem(STORE) || '{}'); } catch (e) { answers = {}; }
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(answers)); } catch (e) {} };
+let index = 0, zoom = 'fit';
+const $ = id => document.getElementById(id);
+
+function renderNav() {
+  $('nav').innerHTML = '';
+  PAIRS.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.textContent = p.id.replace('pair', '');
+    if (answers[p.id] && answers[p.id].choice) b.classList.add('done');
+    if (i === index) b.classList.add('current');
+    b.onclick = () => show(i);
+    $('nav').appendChild(b);
+  });
+  const done = PAIRS.filter(p => answers[p.id] && answers[p.id].choice).length;
+  $('progress').textContent = `${done} of ${PAIRS.length} answered`;
+  $('position').textContent = `Pair ${index + 1} of ${PAIRS.length}`;
+}
+
+function applyZoom() {
+  for (const side of ['A', 'B']) {
+    const img = $('img' + side), box = $('scroll' + side), p = PAIRS[index];
+    const scale = zoom === 'fit' ? Math.min(box.clientWidth / p.width, box.clientHeight / p.height) : Number(zoom);
+    img.style.width = Math.round(p.width * scale) + 'px';
+    img.style.height = Math.round(p.height * scale) + 'px';
+  }
+}
+
+function show(i) {
+  index = Math.max(0, Math.min(PAIRS.length - 1, i));
+  const p = PAIRS[index];
+  $('imgA').src = `img/${p.id}-A.jpg`; $('imgB').src = `img/${p.id}-B.jpg`;
+  $('crops').innerHTML = '';
+  p.crops.forEach(k => {
+    for (const side of ['A', 'B']) {
+      const f = document.createElement('figure');
+      f.innerHTML = `<figcaption>${side} · edge crop ${k + 1}</figcaption><img src="img/${p.id}-${side}-crop${k}.png" alt="${side} edge crop ${k + 1}">`;
+      f.querySelector('img').onclick = () => openLightbox(p.id, k);
+      $('crops').appendChild(f);
+    }
+  });
+  const a = answers[p.id] || {};
+  for (const r of document.querySelectorAll('input[name=choice]')) r.checked = r.value === a.choice;
+  for (const c of document.querySelectorAll('input[name=fringe]')) c.checked = (a.fringe || []).includes(c.value);
+  $('notes').value = a.notes || '';
+  applyZoom(); renderNav();
+}
+
+function record() {
+  const p = PAIRS[index];
+  const choice = (document.querySelector('input[name=choice]:checked') || {}).value;
+  answers[p.id] = { choice, fringe: [...document.querySelectorAll('input[name=fringe]:checked')].map(c => c.value), notes: $('notes').value, at: new Date().toISOString() };
+  save(); renderNav();
+}
+
+function openLightbox(id, k) {
+  $('lbA').src = `img/${id}-A-crop${k}.png`; $('lbB').src = `img/${id}-B-crop${k}.png`;
+  $('lightbox').showModal();
+}
+$('lightbox').onclick = () => $('lightbox').close();
+
+// Synchronised scrolling between the two sides.
+let syncing = false;
+for (const [from, to] of [['scrollA', 'scrollB'], ['scrollB', 'scrollA']]) {
+  $(from).addEventListener('scroll', () => {
+    if (syncing) return; syncing = true;
+    $(to).scrollLeft = $(from).scrollLeft; $(to).scrollTop = $(from).scrollTop;
+    requestAnimationFrame(() => { syncing = false; });
+  });
+  $(from).addEventListener('click', e => {
+    const steps = ['fit', '0.5', '1', '2'];
+    const box = $(from), rect = box.getBoundingClientRect();
+    const fx = (box.scrollLeft + e.clientX - rect.left) / box.scrollWidth, fy = (box.scrollTop + e.clientY - rect.top) / box.scrollHeight;
+    zoom = steps[(steps.indexOf(String(zoom)) + 1) % steps.length]; applyZoom();
+    box.scrollLeft = fx * box.scrollWidth - box.clientWidth / 2; box.scrollTop = fy * box.scrollHeight - box.clientHeight / 2;
+  });
+}
+document.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => { zoom = b.dataset.zoom; applyZoom(); });
+$('answer').addEventListener('change', record);
+$('notes').addEventListener('input', record);
+$('prev').onclick = () => show(index - 1);
+$('next').onclick = () => show(index + 1);
+window.addEventListener('resize', applyZoom);
+function exportText() { return JSON.stringify({ review: 'A4 hair edges, blind', answers }, null, 1); }
+$('export').onclick = async () => {
+  try { await navigator.clipboard.writeText(exportText()); $('export').textContent = 'Copied'; }
+  catch (e) { prompt('Copy the answers:', exportText()); }
+  setTimeout(() => { $('export').textContent = 'Copy answers'; }, 1500);
+};
+$('download').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([exportText()], { type: 'application/json' }));
+  a.download = 'a4-review-answers.json'; a.click();
+};
+show(0);
+</script>
+</body>
+</html>
