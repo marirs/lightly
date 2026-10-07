@@ -323,8 +323,10 @@ final class AppState {
     func restoreInterruptedSession(currentSceneSessionID: String?) async {
         guard let saved = sessionStore.load() else {
             Self.restoreLog.notice("restore: no stored session")
+            DiagnosticTrace.note("restore: no stored session")
             return
         }
+        DiagnosticTrace.note("restore: stored session, \(saved.history.count) steps, scene \(saved.sceneSessionID.map { String($0.prefix(8)) } ?? "none"), this launch's scene \(currentSceneSessionID.map { String($0.prefix(8)) } ?? "none")")
         Self.restoreLog.notice("restore: stored session with \(saved.history.count, privacy: .public) steps from scene \(saved.sceneSessionID.map { String($0.prefix(8)) } ?? "none", privacy: .public); same scene: \(saved.sceneSessionID != nil && saved.sceneSessionID == currentSceneSessionID, privacy: .public)")
         #if DEBUG
         // Device checks only (2026-10-07): `--restore-stored-session` restores the stored session whatever scene it was
@@ -338,6 +340,7 @@ final class AppState {
               let photo = try? await photoLoader.loadPhoto(from: saved.original, source: .photoLibrary),
               EditorSession.sourceReference(for: photo).fingerprint == saved.history.first?.source.fingerprint
         else {
+            DiagnosticTrace.note("restore: declined (another scene, a photo already open, or the original unreadable); stored session cleared")
             sessionStore.clear()
             removePatches.removeAll()
             return
@@ -349,6 +352,7 @@ final class AppState {
             DiagnosticTrace.note("restore: forced, \(saved.history.count) steps, scene \(String(scene.prefix(8))) rebound to \(String(current.prefix(8)))")
         }
         #endif
+        DiagnosticTrace.note("restore: reopening the edit, \(saved.history.count) steps, at step \(saved.index)")
         pendingRestore = (photo.id, saved)
         selectedPhoto = photo
         route = .editor(SelectedPhotoReference(id: photo.id))

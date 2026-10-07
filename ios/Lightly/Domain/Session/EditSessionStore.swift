@@ -57,7 +57,7 @@ final class EditSessionStore: @unchecked Sendable {
         if ProcessInfo.processInfo.arguments.contains("--keep-stored-session") { return EditSessionStore(directory: nil) }
         #endif
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        return EditSessionStore(directory: base?.appendingPathComponent("EditSession", isDirectory: true))
+        return EditSessionStore(directory: base?.appendingPathComponent("EditSession\(DebugSessionStoreName.suffix)", isDirectory: true))
     }
 
     // MARK: - Writing
@@ -262,5 +262,21 @@ final class EditSessionStore: @unchecked Sendable {
         }
         a.personMatte = images("person-matte.f32")
         return a
+    }
+}
+
+/// DEBUG `--session-store <name>` (device checks, 2026-10-07): the edit session and its Remove patches live in
+/// "EditSession-<name>" and "RemovePatches-<name>", so a test edit can go through the real store-and-restore path on a
+/// dev phone that holds an owner's stored edit, without reading, writing or clearing it. Release builds: always "".
+enum DebugSessionStoreName {
+    static var suffix: String {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "--session-store"), arguments.indices.contains(flag + 1) else { return "" }
+        let name = arguments[flag + 1].filter { $0.isLetter || $0.isNumber }
+        return name.isEmpty ? "" : "-" + name
+        #else
+        return ""
+        #endif
     }
 }

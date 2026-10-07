@@ -342,7 +342,7 @@ final class RemovePatchStore: @unchecked Sendable {
         if ProcessInfo.processInfo.arguments.contains("--keep-stored-session") { return RemovePatchStore(directory: nil) }
         #endif
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        return RemovePatchStore(directory: base?.appendingPathComponent("RemovePatches", isDirectory: true))
+        return RemovePatchStore(directory: base?.appendingPathComponent("RemovePatches\(DebugSessionStoreName.suffix)", isDirectory: true))
     }
 
     func add(_ patch: RemovePatch) -> String {

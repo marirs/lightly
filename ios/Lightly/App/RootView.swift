@@ -132,6 +132,13 @@ struct RootView: View {
             let path = arguments[flag + 1]
             let url = path.hasPrefix("/") ? URL(fileURLWithPath: path) : URL.documentsDirectory.appending(path: path)
             await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: url) }
+            // `--test-edit` (device restore check): one real edit, an undo step, so the session is stored.
+            if arguments.contains("--test-edit"), let photo = appState.selectedPhoto {
+                let session = appState.editorSession(for: photo)
+                await session.debugWait { session.phase == .ready }
+                session.commitEdit { $0.adjust.exposure = 25 }
+                DiagnosticTrace.note("test edit committed: exposure 25, \(session.recipe.tools.edit.adjust.exposure)")
+            }
             // `--then-open-photo <path> [--then-after <s>]` (device check, 2026-10-07): opens a second photo the way
             // the picker's result does, while the first photo's scenario (e.g. Background) is still working.
             if let next = arguments.firstIndex(of: "--then-open-photo"), arguments.indices.contains(next + 1) {
