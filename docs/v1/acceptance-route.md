@@ -1,11 +1,13 @@
-# Acceptance route: build 1.0.0 (261007003), checkpoint 9bc1ea9
+# Acceptance route: build 1.0.0 (261007013), checkpoint 6f4462c
 
-Installed 2026-10-07 on the review devices (data kept): iPhone 11 Pro Max 261007003, review simulator D75D820D
-261007003, review emulator 5554 261007003.
+Installed 2026-10-07 on the review devices (data kept, build read back): iPhone 11 Pro Max 261007013, review simulator
+D75D820D 261007013, review emulator 5554 261007013 (it replaces 261007003 of checkpoint 9bc1ea9; iOS app code unchanged,
+Android Background faster and lighter). The review emulator runs the debug build, which ART does not optimise: judge
+Android speed on a phone or with the checkpoint's benchmark APK, not by this emulator's drag frames.
 
 ## iPhone 11 Pro Max (in this order)
-1. **Launch Lightly once, then tell me.** I pull the trace (`scripts/iphone_evidence.sh 261007003`) and confirm the line
-   `launch: Lightly 1.0.0 (261007003)` before anything else.
+1. **Launch Lightly once, then tell me.** I pull the trace (`scripts/iphone_evidence.sh 261007013`) and confirm the line
+   `launch: Lightly 1.0.0 (261007013)` before anything else.
 2. **Auto:** open a portrait (Choose photo). Auto applies by itself; tap Auto off and on once.
 3. **Live preset dragging:** drag the ruler slowly across ~10 stops, then fast, then release. The photo should follow
    while dragging; release is one step (Undo once returns to the previous preset).
