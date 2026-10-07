@@ -37,6 +37,19 @@ object ModelResources {
 
     fun openCount(): Int = all.count { it.isOpen }
 
+    /**
+     * [path] in the APK's assets, mapped read-only, for one interpreter (2026-10-07): each open maps the file again and
+     * nothing else keeps the mapping, so a released interpreter leaves its model file unmapped once the buffer is
+     * collected. When the model objects held one mapping each for the life of the process, about 260 MB of model file
+     * pages (LaMa's 200 MB fp32 file among them) stayed in the process after every interpreter was closed.
+     */
+    fun mapAsset(context: android.content.Context, path: String): java.nio.MappedByteBuffer =
+        context.assets.openFd(path).use { descriptor ->
+            java.io.FileInputStream(descriptor.fileDescriptor).channel.use { channel ->
+                channel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, descriptor.startOffset, descriptor.declaredLength)
+            }
+        }
+
     /** Closes every open interpreter; returns how many were open. */
     fun releaseAll(): Int = all.count { model -> model.isOpen.also { if (it) model.release() } }
 }

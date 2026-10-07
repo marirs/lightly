@@ -7,10 +7,8 @@ import com.lightlylabs.lightly.background.DepthUnavailableException
 import com.lightlylabs.lightly.background.FloatPlane
 import com.lightlylabs.lightly.session.ModelRef
 import org.tensorflow.lite.Interpreter
-import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
 
 /**
  * Depth Anything V2 Small on LiteRT (standalone `com.google.ai.edge.litert:litert`, Interpreter API,
@@ -61,12 +59,7 @@ class LiteRtDepthEstimator private constructor(private val interpreter: Releasab
         fun create(context: Context, enabled: Boolean): LiteRtDepthEstimator? {
             if (!enabled) return null
             return try {
-                val model = context.assets.openFd(ASSET_PATH).use { descriptor ->
-                    FileInputStream(descriptor.fileDescriptor).channel.use { channel ->
-                        channel.map(FileChannel.MapMode.READ_ONLY, descriptor.startOffset, descriptor.declaredLength)
-                    }
-                }
-                val interpreter = ReleasableInterpreter { Interpreter(model, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
+                val interpreter = ReleasableInterpreter { Interpreter(ModelResources.mapAsset(context, ASSET_PATH), Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
                 interpreter.use { opened ->
                     val inputShape = opened.getInputTensor(0).shape().toList()
                     val outputShape = opened.getOutputTensor(0).shape().toList()

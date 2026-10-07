@@ -122,6 +122,7 @@ object DebugLaunchOptions {
         editor.debugSingleRenderLane = screen.endsWith("-single")
         editor.debugHoldRemove = screen == "ed-removing"
         switchTarget = File(File(path).parentFile, "subject_swan.jpg").absolutePath
+        firstPhoto = File(path).absolutePath
         editor.openPhoto("file://" + File(path).absolutePath)
         shell.navigate(if (screen == "more") AppNavigator.openMore(AppNavigator.openEditor()) else AppNavigator.openEditor())
         if (screen == "developing") {
@@ -370,6 +371,44 @@ object DebugLaunchOptions {
                     }
                 }
             }
+            // Memory across repeated operations (2026-10-07, logcat LightlyFlow; the stress script samples whole-process
+            // memory each second): two cycles of a Develop Save copy, a Remove stroke and Save copy, another photo with
+            // Background and Save copy, then the first photo again and 10 s idle. Each step is logged when it ends.
+            "mem-cycles" -> kotlinx.coroutines.MainScope().launch {
+                suspend fun saved(label: String) {
+                    api.saveCopy()
+                    while (api.overlay != com.lightlylabs.lightly.editor.EditorOverlay.SAVED) kotlinx.coroutines.delay(250)
+                    api.dismiss()
+                    flowLog("$label saved ${api.modelSummary()}")
+                }
+                suspend fun ready() { while (api.phase != com.lightlylabs.lightly.editor.EditorPhase.Ready) kotlinx.coroutines.delay(100) }
+                suspend fun removed(stroke: Pair<List<Pair<Double, Double>>, Double>) = kotlinx.coroutines.suspendCancellableCoroutine<Unit> { done ->
+                    api.remove(stroke) { done.resumeWith(Result.success(Unit)) }
+                }
+                suspend fun separated(sub: com.lightlylabs.lightly.editor.BackgroundSub) = kotlinx.coroutines.suspendCancellableCoroutine<Unit> { done ->
+                    api.openBackground(sub) { done.resumeWith(Result.success(Unit)) }
+                }
+                ready()
+                repeat(2) { cycle ->
+                    flowLog("cycle $cycle start ${api.modelSummary()}")
+                    api.applyPreset("landscape", 5 + cycle)
+                    kotlinx.coroutines.delay(3_000)
+                    saved("cycle $cycle develop")
+                    api.prototypeStroke()?.let { stroke -> removed(stroke) }
+                    flowLog("cycle $cycle removed ${api.modelSummary()}")
+                    saved("cycle $cycle remove")
+                    api.openPhoto("file://$switchTarget"); ready()
+                    separated(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
+                    api.background(firstImage)
+                    api.focus(60.0, null)
+                    kotlinx.coroutines.delay(3_000)
+                    saved("cycle $cycle second photo background")
+                    api.openPhoto("file://$firstPhoto"); ready()
+                    kotlinx.coroutines.delay(10_000)
+                    flowLog("cycle $cycle idle on the first photo ${api.modelSummary()}")
+                }
+                flowLog("cycles done")
+            }
             "bg-cancel-flow" -> {
                 api.openBackground(com.lightlylabs.lightly.editor.BackgroundSub.FOCUS)
                 api.cancelSeparation(); flowLog("cancelled ${api.summary()}")
@@ -389,6 +428,7 @@ object DebugLaunchOptions {
 
     /** The second photo of bg-switch-flow (next to the launched photo). */
     private var switchTarget: String = ""
+    private var firstPhoto: String = ""
 
     private fun flowLog(message: String) { android.util.Log.i("LightlyFlow", message) }
 

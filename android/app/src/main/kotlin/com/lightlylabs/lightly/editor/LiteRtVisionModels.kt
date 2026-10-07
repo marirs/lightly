@@ -10,10 +10,8 @@ import com.lightlylabs.lightly.vision.PoseDetector
 import com.lightlylabs.lightly.vision.SubjectSaliency
 import com.lightlylabs.lightly.vision.TensorModel
 import org.tensorflow.lite.Interpreter
-import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
 
 /**
  * The MediaPipe vision models (assets/vision, bundled by BundleVisionModelsTask) on the standalone
@@ -73,14 +71,9 @@ class LiteRtVisionModels private constructor(private val context: Context) {
     private fun named(name: String) = OutputSelector { _, tensorName -> tensorName == name }
 
     private fun load(asset: String, outputs: List<OutputSelector>): TensorModel? = try {
-        val buffer = context.assets.openFd("vision/$asset").use { descriptor ->
-            FileInputStream(descriptor.fileDescriptor).channel.use { channel ->
-                channel.map(FileChannel.MapMode.READ_ONLY, descriptor.startOffset, descriptor.declaredLength)
-            }
-        }
         // As the depth model: XNNPACK on devices; the arm64 emulator on Apple-silicon hosts dies with
         // SIGILL in XNNPACK's initialisation, so it runs the built-in kernels there.
-        val interpreter = ReleasableInterpreter { Interpreter(buffer, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
+        val interpreter = ReleasableInterpreter { Interpreter(ModelResources.mapAsset(context, "vision/$asset"), Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
         val indices = interpreter.use { opened ->
             outputs.map { selector ->
                 (0 until opened.outputTensorCount).firstOrNull { i ->

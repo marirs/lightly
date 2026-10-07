@@ -3,10 +3,8 @@ package com.lightlylabs.lightly.editor
 import android.content.Context
 import com.lightlylabs.lightly.session.ModelRef
 import org.tensorflow.lite.Interpreter
-import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
 
 /**
  * LaMa big-lama on LiteRT (standalone `com.google.ai.edge.litert:litert` 1.4.2, Interpreter API, CPU;
@@ -59,12 +57,7 @@ class LiteRtLamaInpainter private constructor(private val interpreter: Releasabl
         fun create(context: Context, enabled: Boolean): LiteRtLamaInpainter? {
             if (!enabled) return null
             return try {
-                val model = context.assets.openFd(ASSET_PATH).use { descriptor ->
-                    FileInputStream(descriptor.fileDescriptor).channel.use { channel ->
-                        channel.map(FileChannel.MapMode.READ_ONLY, descriptor.startOffset, descriptor.declaredLength)
-                    }
-                }
-                val interpreter = ReleasableInterpreter { Interpreter(model, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
+                val interpreter = ReleasableInterpreter { Interpreter(ModelResources.mapAsset(context, ASSET_PATH), Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
                 val side = RemoveEngine.MODEL_SIDE
                 val (imageIndex, maskIndex) = interpreter.use { opened ->
                     val shapes = (0 until opened.inputTensorCount).map { opened.getInputTensor(it).shape().toList() }
