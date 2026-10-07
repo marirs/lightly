@@ -146,6 +146,12 @@ struct RootView: View {
                     DebugArguments.replace(with: plain)
                     DiagnosticTrace.note("open: second photo requested (\(second.lastPathComponent))")
                     await appState.openPhoto(source: .photoLibrary) { try Data(contentsOf: second) }
+                    // The first photo's analysis must not reach this one: its state after the old work had time to end.
+                    try? await Task.sleep(for: .seconds(6))
+                    if let photo = appState.selectedPhoto {
+                        let session = appState.editorSession(for: photo)
+                        DiagnosticTrace.note("open: second photo 6 s later: phase \(session.phase), subject \(session.subjectState), depth \(session.depthState), source \(photo.image.width)x\(photo.image.height)")
+                    }
                 }
             }
         }
@@ -309,6 +315,10 @@ enum DebugMemoryCycles {
                 await session.debugRemove(points: [.init(x: 0.62, y: 0.36), .init(x: 0.72, y: 0.33)], radius: 0.03)
                 mark("cycle \(cycle) \(name) removed (\(session.removeState))")
                 await save(session, "cycle \(cycle) \(name) saved after remove")
+                // Save copy released the Remove model: another stroke must load it again and apply.
+                let strokes = session.recipe.tools.edit.remove.strokes.count
+                await session.debugRemove(points: [.init(x: 0.3, y: 0.6), .init(x: 0.38, y: 0.62)], radius: 0.03)
+                mark("cycle \(cycle) \(name) second stroke (\(session.removeState), strokes \(strokes) → \(session.recipe.tools.edit.remove.strokes.count))")
             }
             try? await Task.sleep(for: .seconds(5))
             mark("cycle \(cycle) idle")

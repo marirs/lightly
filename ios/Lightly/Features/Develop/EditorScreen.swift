@@ -96,6 +96,10 @@ struct EditorScreen: View {
         .task {
             session.start()
             #if DEBUG
+            if DebugScenario.current?.screenID == "bg-then-develop" {
+                await debugBackgroundThenDevelop()
+                return
+            }
             if let scenario = DebugScenario.current {
                 let ui = scenario.editorUI
                 if ui.tool != .develop {
@@ -267,6 +271,37 @@ struct EditorScreen: View {
         if borderPanel.isUsed { used.insert(.border) }
         return used
     }
+
+    #if DEBUG
+    /// Device check (2026-10-07, not a prototype screen): Background's analysis started, then Develop with a ruler drag
+    /// across 12 stops while it runs; traces how many preview frames were shown during the drag and the analysis state.
+    private func debugBackgroundThenDevelop() async {
+        await session.debugWait { session.phase == .ready }
+        select(.background)
+        backgroundPanel.mode = .focus
+        session.analyseSubjectIfNeeded(needsDepth: true)
+        try? await Task.sleep(for: .milliseconds(300))
+        select(.develop)
+        DiagnosticTrace.note("scenario bg-then-develop: Develop selected; subject \(session.subjectState), depth \(session.depthState)")
+        let before = session.publishedRenderCount
+        let started = ContinuousClock.now
+        var longestWait = Duration.zero
+        var lastCount = before, lastChange = started
+        for stop in 1...12 {
+            panel.dragChanged(to: stop)
+            for _ in 0..<8 {
+                try? await Task.sleep(for: .milliseconds(10))
+                if session.publishedRenderCount != lastCount {
+                    longestWait = max(longestWait, ContinuousClock.now - lastChange)
+                    lastCount = session.publishedRenderCount; lastChange = ContinuousClock.now
+                }
+            }
+        }
+        panel.dragEnded(at: 12)
+        let elapsed = ContinuousClock.now - started
+        DiagnosticTrace.note("scenario bg-then-develop: drag of 12 stops in \(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000) ms, \(session.publishedRenderCount - before) frames shown, longest gap between frames \(longestWait.components.seconds * 1000 + longestWait.components.attoseconds / 1_000_000_000_000_000) ms; subject \(session.subjectState), depth \(session.depthState)")
+    }
+    #endif
 
     private func select(_ next: EditorTool) {
         if next != tool {

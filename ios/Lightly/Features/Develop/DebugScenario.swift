@@ -49,6 +49,7 @@ struct DebugScenario {
     var editorUI: EditorUI {
         switch screenID {
         case "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-no-subject", "bg-cancel-flow": return EditorUI(tool: .background)
+        case "bg-then-develop": return EditorUI()
         case "bg-refine": return EditorUI(tool: .background, backgroundMode: .refine)
         case "bg-change-image", "bg-separating", "bg-failed": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .image)
         case "bg-change-colour": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .colour)
