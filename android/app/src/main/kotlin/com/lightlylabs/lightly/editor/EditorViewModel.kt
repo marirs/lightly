@@ -1847,19 +1847,24 @@ class EditorViewModel(
     // Debug benchmark bookkeeping (docs/v1/slice2-android.md › Performance).
     @Volatile internal var publishedRevision: Long = -1
     /**
-     * After a frame lands with a replacement: draws the replacement at the drag frame's size off the render threads, so
-     * the first ruler-drag frame does not rebuild it (1.3 s on the emulator). A cache only: a failure is logged and the
-     * drag frame then draws it itself (its own failure is a preview failure).
+     * After a frame lands with a Background edit, off the render threads, what the first ruler-drag frame would otherwise
+     * build itself: the replacement drawn at the drag frame's size (1.3 s on the emulator), and the depth and matte at
+     * the drag working size with their scene geometry (2026-10-07: the first drag frame of a session took 394-470 ms,
+     * later ones 88-141 ms). Caches only: a failure is logged and the drag frame then builds them itself (its own
+     * failure is a preview failure).
      */
     private fun prepareDragReplacement() {
         val edit = state.value.session?.current ?: return
-        val replacement = edit.tools.background.replacement ?: return
+        val background = edit.tools.background
+        if (background.replacement == null && background.focus.blur <= 0.0) return
         val display = photo?.loaded?.display ?: return
         if (dragReplacementJob?.isActive == true) return
         val (w, h) = (display.width / 2).coerceAtLeast(1) to (display.height / 2).coerceAtLeast(1)
         dragReplacementJob = scope.launch(env.prefetchDispatcher) {
-            runCatching { backgroundSession.preparePositioned(replacement, w, h) }
-                .onFailure { failure -> runCatching { android.util.Log.w("LightlyDevelop", "drag replacement preparation failed", failure) } }
+            runCatching {
+                background.replacement?.let { backgroundSession.preparePositioned(it, w, h) }
+                backgroundSession.prepareDragWorking(background)
+            }.onFailure { failure -> runCatching { android.util.Log.w("LightlyDevelop", "drag frame preparation failed", failure) } }
         }
     }
     private var dragReplacementJob: Job? = null

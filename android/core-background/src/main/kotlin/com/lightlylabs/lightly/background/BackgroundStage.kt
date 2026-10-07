@@ -199,17 +199,39 @@ object BackgroundStage {
      * are already at the working size; [plan]'s replacement too. The layered renderer runs only here;
      * [applyRegion] then brings the result to the frame at any size.
      */
-    fun renderWorking(developed: ByteArray, analysis: BackgroundAnalysis, plan: BackgroundPlan, layersPerSide: Int, checkpoint: () -> Unit = {}): WorkingBackground {
+    fun renderWorking(
+        developed: ByteArray,
+        analysis: BackgroundAnalysis,
+        plan: BackgroundPlan,
+        layersPerSide: Int,
+        checkpoint: () -> Unit = {},
+        /**
+         * A ruler drag's frame (small, latency first; only the Look changes from frame to frame):
+         * - the scene's depth-and-matte geometry ([Refocus.SceneGeometry]) is kept for the next call with the same depth
+         *   and matte planes. One entry, ~5 floats per working pixel (3 MB at 320 × 480);
+         * - the foreground estimate runs on its own thread beside the scene, so both sets of buffers are live at once.
+         * Settled frames and Save copy, at larger sizes, pass false: memory first.
+         */
+        dragFrame: Boolean = false,
+    ): WorkingBackground {
         val w = analysis.width
         val h = analysis.height
         require(developed.size == w * h * 4) { "frame is not ${w}x$h" }
         val matte = analysis.matte
         val blur = if (analysis.depth == null) 0.0 else plan.focus.blur
-        val shift = if (plan.replacement != null && matte != null) foregroundShift(developed, w, h, matte) else null
-        if (blur <= 0.0) return WorkingBackground(w, h, matte, null, null, null, shift)
+        val needsShift = plan.replacement != null && matte != null
+        if (blur <= 0.0) return WorkingBackground(w, h, matte, null, null, null, if (needsShift) foregroundShift(developed, w, h, matte!!) else null)
         require(plan.replacement == null || matte != null) { "a replacement needs a subject matte" }
+        // Speed (2026-10-07, drag frames): the foreground estimate is sequential (Gauss-Seidel) and independent of the
+        // blurred scene, so a drag frame runs it on its own thread while the scene renders on the others; same inputs,
+        // same result. Other frames run it first, as before, so its buffers are gone before the scene's are made.
+        val shiftTask = if (needsShift && dragFrame) shiftExecutor.submit<FloatImage> { foregroundShift(developed, w, h, matte!!) } else null
+        val shiftFirst = if (needsShift && !dragFrame) foregroundShift(developed, w, h, matte!!) else null
         // Memory: the linear photo and replacement exist only inside renderScene; the scene's colours are expanded in place.
-        val blurred = renderScene(developed, w, h, analysis.depth!!.nearness, matte, plan, blur, layersPerSide, checkpoint)
+        // A superseded preview throws out of renderScene; its estimate then finishes on its own thread and stays cached
+        // by content (one entry), so it costs nothing to the frame that superseded it.
+        val blurred = renderScene(developed, w, h, analysis.depth!!.nearness, matte, plan, blur, layersPerSide, checkpoint, dragFrame)
+        val shift = shiftTask?.let(::awaitShift) ?: shiftFirst
         // The sharp composite at the working size (the subject over the replaced background), made after the
         // scene is gone, from the bytes and the plan's (unexpanded) replacement.
         val replacementSrgb = plan.replacement
@@ -243,15 +265,46 @@ object BackgroundStage {
         return shift
     }
 
+    /** The geometry for these planes: the kept one when it was made for the same planes (by identity), else a new one. */
+    private fun sceneGeometry(nearness: FloatPlane, matte: FloatPlane, withReplacement: Boolean, keep: Boolean): Refocus.SceneGeometry {
+        synchronized(this) {
+            lastGeometry?.takeIf { (key, _) -> key.first === nearness && key.second === matte && key.third == withReplacement }?.let { return it.second }
+        }
+        val geometry = Refocus.sceneGeometry(nearness, matte, withReplacement)
+        synchronized(this) { lastGeometry = if (keep) Triple(nearness, matte, withReplacement) to geometry else lastGeometry; sceneGeometries++ }
+        return geometry
+    }
+
+    /** Computes and keeps the geometry a drag frame with these planes will ask for (see BackgroundSession.prepareDragWorking). */
+    fun prepareSceneGeometry(nearness: FloatPlane, matte: FloatPlane, withReplacement: Boolean) {
+        sceneGeometry(nearness, matte, withReplacement, keep = true)
+    }
+
+    private var lastGeometry: Pair<Triple<FloatPlane, FloatPlane, Boolean>, Refocus.SceneGeometry>? = null
+    /** How many scene geometries were computed (tests). */
+    @Volatile internal var sceneGeometries = 0
+
+    /** One thread for [foregroundShift] beside a scene render (daemon: never keeps the process alive). */
+    private val shiftExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "lightly-foreground").apply { isDaemon = true }
+    }
+
+    /** The estimate's result, or its own failure (an Error such as OutOfMemoryError included) rethrown unwrapped. */
+    private fun awaitShift(task: java.util.concurrent.Future<FloatImage>): FloatImage = try {
+        task.get()
+    } catch (failed: java.util.concurrent.ExecutionException) {
+        throw failed.cause ?: failed
+    }
+
     private data class ShiftKey(val width: Int, val height: Int, val developed: Int, val matte: Int)
     private var lastShift: Pair<ShiftKey, FloatImage>? = null
 
     /**
-     * Drops the cached foreground shift (Save copy, 2026-10-07): Save copy develops its working frame from the full
-     * decode, so the cached entry (a preview's, often a drag frame's) can never match it and only occupies the heap
-     * next to the export's buffers.
+     * Drops the cached foreground shift and scene geometry (Save copy, 2026-10-07): Save copy develops its working frame
+     * from the full decode at its own size, so neither cached entry (a preview's, often a drag frame's) can match it;
+     * they only occupy the heap next to the export's buffers.
      */
-    fun releaseCachedShift() { synchronized(this) { lastShift = null } }
+    fun releasePreviewCaches() { synchronized(this) { lastShift = null; lastGeometry = null } }
     /** How many foreground estimates ran (tests). */
     @Volatile internal var foregroundEstimates = 0
 
@@ -261,10 +314,11 @@ object BackgroundStage {
         return FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { foreground.data[it] - photo.data[it] })
     }
 
-    private fun renderScene(developed: ByteArray, w: Int, h: Int, nearness: FloatPlane, matte: FloatPlane?, plan: BackgroundPlan, blur: Double, layersPerSide: Int, checkpoint: () -> Unit = {}): FloatImage {
-        val scene = Refocus.buildScene(
-            FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { SrgbBytes.TO_LINEAR[developed[(it / 3) * 4 + it % 3].toInt() and 0xff] }), nearness, matte,
-            plan.replacement?.let { r -> FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { Refocus.srgbToLinear(r.data[it]) }) })
+    private fun renderScene(developed: ByteArray, w: Int, h: Int, nearness: FloatPlane, matte: FloatPlane?, plan: BackgroundPlan, blur: Double, layersPerSide: Int, checkpoint: () -> Unit = {}, keepGeometry: Boolean = false): FloatImage {
+        val photo = FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { SrgbBytes.TO_LINEAR[developed[(it / 3) * 4 + it % 3].toInt() and 0xff] })
+        val replacement = plan.replacement?.let { r -> FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { Refocus.srgbToLinear(r.data[it]) }) }
+        val scene = if (matte == null) Refocus.buildScene(photo, nearness, null, replacement)
+            else Refocus.buildScene(photo, sceneGeometry(nearness, matte, replacement != null, keepGeometry), replacement)
         val subjectInFocus = scene.subject != null && (plan.focusTarget?.let { (x, y) -> Refocus.focusIsOnSubject(scene, x, y) } ?: true)
         return Refocus.render(scene, plan.focus.copy(blur = blur), plan.focalNearness, layersPerSide, subjectInFocus, consumeScene = true, checkpoint = checkpoint)
     }

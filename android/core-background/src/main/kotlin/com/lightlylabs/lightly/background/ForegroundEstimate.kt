@@ -43,8 +43,6 @@ object ForegroundEstimate {
         var fPrev = FloatImage(1, 1, 3, fMean.copyOf())
         var bPrev = FloatImage(1, 1, 3, bMean.copyOf())
         val levels = ceil(ln(max(w0, h0).toDouble()) / ln(2.0)).toInt()
-        val bf = FloatArray(3)
-        val bb = FloatArray(3)
         for (level in 0..levels) {
             val w = w0.toDouble().pow(level.toDouble() / levels).roundToInt()
             val h = h0.toDouble().pow(level.toDouble() / levels).roundToInt()
@@ -53,50 +51,78 @@ object ForegroundEstimate {
             val f = nearest(fPrev, w, h)
             val b = nearest(bPrev, w, h)
             val iterations = if (w <= SMALL_SIZE && h <= SMALL_SIZE) SMALL_ITERATIONS else BIG_ITERATIONS
-            repeat(iterations) {
-                for (y in 0 until h) for (x in 0 until w) {
-                    val p = y * w + x
-                    val a0 = a.values[p]
-                    val a1 = 1f - a0
-                    var a00 = a0 * a0
-                    val a01 = a0 * a1
-                    var a11 = a1 * a1
-                    for (c in 0 until 3) { bf[c] = a0 * img.data[p * 3 + c]; bb[c] = a1 * img.data[p * 3 + c] }
-                    for (d in 0 until 4) {
-                        val x2 = min(max(x + DX[d], 0), w - 1)
-                        val y2 = min(max(y + DY[d], 0), h - 1)
-                        val q = y2 * w + x2
-                        val da = REGULARIZATION + GRADIENT_WEIGHT * abs(a0 - a.values[q])
-                        a00 += da
-                        a11 += da
-                        for (c in 0 until 3) { bf[c] += da * f.data[q * 3 + c]; bb[c] += da * b.data[q * 3 + c] }
-                    }
-                    val inv = 1f / (a00 * a11 - a01 * a01)
-                    for (c in 0 until 3) {
-                        f.data[p * 3 + c] = (inv * a11 * bf[c] - inv * a01 * bb[c]).coerceIn(0f, 1f)
-                        b.data[p * 3 + c] = (-inv * a01 * bf[c] + inv * a00 * bb[c]).coerceIn(0f, 1f)
-                    }
-                }
-            }
+            repeat(iterations) { sweep(img.data, a.values, f.data, b.data, w, h) }
             fPrev = f
             bPrev = b
         }
         return fPrev
     }
 
+    /**
+     * One Gauss-Seidel sweep in row-major order. Speed (2026-10-07, drag frames): the three channels in local floats
+     * instead of two arrays, and the clamp written out; each value is the same expression evaluated in the same order
+     * as before (the four neighbours left, right, up, down, each adding to all channels), so every float is unchanged
+     * (BackgroundExactnessTest).
+     */
+    private fun sweep(img: FloatArray, a: FloatArray, f: FloatArray, b: FloatArray, w: Int, h: Int) {
+        for (y in 0 until h) for (x in 0 until w) {
+            val p = y * w + x
+            val a0 = a[p]
+            val a1 = 1f - a0
+            var a00 = a0 * a0
+            val a01 = a0 * a1
+            var a11 = a1 * a1
+            var bf0 = a0 * img[p * 3]; var bf1 = a0 * img[p * 3 + 1]; var bf2 = a0 * img[p * 3 + 2]
+            var bb0 = a1 * img[p * 3]; var bb1 = a1 * img[p * 3 + 1]; var bb2 = a1 * img[p * 3 + 2]
+            for (d in 0 until 4) {
+                val x2 = min(max(x + DX[d], 0), w - 1)
+                val y2 = min(max(y + DY[d], 0), h - 1)
+                val q = y2 * w + x2
+                val da = REGULARIZATION + GRADIENT_WEIGHT * abs(a0 - a[q])
+                a00 += da
+                a11 += da
+                bf0 += da * f[q * 3]; bb0 += da * b[q * 3]
+                bf1 += da * f[q * 3 + 1]; bb1 += da * b[q * 3 + 1]
+                bf2 += da * f[q * 3 + 2]; bb2 += da * b[q * 3 + 2]
+            }
+            val inv = 1f / (a00 * a11 - a01 * a01)
+            f[p * 3] = clamp01(inv * a11 * bf0 - inv * a01 * bb0)
+            b[p * 3] = clamp01(-inv * a01 * bf0 + inv * a00 * bb0)
+            f[p * 3 + 1] = clamp01(inv * a11 * bf1 - inv * a01 * bb1)
+            b[p * 3 + 1] = clamp01(-inv * a01 * bf1 + inv * a00 * bb1)
+            f[p * 3 + 2] = clamp01(inv * a11 * bf2 - inv * a01 * bb2)
+            b[p * 3 + 2] = clamp01(-inv * a01 * bf2 + inv * a00 * bb2)
+        }
+    }
+
+    /** Exactly Float.coerceIn(0f, 1f) (NaN and -0f pass through unchanged), without the call. */
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun clamp01(v: Float): Float = if (v < 0f) 0f else if (v > 1f) 1f else v
+
     private val DX = intArrayOf(-1, 1, 0, 0)
     private val DY = intArrayOf(0, 0, -1, 1)
 
-    private fun nearest(src: FloatImage, width: Int, height: Int) = FloatImage(width, height, src.channels, FloatArray(width * height * src.channels) { i ->
-        val p = i / src.channels
-        val sx = min(src.width - 1, (p % width) * src.width / width)
-        val sy = min(src.height - 1, (p / width) * src.height / height)
-        src.data[(sy * src.width + sx) * src.channels + i % src.channels]
-    })
+    // Speed (2026-10-07): the source column and row of each output column and row computed once, not per element;
+    // the same integer expressions, so the same samples.
+    private fun sourceIndex(size: Int, srcSize: Int) = IntArray(size) { min(srcSize - 1, it * srcSize / size) }
 
-    private fun nearest(src: FloatPlane, width: Int, height: Int) = FloatPlane(width, height, FloatArray(width * height) { p ->
-        val sx = min(src.width - 1, (p % width) * src.width / width)
-        val sy = min(src.height - 1, (p / width) * src.height / height)
-        src.values[sy * src.width + sx]
-    })
+    private fun nearest(src: FloatImage, width: Int, height: Int): FloatImage {
+        val ch = src.channels
+        val sx = sourceIndex(width, src.width)
+        val sy = sourceIndex(height, src.height)
+        val out = FloatArray(width * height * ch)
+        for (y in 0 until height) for (x in 0 until width) {
+            val from = (sy[y] * src.width + sx[x]) * ch
+            System.arraycopy(src.data, from, out, (y * width + x) * ch, ch)
+        }
+        return FloatImage(width, height, ch, out)
+    }
+
+    private fun nearest(src: FloatPlane, width: Int, height: Int): FloatPlane {
+        val sx = sourceIndex(width, src.width)
+        val sy = sourceIndex(height, src.height)
+        val out = FloatArray(width * height)
+        for (y in 0 until height) for (x in 0 until width) out[y * width + x] = src.values[sy[y] * src.width + sx[x]]
+        return FloatPlane(width, height, out)
+    }
 }

@@ -41,6 +41,9 @@ tasks.withType<Test>().configureEach {
         project.findProperty("lightly.probe.only")?.let { systemProperty("lightly.probe.only", it.toString()) }
         project.findProperty("lightly.probe.heap")?.let { maxHeapSize = "${it}m" }
         project.findProperty("lightly.probe.cap")?.let { systemProperty("lightly.probe.cap", it.toString()) }
+        project.findProperty("lightly.probe.label")?.let { systemProperty("lightly.probe.label", it.toString()) }
+        // DragFrameProbe: worker threads as on a 4-core device (the caller plus 3 pool threads).
+        project.findProperty("lightly.probe.threads")?.let { systemProperty("java.util.concurrent.ForkJoinPool.common.parallelism", it.toString()) }
         outputs.upToDateWhen { false }
         testLogging.showStandardStreams = true
     }

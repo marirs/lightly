@@ -126,18 +126,45 @@ object Refocus {
      * placement at the original background's median nearness, capped behind the subject).
      */
     fun buildScene(photoLinear: FloatImage, nearness: FloatPlane, matte: FloatPlane?, replacementLinear: FloatImage? = null): FocusScene {
-        val w = photoLinear.width
-        val h = photoLinear.height
-        val longSide = max(w, h)
         if (matte == null) {
             require(replacementLinear == null) { "a replacement needs a subject matte" }
-            return FocusScene(ScenePlane(photoLinear, FloatPlane.filled(w, h, 1f), nearness), null)
+            return FocusScene(ScenePlane(photoLinear, FloatPlane.filled(photoLinear.width, photoLinear.height, 1f), nearness), null)
         }
+        return buildScene(photoLinear, sceneGeometry(nearness, matte, withReplacement = replacementLinear != null), replacementLinear)
+    }
+
+    /**
+     * The part of [buildScene] that depends only on the depth and the matte, not on the photo's colours (completion plan
+     * A1 step 3, 2026-10-07): a ruler drag changes only the Look, so its frames reuse one geometry
+     * ([BackgroundStage.renderWorking]). [withReplacement]: the original background's nearness is not filled, because
+     * the replacement plane takes its place (it was computed and discarded before).
+     */
+    class SceneGeometry internal constructor(
+        val width: Int,
+        val height: Int,
+        /** The matte clamped to [0, 1]. */
+        val alpha: FloatPlane,
+        /** 1 outside the subject's colour band, 0 inside: the pixels the background colour is filled from. */
+        val colourWeight: FloatPlane,
+        /** 1 where the matte is above 0.95: the pixels the subject's interior colour is filled from. */
+        val solidWeight: FloatPlane,
+        val subjectNearness: FloatPlane,
+        /** Null with a replacement. */
+        val backgroundNearness: FloatPlane?,
+        /** The replacement plane's nearness (§R2.4 "plane"); meaningful only with a replacement. */
+        val replacementNearness: Float,
+        val withReplacement: Boolean,
+    )
+
+    fun sceneGeometry(nearness: FloatPlane, matte: FloatPlane, withReplacement: Boolean): SceneGeometry {
+        val w = matte.width
+        val h = matte.height
+        val longSide = max(w, h)
         val m = matte.map { it.coerceIn(0f, 1f) }
         val colourBand = PlaneOps.dilateDisc(m, 0.02f, (0.004 * longSide).roundToInt())
-        val backgroundColour = fillMasked(photoLinear, FloatPlane(w, h, FloatArray(w * h) { if (colourBand[it]) 0f else 1f }))
+        val colourWeight = FloatPlane(w, h, FloatArray(w * h) { if (colourBand[it]) 0f else 1f })
         val depthBand = PlaneOps.dilateDisc(m, 0.02f, (0.015 * longSide).roundToInt())
-        val backgroundNearness = fillMaskedPlane(nearness, FloatPlane(w, h, FloatArray(w * h) { if (depthBand[it]) 0f else 1f }))
+        val backgroundNearness = if (withReplacement) null else fillMaskedPlane(nearness, FloatPlane(w, h, FloatArray(w * h) { if (depthBand[it]) 0f else 1f }))
 
         var interior = PlaneOps.erodeDisc(m, 0.5f, (0.01 * longSide).roundToInt())
         if (interior.count { it } < 50) interior = BooleanArray(w * h) { m.values[it] > 0.5f }
@@ -148,7 +175,24 @@ object Refocus {
         val subjectNearness = subjectRaw.map { (subjectMedian + FocusConstants.SUBJECT_DEPTH_COMPRESSION * (it - subjectMedian)).toFloat() }
 
         val solid = FloatPlane(w, h, FloatArray(w * h) { if (m.values[it] > 0.95f) 1f else 0f })
-        val interiorFill = fillMasked(photoLinear, solid)
+        val replacementNearness = if (!withReplacement) 0f else {
+            val nearestAllowed = max(0.0, subjectMedian - FocusConstants.REPLACEMENT_MIN_GAP)
+            val outside = nearness.values.selectWhere { !depthBand[it] }
+            val originalMedian = if (outside.isNotEmpty()) PlaneOps.median(outside) else 0.0
+            min(originalMedian, nearestAllowed).toFloat()
+        }
+        return SceneGeometry(w, h, m, colourWeight, solid, subjectNearness, backgroundNearness, replacementNearness, withReplacement)
+    }
+
+    /** [buildScene] from a [geometry] made for the same depth and matte (and the same use of a replacement). */
+    fun buildScene(photoLinear: FloatImage, geometry: SceneGeometry, replacementLinear: FloatImage?): FocusScene {
+        val w = photoLinear.width
+        val h = photoLinear.height
+        require(geometry.width == w && geometry.height == h) { "geometry is ${geometry.width}x${geometry.height}, photo ${w}x$h" }
+        require(geometry.withReplacement == (replacementLinear != null)) { "geometry made for another replacement setting" }
+        val m = geometry.alpha
+        val backgroundColour = fillMasked(photoLinear, geometry.colourWeight)
+        val interiorFill = fillMasked(photoLinear, geometry.solidWeight)
         val subjectColour = FloatImage(w, h, 3)
         for (p in 0 until w * h) {
             val alpha = m.values[p]
@@ -161,14 +205,12 @@ object Refocus {
                 subjectColour.data[i] = max(0f, reliability * solved.coerceIn(0f, 1f) + (1 - reliability) * interiorFill.data[i])
             }
         }
-        var background = ScenePlane(backgroundColour, FloatPlane.filled(w, h, 1f), backgroundNearness)
-        if (replacementLinear != null) {
-            val nearestAllowed = max(0.0, subjectMedian - FocusConstants.REPLACEMENT_MIN_GAP)
-            val outside = nearness.values.selectWhere { !depthBand[it] }
-            val originalMedian = if (outside.isNotEmpty()) PlaneOps.median(outside) else 0.0
-            background = ScenePlane(replacementLinear, FloatPlane.filled(w, h, 1f), FloatPlane.filled(w, h, min(originalMedian, nearestAllowed).toFloat()))
+        val background = if (replacementLinear != null) {
+            ScenePlane(replacementLinear, FloatPlane.filled(w, h, 1f), FloatPlane.filled(w, h, geometry.replacementNearness))
+        } else {
+            ScenePlane(backgroundColour, FloatPlane.filled(w, h, 1f), geometry.backgroundNearness!!)
         }
-        return FocusScene(background, ScenePlane(subjectColour, m, subjectNearness))
+        return FocusScene(background, ScenePlane(subjectColour, m, geometry.subjectNearness))
     }
 
     /** §R3: median nearness of the topmost plane at the tap, over a window of half-size 0.01·longSide. */
@@ -383,31 +425,69 @@ object Refocus {
         // within a kernel radius of the border).
         val reflectX = IntArray(w + 2 * half) { PlaneOps.reflect(it - half, w) }
         val reflectY = IntArray(h + 2 * half) { PlaneOps.reflect(it - half, h) }
+        // Speed (2026-10-07, drag frames): interior taps as one precomputed element offset each, and 3- and 4-channel
+        // images accumulated in local floats instead of a per-pixel array. Each channel still sums the same products
+        // in the same tap order from 0f, so every output float is unchanged (BackgroundExactnessTest).
+        val tapOffset = IntArray(tapX.size) { (-tapY[it] * w - tapX[it]) * ch }
         java.util.stream.IntStream.range(0, h).parallel().forEach { y ->
-            val acc = FloatArray(ch)
-            val rowInside = y - half >= 0 && y + half < h
-            for (x in 0 until w) {
-                java.util.Arrays.fill(acc, 0f)
-                if (rowInside && x - half >= 0 && x + half < w) {
-                    for (t in tapX.indices) {
-                        // Kernel is applied as correlation of the flipped kernel = convolution.
-                        val base = ((y - tapY[t]) * w + (x - tapX[t])) * ch
-                        val wt = tapW[t]
-                        for (c in 0 until ch) acc[c] += data[base + c] * wt
-                    }
-                } else {
-                    for (t in tapX.indices) {
-                        val sx = reflectX[x - tapX[t] + half]
-                        val sy = reflectY[y - tapY[t] + half]
-                        val base = (sy * w + sx) * ch
-                        val wt = tapW[t]
-                        for (c in 0 until ch) acc[c] += data[base + c] * wt
-                    }
-                }
-                System.arraycopy(acc, 0, dst, (y * w + x) * ch, ch)
+            when (ch) {
+                4 -> convolveRow4(data, dst, w, y, half, h, tapX, tapY, tapW, tapOffset, reflectX, reflectY)
+                3 -> convolveRow3(data, dst, w, y, half, h, tapX, tapY, tapW, tapOffset, reflectX, reflectY)
+                else -> convolveRowAny(data, dst, w, ch, y, half, h, tapX, tapY, tapW, reflectX, reflectY)
             }
         }
         return out
+    }
+
+    /** The element index of tap [t] for the pixel (x, y): direct inside the image, reflected near its border. */
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun tapBase(inside: Boolean, centre: Int, t: Int, x: Int, y: Int, w: Int, ch: Int, half: Int, tapX: IntArray, tapY: IntArray, tapOffset: IntArray, reflectX: IntArray, reflectY: IntArray): Int =
+        // Kernel is applied as correlation of the flipped kernel = convolution.
+        if (inside) centre + tapOffset[t] else (reflectY[y - tapY[t] + half] * w + reflectX[x - tapX[t] + half]) * ch
+
+    private fun convolveRow4(data: FloatArray, dst: FloatArray, w: Int, y: Int, half: Int, h: Int, tapX: IntArray, tapY: IntArray, tapW: FloatArray, tapOffset: IntArray, reflectX: IntArray, reflectY: IntArray) {
+        val rowInside = y - half >= 0 && y + half < h
+        for (x in 0 until w) {
+            val inside = rowInside && x - half >= 0 && x + half < w
+            val centre = (y * w + x) * 4
+            var a0 = 0f; var a1 = 0f; var a2 = 0f; var a3 = 0f
+            for (t in tapW.indices) {
+                val base = tapBase(inside, centre, t, x, y, w, 4, half, tapX, tapY, tapOffset, reflectX, reflectY)
+                val wt = tapW[t]
+                a0 += data[base] * wt; a1 += data[base + 1] * wt; a2 += data[base + 2] * wt; a3 += data[base + 3] * wt
+            }
+            dst[centre] = a0; dst[centre + 1] = a1; dst[centre + 2] = a2; dst[centre + 3] = a3
+        }
+    }
+
+    private fun convolveRow3(data: FloatArray, dst: FloatArray, w: Int, y: Int, half: Int, h: Int, tapX: IntArray, tapY: IntArray, tapW: FloatArray, tapOffset: IntArray, reflectX: IntArray, reflectY: IntArray) {
+        val rowInside = y - half >= 0 && y + half < h
+        for (x in 0 until w) {
+            val inside = rowInside && x - half >= 0 && x + half < w
+            val centre = (y * w + x) * 3
+            var a0 = 0f; var a1 = 0f; var a2 = 0f
+            for (t in tapW.indices) {
+                val base = tapBase(inside, centre, t, x, y, w, 3, half, tapX, tapY, tapOffset, reflectX, reflectY)
+                val wt = tapW[t]
+                a0 += data[base] * wt; a1 += data[base + 1] * wt; a2 += data[base + 2] * wt
+            }
+            dst[centre] = a0; dst[centre + 1] = a1; dst[centre + 2] = a2
+        }
+    }
+
+    private fun convolveRowAny(data: FloatArray, dst: FloatArray, w: Int, ch: Int, y: Int, half: Int, h: Int, tapX: IntArray, tapY: IntArray, tapW: FloatArray, reflectX: IntArray, reflectY: IntArray) {
+        val acc = FloatArray(ch)
+        val rowInside = y - half >= 0 && y + half < h
+        for (x in 0 until w) {
+            java.util.Arrays.fill(acc, 0f)
+            val inside = rowInside && x - half >= 0 && x + half < w
+            for (t in tapW.indices) {
+                val base = if (inside) ((y - tapY[t]) * w + (x - tapX[t])) * ch else (reflectY[y - tapY[t] + half] * w + reflectX[x - tapX[t] + half]) * ch
+                val wt = tapW[t]
+                for (c in 0 until ch) acc[c] += data[base + c] * wt
+            }
+            System.arraycopy(acc, 0, dst, (y * w + x) * ch, ch)
+        }
     }
 
     private fun rotationalBlur(image: FloatImage, halfAngle: Double): FloatImage {

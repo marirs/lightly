@@ -213,14 +213,14 @@ class BackgroundSession(private val env: EditorEnvironment) {
      * 2026-10-07: 22 MB at the start of Save copy). The working-size analyses are rebuilt at the export size anyway;
      * the export's plan already holds the graded replacement it composites, so the positioned (ungraded) copies and the
      * decoded replacement photo are only for later previews, which rebuild them once (an evicted photo is reloaded
-     * from its reference, as [replacementPlanesFor] does after LRU eviction); the cached foreground shift belongs to
+     * from its reference, as [replacementPlanesFor] does after LRU eviction); the cached foreground shift and scene geometry belong to
      * a preview frame. Called again by every export start, so a cancelled export leaves nothing behind either.
      */
     fun trimForExport() {
         workingAnalyses.clear()
         positionedReplacements.clear()
         synchronized(replacementPlanes) { replacementPlanes.clear() }
-        BackgroundStage.releaseCachedShift()
+        BackgroundStage.releasePreviewCaches()
     }
 
     /** The recipe's derived references for what the analysis produced (digest of the map's float bytes). */
@@ -384,18 +384,38 @@ class BackgroundSession(private val env: EditorEnvironment) {
         val tRefined = System.nanoTime()
         val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, cap)
         val frame = if (developed.width == ww && developed.height == wh) developed else resize(developed, ww, wh)
-        val ops = com.lightlylabs.lightly.background.PlaneOps
         // Depth and matte at the working size depend only on the analysis, the Refine edges strokes and
         // the cap, not on blur or replacement settings: resized once, not on every preview (0.2–0.3 s).
-        val key = WorkingKey(analysis, tool.subject.refinements, ww, wh)
-        val small = if (ww == a.width && wh == a.height) a else workingAnalyses[key]
-            ?: BackgroundAnalysis(ww, wh,
-                a.depth?.let { d -> com.lightlylabs.lightly.background.NormalisedDepth(d.origin, ops.resizeBilinear(d.nearness, ww, wh)) },
-                a.matte?.let { ops.resizeBilinear(it, ww, wh) }).also { workingAnalyses[key] = it }
+        val small = workingAnalysis(a, tool, ww, wh)
         val tResized = System.nanoTime()
-        return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide, checkpoint).also {
+        // A drag frame (DRAG_CAP): latency first (see BackgroundStage.renderWorking's dragFrame).
+        return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide, checkpoint, dragFrame = cap == DRAG_CAP).also {
             stageTiming?.invoke("working ${ww}x$wh refine=${ms(tRefined - t0)} resize=${ms(tResized - tRefined)} renderWorking=${ms(System.nanoTime() - tResized)}")
         }
+    }
+
+    /** [refined] at the working size, from the cache when this analysis, refinements and size were resized before. */
+    private fun workingAnalysis(refined: BackgroundAnalysis, tool: BackgroundTool, ww: Int, wh: Int): BackgroundAnalysis {
+        if (ww == refined.width && wh == refined.height) return refined
+        val ops = com.lightlylabs.lightly.background.PlaneOps
+        val key = WorkingKey(analysis, tool.subject.refinements, ww, wh)
+        return workingAnalyses[key] ?: BackgroundAnalysis(ww, wh,
+            refined.depth?.let { d -> com.lightlylabs.lightly.background.NormalisedDepth(d.origin, ops.resizeBilinear(d.nearness, ww, wh)) },
+            refined.matte?.let { ops.resizeBilinear(it, ww, wh) }).also { workingAnalyses[key] = it }
+    }
+
+    /**
+     * Ahead of a ruler drag (EditorViewModel, after a frame lands): the analysis at the drag working size and its scene
+     * geometry, so the first drag frame finds both cached. Builds nothing when a drag frame would not render a scene.
+     */
+    fun prepareDragWorking(tool: BackgroundTool) {
+        val a = refined(tool) ?: return
+        if (a.depth == null || tool.focus.blur <= 0.0) return
+        val (ww, wh) = BackgroundStage.workingSize(a.width, a.height, DRAG_CAP)
+        val small = workingAnalysis(a, tool, ww, wh)
+        val matte = small.matte ?: return
+        // The plan has a replacement exactly when the tool has one and there is a matte (planFor).
+        BackgroundStage.prepareSceneGeometry(small.depth!!.nearness, matte, withReplacement = tool.replacement != null)
     }
 
     /** Identity of the analysis (by reference), the refinements and the working size. */
