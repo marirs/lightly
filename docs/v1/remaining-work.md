@@ -174,7 +174,15 @@ Closed as stale (evidence re-checked 2026-10-06):
   (the top 6 pt of the top-bar buttons fell in iPadOS's status strip and did not take taps). **Screen readers: pending.**
   The audits check labels, traits and hit areas only; they do not establish a usable VoiceOver or TalkBack flow, which
   needs a spoken walk-through on a device. **Device performance: pending** (phones).
-- Saved-file metadata combinations on Android after slice 1; 48 MP memory and time on dev devices.
+- **48 MP (2026-10-07), CC0 fixture 8000×6000 (PD12M c8954609…):**
+  - Android, spare emulator, benchmark build: Save copy saved nothing before f79e89f (a 192 MB Java array refused by the
+    192 MB heap). Fixed: Develop and Background Save copies now save 8000×6000, no OutOfMemoryError lines, Java heap at
+    most 59 / 84 MB in use after GC while saving. 108 MP: refused with the approved "can't be opened" screen.
+  - iOS Simulator: **unverified**. The save started and was still rendering when the run's bound ended; the Simulator
+    renders this pipeline at about 25 kpx/s (a 1.6 MP save took 67 s), so 48 MP would take about 30 minutes there.
+  - Pending on hardware: time and memory pressure on both platforms, and the iOS 48 MP save itself (the iPhone holds an
+    unsaved edit session from 5 Oct that a test run would replace, so it was not run).
+- Saved-file metadata combinations on Android after slice 1.
 - Tablet and Fold cells of the sized screens: one iOS check (iPad 13 landscape) only.
 
 ## Release configuration: what actually works (checked 2026-10-06)
