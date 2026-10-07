@@ -245,7 +245,12 @@ Closed as stale (evidence re-checked 2026-10-06):
     same amount each cycle (48 MP open 141–154 MB, after Save copy 161–169, after a stroke 240–254); no growth. Peaks:
     Save copy 756–803 MB with or without fills (first in process 793); first Remove model load 540 MB, later loads
     325–362, a stroke with the model loaded 426–439; process peak 808 MB, reached in cycle 0 and not exceeded after.
-    **Retained-memory investigation closed (no growth).** Still open: **absolute peak** about 800 MB for a 48 MP Save copy (the source, the render and the encode buffers, about four
+    **Retained-memory investigation closed (no growth).** **Export peak reduced (9fa7f16), Simulator only so far:** every
+    tile's Metal workspace stayed alive through Save copy (autoreleased Metal objects, no pool in the save's task);
+    each LUT applier call now drains its own pool, and the render consumes its source frame. 48 MP with a spatial
+    preset (Landscape · Hiking 5), the save's own sampled peak: 1,541 MB → 601 MB; the remaining peak is decoding the
+    JPEG into pixels (bytes stage). The phone's figure (the earlier 760–800 MB was measured with Auto only) is pending
+    the next device run. Still open: **absolute peak** about 800 MB for a 48 MP Save copy (the source, the render and the encode buffers, about four
     full frames of 192 MB). The app's memory limit on this phone was not measured; 800 MB is about 20 % of the
     phone's 4 GB. Not established on 3 GB or smaller devices (the iPhone SE 3rd generation has 4 GB; untested).
   - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:
