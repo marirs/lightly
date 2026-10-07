@@ -189,6 +189,52 @@ final class EditEffectsStageTests: XCTestCase {
         XCTAssertEqual(Int(preview[o]), 200, accuracy: 1, "The stroke's centre at half size shows the patch")
     }
 
+    /// A deterministic, non-smooth test photo (opaque), so every bilinear neighbour matters.
+    private func noise(_ width: Int, _ height: Int, seed: Int) -> [UInt8] {
+        var p = [UInt8](repeating: 255, count: width * height * 4)
+        for i in 0..<(width * height) {
+            let x = i % width, y = i / width
+            for c in 0..<3 { p[i * 4 + c] = UInt8((x * 3 + y * 5 + seed * 11 + c * 40 + (x * y) % 7) % 251) }
+        }
+        return p
+    }
+
+    /// The photo as the app holds it: a CGImage, either bitmap-backed or decoded from a JPEG by ImageIO.
+    private func photo(_ pixels: [UInt8], _ width: Int, _ height: Int, jpeg: Bool) throws -> CGImage {
+        let bitmap = try MetalLUTRenderer.makeImage(rgba8: pixels, width: width, height: height)
+        guard jpeg else { return bitmap }
+        let data = NSMutableData()
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, bitmap, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(data, nil))
+        return try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    }
+
+    func testRemoveFromBandsOfThePhotoGivesTheWholeBufferPatchByteForByte() async throws {
+        let strokes: [[EditRecipe.Point]] = [[.init(x: 0.5, y: 0.5), .init(x: 0.6, y: 0.55)], [.init(x: 0.02, y: 0.03)],
+                                             [.init(x: 0.98, y: 0.97), .init(x: 0.9, y: 0.99)], [.init(x: 0.1, y: 0.9), .init(x: 0.9, y: 0.1)]]
+        for (width, height) in [(300, 200), (700, 520), (1500, 1100)] {
+            for jpeg in [false, true] {
+                let image = try photo(noise(width, height, seed: width), width, height, jpeg: jpeg)
+                let whole = try MetalLUTRenderer.rgba8Bytes(of: image)
+                // An earlier fill under the new stroke: composited into the whole buffer, or into each band.
+                let earlier = try await RemoveEngine.patch(for: .init(radius: 0.03, points: [.init(x: 0.52, y: 0.5)], status: .applied, patch: nil),
+                                                           source: whole, width: width, height: height, inpainter: FlatInpainter())
+                var composited = whole
+                RemoveEngine.composite([earlier], into: &composited, width: width, height: height)
+                for (k, points) in strokes.enumerated() {
+                    let stroke = EditRecipe.RemoveStroke(radius: 12.0 / Double(max(width, height)), points: points, status: .applied, patch: nil)
+                    let expected = try await RemoveEngine.patch(for: stroke, source: composited, width: width, height: height, inpainter: InvertingInpainter())
+                    let actual = try await RemoveEngine.patch(for: stroke, image: image, earlier: [earlier], inpainter: InvertingInpainter())
+                    let label = "\(width)x\(height) jpeg \(jpeg) stroke \(k)"
+                    XCTAssertEqual([actual.x, actual.y, actual.width, actual.height], [expected.x, expected.y, expected.width, expected.height], label)
+                    XCTAssertTrue(actual.rgba == expected.rgba, "\(label): patch pixels differ")
+                }
+            }
+        }
+    }
+
     func testAMissingModelFailsTheStrokeWithoutAnyFill() async throws {
         let failing = FailingInpainter()
         do {
@@ -205,6 +251,12 @@ struct FlatInpainter: Inpainting {
     func inpaint(image: [Float], mask: [Float], side: Int) async throws -> [Float] {
         [Float](repeating: 200.0 / 255, count: 3 * side * side)
     }
+}
+
+/// The inverted input as the fill, so the patch depends on every sampled source pixel.
+struct InvertingInpainter: Inpainting {
+    let model = EditRecipe.ModelRef(id: "test-invert", version: "1")
+    func inpaint(image: [Float], mask: [Float], side: Int) async throws -> [Float] { image.map { 1 - $0 } }
 }
 
 struct FailingInpainter: Inpainting {

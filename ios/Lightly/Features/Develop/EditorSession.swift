@@ -1042,10 +1042,9 @@ final class EditorSession {
                 let work = Task.detached(priority: .userInitiated) { () -> (patch: RemovePatch, engine: any Inpainting) in
                     // The model loads on first use (seconds for 103 MB), off the main actor.
                     guard let engine = needsLoad ? loader() : alreadyLoaded else { throw RemoveEngine.Failure.modelUnavailable }
-                    var pixels = try MetalLUTRenderer.rgba8Bytes(of: image)
-                    RemoveEngine.composite(earlier, into: &pixels, width: image.width, height: image.height)
-                    let patch = try await RemoveEngine.patch(for: stroke, source: pixels, width: image.width, height: image.height,
-                                                             inpainter: engine)
+                    // Only bands of the stroke's context window are drawn (no full-resolution copy of the
+                    // photo per stroke: 192 MB at 48 MP); the same patch as the whole-buffer route.
+                    let patch = try await RemoveEngine.patch(for: stroke, image: image, earlier: earlier, inpainter: engine)
                     return (patch, engine)
                 }
                 let result = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }

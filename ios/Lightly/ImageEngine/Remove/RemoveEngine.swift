@@ -36,42 +36,135 @@ enum RemoveEngine {
 
     // MARK: Inpainting one stroke
 
+    /// One stroke's geometry at a `width` × `height` source: the stroke in pixels, the patch box
+    /// (brush + feather) and the model's context window (§4).
+    struct Geometry {
+        let width: Int, height: Int
+        let points: [SIMD2<Double>]
+        let radius: Double, reach: Double
+        let box: (x0: Int, y0: Int, x1: Int, y1: Int)
+        let windowX: Int, windowY: Int, windowSide: Int
+        var scale: Double { Double(windowSide) / Double(RemoveEngine.side) }
+
+        init(stroke: EditRecipe.RemoveStroke, width: Int, height: Int) throws {
+            self.width = width
+            self.height = height
+            radius = stroke.radius * Double(max(width, height))
+            points = stroke.points.map { SIMD2($0.x * Double(width), $0.y * Double(height)) }
+            guard !points.isEmpty else { throw Failure.emptyStroke }
+            // The area the model fills: the brush plus the feather band, so the feathered paste-back
+            // blends model pixels, never the original object.
+            reach = radius + RemoveEngine.featherPixels
+            let xs = points.map(\.x), ys = points.map(\.y)
+            box = (x0: max(Int((xs.min()! - reach).rounded(.down)), 0), y0: max(Int((ys.min()! - reach).rounded(.down)), 0),
+                   x1: min(Int((xs.max()! + reach).rounded(.up)), width), y1: min(Int((ys.max()! + reach).rounded(.up)), height))
+            guard box.x1 > box.x0, box.y1 > box.y0 else { throw Failure.emptyStroke }
+            // Route (§4): a window of 2.2 × the extent; at most 512 → a native 512 crop without
+            // resampling; larger → the window resized to 512 and back.
+            // DEFERRED(remove follow-up): the tiled-native route for long thin strokes (wires); they
+            // take the downscaled route here, which feeds the same engine.
+            let extent = Double(max(box.x1 - box.x0, box.y1 - box.y0))
+            let wanted = max(Double(RemoveEngine.side), (RemoveEngine.contextFactor * extent).rounded(.up))
+            windowSide = min(Int(wanted), min(width, height))
+            let centreX = Double(box.x0 + box.x1) / 2, centreY = Double(box.y0 + box.y1) / 2
+            windowX = min(max(Int((centreX - Double(windowSide) / 2).rounded()), 0), width - windowSide)
+            windowY = min(max(Int((centreY - Double(windowSide) / 2).rounded()), 0), height - windowSide)
+        }
+
+        /// The source position (pixel centres at integers) the model pixel (mx, my) samples.
+        func sampleX(_ mx: Int) -> Double { Double(windowX) + (Double(mx) + 0.5) * scale - 0.5 }
+        func sampleY(_ my: Int) -> Double { Double(windowY) + (Double(my) + 0.5) * scale - 0.5 }
+    }
+
     /// Inpaints `stroke` (source coordinates) on `source` (full-resolution RGBA8, the earlier
-    /// patches already composited) and returns its patch.
+    /// patches already composited) and returns its patch. The whole-buffer route: the reference for
+    /// `patch(for:image:earlier:inpainter:)` (EditEffectsTests).
     static func patch(for stroke: EditRecipe.RemoveStroke, source: [UInt8], width: Int, height: Int,
                       inpainter: any Inpainting) async throws -> RemovePatch {
-        let longEdge = Double(max(width, height))
-        let radius = stroke.radius * longEdge
-        let points = stroke.points.map { SIMD2($0.x * Double(width), $0.y * Double(height)) }
-        guard !points.isEmpty else { throw Failure.emptyStroke }
-        // The area the model fills: the brush plus the feather band, so the feathered paste-back
-        // blends model pixels, never the original object.
-        let reach = radius + featherPixels
-        let xs = points.map(\.x), ys = points.map(\.y)
-        let box = (x0: max(Int((xs.min()! - reach).rounded(.down)), 0), y0: max(Int((ys.min()! - reach).rounded(.down)), 0),
-                   x1: min(Int((xs.max()! + reach).rounded(.up)), width), y1: min(Int((ys.max()! + reach).rounded(.up)), height))
-        guard box.x1 > box.x0, box.y1 > box.y0 else { throw Failure.emptyStroke }
-
-        // Route (§4): a window of 2.2 × the extent; at most 512 → a native 512 crop without
-        // resampling; larger → the window resized to 512 and back.
-        // DEFERRED(remove follow-up): the tiled-native route for long thin strokes (wires); they
-        // take the downscaled route here, which feeds the same engine.
-        let extent = Double(max(box.x1 - box.x0, box.y1 - box.y0))
-        let wanted = max(Double(side), (contextFactor * extent).rounded(.up))
-        let windowSide = min(Int(wanted), min(width, height))
-        let centreX = Double(box.x0 + box.x1) / 2, centreY = Double(box.y0 + box.y1) / 2
-        let wx = min(max(Int((centreX - Double(windowSide) / 2).rounded()), 0), width - windowSide)
-        let wy = min(max(Int((centreY - Double(windowSide) / 2).rounded()), 0), height - windowSide)
-        let scale = Double(windowSide) / Double(side)
-
-        // Model input, CHW, 0…1, and the mask (1 = remove) at model resolution.
+        let geometry = try Geometry(stroke: stroke, width: width, height: height)
         var image = [Float](repeating: 0, count: 3 * side * side)
+        for my in 0..<side {
+            for mx in 0..<side {
+                let rgb = bilinear(source, width: width, height: height, x: geometry.sampleX(mx), y: geometry.sampleY(my))
+                for c in 0..<3 { image[c * side * side + my * side + mx] = rgb[c] }
+            }
+        }
+        return try await patch(geometry: geometry, input: image, inpainter: inpainter)
+    }
+
+    /// Source rows drawn at a time when the model input is built from the photo (a band is at most
+    /// 66 rows of the window's columns).
+    static let bandRows = 64
+
+    /// `patch(for:source:…)` without a full-resolution copy of the photo (2026-10-07): each stroke
+    /// copied the whole photo into a new RGBA8 buffer (192 MB at 48 MP) and composited the earlier
+    /// fills over all of it. Now only bands of the context window's columns are drawn, the earlier
+    /// fills composited into each band, and sampled with the same arithmetic: the same patch.
+    static func patch(for stroke: EditRecipe.RemoveStroke, image source: CGImage, earlier: [RemovePatch],
+                      inpainter: any Inpainting) async throws -> RemovePatch {
+        let geometry = try Geometry(stroke: stroke, width: source.width, height: source.height)
+        let input = try modelInput(geometry, from: source, earlier: earlier)
+        return try await patch(geometry: geometry, input: input, inpainter: inpainter)
+    }
+
+    /// The model input (CHW, 0…1) built band by band from `source` with `earlier` composited.
+    static func modelInput(_ geometry: Geometry, from source: CGImage, earlier: [RemovePatch]) throws -> [Float] {
+        let width = geometry.width, height = geometry.height
+        // The clamped sample coordinates of each model column and row, as `bilinear` computes them.
+        let xs = (0..<side).map { min(max(geometry.sampleX($0), 0), Double(width - 1)) }
+        let ys = (0..<side).map { min(max(geometry.sampleY($0), 0), Double(height - 1)) }
+        let columnFirst = Int(xs[0]), columnLast = min(Int(xs[side - 1]) + 1, width - 1)
+        let bandWidth = columnLast - columnFirst + 1
+        var image = [Float](repeating: 0, count: 3 * side * side)
+        var my = 0
+        while my < side {
+            let bandTop = Int(ys[my])
+            var end = my + 1
+            while end < side, min(Int(ys[end]) + 1, height - 1) - bandTop < bandRows { end += 1 }
+            let bandBottom = min(Int(ys[end - 1]) + 1, height - 1)
+            let bandHeight = bandBottom - bandTop + 1
+            var band = try drawRegion(of: source, x: columnFirst, y: bandTop, width: bandWidth, height: bandHeight)
+            compositeRegion(earlier, into: &band, regionX: columnFirst, regionY: bandTop, regionWidth: bandWidth,
+                            regionHeight: bandHeight, frameWidth: width, frameHeight: height)
+            for row in my..<end {
+                for mx in 0..<side {
+                    let rgb = bilinearClamped(band, regionX: columnFirst, regionY: bandTop, regionWidth: bandWidth,
+                                              frameWidth: width, frameHeight: height, cx: xs[mx], cy: ys[row])
+                    for c in 0..<3 { image[c * side * side + row * side + mx] = rgb[c] }
+                }
+            }
+            my = end
+        }
+        return image
+    }
+
+    /// RGBA8 (sRGB, premultiplied as `MetalLUTRenderer.rgba8Bytes`) of the rectangle (x, y, width,
+    /// height), top-left origin, of `image`: the whole image drawn 1:1 at an integer offset into a
+    /// context of the rectangle's size, so each pixel is the one the whole-image draw gives it.
+    static func drawRegion(of image: CGImage, x: Int, y: Int, width: Int, height: Int) throws -> [UInt8] {
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: ColorPipeline.sRGB, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            // Core Graphics' origin is bottom-left: the rectangle's top row is the context's top row.
+            context.draw(image, in: CGRect(x: -x, y: y + height - image.height, width: image.width, height: image.height))
+            return true
+        }
+        guard drawn else { throw Failure.modelFailed("cannot read source pixels") }
+        return pixels
+    }
+
+    /// The model, then the paste-back of the brush and its feather.
+    static func patch(geometry: Geometry, input image: [Float], inpainter: any Inpainting) async throws -> RemovePatch {
+        let points = geometry.points, reach = geometry.reach, radius = geometry.radius, box = geometry.box
+        let wx = geometry.windowX, wy = geometry.windowY, scale = geometry.scale
+        // The mask (1 = remove) at model resolution.
         var mask = [Float](repeating: 0, count: side * side)
         for my in 0..<side {
             for mx in 0..<side {
                 let sx = Double(wx) + (Double(mx) + 0.5) * scale, sy = Double(wy) + (Double(my) + 0.5) * scale
-                let rgb = bilinear(source, width: width, height: height, x: sx - 0.5, y: sy - 0.5)
-                for c in 0..<3 { image[c * side * side + my * side + mx] = rgb[c] }
                 if distance(SIMD2(sx, sy), toPolyline: points) <= reach { mask[my * side + mx] = 1 }
             }
         }
@@ -98,7 +191,7 @@ enum RemoveEngine {
                 rgba[o + 3] = UInt8(min(max(alpha * 255 + 0.5, 0), 255))
             }
         }
-        return RemovePatch(x: box.x0, y: box.y0, width: pw, height: ph, sourceWidth: width, sourceHeight: height, rgba: rgba)
+        return RemovePatch(x: box.x0, y: box.y0, width: pw, height: ph, sourceWidth: geometry.width, sourceHeight: geometry.height, rgba: rgba)
     }
 
     // MARK: Compositing
@@ -106,11 +199,20 @@ enum RemoveEngine {
     /// Composites `patches` (made at the source's full resolution) into RGBA8 pixels of the same
     /// photo at any resolution: export at 1:1, the preview scaled.
     static func composite(_ patches: [RemovePatch], into pixels: inout [UInt8], width: Int, height: Int) {
+        compositeRegion(patches, into: &pixels, regionX: 0, regionY: 0, regionWidth: width, regionHeight: height,
+                        frameWidth: width, frameHeight: height)
+    }
+
+    /// `composite` for `pixels`, the rectangle at (regionX, regionY) of a frameWidth × frameHeight
+    /// frame: each pixel gets exactly what `composite` gives it in the whole frame.
+    static func compositeRegion(_ patches: [RemovePatch], into pixels: inout [UInt8], regionX: Int, regionY: Int,
+                                regionWidth: Int, regionHeight: Int, frameWidth width: Int, frameHeight height: Int) {
         for patch in patches {
             let sx = Double(width) / Double(patch.sourceWidth), sy = Double(height) / Double(patch.sourceHeight)
-            let x0 = max(Int((Double(patch.x) * sx).rounded(.down)), 0), y0 = max(Int((Double(patch.y) * sy).rounded(.down)), 0)
-            let x1 = min(Int((Double(patch.x + patch.width) * sx).rounded(.up)), width)
-            let y1 = min(Int((Double(patch.y + patch.height) * sy).rounded(.up)), height)
+            let x0 = max(Int((Double(patch.x) * sx).rounded(.down)), 0, regionX)
+            let y0 = max(Int((Double(patch.y) * sy).rounded(.down)), 0, regionY)
+            let x1 = min(Int((Double(patch.x + patch.width) * sx).rounded(.up)), width, regionX + regionWidth)
+            let y1 = min(Int((Double(patch.y + patch.height) * sy).rounded(.up)), height, regionY + regionHeight)
             guard x1 > x0, y1 > y0 else { continue }
             for y in y0..<y1 {
                 for x in x0..<x1 {
@@ -120,7 +222,7 @@ enum RemoveEngine {
                     let sample = patch.sample(x: px, y: py)
                     let a = sample.w
                     guard a > 0 else { continue }
-                    let o = (y * width + x) * 4
+                    let o = ((y - regionY) * regionWidth + (x - regionX)) * 4
                     for c in 0..<3 {
                         let blended = Double(pixels[o + c]) * (1 - a) + sample[c] * 255 * a
                         pixels[o + c] = UInt8(min(max(blended.rounded(), 0), 255))
@@ -152,6 +254,21 @@ enum RemoveEngine {
         func at(_ x: Int, _ y: Int) -> SIMD3<Float> {
             let o = (y * width + x) * 4
             return SIMD3(Float(rgba[o]), Float(rgba[o + 1]), Float(rgba[o + 2])) / 255
+        }
+        let top = at(x0, y0) + (at(x1, y0) - at(x0, y0)) * tx
+        let bottom = at(x0, y1) + (at(x1, y1) - at(x0, y1)) * tx
+        return top + (bottom - top) * ty
+    }
+
+    /// `bilinear` at (cx, cy), already clamped to a frameWidth × frameHeight source, from `region`,
+    /// the source's rectangle at (regionX, regionY) holding the four neighbours: the same arithmetic.
+    static func bilinearClamped(_ region: [UInt8], regionX: Int, regionY: Int, regionWidth: Int, frameWidth: Int,
+                                frameHeight: Int, cx: Double, cy: Double) -> SIMD3<Float> {
+        let x0 = Int(cx), y0 = Int(cy), x1 = min(x0 + 1, frameWidth - 1), y1 = min(y0 + 1, frameHeight - 1)
+        let tx = Float(cx - Double(x0)), ty = Float(cy - Double(y0))
+        func at(_ x: Int, _ y: Int) -> SIMD3<Float> {
+            let o = ((y - regionY) * regionWidth + (x - regionX)) * 4
+            return SIMD3(Float(region[o]), Float(region[o + 1]), Float(region[o + 2])) / 255
         }
         let top = at(x0, y0) + (at(x1, y0) - at(x0, y0)) * tx
         let bottom = at(x0, y1) + (at(x1, y1) - at(x0, y1)) * tx
