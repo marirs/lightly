@@ -1524,6 +1524,23 @@ class EditorViewModel(
         }
     }
 
+    /**
+     * Closes the model interpreters when no analysis is running (2026-10-07, A1 memory): Save copy of a large photo then
+     * has their native memory (about 255 MB on the emulator after a Background analysis) for its two full-size frames.
+     * The edit keeps what the analyses produced (BackgroundSession's matte and depth, the people, Remove's fills); a
+     * later analysis (another photo, Background again, a Remove stroke) reopens the model it needs. A separation that
+     * was cancelled can still be running on the CPU: its model waits for the release or reopens, never fails.
+     */
+    private fun releaseModelsIfIdle(reason: String) {
+        val analysing = listOf(loadJob, separationJob, personMatteJob, removeJob).any { it?.isActive == true }
+        if (analysing) {
+            if (env.debugBuild) runCatching { android.util.Log.i("LightlyExport", "models kept ($reason): an analysis is running") }
+            return
+        }
+        val released = env.releaseModels()
+        if (env.debugBuild) runCatching { android.util.Log.i("LightlyExport", "models released ($reason): $released") }
+    }
+
     /** The Save-copy Background working resolution; debug builds may override it for a controlled comparison. */
     private val exportCap: Int
         get() = if (env.debugBuild) env.debugExportCapOverride() ?: BackgroundSession.EXPORT_CAP else BackgroundSession.EXPORT_CAP
@@ -1537,6 +1554,7 @@ class EditorViewModel(
         val backgroundPlan = backgroundSession.planFor(committed.tools.background, { plan }, env.previewRenderer, maxBlurFraction(committed), exportCap)
         // planFor refills the replacement caches the export never reads; free them before the full frame is decoded.
         backgroundSession.trimForExport()
+        releaseModelsIfIdle("save copy")
         // The plan's working-size replacement is read once, when the working background is made: the export then keeps
         // only the full-size replacement it composites (4.5 MB less during the tiles, 13.5 MP stress).
         val pendingBackgroundPlan = java.util.concurrent.atomic.AtomicReference(backgroundPlan)
@@ -1645,6 +1663,8 @@ class EditorViewModel(
     }
 
     private fun onExportState(export: ExportState<*>) {
+        // Diagnostics: each export phase with the time, beside the per-second memory samples of the stress scripts.
+        if (env.debugBuild) runCatching { android.util.Log.i("LightlyExport", "export ${export::class.simpleName}${(export as? ExportState.Running)?.phase?.let { " $it" } ?: ""}") }
         when (export) {
             is ExportState.Saved<*> -> {
                 endExportReleasingPreviews()

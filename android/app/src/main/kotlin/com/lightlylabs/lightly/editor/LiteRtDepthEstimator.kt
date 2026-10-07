@@ -27,10 +27,8 @@ import java.nio.channels.FileChannel
  * (litert 2.x, which also pulls ai-delivery / AiPack download components) or the separate GPU
  * delegate artifact; neither is approved here, so this runs on the CPU only.
  */
-class LiteRtDepthEstimator private constructor(private val interpreter: Interpreter) : DepthEstimator {
-    private val lock = Any()
-
-    override suspend fun estimate(input: DepthModelInput): FloatPlane = synchronized(lock) {
+class LiteRtDepthEstimator private constructor(private val interpreter: ReleasableInterpreter) : DepthEstimator {
+    override suspend fun estimate(input: DepthModelInput): FloatPlane = interpreter.use { interpreter ->
         val pixels = DepthModelInput.WIDTH * DepthModelInput.HEIGHT
         val inputBuffer = ByteBuffer.allocateDirect(input.tensor.size * 4).order(ByteOrder.nativeOrder())
         inputBuffer.asFloatBuffer().put(input.tensor)
@@ -68,12 +66,14 @@ class LiteRtDepthEstimator private constructor(private val interpreter: Interpre
                         channel.map(FileChannel.MapMode.READ_ONLY, descriptor.startOffset, descriptor.declaredLength)
                     }
                 }
-                val interpreter = Interpreter(model, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator()))
-                val inputShape = interpreter.getInputTensor(0).shape().toList()
-                val outputShape = interpreter.getOutputTensor(0).shape().toList()
-                // The contract is fixed; a different model file must not be fed silently.
-                require(inputShape == listOf(1, 3, DepthModelInput.HEIGHT, DepthModelInput.WIDTH)) { "unexpected input $inputShape" }
-                require(outputShape.takeLast(2) == listOf(DepthModelInput.HEIGHT, DepthModelInput.WIDTH)) { "unexpected output $outputShape" }
+                val interpreter = ReleasableInterpreter { Interpreter(model, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
+                interpreter.use { opened ->
+                    val inputShape = opened.getInputTensor(0).shape().toList()
+                    val outputShape = opened.getOutputTensor(0).shape().toList()
+                    // The contract is fixed; a different model file must not be fed silently.
+                    require(inputShape == listOf(1, 3, DepthModelInput.HEIGHT, DepthModelInput.WIDTH)) { "unexpected input $inputShape" }
+                    require(outputShape.takeLast(2) == listOf(DepthModelInput.HEIGHT, DepthModelInput.WIDTH)) { "unexpected output $outputShape" }
+                }
                 LiteRtDepthEstimator(interpreter)
             } catch (failure: Exception) {
                 // Missing asset, a model that does not match the contract, or a runtime that cannot load

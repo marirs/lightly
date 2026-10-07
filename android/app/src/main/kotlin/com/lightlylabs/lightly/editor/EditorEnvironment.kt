@@ -97,6 +97,12 @@ class EditorEnvironment(
     val favourites: FavouritesStore,
     /** Debug builds show stubs for the unimplemented tools and accept the capture launch options. */
     val debugBuild: Boolean,
+    /**
+     * Closes the model interpreters (vision, depth, Remove) while no analysis runs; each reopens on its next use. The
+     * analysis results the edit needs (matte, depth, people, Remove fills) are plain data and stay. Returns how many
+     * were open.
+     */
+    val releaseModels: () -> Int = { 0 },
     /** Export tile edge: spatial operators keep float planes per tile, so tiles stay small. */
     val exportTileEdge: Int = 1024,
     val newImageSpec: (SourceRef) -> NewImageSpec = { NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg") },

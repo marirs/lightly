@@ -135,6 +135,7 @@ object AndroidEditorEnvironment {
             ),
             favourites = favourites,
             debugBuild = BuildConfig.DIAGNOSTICS,
+            releaseModels = ModelResources::releaseAll,
             debugExportCapOverride = {
                 if (!BuildConfig.DIAGNOSTICS) null
                 else java.io.File(app.filesDir, "debug-export-cap.txt").takeIf { it.isFile }?.readText()?.trim()?.toIntOrNull()

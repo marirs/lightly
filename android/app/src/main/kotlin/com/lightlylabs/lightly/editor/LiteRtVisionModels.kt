@@ -18,8 +18,8 @@ import java.nio.channels.FileChannel
 /**
  * The MediaPipe vision models (assets/vision, bundled by BundleVisionModelsTask) on the standalone
  * LiteRT runtime: no MediaPipe Tasks, no Play services, no network (docs/v1/android-vision-evaluation.md).
- * Each model is loaded on first use and kept for the process; every call is serialised per model,
- * because an Interpreter is not thread-safe.
+ * Each model is loaded on first use; its interpreter can be released while no analysis runs and reopens on the next
+ * call (ReleasableInterpreter); every call is serialised per model, because an Interpreter is not thread-safe.
  *
  * Without the assets (a release build without -PlightlyVisionModels=true, or a checkout without
  * experiments/android-vision/models) every accessor returns null: Portrait stays hidden in release
@@ -80,12 +80,14 @@ class LiteRtVisionModels private constructor(private val context: Context) {
         }
         // As the depth model: XNNPACK on devices; the arm64 emulator on Apple-silicon hosts dies with
         // SIGILL in XNNPACK's initialisation, so it runs the built-in kernels there.
-        val interpreter = Interpreter(buffer, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator()))
-        val indices = outputs.map { selector ->
-            (0 until interpreter.outputTensorCount).firstOrNull { i ->
-                val tensor = interpreter.getOutputTensor(i)
-                selector.matches(tensor.shape(), tensor.name())
-            } ?: throw IllegalStateException("$asset has no output matching the expected contract")
+        val interpreter = ReleasableInterpreter { Interpreter(buffer, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
+        val indices = interpreter.use { opened ->
+            outputs.map { selector ->
+                (0 until opened.outputTensorCount).firstOrNull { i ->
+                    val tensor = opened.getOutputTensor(i)
+                    selector.matches(tensor.shape(), tensor.name())
+                } ?: throw IllegalStateException("$asset has no output matching the expected contract")
+            }
         }
         LiteRtTensorModel(interpreter, indices)
     } catch (failure: Exception) {
@@ -96,19 +98,19 @@ class LiteRtVisionModels private constructor(private val context: Context) {
         null
     }
 
-    private class LiteRtTensorModel(private val interpreter: Interpreter, private val outputIndices: List<Int>) : TensorModel {
-        private val inputElements = interpreter.getInputTensor(0).shape().fold(1) { a, b -> a * b }
+    private class LiteRtTensorModel(private val interpreter: ReleasableInterpreter, private val outputIndices: List<Int>) : TensorModel {
+        private val inputElements = interpreter.use { it.getInputTensor(0).shape().fold(1) { a, b -> a * b } }
 
-        override fun run(input: FloatArray): List<FloatArray> = synchronized(this) {
+        override fun run(input: FloatArray): List<FloatArray> = interpreter.use { opened ->
             require(input.size == inputElements) { "model expects $inputElements input values, got ${input.size}" }
             val inputBuffer = ByteBuffer.allocateDirect(input.size * 4).order(ByteOrder.nativeOrder())
             inputBuffer.asFloatBuffer().put(input)
             val outputBuffers = HashMap<Int, Any>()
-            for (i in 0 until interpreter.outputTensorCount) {
-                val count = interpreter.getOutputTensor(i).shape().fold(1) { a, b -> a * b }
+            for (i in 0 until opened.outputTensorCount) {
+                val count = opened.getOutputTensor(i).shape().fold(1) { a, b -> a * b }
                 outputBuffers[i] = ByteBuffer.allocateDirect(count * 4).order(ByteOrder.nativeOrder())
             }
-            interpreter.runForMultipleInputsOutputs(arrayOf<Any>(inputBuffer), outputBuffers)
+            opened.runForMultipleInputsOutputs(arrayOf<Any>(inputBuffer), outputBuffers)
             outputIndices.map { i ->
                 val buffer = outputBuffers.getValue(i) as ByteBuffer
                 buffer.rewind()

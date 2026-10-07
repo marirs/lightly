@@ -23,11 +23,10 @@ import java.nio.channels.FileChannel
  * conversion exists yet, so the fp32 export (206 MB) ships in debug builds.
  * DEFERRED(accelerators): the GPU delegate is a separate, unapproved artifact; CPU only, as for depth.
  */
-class LiteRtLamaInpainter private constructor(private val interpreter: Interpreter, private val imageIndex: Int, private val maskIndex: Int) : Inpainter {
+class LiteRtLamaInpainter private constructor(private val interpreter: ReleasableInterpreter, private val imageIndex: Int, private val maskIndex: Int) : Inpainter {
     override val model: ModelRef = MODEL_REF
-    private val lock = Any()
 
-    override fun inpaint(image: FloatArray, mask: FloatArray): FloatArray = synchronized(lock) {
+    override fun inpaint(image: FloatArray, mask: FloatArray): FloatArray = interpreter.use { interpreter ->
         val side = RemoveEngine.MODEL_SIDE
         val inputs = arrayOfNulls<Any>(2)
         inputs[imageIndex] = direct(image)
@@ -63,14 +62,17 @@ class LiteRtLamaInpainter private constructor(private val interpreter: Interpret
                         channel.map(FileChannel.MapMode.READ_ONLY, descriptor.startOffset, descriptor.declaredLength)
                     }
                 }
-                val interpreter = Interpreter(model, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator()))
+                val interpreter = ReleasableInterpreter { Interpreter(model, Interpreter.Options().setNumThreads(4).setUseXNNPACK(!isEmulator())) }
                 val side = RemoveEngine.MODEL_SIDE
-                val shapes = (0 until interpreter.inputTensorCount).map { interpreter.getInputTensor(it).shape().toList() }
-                val imageIndex = shapes.indexOf(listOf(1, 3, side, side))
-                val maskIndex = shapes.indexOf(listOf(1, 1, side, side))
-                // The contract is fixed; a different model file must not be fed silently.
-                require(shapes.size == 2 && imageIndex >= 0 && maskIndex >= 0) { "unexpected inputs $shapes" }
-                require(interpreter.getOutputTensor(0).shape().toList() == listOf(1, 3, side, side)) { "unexpected output" }
+                val (imageIndex, maskIndex) = interpreter.use { opened ->
+                    val shapes = (0 until opened.inputTensorCount).map { opened.getInputTensor(it).shape().toList() }
+                    val image = shapes.indexOf(listOf(1, 3, side, side))
+                    val mask = shapes.indexOf(listOf(1, 1, side, side))
+                    // The contract is fixed; a different model file must not be fed silently.
+                    require(shapes.size == 2 && image >= 0 && mask >= 0) { "unexpected inputs $shapes" }
+                    require(opened.getOutputTensor(0).shape().toList() == listOf(1, 3, side, side)) { "unexpected output" }
+                    image to mask
+                }
                 LiteRtLamaInpainter(interpreter, imageIndex, maskIndex)
             } catch (failure: Exception) {
                 android.util.Log.w("LightlyRemove", "remove model unavailable: $failure")
