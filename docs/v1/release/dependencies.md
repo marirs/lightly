@@ -98,6 +98,64 @@
 - B. Ship 1.0 with Remove showing its approved failure state (the gate stays off).
 - C. Train on licensed data (paid; not started).
 
+## Model dependency path for Remove and Focus & Blur (2026-10-07)
+
+"Documented" = what a licence or terms page says. "Uncertain" = a legal interpretation nobody here can settle; it is a
+question for counsel, not an assumption either way. Counsel cannot approve a use the documents prohibit; no document
+found prohibits Lightly's use, but the uncertain points below could make one apply.
+
+### LaMa big-lama (Edit › Remove, both platforms)
+- **Exact checkpoint:** `big-lama.zip`, https://huggingface.co/smartywu/big-lama @ `05cb2be7f8dbe6ca7c6e78f4fc827a4b2baaa4a9`,
+  SHA-256 `f1b358ca24093b93a106183b98a3dea6e8ed09f3b43ea7251eb2c81e7b4575f6` (the official README's primary download).
+  Shipped as our conversions: iOS `lama_512_fp16.mlmodelc` (Core ML fp16), Android `lama_512_fp32.tflite` (LiteRT,
+  model ref `lama-big-lama-litert-fp32-512` / `39fa82d6a2b5`).
+- **Weights licence (documented):** no separate weights licence. The repository is Apache-2.0 ("Copyright [2021]
+  Samsung Research"); the mirror's card says apache-2.0, and the mirror is not a Samsung account.
+- **Training-data restriction (documented):** Places2 / Places-Challenge terms as recorded in 2019: "only for
+  non-commercial research and educational purposes" and "You will NOT distribute the above images." They are terms
+  between MIT and whoever downloaded the images (Samsung Research). Lightly downloaded no Places image and ships none.
+  The live page could not be re-read (the server refused the connection).
+- **Uncertain:** (1) whether trained weights are, in copyright, an adaptation of the training images; if so, image
+  owners' rights could reach the weights regardless of Samsung's Apache grant. (2) Whether Samsung could grant
+  commercial rights in weights it produced under non-commercial terms.
+- **Question for counsel:** "May Lightly distribute, in a paid app sold in [markets], Samsung Research's Apache-2.0
+  big-lama weights, trained on Places2 under non-commercial terms that bound only Samsung, when no Places image is
+  distributed and the model only fills user-selected pixels?"
+
+### Depth Anything V2 Small (Focus & Blur on photos without camera depth, both platforms)
+- **Exact checkpoint:** iOS: Apple's `DepthAnythingV2SmallF16P8.mlpackage`, https://huggingface.co/apple/coreml-depth-anything-v2-small
+  @ `cfef6f6f…` (weights hash in `ios/Tools/bundle_depth_model.sh`). Android: our LiteRT conversion
+  `da2_small_518x392_wi8.tflite` from https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf @ `5426e4f`
+  (SHA-256 `8e719085…8078`).
+- **Weights licence (documented):** Apache-2.0 for Small only ("Depth-Anything-V2-Small model is under the Apache-2.0
+  license"); Base, Large and Giant are CC-BY-NC-4.0 and are not used. Apple's repackaging is tagged apache-2.0.
+- **Training-data restrictions (documented):** the Small student learned from pseudo-labels on 62 M real images,
+  including SA-1B ("research purposes only") and ImageNet-21K; the teacher's synthetic labels include Virtual KITTI 2
+  (CC BY-NC-SA 3.0, "non-commercial purposes only") and Hypersim (CC BY-SA 3.0). Google Landmarks, LSUN, Objects365,
+  TartanAir, BlendedMVS and IRS terms were not checked.
+- **Uncertain:** the same adaptation question as LaMa; if weights are adaptations, the NC and ShareAlike terms of
+  VKITTI 2 and Hypersim could reach them. Apple's and Qualcomm's commercial redistribution is evidence of industry
+  practice, not a licence to Lightly.
+- **Question for counsel:** "May Lightly distribute the Apache-2.0 Depth Anything V2 Small weights in a paid app, given
+  pseudo-label training on research-only and NC/SA-licensed datasets whose terms Lightly never accepted?"
+
+### Replacements and licensed options investigated (nothing replaced; each needs your decision)
+| For | Candidate | Licence / data | Practical? | Integration implications |
+|---|---|---|---|---|
+| Remove | **Bria Eraser** (Bria AI) | Weights only under a paid commercial licence; Bria states its models are trained only on licensed data (Getty Images, Envato, Freepik) ([bria.ai/technology](https://bria.ai/technology/)) | Unknown until Bria answers: whether a phone-size checkpoint exists, its size, speed and price. Their public offer is a cloud API, which the on-device privacy promise excludes | Paid commitment (your approval); new conversion to Core ML / LiteRT; the remove-evaluation quality and speed checks again; the Remove UI and patch pipeline are unchanged |
+| Remove | Own model (LaMa architecture) trained on licensed or owned images | Clean by construction | Weeks plus paid data and GPU time | Same pipeline; new weights only |
+| Remove | MI-GAN (MIT) | Places2 too | Same question as LaMa, weaker quality (1/66 hold-out wins) | Not an escape from the question |
+| Remove | Classical fill (PatchMatch) | No training data | Clearly lower quality on large or textured areas | The code's "no classical fill" rule and the evaluated quality bar would change: your decision |
+| Focus & Blur | **Camera depth only** (portrait-mode photos' embedded depth, already used) | Apple / Android platform data | Works today | Photos without depth would need another source or the depth-failure state |
+| Focus & Blur | Subject mask only (iOS Vision foreground mask, Apple's platform model) | Apple Developer Program terms | Yes on iOS | Uniform background blur instead of depth-graded blur on photos without depth: visibly different from the approved result (UX deviation, your approval) |
+| Focus & Blur | MiDaS v3.1 (MIT) | Training mix includes 3D-movie frames and other datasets with their own terms | Weaker edges (`depth-evaluation.md` §2) | Same class of question; not an escape |
+| Focus & Blur | Depth Anything 3 Small | Reported Apache-2.0 (third-party pages; primary source not read today) | Not evaluated | Similar data lineage expected: same question |
+| Focus & Blur | Licensed-data depth model | None found offered for on-device use | — | Would be a paid commission |
+
+Recommendation: send counsel the two questions above now. Only if counsel declines LaMa, request a quote from Bria
+(scope: an on-device eraser checkpoint). Only if counsel declines Depth Anything, choose between camera-depth-only
+and the subject-mask blur (both change what users see on ordinary photos).
+
 ## 3. MediaPipe (Android face detection, landmarks and segmentation): not in 1.0 today
 
 **Status in code.**

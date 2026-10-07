@@ -1,10 +1,43 @@
-# Lightly 1.0: owner decisions (one sheet, 2026-10-06)
+# Lightly 1.0: owner decisions (one sheet, updated 2026-10-07)
 
 Already decided by the owner (not reopened here): iOS Auto stays Core Image; Android Auto is implemented independently;
 non-person subject cut-out is in 1.0; the approved UX plus the owner's amendments is mandatory, with no blanket
-"keep the implementation" approval.
+"keep the implementation" approval; Eraser is 1.1; cross-platform saved-edit portability is out of 1.0.
 
 Until each answer arrives, the current behaviour stays as recorded below; nothing here is treated as approved.
+
+## 0. Everything waiting on you, in plain English
+Each line: the question, my one recommendation, and what that recommendation changes. Sections 1–5 below keep the
+evidence. "Reply with the numbers you approve" is enough.
+
+### Blocks submitting the iOS app
+| # | Question | Recommendation | Effect if approved |
+|---|---|---|---|
+| 1 | **Preset rights.** All 2,591 presets come from purchased packs (SolutionPresets, Huliluts, WithLuke) with no redistribution licence on file; some names use Kodak, Portra, Polaroid (`release/dependencies.md` §9). | Get written redistribution permission from the three vendors, or tell me which packs you hold rights to; rename the trademark names (D3 proposal). | Develop ships its full catalogue legally. Without it, the catalogue cannot ship and Develop has no presets: that is a scope question for you, not something I will change. |
+| 2 | **Remove and Focus & Blur models** (counsel). See §3 and `release/dependencies.md` "Model dependency path". | Send counsel the two questions as written there; in parallel, ask Bria for a quote on a licensed-data eraser (Remove) only if counsel declines LaMa. | Both features work in the shipping build (today they fail there: Remove on every stroke, Focus & Blur on photos without camera depth). |
+| 3 | **Legal facts** (`release/legal-proposals.md` §2): operator name and address, minimum age, price. | Supply them; I fill the store listing, Terms and support details. | The App Store record and Terms can be completed. |
+| 4 | **Bundled background photos** (decision sheet 1 §1). | Ship all four on both platforms, credited in Terms › Notices. | iOS unchanged; Android release gains the approved image swatches. |
+| 5 | **Accessibility (A11)**: V1 darker inactive labels, V2 wrapping at accessibility text sizes, V3 iPad top bar at 32 pt. | Approve all three. | Small visible changes listed in the A11 table below; V3 keeps every top-bar button tappable on iPad. |
+| 6 | **Differences from the approved screens on iOS**: W1, S1, S3, E1, E2, Q1, P2, F1, Fine, M3, SC (table in §2). | One answer per id; my recommendation is in each row. | Each approved row stops being a deviation; each "match" row is changed to the approved screen. |
+| 7 | **Depth-failure message** (D2). | "Couldn't estimate depth. Try again to use Focus & Blur." | One message's wording changes. Unanswered, the approved wording ships. |
+| 8 | **Preset names** (D3, `release/preset-name-proposal.md`). | Approve as proposed. | Names stay unique and stable in Favourites. |
+| 9 | **Grain and vignette calibration**: 33 Lightroom Classic exports (`release/lightroom-export-brief.md`). | Export them as the brief says. | Grain and vignette match Lightroom instead of first-guess constants. |
+| 10 | **Distribution signing** (App Store export). | Allow it; the account changes it needs are listed in `release/app-store-listing.md` §Signing. | An App Store-signed build can be produced (nothing is uploaded or submitted). |
+| 11 | **Website privacy page** (local storage text). | Allow the commit and deploy listed in `release/app-store-listing.md` §Website. | The live policy matches the apps' text. |
+| 12 | **Restore after force-quit** (§4). | Keep the platform behaviour. | None (current behaviour). |
+
+### Android only (does not block iOS)
+| # | Question | Recommendation | Effect if approved |
+|---|---|---|---|
+| A1 | Android vision models (D3/O6): MediaPipe models on LiteRT. | Clear them on their own gate; MODNet and U²-Netp wait for counsel. | Android Portrait and people work in release. |
+| A2 | MODNet, U²-Netp (counsel). | Same counsel request as item 2. | Android Change background works in release. |
+| A3 | Preview that cannot render (D1). | "Couldn't update the preview." with "Try again" over the photo. | A visible notice instead of a silently stale frame. |
+| A4 | Touch areas I1 (48 dp, invisible). | Approve. | Easier taps; nothing drawn changes. |
+| A5 | System splash position (+24 dp, platform-fixed). | Accept. | None (cannot be changed on Android 12+). |
+| A6 | Device-to-device transfer (decision sheet 1 §2). | Exclude the edit session (done), let signatures and logos transfer, say so in the privacy policy. | Already in the drafted website text. |
+| A7 | Dev phone connected (USB debugging). | Connect one when you can. | Android phone memory and speed can be measured. |
+
+Both platforms: deleting a saved logo (decision sheet 1 §3): recommend no new UI (a new import replaces the old logo).
 
 ## 1. Proposals ready for your answer (no further alternatives)
 | # | Proposal | Where it is recorded |
@@ -71,6 +104,5 @@ Persisting and restoring an edit is the app's own behaviour, not the platform's:
 
 ## 5. Still yours to supply
 Legal facts (`release/legal-proposals.md` §2): operator name and address, minimum age, pricing, whether the bundled
-background photos ship; counsel's questions (§3). Grain (M9) and vignette (G2) calibration needs Lightroom Classic
-exports: the 20-export grain set is specified in `contract-fixes-1.md` ("Lightroom references needed"); a vignette set
-of the same kind still has to be specified.
+background photos ship; counsel's questions (§3). Grain (M9) and vignette (G2) calibration: the 33 Lightroom Classic
+exports in `release/lightroom-export-brief.md` (the grain set of `contract-fixes-1.md` unchanged, plus the vignette set).
