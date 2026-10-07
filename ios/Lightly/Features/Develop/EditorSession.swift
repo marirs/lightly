@@ -1212,6 +1212,9 @@ final class EditorSession {
         var effects: EditRecipe.Effects = EditRecipe.Tools.neutral(grainSeed: 0).effects
         /// The applied Remove strokes' patches, in order (full-resolution source pixels).
         var removePatches: [RemovePatch] = []
+        /// Save copy has already composited `removePatches` into the base it passes (its own buffer, in place), so the
+        /// render must not composite them again. Previews leave this false: their base is shared and never mutated.
+        var removePatchesInBase = false
         /// Border (stage 11) and watermark (stage 12), applied to every frame, preview and export alike.
         var border: EditRecipe.Border = EditRecipe.Tools.neutral(grainSeed: 0).border
         var watermark: EditRecipe.Watermark = EditRecipe.Tools.neutral(grainSeed: 0).watermark
@@ -1292,7 +1295,9 @@ final class EditorSession {
                                  width: width, height: height)
         }
         var pixels = base
-        RemoveEngine.composite(job.removePatches, into: &pixels, width: width, height: height)
+        // Compositing here mutates a copy of `base` (the caller still holds it): a whole extra frame, 192 MB at 48 MP.
+        // Save copy composites into its own buffer first instead (`removePatchesInBase`).
+        if !job.removePatchesInBase { RemoveEngine.composite(job.removePatches, into: &pixels, width: width, height: height) }
         if let autoLUT = job.autoLUT, job.autoStrength > 0 {
             pixels = try renderer.lutApplier.apply([autoLUT.blendedTowardIdentity(strength: Float(job.autoStrength))],
                                                    toRGBA8: pixels, width: width, height: height,
@@ -1524,7 +1529,15 @@ final class EditorSession {
             do {
                 let timing = SaveTiming(width: image.width, height: image.height)
                 let work = Task.detached(priority: .userInitiated) { () -> Data in
-                    let pixels = try timing.measure("bytes") { try MetalLUTRenderer.rgba8Bytes(of: image) }
+                    var pixels = try timing.measure("bytes") { try MetalLUTRenderer.rgba8Bytes(of: image) }
+                    // The fills go into this buffer in place (it is the only reference): the render then needs no
+                    // copy of the frame to composite them (2026-10-07, iPhone 11 Pro Max, 48 MP: Save copy with fills
+                    // peaked 147 MB above one without).
+                    var job = job
+                    if !job.removePatches.isEmpty {
+                        RemoveEngine.composite(job.removePatches, into: &pixels, width: image.width, height: image.height)
+                        job.removePatchesInBase = true
+                    }
                     let rendered = try timing.measure("render") {
                         try Self.renderPixels(job, base: pixels, width: image.width, height: image.height, renderer: renderer, cache: cache)
                     }

@@ -38,4 +38,21 @@ final class RemoveModelReleaseTests: XCTestCase {
         XCTAssertEqual(loader.loads, 2, "the model was loaded again")
         await session.settleRendering()
     }
+
+    /// Save copy composites the fills into its own source buffer (no extra frame); the bytes it writes are exactly the
+    /// reference export's, which composites them inside the render.
+    func testSaveCopyWithFillsWritesTheReferenceBytes() async throws {
+        let writer = SpyLibraryWriter()
+        let session = try await EditorTestSupport.readySession(writer: writer, inpainter: FlatInpainter())
+        await session.debugRemove(points: [.init(x: 0.5, y: 0.5), .init(x: 0.6, y: 0.55)], radius: 0.04)
+        await session.debugRemove(points: [.init(x: 0.2, y: 0.3)], radius: 0.03)
+        XCTAssertEqual(session.recipe.tools.edit.remove.strokes.count, 2)
+        let reference = try await session.exportedData()
+        session.saveCopy()
+        await EditorTestSupport.waitForSave(session)
+        let saved = await writer.savedData
+        XCTAssertNotNil(saved)
+        XCTAssertTrue(saved == reference, "Save copy with fills matches the reference export byte for byte")
+        await session.settleRendering()
+    }
 }
