@@ -146,6 +146,12 @@ struct DebugArgumentsLibraryWriter: PhotoLibraryWriting {
         if arguments.contains("--fake-library-writer") {
             return try await DebugInertLibraryWriter(delay: .milliseconds(600)).save(data, fileExtension: fileExtension)
         }
+        // A11 forced conditions (2026-10-07): `--failing-library-writer storage|other` makes every save fail as a full
+        // device (LightlyError.storageFull) or with any other error, so the approved alerts are reached end to end.
+        if let flag = arguments.firstIndex(of: "--failing-library-writer"), arguments.indices.contains(flag + 1) {
+            try await Task.sleep(for: .milliseconds(300))
+            throw arguments[flag + 1] == "storage" ? LightlyError.storageFull : LightlyError.exportFailed
+        }
         if arguments.contains("--slow-library-writer") {
             return try await DebugInertLibraryWriter(delay: .seconds(600)).save(data, fileExtension: fileExtension)
         }
