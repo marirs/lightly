@@ -116,6 +116,10 @@ final class EditorSession {
         /// Depth failed while the subject outline is fine: only blurring is unavailable. The copy is a proposal
         /// awaiting owner approval (no approved depth-specific message exists; the subject message would be wrong).
         case depthFailed
+        /// The subject outline is ready and the operation needs depth, which is still being estimated (Focus & Blur
+        /// only). PROPOSED copy "Estimating depth…" (owner approval pending, 2026-10-07): the approved screens have no
+        /// depth-specific progress, and "Finding the subject…" would be untrue once the outline is done.
+        case estimatingDepth
         /// "No clear subject found." with the Blur slider (approved `bg-no-subject`).
         case noSubject
         /// The mode's controls: analysis done, or cancelled (prototype `cancelOp` returns to the panel).
@@ -129,16 +133,30 @@ final class EditorSession {
         case .notStarted, .separating: return .finding
         case .failed: return .subjectFailed
         case .cancelled: return .controls
-        case .ready, .noSubject: break
+        // No subject: the approved notice and Blur slider at once, in either mode (prototype `backgroundPanel`
+        // returns them before anything else). It never waits for depth: depth only matters once Blur is used, and
+        // its progress is then shown on its own (`depthProgressVisible`). v3 differs (2026-10-07): it used to wait
+        // for depth here, so Change background showed "Finding the subject…" for the whole depth-model load.
+        case .noSubject: return depthState == .failed ? .depthFailed : .noSubject
+        case .ready: break
         }
-        if needsDepth || subjectState == .noSubject {
-            switch depthState {
-            case .notStarted, .estimating: return .finding
-            case .failed: return .depthFailed
-            case .ready, .cancelled: break
-            }
+        guard needsDepth else { return .controls }
+        switch depthState {
+        case .notStarted, .estimating: return .estimatingDepth
+        case .failed: return .depthFailed
+        case .ready, .cancelled: return .controls
         }
-        return subjectState == .noSubject ? .noSubject : .controls
+    }
+
+    /// The stage shows depth progress (not "Finding the subject…") while depth is estimated for an operation that
+    /// needs it: Focus & Blur after the outline, or Blur on a photo with no clear subject.
+    func depthProgressVisible(needsDepth: Bool) -> Bool {
+        guard depthState == .estimating else { return false }
+        switch subjectState {
+        case .ready: return needsDepth
+        case .noSubject: return needsDepth || recipe.tools.background.focus.blur > 0
+        default: return false
+        }
     }
 
     /// Faces and people (Portrait), once analysed.
@@ -211,6 +229,11 @@ final class EditorSession {
     @ObservationIgnored private var sceneCache = SceneCache()
     @ObservationIgnored private var subjectTask: Task<Void, Never>?
     @ObservationIgnored private var depthTask: Task<Void, Never>?
+    /// Each start of the matte or depth bumps its generation; a result is accepted only by the generation that
+    /// started it, so a cancelled run that finishes late (the depth model load cannot be interrupted) never
+    /// overwrites a newer run's state.
+    @ObservationIgnored private var subjectGeneration = 0
+    @ObservationIgnored private var depthGeneration = 0
     /// Resolving a tap's focal plane (setFocusTarget).
     @ObservationIgnored private var focusTask: Task<Void, Never>?
     /// Person segmentation for the hair operators (ensurePersonMatte).
@@ -280,6 +303,7 @@ final class EditorSession {
     }
 
     private func open() async {
+        let openStarted = ContinuousClock.now
         let image = photo.image
         let longEdge = previewLongEdge
         // The source as the app received it (the picker's bytes): the baseline an "original unchanged" check compares.
@@ -315,6 +339,7 @@ final class EditorSession {
             applyRestored(restoring)
             return
         }
+        DiagnosticTrace.note("open: preview prepared at \(DebugModelLoad.ms(since: openStarted)) ms")
         async let person = personDetector.containsPerson(prepared?.image ?? image)
         if let sceneAnalyser {
             let analysed = await sceneAnalyser.people(in: prepared?.image ?? image)
@@ -337,6 +362,7 @@ final class EditorSession {
         if prepared != nil { makeScheduler() }
         hasPerson = await person
         analysisRevision += 1
+        DiagnosticTrace.note("open: people and library at \(DebugModelLoad.ms(since: openStarted)) ms")
         guard !isClosed else { return }
         #if DEBUG
         // Design captures of the loading screen (`--hold-phase`): stay in that phase.
@@ -346,6 +372,7 @@ final class EditorSession {
         }
         #endif
         await develop()
+        DiagnosticTrace.note("open: ready at \(DebugModelLoad.ms(since: openStarted)) ms, phase \(phase)")
     }
 
     /// Runs automatic Develop. With no model in the build this resolves at once to the approved
@@ -507,11 +534,18 @@ final class EditorSession {
 
     // MARK: - Background (slice 3)
 
-    /// Starts subject separation and depth for this photo ("Finding the subject…"), each once.
-    func analyseSubjectIfNeeded() {
-        DiagnosticTrace.note("background: opened, subject \(subjectState), depth \(depthState)")
+    /// Starts subject separation for this photo ("Finding the subject…") once, and depth only when the operation
+    /// shown needs it (Focus & Blur). Change background and Refine edges never start the depth model.
+    func analyseSubjectIfNeeded(needsDepth: Bool) {
+        DiagnosticTrace.note("background: opened, subject \(subjectState), depth \(depthState), needs depth \(needsDepth)")
         if subjectState == .notStarted { startSubjectMatte() }
-        if depthState == .notStarted { startDepth() }
+        // Never restarts a cancelled run: reopening the panel must not undo Cancel; the next Background edit does.
+        if needsDepth, depthState == .notStarted { startDepth() }
+    }
+
+    /// Starts depth if nothing has started it (or a Cancel stopped it): Focus & Blur, or Blur with no clear subject.
+    func ensureDepth() {
+        if depthState == .notStarted || depthState == .cancelled { startDepth() }
     }
 
     /// Try again: reruns only what failed.
@@ -547,7 +581,8 @@ final class EditorSession {
     /// when the person asks for an effect), never a view refresh or re-entering the tool.
     private func resumeCancelledAnalysis() {
         if subjectState == .cancelled { startSubjectMatte() }
-        if depthState == .cancelled { startDepth() }
+        // Depth only when the edit now blurs; Focus & Blur's panel asks for it itself (ensureDepth).
+        if recipe.tools.background.focus.blur > 0 { ensureDepth() }
     }
 
     // Previously the matte, depth and the person matte were awaited together, so one slow
@@ -557,6 +592,8 @@ final class EditorSession {
     private func startSubjectMatte() {
         guard let sceneAnalyser else { subjectState = .failed; return }
         subjectState = .separating
+        subjectGeneration += 1
+        let generation = subjectGeneration
         let image = originalPreview
         let faces = people?.faces.map(\.box) ?? []
         DiagnosticTrace.note("subject: matte started \(image.width)x\(image.height), faces \(faces.count)")
@@ -582,9 +619,10 @@ final class EditorSession {
                     matte = SubjectMatte(matte: refined, model: SubjectMatte.hairRefinedModel)
                 }
                 try Task.checkCancellation()
-                self?.finishSubjectMatte(matte)
+                self?.finishSubjectMatte(matte, generation: generation)
             } catch {
-                guard !Task.isCancelled, let self, !self.isClosed, self.subjectState == .separating else { return }
+                guard !Task.isCancelled, let self, !self.isClosed, self.subjectState == .separating,
+                      self.subjectGeneration == generation else { return }
                 self.subjectState = .failed
             }
         }
@@ -593,6 +631,8 @@ final class EditorSession {
     private func startDepth() {
         guard let sceneAnalyser else { depthState = .failed; return }
         depthState = .estimating
+        depthGeneration += 1
+        let generation = depthGeneration
         let image = originalPreview
         let data = photo.originalData
         DiagnosticTrace.note("subject: depth started")
@@ -601,9 +641,10 @@ final class EditorSession {
             do {
                 let disparity = try await Self.traced("depth", started) { try await sceneAnalyser.disparity(for: image, originalData: data) }
                 try Task.checkCancellation()
-                self?.finishDepth(disparity)
+                self?.finishDepth(disparity, generation: generation)
             } catch {
-                guard !Task.isCancelled, let self, !self.isClosed, self.depthState == .estimating else { return }
+                guard !Task.isCancelled, let self, !self.isClosed, self.depthState == .estimating,
+                      self.depthGeneration == generation else { return }
                 self.depthState = .failed
             }
         }
@@ -621,9 +662,10 @@ final class EditorSession {
         }
     }
 
-    private func finishSubjectMatte(_ matte: SubjectMatte?) {
-        // Only a pending separation accepts a result: a cancelled one's late result is dropped.
-        guard !isClosed, subjectState == .separating else { return }
+    private func finishSubjectMatte(_ matte: SubjectMatte?, generation: Int) {
+        // Only the pending separation that started this work accepts its result: a cancelled one's late result
+        // is dropped, also after a newer run has started.
+        guard !isClosed, subjectState == .separating, generation == subjectGeneration else { return }
         sceneCache.subject = matte
         sceneCache.subjectAnalysed = true
         for name in BackgroundPanelModel.bundledImages where sceneCache.replacementImages[name] == nil {
@@ -640,8 +682,8 @@ final class EditorSession {
         renderCommitted()
     }
 
-    private func finishDepth(_ disparity: DisparityMap) {
-        guard !isClosed, depthState == .estimating else { return }
+    private func finishDepth(_ disparity: DisparityMap, generation: Int) {
+        guard !isClosed, depthState == .estimating, generation == depthGeneration else { return }
         sceneCache.disparity = disparity
         depthState = .ready
         analysisRevision += 1
@@ -653,6 +695,7 @@ final class EditorSession {
     func previewBackground(_ change: (inout EditRecipe.Background) -> Void) {
         var next = recipe
         change(&next.tools.background)
+        if next.tools.background.focus.blur > 0 { ensureDepth() }
         render(next, final: false)
     }
 
@@ -663,6 +706,7 @@ final class EditorSession {
         recordDerivedResults(in: &next.tools.background)
         commit(next)
         resumeCancelledAnalysis()
+        if recipe.tools.background.focus.blur > 0 { ensureDepth() }
     }
 
     /// Tap the photo to set focus (source coordinates).
@@ -1795,7 +1839,8 @@ final class EditorSession {
 
     /// Waits until subject separation has finished (captures of Background screens).
     func debugWaitForSubject() async {
-        while subjectState == .separating || subjectState == .notStarted || depthState == .estimating || depthState == .notStarted {
+        // Depth is waited for only once something started it (Focus & Blur); Change background never starts it.
+        while subjectState == .separating || subjectState == .notStarted || depthState == .estimating {
             try? await Task.sleep(for: .milliseconds(50))
         }
     }

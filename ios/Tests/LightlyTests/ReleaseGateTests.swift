@@ -26,7 +26,7 @@ final class ReleaseGateTests: XCTestCase {
         session.start()
         await session.waitUntilReady()
         let before = session.recipe
-        session.analyseSubjectIfNeeded()
+        session.analyseSubjectIfNeeded(needsDepth: true)
         await session.debugWaitForSubject()
         XCTAssertEqual(session.backgroundContent(needsDepth: true), .depthFailed, "the depth failure — never a matte-only blur")
         XCTAssertEqual(session.backgroundContent(needsDepth: false), .controls, "Change background needs only the matte")

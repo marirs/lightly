@@ -67,7 +67,8 @@ struct BackgroundPanelView: View {
                 .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 4)
             content
         }
-        .task { session.analyseSubjectIfNeeded() }
+        // Re-run when the mode changes: switching to Focus & Blur is what starts depth.
+        .task(id: model.mode) { session.analyseSubjectIfNeeded(needsDepth: model.mode == .focus) }
     }
 
     @ViewBuilder
@@ -76,6 +77,10 @@ struct BackgroundPanelView: View {
         switch session.backgroundContent(needsDepth: model.mode == .focus) {
         case .finding:
             DevelopNotice(icon: .info, bold: nil, text: "Finding the subject…",
+                          actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
+        case .estimatingDepth:
+            // PROPOSED copy (owner approval pending, 2026-10-07): see EditorSession.BackgroundContent.estimatingDepth.
+            DevelopNotice(icon: .info, bold: nil, text: "Estimating depth…",
                           actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
         case .subjectFailed:
             DevelopNotice(icon: .warn, bold: "Couldn't separate the subject.", text: " Your other edits are kept.",

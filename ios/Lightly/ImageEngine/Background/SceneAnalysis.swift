@@ -391,7 +391,11 @@ final class DepthEstimator: @unchecked Sendable {
         #if targetEnvironment(simulator)
         configuration.computeUnits = .cpuOnly
         #else
-        configuration.computeUnits = .all
+        // CPU and GPU, not the Neural Engine (measured 2026-10-07, iPhone 11 Pro Max, iOS 27.0.1): with `.all` the
+        // first load after an install took 87.9 s (Core ML preparing the palettised model for the Neural Engine) and
+        // was frozen whenever the app was suspended, so Focus & Blur sat on its progress; later loads 1.5 s,
+        // inference 1.3–1.5 s. `.cpuAndGPU`: first load 0.98 s, later 0.3 s, inference 0.9 s once warm.
+        configuration.computeUnits = .cpuAndGPU
         #endif
         #if DEBUG
         if let units = DebugModelLoad.computeUnitsOverride() { configuration.computeUnits = units }

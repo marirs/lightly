@@ -111,7 +111,7 @@ struct EditorScreen: View {
                     effectsPanel.sub = ui.effectsSub
                     watermarkPanel.shownType = ui.watermarkType
                     if ui.tool == .background, !["bg-separating", "bg-failed"].contains(scenario.screenID) {
-                        session.analyseSubjectIfNeeded()
+                        session.analyseSubjectIfNeeded(needsDepth: ui.backgroundMode == .focus)
                         DiagnosticTrace.note("scenario \(scenario.screenID): waiting for the subject")
                         await session.debugWaitForSubject()
                         DiagnosticTrace.note("scenario \(scenario.screenID): subject \(String(describing: session.subjectState))")
@@ -331,9 +331,14 @@ struct EditorScreen: View {
     private func backgroundMarks(size: CGSize) -> some View {
         let background = session.recipe.tools.background
         switch (session.backgroundContent(needsDepth: backgroundPanel.mode == .focus), backgroundPanel.mode) {
-        case (.finding, _) where session.subjectState == .separating || session.depthState == .estimating:
+        case (.finding, _) where session.subjectState == .separating:
             // `.progress` sits at the centre of the photo (left/top 50 %, translate −50 %).
             StageOperationProgress(title: "Finding the subject…", identifier: "background.separating",
+                                   onCancel: session.cancelSubjectSeparation)
+                .position(x: size.width / 2, y: size.height / 2)
+        case (_, _) where session.depthProgressVisible(needsDepth: backgroundPanel.mode == .focus):
+            // PROPOSED copy (owner approval pending, 2026-10-07): depth's own progress, distinct from the subject's.
+            StageOperationProgress(title: "Estimating depth…", identifier: "background.depth",
                                    onCancel: session.cancelSubjectSeparation)
                 .position(x: size.width / 2, y: size.height / 2)
         case (.controls, .refine):
