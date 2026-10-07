@@ -77,13 +77,25 @@ launch line is still missing after the owner opens the app, logging is diagnosed
 1. **Change background hair edges: teal cast and grey haze.** Release blocker. Not fixed. The teal appears only with the
    foreground-colour estimate. One bounded rule was tested on the recorded stages (2026-10-06): skip the estimate where
    it had to be clipped. `portrait_medium_02` dark: teal 52,733 → 15,211 px, but red excess 1.3 → 7.6 (the red fringe
-   returns); not adopted.
+   returns); not adopted. **Planned A4 diagnostic done (2026-10-07):** the step that differs from iOS is the matte, not
+   the foreground estimate. Android's own estimate and composite, given iOS Vision's matte for the same photo, give teal
+   4,871 px on `portrait_medium_02` dark (31,998 with Android's shipped closed-form matte; `portrait_deep_03` 63 vs
+   451). Vision's matte is not the target either: it marks the wall between the curls as subject (red excess 11.9 vs
+   0.4). The fix has to give dense curls partial coverage between the two
+   (`experiments/depth/results/portrait-edges-2026-10-05/a4-matte-swap-pm02-dark.jpg`, `portrait_edges/exp_alpha_opacity.py
+   vision`). Not yet sized: any matte change is validated on portraits other than pm02 and pd03, which have been used
+   for development since 2026-10-05.
 2. **Object cut-out (U²-Netp, in 1.0 scope):** halo reduced, not fixed. **No-subject rule not solved.** Area alone fails
    (held-out 4/9, independent 10/29). Area ≥ 2 % plus a depth step ≥ 0.1 along the mask edge (threshold read off those
    sets) on a **fresh labelled set** (105 PD12M photos, labels committed before the run, 3eed7b8;
    `work/u2netp-fresh/results.json`): subjects found 9/12 (missed: cars, a museum display case, potted plants), false
    subjects 3/82 (church interior, chandelier room, car seat); area alone 11/12 and 26/82. Missing a quarter of real
    subjects is not shippable. Small subjects: both found, but only 2 existed in the pool. Needs the depth model (gated).
+   **Planned A5 diagnostic done (2026-10-07): the threshold is not the problem.** Even thresholds chosen after seeing the
+   fresh set (in-sample, so optimistic) cannot separate it on area and depth step: all 12 subjects cost 8/82 false
+   subjects, 11/12 cost 4/82, because the classes overlap (subject 72: step 0.006; subject-free 71: 0.194, 49: 0.135).
+   A new rule needs other evidence than U²-Netp's mask area and the depth step, developed on the earlier sets and
+   validated on a new labelled set; the fresh set is spent. Not yet sized.
 3. Portrait on the bar photo (`pt-no-usable-face`): one dim ring sits beside the middle person's head, over the shelf,
    instead of on the person (emulator, real models, 2026-10-06, `experiments/android-vision/work/bar-ring/`, on disk, not tracked). The
    approved notice is shown. Cause not established (face-box placement). Low impact.

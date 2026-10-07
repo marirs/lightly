@@ -17,7 +17,7 @@ def selfie(rgb):
 import sys
 ONLY=sys.argv[1:] or None
 VARIANTS={'shipped':lambda a:a, 'levels.1-.7':lambda a:np.clip((a-0.1)/0.6,0,1), 'gamma.6':lambda a:a**0.6,
-          'min-selfie-head':None, 'closed-form':'cf', 'closed-form+noclip':'cf'}
+          'min-selfie-head':None, 'closed-form':'cf', 'closed-form+noclip':'cf', 'vision':'vision'}
 from pymatting import estimate_alpha_cf
 for tag,src,mname in (('pm02',f'{S}/iosbg/pm02_12mp.jpg','portrait_medium_02'),('pd03',f'{S}/iosbg/pd03_full.jpg','portrait_deep_03')):
   full=np.asarray(ImageOps.exif_transpose(Image.open(src)).convert('RGB'))/255.; H,W,_=full.shape
@@ -30,7 +30,11 @@ for tag,src,mname in (('pm02',f'{S}/iosbg/pm02_12mp.jpg','portrait_medium_02'),(
   person=np.clip(bil(selfie(disp),dw,dh),0,1); headd=np.zeros((dh,dw),bool); headd[:int(dh*.45)]=True
   for vname,f in VARIANTS.items():
     if ONLY and vname not in ONLY: continue
-    if f == 'cf':
+    if f == 'vision':
+      # A4 step comparison (2026-10-07): iOS Vision's matte for the same photo (recorded fixture), through Android's
+      # identical working-size estimate and composite. Low teal here = the matte is the step that differs.
+      aw=np.clip(bil(vis,ww,wh),0,1)
+    elif f == 'cf':
       # Closed-form matting (Levin et al.) at the working size; trimap from MODNet: sure fg >= 0.95 (eroded 3 px),
       # sure bg <= 0.05 (eroded 3 px), the rest unknown. Solved on the sRGB working image.
       a_w0=np.clip(bil(a0,ww,wh),0,1); k=np.ones((7,7),np.uint8)
