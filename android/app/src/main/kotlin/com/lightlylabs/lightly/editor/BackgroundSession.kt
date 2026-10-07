@@ -388,9 +388,12 @@ class BackgroundSession(private val env: EditorEnvironment) {
         // the cap, not on blur or replacement settings: resized once, not on every preview (0.2–0.3 s).
         val small = workingAnalysis(a, tool, ww, wh)
         val tResized = System.nanoTime()
+        val geometriesBefore = BackgroundStage.sceneGeometries
+        val estimatesBefore = BackgroundStage.foregroundEstimates
         // A drag frame (DRAG_CAP): latency first (see BackgroundStage.renderWorking's dragFrame).
         return BackgroundStage.renderWorking(frame.pixels, small, plan, layersPerSide, checkpoint, dragFrame = cap == DRAG_CAP).also {
-            stageTiming?.invoke("working ${ww}x$wh refine=${ms(tRefined - t0)} resize=${ms(tResized - tRefined)} renderWorking=${ms(System.nanoTime() - tResized)}")
+            stageTiming?.invoke("working ${ww}x$wh refine=${ms(tRefined - t0)} resize=${ms(tResized - tRefined)} renderWorking=${ms(System.nanoTime() - tResized)}" +
+                " geometry=${if (BackgroundStage.sceneGeometries == geometriesBefore) "kept" else "made"} foreground=${BackgroundStage.foregroundEstimates - estimatesBefore}")
         }
     }
 

@@ -281,8 +281,9 @@ object BackgroundStage {
     }
 
     private var lastGeometry: Pair<Triple<FloatPlane, FloatPlane, Boolean>, Refocus.SceneGeometry>? = null
-    /** How many scene geometries were computed (tests). */
-    @Volatile internal var sceneGeometries = 0
+    /** How many scene geometries were computed (tests, and the app's debug stage timing). */
+    @Volatile var sceneGeometries = 0
+        internal set
 
     /** One thread for [foregroundShift] beside a scene render (daemon: never keeps the process alive). */
     private val shiftExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
@@ -305,8 +306,9 @@ object BackgroundStage {
      * they only occupy the heap next to the export's buffers.
      */
     fun releasePreviewCaches() { synchronized(this) { lastShift = null; lastGeometry = null } }
-    /** How many foreground estimates ran (tests). */
-    @Volatile internal var foregroundEstimates = 0
+    /** How many foreground estimates ran (tests, and the app's debug stage timing). */
+    @Volatile var foregroundEstimates = 0
+        internal set
 
     private fun computeForegroundShift(developed: ByteArray, w: Int, h: Int, matte: FloatPlane): FloatImage {
         val photo = FloatImage(w, h, 3, parallelFloatArray(w, h, 3) { SrgbBytes.TO_LINEAR[developed[(it / 3) * 4 + it % 3].toInt() and 0xff] })
