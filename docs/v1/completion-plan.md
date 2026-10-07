@@ -132,31 +132,37 @@ Unresolved decisions do not permit misleading behaviour, and engineering not dep
   nothing ships with a gated model before it. **No engineering estimate covers counsel's time.**
 - **D-4:** O1–O10 above.
 
-## D. Remaining time (updated 2026-10-07; replaces the original total)
-"13–22 working days" was the **original total** written on 2026-10-06, not time still required. Since then: A1 steps
-1–4 (rendering correctness, speed, memory; benchmark build), A2, A6, A3's implementation, the A4 and A5 diagnostics,
-M4 and the Favourites snapshot are done.
+## D. Remaining time (updated 2026-10-07; replaces the original total; not a release date)
+"13–22 working days" was the **original total** written on 2026-10-06, not time still required. Done since: A1 steps 1–4
+(rendering correctness, speed, memory, benchmark build, on the emulator), A2, A6, A3's implementation, the A4 and A5
+diagnostics, M4, the Favourites snapshot. **Physical-phone performance is still pending (A1 step 6):** the emulator
+results close implementation steps, not hardware acceptance.
 
-**Remaining engineering, not waiting on anyone:** A11 simulator pass 1 d; M2 iPad top bar 0.25 d. **1.25 d.**
+### Engineering time still required (my work, sequential)
+| Work | Days |
+|---|---|
+| A11 forced conditions and accessibility, simulator/emulator pass | 1 |
+| M2 iPad top bar to the approved 24 pt | 0.25 |
+| A4 hair: port the chromaticity candidate to Kotlin with emulator saved copies, only if it passes the blind review | 0 or 1 |
+| A5 no subject: only if the detector-as-support trade-off is approved: validation 1, Kotlin/LiteRT 0.5, emulator 0.25 | 0 or 1.75 |
+| A7 grain/vignette fit, once the exports exist | 1–2 |
+| A1 step 5 notice, once D1 is decided | 0.25 |
+| A3 Auto adjustments after the owner's visual review | 0–1 |
+| Hardware rounds once phones are available (A1 step 6, A8, A10), engineering part | 2–5 |
+| Release builds and acceptance support (A9, A12) | 2–4 |
+| **Total engineering** | **7.5–16.25** |
 
-**The two unresolved quality blockers (one approach each, bounded, pass/fail fixed before the run):**
-| Blocker | Implementation attempted | Effort | Pass / fail | Needs first |
-|---|---|---|---|---|
-| A4 hair | Interior chromaticity in the soft band (foreground keeps its estimated luminance, takes the local interior colour's chromaticity). Its colour-threshold gate failed on the fresh portraits (14/18; the thresholds count natural blue-black and blonde hair), so it is re-gated on ground truth: PPM-100 (100 portraits with ground-truth alpha), reference composite from the true alpha | 2 d (1 d evaluation, 1 d Kotlin port and emulator saved copies) | Pass: soft-band ΔE to the reference composite lower than the shipped pipeline's on ≥ 70 of 100 portraits, median improvement ≥ 10 %, no portrait worse by > 1.0 ΔE, on both dark and light replacements | Your approval to download PPM-100 (licence to be read first) |
-| A5 no subject | Semantic agreement: an object detector (MediaPipe EfficientDet-Lite0 int8, Apache-2.0, 4,602,795 bytes, COCO) must find an object where U²-Netp's confident region is: subject when the confident area is ≥ 2 % and some detection with score ≥ 0.3 holds ≥ 50 % of the confident region inside its box. Area/depth tuning stopped; mask shape was tried and does not separate even the spent sets | 1.75 d (1 d validation, 0.5 d Kotlin/LiteRT, 0.25 d emulator) | Pass on the new validation set (100 unused photos, labels committed before any run): ≥ 11 of 12 subjects found and ≤ 4 of 77 subject-free photos called subject | Your approval to download the model; the model joins the counsel gate (COCO training data) |
-If an approach fails: A4 → a replacement matting model (3–5 d, licence and counsel); A5 → a stronger salient-object model
-with an explicit "no object" output (3–5 d, same). Neither is assumed below.
+Not included, listed rather than assumed: the GPU path (3–5 d) only if a phone misses the drag-frame target; any further
+approach if A4's candidate fails the review or A5's trade-off is declined (no replacement model is queued; each would be
+a separate decision with its own licence and counsel question).
 
-**Waiting on owner input, then engineering:** A7 grain/vignette calibration after the Lightroom exports 1–2 d; A1 step 5
-(D1 notice) 0.25 d after the decision; A3 Auto adjustments after your visual review 0–1 d. **1.25–3.25 d.**
+### External waiting (not engineering time; durations unknown to me)
+- D-1 an Android dev phone; D-2 the iPhone launch and acceptance passes.
+- Lightroom exports (A7); decisions D1–D3 and the individual differences (owner-decisions.md); the A4 blind review;
+  whether A5's detector is worth its download for recall alone.
+- D-3 counsel (training data of the gated models). No estimate covers counsel.
 
-**Hardware rounds (after D-1 phone, D-2 iPhone launch):** A1 step 6, A8, A10 2–5 d; +3–5 d only if a phone misses the
-drag-frame target (less likely since d527e3a).
-
-**Release builds and acceptance (after D-3 counsel):** A9, A12 2–4 d.
-
-**Time still required: 10–17 working days** (1.25 + A4 2 + A5 1.75 + 1.25–3.25 + 2–5 + 2–4), plus 3–5 d per failed
-blocker approach and 3–5 d if the GPU path is needed. Counsel's time (D-3) is not estimated.
+The release date is the later of the engineering above and these external items; it is not predictable from this table.
 
 ## E. Execution order
 A2 diagnostic (small, informs A1) → A1 steps 1–4 → A6 → A4/A5 diagnostics → A7 → A11 (simulator) → A3 (after O2) →
