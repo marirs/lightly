@@ -12,6 +12,7 @@ struct LightlyApp: App {
         // A marker per launch: proves the trace file is written and names the build that wrote it.
         let version = AppVersion()
         DiagnosticTrace.note("launch: Lightly \(version.version) (\(version.build))")
+        KeepAwake.start()
         #if DEBUG
         DebugLifecycleTrace.start()
         #endif

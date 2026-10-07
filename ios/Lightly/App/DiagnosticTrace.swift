@@ -74,7 +74,7 @@ enum DebugLifecycleTrace {
 
     static func start() {
         let keepAwake = DebugArguments.current.contains("--keep-awake")
-        if keepAwake { DiagnosticTrace.note("app: keep awake requested") }
+        if keepAwake { KeepAwake.debugAlways = true; DiagnosticTrace.note("app: keep awake requested") }
         let events: [(Notification.Name, String)] = [
             (UIApplication.didBecomeActiveNotification, "active"),
             (UIApplication.willResignActiveNotification, "will resign active"),
@@ -85,10 +85,8 @@ enum DebugLifecycleTrace {
         ]
         observers = events.map { name, label in
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
-                // Set at each activation: set at launch (before the scene was active) it did not hold, and the phone
-                // locked after its 30 s auto-lock while the app was in front (2026-10-07).
+                // KeepAwake re-applies the idle timer at each activation (debugAlways under --keep-awake).
                 MainActor.assumeIsolated {
-                    if keepAwake, name == UIApplication.didBecomeActiveNotification { UIApplication.shared.isIdleTimerDisabled = true }
                     DiagnosticTrace.note("app: \(label)\(keepAwake ? " (idle timer disabled: \(UIApplication.shared.isIdleTimerDisabled))" : "")")
                 }
             }

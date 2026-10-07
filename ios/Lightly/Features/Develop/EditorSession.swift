@@ -597,7 +597,9 @@ final class EditorSession {
         let image = originalPreview
         let faces = people?.faces.map(\.box) ?? []
         DiagnosticTrace.note("subject: matte started \(image.width)x\(image.height), faces \(faces.count)")
+        let awake = KeepAwake.begin("subject separation")
         subjectTask = Task { [weak self] in
+            defer { KeepAwake.end(awake) }
             let started = ContinuousClock.now
             do {
                 var matte = try await Self.traced("subject matte", started) { try await sceneAnalyser.subjectMatte(for: image) }
@@ -636,7 +638,9 @@ final class EditorSession {
         let image = originalPreview
         let data = photo.originalData
         DiagnosticTrace.note("subject: depth started")
+        let awake = KeepAwake.begin("depth")
         depthTask = Task { [weak self] in
+            defer { KeepAwake.end(awake) }
             let started = ContinuousClock.now
             do {
                 let disparity = try await Self.traced("depth", started) { try await sceneAnalyser.disparity(for: image, originalData: data) }
@@ -1081,7 +1085,9 @@ final class EditorSession {
         let loader = inpainterLoader
         let alreadyLoaded = inpainterLoaded ? inpainter : nil
         let needsLoad = !inpainterLoaded
+        let awake = KeepAwake.begin("remove")
         removeTask = Task { [weak self] in
+            defer { KeepAwake.end(awake) }
             do {
                 let work = Task.detached(priority: .userInitiated) { () -> (patch: RemovePatch, engine: any Inpainting) in
                     // The model loads on first use (seconds for 103 MB), off the main actor.
@@ -1102,6 +1108,16 @@ final class EditorSession {
                 self.removeState = .failed
             }
         }
+    }
+
+    /// Save copy releases the Remove model when no stroke is being removed (2026-10-07, iPhone 11 Pro Max: Save copy
+    /// of a 48 MP photo peaked at 956 MB with the model loaded, 694 MB without). The fills are kept (RemovePatchStore);
+    /// the next stroke loads the model again (`inpainterLoaded` false).
+    private func releaseRemoveModelIfIdle() {
+        guard removeState != .removing, inpainterLoaded, inpainter != nil else { return }
+        inpainter = nil
+        inpainterLoaded = false
+        DiagnosticTrace.note("remove: model released before save copy")
     }
 
     private func finishRemove(_ stroke: EditRecipe.RemoveStroke, patch: RemovePatch, engine: any Inpainting) {
@@ -1494,6 +1510,7 @@ final class EditorSession {
             return
         }
         saveState = .saving
+        releaseRemoveModelIfIdle()
         DiagnosticTrace.note("save started \(self.photo.image.width)x\(self.photo.image.height)")
         let job = committedJob()
         let image = photo.image
@@ -1501,7 +1518,9 @@ final class EditorSession {
         let settings = saveSettings()
         let exporter = exporter
         let writer = libraryWriter
+        let awake = KeepAwake.begin("save copy")
         saveTask = Task { [weak self] in
+            defer { KeepAwake.end(awake) }
             do {
                 let timing = SaveTiming(width: image.width, height: image.height)
                 let work = Task.detached(priority: .userInitiated) { () -> Data in

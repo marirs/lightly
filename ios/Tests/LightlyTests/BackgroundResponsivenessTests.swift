@@ -158,6 +158,8 @@ final class BackgroundResponsivenessTests: XCTestCase {
         let session = try await session(matte: .succeed, depth: .fail)
         session.analyseSubjectIfNeeded(needsDepth: true)
         await wait(session) { session.subjectState == .ready && session.depthState == .failed }
+        await session.debugAwaitQuiescence()
+        XCTAssertEqual(KeepAwake.activeReasons, [], "released after completion and after failure")
         XCTAssertEqual(session.backgroundContent(needsDepth: false), .controls)
         XCTAssertEqual(session.backgroundContent(needsDepth: true), .depthFailed, "a depth failure, not a subject failure")
         session.retrySubjectSeparation()
@@ -184,6 +186,7 @@ final class BackgroundResponsivenessTests: XCTestCase {
     func testCancelWhileBothPendingReturnsAtOnce() async throws {
         let session = try await session(matte: .stall, depth: .stall)
         session.analyseSubjectIfNeeded(needsDepth: true)
+        XCTAssertEqual(KeepAwake.activeReasons, ["depth", "subject separation"], "held while the analysis runs")
         XCTAssertEqual(session.backgroundContent(needsDepth: false), .finding)
         session.cancelSubjectSeparation()
         XCTAssertEqual(session.subjectState, .cancelled)
@@ -193,6 +196,7 @@ final class BackgroundResponsivenessTests: XCTestCase {
         let started = ContinuousClock.now
         await session.debugAwaitQuiescence()
         XCTAssertLessThan(ContinuousClock.now - started, .seconds(5))
+        XCTAssertEqual(KeepAwake.activeReasons, [], "Cancel releases the phone's auto-lock")
     }
 
     /// Leaving the photo (Choose another photo, Back) closes the session: stalled analysis is
