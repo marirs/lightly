@@ -30,10 +30,10 @@ change the apps to the approved screen.
 | Fine | Ruler Fine state shown, not its timing | Fine starts after 0.5 s holding still, quarter speed | Feel only | slice2-review.md conflict 2 | Confirm 0.5 s / ¼ or give values |
 | M3 | About shows "Version 1.0 (1)" | Version from the build (e.g. 1.0.0 (261006021)) | Different version string | slice1-android.md M3 | Approve the build's real version (a fixed "1.0 (1)" would be false) |
 | SC | Selective Colour: temporary blue overlay while Range is dragged | No overlay | The overlay in the proposal page is absent | proposals/selective-colour README, Status | Implement the overlay if it is part of your approved layout (the README lists it as "in this page, not in the apps") |
-| M2 | iPad: top safe area 24 pt | iPadOS status bar 32 pt | Top bar and photo 8 pt lower on iPad | slice2-ios.md M2 | Match: draw the top bar from 24 pt under the status bar area, as the approved screen does (recorded as possible in slice2-ios.md) |
 | Splash | Mark centred below the status bar | Android 12+ system splash centres it in the screen | Mark about 24 dp higher | slice1-android.md M6 | Platform constraint (the system splash API fixes the position): needs your acceptance |
 
 **Removed from this sheet:**
+- **M2 iPad top bar:** matched to the approved 24 pt (2026-10-07); not an acceptance request.
 - **M4 text wrapping (iOS):** fixed for notes in 858a06f and for the preset name in 1ef2c0d (test: the name breaks at the
   last word that fits at every width 140–320 pt). Not an acceptance request.
 - **P1 ring proportion:** residual only on one hand-placed prototype ring (slice3-review.md); not requested.
