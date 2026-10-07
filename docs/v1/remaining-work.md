@@ -84,7 +84,13 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    0.4). The fix has to give dense curls partial coverage between the two
    (`experiments/depth/results/portrait-edges-2026-10-05/a4-matte-swap-pm02-dark.jpg`, `portrait_edges/exp_alpha_opacity.py
    vision`). Not yet sized: any matte change is validated on portraits other than pm02 and pd03, which have been used
-   for development since 2026-10-05.
+   for development since 2026-10-05. **Candidate 4 (2026-10-07, failed on the development photos, not run further):**
+   max(shipped alpha, MODNet's own alpha) where the shipped alpha is below 0.98 (dense curls given MODNet's partial
+   coverage): teal rose in all four cases (pm02 dark 31,998 → 42,457 px; pd03 dark 451 → 707) and haze rose (pm02 light
+   0.7 → 4.4); more coverage carries more of the wall-contaminated foreground estimate
+   (`portrait_edges/hair-modnetmax-dev.json`, `hair_projection.py dev modnetmax`). Next candidate must change the
+   foreground estimate and the coverage together; any candidate that passes development needs a new validation set
+   (the fresh set was spent on candidate 2).
 2. **Object cut-out (U²-Netp, in 1.0 scope):** halo reduced, not fixed. **No-subject rule not solved.** Area alone fails
    (held-out 4/9, independent 10/29). Area ≥ 2 % plus a depth step ≥ 0.1 along the mask edge (threshold read off those
    sets) on a **fresh labelled set** (105 PD12M photos, labels committed before the run, 3eed7b8;

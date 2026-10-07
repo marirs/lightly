@@ -14,7 +14,8 @@ Usage: hair_projection.py dev|fresh [projection|chroma]   (dev = pm02, pd03; fre
 Candidate 1 (projection) failed on the development photos (pm02 dark red 0.4 -> 15.8) and was not run on the fresh set.
 Candidate 2 (chroma, interior_chroma): the shipped alpha, foreground chromaticity from the interior in the soft band.
 Candidate 3 (interior, full interior colour) failed on the development photos (skin colour in the hair) and was not run
-on the fresh set. Candidate 2 is the one attempted; its fresh run is decided by these conditions, fixed before the run
+on the fresh set. Candidate 4 (modnetmax, dev only so far): max(shipped alpha, MODNet alpha) where the shipped alpha is below 0.98.
+Candidate 2 is the one attempted; its fresh run is decided by these conditions, fixed before the run
 (2026-10-07), over the 18 fresh cases (9 portraits x dark/light):
   P1 teal <= max(0.5 x shipped, 300 px) in at least 15 of 18 cases;
   P2 red excess <= shipped + 2.0 and <= 7.5 in every case;
@@ -99,6 +100,13 @@ def evaluate(tag, src):
   s2 = 768 / max(W, H); ww, wh = round(W * s2), round(H * s2); I_w = lin(area(full, ww, wh))
   a_ship = shipped_alpha(full, a_disp, ww, wh)
   a_proj, used = projected_alpha(I_w, a_ship)
+  if VARIANT == 'modnetmax':
+    # Candidate 4 (2026-10-07): dense curls need partial coverage between the closed-form alpha (too low) and Vision's
+    # (too high). MODNet's own alpha is a portrait matting estimate with partial coverage in hair: where the shipped
+    # matte is soft or has dropped the curls (a_ship < 0.98) and MODNet still sees subject, take the larger.
+    a_mod = np.clip(bil(a_disp, ww, wh), 0, 1)
+    used = (a_ship < 0.98) & (a_mod > a_ship)
+    a_proj = np.where(used, a_mod, a_ship)
   head = np.zeros((H, W), bool); head[:int(H * .45)] = True
   subject = bil(a_disp, W, H) > 0.5
   rows = []
