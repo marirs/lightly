@@ -110,7 +110,7 @@ struct EditorScreen: View {
                     editPanel.group = ui.editGroup
                     effectsPanel.sub = ui.effectsSub
                     watermarkPanel.shownType = ui.watermarkType
-                    if ui.tool == .background, !["bg-separating", "bg-failed"].contains(scenario.screenID) {
+                    if ui.tool == .background, !["bg-separating", "bg-failed", "bg-cancel-flow"].contains(scenario.screenID) {
                         session.analyseSubjectIfNeeded(needsDepth: ui.backgroundMode == .focus)
                         DiagnosticTrace.note("scenario \(scenario.screenID): waiting for the subject")
                         await session.debugWaitForSubject()

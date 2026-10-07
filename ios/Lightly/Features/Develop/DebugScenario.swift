@@ -48,7 +48,7 @@ struct DebugScenario {
 
     var editorUI: EditorUI {
         switch screenID {
-        case "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-no-subject": return EditorUI(tool: .background)
+        case "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-no-subject", "bg-cancel-flow": return EditorUI(tool: .background)
         case "bg-refine": return EditorUI(tool: .background, backgroundMode: .refine)
         case "bg-change-image", "bg-separating", "bg-failed": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .image)
         case "bg-change-colour": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .colour)
@@ -120,6 +120,24 @@ struct DebugScenario {
             let g = BackgroundPanelModel.gradients[0]
             background { $0.replacement = .gradient(angle: g.angle, stops: g.stops) }
         case "bg-replaced-blur": background { $0.replacement = image0; $0.focus.blur = 60 }
+        // Device check (2026-10-07, not a prototype screen): Focus & Blur opened, Cancel at once, then the panel
+        // reopened (must not restart), then a blur edit (retries), each state traced.
+        case "bg-cancel-flow":
+            func state(_ step: String) {
+                DiagnosticTrace.note("scenario bg-cancel-flow: \(step): subject \(session.subjectState), depth \(session.depthState), content \(session.backgroundContent(needsDepth: true))")
+            }
+            session.analyseSubjectIfNeeded(needsDepth: true)
+            state("opened")
+            session.cancelSubjectSeparation()
+            state("cancelled")
+            try? await Task.sleep(for: .seconds(3))
+            state("3 s after cancel")
+            session.analyseSubjectIfNeeded(needsDepth: true)
+            state("panel reopened")
+            session.commitBackground { $0.focus.blur = 40 }
+            state("blur edit")
+            await session.debugWaitForSubject()
+            state("finished")
         case "bg-separating": session.debugHoldSubjectState(.separating)
         case "bg-failed":
             if let p = session.library.pack.category(id: "portrait")?.presets.first(where: { $0.stop == 13 }) { session.debugApply(p, amount: 100) }
