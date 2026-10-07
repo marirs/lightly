@@ -150,7 +150,7 @@ results close implementation steps, not hardware acceptance.
 | A3 Auto adjustments after the owner's visual review | 0–1 |
 | Hardware rounds once phones are available (A1 step 6, A8, A10), engineering part | 2–5 |
 | Release builds and acceptance support (A9, A12) | 2–4 |
-| **Total engineering** | **7.5–16.25** |
+| **Total engineering** | **6.5–16.25** |
 
 Not included, listed rather than assumed: the GPU path (3–5 d) only if a phone misses the drag-frame target; any further
 approach if A4's candidate fails the review or A5's trade-off is declined (no replacement model is queued; each would be
