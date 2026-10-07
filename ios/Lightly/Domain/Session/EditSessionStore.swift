@@ -50,6 +50,12 @@ final class EditSessionStore: @unchecked Sendable {
     init(directory: URL?) { self.directory = directory }
 
     static func applicationSupport() -> EditSessionStore {
+        #if DEBUG
+        // Device checks only (2026-10-07): `--keep-stored-session` runs a scripted check (a 48 MP save, a
+        // Remove stroke) without writing or clearing the stored session, so an owner's unsaved edit on a
+        // dev phone survives the check untouched. A store with no directory does nothing and loads nothing.
+        if ProcessInfo.processInfo.arguments.contains("--keep-stored-session") { return EditSessionStore(directory: nil) }
+        #endif
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         return EditSessionStore(directory: base?.appendingPathComponent("EditSession", isDirectory: true))
     }

@@ -337,6 +337,10 @@ final class RemovePatchStore: @unchecked Sendable {
 
     /// The app's store: Application Support/RemovePatches.
     static func applicationSupport() -> RemovePatchStore {
+        #if DEBUG
+        // `--keep-stored-session` (device checks): the stored session's Remove patches are left untouched too.
+        if ProcessInfo.processInfo.arguments.contains("--keep-stored-session") { return RemovePatchStore(directory: nil) }
+        #endif
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         return RemovePatchStore(directory: base?.appendingPathComponent("RemovePatches", isDirectory: true))
     }
