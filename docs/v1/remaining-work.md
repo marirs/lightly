@@ -134,9 +134,13 @@ Closed as stale (evidence re-checked 2026-10-06):
   (other processes hit ENOSPC; the system kept room for the media write), so the alert path could not be triggered
   there; it stays unit-tested only.
 - Lost photo access and model-unavailable mid-session: unit-tested only.
-- iOS snapshot `SliceOneSnapshotTests/testFavourites` (2026-10-07): fails on two causes, so its baseline is not
-  updated: the requested readable names, and 858a06f's note renderer (same line breaks; glyph anti-aliasing differs and
-  its fractional height moves every row below by under a pixel).
+- iOS snapshot `SliceOneSnapshotTests/testFavourites`: implementation baseline updated 2026-10-07 (approved references
+  untouched). Every difference from the 3 Oct baseline traces to the two authorised changes, checked region by region:
+  the five names (owner-requested readable names, 369bf87); the note's glyph anti-aliasing (858a06f, paragraph
+  component; same line breaks, same text block position within 0.2 px); and a uniform sub-pixel shift of every row below
+  the note (each divider moves 0.2 px, rows stay 52 px apart; pixel-snapped icons round 0.2–0.7 px). Header and
+  everything below the list are identical. The render at HEAD 99900a9 equals the 7 Oct 01:44 render exactly; the test
+  passes on iPhone 17 / iOS 26.5.
 - Large text: one cell per platform; every other cell unverified. Screen readers: no end-to-end pass. 44 pt targets not
   measured across layouts.
 - Saved-file metadata combinations on Android after slice 1; 48 MP memory and time on dev devices.
