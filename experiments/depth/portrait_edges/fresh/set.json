@@ -1,0 +1,16 @@
+{
+  "purpose": "A4 fresh hair evaluation (2026-10-07): portraits never used for matte or composite development (pm02 and pd03 were). Fixed from a contact sheet before any model ran on them.",
+  "replacements": {"dark": "#1F2328", "light": "#F4F1EC"},
+  "photos": {
+    "portrait_deep_01": "presets/lr_kit/kit-v2/photos/portrait_deep_01.jpg",
+    "portrait_deep_02": "presets/lr_kit/kit-v2/photos/portrait_deep_02.jpg",
+    "portrait_light_01": "presets/lr_kit/kit-v2/photos/portrait_light_01.jpg",
+    "portrait_light_02": "presets/lr_kit/kit-v2/photos/portrait_light_02.jpg",
+    "portrait_medium_01": "presets/lr_kit/kit-v2/photos/portrait_medium_01.jpg",
+    "backlit_01": "presets/lr_kit/kit-v2/photos/backlit_01.jpg",
+    "backlit_03": "presets/lr_kit/kit-v2/photos/backlit_03.jpg",
+    "pd12m_6220a41d": "auto/data/pd12m/eval_originals/6220a41d716ea9a48e2715f1bba75056.jpg",
+    "pd12m_68ec5896": "auto/data/pd12m/eval_originals/68ec5896bb7f6de9a74f32947bfafbd6.jpg"
+  },
+  "excluded": "backlit_02, 139ce1d9, f0312305, 3bd7aceb, 5d1a73e6 (figures too small or crowds); paintings and banknotes"
+}
