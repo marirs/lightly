@@ -10,62 +10,49 @@ The iPhone holds your unsaved edit from 5 Oct (17 steps, source photo SHA-256 0a
 the original and analysis files match the backup and the recipe lines are unchanged. `--restore-stored-session` was run
 once (16:33) and restored it from source 0a9b1285…; that rebound the history header's scene line, nothing else.
 
-## iPhone 11 Pro Max: one session, about 30 minutes. Keep the phone unlocked and on the cable throughout.
-**Before you start (me):** re-read the session files against the backup (nothing written).
+## Final assisted iPhone session (iPhone 11 Pro Max), about 20 minutes
+**Installed now: Lightly 1.0.0 (261007080), Release configuration, both models included** (internal check build from
+`archives/66f6e21-gates-open/`; the model gates are open only in this build, not in a submission build). Confirmed
+2026-10-07: the build number from the archive, and a launch wrote no debug trace (a review build always does). Release
+builds take no test commands; that is expected. Your stored edit is intact (all three files' SHA-256 unchanged after
+installing and launching) and Lightly reopens it at launch.
 
-**Measured 7 Oct, 261007059, 48 MP fixture, `--keep-stored-session` (stored edit unchanged, SHA-256 checked):**
-Develop Save copy 1.6 s (bytes 0.37 s, render 0.97 s, encode 0.24 s), peak footprint 840 MB; one Remove stroke done
-8 s after launch, peak footprint 533 MB. **Depth stall, diagnosed and fixed (b6813cc):** the depth model's first load after an install took 87.9 s on the
-Neural Engine; the app was suspended by the 30 s auto-lock during it, which froze the load. It now runs on CPU and GPU:
-first load 0.98 s, inference 0.9–1.0 s. Measured on 261007065–070 with the phone kept awake: landscape and portrait in
-Change background (no depth started; no-subject notice after under 1 s), portrait in Focus & Blur (ready about 2 s
-after opening), Cancel → reopen → retry, and a second photo opened while the first photo's depth was loading (ready
-in 507 ms; no Background work for it).
-**Checkpoint b0ab6db, 1.0.0 (261007075), installed on iPhone (read from the launch line), simulator and emulator
-(read back):** normal launch (no override) loads depth with CPU and GPU (1.1 s, inference 1.0 s); auto-lock is held off
-only while separation, depth, a stroke or Save copy runs and restored when each ends. Background analysing, then
-Develop: a 12-stop ruler drag showed 12 frames in 1.09 s (first 21 ms, longest gap 114 ms); the next photo was ready
-in 377 ms and 6 s later had no Background state from the first photo. `--mem-cycles 3` with the Remove model released
-before Save copy: peak 842 MB (was 956), Save copy without fills 695 MB, a second stroke after each save applied,
-idle 102–103 MB; stored edit unchanged. The "every photo" Background report is not reproduced (iPhone, these runs);
-not checked on an Android phone.
-**Restoration after the system ends the app (261007078, separate test edit in `EditSession-rtest`):** one edit, Lightly
-sent to the background (Settings opened), killed with SIGKILL, relaunched normally with no restore flag: the trace
-shows the stored session found in the same scene and the edit reopened at its step (2 steps). The owner's stored edit
-was not read or written (SHA-256 unchanged before and after).
-**Still open on the iPhone:** the spoken VoiceOver pass (a person must listen, and turning VoiceOver on is a system
-setting: owner step 7); the shipping-configuration check (gates-open Release build: Focus & Blur and a Remove stroke,
-owner step after E). Hair edges (A4), no-subject detection (A5) and the grain/vignette calibration (33 Lightroom
-exports) remain open release items.
-**Repeated 48 MP operations (`--mem-cycles 3`):** idle 108–110 MB after every cycle, peak footprint 956 MB (Save copy
-after a Remove stroke; Save copy alone 694 MB), stored edit unchanged. Normal restoration of the stored edit after the
-system ends the app is not verified on the device (only the forced restore was run).
+**To keep your edit:** do not tap Close, Discard or Save copy on it (Save copy and Discard end the stored edit), and do
+not open another photo until Part C. Undo puts back anything you try.
 
-**You (in this order):**
-1. Your restored edit is on screen: check it is the one you left (then keep editing it or not, as you like).
-2. **Background:** a portrait → Change background with a colour (look at the hair edge) → Focus & Blur → drag the preset
-   ruler once with Background on.
-3. **Live preset dragging:** slowly across about 10 stops, then fast, then release; Undo once returns one step.
-4. **Auto:** off and on once.
-5. **Remove:** one stroke on a photo of yours.
-6. **Save copy**, then Keep editing.
-7. **VoiceOver (spoken):** turn it on; from Welcome, Choose a photo, open one, move to Save copy and save; turn it off.
-   Tell me anything you could not reach or that was read wrongly.
-8. Tell me when done.
+**Part A: Focus & Blur and Remove (on your edit), 3 minutes**
+1. Open Lightly: your edit appears.
+2. Tap **Background** in the bottom tools → **Focus & Blur** is selected. Expect "Finding the subject…" briefly,
+   then the controls (if your photo has no clear subject: "No clear subject found." with a Blur slider).
+3. Drag **Blur** to about 60 → the background softens within a second or two; "Estimating depth…" may show first.
+4. Tap **Undo**.
+5. Tap **Edit** → **Remove** → brush over a small object → "Removing…" then the area is filled.
+6. Tap **Undo stroke** (or Undo).
 
-**Then me (your edit is not replaced):**
-- C. `scripts/iphone_memory_check.sh`: 48 MP Develop Save copy, one Remove stroke (now drawn from bands of the photo,
-  7cfa473) and Background Save copy, each in a fresh process with `--keep-stored-session`, so the stored edit is
-  neither written nor cleared; its SHA-256 are compared before and after. Peak footprint and stage times from the
-  trace.
-- D. (Only if C reports a changed session.) Restore from the backup. Writing files back with devicectl failed twice
-  on 7 Oct (connection dropped), so this route is not verified and C avoids needing it.
-- E. Install the gates-open **Release** build (the actual shipping configuration with both models), over the review
-  build, data kept.
+**Part B: VoiceOver on your edit (spoken), 10 minutes.** Turn VoiceOver on (Settings › Accessibility › VoiceOver, or
+triple-click the side button if you set that shortcut). Swipe right through each screen and note anything missed,
+misread, or out of this order. Expected (from the app's accessibility tree, recorded in the simulator; only your
+listening confirms it):
+- Top bar: "Close, button" · "Undo, button" (dimmed when nothing to undo) · "Redo, button" · "Save copy, button" ·
+  "More, button" · "Photo".
+- Develop: "Automatic correction, On" · categories "Favourites … Black & White" (the current one "Selected") ·
+  "Favourite, button" · preset name (e.g. "Hiking 5") · position (e.g. "37 / 518") · "Amount 100, button" ·
+  "Presets, Hiking 5, 37 of 518, adjustable" (swipe up or down to change preset).
+- Tools: "Tools" · "Develop, Edited, Selected" · "Background" · "Portrait" · "Edit" · "Effects" · "Watermark" ·
+  "Border".
+- Edit › Remove: "Crop · Rotate · Straighten · Perspective · Adjust · Remove, Selected" · "Brush over anything you
+  want removed." · "Brush size" · while removing: "Removing…" and "Cancel".
+- Background › Focus & Blur: "Focus & Blur · Change background" · the style tabs · "Blur" · "Focus depth" ·
+  "Refine edges" · "Tap the photo to set focus."
+Turn VoiceOver off.
 
-**You, on the Release build (2 minutes):** a portrait → Background › Focus & Blur (blur appears behind the subject);
-Edit › Remove, one stroke (the area is filled). The Simulator cannot check Focus & Blur (Vision does not run there).
-**Me:** reinstall the review build.
+**Part C: only when you are ready to let your edit go (it is backed up on the Mac)** — VoiceOver over Welcome,
+Choose a photo and Save copy:
+7. With VoiceOver on: Close → (Leave without saving?) → Welcome: "More" · "Lightly" · "See it as you remember it." ·
+   "Choose a photo, button" · "Camera, button" · "Your photos stay on your device by default." · "Privacy Policy".
+8. Choose a photo → open one → Save copy → "Saved as a new photo" · "Share" · "Keep editing" · "Choose another photo".
+
+**Afterwards (me):** reinstall the review build (261007080 review, data kept) and read the session files again.
 
 ## Android dev phone (Nothing A069 or motorola edge 60, USB debugging): about 20 minutes
 Not possible until a phone is connected. Then: I install the benchmark APK; you run iPhone steps 2–7 (TalkBack instead
