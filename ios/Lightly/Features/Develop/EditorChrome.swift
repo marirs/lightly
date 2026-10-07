@@ -53,9 +53,6 @@ struct EditorLayout: Equatable {
     /// 13-inch tablets (`big`): a wider panel and content column.
     let isLarge: Bool
 
-    /// The approved tablets' top safe area (`DEVICES.safe.top` = 24 for both iPad Pro profiles).
-    static let approvedTabletTopInset: CGFloat = 24
-
     var panelWidth: CGFloat { isLarge ? 400 : 360 }
     var contentWidth: CGFloat { isLarge ? 640 : 600 }
 

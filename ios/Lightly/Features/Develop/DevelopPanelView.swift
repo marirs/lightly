@@ -274,12 +274,16 @@ struct DevelopNotice: View {
 /// `.btn.quiet.small`: 44 pt high, 12 pt padding, 14.5 pt semibold in the selection colour.
 struct ApprovedSmallQuietButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .approvedText(14.5, weight: .semibold)
             .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
-            .lineLimit(1)
+            // One line at the approved sizes; at accessibility sizes the title wraps instead of running off the panel
+            // ("Remove background change" at AX5, A11 2026-10-07).
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
             .contentShape(Rectangle())

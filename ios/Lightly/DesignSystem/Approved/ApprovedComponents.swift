@@ -32,6 +32,9 @@ struct ApprovedButtonStyle: ButtonStyle {
         configuration.label
             .approvedText(isLarge ? 16 : 15, weight: .semibold)
             .multilineTextAlignment(.center)
+            // A11 (2026-10-07): at accessibility text sizes a title that no longer fits wraps instead of truncating
+            // ("Choose a ph…" at AX5). At the approved sizes every title fits on one line, so nothing changes there.
+            .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(foreground)
             .padding(.horizontal, kind == .quiet ? 12 : 18)
             .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: isLarge ? 52 : ApprovedMetrics.minimumTarget)

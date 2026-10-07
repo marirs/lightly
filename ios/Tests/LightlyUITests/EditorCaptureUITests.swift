@@ -14,7 +14,7 @@ final class EditorCaptureUITests: XCTestCase {
     private var directory: URL!
 
     /// Prototype photo ids (`PHOTOS` in docs/ui/app/data.js) → files under docs/ui/assets/photos.
-    private static let photoFiles = [
+    static let photoFiles = [
         "lake": "docs/ui/assets/photos/landscape_02", "field": "docs/ui/assets/photos/landscape_03",
         "sunset": "docs/ui/assets/photos/sunset_02", "man": "docs/ui/assets/photos/portrait_deep_03",
         "woman": "docs/ui/assets/photos/portrait_medium_02", "smile": "docs/ui/assets/photos/portrait_deep_02",

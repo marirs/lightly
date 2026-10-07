@@ -71,10 +71,6 @@ struct EditorScreen: View {
                 }
                 overlays(layout)
             }
-            // M2 (match the approved screen): tablets start the top bar 24 pt below the top edge
-            // (`DEVICES.safe.top` of the iPad Pro profiles), where iPadOS 26 reserves 32 pt; the status bar's
-            // own content sits within its first 24 pt. Phones keep the system safe area, as approved.
-            .padding(.top, layout.mode == .below ? 0 : EditorLayout.approvedTabletTopInset - geometry.safeAreaInsets.top)
         }
         .background(ApprovedColor.background.resolved(colorScheme).ignoresSafeArea())
         #if DEBUG
