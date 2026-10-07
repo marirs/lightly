@@ -174,6 +174,10 @@ class EditorViewModel(
             val restored = savedState.get<String>(KEY_SESSION)?.let { json -> runCatching { SavedEdits.decodeEditSession(json) }.getOrNull() }
                 ?.takeIf { it.current.source.assetId == assetId }
             loadPhoto(assetId, restored)
+        } else {
+            // No editor session to restore (a fresh start, or the task was removed): a copy of an earlier edit's original
+            // left on disk belongs to no edit any more.
+            env.photoLoader.releaseEditingCopy()
         }
         addCloseable { scheduler?.close() }
     }
@@ -218,7 +222,7 @@ class EditorViewModel(
         state.value = EditorUiState(phase = EditorPhase.Loading)
         loadJob = scope.launch {
             val loaded = try {
-                env.photoLoader.loadForEditing(assetId)
+                env.photoLoader.loadForEditing(assetId, recovering = restoredSession != null)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (accessLost: PhotoAccessLostException) {

@@ -74,7 +74,10 @@ class ContentResolverPhotoLoaderTest {
         val kept = runBlocking { keeping.copyOriginal(Uri.fromFile(photo)) }
         kotlin.test.assertTrue(photo.delete())
         kotlin.test.assertContentEquals(bytes, kept!!.readBytes())
+        kotlin.test.assertEquals(kept, keeping.keptCopyFor(Uri.fromFile(photo).toString()), "recovery finds the copy of this photo")
+        kotlin.test.assertNull(keeping.keptCopyFor("content://media/other/1"), "never offered for another photo")
         keeping.releaseEditingCopy()
         kotlin.test.assertFalse(copy.exists(), "leaving the editor removes the copy")
+        kotlin.test.assertNull(keeping.keptCopyFor(Uri.fromFile(photo).toString()))
     }
 }

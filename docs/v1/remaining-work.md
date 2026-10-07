@@ -145,6 +145,11 @@ Closed as stale (evidence re-checked 2026-10-06):
   write show the approved alerts on both platforms, keep the edit, and Try again retries (iOS ForcedConditionsUITests;
   Android `--es lightly.debug.saveFails`). Photo deleted while being edited, then Save copy: iOS saved from its session's
   copy; Android failed every save ("Couldn't save the copy") and now saves from a private copy of the original (5490108).
+  Android copy lifecycle, spare emulator 2026-10-07: edit, photo deleted, process ended by the system in the background
+  (`am kill`), return through Recents → edit restored from the copy and Save copy saved; leaving the editor deletes the
+  copy; removing the task and starting again deletes a leftover copy. Not tested: return from the home-screen icon (the
+  script's task was started by an explicit intent, so the icon opened a new session). The copy is in
+  `noBackupFilesDir` (excluded from backup and device transfer; the app also sets allowBackup="false").
   Still unit-tested only: model unavailable mid-session.
 - iOS snapshot `SliceOneSnapshotTests/testFavourites`: implementation baseline updated 2026-10-07 (approved references
   untouched). Every difference from the 3 Oct baseline traces to the two authorised changes, checked region by region:

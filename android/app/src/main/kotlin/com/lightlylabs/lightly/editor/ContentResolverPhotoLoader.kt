@@ -39,14 +39,31 @@ class ContentResolverPhotoLoader(
      * being edited no longer fails every Save copy ("Couldn't save the copy", whose Try again could never succeed); iOS
      * keeps the original's bytes in its session the same way. If the copy cannot be made, the photo is read as before.
      */
-    override suspend fun loadForEditing(assetId: String): LoadedPhoto = loadFrom(assetId, keepCopy = true)
+    override suspend fun loadForEditing(assetId: String, recovering: Boolean): LoadedPhoto {
+        // Session recovery after the process was ended: the copy made when the photo was opened is still the edited
+        // photo's original, and the photo itself may be gone by now, so the copy is read, not the URI.
+        if (recovering) keptCopyFor(assetId)?.let { kept -> return decodeAll(Uri.parse(assetId), kept, fromCopyOnly = true) }
+        return loadFrom(assetId, keepCopy = true)
+    }
 
-    override fun releaseEditingCopy() { editingCopy?.delete() }
+    override fun releaseEditingCopy() {
+        editingCopy?.delete()
+        editingCopy?.let(::ownerFile)?.delete()
+    }
+
+    /** The kept copy when it was made for [assetId] (its owner file names the photo), else null. */
+    internal fun keptCopyFor(assetId: String): java.io.File? {
+        val copy = editingCopy?.takeIf { it.isFile } ?: return null
+        val owner = ownerFile(copy).takeIf { it.isFile }?.readText() ?: return null
+        return copy.takeIf { owner == assetId }
+    }
+
+    private fun ownerFile(copy: java.io.File) = java.io.File(copy.parentFile, copy.name + ".asset")
 
     private suspend fun loadFrom(assetId: String, keepCopy: Boolean): LoadedPhoto = try {
         val uri = Uri.parse(assetId)
         val copy = if (keepCopy) copyOriginal(uri) else null
-        decodeAll(uri, copy)
+        decodeAll(uri, copy, fromCopyOnly = copy != null)
     } catch (failure: Exception) {
         // A restore after process death reads a URI whose grant may be gone (never persisted, or
         // revoked) or whose item was deleted. Report that distinctly so the editor can offer to
@@ -62,27 +79,35 @@ class ContentResolverPhotoLoader(
         try {
             target.parentFile?.mkdirs()
             resolver.openInputStream(uri)?.use { input -> partial.outputStream().use { input.copyTo(it) } } ?: return@withContext null
+            ownerFile(target).delete()
             if (!partial.renameTo(target)) { partial.delete(); return@withContext null }
+            ownerFile(target).writeText(uri.toString())
             target
         } catch (failure: IOException) {
-            partial.delete(); target.delete()
+            partial.delete(); target.delete(); ownerFile(target).delete()
             null
         }
     }
 
-    private suspend fun decodeAll(uri: Uri, copy: java.io.File? = null): LoadedPhoto = withContext(Dispatchers.IO) {
-        val analysis = decoder.decodeForAnalysis(ImageDecoder.createSource(resolver, uri))
-        val display = decoder.decodeForDisplay(ImageDecoder.createSource(resolver, uri), screenLongestPx)
-        val byteSize = if (uri.scheme == "file") {
+    /**
+     * [fromCopyOnly]: every read (decodes, size, fingerprint) comes from [copy], the same bytes as the photo, so the
+     * fingerprint matches the one recorded at the first open and a restore needs no access to the photo.
+     */
+    private suspend fun decodeAll(uri: Uri, copy: java.io.File? = null, fromCopyOnly: Boolean = false): LoadedPhoto = withContext(Dispatchers.IO) {
+        fun source(): ImageDecoder.Source = if (fromCopyOnly && copy != null) ImageDecoder.createSource(copy) else ImageDecoder.createSource(resolver, uri)
+        val analysis = decoder.decodeForAnalysis(source())
+        val display = decoder.decodeForDisplay(source(), screenLongestPx)
+        val byteSize = (if (fromCopyOnly && copy != null) copy.length().takeIf { it > 0 } else if (uri.scheme == "file") {
             if (!allowFileUris) throw IOException("Couldn't open this photo")
             uri.path?.let { java.io.File(it).length() }?.takeIf { it > 0 }
         } else {
             resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
             }
-        } ?: throw IOException("Couldn't open this photo")
-        val fingerprint = resolver.openInputStream(uri)?.use { stream ->
-            SourceFingerprints.compute(stream, byteSize, analysis.originalSize.width, analysis.originalSize.height)
+        }) ?: throw IOException("Couldn't open this photo")
+        val stream = if (fromCopyOnly && copy != null) copy.inputStream() else resolver.openInputStream(uri)
+        val fingerprint = stream?.use { input ->
+            SourceFingerprints.compute(input, byteSize, analysis.originalSize.width, analysis.originalSize.height)
         } ?: throw IOException("Couldn't open this photo")
         LoadedPhoto(
             // ImageDecoder already applied EXIF orientation, so the decoded frames are upright (1).

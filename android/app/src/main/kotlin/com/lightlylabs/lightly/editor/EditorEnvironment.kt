@@ -32,10 +32,13 @@ fun interface PhotoLoader {
      */
     suspend fun load(assetId: String): LoadedPhoto
 
-    /** The photo opened for editing: as [load], and the loader may keep a private copy of its original for Save copy. */
-    suspend fun loadForEditing(assetId: String): LoadedPhoto = load(assetId)
+    /**
+     * The photo opened for editing: as [load], and the loader may keep a private copy of its original for Save copy.
+     * [recovering]: a session restored after the process was ended; the copy kept for this photo, if any, is used.
+     */
+    suspend fun loadForEditing(assetId: String, recovering: Boolean = false): LoadedPhoto = load(assetId)
 
-    /** The editor was left: the copy kept by [loadForEditing], if any, is removed. */
+    /** The edit is over (left, discarded, or no session to restore at start): the kept copy, if any, is removed. */
     fun releaseEditingCopy() {}
 }
 

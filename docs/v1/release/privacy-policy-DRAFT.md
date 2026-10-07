@@ -79,13 +79,14 @@ Lightly stores the following only on your device. Nothing is sent to us.
   - It is deleted when you save a copy, discard the edit, close the photo or open another one.
   - It is excluded from iCloud and device backups, and protected by your device's encryption until you first unlock the device after a restart.
 - *Android:*
-  - Contents: your edit history, kept by Android for Lightly while the app is in your recent apps; and the fills made by Remove, kept in Lightly's private storage.
-  - Lightly doesn't copy the photo. It keeps permission to read it (see "Photos you choose").
-  - Both are cleared when you discard the edit or open another photo.
+  - Contents: your edit history, kept by Android for Lightly while the app is in your recent apps; the fills made by Remove; and a copy of the photo being edited, so a saved copy and a restored edit still work if the photo is deleted or moved meanwhile. The fills and the photo copy are kept in Lightly's private storage.
+  - The photo copy is kept while the photo is open in Lightly, including after the system closes Lightly, so the edit can be restored.
+  - They are deleted when you discard the edit, leave the editor, or open another photo, and the next time Lightly starts without an edit to restore (for example after you remove it from your recent apps).
+  - Lightly also keeps permission to read the photo (see "Photos you choose").
 
 **Backups.**
 - *iPhone and iPad:* your preferences, signatures and logos may be included in your iCloud or computer backup, like other app data. The restore record is not.
-- *Android:* Lightly opts out of Android's cloud backup. [DECISION: Android can still copy app data during a device-to-device transfer unless the app excludes it. Either exclude signatures and logos (engineering), or keep this sentence: "If you move to a new phone with a device-to-device transfer, your Lightly settings, signatures and logos may move with it."]
+- *Android:* Lightly opts out of Android's cloud backup. The copy of the photo being edited is kept where Android excludes it from both backups and device-to-device transfers. [DECISION: Android can still copy app data during a device-to-device transfer unless the app excludes it. Either exclude signatures and logos (engineering), or keep this sentence: "If you move to a new phone with a device-to-device transfer, your Lightly settings, signatures and logos may move with it."]
 
 Deleting Lightly removes everything it stored.
 

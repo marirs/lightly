@@ -68,13 +68,23 @@ class EditorViewModelTest {
         val favourites = Favourites()
         val released = mutableListOf<String>()
         val full = mutableMapOf<String, Rgba8Image>()
+        /** loadForEditing calls as (asset, recovering), and how often the kept copy was released (A11 copy lifecycle). */
+        val editingLoads = mutableListOf<Pair<String, Boolean>>()
+        var copyReleases = 0
 
         fun env(o: EditorViewModelTest) = EditorEnvironment(
-            photoLoader = PhotoLoader { asset ->
-                delay(loadDelays[asset] ?: 0)
-                val fingerprint = SourceFingerprint("ab".repeat(32), 1000, 96, 64)
-                val fullImage = o.image(96, 64, asset.hashCode()).also { full[asset] = it }
-                LoadedPhoto(SourceRef(asset, fingerprint, 1), o.image(24, 16, 1), o.image(48, 32, asset.hashCode()), FullResolutionSource { fullImage })
+            photoLoader = object : PhotoLoader {
+                override suspend fun load(assetId: String): LoadedPhoto {
+                    delay(loadDelays[assetId] ?: 0)
+                    val fingerprint = SourceFingerprint("ab".repeat(32), 1000, 96, 64)
+                    val fullImage = o.image(96, 64, assetId.hashCode()).also { full[assetId] = it }
+                    return LoadedPhoto(SourceRef(assetId, fingerprint, 1), o.image(24, 16, 1), o.image(48, 32, assetId.hashCode()), FullResolutionSource { fullImage })
+                }
+                override suspend fun loadForEditing(assetId: String, recovering: Boolean): LoadedPhoto {
+                    editingLoads += assetId to recovering
+                    return load(assetId)
+                }
+                override fun releaseEditingCopy() { copyReleases++ }
             },
             photoAccess = object : PhotoAccessGrants {
                 override fun retain(assetId: String) = true
@@ -156,6 +166,28 @@ class EditorViewModelTest {
         assertEquals(0, analysed)
         assertEquals(AutoState.APPLIED, vm.uiState.value.auto)
         assertFalse(vm.uiState.value.preview!!.pixels.contentEquals(vm.uiState.value.original!!.pixels))
+    }
+
+    @Test
+    fun `the copy of the edited photo is kept across recovery and released only when the edit ends`() = runTest {
+        val saved = SavedStateHandle()
+        val first = Harness(this)
+        Dispatchers.setMain(first.dispatcher)
+        val opened = first.vm(this@EditorViewModelTest, saved)
+        assertEquals(1, first.copyReleases, "a start with no edit to restore releases a leftover copy")
+        opened.openPhoto("content://photo/1"); advanceUntilIdle()
+        assertEquals(listOf("content://photo/1" to false), first.editingLoads)
+        opened.onRulerRelease(37) // an edit, so the session is saved for recovery
+        advanceUntilIdle()
+        // The process ends and the session is restored: the kept copy is asked for, nothing is released.
+        val second = Harness(this)
+        val restored = second.vm(this@EditorViewModelTest, saved)
+        advanceUntilIdle()
+        assertEquals(listOf("content://photo/1" to true), second.editingLoads)
+        assertEquals(0, second.copyReleases)
+        // Discarding the edit ends it.
+        restored.discardAndLeave()
+        assertEquals(1, second.copyReleases)
     }
 
     @Test
