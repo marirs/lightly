@@ -14,7 +14,9 @@ Usage: hair_projection.py dev|fresh [projection|chroma]   (dev = pm02, pd03; fre
 Candidate 1 (projection) failed on the development photos (pm02 dark red 0.4 -> 15.8) and was not run on the fresh set.
 Candidate 2 (chroma, interior_chroma): the shipped alpha, foreground chromaticity from the interior in the soft band.
 Candidate 3 (interior, full interior colour) failed on the development photos (skin colour in the hair) and was not run
-on the fresh set. Candidate 4 (modnetmax, dev only so far): max(shipped alpha, MODNet alpha) where the shipped alpha is below 0.98.
+on the fresh set. Candidate 5 (projchroma, 2026-10-07): coverage and colour changed together: the projected alpha (candidate 1) with
+the interior-chroma foreground (candidate 2). Development photos first; the same P1-P4 bars on a new set if it passes.
+Candidate 4 (modnetmax, failed on development): max(shipped alpha, MODNet alpha) where the shipped alpha is below 0.98.
 Candidate 2 is the one attempted; its fresh run is decided by these conditions, fixed before the run
 (2026-10-07), over the 18 fresh cases (9 portraits x dark/light):
   P1 teal <= max(0.5 x shipped, 300 px) in at least 15 of 18 cases;
@@ -113,7 +115,7 @@ def evaluate(tag, src):
   for sc, hexc in (('dark', (0x1F, 0x23, 0x28)), ('light', (0xF4, 0xF1, 0xEC))):
     outs = {}
     for name, aw in (('shipped', a_ship), ('projected', a_ship if VARIANT in ('chroma', 'interior') else a_proj)):
-      outs[name] = composite(full, aw, I_w, hexc, chroma=(name == 'projected' and VARIANT in ('chroma', 'interior')))
+      outs[name] = composite(full, aw, I_w, hexc, chroma=(name == 'projected' and VARIANT in ('chroma', 'interior', 'projchroma')))
     a1, a2 = outs['shipped'][1], outs['projected'][1]
     band = head & (((a1 > 0.02) & (a1 < 0.98)) | ((a2 > 0.02) & (a2 < 0.98)))
     ring = head & (cv2.dilate(subject.astype(np.uint8), np.ones((61, 61))) > 0) & (a1 < 0.05) & (a2 < 0.05)

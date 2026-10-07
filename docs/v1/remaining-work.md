@@ -90,7 +90,10 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    0.7 → 4.4); more coverage carries more of the wall-contaminated foreground estimate
    (`portrait_edges/hair-modnetmax-dev.json`, `hair_projection.py dev modnetmax`). Next candidate must change the
    foreground estimate and the coverage together; any candidate that passes development needs a new validation set
-   (the fresh set was spent on candidate 2).
+   (the fresh set was spent on candidate 2). **Candidate 5 (projchroma: the projected alpha with the interior-chroma
+   foreground, both changed together) failed on the development photos:** teal fell (pm02 dark 31,998 → 1,139 px) but
+   red excess rose to 11.0 (pm02 dark, shipped 0.4) and 10.2 (pm02 light, 3.9), outside P2 (≤ shipped + 2.0 and ≤ 7.5)
+   (`portrait_edges/hair-projchroma-dev.json`). Not run further; criteria unchanged.
 2. **Object cut-out (U²-Netp, in 1.0 scope):** halo reduced, not fixed. **No-subject rule not solved.** Area alone fails
    (held-out 4/9, independent 10/29). Area ≥ 2 % plus a depth step ≥ 0.1 along the mask edge (threshold read off those
    sets) on a **fresh labelled set** (105 PD12M photos, labels committed before the run, 3eed7b8;
@@ -236,7 +239,7 @@ Closed as stale (evidence re-checked 2026-10-06):
     same amount each cycle (48 MP open 141–154 MB, after Save copy 161–169, after a stroke 240–254); no growth. Peaks:
     Save copy 756–803 MB with or without fills (first in process 793); first Remove model load 540 MB, later loads
     325–362, a stroke with the model loaded 426–439; process peak 808 MB, reached in cycle 0 and not exceeded after.
-    **Absolute peak:** about 800 MB for a 48 MP Save copy (the source, the render and the encode buffers, about four
+    **Retained-memory investigation closed (no growth).** Still open: **absolute peak** about 800 MB for a 48 MP Save copy (the source, the render and the encode buffers, about four
     full frames of 192 MB). The app's memory limit on this phone was not measured; 800 MB is about 20 % of the
     phone's 4 GB. Not established on 3 GB or smaller devices (the iPhone SE 3rd generation has 4 GB; untested).
   - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:
