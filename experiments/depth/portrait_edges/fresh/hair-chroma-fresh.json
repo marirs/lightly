@@ -1,0 +1,200 @@
+[
+ {
+  "case": "portrait_deep_01-dark",
+  "band_px": 620689,
+  "projected_px": 22471,
+  "teal_shipped": 143,
+  "red_shipped": 5.2545637162871,
+  "haze_shipped": 1.0030034708839435,
+  "teal_projected": 195,
+  "red_projected": 3.5475965276239116,
+  "haze_projected": 1.0022164049662647
+ },
+ {
+  "case": "portrait_deep_01-light",
+  "band_px": 620689,
+  "projected_px": 22471,
+  "teal_shipped": 0,
+  "red_shipped": 6.252868021894966,
+  "haze_shipped": 2.29067918968303,
+  "teal_projected": 0,
+  "red_projected": 5.6425862471349895,
+  "haze_projected": 2.2890674047808512
+ },
+ {
+  "case": "portrait_deep_02-dark",
+  "band_px": 105452,
+  "projected_px": 11244,
+  "teal_shipped": 40,
+  "red_shipped": 14.453594084881694,
+  "haze_shipped": 1.1844548201862382,
+  "teal_projected": 1,
+  "red_projected": 16.124142634358414,
+  "haze_projected": 1.192742491090046
+ },
+ {
+  "case": "portrait_deep_02-light",
+  "band_px": 105452,
+  "projected_px": 11244,
+  "teal_shipped": 12,
+  "red_shipped": 12.262197600636512,
+  "haze_shipped": 0.8151855118669318,
+  "teal_projected": 0,
+  "red_projected": 13.335166569620878,
+  "haze_projected": 0.8139736117275249
+ },
+ {
+  "case": "portrait_light_01-dark",
+  "band_px": 223009,
+  "projected_px": 20130,
+  "teal_shipped": 15,
+  "red_shipped": 11.694560005518206,
+  "haze_shipped": 3.0302937183255416,
+  "teal_projected": 11,
+  "red_projected": 12.897303949981003,
+  "haze_projected": 3.0701300227591095
+ },
+ {
+  "case": "portrait_light_01-light",
+  "band_px": 223009,
+  "projected_px": 20130,
+  "teal_shipped": 0,
+  "red_shipped": 10.415396589332842,
+  "haze_shipped": 1.2984296340696886,
+  "teal_projected": 1,
+  "red_projected": 11.26745375194198,
+  "haze_projected": 1.2941149806597858
+ },
+ {
+  "case": "portrait_light_02-dark",
+  "band_px": 647970,
+  "projected_px": 19163,
+  "teal_shipped": 0,
+  "red_shipped": 8.622942440845243,
+  "haze_shipped": 5.369562684091,
+  "teal_projected": 0,
+  "red_projected": 15.017009467443126,
+  "haze_projected": 5.385105717921902
+ },
+ {
+  "case": "portrait_light_02-light",
+  "band_px": 647970,
+  "projected_px": 19163,
+  "teal_shipped": 0,
+  "red_shipped": 9.488508449332992,
+  "haze_shipped": 0.763689076206113,
+  "teal_projected": 0,
+  "red_projected": 13.728540343532373,
+  "haze_projected": 0.7642176636001672
+ },
+ {
+  "case": "portrait_medium_01-dark",
+  "band_px": 639104,
+  "projected_px": 33707,
+  "teal_shipped": 82006,
+  "red_shipped": 1.7102147037279292,
+  "haze_shipped": 1.2069452591081162,
+  "teal_projected": 59122,
+  "red_projected": 0.936098747965559,
+  "haze_projected": 1.1924235000970966
+ },
+ {
+  "case": "portrait_medium_01-light",
+  "band_px": 639104,
+  "projected_px": 33707,
+  "teal_shipped": 28895,
+  "red_shipped": 4.349321650128408,
+  "haze_shipped": 1.8965866463020522,
+  "teal_projected": 23332,
+  "red_projected": 4.226575303272748,
+  "haze_projected": 1.8989749306021029
+ },
+ {
+  "case": "backlit_01-dark",
+  "band_px": 97947,
+  "projected_px": 6332,
+  "teal_shipped": 6005,
+  "red_shipped": 18.401585088540642,
+  "haze_shipped": 0.5636680337577712,
+  "teal_projected": 4968,
+  "red_projected": 16.598850425373197,
+  "haze_projected": 0.5557279225848664
+ },
+ {
+  "case": "backlit_01-light",
+  "band_px": 97947,
+  "projected_px": 6332,
+  "teal_shipped": 50,
+  "red_shipped": 11.762500205959599,
+  "haze_shipped": 0.8389095688157016,
+  "teal_projected": 43,
+  "red_projected": 10.949881463719002,
+  "haze_projected": 0.8397243999189199
+ },
+ {
+  "case": "backlit_03-dark",
+  "band_px": 78445,
+  "projected_px": 8514,
+  "teal_shipped": 109,
+  "red_shipped": 23.102732777479595,
+  "haze_shipped": 0.46051234421717635,
+  "teal_projected": 178,
+  "red_projected": 11.397027127913068,
+  "haze_projected": 0.424436746201091
+ },
+ {
+  "case": "backlit_03-light",
+  "band_px": 78445,
+  "projected_px": 8514,
+  "teal_shipped": 0,
+  "red_shipped": 13.201816334815723,
+  "haze_shipped": 0.5800245730986625,
+  "teal_projected": 0,
+  "red_projected": 9.418364206036525,
+  "haze_projected": 0.5824517644055519
+ },
+ {
+  "case": "pd12m_6220a41d-dark",
+  "band_px": 129975,
+  "projected_px": 27083,
+  "teal_shipped": 0,
+  "red_shipped": 13.277289057465243,
+  "haze_shipped": 3.9443369719476027,
+  "teal_projected": 0,
+  "red_projected": 15.202322867226306,
+  "haze_projected": 3.9813136301514374
+ },
+ {
+  "case": "pd12m_6220a41d-light",
+  "band_px": 129975,
+  "projected_px": 27083,
+  "teal_shipped": 0,
+  "red_shipped": 11.694822451434076,
+  "haze_shipped": 0.7780941758767425,
+  "teal_projected": 0,
+  "red_projected": 13.328434253988416,
+  "haze_projected": 0.7734228063760721
+ },
+ {
+  "case": "pd12m_68ec5896-dark",
+  "band_px": 77600,
+  "projected_px": 8693,
+  "teal_shipped": 5249,
+  "red_shipped": 9.741918520890202,
+  "haze_shipped": 1.8982801649298635,
+  "teal_projected": 4760,
+  "red_projected": 7.56135688575107,
+  "haze_projected": 1.8645572765693228
+ },
+ {
+  "case": "pd12m_68ec5896-light",
+  "band_px": 77600,
+  "projected_px": 8693,
+  "teal_shipped": 672,
+  "red_shipped": 9.867702370792985,
+  "haze_shipped": 0.4594773669211855,
+  "teal_projected": 99,
+  "red_projected": 8.837429462798983,
+  "haze_projected": 0.4635471092324084
+ }
+]
