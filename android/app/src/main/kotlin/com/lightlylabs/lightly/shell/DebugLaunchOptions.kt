@@ -16,7 +16,7 @@ import com.lightlylabs.lightly.prefs.PreferencesStore
 /**
  * Debug builds only: opens a given slice-1 screen directly, so the scripted emulator comparison can
  * capture every screen without tapping through. Release builds ignore the extras entirely
- * (BuildConfig.DEBUG is a compile-time false there, so this is dead code R8 removes).
+ * (BuildConfig.DIAGNOSTICS is a compile-time false there, so this is dead code; true in debug and benchmark).
  *
  * ```
  * adb shell am start -n com.lightlylabs.lightly/.MainActivity \
@@ -68,7 +68,7 @@ object DebugLaunchOptions {
     }
 
     fun apply(intent: Intent?, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel): kotlinx.coroutines.Job? {
-        if (!BuildConfig.DEBUG || intent == null) return null
+        if (!BuildConfig.DIAGNOSTICS || intent == null) return null
         // D3 functional check: `--es lightly.debug.visionProbe <folder>` (see VisionProbe).
         intent.getStringExtra("lightly.debug.visionProbe")?.let { folder -> return com.lightlylabs.lightly.editor.VisionProbe.run(File(folder)) }
         return apply(Request.from(intent), shell, preferences, editor)
@@ -80,7 +80,7 @@ object DebugLaunchOptions {
      * for it before it waits for the render.
      */
     fun apply(request: Request, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel): kotlinx.coroutines.Job? {
-        if (!BuildConfig.DEBUG) return null
+        if (!BuildConfig.DIAGNOSTICS) return null
         // Watermark and Saved signature screens show the prototype's sample signature as saved.
         if (request.screen == "signature" || request.editor?.startsWith("wm-") == true || request.editor == "bd-polaroid") editor.debugSeedSignatures()
         val editorJob = applyEditor(request, shell, editor)

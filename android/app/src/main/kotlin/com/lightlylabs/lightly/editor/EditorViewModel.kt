@@ -1531,20 +1531,26 @@ class EditorViewModel(
     private fun startExport(loaded: LoadedPhoto, library: DevelopLibrary, committed: EditState): Boolean {
         val plan = planOf(library, committed)
         val backgroundPlan = backgroundSession.planFor(committed.tools.background, { plan }, env.previewRenderer, maxBlurFraction(committed), exportCap)
-        val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, backgroundPlan) else ExportRenderPlan { frame ->
+        // planFor refills the replacement caches the export never reads; free them before the full frame is decoded.
+        backgroundSession.trimForExport()
+        // The plan's working-size replacement is read once, when the working background is made: the export then keeps
+        // only the full-size replacement it composites (4.5 MB less during the tiles, 13.5 MP stress).
+        val pendingBackgroundPlan = java.util.concurrent.atomic.AtomicReference(backgroundPlan)
+        val replacementFull = backgroundPlan?.replacementFull
+        val exportPlan = if (EditMapping.usesEditOrEffects(committed)) editExportPlan(committed, plan, pendingBackgroundPlan, replacementFull) else ExportRenderPlan { frame ->
             // One renderer and clarity base per frame; tiles read their apron from the full frame.
             val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
             val base = renderer.clarityBase(frame, plan)
             // Background: Focus & Blur once at the working resolution (K = 8, BackgroundSession.EXPORT_CAP), then
             // applied to each full-resolution tile as iOS LayeredStages does (BackgroundStage.applyRegion).
-            val background = backgroundPlan?.let { bp ->
+            val background = pendingBackgroundPlan.getAndSet(null)?.let { bp ->
                 val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, exportCap)
                 backgroundSession.working(renderer.render(BackgroundSession.resize(frame, ww, wh), plan), bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, exportCap)
             }
             fun renderRegion(source: Rgba8Image, region: PixelRect): Rgba8Image {
                 val developed = renderer.renderTile(source, region, plan, base)
                 return if (background == null) developed else Rgba8Image(region.width, region.height,
-                    com.lightlylabs.lightly.background.BackgroundStage.applyRegion(developed.pixels, region.x, region.y, region.width, region.height, frame.width, frame.height, background, backgroundPlan.replacementFull))
+                    com.lightlylabs.lightly.background.BackgroundStage.applyRegion(developed.pixels, region.x, region.y, region.width, region.height, frame.width, frame.height, background, replacementFull))
             }
             // Stage 9: each changed face retouched once at full resolution (PortraitSession.exportPatches).
             val portraitPatches = if (portraitSession.isActive(committed.tools.portrait)) portraitSession.exportPatches(committed.tools.portrait, frame.width, frame.height) { region -> renderRegion(frame, region) } else emptyList()
@@ -1560,13 +1566,20 @@ class EditorViewModel(
     }
 
     /** Save copy of a recipe with Edit or Effects (EditPipeline): the same stages as its preview, at full resolution. */
-    private fun editExportPlan(committed: EditState, plan: com.lightlylabs.lightly.develop.DevelopRenderPlan, backgroundPlan: com.lightlylabs.lightly.background.BackgroundPlan?): ExportRenderPlan {
+    private fun editExportPlan(
+        committed: EditState,
+        plan: com.lightlylabs.lightly.develop.DevelopRenderPlan,
+        /** Taken (set to null) when the working background is made; see [startExport]. */
+        pendingBackgroundPlan: java.util.concurrent.atomic.AtomicReference<com.lightlylabs.lightly.background.BackgroundPlan?>,
+        replacementFull: com.lightlylabs.lightly.background.ReplacementPixels?,
+    ): ExportRenderPlan {
         val library = library ?: error("no library")
         val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
         val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library))
         val patches = EditMapping.patchDigests(committed).mapNotNull { removePatches[it] }
-        val background = backgroundPlan?.let { bp ->
+        val background = if (pendingBackgroundPlan.get() == null) null else {
             { frame: Rgba8Image ->
+                val bp = checkNotNull(pendingBackgroundPlan.getAndSet(null)) { "the export's Background is prepared once" }
                 // Focus & Blur once at the working resolution (K = 8) from Develop + Adjust, then applied to each
                 // full-resolution source region as iOS LayeredStages does.
                 val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, exportCap)
@@ -1574,7 +1587,7 @@ class EditorViewModel(
                 val adjusted = com.lightlylabs.lightly.develop.AdjustStage.plan(EditMapping.adjust(committed), library.model)?.let { renderer.render(developed, it) } ?: developed
                 val working = backgroundSession.working(adjusted, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, exportCap)
                 val compose: (ByteArray, PixelRect, Int, Int) -> ByteArray = { pixels, region, fw, fh ->
-                    com.lightlylabs.lightly.background.BackgroundStage.applyRegion(pixels, region.x, region.y, region.width, region.height, fw, fh, working, bp.replacementFull)
+                    com.lightlylabs.lightly.background.BackgroundStage.applyRegion(pixels, region.x, region.y, region.width, region.height, fw, fh, working, replacementFull)
                 }
                 compose
             }
@@ -1940,7 +1953,7 @@ class EditorViewModel(
 
     /**
      * Applies a capture state once the session is Ready. Debug builds only: release builds never call
-     * it (DebugLaunchOptions is gated on BuildConfig.DEBUG).
+     * it (DebugLaunchOptions is gated on BuildConfig.DIAGNOSTICS).
      */
     internal fun applyDebugState(apply: (DebugEditorApi) -> Unit): Job =
         scope.launch {

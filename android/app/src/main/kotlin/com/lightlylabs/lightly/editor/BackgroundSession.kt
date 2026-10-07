@@ -208,8 +208,20 @@ class BackgroundSession(private val env: EditorEnvironment) {
         synchronized(replacementPlanes) { replacementPlanes[asset] = image }
     }
 
-    /** Before Save copy: the working-size analysis is rebuilt at the export size anyway; free it for the export. */
-    fun trimForExport() { workingAnalyses.clear() }
+    /**
+     * Before Save copy, after its plan is built: frees what the export never reads (13.5 MP stress heap dump,
+     * 2026-10-07: 22 MB at the start of Save copy). The working-size analyses are rebuilt at the export size anyway;
+     * the export's plan already holds the graded replacement it composites, so the positioned (ungraded) copies and the
+     * decoded replacement photo are only for later previews, which rebuild them once (an evicted photo is reloaded
+     * from its reference, as [replacementPlanesFor] does after LRU eviction); the cached foreground shift belongs to
+     * a preview frame. Called again by every export start, so a cancelled export leaves nothing behind either.
+     */
+    fun trimForExport() {
+        workingAnalyses.clear()
+        positionedReplacements.clear()
+        synchronized(replacementPlanes) { replacementPlanes.clear() }
+        BackgroundStage.releaseCachedShift()
+    }
 
     /** The recipe's derived references for what the analysis produced (digest of the map's float bytes). */
     fun withDerivedRefs(tool: BackgroundTool): BackgroundTool {

@@ -103,11 +103,15 @@ class LookPack(
          */
         fun parse(json: String, model: DevelopModel, displayNames: Map<String, String> = emptyMap()): LookPack {
             val scanner = JsonScanner(json)
+            // Memory (completion plan A1 step 4, 2026-10-07): the presets keep the manifest as UTF-8 bytes, not the
+            // parsed String. The manifest has non-Latin-1 characters, so ART stores the String as UTF-16: 12.3 MB held
+            // for the whole session (13.5 MP stress heap dump), half of that as UTF-8.
+            val utf8 = Utf8Text(json)
             val header = mutableMapOf<String, JsonElement>()
             val categories = mutableListOf<LookCategory>()
             scanner.objectFields { key ->
                 if (key == "categories") {
-                    scanner.arrayItems { categories += scanCategory(scanner, json, displayNames) }
+                    scanner.arrayItems { categories += scanCategory(scanner, utf8, displayNames) }
                 } else {
                     header[key] = scanner.valueElement()
                 }
@@ -131,7 +135,7 @@ class LookPack(
             }
         }
 
-        private fun scanCategory(scanner: JsonScanner, json: String, displayNames: Map<String, String>): LookCategory {
+        private fun scanCategory(scanner: JsonScanner, utf8: Utf8Text, displayNames: Map<String, String>): LookCategory {
             var id: String? = null
             var name: String? = null
             val pending = mutableListOf<(String) -> LookPreset>()
@@ -139,7 +143,7 @@ class LookPack(
                 when (key) {
                     "id" -> id = scanner.string()
                     "name" -> name = scanner.string()
-                    "presets" -> scanner.arrayItems { pending += scanPreset(scanner, json, displayNames) }
+                    "presets" -> scanner.arrayItems { pending += scanPreset(scanner, utf8, displayNames) }
                     else -> scanner.skipValue()
                 }
             }
@@ -148,8 +152,8 @@ class LookPack(
         }
 
         /** Reads the display fields of one preset entry and remembers its text range. */
-        private fun scanPreset(scanner: JsonScanner, json: String, displayNames: Map<String, String>): (String) -> LookPreset {
-            val start = scanner.position
+        private fun scanPreset(scanner: JsonScanner, utf8: Utf8Text, displayNames: Map<String, String>): (String) -> LookPreset {
+            val start = utf8.byteOffset(scanner.position)
             var id: String? = null
             var displayName: String? = null
             var stop = -1
@@ -181,7 +185,7 @@ class LookPack(
                     else -> scanner.skipValue()
                 }
             }
-            val end = scanner.position
+            val end = utf8.byteOffset(scanner.position)
             val presetId = requireNotNull(id) { "preset without id" }
             require(recipeVersion == RECIPE_VERSION) { "Preset $presetId recipeVersion $recipeVersion" }
             require(hasRecipe) { "Preset $presetId has no recipe" }
@@ -191,11 +195,47 @@ class LookPack(
             val complete = requireNotNull(completeness) { "Preset $presetId has no completeness" }
             val hasGrain = requireNotNull(grain) { "Preset $presetId has no effects" }
             val hasVignette = vignette!!
+            // Captured by the preset instead of [utf8], which also holds the String.
+            val manifestBytes = utf8.bytes
             return { categoryId ->
-                LookPreset(presetId, name, categoryId, stop, version, recipeVersion, complete, hasGrain, hasVignette) { json.substring(start, end) }
+                LookPreset(presetId, name, categoryId, stop, version, recipeVersion, complete, hasGrain, hasVignette) { manifestBytes.decode(start, end) }
             }
         }
     }
+}
+
+/**
+ * The manifest's UTF-16 positions (the [JsonScanner]'s) converted to offsets into its UTF-8 bytes ([bytes]), used only
+ * while the manifest is indexed. Positions must be asked for in increasing order (the scanner's order): one pass over
+ * the text in total. Every position asked for is at a JSON structural character, never inside a surrogate pair, so a
+ * byte range decodes to exactly the substring between the two positions. The presets keep [bytes] (as [Utf8Bytes]),
+ * never this object, so the String is released once the manifest is indexed.
+ */
+internal class Utf8Text(private val text: String) {
+    val bytes = Utf8Bytes(text.toByteArray(Charsets.UTF_8))
+    private var charIndex = 0
+    private var byteIndex = 0
+
+    fun byteOffset(position: Int): Int {
+        require(position >= charIndex) { "positions must increase" }
+        while (charIndex < position) {
+            val code = text[charIndex].code
+            // A surrogate pair is 4 bytes in UTF-8: 2 for each of its two UTF-16 units.
+            byteIndex += when {
+                code < 0x80 -> 1
+                code < 0x800 -> 2
+                Character.isSurrogate(text[charIndex]) -> 2
+                else -> 3
+            }
+            charIndex++
+        }
+        return byteIndex
+    }
+}
+
+/** The manifest as UTF-8 bytes, shared by every preset: [decode] returns one entry's text by its byte range. */
+internal class Utf8Bytes(private val bytes: ByteArray) {
+    fun decode(start: Int, end: Int): String = String(bytes, start, end - start, Charsets.UTF_8)
 }
 
 /**

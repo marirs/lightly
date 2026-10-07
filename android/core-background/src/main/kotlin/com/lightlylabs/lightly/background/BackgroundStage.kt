@@ -245,6 +245,13 @@ object BackgroundStage {
 
     private data class ShiftKey(val width: Int, val height: Int, val developed: Int, val matte: Int)
     private var lastShift: Pair<ShiftKey, FloatImage>? = null
+
+    /**
+     * Drops the cached foreground shift (Save copy, 2026-10-07): Save copy develops its working frame from the full
+     * decode, so the cached entry (a preview's, often a drag frame's) can never match it and only occupies the heap
+     * next to the export's buffers.
+     */
+    fun releaseCachedShift() { synchronized(this) { lastShift = null } }
     /** How many foreground estimates ran (tests). */
     @Volatile internal var foregroundEstimates = 0
 

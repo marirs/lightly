@@ -12,6 +12,14 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+/**
+ * Build types that carry the development assets and the scripted diagnostics: "debug", and "benchmark" (2026-10-07,
+ * completion plan A1), which is debug's content compiled and run like release (not debuggable, so ART optimises as it
+ * does for the shipped app; profileable from the shell for simpleperf). Every Android drag-frame timing before this was
+ * measured on the debuggable APK, which ART runs without its optimisations.
+ */
+fun isInternalBuild(buildType: String) = buildType == "debug" || buildType == "benchmark"
+
 // --- Depth model release gate -----------------------------------------------------------------
 //
 // "pending legal sign-off (training data)": Depth Anything V2 Small (Apache-2.0 weights,
@@ -23,7 +31,7 @@ val depthModelFile: File = (findProperty("lightlyDepthModelFile") as String?)?.l
     ?: rootDir.parentFile.resolve("experiments/depth/models/converted/da2_small_518x392_wi8.tflite")
 val depthModelSha256 = "8e719085ce210eb4fb8e737ae9bca4f25e4e35b3aeafb80c468c3ff6c4eb8078"
 val depthLegalSignOff = (findProperty("lightlyDepthLegalSignOff") as String?) == "true"
-fun depthModelEnabled(buildType: String) = depthModelFile.isFile && (buildType == "debug" || depthLegalSignOff)
+fun depthModelEnabled(buildType: String) = depthModelFile.isFile && (isInternalBuild(buildType) || depthLegalSignOff)
 
 // --- Remove model release gate ----------------------------------------------------------------
 //
@@ -38,7 +46,7 @@ val removeModelFile: File = (findProperty("lightlyRemoveModelFile") as String?)?
     ?: rootDir.parentFile.resolve("experiments/inpaint/models/exported/lama_512_fp32.tflite")
 val removeModelSha256 = "39fa82d6a2b576de99b30481c85d73d48955f126deb7bea8504e58b15b43ca0e"
 val removeLegalSignOff = (findProperty("lightlyRemoveLegalSignOff") as String?) == "true"
-fun removeModelEnabled(buildType: String) = removeModelFile.isFile && (buildType == "debug" || removeLegalSignOff)
+fun removeModelEnabled(buildType: String) = removeModelFile.isFile && (isInternalBuild(buildType) || removeLegalSignOff)
 
 // --- Vision models (faces, landmarks, people, person matte) ---------------------------------------
 //
@@ -81,7 +89,7 @@ val optionalVisionModels = mapOf(
 )
 val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) == "true"
 fun visionModelsEnabled(buildType: String) =
-    visionModels.values.all { visionModelsDirectory.resolve(it[0]).isFile } && (buildType == "debug" || visionModelsRelease)
+    visionModels.values.all { visionModelsDirectory.resolve(it[0]).isFile } && (isInternalBuild(buildType) || visionModelsRelease)
 
 /** Marketing version and build number shared with iOS (version.properties, scripts/version.sh). */
 /** "1.0.0", or "1.0.0-dev" when ios/, android/ or shared/ has uncommitted changes (scripts/version.sh decides both). */
@@ -118,13 +126,27 @@ android {
             buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("debug").toString())
             buildConfigField("boolean", "REMOVE_MODEL_ENABLED", removeModelEnabled("debug").toString())
             buildConfigField("boolean", "VISION_MODELS_ENABLED", visionModelsEnabled("debug").toString())
+            // Scripted launch scenarios, capture hook and diagnostic logs (DebugLaunchOptions); never in release.
+            buildConfigField("boolean", "DIAGNOSTICS", "true")
+        }
+        create("benchmark") {
+            initWith(getByName("debug"))
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            // The library modules have only debug and release: link their release (optimised) variants.
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "DIAGNOSTICS", "true")
         }
         getByName("release") {
             buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("release").toString())
             buildConfigField("boolean", "REMOVE_MODEL_ENABLED", removeModelEnabled("release").toString())
             buildConfigField("boolean", "VISION_MODELS_ENABLED", visionModelsEnabled("release").toString())
+            buildConfigField("boolean", "DIAGNOSTICS", "false")
         }
     }
+
+    // The benchmark build uses debug's capture hook (src/debug) and adds <profileable> (src/benchmark).
+    sourceSets.getByName("benchmark").kotlin.srcDir("src/debug/kotlin")
 
     // The depth and Remove models are memory-mapped from the APK, which needs them stored uncompressed.
     androidResources { noCompress += "tflite" }
@@ -629,7 +651,7 @@ androidComponents {
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleCatalogue, BundlePresetCatalogueTask::assetsDirectory)
 
-        if (variant.buildType == "debug") {
+        if (isInternalBuild(variant.buildType ?: "")) {
             val bundleBackgrounds = tasks.register<BundleBackgroundPhotosTask>("bundle${variantName}BackgroundPhotos") {
                 val folder = rootDir.parentFile.resolve("docs/ui/assets/photos")
                 photos.from(backgroundPhotoNames.flatMap { listOf(folder.resolve("$it.jpg"), folder.resolve("${it}_thumb.jpg")) })

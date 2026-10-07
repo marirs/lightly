@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
         val metrics = WindowInfoTracker.getOrCreate(this).windowLayoutInfo(this)
         val folds = metrics.map { info ->
             // Debug builds log what WindowManager reports, for the fold/hinge comparison runs.
-            if (BuildConfig.DEBUG) Log.d(LOG_TAG, "display features: ${info.displayFeatures}")
+            if (BuildConfig.DIAGNOSTICS) Log.d(LOG_TAG, "display features: ${info.displayFeatures}")
             info.displayFeatures.filterIsInstance<FoldingFeature>()
         }
         // Same owner and default keys as `viewModel()` would use, so these survive recreation.
@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
         // Debug builds only (the release source set's hook does nothing): the persistent capture runner,
         // and the same render-complete signal for a per-launch capture.
         // Called on recreation too, so a running capture runner binds to the new Activity.
-        if (BuildConfig.DEBUG) com.lightlylabs.lightly.capture.CaptureRunnerHook.attach(this, intent, graph.preferences, launchScenario)
+        if (BuildConfig.DIAGNOSTICS) com.lightlylabs.lightly.capture.CaptureRunnerHook.attach(this, intent, graph.preferences, launchScenario)
 
         setContent {
           val viewModels = active ?: return@setContent

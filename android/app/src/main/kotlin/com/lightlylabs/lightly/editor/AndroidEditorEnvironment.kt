@@ -80,13 +80,18 @@ object AndroidEditorEnvironment {
                     runCatching { app.assets.open(com.lightlylabs.lightly.develop.PresetDisplayNames.ASSET_PATH).use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()),
             )
         }
-        val exportTileEdge = 1024
+        // Memory (completion plan A1, 2026-10-07): 512 px, was 1024. A tile's working buffers (three Oklab float planes
+        // with the apron, clarity and sharpening planes, the developed and composited tiles) were ~40 MB of
+        // short-lived large objects per 1024² tile on top of the full-resolution source, and Save copy of a 13.5 MP
+        // Background edit left under 40 MB of the 192 MB heap free. Tiles are exact at any edge (apron + the whole
+        // frame's clarity base), so the saved pixels do not change; the cost is the larger share of apron per tile.
+        val exportTileEdge = 512
         // Debug builds log the full-resolution RGBA allocation (bytes, thread, Java heap, call site).
-        if (BuildConfig.DEBUG) ProxyDecoder.allocationTrace = { line -> Log.i("LightlyAlloc", line) }
+        if (BuildConfig.DIAGNOSTICS) ProxyDecoder.allocationTrace = { line -> Log.i("LightlyAlloc", line) }
         // Loaded on first use (the first photo's people analysis), never at app start.
         val vision = LiteRtVisionModels.get(app, BuildConfig.VISION_MODELS_ENABLED)
         return EditorEnvironment(
-            photoLoader = ContentResolverPhotoLoader(resolver, ProxyDecoder(), minOf(screenLongestPx, PREVIEW_LONG_EDGE_PX), allowFileUris = BuildConfig.DEBUG),
+            photoLoader = ContentResolverPhotoLoader(resolver, ProxyDecoder(), minOf(screenLongestPx, PREVIEW_LONG_EDGE_PX), allowFileUris = BuildConfig.DIAGNOSTICS),
             photoAccess = ContentResolverPhotoAccessGrants(resolver),
             // Auto (2026-10-06): Lightly's own analysis (AutoAnalysis), no model; runs in every build, Release included.
             autoDeveloper = AutoDeveloper { _, analysis, faces ->
@@ -128,9 +133,9 @@ object AndroidEditorEnvironment {
                 maxTileEdge = exportTileEdge,
             ),
             favourites = favourites,
-            debugBuild = BuildConfig.DEBUG,
+            debugBuild = BuildConfig.DIAGNOSTICS,
             debugExportCapOverride = {
-                if (!BuildConfig.DEBUG) null
+                if (!BuildConfig.DIAGNOSTICS) null
                 else java.io.File(app.filesDir, "debug-export-cap.txt").takeIf { it.isFile }?.readText()?.trim()?.toIntOrNull()
             },
             exportTileEdge = exportTileEdge,
