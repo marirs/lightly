@@ -13,7 +13,7 @@ evidence. "Reply with the numbers you approve" is enough.
 ### Blocks submitting the iOS app
 | # | Question | Recommendation | Effect if approved |
 |---|---|---|---|
-| 1 | **Preset rights.** All 2,591 presets come from purchased packs (SolutionPresets, Huliluts, WithLuke) with no redistribution licence on file; some names use Kodak, Portra, Polaroid (`release/dependencies.md` §9). | Get written redistribution permission from the three vendors, or tell me which packs you hold rights to; rename the trademark names (D3 proposal). | Develop ships its full catalogue legally. Without it, the catalogue cannot ship and Develop has no presets: that is a scope question for you, not something I will change. |
+| 1 | **Preset rights.** All 2,591 presets come from purchased packs (SolutionPresets, Huliluts, WithLuke) with no redistribution licence or receipt on file; some names use Kodak, Portra, Polaroid. Pack-by-pack audit and draft enquiries: `release/preset-rights.md`. | Find the receipts; review and send the drafted enquiries; identify the "Huliluts" seller; rename the trademark names (D3 proposal). | Develop ships its full catalogue legally. Without it, the catalogue cannot ship and Develop has no presets: that is a scope question for you, not something I will change. |
 | 2 | **Remove and Focus & Blur models** (counsel). See §3 and `release/dependencies.md` "Model dependency path". | Send counsel the two questions as written there; in parallel, ask Bria for a quote on a licensed-data eraser (Remove) only if counsel declines LaMa. | Both features work in the shipping build (today they fail there: Remove on every stroke, Focus & Blur on photos without camera depth). |
 | 3 | **Legal facts** (`release/legal-proposals.md` §2): operator name and address, minimum age, price. | Supply them; I fill the store listing, Terms and support details. | The App Store record and Terms can be completed. |
 | 4 | **Bundled background photos** (decision sheet 1 §1). | Ship all four on both platforms, credited in Terms › Notices. | iOS unchanged; Android release gains the approved image swatches. |
@@ -25,6 +25,9 @@ evidence. "Reply with the numbers you approve" is enough.
 | 10 | **Distribution signing** (App Store export). | Allow it; the account changes it needs are listed in `release/app-store-listing.md` §Signing. | An App Store-signed build can be produced (nothing is uploaded or submitted). |
 | 11 | **Website privacy page** (local storage text). | Allow the commit and deploy listed in `release/app-store-listing.md` §Website. | The live policy matches the apps' text. |
 | 12 | **Restore after force-quit** (§4). | Keep the platform behaviour. | None (current behaviour). |
+| 13 | **"Estimating depth…"** (new, 2026-10-07): Focus & Blur's progress once the subject outline is done, and a no-subject blur waiting for depth, on both platforms. The approved screens have only "Finding the subject…", which is untrue at that point. | Approve "Estimating depth…" with Cancel, in the same notice and progress box. | Copy only; the layout is the approved one. |
+| 14 | **Hair edges (A4) and no-subject detection (A5).** | Stay open; not accepted by any review so far. | Change background quality on portraits; Android object cut-out. |
+| 15 | **Counsel** (`release/counsel-brief.md`): the four models, the presets, trademarks, store terms. | Send the brief. | Unblocks items 1–2 and A2. |
 
 ### Android only (does not block iOS)
 | # | Question | Recommendation | Effect if approved |

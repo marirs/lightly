@@ -15,10 +15,15 @@ once (16:33) and restored it from source 0a9b1285…; that rebound the history h
 
 **Measured 7 Oct, 261007059, 48 MP fixture, `--keep-stored-session` (stored edit unchanged, SHA-256 checked):**
 Develop Save copy 1.6 s (bytes 0.37 s, render 0.97 s, encode 0.24 s), peak footprint 840 MB; one Remove stroke done
-8 s after launch, peak footprint 533 MB. **Open device failure:** Background on the same photo (no camera depth):
-the Depth Anything model load did not finish in two runs (5 and 10 minutes; no "ready" or "unavailable" line; no
-crash or jetsam report). The phone may have auto-locked during the wait, which suspends the app, so this is not yet
-a diagnosis. First step of the session: `bg-focus` with the phone unlocked and watched. Evidence: `/Users/sg/.codex/artifacts/lightly/v1/iphone-memory/20261007-165953`.
+8 s after launch, peak footprint 533 MB. **Depth stall, diagnosed and fixed (b6813cc):** the depth model's first load after an install took 87.9 s on the
+Neural Engine; the app was suspended by the 30 s auto-lock during it, which froze the load. It now runs on CPU and GPU:
+first load 0.98 s, inference 0.9–1.0 s. Measured on 261007065–070 with the phone kept awake: landscape and portrait in
+Change background (no depth started; no-subject notice after under 1 s), portrait in Focus & Blur (ready about 2 s
+after opening), Cancel → reopen → retry, and a second photo opened while the first photo's depth was loading (ready
+in 507 ms; no Background work for it).
+**Repeated 48 MP operations (`--mem-cycles 3`):** idle 108–110 MB after every cycle, peak footprint 956 MB (Save copy
+after a Remove stroke; Save copy alone 694 MB), stored edit unchanged. Normal restoration of the stored edit after the
+system ends the app is not verified on the device (only the forced restore was run).
 
 **You (in this order):**
 1. Your restored edit is on screen: check it is the one you left (then keep editing it or not, as you like).

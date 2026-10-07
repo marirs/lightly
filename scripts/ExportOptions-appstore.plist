@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- App Store export of an archive from scripts/archive_ios.sh, written to a local folder (destination export:
-     nothing is uploaded). Needs the owner's approval first: with -allowProvisioningUpdates Xcode registers the explicit
-     App ID com.lightlylabs.lightly and creates its App Store profile, and may use or create a distribution certificate
+     nothing is uploaded). Needs the owner's approval first: with -allowProvisioningUpdates Xcode creates the App Store
+     profile for com.lightlylabs.lightly (registering the App ID only if the account does not have it yet; check first)
+     and uses the account's distribution certificate
      (docs/v1/release/app-store-listing.md, Signing).
      xcodebuild -exportArchive -archivePath <archive> -exportPath <dir> -exportOptionsPlist scripts/ExportOptions-appstore.plist -allowProvisioningUpdates -->
 <plist version="1.0">

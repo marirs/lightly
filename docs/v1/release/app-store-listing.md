@@ -106,15 +106,21 @@ Checked on this Mac, 2026-10-07:
 - Lightly's archives are signed with the wildcard development profile "iOS Team Provisioning Profile: *"
   (3UDFB78DLC.*); **no explicit App ID and no App Store profile exist for com.lightlylabs.lightly**.
 
-Account changes actually required for an App Store export:
-1. Register the explicit App ID `com.lightlylabs.lightly` (no extra capabilities: the app uses none).
-2. An App Store provisioning profile for it (Xcode creates "iOS Team Store Provisioning Profile: com.lightlylabs.lightly"
-   with `-allowProvisioningUpdates`).
-3. Distribution signing: Xcode's cloud-managed distribution signing (needs an Admin or Account Holder role; creates no
-   local key), **or** a new Apple Distribution certificate made on this Mac if the existing one is not cloud-managed.
-4. For upload later (not part of export): the App Store Connect app record (name, bundle ID, SKU, language).
-The export itself would be `xcodebuild -exportArchive` with method `app-store-connect` and `destination export`
-(write an .ipa locally; nothing uploaded).
+**App ID: registration not verified (2026-10-07).** Every Lightly build so far was signed with the wildcard
+development profile "iOS Team Provisioning Profile: *" (3UDFB78DLC.*), so the development installs neither prove nor
+disprove that `com.lightlylabs.lightly` is registered. This Mac has no App Store Connect API key and Claude in Chrome
+was not connected, so the account's Identifiers list could not be read. Check first in Certificates, Identifiers &
+Profiles › Identifiers (team 3UDFB78DLC): if `com.lightlylabs.lightly` is listed, use it; register it only if absent.
+
+Signing route once the App ID is confirmed (no certificate is revoked or duplicated):
+1. App Store profile for `com.lightlylabs.lightly`: Xcode creates it during the export with `-allowProvisioningUpdates`.
+2. Distribution signing: the account's existing Apple Distribution certificate (team 3UDFB78DLC, valid to 8 Jun 2027;
+   its key is not on this Mac). If it is Xcode-managed (cloud), the export uses it with no local key (Admin or Account
+   Holder role). If its key lives on another Mac, export there or import that key; a second distribution certificate
+   is a last resort and only with the owner's approval.
+3. For upload later (not part of export): the App Store Connect app record (name, bundle ID, SKU, language).
+The export itself: an archive export with `scripts/ExportOptions-appstore.plist` (method `app-store-connect`,
+destination `export`: an .ipa written locally; nothing uploaded).
 
 ## Website (prepared; commit and deploy not run; needs the owner's approval)
 - **Repository and target:** `/Users/sg/Documents/Dev/pub-sites/lightly` (git@github.com:marirs/pub-sites.git), deployed

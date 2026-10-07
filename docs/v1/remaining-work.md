@@ -215,6 +215,10 @@ Closed as stale (evidence re-checked 2026-10-06):
       model file mapped while it runs. Candidates, both needing a quality check before use: the fp16 LaMa conversion
       (half the file) and the GPU delegate. Phone figures (XNNPACK on) are pending.
     - Emulator figures only. 48 MP safety on Android is not established until measured on the dev phone.
+  - **iOS, iPhone 11 Pro Max, 48 MP (261007070, `--mem-cycles 3`):** per cycle Save copy, one Remove stroke, Save copy,
+    another photo, 5 s idle. Peak footprint 956 MB (Save copy while the Remove model is loaded); Save copy alone 694 MB;
+    after a stroke 309–320 MB (model kept for the next stroke); on the next photo 99–106 MB; idle 108–110 MB in every
+    cycle (no growth). Save copy 0.9–1.2 s; a stroke about 4 s. Remove now reads bands of the photo (7cfa473).
   - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:
     42.3 s, render 42.2 s). With Release compiler settings: 13.5 MP 4.6 s, 48 MP 18.9 s (render 17.7 s), and after
     the bit-identical blur change (dd606d5) 13.5 MP 2.5 s, 48 MP 9.2 s (render 8.3 s), saved at 8000×6000. Review
