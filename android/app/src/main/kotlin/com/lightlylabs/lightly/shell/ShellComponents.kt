@@ -254,7 +254,11 @@ fun <T> SegmentedControl(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     icons[value]?.let { LightlyIcon(it, size = 16.dp, tint = if (on) colors.ink else colors.ink2); Spacer(Modifier.size(4.dp)) }
-                    Text(label, style = lightlyTextStyle(14.sp, FontWeight.Medium, if (on) colors.ink else colors.ink2), maxLines = 1)
+                    // One line up to the approved large text (font scale 1.24); beyond it the label wraps, centred, instead of
+                    // being cut ("Change" for "Change background" at font scale 2.0; A11, 2026-10-07).
+                    val wraps = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.24f
+                    Text(label, style = lightlyTextStyle(14.sp, FontWeight.Medium, if (on) colors.ink else colors.ink2),
+                        maxLines = if (wraps) Int.MAX_VALUE else 1, textAlign = if (wraps) androidx.compose.ui.text.style.TextAlign.Center else null)
                 }
             }
         }

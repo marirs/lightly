@@ -13,6 +13,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -456,6 +457,11 @@ private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPane
 
 enum class DockKind { SCROLLS, FITS, RAIL }
 
+/** The approved large text (slice 1/2 captures: system font scale 1.24). */
+private const val APPROVED_LARGE_FONT_SCALE = 1.24f
+/** The reference's smallest gap between neighbouring dock labels at large text (iOS ToolNavigation: 11 pt). */
+private val LABEL_GAP_BEYOND_LARGE = 11.dp
+
 @Composable
 private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
     val colors = lightlyColors
@@ -473,12 +479,18 @@ private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
         EditorTool.WATERMARK -> recipe?.tools?.watermark?.type?.let { it != com.lightlylabs.lightly.session.WatermarkType.NONE } == true
         else -> false
     }
+    // Beyond the approved large text (font scale 1.24) the prototype has no layout: as on iOS (ToolNavigation), a slot
+    // widens to its label plus the reference's smallest gap between labels at large text, the dock scrolls (a fitting
+    // tablet dock too) and the rail is as wide as its widest label. At font scale 2.0 the 76 dp slots cut the labels
+    // ("Develo", "Backgr"; A11, 2026-10-07).
+    val widen = LocalDensity.current.fontScale > APPROVED_LARGE_FONT_SCALE
     val items: @Composable () -> Unit = {
-        ui.tools.forEach { tool -> ToolItem(tool, selected = tool == ui.tool, used = used(tool), rail = kind == DockKind.RAIL) { vm.selectTool(tool) } }
+        ui.tools.forEach { tool -> ToolItem(tool, selected = tool == ui.tool, used = used(tool), rail = kind == DockKind.RAIL, widen = widen) { vm.selectTool(tool) } }
     }
-    when (kind) {
+    when (if (widen && kind == DockKind.FITS) DockKind.SCROLLS else kind) {
         DockKind.RAIL -> Column(
-            Modifier.width(84.dp).fillMaxHeight().hairlineStart(colors.hair).semantics { contentDescription = "Tools" },
+            Modifier.then(if (widen) Modifier.width(IntrinsicSize.Max).widthIn(min = 84.dp) else Modifier.width(84.dp))
+                .fillMaxHeight().hairlineStart(colors.hair).semantics { contentDescription = "Tools" },
             verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         ) { items() }
         DockKind.FITS -> Row(
@@ -498,7 +510,7 @@ private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
 }
 
 @Composable
-private fun ToolItem(tool: EditorTool, selected: Boolean, used: Boolean, rail: Boolean, onClick: () -> Unit) {
+private fun ToolItem(tool: EditorTool, selected: Boolean, used: Boolean, rail: Boolean, widen: Boolean = false, onClick: () -> Unit) {
     val colors = lightlyColors
     val icon = when (tool) {
         EditorTool.DEVELOP -> LightlyIcons.Develop
@@ -511,7 +523,11 @@ private fun ToolItem(tool: EditorTool, selected: Boolean, used: Boolean, rail: B
     }
     Column(
         Modifier
-            .then(if (rail) Modifier.fillMaxWidth().heightIn(min = 62.dp) else Modifier.width(76.dp).heightIn(min = 56.dp))
+            .then(when {
+                rail -> Modifier.fillMaxWidth().heightIn(min = 62.dp).then(if (widen) Modifier.padding(horizontal = LABEL_GAP_BEYOND_LARGE / 2) else Modifier)
+                widen -> Modifier.widthIn(min = 76.dp).padding(horizontal = LABEL_GAP_BEYOND_LARGE / 2).heightIn(min = 56.dp)
+                else -> Modifier.width(76.dp).heightIn(min = 56.dp)
+            })
             .clickable(role = Role.Tab, onClick = onClick)
             // The used dot is spoken as "Edited" (as iOS).
             .semantics { this.selected = selected; if (used) stateDescription = "Edited" }
