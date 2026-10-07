@@ -104,7 +104,13 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    fresh set (in-sample, so optimistic) cannot separate it on area and depth step: all 12 subjects cost 8/82 false
    subjects, 11/12 cost 4/82, because the classes overlap (subject 72: step 0.006; subject-free 71: 0.194, 49: 0.135).
    A new rule needs other evidence than U²-Netp's mask area and the depth step, developed on the earlier sets and
-   validated on a new labelled set; the fresh set is spent. Not yet sized.
+   validated on a new labelled set; the fresh set is spent. Not yet sized. **Shape of the confident region (2026-10-07,
+   development sets only: independent, held-out, edges, fresh; 19 subjects, 119 subject-free):** border contact,
+   component count and largest-component share do not separate the classes on their own (keeping every subject passes
+   at least 41 subject-free photos); combined with area and the depth step the best in-sample rule finds 15/19 with 3/119
+   false, against 16/19 and 5/119 for area and depth step alone: one subject traded for two false subjects, no new
+   separation (`work/u2netp-shape-dev.json`). Not adopted. The 100-photo validation set (`work/a5-validation`, labels
+   committed before any model run) stays unused until a rule is worth spending it on.
 3. Portrait on the bar photo (`pt-no-usable-face`): one dim ring sits beside the middle person's head, over the shelf,
    instead of on the person (emulator, real models, 2026-10-06, `experiments/android-vision/work/bar-ring/`, on disk, not tracked). The
    approved notice is shown. Cause not established (face-box placement). Low impact.
