@@ -37,7 +37,7 @@ change the apps to the approved screen.
 | | Change | Where it shows | Recommendation |
 |---|---|---|---|
 | **Visible** V1 | Inactive dock labels and ruler numbers drawn darker, to pass 4.5:1 contrast (the approved tertiary ink fails Xcode's audit: Background, Watermark, ruler "70") | Both platforms, every editor screen | Approve: the darker grey only for these labels |
-| **Visible** V2 | iOS editor at accessibility text sizes (beyond the approved ×1.24): the Focus & Blur / Change background labels wrap and shrink to fit instead of being cut | iOS, accessibility sizes only | Approve (Android already wraps; the dock already widens on both) |
+| **Visible** V2 | iOS editor at accessibility text sizes (beyond the approved ×1.24): the Focus & Blur / Change background labels wrap onto as many lines as they need at the requested size, and the switch grows taller to hold them (the text is never shrunk) | iOS, accessibility sizes only | Approve (Android already wraps at full size; the dock already widens on both) |
 | **Visible** V3 | iPad top bar stays at 32 pt, 8 pt below the approved 24 pt (at 24 pt the top 6 pt of all six top-bar buttons cannot be tapped) | iPad | Approve 32 pt |
 | **Invisible** I1 | Android touch areas to 48 dp for the top-bar icons (46 dp) and the Image / Gradient tabs (46 dp tall); drawing unchanged | Android | Approve |
 
