@@ -155,8 +155,13 @@ object AndroidEditorEnvironment {
             bundledBackground = { id -> loadBundledBackground(app, id) },
             // Release gate "pending legal sign-off (training data: Places2)": see LiteRtLamaInpainter. Loaded
             // on the first Remove stroke, never at app start.
-            // App-private files (never cache: the system may evict it under the restored session).
-            removePatchDirectory = java.io.File(app.filesDir, "remove-patches"),
+            // App-private files (never cache: the system may evict it under the restored session), in noBackupFilesDir
+            // (2026-10-07): the fills are image pixels of an unfinished edit, so like the copy of the photo they are
+            // excluded from backups and device-to-device transfers (allowBackup="false" stops cloud backup only).
+            removePatchDirectory = java.io.File(app.noBackupFilesDir, "remove-patches").also {
+                // The fills' earlier location (filesDir) is removed: it could be copied by a device transfer.
+                java.io.File(app.filesDir, "remove-patches").deleteRecursively()
+            },
             preferredBorder = preferredBorder,
             signatures = signatureStore(app),
             watermarkFonts = WatermarkFonts(app.assets),

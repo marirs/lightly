@@ -3,7 +3,7 @@
   "sections": [
    {
     "heading": "Last updated",
-    "body": "5 October 2026"
+    "body": "7 October 2026"
    },
    {
     "heading": "Scope",
@@ -27,7 +27,7 @@
    },
    {
     "heading": "Local storage",
-    "body": "Preferences, favourite presets, signatures, logos and temporary editing data are stored on your device. Recovery data may include image data, edit history and computed masks or depth. Retention and backup behaviour depend on your device and platform. Removing the app does not remove exported photos or copies you shared elsewhere."
+    "body": "Preferences, favourite presets, signatures, logos and temporary editing data are stored on your device.\n\nWhile you edit a photo, Lightly keeps recovery data on your device so the edit can be restored if the system closes the app. On iPhone and iPad it contains a copy of the photo, the edit history and the masks or depth computed for it; it is kept only while the edit has unsaved changes and is deleted when you save a copy, discard the edit, close the photo or open another one. On Android it contains a copy of the photo, the edit history and any areas filled by Remove; it is deleted when you discard the edit, leave the editor or open another photo, and the next time Lightly starts without an edit to restore, for example after you remove the app from your recent apps. Recovery data is excluded from device backups and device-to-device transfers.\n\nRemoving the app removes everything it stored, but not exported photos or copies you shared elsewhere."
    },
    {
     "heading": "Visiting this website",

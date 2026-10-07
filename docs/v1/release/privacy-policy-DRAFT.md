@@ -62,6 +62,10 @@ On every platform:
 Both use models that run on your device. [DECISION: keep this paragraph only if the depth and Remove models ship; see `dependencies.md` items 1 and 2.]
 
 ## Data stored on your device
+> **Superseded for shipping (2026-10-07):** the text that ships is the website's `pub-sites/lightly/public/privacy.md`,
+> bundled into both apps by `scripts/make_release_text.py`; its "Local storage" section states the recovery-data
+> behaviour below in one paragraph per platform. Change that file, not this draft.
+
 Lightly stores the following only on your device. Nothing is sent to us.
 
 | What | Where | How long |
