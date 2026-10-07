@@ -11,8 +11,11 @@ C=$(git rev-parse --short=7 HEAD); OUT=$HOME/.codex/artifacts/lightly/v1/review-
 read -r MARKETING BUILD_NUMBER < <(bash "$REPO/scripts/version.sh")
 echo "== checkpoint $C, version $MARKETING ($BUILD_NUMBER) $(date +%T)"
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-(cd android && ./gradlew -q :app:assembleDebug) || { echo "android build failed"; exit 1; }
+(cd android && ./gradlew -q :app:assembleDebug :app:assembleBenchmark) || { echo "android build failed"; exit 1; }
 cp android/app/build/outputs/apk/debug/app-debug.apk "$A/lightly-debug-$C-with-models.apk"
+# The same content built like release (not debuggable): the build to judge Android speed with. The review emulator keeps
+# the debug build (the evidence scripts read its data with run-as).
+cp android/app/build/outputs/apk/benchmark/app-benchmark.apk "$A/lightly-benchmark-$C-with-models.apk"
 (cd "$A" && shasum -a 256 *.apk > SHA256SUMS && cat SHA256SUMS)
 cd ios && xcodegen generate 2>&1 | tail -1
 xcodebuild build -project Lightly.xcodeproj -scheme Lightly -configuration Debug -destination "generic/platform=iOS Simulator" \
