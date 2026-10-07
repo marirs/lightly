@@ -1,22 +1,25 @@
-# Acceptance route: build 1.0.0 (261007036), checkpoint 66b0f5e
+# Device acceptance pass: build 1.0.0 (261007042), checkpoint cd9eddf
 
-Installed 2026-10-07 on the review devices (data kept, build read back): iPhone 11 Pro Max 261007036, review simulator
-D75D820D 261007036, review emulator 5554 261007036 (A11 fixes on both platforms; replaces 261007013 of 6f4462c;
-Android Background faster and lighter). The review emulator runs the benchmark build since 09:24 (Release rendering code and
-optimisation settings, models packaged; android-benchmark-build.md), updated in place with data kept.
+Installed 2026-10-07, data kept, build read back on each: iPhone 11 Pro Max, review simulator D75D820D and review emulator
+5554 (benchmark build: Release rendering code and settings, models packaged). The iPhone still holds an unsaved edit
+session from 5 Oct; Lightly may offer it when it opens.
 
-## iPhone 11 Pro Max (in this order)
-1. **Launch Lightly once, then tell me.** I pull the trace (`scripts/iphone_evidence.sh 261007036`) and confirm the line
-   `launch: Lightly 1.0.0 (261007036)` before anything else.
-2. **Auto:** open a portrait (Choose photo). Auto applies by itself; tap Auto off and on once.
-3. **Live preset dragging:** drag the ruler slowly across ~10 stops, then fast, then release. The photo should follow
-   while dragging; release is one step (Undo once returns to the previous preset).
-4. **Background:** open Background on the same portrait; after "Finding the subject…", pick Change background with a
-   colour, then Focus & Blur, and drag the preset ruler once more with Background on.
-5. **Save copy:** Save copy, then Keep editing. Tell me when done; I pull the trace and the evidence files (mattes and
-   the saved bytes) and check them before asking for anything else.
+## iPhone 11 Pro Max: about 20 minutes, in this order
+1. **Launch Lightly once and tell me.** I confirm `launch: Lightly 1.0.0 (261007042)` in the trace first.
+2. **Background:** a portrait → Change background with a colour (look at the hair edge) → Focus & Blur → drag the preset
+   ruler once with Background on.
+3. **Live preset dragging:** drag slowly across about 10 stops, then fast, then release; Undo once returns one step.
+4. **Auto:** off and on once.
+5. **Save copy**, then Keep editing.
+6. **VoiceOver (spoken):** turn it on; from Welcome, Choose a photo, open one, move to Save copy and save; turn it off.
+   Tell me anything you could not reach or that was read wrongly.
+7. **Tell me when done.** I pull the trace and evidence (timings, saved bytes), then, with your OK (it replaces any
+   unsaved edit on the phone), I run one 48 MP Save copy myself from the Mac and read its time and memory.
 
-## Android (separate; needs a dev phone over USB)
-Not possible yet: no Android dev phone is connected. When one is (Nothing A069 or motorola edge 60), the same steps 2–5
-run there, and I record the Background drag-frame timing, which on the CPU emulator is 1.2–2.1 s per frame (not yet
-live-preview quality).
+## Android dev phone (Nothing A069 or motorola edge 60, USB debugging): about 20 minutes
+Not possible until a phone is connected. Then: I install the benchmark APK; you run steps 2–5 and a spoken TalkBack pass
+(step 6); I run the 48 MP Save copy and read drag-frame timing, Save copy time and memory from the logs.
+
+## Not covered by this pass (still open, not accepted)
+Hair edges (A4) and no-subject detection (A5) stay open whatever this pass shows; the hair review page records your
+visual judgement separately (`docs/v1/review/a4-blind/README.md`).
