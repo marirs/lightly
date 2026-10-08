@@ -84,8 +84,8 @@ struct EffectsStage: Sendable {
 /// The core opacity is intensity/130 and the 30 % ring's intensity/400, fading to 0 at 55 % of the
 /// farthest-corner distance R (the CSS `circle at x% y%` gradient ray: the largest distance from the
 /// centre to a frame corner, rendering-v2 revision 2, C4); between the stops the colour is
-/// interpolated premultiplied, as CSS gradients are. Where the rotated overlay does not cover the
-/// frame (rotation ≠ 0), nothing is added.
+/// interpolated premultiplied. The gradient continues beyond its original rectangle so rotation
+/// cannot expose a hard seam inside the photo.
 struct LightLeakEvaluator: Sendable {
     let centre: SIMD2<Double>
     let frameCentre: SIMD2<Double>
@@ -157,8 +157,6 @@ struct LightLeakEvaluator: Sendable {
         // The overlay is rotated about the frame centre: sample the unrotated gradient.
         let p = SIMD2(Double(x) + 0.5, Double(y) + 0.5) - frameCentre
         let q = SIMD2(cosine * p.x + sine * p.y, -sine * p.x + cosine * p.y) + frameCentre
-        // The rotated overlay is the frame's own box: outside it the leak does not reach (C4).
-        guard q.x >= 0, q.y >= 0, q.x <= frameSize.x, q.y <= frameSize.y else { return nil }
         let delta = q - centre
         let t = (delta.x * delta.x + delta.y * delta.y).squareRoot() / farthestCorner
         guard t < Self.endStop else { return nil }

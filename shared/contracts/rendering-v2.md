@@ -308,7 +308,7 @@ A CSS `circle` with no size is `farthest-corner`, so the stop positions are frac
 o  = (x·W/100, y·H/100);   c = (W/2, H/2);   θ = rad(rotation)          # clockwise positive, as CSS
 R  = max(|o − (0,0)|, |o − (W,0)|, |o − (0,H)|, |o − (W,H)|)
 d  = p − c;   q = c + (cosθ·d.x + sinθ·d.y, −sinθ·d.x + cosθ·d.y)       # undo the overlay's rotation
-if q.x < 0 or q.x > W or q.y < 0 or q.y > H: out = base                  # the rotated overlay does not cover p
+# Evaluate the continuous gradient at q, including outside the original rectangle.
 t  = |q − o| / R
 P  = t ≤ 0.30: lerp(α·core, β·ring, t/0.30)                               # premultiplied, colours in [0, 1]
      t < 0.55: lerp(β·ring, 0, (t − 0.30)/0.25)
@@ -414,3 +414,5 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 3 | 2026-10-04 | **background.focus, subject colour:** the de-contaminated subject colour F = (I − (1 − M)·B)/M is used, clipped to [0, 1], wherever the matte M > 0.02; the interior fill only below that. Revisions 1–2 used the interior fill below M = 0.3, which painted the subject's colour into a soft matte tail that extends past the subject (measured on a 12 MP portrait: a red glow 10–20 px wide beside a red shirt over a dark wall; red excess 18.8 → 0.1 levels; hair edge closer to the original). |
 | 4 | 2026-10-05 | **effects.selectiveColour** (§6 Selective colour): a new operator after the light leak, before the vignettes and grain; does nothing without kept colours, so every existing edit renders unchanged. Goldens `selectiveColour`. | No: `developModel.constantsSha256` is unchanged |
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
+
+Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

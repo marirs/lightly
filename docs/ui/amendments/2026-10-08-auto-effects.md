@@ -21,3 +21,12 @@ Remove the On photo / On border selector and the Position row. Drag the watermar
 ## Effects preview correctness — 2026-10-08
 
 Owner reports visible flicker when changing Effects and dragging Vignette. The iOS final request previously published a frame omitting Effects/finishing, then a complete frame. Removed that intermediate publication. Effects sliders use the same Background working resolution during movement and after release. The regression checks a combined grain/vignette edit: exactly one frame on release, byte-identical to the drag result. Physical-device timing remains to be measured.
+
+
+## 22:03 interaction-quality report
+
+User reports hard diagonal Light Leak corner (Rose, intensity 55, rotation +54), flickering across presets/effects, and rough horizontal sliders. Authorizes fixes, then a whole-app UX assessment.
+
+Implemented, pending device verification: continuous radial light-leak field on both platforms (rendering contract revision 6); slider thumbs track continuous touch positions locally while rounded recipe updates remain one undo step at release. Android callbacks read their latest value during a gesture.
+
+The light-leak numerical fixtures change only for rotated leaks; approved visual reference screenshots are untouched. Broad flicker, device slider responsiveness, and the requested whole-app assessment remain OPEN. The prior complete-frame release test does not establish smooth interaction on hardware.

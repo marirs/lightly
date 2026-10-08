@@ -49,7 +49,7 @@ struct DebugScenario {
 
     var editorUI: EditorUI {
         switch screenID {
-        case "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-replaced-grain", "bg-colour-blur", "bg-no-subject", "bg-cancel-flow": return EditorUI(tool: .background)
+        case "interaction-quality", "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-replaced-grain", "bg-colour-blur", "bg-no-subject", "bg-cancel-flow": return EditorUI(tool: .background)
         case "bg-then-develop": return EditorUI()
         case "bg-refine": return EditorUI(tool: .background, backgroundMode: .refine)
         case "bg-change-image", "bg-separating", "bg-failed": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .image)
@@ -116,6 +116,29 @@ struct DebugScenario {
         }
         let image0 = EditRecipe.Replacement.image(.bundled(id: BackgroundPanelModel.bundledImages[0]), x: 50, y: 50, scale: 120)
         switch screenID {
+        case "interaction-quality":
+            background { $0.replacement = image0; $0.focus.blur = 55 }
+            session.analyseSubjectIfNeeded(needsDepth: true)
+            await session.debugAwaitPendingAnalysis()
+            await session.settleRendering()
+            for (name, key) in [("leak", \EditRecipe.Effects.lightLeak.intensity), ("grain", \EditRecipe.Effects.grain.amount), ("vignette", \EditRecipe.Effects.vignette.amount)] {
+                session.commitEffects { $0.lightLeak.enabled = true; $0.grain.enabled = true; $0.vignette.enabled = true }
+                await session.settleRendering()
+                var times: [Double] = []
+                for value in stride(from: 10.0, through: 90.0, by: 10) {
+                    let start = ContinuousClock.now
+                    session.previewEffects { $0[keyPath: key] = value }
+                    await session.settleRendering()
+                    let duration = ContinuousClock.now - start
+                    times.append(Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15)
+                }
+                let moving = try? MetalLUTRenderer.rgba8Bytes(of: session.displayedImage)
+                session.commitEffects { $0[keyPath: key] = 90 }
+                await session.settleRendering()
+                let settled = try? MetalLUTRenderer.rgba8Bytes(of: session.displayedImage)
+                DiagnosticTrace.note("interaction-quality: \(name) frameMs=\(times) releaseIdentical=\(moving != nil && moving == settled)")
+            }
+            DiagnosticTrace.note("interaction-quality: complete")
         case "bg-focus", "bg-refine": background { $0.focus.blur = 55 }
         case "bg-soft": background { $0.focus.blur = 55; $0.focus.style = .soft }
         case "bg-swirl": background { $0.focus.blur = 55; $0.focus.style = .swirl }

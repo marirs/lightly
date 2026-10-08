@@ -550,6 +550,20 @@ final class EditorSessionTests: XCTestCase {
 
     /// Owner request 2026-10-06: the photo previews each newly crossed stop while the finger moves (reduced-size drag
     /// frames), the latest request wins, release commits one Undo step at normal preview quality, Undo restores.
+    func testPanelResizingDoesNotChangeTheRenderedEdit() async throws {
+        let photo = try await EditorTestSupport.photo(width: 600, height: 400)
+        let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 600)
+        session.setDisplayedPhotoSize(CGSize(width: 390, height: 260))
+        session.commitEffects { $0.vignette.enabled = true; $0.vignette.amount = 55 }
+        await session.settleRendering()
+        let before = try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage)
+        let count = session.publishedRenderCount
+        session.setDisplayedPhotoSize(CGSize(width: 300, height: 200))
+        await session.settleRendering()
+        XCTAssertEqual(session.publishedRenderCount, count, "Switching panels must not request a different rendering")
+        XCTAssertEqual(try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage), before)
+    }
+
     func testEffectsReleaseNeverPublishesAnUnfinishedFrame() async throws {
         let photo = try await EditorTestSupport.photo(width: 600, height: 400)
         let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 600)
@@ -591,7 +605,7 @@ final class EditorSessionTests: XCTestCase {
             let last = try XCTUnwrap(session.debugPublished.last)
             XCTAssertEqual(last.lookID, landscape.presets[stop - 1].id, "stop \(stop) is on screen during the drag")
             XCTAssertTrue(last.dragFrame)
-            XCTAssertLessThan(session.displayedImage.width, fullWidth, "a reduced-size drag frame")
+            XCTAssertEqual(session.displayedImage.width, fullWidth, "Drag and release keep the same texture sampling")
         }
         print("drag frame times (simulator, cold LUTs except prefetched): \(frameTimes)")
 
@@ -609,8 +623,10 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertLessThan(scrub.count, 3 * (2 * count - target + 1) / 2, "intermediate renders were skipped, not queued for playback")
         XCTAssertEqual(session.history.count, steps, "dragging records nothing")
 
+        let draggedPixels = try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage)
         model.dragEnded(at: target)
         await session.settleRendering()
+        XCTAssertEqual(try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage), draggedPixels, "Release cannot replace the moving image with a different-quality edit")
         XCTAssertEqual(session.history.count, steps + 1, "one Undo step for the whole drag")
         XCTAssertEqual(session.appliedPreset?.id, landscape.presets[target - 1].id)
         XCTAssertEqual(session.displayedImage.width, fullWidth, "the settled selection at normal preview quality")

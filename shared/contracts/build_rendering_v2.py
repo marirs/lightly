@@ -25,7 +25,7 @@ PRESETS = REPO / "experiments/presets"
 # 3 = background.focus subject colour from the de-contaminated estimate wherever the matte is above 0.02.
 # 4 = effects.selectiveColour (owner request 2026-10-04), after the light leak, before vignette and grain.
 # 5 = background.replace composites the estimated foreground colour (Germer multilevel), not the observed pixel.
-CONTRACT_REVISION = 5
+CONTRACT_REVISION = 6
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -157,7 +157,7 @@ def light_leak_constants() -> dict:
         "interpolation": "premultiplied sRGB-encoded colour, linear between stops; 0 beyond the last stop",
         "rotation": "CSS transform rotate(rotation deg) of the frame-sized overlay about the frame centre, clockwise positive: "
                     "frame pixel p samples the gradient at q = Rot(−rotation)·(p − c) + c, c the frame centre; "
-                    "no leak where q falls outside the frame rectangle (the rotated overlay does not cover it)",
+                    "the radial gradient continues beyond the original rectangle; rotation never clips its glow",
         "blend": "screen in sRGB-encoded values with the gradient's alpha: out = base + αC·(1 − base), αC premultiplied",
         "styles": {"warm": {"core": [255, 150, 70], "ring": [255, 90, 60]},
                    "amber": {"core": [255, 176, 64], "ring": [230, 120, 40]},

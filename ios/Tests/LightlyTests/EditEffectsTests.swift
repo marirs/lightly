@@ -144,6 +144,21 @@ final class EditEffectsStageTests: XCTestCase {
                        "Coarse scales size by 1.5, capped at 100")
     }
 
+    func testRotatedLeakHasNoRectangularCutoff() {
+        let leak = EditRecipe.Effects.LightLeak(enabled: true, style: .rose, intensity: 55, x: 18, y: 14, rotation: 54)
+        let evaluator = LightLeakEvaluator(leak, frameWidth: 300, frameHeight: 400)!
+        // Sweep the complete image: adjacent samples may fade, but never jump at a rotated box edge.
+        for y in 1..<400 {
+            for x in 1..<300 {
+                let current = evaluator.premultiplied(x: x, y: y) ?? .zero
+                let left = evaluator.premultiplied(x: x - 1, y: y) ?? .zero
+                let above = evaluator.premultiplied(x: x, y: y - 1) ?? .zero
+                XCTAssertLessThan(abs(current.x - left.x), 0.015)
+                XCTAssertLessThan(abs(current.x - above.x), 0.015)
+            }
+        }
+    }
+
     func testLightLeakBrightensAroundItsCentreOnly() {
         let leak = EditRecipe.Effects.LightLeak(enabled: true, style: .warm, intensity: 55, x: 18, y: 14, rotation: 0)
         let evaluator = LightLeakEvaluator(leak, frameWidth: 300, frameHeight: 200)!

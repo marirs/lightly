@@ -3,7 +3,7 @@
  "formatVersion": 1,
  "renderingContract": {
   "version": 2,
-  "revision": 5
+  "revision": 6
  },
  "generatedBy": "shared/contracts/make_rendering_goldens.py",
  "arrays": "little-endian float32, row-major; images are HxWx3 sRGB-encoded in [0, 1] unless named otherwise",
@@ -1026,7 +1026,7 @@
      80,
      3
     ],
-    "sha256": "ea80ce11a44cd08ab6462e56ac3590294fce4b049fb514eacf7be54fe12538fd"
+    "sha256": "e82922b36a361d784a647526d6b8578fb342a67ffa0ecb98439a62cc71b21500"
    },
    "expected": {
     "file": "leak-amber-recipe-example-portrait-expected.f32",
@@ -1035,7 +1035,7 @@
      80,
      3
     ],
-    "sha256": "bb89d41a568464852f8c2c46a830b2a80f15afb4350b6e7d4b34bfcc8dce0891"
+    "sha256": "5cdbfae751684f0c37116b7c71f1ff9ea9c9ca867fce8d00961b441432bb7b01"
    }
   },
   {
@@ -1058,7 +1058,7 @@
      120,
      3
     ],
-    "sha256": "f209ee6d921d182bc1c6f3b053cf03707b0e2869abb14b5004605c5169535a55"
+    "sha256": "be78d751fac939826cdf811f3c26f204f107900c835639203c47756188f4c8d9"
    },
    "expected": {
     "file": "leak-rose-full-rotated-landscape-expected.f32",
@@ -1067,7 +1067,7 @@
      120,
      3
     ],
-    "sha256": "95390a7d2f4d498ef0d4e0a1d54193b31e0db93ac0fb9b4fadd41a3fdc73b55d"
+    "sha256": "e4917c6ca16cf84fcc97895f9e4ca0d504769ef2fbca73f25d5048c473c6eaed"
    }
   }
  ],

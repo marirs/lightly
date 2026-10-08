@@ -1,7 +1,7 @@
 {
  "contract": "lightly-rendering",
  "version": 2,
- "revision": 5,
+ "revision": 6,
  "changeLog": "shared/contracts/rendering-v2.md#change-log",
  "prose": "shared/contracts/rendering-v2.md",
  "generatedBy": "shared/contracts/build_rendering_v2.py",
@@ -1203,7 +1203,7 @@
        }
       ],
       "interpolation": "premultiplied sRGB-encoded colour, linear between stops; 0 beyond the last stop",
-      "rotation": "CSS transform rotate(rotation deg) of the frame-sized overlay about the frame centre, clockwise positive: frame pixel p samples the gradient at q = Rot(−rotation)·(p − c) + c, c the frame centre; no leak where q falls outside the frame rectangle (the rotated overlay does not cover it)",
+      "rotation": "CSS transform rotate(rotation deg) of the frame-sized overlay about the frame centre, clockwise positive: frame pixel p samples the gradient at q = Rot(−rotation)·(p − c) + c, c the frame centre; the radial gradient continues beyond the original rectangle; rotation never clips its glow",
       "blend": "screen in sRGB-encoded values with the gradient's alpha: out = base + αC·(1 − base), αC premultiplied",
       "styles": {
        "warm": {

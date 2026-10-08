@@ -125,8 +125,6 @@ internal class LightLeak private constructor(
         // The overlay is rotated about the frame centre: sample the unrotated gradient.
         val qx = cosine * px + sine * py + frameCentreX
         val qy = -sine * px + cosine * py + frameCentreY
-        // Revision 2 (C4): the rotated overlay leaves uncovered frame areas untouched.
-        if (qx < 0 || qx > frameCentreX * 2 || qy < 0 || qy > frameCentreY * 2) return false
         val dx = qx - centreX
         val dy = qy - centreY
         val t = sqrt(dx * dx + dy * dy) / extent

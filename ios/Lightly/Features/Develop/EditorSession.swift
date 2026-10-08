@@ -70,14 +70,22 @@ final class EditorSession {
     /// and Focus & Blur's strength are defined on screen (PROVISIONAL coordinator approach to defect W1, pending the owner),
     /// so preview renders use the current layout and Save copy / Share the layout when saving.
     private(set) var displayedPhotoSize: CGSize?
+    @ObservationIgnored private var renderReferencePhotoSize: CGSize?
+    @ObservationIgnored private var activePreviewRecipe: EditRecipe?
 
     /// The editor's stage reports the displayed photo's size; a change re-renders what depends on it.
     func setDisplayedPhotoSize(_ size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         if let current = displayedPhotoSize, abs(current.width - size.width) < 0.5, abs(current.height - size.height) < 0.5 { return }
         displayedPhotoSize = size
+        // Panel height is navigation, not an edit to blur or watermark size.
+        guard renderReferencePhotoSize == nil else { return }
+        renderReferencePhotoSize = size
         let tools = recipe.tools
-        if tools.watermark.type != .none || tools.background.focus.blur > 0 { renderCommitted() }
+        if tools.watermark.type != .none || tools.background.focus.blur > 0 {
+            if let activePreviewRecipe { render(activePreviewRecipe, final: false) }
+            else { renderCommitted() }
+        }
     }
     private(set) var isShowingOriginal = false
     private(set) var saveState: SaveState = .idle
@@ -226,7 +234,8 @@ final class EditorSession {
     /// Per-preset Amount the person chose in this session, so re-selecting a preset restores it.
     @ObservationIgnored private var amountMemory: [String: Double] = [:]
     /// Model results for Background and Portrait, at the preview resolution.
-    @ObservationIgnored private var sceneCache = SceneCache()
+    @ObservationIgnored private var sceneCache = SceneCache() { didSet { sceneGeneration &+= 1 } }
+    @ObservationIgnored private var sceneGeneration: UInt64 = 0
     @ObservationIgnored private var subjectTask: Task<Void, Never>?
     @ObservationIgnored private var depthTask: Task<Void, Never>?
     /// Each start of the matte or depth bumps its generation; a result is accepted only by the generation that
@@ -464,9 +473,9 @@ final class EditorSession {
         guard let cache = library.cache else { return }
         prefetchTask?.cancel()
         prefetchTask = Task.detached(priority: .utility) {
-            for preset in presets where !cache.containsDragLUT(for: preset) {
+            for preset in presets where !cache.contains(lookVersion: preset.lookVersion) {
                 if Task.isCancelled { return }
-                _ = cache.lut(for: preset, dimension: DevelopLUTCache.dragDimension)
+                _ = cache.lut(for: preset, dimension: LUT3D.contractDimension)
             }
         }
     }
@@ -688,7 +697,7 @@ final class EditorSession {
         subjectState = matte == nil ? .noSubject : .ready
         analysisRevision += 1
         persistSession()
-        renderCommitted()
+        refreshCurrentPreview()
     }
 
     private func finishDepth(_ disparity: DisparityMap, generation: Int) {
@@ -697,7 +706,7 @@ final class EditorSession {
         depthState = .ready
         analysisRevision += 1
         persistSession()
-        renderCommitted()
+        refreshCurrentPreview()
     }
 
     /// A slider moving: preview only.
@@ -1203,11 +1212,12 @@ final class EditorSession {
         /// A final render's fast frame: when it lands (and nothing newer was asked for), the full
         /// frame is requested. Queuing both at once would let the full frame replace the waiting
         /// fast one, and the photo would lag the release by a whole spatial render.
+        var prefixKey: PreviewPrefixKey?
         var followUpWithFullFrame = false
         /// A ruler drag's frame (2026-10-06): the reduced preview base and the coarse drag LUT, so every newly crossed
         /// stop renders while the finger moves. The settled selection renders at normal preview quality.
         var dragFrame = false
-        var lutDimension: Int { dragFrame ? DevelopLUTCache.dragDimension : LUT3D.contractDimension }
+        var lutDimension: Int { LUT3D.contractDimension }
         /// Background and Portrait (stages 7–9), when the recipe uses them.
         var layered: LayeredStages.Inputs?
         /// Working-resolution cap for Focus & Blur (LayeredStages).
@@ -1251,13 +1261,32 @@ final class EditorSession {
         let height: Int
     }
 
+    /// One bounded preview cache, before Effects. Slider changes reuse the exact completed
+    /// upstream pixels; they never re-run subject compositing or substitute a cheaper image.
+    private struct PreviewPrefixKey: Equatable, Sendable {
+        var recipe: EditRecipe
+        var sceneGeneration: UInt64
+        var autoLUT: LUT3D?
+        var displaySize: CGSize?
+    }
+    private final class PreviewPrefixCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var entry: (PreviewPrefixKey, RenderedFrame)?
+        func get(_ key: PreviewPrefixKey?) -> RenderedFrame? {
+            lock.withLock { guard let key, let entry, entry.0 == key else { return nil }; return entry.1 }
+        }
+        func put(_ frame: RenderedFrame, key: PreviewPrefixKey?) {
+            lock.withLock { if let key { entry = (key, frame) } }
+        }
+    }
+
     private func makeScheduler() {
         guard let base = previewBase, let renderer = library.renderer, let cache = library.cache else { return }
-        let dragBase = dragBase
+        let prefixCache = PreviewPrefixCache()
         scheduler = LatestWinsRenderScheduler(supersedesRunning: { new, running in new.dragFrame && !running.dragFrame }) { job in
-            let source = job.dragFrame ? (dragBase ?? base) : base
+            let source = base
             let frame = try Self.renderPixels(job, base: source.pixels, width: source.width, height: source.height,
-                                              renderer: renderer, cache: cache)
+                                              renderer: renderer, cache: cache, prefixCache: prefixCache)
             return try MetalLUTRenderer.makeImage(rgba8: frame.pixels, width: frame.width, height: frame.height)
         }
     }
@@ -1287,8 +1316,8 @@ final class EditorSession {
     }
 
     nonisolated private static func renderPixels(_ job: RenderJob, base: consuming [UInt8], width: Int, height: Int,
-                                                 renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
-        let frame = try renderFrameBeforeBorder(job, base: consume base, width: width, height: height, renderer: renderer, cache: cache)
+                                                 renderer: DevelopFrameRenderer, cache: DevelopLUTCache, prefixCache: PreviewPrefixCache? = nil) throws -> RenderedFrame {
+        let frame = try renderFrameBeforeBorder(job, base: consume base, width: width, height: height, renderer: renderer, cache: cache, prefixCache: prefixCache)
         var canvas = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
         // Stage 12 on the canvas, after the border, so a watermark can sit in its margin.
         if job.watermark.type != .none, let content = job.watermarkContent {
@@ -1303,12 +1332,17 @@ final class EditorSession {
 
     /// Stages 1–10 (everything up to the border).
     nonisolated private static func renderFrameBeforeBorder(_ job: RenderJob, base: consuming [UInt8], width: Int, height: Int,
-                                                            renderer: DevelopFrameRenderer, cache: DevelopLUTCache) throws -> RenderedFrame {
+                                                            renderer: DevelopFrameRenderer, cache: DevelopLUTCache, prefixCache: PreviewPrefixCache? = nil) throws -> RenderedFrame {
         guard job.usesEditOrEffects || job.stopBeforeSelectiveColour else {
             return RenderedFrame(pixels: try renderDevelopAndLayered(job, base: consume base, width: width, height: height,
                                                                      renderer: renderer, cache: cache),
                                  width: width, height: height)
         }
+        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache, lutDimension: job.lutDimension) }
+        let frame: RenderedFrame
+        if let cached = prefixCache?.get(job.prefixKey) {
+            frame = cached
+        } else {
         var pixels = consume base
         // Compositing here mutates a copy of `base` (the caller still holds it): a whole extra frame, 192 MB at 48 MP.
         // Save copy composites into its own buffer first instead (`removePatchesInBase`).
@@ -1318,7 +1352,6 @@ final class EditorSession {
                                                    toRGBA8: pixels, width: width, height: height,
                                                    maximumTileSide: MetalLUTRenderer.defaultMaximumTileSide)
         }
-        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache, lutDimension: job.lutDimension) }
         if let plan {
             pixels = try renderer.render(plan, pixels: pixels, width: width, height: height,
                                          includePixelStages: job.includePixelStages, includeFinishing: false)
@@ -1341,7 +1374,11 @@ final class EditorSession {
         }
         try Task.checkCancellation()
         let transform = GeometryTransform(job.edit.geometry, sourceWidth: width, sourceHeight: height)
-        let frame = transform.render(pixels, width: width, height: height)
+        let transformed = transform.render(pixels, width: width, height: height)
+        frame = RenderedFrame(pixels: transformed.pixels, width: transformed.width, height: transformed.height)
+        try Task.checkCancellation()
+        prefixCache?.put(frame, key: job.prefixKey)
+        }
         guard job.includePixelStages else { return RenderedFrame(pixels: frame.pixels, width: frame.width, height: frame.height) }
         if job.stopBeforeSelectiveColour {
             // Only the stage before Selective Colour, the light leak; no preset finishing (it comes after).
@@ -1405,11 +1442,15 @@ final class EditorSession {
     }
 
     private func renderCommitted() { render(recipe, final: true) }
+    private func refreshCurrentPreview() {
+        if let activePreviewRecipe { render(activePreviewRecipe, final: false) }
+        else { renderCommitted() }
+    }
 
-    /// Requests a preview of `target`. A final render shows the global stage first, then the full
-    /// Develop (spatial and finishing) when the preset has them; an interactive one (dragging)
-    /// shows the global stage only, so the photo keeps up with the finger.
+    /// Requests the complete edit at one stable preview resolution and LUT precision.
+    /// Interaction changes scheduling priority, never the image-processing recipe.
     private func render(_ requested: EditRecipe, final: Bool, dragFrame: Bool = false) {
+        activePreviewRecipe = final ? nil : requested
         let target = isCropEditing ? Self.uncropped(requested) : requested
         // An interactive frame is a control moving (a slider, a drag) before it commits: a pick still sampling
         // is stale from this moment, or it would land mid-drag and replace the preview with committed values.
@@ -1429,6 +1470,14 @@ final class EditorSession {
         var job = RenderJob(look: look, strength: strength, autoLUT: auto, autoStrength: target.auto.strength,
                             includePixelStages: true, generation: current)
         attachEditAndEffects(target, to: &job)
+        var upstream = target
+        upstream.revision = 0
+        let neutral = EditRecipe.Tools.neutral(grainSeed: 0)
+        upstream.tools.effects = neutral.effects
+        upstream.tools.border = neutral.border
+        upstream.tools.watermark = neutral.watermark
+        job.prefixKey = PreviewPrefixKey(recipe: upstream, sceneGeneration: sceneGeneration,
+                                         autoLUT: auto, displaySize: renderReferencePhotoSize ?? displayedPhotoSize)
         // Every published frame contains the complete edit. A fast frame that omits finishing
         // flashes the ungrained/unvignetted image before the full result on every release.
         job.includePixelStages = true
@@ -1436,7 +1485,7 @@ final class EditorSession {
         if let layered {
             job.layered = layered
             // Effects sliders must not change the subject edge or blur resolution as they move.
-            job.layeredCap = dragFrame ? LayeredStages.interactiveCap : LayeredStages.previewCap
+            job.layeredCap = LayeredStages.previewCap
         }
         job.dragFrame = dragFrame && dragBase != nil
         submit(job)
@@ -1611,7 +1660,7 @@ final class EditorSession {
         job.border = target.tools.border
         job.watermark = target.tools.watermark
         job.watermarkContent = watermarkContent(for: target.tools.watermark)
-        job.displayPhotoSize = displayedPhotoSize
+        job.displayPhotoSize = renderReferencePhotoSize ?? displayedPhotoSize
         job.removePatches = removePatches.patches(for: target.tools.edit.remove.strokes)
     }
 

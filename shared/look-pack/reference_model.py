@@ -600,14 +600,13 @@ def light_leak_premultiplied(height: int, width: int, params: dict) -> np.ndarra
     dx, dy = px - width / 2, py - height / 2
     qx = width / 2 + cos_t * dx + sin_t * dy
     qy = height / 2 - sin_t * dx + cos_t * dy
-    covered = (qx >= 0) & (qx <= width) & (qy >= 0) & (qy <= height)
     t = np.hypot(qx - leak_x, qy - leak_y) / ray
     inner = np.clip(t / LIGHT_LEAK_RING_STOP, 0, 1)[..., None]
     outer = np.clip((t - LIGHT_LEAK_RING_STOP) / (LIGHT_LEAK_END_STOP - LIGHT_LEAK_RING_STOP), 0, 1)[..., None]
     premultiplied = np.where((t <= LIGHT_LEAK_RING_STOP)[..., None],
                              core_alpha * core * (1 - inner) + ring_alpha * ring * inner,
                              ring_alpha * ring * (1 - outer))
-    return np.where(covered[..., None], premultiplied, 0.0)
+    return premultiplied
 
 
 def apply_light_leak(rgb, params: dict):

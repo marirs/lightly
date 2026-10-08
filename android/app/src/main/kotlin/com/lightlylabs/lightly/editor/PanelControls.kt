@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -131,6 +132,10 @@ fun <T> OptionTabs(items: List<Pair<T, String>>, selected: T, onSelect: (T) -> U
  */
 @Composable
 fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (Double) -> Unit, onRelease: (Double) -> Unit, tag: String) {
+    var trackingValue by remember(tag) { mutableFloatStateOf(Float.NaN) }
+    val dragCallback by rememberUpdatedState(onDrag)
+    val releaseCallback by rememberUpdatedState(onRelease)
+    val displayedValue = if (trackingValue.isNaN()) value else trackingValue.toDouble()
     val colors = lightlyColors
     val centred = min < 0
     Row(
@@ -147,17 +152,21 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
                 .pointerInput(min, max) {
                     awaitEachGesture {
                         val down = awaitFirstDown()
-                        fun valueAt(x: Float) = (min + (x / size.width).coerceIn(0f, 1f) * (max - min)).roundToInt().toDouble()
+                        fun valueAt(x: Float) = (min + (x / size.width).coerceIn(0f, 1f) * (max - min)).toDouble()
                         var current = valueAt(down.position.x)
-                        onDrag(current)
+                        trackingValue = current.toFloat()
+                        dragCallback(current.roundToInt().toDouble())
                         while (true) {
                             val change = awaitPointerEvent().changes.first()
                             if (!change.pressed) break
-                            current = valueAt(change.position.x)
-                            onDrag(current)
+                            val next = valueAt(change.position.x)
+                            trackingValue = next.toFloat()
+                            if (next.roundToInt() != current.roundToInt()) dragCallback(next.roundToInt().toDouble())
+                            current = next
                             change.consume()
                         }
-                        onRelease(current)
+                        releaseCallback(current.roundToInt().toDouble())
+                        trackingValue = Float.NaN
                     }
                 }
                 .semantics {
@@ -173,7 +182,7 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
             Canvas(Modifier.fillMaxWidth().height(18.dp)) {
                 val y = size.height / 2
                 val track = 3.dp.toPx()
-                val f = ((value - min) / (max - min)).toFloat().coerceIn(0f, 1f)
+                val f = ((displayedValue - min) / (max - min)).toFloat().coerceIn(0f, 1f)
                 drawRoundRect(colors.track, Offset(0f, y - track / 2), Size(size.width, track), CornerRadius(2.dp.toPx()))
                 val from = if (centred) minOf(0.5f, f) else 0f
                 val to = if (centred) maxOf(0.5f, f) else f
@@ -184,7 +193,7 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
                 drawCircle(colors.ink, knob - 0.5.dp.toPx(), Offset(size.width * f, y), style = Stroke(1.dp.toPx()))
             }
         }
-        val shown = value.roundToInt()
+        val shown = displayedValue.roundToInt()
         Text((if (centred && shown > 0) "+" else "") + shown, style = lightlyTextStyle(13.sp, color = colors.ink3), textAlign = TextAlign.End, modifier = Modifier.width(36.dp), maxLines = 1)
     }
 }

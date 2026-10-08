@@ -270,9 +270,12 @@ struct ApprovedSlider: View {
     let onChange: (Double) -> Void
     let onEnd: (Double) -> Void
 
+    @State private var trackingValue: Double?
+
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let value = trackingValue ?? self.value
         let fraction = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
         HStack(spacing: 12) {
             Text(label).approvedText(15).foregroundStyle(ApprovedColor.ink.resolved(colorScheme)).lineLimit(1).fixedSize()
@@ -291,8 +294,16 @@ struct ApprovedSlider: View {
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle().inset(by: -20))
                 .gesture(DragGesture(minimumDistance: 0)
-                    .onChanged { onChange(Self.value(at: $0.location.x, width: width, range: range)) }
-                    .onEnded { onEnd(Self.value(at: $0.location.x, width: width, range: range)) })
+                    .onChanged { gesture in
+                        let next = range.lowerBound + min(max(Double(gesture.location.x / max(width, 1)), 0), 1) * (range.upperBound - range.lowerBound)
+                        let previous = trackingValue
+                        trackingValue = next
+                        if previous?.rounded() != next.rounded() { onChange(next.rounded()) }
+                    }
+                    .onEnded { gesture in
+                        onEnd(ApprovedSlider.value(at: gesture.location.x, width: width, range: range))
+                        trackingValue = nil
+                    })
             }
             .frame(minWidth: 90, idealWidth: fixedTrackWidth ?? 90, maxWidth: fixedTrackWidth ?? .infinity)
             Text("\(Int(value.rounded()))")

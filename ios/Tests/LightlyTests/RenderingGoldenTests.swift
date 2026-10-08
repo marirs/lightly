@@ -38,7 +38,7 @@ final class RenderingGoldenTests: XCTestCase {
 
     func testTheGoldensAreRevisionTwoAndTheBundledContractMatches() throws {
         let contract = try XCTUnwrap(try Self.index()["renderingContract"] as? [String: Any])
-        XCTAssertEqual(contract["revision"] as? Int, 5)
+        XCTAssertEqual(contract["revision"] as? Int, 6)
         let data = try Data(contentsOf: DevelopParityTests.fixture("shared/contracts/rendering-v2.json"))
         XCTAssertNoThrow(try DevelopModel.load(contractData: data), "DevelopModel accepts revision 2 and its focus constants")
         let constants = try XCTUnwrap(try focus["constants"] as? [String: Any])

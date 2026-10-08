@@ -204,6 +204,8 @@ class EditorViewModel(
     private fun isCurrent(generation: Long) = generation == photoGeneration
 
     private fun loadPhoto(assetId: String, restoredSession: EditSession?) {
+        stagePhoto = null
+        renderReferencePhoto = null
         loadJob?.cancel()
         prefetchJob?.cancel()
         scheduler?.close()
@@ -977,6 +979,7 @@ class EditorViewModel(
     data class StagePhoto(val shortDp: Float, val longDp: Float)
 
     @Volatile private var stagePhoto: StagePhoto? = null
+    @Volatile private var renderReferencePhoto: StagePhoto? = null
 
     /**
      * The Stage reports the displayed photo box. A change re-renders the preview, because the watermark and
@@ -987,6 +990,8 @@ class EditorViewModel(
         val previous = stagePhoto
         if (previous != null && kotlin.math.abs(previous.shortDp - shortDp) < 0.5f && kotlin.math.abs(previous.longDp - longDp) < 0.5f) return
         stagePhoto = StagePhoto(shortDp, longDp)
+        if (renderReferencePhoto != null) return
+        renderReferencePhoto = stagePhoto
         val session = state.value.session ?: return
         val tools = session.current.tools
         if (tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE || tools.background.focus.blur > 0) requestPreview(session.current, globalOnly = false)
@@ -1001,7 +1006,7 @@ class EditorViewModel(
      */
     // v3 differs from rendering-v2 revision 2's fixed fractions (phone medians): replaced by the on-screen rule.
     internal fun watermarkSizes(library: DevelopLibrary): WatermarkSizes =
-        stagePhoto?.let { WatermarkSizes(PROTOTYPE_TEXT_DP / it.shortDp, PROTOTYPE_SIGNATURE_DP / it.shortDp, PROTOTYPE_LOGO_DP / it.shortDp) } ?: library.watermarkSizes
+        renderReferencePhoto?.let { WatermarkSizes(PROTOTYPE_TEXT_DP / it.shortDp, PROTOTYPE_SIGNATURE_DP / it.shortDp, PROTOTYPE_LOGO_DP / it.shortDp) } ?: library.watermarkSizes
 
     /**
      * Blur (a defect; this sizing approach is PROVISIONAL, as W1): the prototype blurs the displayed photo with a Gaussian of σ = blur/9 dp. The
@@ -1012,7 +1017,7 @@ class EditorViewModel(
      * converted to the source's long edge. The depth shaping, styles and subject rule are unchanged.
      */
     internal fun maxBlurFraction(edit: EditState): Double {
-        val photo = stagePhoto ?: return com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE
+        val photo = renderReferencePhoto ?: return com.lightlylabs.lightly.background.Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE
         val ofFrame = BLUR_MATCH_DP / photo.longDp
         val geometry = displayGeometry() ?: return ofFrame
         val frameLong = kotlin.math.max(geometry.frameWidth, geometry.frameHeight).toDouble()
@@ -1794,14 +1799,12 @@ class EditorViewModel(
         if (!committingPick) editEpoch++
         savedState[KEY_SESSION] = SavedEdits.encodeEditSession(session)
         state.update { it.copy(session = session, auto = auto) }
-        if (fastFirst) requestPreview(session.current, globalOnly = true)
         requestPreview(session.current, globalOnly = false)
     }
 
     private fun startPreviewScheduler(loaded: LoadedPhoto, generation: Long) {
         val display = loaded.display
         // The drag preview renders a half-size copy (a quarter of the pixels); committed previews use the full proxy.
-        val dragProxy = DevelopRenderer.halfSize(display)
         val newScheduler = RenderScheduler(
             sessionId = "photo-$generation",
             renderer = PreviewRenderer<PreviewRequest, Rgba8Image> { request ->
@@ -1814,18 +1817,12 @@ class EditorViewModel(
                 val library = env.library.await()
                 val edit = request.payload.state ?: return@PreviewRenderer display
                 val start = System.nanoTime()
-                val plan = planOf(library, edit, request.payload.globalOnly)
-                // iOS LayeredStages: Focus & Blur at 640 px while a slider moves, 1024 px settled.
-                val workingSizeFrame = request.payload.globalOnly && !portraitSession.isActive(edit.tools.portrait) && !EditMapping.usesEditOrEffects(edit)
-                val backgroundCap = when {
-                    workingSizeFrame -> BackgroundSession.DRAG_CAP
-                    request.payload.globalOnly -> BackgroundSession.INTERACTIVE_CAP
-                    else -> BackgroundSession.SETTLED_CAP
-                }
-                // A drag frame grades the replacement with its own (17³, global-only) plan, as it grades the photo: the
-                // full plan baked a 33³ LUT for every Look passed during a drag (~0.2 s per frame on the emulator).
-                val backgroundPlan = backgroundSession.planFor(edit.tools.background, { if (workingSizeFrame) plan else planOf(library, edit) }, renderer,
-                    maxBlurFraction(edit), backgroundCap, replacementSize = if (workingSizeFrame) dragProxy.width to dragProxy.height else null)
+                val plan = planOf(library, edit, globalOnly = false)
+                // Interaction priority must not change pixels: use the same plan, source and Background cap
+                // during the drag and after release. Otherwise grain, sharpness and subject edges jump.
+                val backgroundCap = BackgroundSession.SETTLED_CAP
+                val backgroundPlan = backgroundSession.planFor(edit.tools.background, { plan }, renderer,
+                    maxBlurFraction(edit), backgroundCap)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
                     val compose = sourceStages(edit, library, backgroundCap)
@@ -1836,7 +1833,7 @@ class EditorViewModel(
                     val portraitActive = portraitSession.isActive(edit.tools.portrait)
                     // A Background drag frame starts from the half-size proxy too (2026-10-06): it is the working size
                     // already, so the Look runs on a quarter of the pixels and no resize follows.
-                    val source = if (request.payload.globalOnly && !portraitActive && (backgroundPlan == null || workingSizeFrame)) dragProxy else display
+                    val source = display
                         val tDevelop = System.nanoTime()
                     val developed = if (plan.isIdentity) source else renderer.render(source, plan)
                     backgroundSession.stageTiming?.invoke("develop ${source.width}x${source.height}=${"%.0f".format((System.nanoTime() - tDevelop) / 1e6)}ms globalOnly=${request.payload.globalOnly}")
