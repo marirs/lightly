@@ -11,11 +11,26 @@ the original and analysis files match the backup and the recipe lines are unchan
 once (16:33) and restored it from source 0a9b1285…; that rebound the history header's scene line, nothing else.
 
 ## Release acceptance session (iPhone 11 Pro Max), about 15 minutes
-**Candidate under test: Lightly 1.0.0 (261008001), commit 7d0a096, Release configuration, both models included**
-(`archives/7d0a096-gates-open/`, Mach-O UUID ACBD1FA1; contains the 9fa7f16 export-memory change). Installed on the
-iPhone 11 Pro Max 2026-10-08 as an update; the disposable edit's files were still in place afterwards (history
-header: the 2832×4256 portrait). Acceptance of the earlier 261007080 does not carry over. Release builds take no
-test commands.
+**Candidate under test: Lightly 1.0.0 (261008017), commit 28148c1, Release configuration, both models included**
+(`archives/28148c1-gates-open/`, Mach-O UUID 07E4EF97, executable SHA-256 adafc5c8…; built unsigned and signed locally
+with the existing wildcard development profile, no account access). Installed on the iPhone 11 Pro Max 2026-10-08 as
+an update (…/Application/6DB30CF9…); the disposable edit's files are unchanged (history dce27c71…, original ae21969b…).
+It contains the Change background spill fix (ea772b8). Acceptance of 261008001 and earlier does not carry over.
+
+**Phone checks done before your session (2026-10-08):**
+- Codex pass on 261008001 (`phone-first-pass-2026-10-08-1125/`): launch, reopening the disposable edit, Blur, a Remove
+  stroke, Undo stroke, ordinary Save copy passed; dark replacement showed red at the curls and clothing edge (fixed
+  below); a Save copy with a replacement stopped with the app suspended (no crash or memory-kill report on the phone).
+- Change background, red-wall portrait, diagnostic builds with the phone's own mattes: before the fix a red line along
+  the fleece, red in the collar gap, red and teal specks in the curls (dark and light); after: the line and the collar
+  red gone, curl teal 29,627 → 3,331 px; faint dark-red pockets remain inside the curls where the phone's matte is
+  fully opaque. Preview against Save copy (2832×4256 shrunk to the preview): mean 0.24 / 0.19 of 255, p99 4 / 3.
+- Save copy with the Charcoal replacement through the interface: saved in 4.9 s (peak 1,386 MB: the session held
+  669 MB before the save after drags and Background).
+- Auto and the live ruler, Background off and on (`DeviceDragUITests`): Auto off one step; each drag one Undo step;
+  first drag frame visible after 21–22 ms (off) and 138–139 ms (on).
+- 48 MP Hiking 5 (`c8954609…jpg`), two runs: 8000×6000 saved, 8.8 s (render 8.3 s), the save's peak 697–706 MB from
+  144–148 MB, 340–344 MB after the encode.
 
 **Your edit is backed up and its restoration verified:** `~/.codex/artifacts/lightly/v1/iphone-session-backup-2026-10-07-b/`
 (SHA256SUMS: history feb8fbd5…, original 0a9b1285…, analysis 5b3abb75…). Verified on the phone by copying the backup
