@@ -54,7 +54,7 @@ class DevelopPanelModelTest {
         val original = pack.preset(hiking.id)!!
         val shown = renamed.preset(hiking.id)!!
         assertEquals("05 Hiking 05", original.displayName)
-        assertEquals("Hiking 5", shown.displayName)
+        assertEquals("Quiet Honey Daylight", shown.displayName)
         assertEquals(original.lookVersion, shown.lookVersion)
         assertEquals(original.stop, shown.stop)
         assertEquals(pack.presetCount, renamed.presetCount)

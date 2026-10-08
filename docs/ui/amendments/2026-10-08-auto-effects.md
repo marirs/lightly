@@ -9,3 +9,7 @@ References checked: Apple Photos Enhance (https://support.apple.com/en-bh/guide/
 ## Photo-dependent preset categories — 8 October
 
 The owner reconfirmed that the Portrait preset category is hidden unless a person is detected. This applies independently of the Portrait tool in the dock. A hidden category cannot be the selected category, including when a stored or applied preset refers to it. Applying or retaining a look is separate from category visibility. Existing Favourites/Landscape fallback behaviour is unchanged; the proposed All presets category and remembered-category redesign were not approved.
+
+## Lightly preset names — approved 8 October
+
+The owner approved a representative nine-name sample and extending that descriptive naming style to the full catalogue. All 2,591 IDs have unique frozen names in `shared/look-pack/names/display-names.json`. The nine approved names are retained. The remaining assignments use measured colour/tone characteristics, with representative colour-stage previews visually reviewed, not a claim of manual review of all 2,591 looks. Labels contain no numeric suffixes and are at most 30 characters. IDs, versions, recipes, favourites and edit histories are unchanged. `display_names.py` validates coverage and uniqueness without regenerating inherited source names.

@@ -151,11 +151,11 @@ final class EditorFlowUITests: XCTestCase {
 
     func testBrowsingAnotherCategoryKeepsTheLookAndShowsTheContextLine() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Hiking 5" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Quiet Honey Daylight" })
         element("develop.category.cinematic").tap()
         XCTAssertTrue(waitFor { self.label("develop.context") == "Applied from Landscape" })
         XCTAssertEqual(label("develop.position"), "37 / 518", "The applied preset's position, beside its name")
-        XCTAssertEqual(label("develop.name"), "Hiking 5", "The applied preset, not 'Original'")
+        XCTAssertEqual(label("develop.name"), "Quiet Honey Daylight", "The applied preset, not 'Original'")
         XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Browsing made no undo step")
         // Landscape is scrolled out of sight to the left: swipe the row back, then choose it.
         let landscape = element("develop.category.landscape")
@@ -164,7 +164,7 @@ final class EditorFlowUITests: XCTestCase {
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 200, dy: 0)))
         }
         landscape.tap()
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Hiking 5" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Quiet Honey Daylight" })
         XCTAssertEqual(label("develop.position"), "37 / 518")
     }
 
@@ -184,14 +184,14 @@ final class EditorFlowUITests: XCTestCase {
 
     func testFavouriteRemovalRefreshesWithoutRelaunch() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Hiking 5" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Quiet Honey Daylight" })
         element("develop.star").tap()
         element("develop.category.favourites").tap()
         XCTAssertTrue(waitFor { self.label("develop.position") == "1 / 1" })
         element("develop.star").tap()
         XCTAssertTrue(waitFor { !self.element("develop.star").isSelected })
         XCTAssertFalse(element("develop.position").exists, "Removed preset is not still on the favourites ruler")
-        XCTAssertEqual(label("develop.name"), "Hiking 5", "Removing the shortcut keeps the applied edit")
+        XCTAssertEqual(label("develop.name"), "Quiet Honey Daylight", "Removing the shortcut keeps the applied edit")
         element("develop.category.landscape").tap()
         element("develop.category.favourites").tap()
         XCTAssertFalse(element("develop.position").exists)
@@ -216,7 +216,7 @@ final class EditorFlowUITests: XCTestCase {
 
     func testSaveCopyShowsSavingThenSavedAndKeepEditing() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Hiking 5" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Quiet Honey Daylight" })
         app.buttons["editor.saveCopy"].tap()
         XCTAssertTrue(element("saved.keepEditing").waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Saved as a new photo"].exists)
