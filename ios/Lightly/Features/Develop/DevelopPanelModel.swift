@@ -59,7 +59,7 @@ final class DevelopPanelModel {
         let applied = session.appliedPreset
         let favouritesItem = CategoryItem(id: Self.favouritesID, name: "Favourites", isFavourites: true,
                                           holdsAppliedPreset: applied.map { favourites.contains($0.id) } ?? false)
-        return [favouritesItem] + session.library.pack.categories.map { category in
+        return [favouritesItem] + session.library.pack.categories.filter { $0.id != "portrait" || session.hasPerson == true }.map { category in
             CategoryItem(id: category.id, name: category.name, isFavourites: false,
                          holdsAppliedPreset: applied?.categoryID == category.id)
         }
@@ -69,7 +69,10 @@ final class DevelopPanelModel {
     /// preset's category.
     var currentCategoryID: String {
         let browsing = browsedAtHistoryRevision == session.historyRevision ? browsedCategoryID : nil
-        return browsing ?? session.appliedPreset?.categoryID ?? (favourites.presetIDs.isEmpty ? Self.defaultCategoryID : Self.favouritesID)
+        let available = Set(categoryItems.map(\.id))
+        if let browsing, available.contains(browsing) { return browsing }
+        if let applied = session.appliedPreset?.categoryID, available.contains(applied) { return applied }
+        return favourites.presetIDs.isEmpty ? Self.defaultCategoryID : Self.favouritesID
     }
 
     var isFavouritesMode: Bool { currentCategoryID == Self.favouritesID }

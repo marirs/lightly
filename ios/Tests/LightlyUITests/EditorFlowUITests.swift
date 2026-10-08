@@ -182,6 +182,27 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertNotEqual(element("develop.amount").label, "Amount 100")
     }
 
+    func testFavouriteRemovalRefreshesWithoutRelaunch() {
+        openEditor(extra: ["--scenario", "dev-preset"])
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Hiking 5" })
+        element("develop.star").tap()
+        element("develop.category.favourites").tap()
+        XCTAssertTrue(waitFor { self.label("develop.position") == "1 / 1" })
+        element("develop.star").tap()
+        XCTAssertTrue(waitFor { !self.element("develop.star").isSelected })
+        XCTAssertFalse(element("develop.position").exists, "Removed preset is not still on the favourites ruler")
+        XCTAssertEqual(label("develop.name"), "Hiking 5", "Removing the shortcut keeps the applied edit")
+        element("develop.category.landscape").tap()
+        element("develop.category.favourites").tap()
+        XCTAssertFalse(element("develop.position").exists)
+    }
+
+    func testLandscapeHidesPortraitCategory() {
+        openEditor("landscape_03")
+        XCTAssertFalse(element("develop.category.portrait").exists)
+        XCTAssertTrue(element("develop.category.landscape").exists)
+    }
+
     func testFavouritesStarFullNoticeAndReplace() {
         openEditor(extra: ["--scenario", "dev-fav-full"])
         XCTAssertTrue(element("develop.favourites.replace").waitForExistence(timeout: timeout))

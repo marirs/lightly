@@ -1393,7 +1393,7 @@ class EditorViewModel(
     fun panelModel(ui: EditorUiState = state.value, favourites: List<String> = this.favourites.value): DevelopPanelModel? {
         val library = library ?: return null
         val session = ui.session ?: return null
-        return DevelopPanelModel.derive(library.pack, session.current.look, ui.auto, favourites, ui.develop, ui.rememberedAmounts)
+        return DevelopPanelModel.derive(library.pack, session.current.look, ui.auto, favourites, ui.develop, ui.rememberedAmounts, hasPerson = ui.people?.hasPerson == true)
     }
 
     /** Browsing another category never changes the applied Look (not an undo step). */

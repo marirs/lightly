@@ -234,7 +234,21 @@ final class EditorSessionTests: XCTestCase {
         let model = panel(session)
         XCTAssertEqual(model.currentCategoryID, "landscape")
         XCTAssertEqual(model.categoryItems.first?.id, DevelopPanelModel.favouritesID)
-        XCTAssertEqual(Array(model.categoryItems.dropFirst().map(\.id)), pack.categories.map(\.id), "No counts; categories in order")
+        XCTAssertEqual(Array(model.categoryItems.dropFirst().map(\.id)), pack.categories.filter { $0.id != "portrait" }.map(\.id), "No counts; only available categories in order")
+    }
+
+    func testPortraitCategoryRequiresDetectedPerson() async throws {
+        let landscape = try await EditorTestSupport.readySession(library: library)
+        let model = panel(landscape)
+        model.selectCategory("portrait")
+        XCTAssertFalse(model.categoryItems.contains { $0.id == "portrait" })
+        XCTAssertEqual(model.currentCategoryID, "landscape")
+        let portrait = try await EditorTestSupport.readySession(library: library,
+            personDetector: FixedPersonDetector(result: true))
+        let personModel = panel(portrait)
+        personModel.selectCategory("portrait")
+        XCTAssertTrue(personModel.categoryItems.contains { $0.id == "portrait" })
+        XCTAssertEqual(personModel.currentCategoryID, "portrait")
     }
 
     func testANewLookReplacesOnlyTheDevelopLook() async throws {

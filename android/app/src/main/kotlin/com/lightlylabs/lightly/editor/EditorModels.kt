@@ -165,9 +165,14 @@ data class DevelopPanelModel(
             favourites: List<String>,
             ui: DevelopUi,
             rememberedAmounts: Map<String, Int>,
+            hasPerson: Boolean = true,
         ): DevelopPanelModel {
             val applied = look?.let { pack.preset(it.lookId) }?.takeIf { it.lookVersion == look.lookVersion }
-            val current = ui.category ?: applied?.categoryId ?: if (favourites.isNotEmpty()) FAVOURITES else DEFAULT_CATEGORY
+            val available = pack.categories.filter { it.id != "portrait" || hasPerson }
+            val availableIds = available.map { it.id }.toSet() + FAVOURITES
+            val current = ui.category?.takeIf { it in availableIds }
+                ?: applied?.categoryId?.takeIf { it in availableIds }
+                ?: if (favourites.isNotEmpty()) FAVOURITES else DEFAULT_CATEGORY
             val favouriteMode = current == FAVOURITES
             val favouritePresets = favourites.mapNotNull(pack::preset)
             val list = if (favouriteMode) favouritePresets else pack.category(current)?.presets.orEmpty()
@@ -201,7 +206,7 @@ data class DevelopPanelModel(
             }
             val categories = buildList {
                 add(CategoryEntry(FAVOURITES, "Favourites", current == FAVOURITES, dotted = applied != null && applied.id in favourites, isFavourites = true))
-                pack.categories.forEach { c ->
+                available.forEach { c ->
                     add(CategoryEntry(c.id, c.name, c.id == current, dotted = applied?.categoryId == c.id, isFavourites = false))
                 }
             }

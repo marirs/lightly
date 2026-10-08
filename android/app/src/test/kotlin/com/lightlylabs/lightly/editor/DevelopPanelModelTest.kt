@@ -16,6 +16,19 @@ class DevelopPanelModelTest {
         DevelopPanelModel.derive(pack, look, auto, favourites, ui, amounts)
 
     @Test
+    fun `absent person hides portrait and rejects remembered portrait category`() {
+        val portrait = pack.category("portrait")!!.presets.first()
+        val model = DevelopPanelModel.derive(pack, look(portrait), AutoState.OFF, emptyList(),
+            DevelopUi(category = "portrait"), emptyMap(), hasPerson = false)
+        assertFalse(model.categories.any { it.id == "portrait" })
+        assertEquals("landscape", model.categoryId)
+        val person = DevelopPanelModel.derive(pack, null, AutoState.OFF, emptyList(),
+            DevelopUi(category = "portrait"), emptyMap(), hasPerson = true)
+        assertTrue(person.categories.any { it.id == "portrait" })
+        assertEquals("portrait", person.categoryId)
+    }
+
+    @Test
     fun `new photo exposes saved favourites without applying one`() {
         val model = derive(favourites = listOf(hiking.id))
         assertEquals("favourites", model.categoryId)
