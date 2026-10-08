@@ -249,8 +249,18 @@ Closed as stale (evidence re-checked 2026-10-06):
     tile's Metal workspace stayed alive through Save copy (autoreleased Metal objects, no pool in the save's task);
     each LUT applier call now drains its own pool, and the render consumes its source frame. 48 MP with a spatial
     preset (Landscape · Hiking 5), the save's own sampled peak: 1,541 MB → 601 MB; the remaining peak is decoding the
-    JPEG into pixels (bytes stage). The phone's figure (the earlier 760–800 MB was measured with Auto only) is pending
-    the next device run. Still open: **absolute peak** about 800 MB for a 48 MP Save copy (the source, the render and the encode buffers, about four
+    JPEG into pixels (bytes stage). **Simulator evidence only.** Before/after comparison 2026-10-08, same build
+    settings (-O, whole module), the fix reverted for the "before" build only, iPhone 17 Simulator (iOS 26.5),
+    `experiments/auto/data/pd12m/eval_originals/c8954609f02a4f76ddfa575d71823e59.jpg` (8000×6000) with Hiking 5: save
+    peak 1,727 → 656 MB (added over the open session 1,615 → 544 MB); stages after the fix
+    `bytes=112/647/295 render=295/561/299 image=299/460/483 encode=299/305/305 MB` (start/peak/end); **saved file
+    byte-identical** (sha256 85616858…618671 in both). Release checks (`GPUResourceReleaseTests`): every command buffer
+    is committed and waited for inside the call, so the pool never drains objects the GPU still uses; Hiking 5 renders
+    are byte-identical across GPU (2,048 px) and CPU (1,024 px, 500 px) tile boundaries; ten renders off the main
+    thread grow the footprint 0 MB (297 MB before the fix); failed calls leave the renderer usable; renders cancelled
+    mid-frame grow it 0 MB and leave no state. Not injectable in a test: a Metal allocation or command-buffer failure
+    (both throw after the wait or before commit, and Swift's `autoreleasepool` drains on throw). **Device measurement,
+    when the phone is free:** the same photo and Hiking 5, recorded separately from the Auto-only figures above. Still open: **absolute peak** about 800 MB for a 48 MP Save copy (the source, the render and the encode buffers, about four
     full frames of 192 MB). The app's memory limit on this phone was not measured; 800 MB is about 20 % of the
     phone's 4 GB. Not established on 3 GB or smaller devices (the iPhone SE 3rd generation has 4 GB; untested).
   - iOS, Simulator, SaveCopyTimingTests (real save path): the earlier unfinished run was a -Onone Debug build (1.7 MP:

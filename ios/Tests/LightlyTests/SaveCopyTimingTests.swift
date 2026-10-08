@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import Lightly
 
@@ -37,6 +38,10 @@ final class SaveCopyTimingTests: XCTestCase {
             // The save's own memory: footprint before it, and its peak sampled every 10 ms (the process peak includes the
             // test's loading of the photo).
             print("SAVE MEMORY \(size) MP before=\(before)MB savePeak=\(peak)MB added=\(peak - before)MB")
+            // The saved file's digest, to show a memory change left the exported bytes unchanged (same build settings).
+            let lastSave = await writer.lastSave()
+            let saved = try XCTUnwrap(lastSave.data)
+            print("SAVE OUTPUT \(size) MP sha256=\(SHA256.hash(data: saved).map { String(format: "%02x", $0) }.joined())")
         }
     }
 }
