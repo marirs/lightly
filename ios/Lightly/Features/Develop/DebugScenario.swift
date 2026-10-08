@@ -294,6 +294,8 @@ struct DebugScenario {
         switch screenID {
         case "dev-preset":
             apply("landscape", 37)
+            // The 48 MP Hiking 5 device measurement (2026-10-08) saves this state.
+            await saveCopyIfRequested(session: session, screenID: screenID)
         case "dev-dragging":
             apply("landscape", 37)
             panel.debugSetDragging(stop: 41, fine: true)
