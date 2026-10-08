@@ -11,11 +11,11 @@ the original and analysis files match the backup and the recipe lines are unchan
 once (16:33) and restored it from source 0a9b1285…; that rebound the history header's scene line, nothing else.
 
 ## Release acceptance session (iPhone 11 Pro Max), about 15 minutes
-**Installed and running: Lightly 1.0.0 (261007080), Release configuration, both models included** (internal check
-build, `archives/66f6e21-gates-open/`; not a submission build). Verified from the binaries, 2026-10-07: the archive's
-executable (SHA-256 0f3128f8…, Mach-O UUID 47E83B97; the review build of the same commit is 40A2822E) has build
-261007080 and both model switches YES; it was installed from that path, and the running process executes from the
-bundle that install created (…/Application/7C67940E…/Lightly.app/Lightly). Release builds take no test commands.
+**Candidate under test: Lightly 1.0.0 (261008001), commit 7d0a096, Release configuration, both models included**
+(`archives/7d0a096-gates-open/`, Mach-O UUID ACBD1FA1; contains the 9fa7f16 export-memory change). Installed on the
+iPhone 11 Pro Max 2026-10-08 as an update; the disposable edit's files were still in place afterwards (history
+header: the 2832×4256 portrait). Acceptance of the earlier 261007080 does not carry over. Release builds take no
+test commands.
 
 **Your edit is backed up and its restoration verified:** `~/.codex/artifacts/lightly/v1/iphone-session-backup-2026-10-07-b/`
 (SHA256SUMS: history feb8fbd5…, original 0a9b1285…, analysis 5b3abb75…). Verified on the phone by copying the backup
@@ -28,8 +28,11 @@ session I copy your backup back and confirm it reopens.
    few seconds ("Finding the subject…" / "Estimating depth…" briefly).
 2. **Remove:** Edit → Remove → brush over a small object. Expect "Removing…", then the area filled.
 3. **Undo:** tap Undo once. Expect the Remove fill to go.
-4. **Save copy:** tap Save copy. Expect "Saved as a new photo"; allow Photos access if asked. Tap Keep editing.
-5. **VoiceOver (spoken):** turn VoiceOver on; swipe through the top bar, Develop, the tools, Edit › Remove and
+4. **Change background (hair edge):** Background → Change background → Colour → the dark swatch. Look at the curls on
+   the left against the old red wall: red or dark-teal fringe there is a failure.
+5. **Save copy:** tap Save copy. Expect "Saved as a new photo"; allow Photos access if asked. Open the new photo in
+   Photos: blur, the new background and the hair edge as on screen, no Remove fill (undone). Return; tap Keep editing.
+6. **VoiceOver (spoken):** turn VoiceOver on; swipe through the top bar, Develop, the tools, Edit › Remove and
    Background; then Close → Leave without saving? → Welcome; turn VoiceOver off. Expected speech: list below.
 
 | Step | Result (pass / fail, what you saw) |
@@ -37,8 +40,13 @@ session I copy your backup back and confirm it reopens.
 | 1 Focus & Blur | |
 | 2 Remove | |
 | 3 Undo | |
-| 4 Save copy | |
-| 5 VoiceOver | |
+| 4 Change background hair edge | |
+| 5 Save copy and the saved photo | |
+| 6 VoiceOver | |
+
+**After your session (me):** the 48 MP Hiking 5 measurement (`c8954609…jpg`, Landscape · Hiking 5): Save copy time,
+its own peak and the footprint after, recorded apart from the Auto-only figures; then your edit restored from the
+backup and checked: original 0a9b1285…, 17 steps, at step 16.
 
 **Expected VoiceOver speech** (from the app's accessibility tree, recorded in the simulator by `VoiceOverRouteUITests`;
 only listening confirms it): top bar "Close" · "Undo" (dimmed when nothing to undo) · "Redo" · "Save copy" · "More" ·
