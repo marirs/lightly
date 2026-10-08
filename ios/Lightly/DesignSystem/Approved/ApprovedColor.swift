@@ -53,8 +53,10 @@ enum ApprovedColor {
     static let track = Token(light: 0xDEDEE2, dark: 0x38383D)             // --track
     static let selection = Token(light: 0x2257D2, dark: 0x7AA2FF)         // --sel
     /// The browsed Develop category's underline (owner amendment 2026-10-05, docs/ui/amendments/2026-10-05-develop.md).
-    /// Orange, so browsing never reads as the blue "applied" dot; ≥ 3:1 against --bg in both themes.
+    /// Browsing uses an underline; applied changes use a dot. ≥ 3:1 against --bg in both themes.
     static let browse = Token(light: 0xC25E00, dark: 0xFF9F43)
+    /// Edited-section dots (owner amendment 2026-10-08).
+    static let edited = browse
     static let danger = Token(light: 0xC2342B, dark: 0xFF6B5E)            // --danger
     /// The selected segment's fill: --bg in light, #3A3A3F in dark (`.dark .seg .on`).
     static let segmentSelected = Token(light: 0xFFFFFF, dark: 0x3A3A3F)

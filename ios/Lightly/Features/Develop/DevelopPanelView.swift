@@ -448,6 +448,6 @@ struct AppliedDot: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Circle().fill(ApprovedColor.selection.resolved(colorScheme)).frame(width: 5, height: 5).accessibilityHidden(true)
+        Circle().fill(ApprovedColor.edited.resolved(colorScheme)).frame(width: 5, height: 5).accessibilityHidden(true)
     }
 }

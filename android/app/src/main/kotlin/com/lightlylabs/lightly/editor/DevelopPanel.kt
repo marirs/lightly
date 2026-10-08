@@ -164,7 +164,7 @@ private fun TabLabel(entry: CategoryEntry) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (entry.isFavourites) LightlyIcon(LightlyIcons.Star, size = 15.dp, tint = if (entry.selected) colors.ink else colors.ink2)
         BrowsedLabel(entry)
-        if (entry.dotted) Box(Modifier.padding(start = 3.dp).size(5.dp).background(colors.sel, CircleShape))
+        if (entry.dotted) Box(Modifier.padding(start = 3.dp).size(5.dp).background(colors.browse, CircleShape))
     }
 }
 
@@ -269,7 +269,7 @@ private fun CategoryList(model: DevelopPanelModel, onSelect: (String) -> Unit) {
             ) {
                 if (entry.isFavourites) LightlyIcon(LightlyIcons.Star, size = 15.dp, tint = if (entry.selected) colors.ink else colors.ink2)
                 BrowsedLabel(entry)
-                if (entry.dotted) Box(Modifier.padding(start = 6.dp).size(5.dp).background(colors.sel, CircleShape))
+                if (entry.dotted) Box(Modifier.padding(start = 6.dp).size(5.dp).background(colors.browse, CircleShape))
                 Spacer(Modifier.weight(1f))
             }
         }

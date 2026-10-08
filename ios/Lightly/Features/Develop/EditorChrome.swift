@@ -88,13 +88,14 @@ struct EditorTopBar: View {
             Spacer(minLength: 0)
             Button(action: onSave) {
                 Text("Save copy")
-                    .approvedText(15, weight: .semibold)
+                    .approvedText(14, weight: .semibold)
                     .lineLimit(1)
                     .fixedSize()
                     .foregroundStyle(ApprovedColor.background.resolved(colorScheme))
                     .padding(.horizontal, 14)
+                    .frame(minHeight: 34)
+                    .background(Capsule().fill(ApprovedColor.ink.resolved(colorScheme)))
                     .frame(minHeight: 44)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(ApprovedColor.ink.resolved(colorScheme)))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -383,7 +384,7 @@ struct ToolNavigation: View {
                     .padding(.horizontal, slotsWidenForLabels ? Self.labelGapBeyondApprovedLarge / 2 : 0)
                 if isUsed {
                     Circle()
-                        .fill((isOn ? ApprovedColor.selection : ApprovedColor.inkTertiary).resolved(colorScheme))
+                        .fill(ApprovedColor.edited.resolved(colorScheme))
                         .frame(width: 4, height: 4)
                         .padding(.top, 1)
                 }

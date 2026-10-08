@@ -84,7 +84,7 @@ struct PanelTabs<ID: Hashable>: View {
             HStack(spacing: 4) {
                 Text(item.title).approvedText(15, weight: isOn ? .semibold : .regular)
                 if item.dotted {
-                    Circle().fill(ApprovedColor.selection.resolved(colorScheme)).frame(width: 5, height: 5).padding(.leading, 3)
+                    Circle().fill(ApprovedColor.edited.resolved(colorScheme)).frame(width: 5, height: 5).padding(.leading, 3)
                 }
             }
             .lineLimit(1).fixedSize()

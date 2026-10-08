@@ -119,7 +119,7 @@ fun <T> OptionTabs(items: List<Pair<T, String>>, selected: T, onSelect: (T) -> U
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(label, style = lightlyTextStyle(15.sp, if (on) FontWeight.SemiBold else FontWeight.Normal, if (on) colors.ink else colors.ink2), maxLines = 1)
-                if (dotted(value)) Box(Modifier.padding(start = 3.dp).size(5.dp).background(colors.sel, CircleShape))
+                if (dotted(value)) Box(Modifier.padding(start = 3.dp).size(5.dp).background(colors.browse, CircleShape))
             }
         }
     }

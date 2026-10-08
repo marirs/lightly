@@ -244,19 +244,22 @@ private fun TopBarLeft(vm: EditorViewModel, ui: EditorUiState) {
 @Composable
 private fun TopBarRight(vm: EditorViewModel, actions: EditorActions) {
     val colors = lightlyColors
-    // `.save`: min-height 44, padding 0 14, radius 9, ink fill, weight 600, margin 0 4.
+    // Compact 34 dp pill within the full 48 dp touch target (owner amendment 2026-10-08).
     Box(
         Modifier
             .padding(horizontal = 4.dp)
-            .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(colors.ink)
+            .heightIn(min = 48.dp)
             .clickable(role = Role.Button, onClick = vm::saveCopy)
-            .testTagResource(EditorTags.SAVE)
-            .padding(horizontal = 14.dp),
+            .testTagResource(EditorTags.SAVE),
         contentAlignment = Alignment.Center,
     ) {
-        Text("Save copy", style = lightlyTextStyle(15.sp, FontWeight.SemiBold, colors.bg), maxLines = 1)
+        Box(
+            Modifier.heightIn(min = 34.dp).background(colors.ink, CircleShape)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Save copy", style = lightlyTextStyle(14.sp, FontWeight.SemiBold, colors.bg), maxLines = 1)
+        }
     }
     BarIcon(LightlyIcons.More, "More", actions.more, tag = EditorTags.MORE)
 }
@@ -538,7 +541,7 @@ private fun ToolItem(tool: EditorTool, selected: Boolean, used: Boolean, rail: B
     ) {
         LightlyIcon(icon, tint = if (selected) colors.sel else colors.ink3)
         Text(tool.label, style = lightlyTextStyle(11.sp, FontWeight.Medium, if (selected) colors.ink else colors.ink3), maxLines = 1)
-        if (used) Box(Modifier.padding(top = 1.dp).size(4.dp).background(if (selected) colors.sel else colors.ink3, CircleShape))
+        if (used) Box(Modifier.padding(top = 1.dp).size(4.dp).background(colors.browse, CircleShape))
     }
 }
 
