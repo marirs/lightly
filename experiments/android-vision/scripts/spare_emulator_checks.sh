@@ -13,6 +13,16 @@ for n in subject_boat subject_swan night_03; do adb -s $A push "$HERE/work/u2net
 run() { adb -s $A shell am force-stop $P; adb -s $A logcat -c
   adb -s $A shell am start -f 0x10008000 -n $P/.MainActivity --es lightly.debug.photo /data/user/0/$P/files/$1 --es lightly.debug.editor $2 >/dev/null
   sleep $3; echo "== $2 ($1)"; adb -s $A logcat -d | grep -E "LightlyFlow|FATAL|AndroidRuntime" | grep -v adbd | cut -c33-360; adb -s $A exec-out screencap -p > "$OUT/$2.png"; }
-run subject_boat.jpg bg-switch-flow 180
-run night_03.jpg pt-no-usable-face 40
+if [ "${MODE:-flows}" = objects ]; then
+  # Object cut-out Save copy (bg-object-flow), pulling the saved JPEG of each run.
+  for n in subject_boat subject_swan; do
+    before=$(adb -s $A shell 'ls /sdcard/Pictures/Lightly/ 2>/dev/null' | tr -d '\r' | sort)
+    run $n.jpg bg-object-flow 120
+    new=$(comm -13 <(echo "$before") <(adb -s $A shell 'ls /sdcard/Pictures/Lightly/ 2>/dev/null' | tr -d '\r' | sort) | head -1)
+    [ -n "$new" ] && adb -s $A pull "/sdcard/Pictures/Lightly/$new" "$OUT/$n-saved.jpg" >/dev/null && echo "saved $n: $new"
+  done
+else
+  run subject_boat.jpg bg-switch-flow 180
+  run night_03.jpg pt-no-usable-face 40
+fi
 adb -s $A emu kill >/dev/null 2>&1; sleep 3; echo "spare emulator stopped"

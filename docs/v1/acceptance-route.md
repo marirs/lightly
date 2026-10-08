@@ -1,3 +1,15 @@
+# Latest direct iOS verification — 8 October 2026
+
+**Current installed iPhone build: 3deb45d, Release 1.0.0 (261008020).** Codex exercised the actual installed Release app with a separate UI runner. Auto/Undo, preset drag/Undo/Redo, Focus & Blur, Remove/Undo, ordinary Photos save and Keep editing passed. A fresh original opened through the system picker showed clean hair against Warm white and Charcoal; the warm-white copy saved. Close/Discard/Welcome passed in a controlled follow-up.
+
+The starting edit was restored after testing and all five session files match their pre-test SHA-256 checksums after launch. The earlier 17-step recovery backup remains untouched.
+
+Evidence and exact scope: `~/.codex/artifacts/lightly/v1/final-ios-261008020/README.md`. Automated audit findings: disabled Undo stroke and partially clipped Watermark label contrast. Spoken VoiceOver remains unverified. One earlier Close attempt after Save/Keep editing plus an audit did not leave the editor; subsequent checks passed, so this event is recorded without a claimed fix. Full visual matrices and 48 MP were not repeated in this bounded pass.
+
+The records below describe earlier candidates and must not be read as current build identity or current test results.
+
+---
+
 # Device acceptance pass: checkpoint 482261d, build 1.0.0 (261007059)
 
 Packaged 2026-10-07 (`~/.codex/artifacts/lightly/v1/review-builds/{ios,android}/482261d/`). Installed and read back:

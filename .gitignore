@@ -1,3 +1,14 @@
 .*
 !.gitignore
 Thumbs.db
+
+# Local Xcode state and generated experiment executables
+xcuserdata/
+/experiments/auto-ci/auto_sheet
+/experiments/auto-ci/eval/eval
+/experiments/auto-ci/guarded_sheet
+/experiments/auto-ci/hsa_pointwise
+/experiments/auto-ci/hsa_scale
+/experiments/auto-ci/lut_worst
+/experiments/auto-ci/per_filter
+/experiments/android-vision/results/

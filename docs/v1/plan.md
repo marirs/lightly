@@ -55,3 +55,7 @@ The measured coverage per preset is in `docs/v1/preset-pack.md` (pack format 3, 
 
 - **Preset grain/vignette plus Effects:** the approved prototype composes them ("added on top, not replaced") and shows a notice. That is what will be implemented. Which presets carry grain or vignette now comes from their real settings, not a stand-in rule.
 - **Metadata:** two independent switches (Keep photo metadata on, Include location off). The same policy applies to Save and Share.
+
+## Future release boundary
+
+Eraser reference-led improvements are scheduled for 1.1: see [roadmap](../roadmap.md) and [research](../v1.1/eraser.md). This does not silently change the approved 1.0 Edit → Remove control or its acceptance requirements.
