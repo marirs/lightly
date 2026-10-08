@@ -128,7 +128,11 @@ enum WatermarkStage {
         let height = above + below
         let onBorder = isOnBorder(watermark, border: border)
         let x: Double, top: Double
-        if onBorder {
+        if watermark.placement == .canvas {
+            let a = anchor(watermark)
+            x = min(max(a.x * Double(canvasSize.width) - extent.width / 2, 0), max(0, Double(canvasSize.width) - extent.width))
+            top = min(max(a.y * Double(canvasSize.height) - height / 2, 0), max(0, Double(canvasSize.height) - height))
+        } else if onBorder {
             let fromBottom = border == .polaroid ? 0.06 : 0.01
             x = Double(canvasSize.width) / 2 - extent.width / 2
             top = Double(canvasSize.height) * (1 - fromBottom) - height

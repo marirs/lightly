@@ -192,7 +192,7 @@
                                                                                     "font": {"enum": ["Allura", "Cormorant Garamond", "Inter", "Caveat"]}}}]},
                                "logo": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["image"],
                                                                      "properties": {"image": {"$ref": "#/$defs/assetRef"}}}]},
-                               "placement": {"enum": ["photo", "border"]},
+                               "placement": {"enum": ["photo", "border", "canvas"]},
                                "position": {"type": "integer", "minimum": 0, "maximum": 8, "description": "Anchor, row-major 3x3 (0 top left ... 8 bottom right)."},
                                "offset": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/point"}], "description": "Dragged position (frame coordinates of the watermark's anchor); overrides position when set."},
                                "size": {"type": "number", "minimum": 10, "maximum": 80},

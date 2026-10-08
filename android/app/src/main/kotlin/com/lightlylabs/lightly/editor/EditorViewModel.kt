@@ -1227,11 +1227,25 @@ class EditorViewModel(
     }
 
     /** Dragging the watermark on the photo: its anchor follows the finger (photo fractions); preview, one step at the end. */
+    fun watermarkCanvasAnchor(): Pair<Double, Double> {
+        val ui = state.value
+        val edit = ui.session?.current ?: return 0.5 to 0.5
+        val image = ui.preview ?: return WatermarkStage.anchor(edit.tools.watermark)
+        val w = edit.tools.watermark
+        val content = watermarkContent(w) ?: return 0.5 to 0.5
+        val box = com.lightlylabs.lightly.develop.BorderStage.imageBox(EditMapping.border(edit), image.width, image.height)
+        val rect = com.lightlylabs.lightly.develop.PixelRect((box[0] * image.width).toInt(), (box[1] * image.height).toInt(), (box[2] * image.width).toInt(), (box[3] * image.height).toInt())
+        val stage = WatermarkStage(library?.let(::watermarkSizes) ?: WatermarkSizes.REVISION_2, env.watermarkFonts)
+        val extent = stage.extent(content, w.size, minOf(rect.width, rect.height).toDouble())
+        val l = stage.layout(w, stage.kind(content), extent, image.width, image.height, rect, edit.tools.border.type)
+        return (l.left + l.width / 2) / image.width to (l.top + l.height / 2) / image.height
+    }
+
     fun dragWatermark(start: Pair<Double, Double>, dx: Double, dy: Double, release: Boolean) {
         val session = state.value.session ?: return
         val point = com.lightlylabs.lightly.session.NormalisedPoint((start.first + dx).coerceIn(0.0, 1.0), (start.second + dy).coerceIn(0.0, 1.0))
-        if (release) commitWatermark { it.copy(offset = point) }
-        else requestPreview(session.current.copy(tools = session.current.tools.copy(watermark = session.current.tools.watermark.copy(offset = point))), globalOnly = false)
+        if (release) commitWatermark { it.copy(placement = com.lightlylabs.lightly.session.WatermarkPlacement.CANVAS, offset = point) }
+        else requestPreview(session.current.copy(tools = session.current.tools.copy(watermark = session.current.tools.watermark.copy(placement = com.lightlylabs.lightly.session.WatermarkPlacement.CANVAS, offset = point))), globalOnly = false)
     }
 
     // --- Effects (slice 4) ------------------------------------------------------------------------

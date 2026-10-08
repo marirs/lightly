@@ -145,7 +145,11 @@ class WatermarkStage(private val sizes: WatermarkSizes, private val fonts: Water
         val onBorder = isOnBorder(w, border)
         val left: Double
         val top: Double
-        if (onBorder) {
+        if (w.placement == WatermarkPlacement.CANVAS) {
+            val (ax, ay) = anchor(w)
+            left = (ax * canvasWidth - extent.width / 2).coerceIn(0.0, max(0.0, canvasWidth - extent.width))
+            top = (ay * canvasHeight - height / 2).coerceIn(0.0, max(0.0, canvasHeight - height))
+        } else if (onBorder) {
             val fromBottom = if (border == BorderType.POLAROID) 0.06 else 0.01
             left = canvasWidth / 2.0 - extent.width / 2
             top = canvasHeight * (1 - fromBottom) - height

@@ -89,6 +89,17 @@ class WatermarkTest {
         assertFalse(stage.layout(neutral.copy(placement = WatermarkPlacement.BORDER), WatermarkStage.Kind.SIGNATURE, WatermarkStage.Extent(1.0, 1.0, 0.0), 10, 10, PixelRect(0, 0, 10, 10), BorderType.NONE).onBorder)
     }
 
+    @Test fun `canvas placement crosses photo and border and clamps to canvas`() {
+        for (y in listOf(0.0, 0.5, 0.94, 1.0)) {
+            val l = stage.layout(neutral.copy(placement = WatermarkPlacement.CANVAS, offset = NormalisedPoint(0.5, y)),
+                WatermarkStage.Kind.SIGNATURE, WatermarkStage.Extent(100.0, 30.0, 0.0),
+                1000, 1000, PixelRect(50, 50, 900, 700), BorderType.POLAROID)
+            assertEquals(500.0, l.left + l.width / 2, 1e-9)
+            assertTrue(l.top >= 0); assertTrue(l.top + l.height <= 1000)
+            if (y == 0.94) assertTrue(l.top > 750)
+        }
+    }
+
     // --- the session --------------------------------------------------------------------------------
 
     private class Gateway : MediaStoreGateway<String> {

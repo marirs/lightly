@@ -22,6 +22,19 @@ final class WatermarkStageTests: XCTestCase {
     /// The prototype's layouts for wm-text / wm-signature (sunset): iPhone 17 portrait shows the
     /// photo 402 × 268.1 pt, iPad Pro 13" landscape 892 × 594.8 pt. Whatever the photo's pixels,
     /// the watermark's displayed size is 18 / 26 / 30 pt × size/34.
+    func testCanvasPlacementCrossesPhotoAndBorderAndStaysInsideCanvas() {
+        let image = CGRect(x: 50, y: 50, width: 900, height: 700)
+        for y in [0.0, 0.5, 0.94, 1.0] {
+            let w = watermark(.signature, offset: .init(x: 0.5, y: y), placement: .canvas)
+            let l = WatermarkStage.layout(w, kind: .signature, extent: .init(width: 100, above: 30, below: 0),
+                canvasSize: CGSize(width: 1000, height: 1000), imageRect: image, border: .polaroid, pixelsPerPoint: 1)
+            XCTAssertEqual(l.box.midX, 500)
+            XCTAssertGreaterThanOrEqual(l.box.minY, 0)
+            XCTAssertLessThanOrEqual(l.box.maxY, 1000)
+            if y == 0.94 { XCTAssertGreaterThan(l.box.minY, image.maxY) }
+        }
+    }
+
     func testTheDisplayedSizeIsThePrototypesPointsOnEveryLayout() {
         for displayShort in [268.1, 594.8] {
             for imageShort in [426.0, 1067.0, 4000.0] {

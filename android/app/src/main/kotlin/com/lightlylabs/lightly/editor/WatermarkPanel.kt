@@ -210,26 +210,6 @@ private fun FontOption(text: String, font: WatermarkFont, name: String, on: Bool
 private fun CommonControls(vm: EditorViewModel, ui: EditorUiState, hasBorder: Boolean, colours: Boolean) {
     val w = ui.session?.current?.tools?.watermark ?: return
     val colors = lightlyColors
-    if (hasBorder) SegmentedControl(listOf(WatermarkPlacement.PHOTO to "On photo", WatermarkPlacement.BORDER to "On border"), w.placement, vm::setWatermarkPlacement)
-    else PanelNote("Add a border to place the watermark on it.")
-    if (!(w.placement == WatermarkPlacement.BORDER && hasBorder)) {
-        // One row cycling the nine anchors, plus dragging on the photo: no tiny grid targets.
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Button, onClick = vm::cycleWatermarkPosition)
-                .semantics { contentDescription = "Position, ${WatermarkOptions.POSITIONS[w.position.coerceIn(0, 8)]}" }
-                .testTagResource("watermark-position").padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("Position", style = lightlyTextStyle(color = colors.ink), modifier = Modifier.weight(1f))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(WatermarkOptions.POSITIONS[w.position.coerceIn(0, 8)], style = lightlyTextStyle(color = colors.ink3))
-                LightlyIcon(LightlyIcons.Chevron, size = 16.dp, tint = colors.ink3)
-            }
-        }
-        // `.note` with `padding-top:0`.
-        Text("Or drag the watermark on the photo.", style = lightlyTextStyle(13.sp, color = colors.ink3), modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 6.dp))
-    }
     WatermarkSlider(vm, ui, "Size", "size", w.size, 10.0, 80.0)
     WatermarkSlider(vm, ui, "Opacity", "opacity", w.opacity, 0.0, 100.0)
     if (colours) ChipRow {

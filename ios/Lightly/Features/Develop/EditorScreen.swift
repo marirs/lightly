@@ -205,10 +205,16 @@ struct EditorScreen: View {
         let stage = PhotoStage(image: session.isShowingOriginal ? session.originalImage : session.displayedImage,
                                showsOriginalBadge: session.isShowingOriginal,
                                outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
+                               marksCoverCanvas: tool == .watermark,
                                imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
                                onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },
-                               marks: { if !session.isShowingOriginal { stageMarks.frame(maxWidth: .infinity, maxHeight: .infinity).overlay(alignment: .bottomLeading) { autoEnhanceButton.padding(5) } } })
+                               marks: { if !session.isShowingOriginal { stageMarks.frame(maxWidth: .infinity, maxHeight: .infinity).overlay(alignment: .bottomLeading) { GeometryReader { g in
+                                   let box = tool == .watermark ? session.displayedImageBox : CGRect(x: 0, y: 0, width: 1, height: 1)
+                                   autoEnhanceButton.padding(5)
+                                       .frame(width: g.size.width * box.width, height: g.size.height * box.height, alignment: .bottomLeading)
+                                       .offset(x: g.size.width * box.minX, y: g.size.height * box.minY)
+                               } } } })
         switch layout.mode {
         case .below:
             VStack(spacing: 0) {
@@ -385,7 +391,7 @@ struct EditorScreen: View {
                     if effectsPanel.sub == .leak { leakDragArea(size: size) }
                     if effectsPanel.picksOnTap { selectiveColourTapArea(size: size) }
                 case .watermark:
-                    if watermarkPanel.isUsed, !watermarkPanel.isOnBorder { watermarkDragArea(size: size) }
+                    if watermarkPanel.isUsed { watermarkDragArea(size: size) }
                 default:
                     EmptyView()
                 }
@@ -621,7 +627,7 @@ struct EditorScreen: View {
         Color.clear.contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 2)
                 .onChanged { value in
-                    let start = watermarkDragStart ?? WatermarkStage.anchor(session.recipe.tools.watermark)
+                    let start = watermarkDragStart ?? watermarkPanel.canvasAnchor(size: size)
                     watermarkDragStart = start
                     watermarkPanel.dragAnchor(from: start, by: value.translation, imageSize: size, final: false)
                 }

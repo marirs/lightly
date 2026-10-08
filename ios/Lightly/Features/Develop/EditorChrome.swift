@@ -171,6 +171,7 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     /// `.pic` with a border: `box-shadow:0 0 0 1px rgba(0,0,0,.12)`, a 1 pt ring just outside the
     /// canvas so a white border stays visible on the stage.
     var outlinesCanvas = false
+    var marksCoverCanvas = false
     /// The photo inside the canvas, as fractions (prototype `.imgbox` inside `.frame`): marks are
     /// laid over this box, not over the border.
     var imageBox = CGRect(x: 0, y: 0, width: 1, height: 1)
@@ -212,10 +213,11 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                     .overlay {
                         // `.imgbox` is `overflow:hidden`: marks are clipped to the photo.
                         GeometryReader { canvas in
+                            let box = marksCoverCanvas ? CGRect(x: 0, y: 0, width: 1, height: 1) : imageBox
                             marks()
-                                .frame(width: canvas.size.width * imageBox.width, height: canvas.size.height * imageBox.height)
+                                .frame(width: canvas.size.width * box.width, height: canvas.size.height * box.height)
                                 .clipped()
-                                .offset(x: canvas.size.width * imageBox.minX, y: canvas.size.height * imageBox.minY)
+                                .offset(x: canvas.size.width * box.minX, y: canvas.size.height * box.minY)
                         }
                     }
                 overlay()

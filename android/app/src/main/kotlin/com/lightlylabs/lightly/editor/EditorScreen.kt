@@ -41,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -356,7 +357,7 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                     val photoH = (width / ratio) * (box?.get(3)?.toFloat() ?: 1f)
                     androidx.compose.runtime.SideEffect { onPhotoBox(minOf(photoW, photoH), maxOf(photoW, photoH)) }
                 }
-                if (box == null) overlay() else BoxWithConstraints(Modifier.fillMaxSize()) {
+                if (box == null || ui.tool == EditorTool.WATERMARK) overlay() else BoxWithConstraints(Modifier.fillMaxSize()) {
                     Box(Modifier.offset(x = maxWidth * box[0].toFloat(), y = maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { overlay() }
                 }
             }
@@ -659,7 +660,18 @@ private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
 private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
     val applied = ui.auto == AutoState.APPLIED
     // The 30 dp disc sits 12 dp inside the fitted photo, with a separate 48 dp touch area.
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+    val photoBox = if (ui.tool == EditorTool.WATERMARK) ui.preview?.let { image ->
+        ui.session?.current?.let { com.lightlylabs.lightly.develop.BorderStage.imageBox(EditMapping.border(it), image.width, image.height) }
+    } else null
+    Box(Modifier.fillMaxSize().layout { measurable, constraints ->
+        val b = photoBox ?: doubleArrayOf(0.0, 0.0, 1.0, 1.0)
+        val w = (constraints.maxWidth * b[2]).toInt()
+        val h = (constraints.maxHeight * b[3]).toInt()
+        val child = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            child.place((constraints.maxWidth * b[0]).toInt(), (constraints.maxHeight * b[1]).toInt())
+        }
+    }, contentAlignment = Alignment.BottomStart) {
         Box(Modifier.padding(3.dp).size(48.dp)
             .clickable(onClick = vm::toggleAuto)
             .semantics {

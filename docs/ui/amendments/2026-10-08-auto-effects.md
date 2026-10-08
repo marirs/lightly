@@ -13,3 +13,7 @@ The owner reconfirmed that the Portrait preset category is hidden unless a perso
 ## Lightly preset names — approved 8 October
 
 The owner approved a representative nine-name sample and extending that descriptive naming style to the full catalogue. All 2,591 IDs have unique frozen names in `shared/look-pack/names/display-names.json`. The nine approved names are retained. The remaining assignments use measured colour/tone characteristics, with representative colour-stage previews visually reviewed, not a claim of manual review of all 2,591 looks. Labels contain no numeric suffixes and are at most 30 characters. IDs, versions, recipes, favourites and edit histories are unchanged. `display_names.py` validates coverage and uniqueness without regenerating inherited source names.
+
+## Watermark free placement — owner request 2026-10-08
+
+Remove the On photo / On border selector and the Position row. Drag the watermark over the full output canvas, including an existing border; no border is required or added. Size, opacity and colour remain. Dragging previews the position and commits one undo step. A canvas-relative centre is persisted and used by preview and export, clamped inside the output. Legacy photo/border recipes retain their initial rendering until moved. Installed-device visual verification is pending.

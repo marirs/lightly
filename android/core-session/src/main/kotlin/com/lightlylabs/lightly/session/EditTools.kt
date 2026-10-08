@@ -338,7 +338,7 @@ data class UserVignette(val enabled: Boolean, val amount: Double, val size: Doub
 // --- watermark --------------------------------------------------------------------------------------
 
 @Serializable enum class WatermarkType { @SerialName("none") NONE, @SerialName("signature") SIGNATURE, @SerialName("text") TEXT, @SerialName("logo") LOGO }
-@Serializable enum class WatermarkPlacement { @SerialName("photo") PHOTO, @SerialName("border") BORDER }
+@Serializable enum class WatermarkPlacement { @SerialName("photo") PHOTO, @SerialName("border") BORDER, @SerialName("canvas") CANVAS }
 @Serializable enum class SignatureKind { @SerialName("drawn") DRAWN, @SerialName("imported") IMPORTED }
 @Serializable enum class WatermarkFont { @SerialName("Allura") ALLURA, @SerialName("Cormorant Garamond") CORMORANT_GARAMOND, @SerialName("Inter") INTER, @SerialName("Caveat") CAVEAT }
 

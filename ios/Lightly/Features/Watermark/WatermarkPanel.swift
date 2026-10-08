@@ -204,10 +204,21 @@ final class WatermarkPanelModel {
 
     /// Dragging the watermark on the photo: its anchor follows the finger (photo fractions,
     /// clamped to the photo). Preview while dragging, one undo step at the end.
+    func canvasAnchor(size: CGSize) -> (x: Double, y: Double) {
+        guard let content = session.watermarkContent(for: watermark) else { return (0.5, 0.5) }
+        let box = session.displayedImageBox
+        let rect = CGRect(x: box.minX * size.width, y: box.minY * size.height,
+                          width: box.width * size.width, height: box.height * size.height)
+        let extent = WatermarkStage.extent(of: content, size: watermark.size, pixelsPerPoint: 1)
+        let layout = WatermarkStage.layout(watermark, kind: WatermarkStage.kind(of: content), extent: extent,
+            canvasSize: size, imageRect: rect, border: border.type, pixelsPerPoint: 1)
+        return (layout.box.midX / max(size.width, 1), layout.box.midY / max(size.height, 1))
+    }
+
     func dragAnchor(from start: (x: Double, y: Double), by translation: CGSize, imageSize: CGSize, final: Bool) {
         let x = min(max(start.x + Double(translation.width / max(imageSize.width, 1)), 0), 1)
         let y = min(max(start.y + Double(translation.height / max(imageSize.height, 1)), 0), 1)
-        if final { session.commitWatermark { $0.offset = .init(x: x, y: y) } } else { session.previewWatermark { $0.offset = .init(x: x, y: y) } }
+        if final { session.commitWatermark { $0.placement = .canvas; $0.offset = .init(x: x, y: y) } } else { session.previewWatermark { $0.placement = .canvas; $0.offset = .init(x: x, y: y) } }
     }
 }
 
@@ -346,36 +357,6 @@ struct WatermarkPanelView: View {
 
     @ViewBuilder
     private func commonControls(colours: Bool) -> some View {
-        if model.hasBorder {
-            ApprovedSegmentedControl(
-                accessibilityLabel: Text("Placement"),
-                options: [(EditRecipe.Watermark.Placement.photo, Text("On photo"), "watermark.place.photo"),
-                          (.border, Text("On border"), "watermark.place.border")],
-                selection: Binding(get: { watermark.placement }, set: { model.setPlacement($0) }))
-                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 4)
-        } else {
-            ApprovedNote("Add a border to place the watermark on it.")
-        }
-        if !model.isOnBorder {
-            Button(action: model.cyclePosition) {
-                HStack(spacing: 12) {
-                    Text("Position").approvedText(15).foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
-                    Spacer(minLength: 0)
-                    HStack(spacing: 6) {
-                        Text(WatermarkPanelModel.positionNames[min(max(watermark.position, 0), 8)]).approvedText(15)
-                        ApprovedIconView(icon: .chevron, size: 16)
-                    }
-                    .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
-                }
-                .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint(Text("Moves the watermark to the next position."))
-            .accessibilityIdentifier("watermark.position")
-            ApprovedNote("Or drag the watermark on the photo.", topPadding: 0)
-        }
         PanelSlider(label: "Size", value: watermark.size, range: 10...80, identifier: "slider.size",
                     onChange: { v in session.previewWatermark { $0.size = v.rounded() } },
                     onEnd: { v in session.commitWatermark { $0.size = v.rounded() } })

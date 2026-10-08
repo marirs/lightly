@@ -54,8 +54,8 @@ fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
             vm.picksOnTap(ui) -> SelectiveColourTap(vm)
         }
         EditorTool.WATERMARK -> ui.session?.current?.tools?.let { tools ->
-            // "Or drag the watermark on the photo": on the photo only (a watermark on the border is centred).
-            if (tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE && !WatermarkStage.isOnBorder(tools.watermark, tools.border.type)) WatermarkDrag(vm, WatermarkStage.anchor(tools.watermark))
+            // Placement covers the complete output canvas, including any border.
+            if (tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE) WatermarkDrag(vm, WatermarkStage.anchor(tools.watermark))
         }
         else -> Unit
     }
@@ -216,6 +216,7 @@ private fun WatermarkDrag(vm: EditorViewModel, start: Pair<Double, Double>) {
         Modifier.fillMaxSize().pointerInput(start) {
             awaitEachGesture {
                 val down = awaitFirstDown()
+                val origin = vm.watermarkCanvasAnchor()
                 var last = down.position
                 var moved = false
                 while (true) {
@@ -223,10 +224,10 @@ private fun WatermarkDrag(vm: EditorViewModel, start: Pair<Double, Double>) {
                     if (!change.pressed) break
                     last = change.position
                     moved = true
-                    vm.dragWatermark(start, ((last.x - down.position.x) / size.width).toDouble(), ((last.y - down.position.y) / size.height).toDouble(), release = false)
+                    vm.dragWatermark(origin, ((last.x - down.position.x) / size.width).toDouble(), ((last.y - down.position.y) / size.height).toDouble(), release = false)
                     change.consume()
                 }
-                if (moved) vm.dragWatermark(start, ((last.x - down.position.x) / size.width).toDouble(), ((last.y - down.position.y) / size.height).toDouble(), release = true)
+                if (moved) vm.dragWatermark(origin, ((last.x - down.position.x) / size.width).toDouble(), ((last.y - down.position.y) / size.height).toDouble(), release = true)
             }
         }.semantics { contentDescription = "Drag the watermark on the photo" },
     )

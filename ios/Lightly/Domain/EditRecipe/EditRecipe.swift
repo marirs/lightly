@@ -234,7 +234,7 @@ struct EditRecipe: Equatable, Sendable {
 
     struct Watermark: Equatable, Sendable {
         enum Kind: String, Sendable, CaseIterable { case none, signature, text, logo }
-        enum Placement: String, Sendable, CaseIterable { case photo, border }
+        enum Placement: String, Sendable, CaseIterable { case photo, border, canvas }
         enum Font: String, Sendable, CaseIterable {
             case allura = "Allura", cormorantGaramond = "Cormorant Garamond", inter = "Inter", caveat = "Caveat"
         }
