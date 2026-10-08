@@ -107,7 +107,7 @@ final class DevelopPanelModel {
     }
 
     /// Stop zero reads Auto only when Auto is applied, otherwise Original.
-    var baseName: String { session.autoState == .applied ? "Auto corrected · No preset" : "No preset" }
+    var baseName: String { "" }
 
     /// The applied preset while it is not on this category's ruler and the ruler is at rest: the name row then
     /// shows it, never "Original" (owner amendment 2026-10-05). Dragging to stop zero previews the original and says so.

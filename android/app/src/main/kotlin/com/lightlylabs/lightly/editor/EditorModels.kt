@@ -179,7 +179,7 @@ data class DevelopPanelModel(
             }
             val stop = (ui.dragStop ?: committedStop).coerceIn(0, list.size)
             val onRuler = if (stop > 0) list[stop - 1] else null
-            val base = if (auto == AutoState.APPLIED) "Auto corrected · No preset" else "No preset"
+            val base = ""
             // At rest, the applied preset is named even when it is not on this category's ruler; "Original" only while
             // dragging to stop 0, when the preview is the original (owner amendment 2026-10-05).
             val offRuler = if (onRuler == null && ui.dragStop == null) applied else null

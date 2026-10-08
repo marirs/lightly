@@ -1253,21 +1253,21 @@ class EditorViewModel(
         }
     }
 
-    fun setLeakStyle(style: com.lightlylabs.lightly.session.LeakStyle) = commitEffects { it.copy(lightLeak = it.lightLeak.copy(style = style)) }
+    fun setLeakStyle(style: com.lightlylabs.lightly.session.LeakStyle) = commitEffects { it.copy(lightLeak = it.lightLeak.copy(style = style, enabled = true, intensity = it.lightLeak.intensity.takeIf { n -> n > 0 } ?: 35.0)) }
 
-    fun setGrainStyle(style: com.lightlylabs.lightly.session.GrainStyle) = commitEffects { it.copy(grain = it.grain.copy(style = style)) }
+    fun setGrainStyle(style: com.lightlylabs.lightly.session.GrainStyle) = commitEffects { it.copy(grain = it.grain.copy(style = style, enabled = true, amount = it.grain.amount.takeIf { n -> n > 0 } ?: 25.0)) }
 
     private fun withEffectsSlider(e: com.lightlylabs.lightly.session.EffectsTool, field: String, value: Double): com.lightlylabs.lightly.session.EffectsTool {
         val p = value.coerceIn(0.0, 100.0)
         return when (field) {
-            "leakIntensity" -> e.copy(lightLeak = e.lightLeak.copy(intensity = p))
-            "leakRotation" -> e.copy(lightLeak = e.lightLeak.copy(rotation = value.coerceIn(-180.0, 180.0)))
-            "grainAmount" -> e.copy(grain = e.grain.copy(amount = p))
-            "grainSize" -> e.copy(grain = e.grain.copy(size = p))
-            "grainRoughness" -> e.copy(grain = e.grain.copy(roughness = p))
-            "vignetteAmount" -> e.copy(vignette = e.vignette.copy(amount = p))
-            "vignetteSize" -> e.copy(vignette = e.vignette.copy(size = p))
-            "vignetteSoftness" -> e.copy(vignette = e.vignette.copy(softness = p))
+            "leakIntensity" -> e.copy(lightLeak = e.lightLeak.copy(intensity = p, enabled = p > 0))
+            "leakRotation" -> e.copy(lightLeak = e.lightLeak.copy(enabled = true, intensity = e.lightLeak.intensity.takeIf { it > 0 } ?: 35.0, rotation = value.coerceIn(-180.0, 180.0)))
+            "grainAmount" -> e.copy(grain = e.grain.copy(amount = p, enabled = p > 0))
+            "grainSize" -> e.copy(grain = e.grain.copy(enabled = true, amount = e.grain.amount.takeIf { it > 0 } ?: 25.0, size = p))
+            "grainRoughness" -> e.copy(grain = e.grain.copy(enabled = true, amount = e.grain.amount.takeIf { it > 0 } ?: 25.0, roughness = p))
+            "vignetteAmount" -> e.copy(vignette = e.vignette.copy(amount = p, enabled = p > 0))
+            "vignetteSize" -> e.copy(vignette = e.vignette.copy(enabled = true, amount = e.vignette.amount.takeIf { it > 0 } ?: 25.0, size = p))
+            "vignetteSoftness" -> e.copy(vignette = e.vignette.copy(enabled = true, amount = e.vignette.amount.takeIf { it > 0 } ?: 25.0, softness = p))
             "selectiveRange" -> e.selectiveColour?.let { e.copy(selectiveColour = it.copy(range = p)) } ?: e
             "selectiveStrength" -> e.selectiveColour?.let { e.copy(selectiveColour = it.copy(strength = p)) } ?: e
             else -> e
@@ -1288,7 +1288,7 @@ class EditorViewModel(
     /** Light Leaks › drag on the photo: the leak follows the finger (preview); release is one step. */
     fun moveLeak(x: Double, y: Double, release: Boolean) {
         val session = state.value.session ?: return
-        val move: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool = { it.copy(lightLeak = it.lightLeak.copy(x = (x * 100).coerceIn(0.0, 100.0), y = (y * 100).coerceIn(0.0, 100.0))) }
+        val move: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool = { it.copy(lightLeak = it.lightLeak.copy(enabled = true, intensity = it.lightLeak.intensity.takeIf { n -> n > 0 } ?: 35.0, x = (x * 100).coerceIn(0.0, 100.0), y = (y * 100).coerceIn(0.0, 100.0))) }
         if (release) commitEffects(move) else requestPreview(session.current.copy(tools = session.current.tools.copy(effects = move(session.current.tools.effects))), globalOnly = false)
     }
 

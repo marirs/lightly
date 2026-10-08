@@ -141,7 +141,7 @@ data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, va
 @Composable
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
-    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, onPhotoBox = vm::onStagePhotoMeasured) }
+    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui); if (!ui.showsOriginal) AutoEnhanceOverlay(vm, ui) }, onPhotoBox = vm::onStagePhotoMeasured) }
     val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
     val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
     Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
@@ -652,5 +652,19 @@ private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
     androidx.compose.runtime.DisposableEffect(view, working) {
         view.keepScreenOn = working
         onDispose { view.keepScreenOn = false }
+    }
+}
+
+@Composable
+private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
+    val applied = ui.auto == AutoState.APPLIED
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
+        Box(Modifier.padding(10.dp).size(48.dp)
+            .background(if (applied) Color(0xFFFF9F43) else Color(0xA6000000), androidx.compose.foundation.shape.CircleShape)
+            .clickable(onClick = vm::toggleAuto)
+            .semantics { contentDescription = "Auto enhance"; stateDescription = if (applied) "Applied" else "Not applied" }
+            .testTagResource(EditorTags.AUTO), contentAlignment = Alignment.Center) {
+            LightlyIcon(LightlyIcons.AutoEnhance, size = 23.dp, tint = if (applied) Color.Black else Color.White)
+        }
     }
 }

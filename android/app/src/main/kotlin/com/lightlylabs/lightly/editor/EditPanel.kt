@@ -159,12 +159,11 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
         Notice(LightlyIcons.Info, AnnotatedString("The applied preset already includes its own ${if (sub == EffectsSub.GRAIN) "grain" else "vignette"}. This one is added to it, not replaced."))
     }
     // Selective Colour has no On switch: a kept colour applies it (reference: docs/ui/proposals/selective-colour at 330cf5b; status in its README).
-    if (sub != EffectsSub.SELECTIVE) OnOffRow(on(sub), name = sub.label) { vm.toggleEffect(sub) }
     when (sub) {
         EffectsSub.LEAK -> {
             ChipRow {
                 EditOptions.LEAK_STYLES.forEach { (style, label) ->
-                    val selected = fx.lightLeak.style == style
+                    val selected = fx.lightLeak.enabled && fx.lightLeak.style == style
                     OptChip(selected, label, { vm.setLeakStyle(style) }, tag = "leak-${style.name.lowercase()}") {
                         Text(label, style = lightlyTextStyle(color = if (selected) lightlyColors.sel else lightlyColors.ink2), maxLines = 1)
                     }
@@ -177,7 +176,7 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
         EffectsSub.GRAIN -> {
             ChipRow {
                 EditOptions.GRAIN_STYLES.forEach { (style, label) ->
-                    val selected = fx.grain.style == style
+                    val selected = fx.grain.enabled && fx.grain.style == style
                     OptChip(selected, label, { vm.setGrainStyle(style) }, tag = "grain-${style.name.lowercase()}") {
                         Text(label, style = lightlyTextStyle(color = if (selected) lightlyColors.sel else lightlyColors.ink2), maxLines = 1)
                     }
@@ -271,7 +270,14 @@ private fun displayColour(oklab: List<Double>): androidx.compose.ui.graphics.Col
 @Composable
 private fun EffectsSlider(vm: EditorViewModel, ui: EditorUiState, label: String, field: String, committed: Double, min: Double, max: Double) {
     val drag = ui.effects.sliderDrag?.takeIf { it.first == field }?.second
-    SliderRow(label, drag ?: committed, min, max, onDrag = { vm.onEffectsSlider(field, it) }, onRelease = { vm.onEffectsSliderRelease(field, it) }, tag = "effects-slider-$field")
+    val fx = ui.session?.current?.tools?.effects
+    val shown = when {
+        field == "leakIntensity" && fx?.lightLeak?.enabled != true -> 0.0
+        field == "grainAmount" && fx?.grain?.enabled != true -> 0.0
+        field == "vignetteAmount" && fx?.vignette?.enabled != true -> 0.0
+        else -> committed
+    }
+    SliderRow(label, drag ?: shown, min, max, onDrag = { vm.onEffectsSlider(field, it) }, onRelease = { vm.onEffectsSliderRelease(field, it) }, tag = "effects-slider-$field")
 }
 
 /**

@@ -106,7 +106,6 @@ import androidx.compose.ui.graphics.StrokeCap
 fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, wrapped: Boolean) = Column(Modifier.fillMaxWidth()) {
     if (roomy) PanelTitle("Develop")
     Column(Modifier.fillMaxWidth()) {
-        AutoSwitchButton(model.autoSwitch, vm::toggleAuto)
         if (!roomy) {
             if (wrapped) WrappedTabs(model, vm::selectCategory, Modifier.fillMaxWidth()) else ScrollingTabs(model, vm::selectCategory, Modifier.fillMaxWidth())
         }
@@ -122,42 +121,6 @@ fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, 
         modifier = Modifier.fillMaxWidth().heightIn(min = 18.dp).padding(horizontal = 18.dp),
     )
     if (model.amountOpen) AmountRow(model.amount, vm) else Ruler(model, vm)
-}
-
-/** `.autoT`: a ring that fills when Auto is applied; unavailable or failed reads ink3. */
-@Composable
-private fun AutoSwitchButton(state: AutoSwitch, onToggle: () -> Unit) {
-    val colors = lightlyColors
-    val text = when (state) { AutoSwitch.ON -> colors.ink; AutoSwitch.OFF -> colors.ink2; AutoSwitch.UNAVAILABLE -> colors.ink3 }
-    Row(
-        Modifier
-            .fillMaxWidth().heightIn(min = 44.dp)
-            .drawBehind { drawLine(colors.hair, Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 1.dp.toPx()) }
-            .clickable(enabled = state != AutoSwitch.UNAVAILABLE, role = Role.Switch, onClick = onToggle)
-            .semantics {
-                contentDescription = "Automatic correction"
-                toggleableState = if (state == AutoSwitch.ON) ToggleableState.On else ToggleableState.Off
-                if (state == AutoSwitch.UNAVAILABLE) stateDescription = "Unavailable"
-            }
-            .testTagResource(EditorTags.AUTO)
-            .padding(start = 18.dp, end = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        // `.autoT::before`: 9px wide plus a border, content-box (`.dv * { box-sizing: border-box }` does
-        // not match pseudo-elements), corner radius 5px. The CSS border is 1.5px, but the approved renders
-        // (Chrome) floor fractional border widths: computed 1px, so the box is 11 dp with a 1 dp ring.
-        val dotShape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
-        Box(
-            Modifier.size(11.dp).then(
-                if (state == AutoSwitch.ON) Modifier.background(colors.sel, dotShape).border(1.dp, colors.sel, dotShape)
-                else Modifier.border(1.dp, colors.ink3, dotShape),
-            ),
-        )
-        Text("Auto correction", style = lightlyTextStyle(color = text))
-        Spacer(Modifier.weight(1f))
-        Text(when (state) { AutoSwitch.ON -> "On"; AutoSwitch.OFF -> "Off"; AutoSwitch.UNAVAILABLE -> "Unavailable" }, style = lightlyTextStyle(color = text))
-    }
 }
 
 @Composable

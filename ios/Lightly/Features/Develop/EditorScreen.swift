@@ -164,6 +164,22 @@ struct EditorScreen: View {
         if session.hasUnsavedEdits { isLeaveAlertShown = true } else { onClose() }
     }
 
+    private var autoEnhanceButton: some View {
+        let applied = session.autoState == .applied
+        return Button { session.toggleAuto() } label: {
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: 21, weight: .medium))
+                .foregroundStyle(applied ? Color.black : Color.white)
+                .frame(width: 44, height: 44)
+                .background(applied ? Color.orange : Color.black.opacity(0.65), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Auto enhance")
+        .accessibilityValue(applied ? "Applied" : "Not applied")
+        .accessibilityAddTraits(applied ? .isSelected : [])
+        .accessibilityIdentifier("develop.auto")
+    }
+
     // MARK: - Editor layouts
 
     @ViewBuilder
@@ -177,7 +193,7 @@ struct EditorScreen: View {
                                imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
                                onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },
-                               marks: { if !session.isShowingOriginal { stageMarks } })
+                               marks: { if !session.isShowingOriginal { stageMarks.overlay(alignment: .topLeading) { autoEnhanceButton.padding(10) } } })
         switch layout.mode {
         case .below:
             VStack(spacing: 0) {
@@ -563,12 +579,12 @@ struct EditorScreen: View {
                 .onChanged { value in
                     let x = min(max(value.location.x / size.width * 100, 0), 100).rounded()
                     let y = min(max(value.location.y / size.height * 100, 0), 100).rounded()
-                    session.previewEffects { $0.lightLeak.x = x; $0.lightLeak.y = y }
+                    session.previewEffects { $0.lightLeak.x = x; $0.lightLeak.y = y; $0.lightLeak.enabled = true; if $0.lightLeak.intensity == 0 { $0.lightLeak.intensity = 35 } }
                 }
                 .onEnded { value in
                     let x = min(max(value.location.x / size.width * 100, 0), 100).rounded()
                     let y = min(max(value.location.y / size.height * 100, 0), 100).rounded()
-                    session.commitEffects { $0.lightLeak.x = x; $0.lightLeak.y = y }
+                    session.commitEffects { $0.lightLeak.x = x; $0.lightLeak.y = y; $0.lightLeak.enabled = true; if $0.lightLeak.intensity == 0 { $0.lightLeak.intensity = 35 } }
                 })
             .accessibilityHidden(true)
     }

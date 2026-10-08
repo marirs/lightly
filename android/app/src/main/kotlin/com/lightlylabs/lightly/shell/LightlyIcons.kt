@@ -42,6 +42,7 @@ object LightlyIcons {
 
     /** Page back chevron (`back`), used by the More pages on both platforms. */
     val BackChevron = lineIcon("back", "M15 5l-7 7 7 7")
+    val AutoEnhance = lineIcon("autoEnhance", "M4 20L16 8l3 3L7 23z", "M13 11l3 3", "M6 3v4M4 5h4M19 1v4M17 3h4M21 16v4M19 18h4")
     val Close = lineIcon("close", "M6 6l12 12M18 6L6 18")
     val Chevron = lineIcon("chevron", "M9 5l7 7-7 7")
     val Check = lineIcon("check", "M5 12.5l4.5 4.5L19 7.5")

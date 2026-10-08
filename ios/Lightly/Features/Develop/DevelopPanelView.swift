@@ -47,7 +47,6 @@ struct DevelopPanelView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
-            autoButton
             switch style {
             case .tabs:
                 CategoryTabStrip(model: model)
@@ -62,38 +61,6 @@ struct DevelopPanelView: View {
             }
         }
         .frame(minHeight: 44)
-    }
-
-    private var autoButton: some View {
-        let state = model.session.autoState
-        let isOn = state == .applied
-        let isUnavailable = state == .unavailable || state == .failed
-        return Button {
-            model.session.toggleAuto()
-        } label: {
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(isOn ? c(ApprovedColor.selection) : .clear)
-                    .overlay(Circle().strokeBorder(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary), lineWidth: 1))
-                    // `.autoT::before`: 9 × 9 plus its border outside it (pseudo-elements are not
-                    // covered by `.dv * { box-sizing: border-box }`). The CSS says 1.5, but the
-                    // approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px), so the approved dot is 11 pt with a 1 pt ring.
-                    .frame(width: 11, height: 11)
-                Text("Auto correction")
-                    .approvedText(15)
-                    .foregroundStyle(isOn ? c(ApprovedColor.ink) : isUnavailable ? c(ApprovedColor.inkTertiary) : c(ApprovedColor.inkSecondary))
-                Spacer(minLength: 12)
-                Text(isOn ? "On" : isUnavailable ? "Unavailable" : "Off").approvedText(15)
-            }
-            .padding(.leading, 18).padding(.trailing, 14)
-            .frame(minHeight: 44)
-            .overlay(alignment: .bottom) { Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1) }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("Automatic correction"))
-        .accessibilityValue(Text(isOn ? "On" : isUnavailable ? "Unavailable" : "Off"))
-        .accessibilityIdentifier("develop.auto")
     }
 
     func categoryTab(_ item: DevelopPanelModel.CategoryItem) -> some View {

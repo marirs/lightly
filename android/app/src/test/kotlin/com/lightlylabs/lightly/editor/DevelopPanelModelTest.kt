@@ -49,10 +49,10 @@ class DevelopPanelModelTest {
 
     @Test
     fun `stop zero reads Auto only when Auto is applied, otherwise Original`() {
-        assertEquals("No preset", derive(auto = AutoState.UNAVAILABLE).name)
-        assertEquals("No preset", derive(auto = AutoState.OFF).name)
-        assertEquals("No preset", derive(auto = AutoState.FAILED).name)
-        assertEquals("Auto corrected · No preset", derive(auto = AutoState.APPLIED).name)
+        assertEquals("", derive(auto = AutoState.UNAVAILABLE).name)
+        assertEquals("", derive(auto = AutoState.OFF).name)
+        assertEquals("", derive(auto = AutoState.FAILED).name)
+        assertEquals("", derive(auto = AutoState.APPLIED).name)
     }
 
     @Test
@@ -89,7 +89,7 @@ class DevelopPanelModelTest {
         assertTrue(model.categories.first { it.id == "landscape" }.dotted)
         assertTrue(model.categories.first { it.id == "cinematic" }.selected)
         // Dragging to stop zero previews the original and says so.
-        assertEquals("No preset", derive(look(hiking), ui = DevelopUi(category = "cinematic", dragStop = 0)).name)
+        assertEquals("", derive(look(hiking), ui = DevelopUi(category = "cinematic", dragStop = 0)).name)
     }
 
     @Test

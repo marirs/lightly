@@ -66,6 +66,24 @@ class EditEffectsTest {
     // --- Remove engine -------------------------------------------------------------------------------
 
     @Test
+    fun `effect controls apply directly and zero removes effect`() = runTest {
+        val vm = ready(null)
+        vm.setLeakStyle(com.lightlylabs.lightly.session.LeakStyle.entries.last())
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
+        vm.undo(); advanceUntilIdle()
+        assertFalse(vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
+        vm.onEffectsSliderRelease("grainAmount", 30.0); advanceUntilIdle()
+        assertTrue(vm.uiState.value.session!!.current.tools.effects.grain.enabled)
+        vm.onEffectsSliderRelease("grainAmount", 0.0); advanceUntilIdle()
+        assertFalse(vm.uiState.value.session!!.current.tools.effects.grain.enabled)
+        vm.onEffectsSliderRelease("vignetteAmount", 35.0); advanceUntilIdle()
+        assertTrue(vm.uiState.value.session!!.current.tools.effects.vignette.enabled)
+        vm.onEffectsSliderRelease("vignetteAmount", 0.0); advanceUntilIdle()
+        assertFalse(vm.uiState.value.session!!.current.tools.effects.vignette.enabled)
+    }
+
+    @Test
     fun `a Remove patch changes only the brush and its feather`() {
         val source = image(300, 200, 3)
         val radius = 10.0 / 300

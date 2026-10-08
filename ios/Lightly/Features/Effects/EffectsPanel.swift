@@ -75,25 +75,13 @@ struct EffectsPanelView: View {
 
     /// `.listrow` "On"/"Off" with the switch (`onRow`), 44 pt high, no rule.
     /// VoiceOver names the effect ("Vignette, switch, on"); the row itself shows only On/Off.
-    private func onRow(_ isOn: Bool, name: String, identifier: String, toggle: @escaping () -> Void) -> some View {
-        Toggle(isOn: Binding(get: { isOn }, set: { _ in toggle() })) {
-            Text(isOn ? "On" : "Off").approvedText(15).foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
-        }
-        .toggleStyle(ApprovedSwitchToggleStyle())
-        .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
-        .frame(minHeight: 44)
-        .accessibilityLabel(Text(name))
-        .accessibilityIdentifier(identifier)
-    }
-
     @ViewBuilder
     private var leak: some View {
         let l = effects.lightLeak
-        onRow(l.enabled, name: "Light Leaks", identifier: "effects.leak.toggle") { session.commitEffects { $0.lightLeak.enabled.toggle() } }
         ChipRow {
             ForEach(Self.leakStyles, id: \.style) { option in
-                OptionChip(isOn: l.style == option.style, identifier: "effects.leak.\(option.style.rawValue)",
-                           action: { session.commitEffects { $0.lightLeak.style = option.style } }) {
+                OptionChip(isOn: l.enabled && l.style == option.style, identifier: "effects.leak.\(option.style.rawValue)",
+                           action: { session.commitEffects { $0.lightLeak.style = option.style; $0.lightLeak.enabled = true; if $0.lightLeak.intensity == 0 { $0.lightLeak.intensity = 35 } } }) {
                     Text(option.label).approvedText(15)
                 }
             }
@@ -110,11 +98,10 @@ struct EffectsPanelView: View {
     @ViewBuilder
     private var grain: some View {
         let g = effects.grain
-        onRow(g.enabled, name: "Grain", identifier: "effects.grain.toggle") { session.commitEffects { $0.grain.enabled.toggle() } }
         ChipRow {
             ForEach([(EditRecipe.Effects.Grain.Style.fine, "Fine"), (.film, "Film"), (.coarse, "Coarse")], id: \.0) { style, label in
-                OptionChip(isOn: g.style == style, identifier: "effects.grain.\(style.rawValue)",
-                           action: { session.commitEffects { $0.grain.style = style } }) {
+                OptionChip(isOn: g.enabled && g.style == style, identifier: "effects.grain.\(style.rawValue)",
+                           action: { session.commitEffects { $0.grain.style = style; $0.grain.enabled = true; if $0.grain.amount == 0 { $0.grain.amount = 25 } } }) {
                     Text(label).approvedText(15)
                 }
             }
@@ -126,7 +113,6 @@ struct EffectsPanelView: View {
 
     @ViewBuilder
     private var vignette: some View {
-        onRow(effects.vignette.enabled, name: "Vignette", identifier: "effects.vignette.toggle") { session.commitEffects { $0.vignette.enabled.toggle() } }
         slider("Amount", \.vignette.amount, 0...100)
         slider("Size", \.vignette.size, 0...100)
         slider("Softness", \.vignette.softness, 0...100)
@@ -228,9 +214,32 @@ struct EffectsPanelView: View {
         return Color(.sRGB, red: rgb.x, green: rgb.y, blue: rgb.z)
     }
 
+    private func displayedEffectValue(_ key: WritableKeyPath<EditRecipe.Effects, Double>) -> Double {
+        if key == \.lightLeak.intensity && !effects.lightLeak.enabled { return 0 }
+        if key == \.grain.amount && !effects.grain.enabled { return 0 }
+        if key == \.vignette.amount && !effects.vignette.enabled { return 0 }
+        return effects[keyPath: key]
+    }
+
+    private func applyEffectValue(_ value: inout EditRecipe.Effects, _ key: WritableKeyPath<EditRecipe.Effects, Double>, _ amount: Double) {
+        value[keyPath: key] = amount
+        switch model.sub {
+        case .leak:
+            if key != \.lightLeak.intensity && value.lightLeak.intensity == 0 { value.lightLeak.intensity = 35 }
+            value.lightLeak.enabled = value.lightLeak.intensity > 0
+        case .grain:
+            if key != \.grain.amount && value.grain.amount == 0 { value.grain.amount = 25 }
+            value.grain.enabled = value.grain.amount > 0
+        case .vignette:
+            if key != \.vignette.amount && value.vignette.amount == 0 { value.vignette.amount = 25 }
+            value.vignette.enabled = value.vignette.amount > 0
+        case .selective: break
+        }
+    }
+
     private func slider(_ label: String, _ key: WritableKeyPath<EditRecipe.Effects, Double>, _ range: ClosedRange<Double>) -> some View {
-        PanelSlider(label: label, value: effects[keyPath: key], range: range, identifier: "slider.\(label.lowercased())",
-                    onChange: { v in session.previewEffects { $0[keyPath: key] = v.rounded() } },
-                    onEnd: { v in session.commitEffects { $0[keyPath: key] = v.rounded() } })
+        PanelSlider(label: label, value: displayedEffectValue(key), range: range, identifier: "slider.\(label.lowercased())",
+                    onChange: { v in session.previewEffects { applyEffectValue(&$0, key, v.rounded()) } },
+                    onEnd: { v in session.commitEffects { applyEffectValue(&$0, key, v.rounded()) } })
     }
 }
