@@ -138,7 +138,7 @@ final class EditorSessionTests: XCTestCase {
     }
 
     func testCategoryChangeAloneNeverChangesTheLookAndShowsTheAppliedContext() async throws {
-        let session = try await EditorTestSupport.readySession(library: library)
+        let session = try await EditorTestSupport.readySession(library: library, personDetector: FixedPersonDetector(result: true))
         let model = panel(session)
         let first = pack.categories[0], second = pack.categories[1]
         model.selectCategory(first.id)
@@ -164,7 +164,7 @@ final class EditorSessionTests: XCTestCase {
     /// Owner feedback 2026-10-05: apply Landscape → browse Portrait → apply Portrait → Undo → Redo. At every step the
     /// photo's Look, the underline (browsed category), the dot (applied category) and the name row agree.
     func testBrowsingAndApplyingAcrossCategoriesWithUndoAndRedoStayConsistent() async throws {
-        let session = try await EditorTestSupport.readySession(library: library)
+        let session = try await EditorTestSupport.readySession(library: library, personDetector: FixedPersonDetector(result: true))
         let model = panel(session)
         let landscape = try XCTUnwrap(pack.category(id: "landscape")), portrait = try XCTUnwrap(pack.category(id: "portrait"))
         func dotted() -> [String] { model.categoryItems.filter { $0.holdsAppliedPreset && !$0.isFavourites }.map(\.id) }
@@ -252,7 +252,7 @@ final class EditorSessionTests: XCTestCase {
     }
 
     func testANewLookReplacesOnlyTheDevelopLook() async throws {
-        let session = try await EditorTestSupport.readySession(library: library)
+        let session = try await EditorTestSupport.readySession(library: library, personDetector: FixedPersonDetector(result: true))
         let model = panel(session)
         model.selectCategory(pack.categories[0].id)
         model.dragEnded(at: 1)
@@ -320,7 +320,7 @@ final class EditorSessionTests: XCTestCase {
     // MARK: - Favourites
 
     func testStarAddsAndRemovesAFavouriteAndASixthShowsTheFullNotice() async throws {
-        let session = try await EditorTestSupport.readySession(library: library)
+        let session = try await EditorTestSupport.readySession(library: library, personDetector: FixedPersonDetector(result: true))
         let model = panel(session)
         let presets = pack.categories.flatMap(\.presets)
         model.selectCategory(presets[0].categoryID)
@@ -405,15 +405,17 @@ final class EditorSessionTests: XCTestCase {
 
     // MARK: - Rendering
 
-    func testSpatialAndFinishingOperatorsChangeTheCommittedPreview() async throws {
+    func testSpatialAndFinishingOperatorsRemainPresentDuringPreview() async throws {
         let session = try await EditorTestSupport.readySession(library: library)
         let preset = spatialPreset
-        session.previewLook(preset)          // interactive: global stage only
+        let original = try pixels(session.displayedImage)
+        session.previewLook(preset)
         await session.settleRendering()
-        let globalOnly = try pixels(session.displayedImage)
-        session.applyLook(preset)            // committed: global, then spatial and finishing
+        let moving = try pixels(session.displayedImage)
+        XCTAssertNotEqual(moving, original)
+        session.applyLook(preset)
         await session.settleRendering()
-        XCTAssertNotEqual(try pixels(session.displayedImage), globalOnly)
+        XCTAssertEqual(try pixels(session.displayedImage), moving, "Releasing cannot add missing spatial or finishing stages")
     }
 
     func testTilesDoNotSeam() throws {
@@ -548,8 +550,7 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertLessThanOrEqual(worst, .milliseconds(100))
     }
 
-    /// Owner request 2026-10-06: the photo previews each newly crossed stop while the finger moves (reduced-size drag
-    /// frames), the latest request wins, release commits one Undo step at normal preview quality, Undo restores.
+    /// Panel navigation must not change the recipe or render scale.
     func testPanelResizingDoesNotChangeTheRenderedEdit() async throws {
         let photo = try await EditorTestSupport.photo(width: 600, height: 400)
         let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 600)
@@ -581,6 +582,33 @@ final class EditorSessionTests: XCTestCase {
         await session.settleRendering()
         XCTAssertEqual(session.publishedRenderCount, count + 1, "No intermediate frame with the effects missing")
         XCTAssertEqual(try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage), moving)
+    }
+
+    func testEveryEffectControlKeepsItsImageOnRelease() async throws {
+        let photo = try await EditorTestSupport.photo(width: 240, height: 160)
+        let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 240)
+        session.applyLook(spatialPreset)
+        session.commitEffects {
+            $0.lightLeak.enabled = true; $0.grain.enabled = true; $0.vignette.enabled = true
+            $0.selectiveColour.colours = [.init(oklab: SIMD3(0.6, 0.1, 0.05), x: 0.5, y: 0.5)]
+        }
+        let controls: [(String, WritableKeyPath<EditRecipe.Effects, Double>)] = [
+            ("Leak intensity", \.lightLeak.intensity), ("Leak rotation", \.lightLeak.rotation),
+            ("Leak x", \.lightLeak.x), ("Leak y", \.lightLeak.y),
+            ("Grain amount", \.grain.amount), ("Grain size", \.grain.size), ("Grain roughness", \.grain.roughness),
+            ("Vignette amount", \.vignette.amount), ("Vignette size", \.vignette.size), ("Vignette softness", \.vignette.softness),
+            ("Selective range", \.selectiveColour.range), ("Selective strength", \.selectiveColour.strength)
+        ]
+        for (name, key) in controls {
+            session.previewEffects { $0[keyPath: key] = 73 }
+            await session.settleRendering()
+            let moving = try pixels(session.displayedImage)
+            let count = session.publishedRenderCount
+            session.commitEffects { $0[keyPath: key] = 73 }
+            await session.settleRendering()
+            XCTAssertEqual(try pixels(session.displayedImage), moving, name)
+            XCTAssertEqual(session.publishedRenderCount, count + 1, "\(name): no incomplete intermediate frame")
+        }
     }
 
     func testRulerDragPreviewsEveryCrossedStopAndTheLatestWins() async throws {

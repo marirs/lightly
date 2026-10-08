@@ -134,10 +134,12 @@ struct DevelopFrameRenderer: Sendable {
                 }
                 : try lutApplier.applyUnencoded(passes, toRGBA8: regionPixels, width: regionWidth, height: regionHeight)
 
-            var colours = floats.map { DevelopPixelOperators.simdClamp(SIMD3($0.x, $0.y, $0.z)) }
+            let colours: [SIMD3<Float>]
             if !plan.spatial.isEmpty {
                 colours = applySpatial(plan.spatial, floats: floats, regionOrigin: (x0, y0), regionSize: (regionWidth, regionHeight),
                                            frameSize: (width, height), clarityProxy: clarityProxy)
+            } else {
+                colours = floats.map { DevelopPixelOperators.simdClamp(SIMD3($0.x, $0.y, $0.z)) }
             }
             // Finishing and encoding, inner tile only.
             output.withUnsafeMutableBufferPointer { destination in
@@ -242,21 +244,24 @@ struct DevelopFrameRenderer: Sendable {
         let proxyHeight = max(1, Int((Double(height) * min(scale, 1)).rounded()))
         var lightness = [Float](repeating: 0, count: proxyWidth * proxyHeight)
         let lut = plan.lookLUT
-        for py in 0..<proxyHeight {
-            let ys = py * height / proxyHeight, ye = max((py + 1) * height / proxyHeight, ys + 1)
-            for px in 0..<proxyWidth {
-                let xs = px * width / proxyWidth, xe = max((px + 1) * width / proxyWidth, xs + 1)
-                // Box average of the source block (encoded values, as a downscaler would).
-                var sum = SIMD3<Double>.zero
-                for y in ys..<ye {
-                    for x in xs..<xe {
-                        let o = (y * width + x) * 4
-                        sum += SIMD3(Double(pixels[o]), Double(pixels[o + 1]), Double(pixels[o + 2]))
+        lightness.withUnsafeMutableBufferPointer { destination in
+            let output = destination.baseAddress!
+            DispatchQueue.concurrentPerform(iterations: proxyHeight) { py in
+                let ys = py * height / proxyHeight, ye = max((py + 1) * height / proxyHeight, ys + 1)
+                for px in 0..<proxyWidth {
+                    let xs = px * width / proxyWidth, xe = max((px + 1) * width / proxyWidth, xs + 1)
+                    // Box average of the source block (encoded values, as a downscaler would).
+                    var sum = SIMD3<Double>.zero
+                    for y in ys..<ye {
+                        for x in xs..<xe {
+                            let o = (y * width + x) * 4
+                            sum += SIMD3(Double(pixels[o]), Double(pixels[o + 1]), Double(pixels[o + 2]))
+                        }
                     }
+                    var colour = sum / Double((ye - ys) * (xe - xs)) / 255
+                    if let lut { colour = Self.lookup(lut, colour) }
+                    output[py * proxyWidth + px] = ColourMath.oklab(fromEncoded: SIMD3<Float>(colour)).x
                 }
-                var colour = sum / Double((ye - ys) * (xe - xs)) / 255
-                if let lut { colour = Self.lookup(lut, colour) }
-                lightness[py * proxyWidth + px] = ColourMath.oklab(fromEncoded: SIMD3<Float>(colour)).x
             }
         }
         let sigma = model.radiusClarity * Double(max(proxyWidth, proxyHeight))
@@ -274,13 +279,17 @@ struct DevelopFrameRenderer: Sendable {
             let lower = Int(source.rounded(.down))
             return (lower, min(lower + 1, proxyCount - 1), Float(source - Double(lower)))
         }
-        for row in 0..<regionHeight {
-            let (y0, y1, fy) = axis(regionOrigin.1 + row, frameSize.1, proxy.height)
-            for column in 0..<regionWidth {
-                let (x0, x1, fx) = axis(regionOrigin.0 + column, frameSize.0, proxy.width)
-                let top = proxy.blurred[y0 * proxy.width + x0] * (1 - fx) + proxy.blurred[y0 * proxy.width + x1] * fx
-                let bottom = proxy.blurred[y1 * proxy.width + x0] * (1 - fx) + proxy.blurred[y1 * proxy.width + x1] * fx
-                out[row * regionWidth + column] = top * (1 - fy) + bottom * fy
+        let columns = (0..<regionWidth).map { axis(regionOrigin.0 + $0, frameSize.0, proxy.width) }
+        out.withUnsafeMutableBufferPointer { destination in
+            let output = destination.baseAddress!
+            DispatchQueue.concurrentPerform(iterations: regionHeight) { row in
+                let (y0, y1, fy) = axis(regionOrigin.1 + row, frameSize.1, proxy.height)
+                for column in 0..<regionWidth {
+                    let (x0, x1, fx) = columns[column]
+                    let top = proxy.blurred[y0 * proxy.width + x0] * (1 - fx) + proxy.blurred[y0 * proxy.width + x1] * fx
+                    let bottom = proxy.blurred[y1 * proxy.width + x0] * (1 - fx) + proxy.blurred[y1 * proxy.width + x1] * fx
+                    output[row * regionWidth + column] = top * (1 - fy) + bottom * fy
+                }
             }
         }
         return out
