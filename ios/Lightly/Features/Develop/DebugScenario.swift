@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import ImageIO
 
 /// DEBUG-only launch arguments that put the editor in one approved state, so design captures and
 /// UI tests can photograph exactly the prototype's screens (`docs/ui/app/screens.js`):
@@ -89,7 +90,16 @@ struct DebugScenario {
         DiagnosticTrace.note("scenario \(screenID): settling")
         await session.settleRendering()
         DiagnosticTrace.note("scenario \(screenID): settled, saving")
+        // The frame on screen, kept with the saved copy so the device check can compare preview and Save copy.
+        if let png = Self.pngData(session.displayedImage) { DiagnosticTrace.evidence(png, named: "preview-\(screenID).png") }
         session.saveCopy()
+    }
+
+    private static func pngData(_ image: CGImage) -> Data? {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 
     /// Slice-3 setups (prototype `screens.js`): the recipe the screen shows, as the initial state.
