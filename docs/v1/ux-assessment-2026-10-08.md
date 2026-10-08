@@ -57,6 +57,8 @@ The entire app has been considered, but not every state has been physically exer
 
 ## Device verification
 
+Final checkpoint `b4ee87b`, build **1.0.0 (261008033)**, is installed in place and read back on the review Simulator and Android emulator. The matching iPhone package is ready; its installation and physical verification remain blocked by the device connection.
+
 Build 261008032 installed and read back on review Simulator D75D820D and Android emulator 5554. The iPhone package built successfully using existing local signing. Installation failed with CoreDevice error 4000: tunnel interrupted / network connection timed out. Two app-container reads also timed out; no on-phone flicker verification was completed.
 
 The expanded iOS EditorSession run passed 29/34 tests, including every Effects control retaining identical pixels on release. Four failures selected Portrait despite a no-person fixture; those fixtures now explicitly supply a detected person. Their rerun passed. The fifth is a real open performance finding: 20-stop rapid scrubbing reached 520 ms staleness against the existing 100 ms target. A bounded-prefetch experiment still measured 568 ms; it was discarded. A separate clarity optimisation reduced rapid-scrub worst staleness to 305 ms, with a full-frame median of 143 ms (previous probe: 181 ms). Spatial preview/release equality and tile-continuity checks passed. The target is unchanged. Broad flicker/responsiveness is not closed by image-equality tests.
