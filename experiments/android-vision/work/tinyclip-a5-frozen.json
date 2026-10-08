@@ -1,0 +1,39 @@
+{
+ "date": "2026-10-08",
+ "model": "wkcn/TinyCLIP-ViT-8M-16-Text-3M-YFCC15M @ a2a8c6ea",
+ "rule": "subject = U2-Netp confident area >= 0.02 AND p_subject >= T",
+ "T": 0.3768,
+ "T_rule": "largest T keeping >= 95 % of the current rule's development subjects (57 of 60)",
+ "development": {
+  "subjects": 62,
+  "none": 174,
+  "current_rule": {
+   "found": 60,
+   "false": 63
+  },
+  "with_veto": {
+   "found": 57,
+   "false": 22
+  }
+ },
+ "prompts": "SUBJECT and NONE lists in scripts/tinyclip_a5.py at this commit",
+ "targets_provisional": {
+  "E1": "found >= current - 1",
+  "E2": "false <= current false / 2",
+  "E3": "no subject type loses more than one photo vs current"
+ },
+ "validation_types": {
+  "V0": "vehicles",
+  "V33": "vehicles",
+  "V63": "vehicles",
+  "V95": "vehicles",
+  "V22": "plants and flowers",
+  "V37": "plants and flowers",
+  "V73": "plants and flowers",
+  "V93": "plants and flowers",
+  "V34": "statues and figures",
+  "V5": "objects",
+  "V77": "structures and signs",
+  "V94": "structures and signs"
+ }
+}
