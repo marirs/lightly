@@ -128,6 +128,15 @@ final class EditorCaptureUITests: XCTestCase {
         return false
     }
 
+    static func waitForLine(in url: URL, containing text: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let contents = try? String(contentsOf: url, encoding: .utf8), contents.contains(text) { return true }
+            usleep(100_000)
+        }
+        return false
+    }
+
     /// Measurement: the app's events (`--capture-timing`) and the test's own, same clock.
     private var appTimingPath: String { directory.appendingPathComponent("app-timing.log").path }
 
@@ -147,9 +156,13 @@ final class EditorCaptureUITests: XCTestCase {
         let name = URL(fileURLWithPath: photoFiles[photo]!).lastPathComponent
         let directory = "\(repositoryRoot)/ios/Tests/Fixtures/SubjectMattes"
         let png = "\(directory)/\(name).png", none = "\(directory)/\(name).none"
-        if FileManager.default.fileExists(atPath: png) { return ["--subject-matte-fixture", png] }
-        if FileManager.default.fileExists(atPath: none) { return ["--subject-matte-fixture", none] }
-        return []
+        // The hair refinement's person matte (Vision .accurate on macOS): without it the Simulator's Change background
+        // keeps the wall inside curly hair, which the phone does not (2026-10-08).
+        let person = "\(repositoryRoot)/ios/Tests/Fixtures/PersonMattes/\(name).png"
+        let personArguments = FileManager.default.fileExists(atPath: person) ? ["--person-matte-fixture", person] : []
+        if FileManager.default.fileExists(atPath: png) { return ["--subject-matte-fixture", png] + personArguments }
+        if FileManager.default.fileExists(atPath: none) { return ["--subject-matte-fixture", none] + personArguments }
+        return personArguments
     }
 
     /// The tool version recorded with every capture (bump when the capture method changes).
@@ -217,7 +230,11 @@ final class EditorCaptureUITests: XCTestCase {
             let ready = app.descendants(matching: .any)[screen.ready].firstMatch
             XCTAssertTrue(ready.waitForExistence(timeout: 30), "\(screen.id): \(screen.ready) missing")
             mark("ready-seen", screen.id)
-            Thread.sleep(forTimeInterval: screen.id == "saved" ? 1.5 : screen.id.hasPrefix("bg-") || screen.id.hasPrefix("pt-") ? 8 : 2.5)
+            // The control appears before the scenario's render lands (Change background: about 20 s in a Debug
+            // Simulator, 2026-10-08): wait for the app's own "committed <screen>" event, then let the frame settle.
+            XCTAssertTrue(Self.waitForLine(in: URL(fileURLWithPath: appTimingPath), containing: "committed \(screen.id)", timeout: 90),
+                          "\(screen.id): render never committed")
+            Thread.sleep(forTimeInterval: 1.5)
             mark("shot-start", screen.id)
             let data = XCUIScreen.main.screenshot().pngRepresentation
             try? data.write(to: directory.appendingPathComponent("\(screen.id).png"))
