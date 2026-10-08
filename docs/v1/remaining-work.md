@@ -19,6 +19,10 @@ Not for submission. No limitation listed here is an approved scope cut.
    held objects). Residual: faint dark-teal tint on a few wisps on dark backgrounds. DEBUG builds now keep the three
    mattes and the saved bytes in Documents/evidence (`scripts/iphone_evidence.sh`).
    (`experiments/depth/results/portrait-edges-2026-10-06/`)
+   **Phone, 2026-10-08 (ea772b8, spill suppression at the soft edge):** red line along the clothing and collar red gone,
+   curl teal 29,627 → 3,331 px, dark and light, preview equal to Save copy; **still open: faint dark-red pockets inside
+   the curls where the phone's matte is fully opaque**, and the soft, smoky outer hair on light replacements.
+   Evidence `~/.codex/artifacts/lightly/v1/phone-bg-fringe-2026-10-08/`.
 
 ### Unverified on the physical device (iPhone 11 Pro Max)
 The Mac cannot launch the app on this phone (developer disk image unavailable over the network), so each item needs the
