@@ -167,7 +167,7 @@ data class DevelopPanelModel(
             rememberedAmounts: Map<String, Int>,
         ): DevelopPanelModel {
             val applied = look?.let { pack.preset(it.lookId) }?.takeIf { it.lookVersion == look.lookVersion }
-            val current = ui.category ?: applied?.categoryId ?: DEFAULT_CATEGORY
+            val current = ui.category ?: applied?.categoryId ?: if (favourites.isNotEmpty()) FAVOURITES else DEFAULT_CATEGORY
             val favouriteMode = current == FAVOURITES
             val favouritePresets = favourites.mapNotNull(pack::preset)
             val list = if (favouriteMode) favouritePresets else pack.category(current)?.presets.orEmpty()
@@ -179,7 +179,7 @@ data class DevelopPanelModel(
             }
             val stop = (ui.dragStop ?: committedStop).coerceIn(0, list.size)
             val onRuler = if (stop > 0) list[stop - 1] else null
-            val base = if (auto == AutoState.APPLIED) "Auto" else "Original"
+            val base = if (auto == AutoState.APPLIED) "Auto corrected · No preset" else "No preset"
             // At rest, the applied preset is named even when it is not on this category's ruler; "Original" only while
             // dragging to stop 0, when the preview is the original (owner amendment 2026-10-05).
             val offRuler = if (onRuler == null && ui.dragStop == null) applied else null

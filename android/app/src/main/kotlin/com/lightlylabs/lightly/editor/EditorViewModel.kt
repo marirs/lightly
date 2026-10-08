@@ -668,6 +668,12 @@ class EditorViewModel(
         refreshAfterCropEditingChange(was)
     }
 
+    fun toggleCropPreview() {
+        val was = isCropEditing()
+        state.update { it.copy(edit = it.edit.copy(cropPreview = !it.edit.cropPreview)) }
+        refreshAfterCropEditingChange(was)
+    }
+
     fun selectAdjustGroup(group: AdjustGroup) = state.update { it.copy(edit = it.edit.copy(group = group)) }
 
     fun setRemoveBrushSize(size: Int) = state.update { it.copy(edit = it.edit.copy(brushSize = size.coerceIn(0, 100))) }
@@ -752,7 +758,7 @@ class EditorViewModel(
     /** Crop: the rectangle a finished drag left (CropGeometry), one undo step. Cropping an uncropped photo makes it Free. */
     fun commitCrop(rect: com.lightlylabs.lightly.session.NormalisedRect) = commitEdit { e ->
         val g = e.geometry
-        val aspect = if (g.crop.aspect == com.lightlylabs.lightly.session.CropAspect.ORIGINAL && rect != FULL_RECT) com.lightlylabs.lightly.session.CropAspect.FREE else g.crop.aspect
+        val aspect = com.lightlylabs.lightly.session.CropAspect.FREE
         e.copy(geometry = g.copy(crop = com.lightlylabs.lightly.session.Crop(aspect, rectOf(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height))))
     }
 
@@ -760,7 +766,7 @@ class EditorViewModel(
     fun cropState(): Triple<com.lightlylabs.lightly.session.NormalisedRect, Double?, Double>? {
         val g = state.value.session?.current?.tools?.edit?.geometry ?: return null
         val (w, h) = turnedDisplaySize(g.quarterTurns)
-        return Triple(g.crop.rect, EditOptions.ratio(g.crop.aspect), w.toDouble() / h.coerceAtLeast(1))
+        return Triple(g.crop.rect, null, w.toDouble() / h.coerceAtLeast(1))
     }
 
     private fun rectOf(left: Double, top: Double, right: Double, bottom: Double): com.lightlylabs.lightly.session.NormalisedRect {
@@ -782,7 +788,7 @@ class EditorViewModel(
      * with the crop rectangle drawn over it in that frame's fractions; Border and Watermark are left out of those previews.
      * Save copy and every other tool use the committed, cropped recipe.
      */
-    fun isCropEditing(ui: EditorUiState = state.value): Boolean = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP
+    fun isCropEditing(ui: EditorUiState = state.value): Boolean = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.edit.cropPreview
 
     private fun uncroppedForCropEditor(edit: EditState): EditState {
         val tools = edit.tools

@@ -69,7 +69,7 @@ final class DevelopPanelModel {
     /// preset's category.
     var currentCategoryID: String {
         let browsing = browsedAtHistoryRevision == session.historyRevision ? browsedCategoryID : nil
-        return browsing ?? session.appliedPreset?.categoryID ?? Self.defaultCategoryID
+        return browsing ?? session.appliedPreset?.categoryID ?? (favourites.presetIDs.isEmpty ? Self.defaultCategoryID : Self.favouritesID)
     }
 
     var isFavouritesMode: Bool { currentCategoryID == Self.favouritesID }
@@ -107,7 +107,7 @@ final class DevelopPanelModel {
     }
 
     /// Stop zero reads Auto only when Auto is applied, otherwise Original.
-    var baseName: String { session.autoState == .applied ? "Auto" : "Original" }
+    var baseName: String { session.autoState == .applied ? "Auto corrected · No preset" : "No preset" }
 
     /// The applied preset while it is not on this category's ruler and the ruler is at rest: the name row then
     /// shows it, never "Original" (owner amendment 2026-10-05). Dragging to stop zero previews the original and says so.

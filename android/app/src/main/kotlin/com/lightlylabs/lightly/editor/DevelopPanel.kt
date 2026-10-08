@@ -105,10 +105,10 @@ import androidx.compose.ui.graphics.StrokeCap
 @Composable
 fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, wrapped: Boolean) = Column(Modifier.fillMaxWidth()) {
     if (roomy) PanelTitle("Develop")
-    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxWidth()) {
         AutoSwitchButton(model.autoSwitch, vm::toggleAuto)
         if (!roomy) {
-            if (wrapped) WrappedTabs(model, vm::selectCategory, Modifier.weight(1f)) else ScrollingTabs(model, vm::selectCategory, Modifier.weight(1f))
+            if (wrapped) WrappedTabs(model, vm::selectCategory, Modifier.fillMaxWidth()) else ScrollingTabs(model, vm::selectCategory, Modifier.fillMaxWidth())
         }
     }
     if (roomy) CategoryList(model, vm::selectCategory)
@@ -131,8 +131,8 @@ private fun AutoSwitchButton(state: AutoSwitch, onToggle: () -> Unit) {
     val text = when (state) { AutoSwitch.ON -> colors.ink; AutoSwitch.OFF -> colors.ink2; AutoSwitch.UNAVAILABLE -> colors.ink3 }
     Row(
         Modifier
-            .heightIn(min = 44.dp)
-            .drawBehind { drawLine(colors.hair, Offset(size.width - 0.5f, 0f), Offset(size.width - 0.5f, size.height), strokeWidth = 1.dp.toPx()) }
+            .fillMaxWidth().heightIn(min = 44.dp)
+            .drawBehind { drawLine(colors.hair, Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 1.dp.toPx()) }
             .clickable(enabled = state != AutoSwitch.UNAVAILABLE, role = Role.Switch, onClick = onToggle)
             .semantics {
                 contentDescription = "Automatic correction"
@@ -154,7 +154,9 @@ private fun AutoSwitchButton(state: AutoSwitch, onToggle: () -> Unit) {
                 else Modifier.border(1.dp, colors.ink3, dotShape),
             ),
         )
-        Text("Auto", style = lightlyTextStyle(color = text))
+        Text("Auto correction", style = lightlyTextStyle(color = text))
+        Spacer(Modifier.weight(1f))
+        Text(when (state) { AutoSwitch.ON -> "On"; AutoSwitch.OFF -> "Off"; AutoSwitch.UNAVAILABLE -> "Unavailable" }, style = lightlyTextStyle(color = text))
     }
 }
 

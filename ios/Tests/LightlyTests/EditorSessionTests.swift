@@ -46,7 +46,7 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(session.autoState, .unavailable, "No model ships: the approved unavailable state, never a fixed filter")
         XCTAssertEqual(session.recipe.auto, .noModelInBuild)
         XCTAssertNil(session.recipe.look)
-        XCTAssertEqual(panel(session).displayedName, "Original", "Stop zero reads Auto only when Auto is applied")
+        XCTAssertEqual(panel(session).displayedName, "No preset", "Stop zero reads Auto only when Auto is applied")
         XCTAssertEqual(session.recipe.revision, 0)
         XCTAssertFalse(session.canUndo)
         // Nothing applied: the preview is the original.
@@ -63,13 +63,13 @@ final class EditorSessionTests: XCTestCase {
     func testAFailedAutoOffersRetryAndContinueWithOriginal() async throws {
         let session = try await EditorTestSupport.readySession(library: library, autoEnhancer: FailingAutoEnhancer())
         XCTAssertEqual(session.autoState, .failed)
-        XCTAssertEqual(panel(session).baseName, "Original")
+        XCTAssertEqual(panel(session).baseName, "No preset")
         session.retryAuto()
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertEqual(session.autoState, .failed, "Still failing: still offered")
         session.continueWithOriginal()
         XCTAssertEqual(session.autoState, .off)
-        XCTAssertEqual(panel(session).baseName, "Original")
+        XCTAssertEqual(panel(session).baseName, "No preset")
     }
 
     func testPortraitIsOfferedOnlyWhenAPersonWasFound() async throws {
@@ -328,6 +328,19 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(model.favourites.presetIDs[2], session.appliedPreset?.id, "Replaced in place, order kept")
         XCTAssertFalse(model.isReplaceSheetShown)
         XCTAssertFalse(model.isFavouritesFullNoticeShown)
+    }
+
+    func testFavouriteSurvivesIntoNextPhotoAndIsVisible() async throws {
+        let first = try await EditorTestSupport.readySession(library: library)
+        let model = panel(first)
+        let preset = first.library.pack.categories[0].presets[0]
+        first.applyLook(preset)
+        model.toggleStar()
+        let second = try await EditorTestSupport.readySession(library: library)
+        let next = panel(second)
+        XCTAssertEqual(next.currentCategoryID, DevelopPanelModel.favouritesID)
+        XCTAssertEqual(next.currentPresets.map(\.id), [preset.id])
+        XCTAssertNil(second.appliedPreset)
     }
 
     func testFavouritesCategoryListsTheFavouritesInOrder() async throws {

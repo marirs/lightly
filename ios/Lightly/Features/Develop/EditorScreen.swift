@@ -92,7 +92,7 @@ struct EditorScreen: View {
         }
         #endif
         // Free crop shows the uncropped frame while Edit › Crop is open (owner amendment 2026-10-05).
-        .onChange(of: tool == .edit && editPanel.sub == .crop, initial: true) { _, cropping in session.isCropEditing = cropping }
+        .onChange(of: tool == .edit && editPanel.sub == .crop && !editPanel.cropPreview, initial: true) { _, cropping in session.isCropEditing = cropping }
         .task {
             session.start()
             #if DEBUG
@@ -459,8 +459,10 @@ struct EditorScreen: View {
     private func editMarks(size: CGSize) -> some View {
         switch editPanel.sub {
         case .crop:
-            CropFrameMark(rect: cropDraft ?? session.recipe.tools.edit.geometry.cropRect)
-            cropGestureArea(size: size)
+            if !editPanel.cropPreview {
+                CropFrameMark(rect: cropDraft ?? session.recipe.tools.edit.geometry.cropRect)
+                cropGestureArea(size: size)
+            }
             #if DEBUG
             // UI tests only (--expose-crop): the committed aspect and rectangle, to check each handle's effect.
             if DebugArguments.current.contains("--expose-crop") {
@@ -544,14 +546,14 @@ struct EditorScreen: View {
         let frame = GeometryTransform.turnedSize(geometry, sourceWidth: session.photo.image.width, sourceHeight: session.photo.image.height)
         return CropGeometry.dragged(start.rect, handle: start.handle,
                                     dx: Double(translation.width / max(size.width, 1)), dy: Double(translation.height / max(size.height, 1)),
-                                    ratio: GeometryTransform.ratio(geometry.cropAspect),
+                                    ratio: nil,
                                     frameAspect: Double(frame.width) / Double(max(frame.height, 1)))
     }
 
     /// Cropping an uncropped photo makes the aspect Free; a fixed aspect is kept.
     private static func setCrop(_ geometry: inout EditRecipe.Geometry, _ rect: EditRecipe.Rect) {
         geometry.cropRect = rect
-        if geometry.cropAspect == .original, rect != .init(x: 0, y: 0, width: 1, height: 1) { geometry.cropAspect = .free }
+        geometry.cropAspect = .free
     }
 
     /// Light Leaks: drag on the photo to move the leak (preview while dragging, one step at the end).

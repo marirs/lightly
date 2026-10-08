@@ -20,6 +20,7 @@ data class PendingRemoveStroke(val points: List<Pair<Double, Double>>, val radiu
 /** Transient Edit UI (prototype `ui.sub`, `ui.group`, `ui.op`, `ui.brushSize`). Never in history. */
 data class EditUi(
     val sub: EditSub = EditSub.CROP,
+    val cropPreview: Boolean = false,
     val group: AdjustGroup = AdjustGroup.LIGHT,
     /** A slider being dragged: field → value (preview only until release). */
     val sliderDrag: Pair<String, Double>? = null,

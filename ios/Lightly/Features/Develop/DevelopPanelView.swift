@@ -46,7 +46,7 @@ struct DevelopPanelView: View {
     // MARK: Auto and categories
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             autoButton
             switch style {
             case .tabs:
@@ -58,7 +58,7 @@ struct DevelopPanelView: View {
                 .padding(.leading, 14).padding(.trailing, 18)
                 .frame(maxWidth: .infinity, alignment: .leading)
             case .list:
-                Spacer(minLength: 0)
+                EmptyView()
             }
         }
         .frame(minHeight: 44)
@@ -79,13 +79,15 @@ struct DevelopPanelView: View {
                     // covered by `.dv * { box-sizing: border-box }`). The CSS says 1.5, but the
                     // approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px), so the approved dot is 11 pt with a 1 pt ring.
                     .frame(width: 11, height: 11)
-                Text("Auto")
+                Text("Auto correction")
                     .approvedText(15)
                     .foregroundStyle(isOn ? c(ApprovedColor.ink) : isUnavailable ? c(ApprovedColor.inkTertiary) : c(ApprovedColor.inkSecondary))
+                Spacer(minLength: 12)
+                Text(isOn ? "On" : isUnavailable ? "Unavailable" : "Off").approvedText(15)
             }
             .padding(.leading, 18).padding(.trailing, 14)
             .frame(minHeight: 44)
-            .overlay(alignment: .trailing) { Rectangle().fill(c(ApprovedColor.hairline)).frame(width: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1) }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

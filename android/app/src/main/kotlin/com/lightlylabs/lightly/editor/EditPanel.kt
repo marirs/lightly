@@ -57,15 +57,12 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
     OptionTabs(EditSub.entries.map { it to it.label }, ui.edit.sub, vm::selectEditSub, tagPrefix = "edit-tab")
     when (ui.edit.sub) {
         EditSub.CROP -> {
-            ChipRow {
-                EditOptions.ASPECTS.forEach { (aspect, label) ->
-                    val on = edit.geometry.crop.aspect == aspect
-                    OptChip(on, label, { vm.setCropAspect(aspect) }, tag = EditTags.aspect(label)) {
-                        Text(label, style = lightlyTextStyle(color = if (on) lightlyColors.sel else lightlyColors.ink2), maxLines = 1)
-                    }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp).heightIn(min = 44.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(if (ui.edit.cropPreview) "Cropped preview" else "Drag corners or edges to crop.", style = lightlyTextStyle(), modifier = Modifier.weight(1f))
+                OptChip(false, if (ui.edit.cropPreview) "Adjust crop" else "Done", vm::toggleCropPreview, tag = "edit-crop-done") {
+                    Text(if (ui.edit.cropPreview) "Adjust crop" else "Done", style = lightlyTextStyle(color = lightlyColors.sel))
                 }
             }
-            PanelNote("Drag a corner or an edge to crop. Drag inside to move.")
         }
         EditSub.ROTATE -> ChipRow {
             listOf(

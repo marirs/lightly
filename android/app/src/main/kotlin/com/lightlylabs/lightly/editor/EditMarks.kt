@@ -44,7 +44,7 @@ fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
     if (ui.showsOriginal) return
     when (ui.tool) {
         EditorTool.EDIT -> when (ui.edit.sub) {
-            EditSub.CROP -> CropFrame(vm)
+            EditSub.CROP -> if (!ui.edit.cropPreview) CropFrame(vm)
             EditSub.STRAIGHTEN, EditSub.PERSPECTIVE -> Canvas(Modifier.fillMaxSize()) { thirdsGrid(Offset.Zero, size) }
             EditSub.REMOVE -> RemoveMarks(vm, ui)
             else -> Unit

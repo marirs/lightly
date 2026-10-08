@@ -10,6 +10,7 @@ final class EditPanelModel {
 
     let session: EditorSession
     var sub: Sub = .crop
+    var cropPreview = false
     var group: Group = .light
     /// Remove › "Brush size" 0…100 (prototype 35).
     var brushSize: Double = 35
@@ -72,15 +73,16 @@ struct EditPanelView: View {
 
     @ViewBuilder
     private var crop: some View {
-        ChipRow {
-            ForEach(EditPanelModel.aspects, id: \.aspect) { option in
-                OptionChip(isOn: geometry.cropAspect == option.aspect, identifier: "edit.aspect.\(option.aspect.rawValue)",
-                           action: { session.setCropAspect(option.aspect) }) {
-                    Text(option.label).approvedText(15)
-                }
-            }
+        HStack {
+            Text(model.cropPreview ? "Cropped preview" : "Drag corners or edges to crop.")
+                .approvedText(15)
+            Spacer()
+            Button(model.cropPreview ? "Adjust crop" : "Done") { model.cropPreview.toggle() }
+                .buttonStyle(ApprovedSmallQuietButtonStyle())
+                .accessibilityIdentifier("edit.crop.done")
         }
-        ApprovedNote("Drag a corner or an edge to crop. Drag inside to move.")
+        .padding(.horizontal, 18)
+        .frame(minHeight: 44)
     }
 
     private var rotate: some View {

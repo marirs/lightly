@@ -16,6 +16,14 @@ class DevelopPanelModelTest {
         DevelopPanelModel.derive(pack, look, auto, favourites, ui, amounts)
 
     @Test
+    fun `new photo exposes saved favourites without applying one`() {
+        val model = derive(favourites = listOf(hiking.id))
+        assertEquals("favourites", model.categoryId)
+        assertEquals("0 / 1", model.position)
+        assertFalse(model.presetShown)
+    }
+
+    @Test
     fun `categories are Favourites first, then the catalogue in order, without counts`() {
         val model = derive()
         assertEquals(listOf("favourites", "portrait", "landscape", "film", "cinematic", "street", "travel", "wedding", "golden-hour", "black-white"), model.categories.map { it.id })
@@ -41,10 +49,10 @@ class DevelopPanelModelTest {
 
     @Test
     fun `stop zero reads Auto only when Auto is applied, otherwise Original`() {
-        assertEquals("Original", derive(auto = AutoState.UNAVAILABLE).name)
-        assertEquals("Original", derive(auto = AutoState.OFF).name)
-        assertEquals("Original", derive(auto = AutoState.FAILED).name)
-        assertEquals("Auto", derive(auto = AutoState.APPLIED).name)
+        assertEquals("No preset", derive(auto = AutoState.UNAVAILABLE).name)
+        assertEquals("No preset", derive(auto = AutoState.OFF).name)
+        assertEquals("No preset", derive(auto = AutoState.FAILED).name)
+        assertEquals("Auto corrected · No preset", derive(auto = AutoState.APPLIED).name)
     }
 
     @Test
@@ -81,7 +89,7 @@ class DevelopPanelModelTest {
         assertTrue(model.categories.first { it.id == "landscape" }.dotted)
         assertTrue(model.categories.first { it.id == "cinematic" }.selected)
         // Dragging to stop zero previews the original and says so.
-        assertEquals("Original", derive(look(hiking), ui = DevelopUi(category = "cinematic", dragStop = 0)).name)
+        assertEquals("No preset", derive(look(hiking), ui = DevelopUi(category = "cinematic", dragStop = 0)).name)
     }
 
     @Test
