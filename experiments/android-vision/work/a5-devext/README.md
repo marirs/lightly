@@ -4,5 +4,5 @@ animals, flowers, trees) and labelled by eye from contact sheets **before any mo
 distinct thing a person would cut out (statue, sculpture, a single building standing clear, vehicle, animal, plant or
 flower in focus); "none" = scenery, streets, interiors, facades without one dominant thing; "ambiguous" otherwise;
 "person" = people photos (the person path decides those; excluded). Development only: the 100-photo
- set stays untouched until prompts and thresholds are frozen. Flowers remain under-represented in the
+`a5-validation` set stays untouched until prompts and thresholds are frozen. Flowers remain under-represented in the
 pool (the validation set holds flowers and a thistle).
