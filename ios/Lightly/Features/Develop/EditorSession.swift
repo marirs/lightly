@@ -1429,22 +1429,14 @@ final class EditorSession {
         var job = RenderJob(look: look, strength: strength, autoLUT: auto, autoStrength: target.auto.strength,
                             includePixelStages: true, generation: current)
         attachEditAndEffects(target, to: &job)
-        // Pixel stages the user moves directly (Effects, Adjust › Detail) are in every frame, so a
-        // slider shows its effect while it moves.
-        let userPixelStages = RenderJob.hasUserEffects(target.tools.effects) || AdjustStage.hasDetail(target.tools.edit.adjust)
-        let hasPixelStages = (look.map { !$0.recipe.spatial.isEmpty || !$0.recipe.finishing.isEmpty } ?? false) || layered != nil
-            || userPixelStages
-        job.includePixelStages = !hasPixelStages
-        job.followUpWithFullFrame = final && hasPixelStages
-        if !final && userPixelStages { job.includePixelStages = true }
+        // Every published frame contains the complete edit. A fast frame that omits finishing
+        // flashes the ungrained/unvignetted image before the full result on every release.
+        job.includePixelStages = true
+        job.followUpWithFullFrame = false
         if let layered {
-            // While a slider moves, the interactive frame already includes Background and
-            // Portrait at a small working size, so the photo follows the control.
             job.layered = layered
-            // The fast frame (and every frame while dragging) at the interactive size; a final
-            // render's follow-up frame at the preview size.
-            job.layeredCap = LayeredStages.interactiveCap
-            if !final { job.includePixelStages = true }
+            // Effects sliders must not change the subject edge or blur resolution as they move.
+            job.layeredCap = dragFrame ? LayeredStages.interactiveCap : LayeredStages.previewCap
         }
         job.dragFrame = dragFrame && dragBase != nil
         submit(job)

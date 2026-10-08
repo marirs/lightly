@@ -17,3 +17,7 @@ The owner approved a representative nine-name sample and extending that descript
 ## Watermark free placement — owner request 2026-10-08
 
 Remove the On photo / On border selector and the Position row. Drag the watermark over the full output canvas, including an existing border; no border is required or added. Size, opacity and colour remain. Dragging previews the position and commits one undo step. A canvas-relative centre is persisted and used by preview and export, clamped inside the output. Legacy photo/border recipes retain their initial rendering until moved. Installed-device visual verification is pending.
+
+## Effects preview correctness — 2026-10-08
+
+Owner reports visible flicker when changing Effects and dragging Vignette. The iOS final request previously published a frame omitting Effects/finishing, then a complete frame. Removed that intermediate publication. Effects sliders use the same Background working resolution during movement and after release. The regression checks a combined grain/vignette edit: exactly one frame on release, byte-identical to the drag result. Physical-device timing remains to be measured.

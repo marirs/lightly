@@ -550,6 +550,25 @@ final class EditorSessionTests: XCTestCase {
 
     /// Owner request 2026-10-06: the photo previews each newly crossed stop while the finger moves (reduced-size drag
     /// frames), the latest request wins, release commits one Undo step at normal preview quality, Undo restores.
+    func testEffectsReleaseNeverPublishesAnUnfinishedFrame() async throws {
+        let photo = try await EditorTestSupport.photo(width: 600, height: 400)
+        let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 600)
+        session.previewEffects { e in
+            e.grain.enabled = true; e.grain.amount = 45
+            e.vignette.enabled = true; e.vignette.amount = 65
+        }
+        await session.settleRendering()
+        let moving = try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage)
+        let count = session.publishedRenderCount
+        session.commitEffects { e in
+            e.grain.enabled = true; e.grain.amount = 45
+            e.vignette.enabled = true; e.vignette.amount = 65
+        }
+        await session.settleRendering()
+        XCTAssertEqual(session.publishedRenderCount, count + 1, "No intermediate frame with the effects missing")
+        XCTAssertEqual(try MetalLUTRenderer.rgba8Bytes(of: session.displayedImage), moving)
+    }
+
     func testRulerDragPreviewsEveryCrossedStopAndTheLatestWins() async throws {
         let photo = try await EditorTestSupport.photo(width: 2_400, height: 1_600)
         let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 1_600)

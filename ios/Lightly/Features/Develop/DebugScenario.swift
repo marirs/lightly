@@ -49,7 +49,7 @@ struct DebugScenario {
 
     var editorUI: EditorUI {
         switch screenID {
-        case "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-colour-blur", "bg-no-subject", "bg-cancel-flow": return EditorUI(tool: .background)
+        case "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-replaced-grain", "bg-colour-blur", "bg-no-subject", "bg-cancel-flow": return EditorUI(tool: .background)
         case "bg-then-develop": return EditorUI()
         case "bg-refine": return EditorUI(tool: .background, backgroundMode: .refine)
         case "bg-change-image", "bg-separating", "bg-failed": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .image)
@@ -130,7 +130,11 @@ struct DebugScenario {
         case "bg-change-gradient":
             let g = BackgroundPanelModel.gradients[0]
             background { $0.replacement = .gradient(angle: g.angle, stops: g.stops) }
-        case "bg-replaced-blur": background { $0.replacement = image0; $0.focus.blur = 60 }
+        case "bg-replaced-blur", "bg-replaced-grain":
+            background { $0.replacement = image0; $0.focus.blur = 60 }
+            if screenID == "bg-replaced-grain" {
+                session.debugSetInitial { $0.tools.effects.grain.enabled = true; $0.tools.effects.grain.amount = 45 }
+            }
         case "bg-colour-blur":
             background { $0.replacement = .colour("#F4F1EC"); $0.focus.blur = 60 }
             await saveCopyIfRequested(session: session, screenID: screenID)

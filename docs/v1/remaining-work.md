@@ -10,7 +10,7 @@ Not for submission. No limitation listed here is an approved scope cut.
 ## iOS
 
 ### Functional defects
-1. **FIXED — iOS Change background hair fringe (2026-10-08).** Live iPhone local hair matting and observed-hair colour reconstruction remove the reported red/teal curl contamination on dark/light replacements, including with blur. Faces and clothing preserved; dark-studio, blonde and group regressions checked. Details, limits and original evidence: [iOS hair fix](ios-hair-fix-2026-10-08.md). Android A4/A5 remain separate.
+1. **REOPENED — iOS Change background hair fringe (2026-10-08 evening).** Owner supplied a saved image with green curls after replacement and grain. Phone trace identifies its input as an earlier Lightly save (SHA-256 56372912…, before the local-hair fix). Re-editing that output is not covered by the original-photo checks; the reported case remains unresolved. Prior evidence: Live iPhone local hair matting and observed-hair colour reconstruction remove the reported red/teal curl contamination on dark/light replacements, including with blur. Faces and clothing preserved; dark-studio, blonde and group regressions checked. Details, limits and original evidence: [iOS hair fix](ios-hair-fix-2026-10-08.md). Android A4/A5 remain separate.
 
 ### Unverified on the physical device (iPhone 11 Pro Max)
 The Mac cannot launch the app on this phone (developer disk image unavailable over the network), so each item needs the
