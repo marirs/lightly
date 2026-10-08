@@ -49,7 +49,7 @@ struct DebugScenario {
 
     var editorUI: EditorUI {
         switch screenID {
-        case "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-no-subject", "bg-cancel-flow": return EditorUI(tool: .background)
+        case "bg-focus", "bg-soft", "bg-swirl", "bg-motion", "bg-replaced-blur", "bg-colour-blur", "bg-no-subject", "bg-cancel-flow": return EditorUI(tool: .background)
         case "bg-then-develop": return EditorUI()
         case "bg-refine": return EditorUI(tool: .background, backgroundMode: .refine)
         case "bg-change-image", "bg-separating", "bg-failed": return EditorUI(tool: .background, backgroundMode: .change, backgroundKind: .image)
@@ -131,6 +131,9 @@ struct DebugScenario {
             let g = BackgroundPanelModel.gradients[0]
             background { $0.replacement = .gradient(angle: g.angle, stops: g.stops) }
         case "bg-replaced-blur": background { $0.replacement = image0; $0.focus.blur = 60 }
+        case "bg-colour-blur":
+            background { $0.replacement = .colour("#F4F1EC"); $0.focus.blur = 60 }
+            await saveCopyIfRequested(session: session, screenID: screenID)
         // Device check (2026-10-07, not a prototype screen): Focus & Blur opened, Cancel at once, then the panel
         // reopened (must not restart), then a blur edit (retries), each state traced.
         case "bg-cancel-flow":

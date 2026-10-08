@@ -10,19 +10,7 @@ Not for submission. No limitation listed here is an approved scope cut.
 ## iOS
 
 ### Functional defects
-1. **Change background hair edges: red spill.** Release blocker until verified on the phone. Cause established with the
-   live iPhone matte: the instance mask is a smooth blob at curly hair, so wall between the curls is "subject" (75 % of
-   the red pixels: matte ≥ 0.98, passed through unchanged). Fix 21bf473: Vision person segmentation `.accurate`
-   refines the matte in the hair zone around faces. App saved copies (Simulator, live instance matte, macOS person
-   matte): red 6,120 → 48 (dark), 5,080 → 26 (light); regression portrait unchanged. Promising **fixture** evidence,
-   not a device fix: unverified on the phone (live instance + person segmentation, light/dark replacements, hair, ears,
-   held objects). Residual: faint dark-teal tint on a few wisps on dark backgrounds. DEBUG builds now keep the three
-   mattes and the saved bytes in Documents/evidence (`scripts/iphone_evidence.sh`).
-   (`experiments/depth/results/portrait-edges-2026-10-06/`)
-   **Phone, 2026-10-08 (ea772b8, spill suppression at the soft edge):** red line along the clothing and collar red gone,
-   curl teal 29,627 → 3,331 px, dark and light, preview equal to Save copy; **still open: faint dark-red pockets inside
-   the curls where the phone's matte is fully opaque**, and the soft, smoky outer hair on light replacements.
-   Evidence `~/.codex/artifacts/lightly/v1/phone-bg-fringe-2026-10-08/`.
+1. **FIXED — iOS Change background hair fringe (2026-10-08).** Live iPhone local hair matting and observed-hair colour reconstruction remove the reported red/teal curl contamination on dark/light replacements, including with blur. Faces and clothing preserved; dark-studio, blonde and group regressions checked. Details, limits and original evidence: [iOS hair fix](ios-hair-fix-2026-10-08.md). Android A4/A5 remain separate.
 
 ### Unverified on the physical device (iPhone 11 Pro Max)
 The Mac cannot launch the app on this phone (developer disk image unavailable over the network), so each item needs the

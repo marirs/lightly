@@ -1,26 +1,16 @@
 import Foundation
 import simd
 
-/// Change background: removes the old background's colour cast from the subject's semi-transparent edge (2026-10-08).
-///
-/// Phone evidence (iPhone 11 Pro Max, 261008013, the red-wall portrait): the subject matte is computed at the analysis
-/// size and stretched to the photo, so the edge and the pockets between curls hold wall pixels at coverage 0.4–1. The
-/// foreground correction (ForegroundEstimate, at the working size) is smooth and cannot follow them pixel by pixel, so a
-/// red line stayed along the fleece and red and teal specks in the curls, against dark and light replacements alike.
-/// Shadowed wall seen through black curls has the same colour as a hair/wall mix, so no coverage correction can tell them
-/// apart; a coverage correction tried offline also cut into subjects whose colour resembled a plain background (a grey
-/// garment in the group portrait) and was dropped.
-///
-/// What this does: near the matte's soft edge, and only where the matte is not fully opaque (skin and clothing
-/// interiors keep their colour), the subject colour loses its component along the old background's chroma direction, in
-/// both senses (the wall's red and the over-corrected teal). Only when that background is strongly coloured (chroma at
-/// least 0.3 of its brightness, linear light); a white, grey or black background leaves everything unchanged.
-/// iOS only: Android's composite is a different pipeline (A4, `docs/v1/remaining-work.md`).
+/// Removes strongly coloured background spill near the subject edge. The general correction affects soft coverage.
+/// For locally refined hair, an additional field reconstructs chroma from opaque crown hair, including contaminated
+/// pixels the matte still calls opaque. Detected face contours and clothing below the head are excluded; brightness
+/// and hair texture stay intact. Neutral backgrounds do not trigger correction. Older cached edits retain their
+/// previous treatment because the caller only supplies faces for the versioned local-hair matte.
 enum SpillSuppression {
     /// Chroma / brightness of the local background above which its cast is suppressed (offline evidence, 2026-10-08:
     /// the red wall measures well above it; the white, grey and dark backdrops of the other approved portraits below).
     static let minimumBackgroundSaturation: Float = 0.3
-    /// Matte coverage at or above which a pixel counts as opaque subject and keeps its colour.
+    /// Matte coverage at or above which the general edge correction leaves the subject colour alone.
     static let opaqueCoverage: Float = 0.995
     /// Width of the zone around the soft edge, as a fraction of the long edge (30 px on a 4,256 px photo).
     static let zoneFraction: Float = 0.007
@@ -30,6 +20,17 @@ enum SpillSuppression {
     struct Field {
         let direction: FloatImage
         let zone: FloatImage
+        var hair: FloatImage? = nil
+
+        func hairSample(x: Int, y: Int, frameWidth: Int, frameHeight: Int) -> SIMD4<Float> {
+            guard let hair else { return .zero }
+            let fx = min(max((Float(x)+0.5)*Float(hair.width)/Float(frameWidth)-0.5,0),Float(hair.width-1))
+            let fy = min(max((Float(y)+0.5)*Float(hair.height)/Float(frameHeight)-0.5,0),Float(hair.height-1))
+            let x0=Int(fx),y0=Int(fy),x1=min(x0+1,hair.width-1),y1=min(y0+1,hair.height-1)
+            let tx=fx-Float(x0),ty=fy-Float(y0)
+            func v(_ x:Int,_ y:Int)->SIMD4<Float> { let i=(y*hair.width+x)*4; return SIMD4(hair.data[i],hair.data[i+1],hair.data[i+2],hair.data[i+3]) }
+            return (v(x0,y0)*(1-tx)+v(x1,y0)*tx)*(1-ty)+(v(x0,y1)*(1-tx)+v(x1,y1)*tx)*ty
+        }
 
         /// Bilinear sample at a frame pixel (half-pixel centres), from the working-size field.
         @inline(__always)
@@ -49,7 +50,7 @@ enum SpillSuppression {
         }
     }
 
-    static func field(photo: FloatImage, matte: FloatImage) -> Field? {
+    static func field(photo: FloatImage, matte: FloatImage, faces: [DetectedFace] = []) -> Field? {
         let n = photo.pixelCount
         // The old background around the subject: photo pixels where the matte is (nearly) 0, filled inward.
         var background = FloatImage(width: photo.width, height: photo.height, channels: 3)
@@ -80,7 +81,61 @@ enum SpillSuppression {
             zone.data[i] = 1
             any = true
         }
-        return any ? Field(direction: direction, zone: zone) : nil
+        guard any else { return nil }
+        return Field(direction: direction, zone: zone, hair: hairField(photo: photo, matte: matte, zone: zone, faces: faces))
+    }
+
+    /// Preserve the hue of observed, opaque crown hair in the uncertain edge. A face's skin
+    /// and every other face are excluded from both sampling and application.
+    private static func hairField(photo: FloatImage, matte: FloatImage, zone: FloatImage, faces: [DetectedFace]) -> FloatImage? {
+        guard !faces.isEmpty else { return nil }
+        let w=photo.width,h=photo.height
+        let bounds=CGRect(x:0,y:0,width:w,height:h)
+        let protection=HairDetailRefinement.protectionMask(faces:faces,region:bounds,width:w,height:h,sourceWidth:w,sourceHeight:h)
+        var out=FloatImage(width:w,height:h,channels:4)
+        for face in faces {
+            let f=face.box
+            let rect=CGRect(x:f.x*Double(w),y:f.y*Double(h),width:f.width*Double(w),height:f.height*Double(h))
+            let region=CGRect(x:rect.minX-rect.width,y:rect.minY-1.4*rect.height,width:3*rect.width,height:3.2*rect.height).intersection(bounds)
+            var colour=FloatImage(width:w,height:h,channels:3), seeds=FloatImage(width:w,height:h,channels:1)
+            var count=0
+            for y in max(0,Int(region.minY))..<max(0,min(h,Int(rect.minY-0.25*rect.height))) {
+                for x in max(0,Int(region.minX))..<min(w,Int(region.maxX)) {
+                    let i=y*w+x
+                    guard matte.data[i] >= 0.9999, protection.data[i] == 0 else { continue }
+                    let mean=(photo.data[i*3]+photo.data[i*3+1]+photo.data[i*3+2])/3
+                    guard mean > 0.002 else { continue }
+                    seeds.data[i]=1; count += 1
+                    for c in 0..<3 { colour.data[i*3+c]=photo.data[i*3+c]/mean }
+                }
+            }
+            guard count >= 16 else { continue }
+            let filled=FloatImage.pullPushFill(premultiplied:colour,coverage:seeds)
+            for y in max(0,Int(region.minY))..<min(h,Int(rect.maxY)) {
+                for x in max(0,Int(region.minX))..<min(w,Int(region.maxX)) {
+                    let i=y*w+x
+                    guard zone.data[i] > 0, protection.data[i] == 0 else { continue }
+                    let weight=Float(HairDetailRefinement.weight(x:Double(x)+0.5,y:Double(y)+0.5,region:region,face:rect,protectRectangle:false))
+                    if weight > out.data[i*4+3] {
+                        for c in 0..<3 { out.data[i*4+c]=filled.data[i*3+c]*weight }
+                        out.data[i*4+3]=weight
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    static func restoreHairHue(_ subject: inout SIMD3<Float>, reference: SIMD4<Float>, opaque: Bool = false) {
+        var weight=reference.w
+        guard weight > 0 else { return }
+        let mean=(subject.x+subject.y+subject.z)/3
+        let colour=SIMD3(reference.x,reference.y,reference.z)/weight
+        if opaque {
+            let difference=simd_length(subject/max(mean,0.002)-colour)
+            weight *= min(1,max(0,(difference-0.25)/0.25))
+        }
+        subject=simd_clamp(subject*(1-weight)+colour*(mean*weight),SIMD3(repeating:0),SIMD3(repeating:1))
     }
 
     /// Removes the component of `subject` (linear RGB, one pixel) along `direction`, weighted by `zone`, unless the

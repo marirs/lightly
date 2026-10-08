@@ -78,15 +78,24 @@ enum LayeredStages {
                 // The old background's colour cast at the soft edge (SpillSuppression): computed at the working size,
                 // applied per pixel at full resolution, the same in preview and Save copy.
                 // Sampled from the working-size field per pixel: a full-size copy would add 16 B/px (768 MB at 48 MP).
-                let spill = SpillSuppression.field(photo: photoWorking, matte: matteWorking)
+                // Restored edits retain their recorded matte and colour treatment. Only the new
+                // local-hair analysis uses crown-colour reconstruction.
+                let hairFaces = inputs.cache.subject?.model == SubjectMatte.hairRefinedModel
+                    ? inputs.cache.people?.faces ?? [] : []
+                let spill = SpillSuppression.field(photo: photoWorking, matte: matteWorking, faces: hairFaces)
                 for i in 0..<composite.pixelCount {
                     let a = matteFull.data[i]
                     var subject = SIMD3<Float>(min(max(full.data[i * 3] + shiftFull.data[i * 3], 0), 1),
                                                min(max(full.data[i * 3 + 1] + shiftFull.data[i * 3 + 1], 0), 1),
                                                min(max(full.data[i * 3 + 2] + shiftFull.data[i * 3 + 2], 0), 1))
-                    if let spill, a < SpillSuppression.opaqueCoverage, a > 0 {
-                        let sample = spill.sample(x: i % width, y: i / width, frameWidth: width, frameHeight: height)
-                        SpillSuppression.apply(&subject, coverage: a, direction: sample.direction, zone: sample.zone)
+                    if let spill, a > 0 {
+                        if a < SpillSuppression.opaqueCoverage {
+                            let sample = spill.sample(x: i % width, y: i / width, frameWidth: width, frameHeight: height)
+                            SpillSuppression.apply(&subject, coverage: a, direction: sample.direction, zone: sample.zone)
+                        }
+                        if spill.hair != nil {
+                            SpillSuppression.restoreHairHue(&subject, reference: spill.hairSample(x:i % width,y:i / width,frameWidth:width,frameHeight:height), opaque: a >= SpillSuppression.opaqueCoverage)
+                        }
                     }
                     for c in 0..<3 {
                         composite.data[i * 3 + c] = subject[c] * a + replacementFull.data[i * 3 + c] * (1 - a)

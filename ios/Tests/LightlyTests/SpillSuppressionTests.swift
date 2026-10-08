@@ -1,8 +1,7 @@
 import XCTest
 @testable import Lightly
 
-/// SpillSuppression (2026-10-08): the old background's cast leaves the soft edge only, and only when that background
-/// is strongly coloured; opaque subject pixels and plain backgrounds are untouched.
+/// Strong-background spill correction, protected subject interiors and observed hair-colour reconstruction.
 final class SpillSuppressionTests: XCTestCase {
 
     /// 64 × 64: a saturated red wall on the left half, a black subject on the right, a 6 px soft edge between.
@@ -53,4 +52,30 @@ final class SpillSuppressionTests: XCTestCase {
         let field = try XCTUnwrap(SpillSuppression.field(photo: photo, matte: matte))
         XCTAssertEqual(field.sample(x: 2, y: 32, frameWidth: 64, frameHeight: 64).zone, 0, "Background far from the edge")
     }
+    func testHairHueUsesObservedColourAndPreservesBrightness() {
+        var edge = SIMD3<Float>(0.02,0.10,0.12)
+        let mean = edge.sum()/3
+        SpillSuppression.restoreHairHue(&edge, reference: SIMD4(1.5,1.0,0.5,1))
+        XCTAssertEqual(edge.sum()/3,mean,accuracy:1e-6)
+        XCTAssertEqual(edge.x/edge.y,1.5,accuracy:1e-6)
+        XCTAssertEqual(edge.z/edge.y,0.5,accuracy:1e-6)
+        let protected = edge
+        SpillSuppression.restoreHairHue(&edge, reference:.zero)
+        XCTAssertEqual(edge,protected)
+    }
+
+    func testOpaqueHairContaminationIsCorrectedWithoutChangingMatchingNaturalColour() {
+        var contaminated = SIMD3<Float>(0.12, 0.02, 0.02)
+        let brightness = contaminated.sum()/3
+        SpillSuppression.restoreHairHue(&contaminated, reference: SIMD4(1,1,1,1), opaque: true)
+        XCTAssertEqual(contaminated.x, contaminated.y, accuracy: 1e-6)
+        XCTAssertEqual(contaminated.sum()/3, brightness, accuracy: 1e-6)
+        var natural = SIMD3<Float>(0.3,0.2,0.1)
+        SpillSuppression.restoreHairHue(&natural, reference: SIMD4(1.5,1,0.5,1), opaque: true)
+        XCTAssertEqual(natural, SIMD3(0.3,0.2,0.1))
+        var protectedSkin = SIMD3<Float>(0.5,0.25,0.15)
+        SpillSuppression.restoreHairHue(&protectedSkin, reference: .zero, opaque: true)
+        XCTAssertEqual(protectedSkin, SIMD3(0.5,0.25,0.15))
+    }
+
 }

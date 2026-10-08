@@ -104,10 +104,12 @@ protocol SceneAnalysing: Sendable {
     /// Person segmentation at the quality that keeps hair detail (Change background's hair outline); nil when there
     /// is no person or it cannot run.
     func hairDetailMatte(for image: CGImage) async -> FloatImage?
+    func refineHairCoverage(for image: CGImage, prior: FloatImage, faces: [DetectedFace]) async throws -> FloatImage
 }
 
 extension SceneAnalysing {
     func hairDetailMatte(for image: CGImage) async -> FloatImage? { nil }
+    func refineHairCoverage(for image: CGImage, prior: FloatImage, faces: [DetectedFace]) async throws -> FloatImage { prior }
 }
 
 extension SubjectMatte {
@@ -116,8 +118,9 @@ extension SubjectMatte {
     /// (75 % of the red pixels left in the red-wall portrait had matte >= 0.98 and passed through unchanged). Vision's
     /// person segmentation at `.accurate` keeps the hair detail. Around each face (the hair zone: 1.5 face widths to
     /// either side, 1.5 face heights above, softened over a quarter face width) the matte is min(instance, person);
-    /// elsewhere the instance mask is unchanged, so objects a person holds stay cut out.
-    static let hairRefinedModel = EditRecipe.ModelRef(id: "vision-foreground-instance-mask+person-hair", version: "ios-17")
+    /// elsewhere the instance mask is unchanged, so objects a person holds stay cut out. Version ios-17-local-2 adds
+    /// cropped person analysis and closed-form coverage refinement, plus matching hair-colour reconstruction.
+    static let hairRefinedModel = EditRecipe.ModelRef(id: "vision-foreground-instance-mask+person-hair", version: "ios-17-local-2")
 
     static func refinedAtHair(instance: FloatImage, person: FloatImage, faces: [EditRecipe.Rect]) -> FloatImage {
         guard !faces.isEmpty else { return instance }
@@ -215,6 +218,13 @@ struct OnDeviceSceneAnalyser: SceneAnalysing {
             guard (try? handler.perform([request])) != nil, let buffer = request.results?.first?.pixelBuffer else { return nil }
             return Self.floatImage(from: buffer).resized(width: image.width, height: image.height)
         }.value
+    }
+
+    func refineHairCoverage(for image: CGImage, prior: FloatImage, faces: [DetectedFace]) async throws -> FloatImage {
+        let work = Task.detached(priority: .userInitiated) {
+            try HairDetailRefinement.refine(image: image, prior: prior, faces: faces)
+        }
+        return try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
     }
 
     func personMatte(for image: CGImage) async -> FloatImage? {

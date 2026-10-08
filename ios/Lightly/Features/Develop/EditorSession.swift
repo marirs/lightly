@@ -595,7 +595,9 @@ final class EditorSession {
         subjectGeneration += 1
         let generation = subjectGeneration
         let image = originalPreview
-        let faces = people?.faces.map(\.box) ?? []
+        let detectedFaces = people?.faces ?? []
+        let faces = detectedFaces.map(\.box)
+        let hairSource = photo.image
         DiagnosticTrace.note("subject: matte started \(image.width)x\(image.height), faces \(faces.count)")
         let awake = KeepAwake.begin("subject separation")
         subjectTask = Task { [weak self] in
@@ -608,9 +610,12 @@ final class EditorSession {
                 if let instance = matte, !faces.isEmpty,
                    let person = try await Self.traced("hair detail matte", started, { await sceneAnalyser.hairDetailMatte(for: image) }) {
                     try Task.checkCancellation()
-                    let refined = await Task.detached(priority: .userInitiated) {
+                    let initialHair = await Task.detached(priority: .userInitiated) {
                         SubjectMatte.refinedAtHair(instance: instance.matte, person: person, faces: faces)
                     }.value
+                    let refined = try await Self.traced("local hair coverage", started) {
+                        try await sceneAnalyser.refineHairCoverage(for: hairSource, prior: initialHair, faces: detectedFaces)
+                    }
                     #if DEBUG
                     // Device check of the hair refinement: the three mattes behind this Change background.
                     let stamp = DiagnosticTrace.stamp

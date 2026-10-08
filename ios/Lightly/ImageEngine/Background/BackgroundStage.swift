@@ -48,6 +48,23 @@ enum BackgroundStage {
         var disparity = FloatImage.guidedFilter(guide: linear.encodedGrey(), source: up, radius: radius, epsilon: 1e-3)
         for i in 0..<disparity.pixelCount { disparity.data[i] = min(max(disparity.data[i], 0), 1) }
         var scene = RefocusRenderer.buildScene(linear: linear, disparity: disparity, matte: matte)
+        if hasReplacement, cache.subject?.model == SubjectMatte.hairRefinedModel,
+           let matte, var subject = scene.subject {
+            // The defocused subject must use the same reconstructed hair colour as the sharp
+            // composite; otherwise enabling blur brings the old wall colour back at the edge.
+            subject.colour = ForegroundEstimate.estimate(linear, alpha: matte)
+            if let spill = SpillSuppression.field(photo: linear, matte: matte, faces: cache.people?.faces ?? []) {
+                for i in 0..<matte.pixelCount where matte.data[i] > 0 {
+                    var colour = SIMD3(subject.colour.data[i*3], subject.colour.data[i*3+1], subject.colour.data[i*3+2])
+                    let sample = spill.sample(x: i % linear.width, y: i / linear.width, frameWidth: linear.width, frameHeight: linear.height)
+                    SpillSuppression.apply(&colour, coverage: matte.data[i], direction: sample.direction, zone: sample.zone)
+                    SpillSuppression.restoreHairHue(&colour, reference: spill.hairSample(x: i % linear.width, y: i / linear.width,
+                        frameWidth: linear.width, frameHeight: linear.height), opaque: matte.data[i] >= SpillSuppression.opaqueCoverage)
+                    for c in 0..<3 { subject.colour.data[i*3+c] = colour[c] }
+                }
+            }
+            scene.subject = subject
+        }
         if hasReplacement, let replacementLinear {
             // §R2.4 "plane" placement; `replacementDepth` is not read (revision 1, G6).
             scene = RefocusRenderer.replacingBackground(scene, with: replacementLinear, ownDisparity: nil)
