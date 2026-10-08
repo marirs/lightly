@@ -183,6 +183,7 @@
 		AF3068C12D2AA429BC68E088 /* BackgroundStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 374C9DA528662769BAC2E58B /* BackgroundStage.swift */; };
 		B0CB8BBB3E65ADF2216C556B /* SelectiveColour.swift in Sources */ = {isa = PBXBuildFile; fileRef = 589B20DEDA287BBFDECFC78C /* SelectiveColour.swift */; };
 		B4EB867E80655134C201B76C /* LookThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0649541002DE319818590B79 /* LookThumbnailRenderer.swift */; };
+		B4F6BC21A03996F93EC1478F /* DeviceDragUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6682272154C3B9D406258B47 /* DeviceDragUITests.swift */; };
 		B5D1293D35952685EF0825A4 /* ForegroundEstimate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74554523BE88DFCC4DFCC811 /* ForegroundEstimate.swift */; };
 		B6739D58E6179B180EBD12E7 /* DevelopRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB2867C5D49814A9B978C7E /* DevelopRecipe.swift */; };
 		B699A9D372FCF406B8691C47 /* DevelopStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127C9E7A1DEDE2FE50A1E961 /* DevelopStage.swift */; };
@@ -363,6 +364,7 @@
 		62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPipelineLoadTests.swift; sourceTree = "<group>"; };
 		62D50B6F71288983AD9DEE26 /* RecipeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeRenderer.swift; sourceTree = "<group>"; };
 		64F181B15AF04CE3F9B90DB0 /* legal.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = legal.json; sourceTree = "<group>"; };
+		6682272154C3B9D406258B47 /* DeviceDragUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDragUITests.swift; sourceTree = "<group>"; };
 		67113A7ACC2901824799C6F5 /* backlit_02_thumb.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = backlit_02_thumb.jpg; sourceTree = "<group>"; };
 		67235CB2F09149021FA6809B /* ColorPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPipeline.swift; sourceTree = "<group>"; };
 		683D9036EE1451AECD4DB7C0 /* LightlyColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightlyColor.swift; sourceTree = "<group>"; };
@@ -1229,6 +1231,7 @@
 			children = (
 				AF0B70FD5D13073941E56FAD /* AccessibilityAuditUITests.swift */,
 				8500BFF4CA6673C1D4DF0396 /* DesignCaptureUITests.swift */,
+				6682272154C3B9D406258B47 /* DeviceDragUITests.swift */,
 				1176BF82FD88AA1594E84F4E /* EditorCaptureUITests.swift */,
 				D76A7AAE94D2D487DA845CFD /* EditorFlowUITests.swift */,
 				C146C86185FCFBBE6D2F6308 /* ForcedConditionsUITests.swift */,
@@ -1593,6 +1596,7 @@
 			files = (
 				BB6544E421DBEE0C79A2D88F /* AccessibilityAuditUITests.swift in Sources */,
 				1AE728C94894582F5D5EA239 /* DesignCaptureUITests.swift in Sources */,
+				B4F6BC21A03996F93EC1478F /* DeviceDragUITests.swift in Sources */,
 				DE30A3FA105565852D4DA3DE /* EditorCaptureUITests.swift in Sources */,
 				EFEBB069E41DE8FE7D3954FF /* EditorFlowUITests.swift in Sources */,
 				6BAF8A54F18A920961C6556E /* ForcedConditionsUITests.swift in Sources */,
