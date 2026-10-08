@@ -168,10 +168,25 @@ struct EditorScreen: View {
         let applied = session.autoState == .applied
         return Button { session.toggleAuto() } label: {
             Image(systemName: "wand.and.stars")
-                .font(.system(size: 21, weight: .medium))
-                .foregroundStyle(applied ? Color.black : Color.white)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(Color.white)
+                .frame(width: 30, height: 30)
+                .background(Color(red: 24 / 255, green: 27 / 255, blue: 25 / 255).opacity(0.72), in: Circle())
+                .overlay {
+                    if applied { Circle().strokeBorder(Color.white.opacity(0.7), lineWidth: 1) }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if applied {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(Color(red: 34 / 255, green: 41 / 255, blue: 35 / 255))
+                            .frame(width: 12, height: 12)
+                            .background(Color(white: 0.97), in: Circle())
+                            .offset(x: 3, y: 3)
+                    }
+                }
                 .frame(width: 44, height: 44)
-                .background(applied ? Color.orange : Color.black.opacity(0.65), in: Circle())
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Auto enhance")
@@ -193,7 +208,7 @@ struct EditorScreen: View {
                                imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
                                onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },
-                               marks: { if !session.isShowingOriginal { stageMarks.overlay(alignment: .topLeading) { autoEnhanceButton.padding(10) } } })
+                               marks: { if !session.isShowingOriginal { stageMarks.frame(maxWidth: .infinity, maxHeight: .infinity).overlay(alignment: .bottomLeading) { autoEnhanceButton.padding(5) } } })
         switch layout.mode {
         case .below:
             VStack(spacing: 0) {

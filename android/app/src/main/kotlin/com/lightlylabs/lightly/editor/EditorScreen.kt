@@ -658,13 +658,29 @@ private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
 @Composable
 private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
     val applied = ui.auto == AutoState.APPLIED
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
-        Box(Modifier.padding(10.dp).size(48.dp)
-            .background(if (applied) Color(0xFFFF9F43) else Color(0xA6000000), androidx.compose.foundation.shape.CircleShape)
+    // The 30 dp disc sits 12 dp inside the fitted photo, with a separate 48 dp touch area.
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+        Box(Modifier.padding(3.dp).size(48.dp)
             .clickable(onClick = vm::toggleAuto)
-            .semantics { contentDescription = "Auto enhance"; stateDescription = if (applied) "Applied" else "Not applied" }
+            .semantics {
+                contentDescription = "Auto enhance"
+                stateDescription = if (applied) "Applied" else "Not applied"
+                selected = applied
+            }
             .testTagResource(EditorTags.AUTO), contentAlignment = Alignment.Center) {
-            LightlyIcon(LightlyIcons.AutoEnhance, size = 23.dp, tint = if (applied) Color.Black else Color.White)
+            Box(Modifier.size(30.dp)
+                .background(Color(0xB8181B19), CircleShape)
+                .drawBehind {
+                    if (applied) drawCircle(Color.White.copy(alpha = 0.7f),
+                        radius = size.minDimension / 2 - 0.5.dp.toPx(),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+                }, contentAlignment = Alignment.Center) {
+                LightlyIcon(LightlyIcons.AutoEnhance, size = 18.dp, tint = Color.White)
+                if (applied) Box(Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp)
+                    .size(12.dp).background(Color(0xFFF7F9F7), CircleShape), contentAlignment = Alignment.Center) {
+                    LightlyIcon(LightlyIcons.Check, size = 9.dp, tint = Color(0xFF222923))
+                }
+            }
         }
     }
 }
