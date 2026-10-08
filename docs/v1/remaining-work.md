@@ -131,6 +131,15 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    carries no "nothing here" signal** (trained on DUTS-TR, where every image has a salient object). **Completion
    condition:** a rule or model that reports no subject, validated on `work/a5-validation`. **Next:** a model that is
    designed to return no subject (owner approval to download and evaluate one; none is on disk).
+   **TinyCLIP veto (2026-10-08, experiment, not bundled):** subject = current rule (confident area ≥ 2 %) AND TinyCLIP
+   ViT-8M/16 (MIT weights, YFCC-15M) zero-shot p(subject) ≥ 0.3768; prompts and threshold fixed on development photos
+   (156 + a 130-photo extension with statues, buildings, vehicles, plants; labels committed before any run, b25f8db) and
+   frozen before validation (85fb993). Development: current 60/62 found, 63/174 false; veto 57/62, 22/174.
+   **Validation, run once (`work/a5-validation`, 12 subjects, 77 without): current rule 10/12 found, 23/77 false; veto
+   8/12 found, 8/77 false. Provisional targets: E1 (found ≥ current − 1) FAIL; E2 (false ≤ half) pass; E3 (no type
+   loses more than one) FAIL: both "structures and signs" lost (lifeguard tower 0.32, street sign 0.36).** Not adopted;
+   not tuned on the validation set afterwards, which is now spent. 32 ms per photo on the Mac CPU. Current rule on the
+   same set for the record: misses 2 of 12 (boats 0.005 area, thistle 0.015).
 3. Portrait on the bar photo (`pt-no-usable-face`): one dim ring sits beside the middle person's head, over the shelf,
    instead of on the person (emulator, real models, 2026-10-06, `experiments/android-vision/work/bar-ring/`, on disk, not tracked). The
    approved notice is shown. Cause not established (face-box placement). Low impact.
