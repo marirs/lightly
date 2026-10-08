@@ -35,6 +35,10 @@ if __name__ == '__main__':
             return os.path.join(W, 'u2netp-heldout', 'photos', name + '.jpg')
         for r in dev: rows.append(dict(name=r['name'], label=r['label'], **confidence(load(path(r['name'])))))
         json.dump(rows, open(os.path.join(W, 'u2netp-confidence-dev.json'), 'w'), indent=1)
+    elif which == 'devext':
+        V = os.path.join(W, 'a5-devext'); sel = json.load(open(os.path.join(V, 'selection.json'))); lab = json.load(open(os.path.join(V, 'labels.json')))
+        for x in sel: rows.append(dict(name=x['name'], label=lab[x['name']], **confidence(load(os.path.join(PD, x['id'] + '.jpg')))))
+        json.dump(rows, open(os.path.join(W, 'u2netp-confidence-devext.json'), 'w'), indent=1)
     else:
         V = os.path.join(W, 'a5-validation'); sel = json.load(open(os.path.join(V, 'selection.json'))); lab = json.load(open(os.path.join(V, 'labels.json')))
         for x in sel: rows.append(dict(name=x['name'], label=lab[x['name']], **confidence(load(os.path.join(PD, x['id'] + '.jpg')))))
