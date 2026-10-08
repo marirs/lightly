@@ -18,7 +18,7 @@
 | Prototype or test photos | no | no | no | no | nothing under `ios/Lightly` or `android/app/src/main` is a photo; the test fixtures are in test targets only |
 | Develop catalogue `presets/develop-design-ui.json` (2,591 names) | yes | yes | yes | yes | `ios/project.yml`, `BundlePresetCatalogueTask` |
 | Look pack `shared/look-pack/out/manifest.json` (2,591 recipes derived from the source presets) | yes | yes | yes | yes | `scripts/bundle_look_pack.sh`, `BundleLookPackTask` |
-| `ios/Lightly/Resources/Presets/presets_photo.json` (7.0 MB, 3,157 recipes) and `luts_video.json` (1,742 entries) | yes | **yes** | n/a | n/a | everything under `ios/Lightly/` is a resource; both files carry an `originPath` that names the vendor pack |
+| `ios/Lightly/Resources/Presets/presets_photo.json` (7.0 MB, 3,157 recipes) and `luts_video.json` (1,742 entries) | yes | **no** (excluded in `ios/project.yml`; absent from the 7d0a096 archive) | n/a | n/a | repository only; both carry an `originPath` naming the vendor pack |
 
 ---
 
@@ -290,13 +290,20 @@ and the subject-mask blur (both change what users see on ordinary photos).
 - **Evidence of how they were obtained:** the WithLuke guide in the source folder opens with "Many thanks for purchasing my Preset Collection!" No licence, EULA or terms file exists in any of the four vendor folders; there are only installation guides.
   - Web searches for the Huliluts and WithLuke licence terms found nothing authoritative today.
   - Typical consumer preset licences allow use in your own editing, and forbid redistribution or resale.
-- **What ships derived from them:**
-  1. **Display names**, verbatim from the vendor files ("01 Fitness 01", "Light & Airy", …). On both platforms.
-  2. **Look pack recipes**: the vendors' Lightroom slider and curve values, converted (`shared/look-pack/build_pack.py`), for all 2,591 presets. On both platforms.
-  3. **iOS only:**
-     - `presets_photo.json`: 3,157 recipes, each with an `originPath` naming the vendor pack (for example "SolutionPresets/…", "The Ultimate Preset Bundle - Huliluts/…");
-     - `luts_video.json`: 1,742 entries naming "WithLuke studios/…" and Huliluts paths.
-     - Both are in the release bundle because everything under `ios/Lightly/` is a resource.
+- **What ships (checked 2026-10-08 in the Release archive 7d0a096, 1.0.0 (261008001)):** no Lightroom preset file.
+  No `.xmp`, `.lrtemplate`, `.dng` or `.cube` file and no vendor pack name or source path is in the app.
+  1. **Lightly recipes** (`LookPack/manifest.json`, format 3, 2,591 entries, both platforms). `shared/look-pack/build_pack.py`
+     read each preset's Lightroom develop settings and wrote a Lightly recipe: named operators with numeric parameters
+     (exposure, tone sliders, tone and parametric curves, HSL, vibrance/saturation, colour grading, white balance,
+     calibration, dehaze, noise reduction, clarity, texture, sharpening, vignette, grain), plus a Lightly id, a
+     recipe version, approximation codes, and two SHA-256 digests of the source (`sourceAssetId`, `settingsSha256`) for
+     traceability. At run time both apps bake each preset's colour table (33³) from the recipe with Lightly's own
+     rendering contract (`rendering-v2.json`) and render the spatial and finishing effects with Lightly's engine.
+  2. **Display names**, verbatim from the vendor files ("01 Fitness 01", "Light & Airy", …), both platforms.
+  3. Not shipped: `ios/Lightly/Resources/Presets/presets_photo.json` and `luts_video.json` (they carry `originPath`
+     with vendor pack names) are excluded from the iOS target (`ios/project.yml`) and absent from the archive.
+- The rights question is therefore about distributing settings converted into Lightly recipes, and the names; it is
+  not about distributing the vendors' files. Conversion alone does not establish clearance.
 - **Trademarks in display names:**
   - "Kodak Portra 1–10", "Portra 400 01–09", "Landscape 5 - Kodak", "Aerial 9 - Kodak Aerial", "16 - (Portrait) Kodak 2", "CC41 - Portrait | Kodak X", "Polaroid - 1–12".
   - Kodak, Portra and Polaroid are registered marks of their owners.
@@ -310,15 +317,12 @@ and the subject-mask blur (both change what users see on ordinary photos).
 **Risk: high.**
 - Redistributing purchased presets (and their names) in a competing commercial editor is the clearest breach scenario if the vendors' terms forbid redistribution, which is typical.
 - Whether bare slider values are copyrightable is doubtful, but contract terms and names do not depend on that.
-- The iOS bundle's `originPath` fields put the vendors' names inside the shipped app.
 
 **Resolution options.**
 - A. **Licence:** obtain written redistribution licences from the three vendors. Credit them as they require.
 - B. **Replace:** commission or author our own presets. **This changes the approved catalogue (names and counts), so it needs explicit approval.**
 - C. **Hybrid:** licence some vendors and replace the rest (same approval needed).
 - Whatever is chosen:
-  - remove `originPath` (and any vendor path) from the shipped iOS JSON;
-  - decide whether `presets_photo.json` and `luts_video.json` should ship at all now that the look pack is the source (engineering question);
   - rename or license the Kodak, Portra and Polaroid names (a copy change, so it needs approval).
 
 ---

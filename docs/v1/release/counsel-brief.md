@@ -25,7 +25,8 @@ answer differ in [markets]?
 
 ## B. Preset catalogue (both platforms) — see `preset-rights.md`
 All 2,591 Develop presets are the Lightroom settings of four purchased packs (SolutionPresets, WithLuke Studios ×2,
-an unidentified "Huliluts" seller), converted into the app's format and shipped with the vendors' names. No licence
+an unidentified "Huliluts" seller), converted into Lightly recipes (operators and numeric parameters; no preset file
+ships; both apps bake their colour tables from the recipes) and shipped with the vendors' names. No licence
 beyond the vendors' store terms (which reserve copying and resale) and no receipts are on file.
 **Question B:** with purchase only, may converted preset settings and names be shipped inside a commercial app; is
 anything short of a written vendor licence sufficient? (Vendor enquiries are drafted, not sent.)

@@ -4,15 +4,17 @@
 > Portra, Polaroid) is a separate question, at the end; it is not a redistribution right.
 
 ## What ships from the packs (both platforms unless stated)
-Every one of the 2,591 Develop presets traces to one of four purchased folders (`dependencies.md` §9):
-the vendor's Lightroom slider and curve values converted into the look pack, and the vendor's preset names verbatim.
-iOS also bundles `presets_photo.json` and `luts_video.json`, whose `originPath` fields name the vendor packs.
+Every one of the 2,591 Develop presets traces to one of four purchased folders (`dependencies.md` §9). The apps ship
+no preset file: each preset's Lightroom develop settings were converted into a Lightly recipe (operators and numeric
+parameters in `LookPack/manifest.json`); both apps bake the colour table from that recipe and render the effects with
+Lightly's engine. The vendors' preset names ship verbatim. No vendor pack name or path is in the app (checked in the
+7d0a096 Release archive; `presets_photo.json` and `luts_video.json` are excluded from the target).
 
 ## Two different permissions
 - **Editing your own photographs** with a purchased preset: what a buyer normally gets. Nothing found limits it, and
   it is not what Lightly needs.
-- **Redistributing the presets** (files, or settings converted into another format) and their names inside an app
-  sold or given to other people: Lightly's use. No document found grants it; the vendors' published terms (below)
+- **Distributing the presets' settings converted into Lightly recipes, and their names,** inside an app sold or given
+  to other people: Lightly's use (no preset file is distributed). No document found grants it; the vendors' published terms (below)
   reserve copying and resale. This is the missing permission.
 
 ## Evidence found, pack by pack
@@ -47,8 +49,6 @@ For every pack the permission has to cover, in writing: converting the Lightroom
 shipping them inside a paid app on iOS and Android in [markets]; showing the vendor's preset names (or our own); for
 how long; any fee and credit; and confirmation that the grantor holds the rights.
 
-Engineering, once rights are settled: remove `originPath` and vendor names from the shipped iOS JSON (and decide
-whether `presets_photo.json` and `luts_video.json` ship at all).
 
 ## Draft enquiries (for your review; none is sent until you authorise it)
 
