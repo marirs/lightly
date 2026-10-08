@@ -94,6 +94,16 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    foreground, both changed together) failed on the development photos:** teal fell (pm02 dark 31,998 → 1,139 px) but
    red excess rose to 11.0 (pm02 dark, shipped 0.4) and 10.2 (pm02 light, 3.9), outside P2 (≤ shipped + 2.0 and ≤ 7.5)
    (`portrait_edges/hair-projchroma-dev.json`). Not run further; criteria unchanged.
+   **Candidate 7b (2026-10-08, joint per-pixel alpha and foreground luminance with the local wall colour known and the
+   hair's chromaticity from interior pixels unlike the wall; feathered): passed development** (pm02 dark teal 31,998 →
+   463, red 0.4 → 0.7; all four cases within P1–P3; 6a/6b, full-resolution foreground alone, made teal worse). **Failed
+   the new validation set** (`portrait_edges/validation/`, 9 CC0 portraits fixed before the run, d109e99; now spent):
+   P1 18/18, P3 pass, **P2 fails in 14 of 18** (`validation/hair-jointb-validation.json`). Seven portraits already
+   exceed P2's 7.5 cap with the shipped route (the recorded gate flaw: brown or blonde hair reads as "red"); genuine
+   increases: 912899 16.5 → 33.3 (dark), 19fd67 8.9 → 13.1, ec321c 8.2 → 12.3. Crops show 7b's edges brown where the
+   shipped route draws a black outline with red/teal specks, plus a lumpy hair-coloured edge on 912899. Not adopted;
+   criteria unchanged. **Completion condition:** a candidate passes P1–P4 on an unused set. **Next:** owner decision on
+   the red metric (keep P2 as is, or decide by the blind visual review already proposed), then a further unused set.
 2. **Object cut-out (U²-Netp, in 1.0 scope):** halo reduced, not fixed. **No-subject rule not solved.** Area alone fails
    (held-out 4/9, independent 10/29). Area ≥ 2 % plus a depth step ≥ 0.1 along the mask edge (threshold read off those
    sets) on a **fresh labelled set** (105 PD12M photos, labels committed before the run, 3eed7b8;
@@ -111,6 +121,12 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    false, against 16/19 and 5/119 for area and depth step alone: one subject traded for two false subjects, no new
    separation (`work/u2netp-shape-dev.json`). Not adopted. The 100-photo validation set (`work/a5-validation`, labels
    committed before any model run) stays unused until a rule is worth spending it on.
+   **U²-Netp confidence (2026-10-08, development sets only):** mean probability in the region, uncertain share, entropy,
+   peak and contrast, singly and in pairs: best in-sample 16/19 subjects with 4/119 false (area and depth step: 16/19,
+   5/119); no separation (`work/u2netp-confidence-dev.json`). Validation set still unused. **Conclusion: U²-Netp's output
+   carries no "nothing here" signal** (trained on DUTS-TR, where every image has a salient object). **Completion
+   condition:** a rule or model that reports no subject, validated on `work/a5-validation`. **Next:** a model that is
+   designed to return no subject (owner approval to download and evaluate one; none is on disk).
 3. Portrait on the bar photo (`pt-no-usable-face`): one dim ring sits beside the middle person's head, over the shelf,
    instead of on the person (emulator, real models, 2026-10-06, `experiments/android-vision/work/bar-ring/`, on disk, not tracked). The
    approved notice is shown. Cause not established (face-box placement). Low impact.

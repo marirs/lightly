@@ -201,11 +201,12 @@ if __name__ == '__main__':
   if which == 'dev':
     cases = {'pm02': f'{S}/iosbg/pm02_12mp.jpg', 'pd03': f'{S}/iosbg/pd03_full.jpg'}
   else:
-    cases = {k: os.path.join(EXP, v) for k, v in json.load(open(os.path.join(HERE, 'fresh', 'set.json')))['photos'].items()}
+    # fresh (spent on candidate 2) or validation (2026-10-08, spent on candidate 7b)
+    cases = {k: os.path.join(EXP, v) for k, v in json.load(open(os.path.join(HERE, which, 'set.json')))['photos'].items()}
   results = [r for tag, src in cases.items() for r in evaluate(tag, src)]
-  if which == 'fresh' and VARIANT == 'chroma':
+  if (which, VARIANT) in (('fresh', 'chroma'), ('validation', 'jointb')):
     p1 = sum(r['teal_projected'] <= max(0.5 * r['teal_shipped'], 300) for r in results)
     p2 = [r['case'] for r in results if not (r['red_projected'] <= r['red_shipped'] + 2.0 and r['red_projected'] <= 7.5)]
     p3 = [r['case'] for r in results if not r['haze_projected'] <= r['haze_shipped'] + 1.0]
     print(f'P1 {p1}/{len(results)} (need 15) {"pass" if p1 >= 15 else "FAIL"}; P2 failures {p2 or "none"}; P3 failures {p3 or "none"}')
-  json.dump(results, open(os.path.join(HERE, 'fresh' if which == 'fresh' else '.', f'hair-{VARIANT}-{which}.json'), 'w'), indent=1)
+  json.dump(results, open(os.path.join(HERE, which if which != 'dev' else '.', f'hair-{VARIANT}-{which}.json'), 'w'), indent=1)
