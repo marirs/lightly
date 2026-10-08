@@ -3,20 +3,19 @@
   /Users/sg/Documents/Dev/pub-sites/lightly/public/{privacy,terms}.md  ->  ios/Lightly/Resources/Content/legal.json (schema 1)
                                                                        ->  android/app/src/main/assets/legal/release-text.json
 Only site decoration is dropped (the "Source:" line, page labels, the display tagline, the section index, link markup);
-the wording of every section is copied unchanged. Support destination: mailto:hello@lightly.pro.
+the wording of every section is copied unchanged. Support destination: https://lightly.pro/support.
 These are the website's drafts as of their "Last updated" date, not legal approval (docs/v1/release/README.md)."""
 import json, os, re, sys
 SITE = os.environ.get('LIGHTLY_SITE', '/Users/sg/Documents/Dev/pub-sites/lightly/public')
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-SUPPORT = 'mailto:hello@lightly.pro'
+SUPPORT = 'https://lightly.pro/support'
 
 def sections(path):
     text = open(path, encoding='utf-8').read()
-    updated = re.search(r'Last updated · (.+)', text).group(1).strip()
     # Body sections start after the in-page index line ("[Scope](#section-0)…").
     body = text[text.index('(#section-0)'):]
     body = body[body.index('\n'):]
-    out = [{'heading': 'Last updated', 'paragraphs': [updated]}]
+    out = []
     for block in re.split(r'^## ', body, flags=re.M)[1:]:
         heading, _, rest = block.partition('\n')
         paragraphs = [re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', p.strip()) for p in rest.strip().split('\n\n') if p.strip()]

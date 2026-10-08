@@ -1,5 +1,8 @@
 package com.lightlylabs.lightly.shell
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -123,8 +126,8 @@ fun MorePageView(page: MorePage, content: MoreContent, actions: MoreActions, mod
                     ListRow(MorePage.PRIVACY.title, onClick = { actions.openPage(MorePage.PRIVACY) }, tag = "row-privacy")
                     ListRow(MorePage.TERMS.title, onClick = { actions.openPage(MorePage.TERMS) }, tag = "row-terms")
                 }
-                MorePage.PRIVACY -> ReleaseDocumentBody(content.releaseText.privacyPolicy)
-                MorePage.TERMS -> ReleaseDocumentBody(content.releaseText.termsOfUse)
+                MorePage.PRIVACY -> ReleaseDocumentBody(content.releaseText.privacyPolicy, "https://lightly.pro/privacy", actions.openSupport)
+                MorePage.TERMS -> ReleaseDocumentBody(content.releaseText.termsOfUse, "https://lightly.pro/terms", actions.openSupport)
                 MorePage.ABOUT -> AboutBody(content.versionLabel, actions)
                 MorePage.SUPPORT -> SupportBody(content.releaseText.supportDestination, content.versionLabel, actions)
             }
@@ -285,9 +288,9 @@ private fun PreferredBorderBody(preferences: UserPreferences, actions: MoreActio
     Note(MoreCopy.BORDER_NOTE)
 }
 
-/** Release text (D2). Empty in this build, so the neutral unavailable state is shown. */
+/** Bundled legal text with its public website address. */
 @Composable
-private fun ReleaseDocumentBody(document: ReleaseDocument?) {
+private fun ReleaseDocumentBody(document: ReleaseDocument?, onlineUrl: String, openUrl: (String) -> Unit) {
     val colors = lightlyColors
     if (document == null) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 28.dp), contentAlignment = Alignment.Center) {
@@ -296,6 +299,7 @@ private fun ReleaseDocumentBody(document: ReleaseDocument?) {
         return
     }
     Column(Modifier.padding(top = 8.dp, bottom = 24.dp)) {
+        WebsiteLink(onlineUrl, "legal-online", openUrl)
         document.sections.forEach { section ->
             if (section.heading.isNotBlank()) GroupLabel(section.heading)
             Text(section.body, style = lightlyTextStyle(color = colors.ink), modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp))
@@ -323,9 +327,7 @@ private fun SupportBody(destination: String?, versionLabel: String, actions: Mor
     val colors = lightlyColors
     if (destination != null) {
         Note(MoreCopy.SUPPORT_NOTE, Modifier.padding(top = 8.dp))
-        Box(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
-            LightlyButton(MoreCopy.CONTACT_SUPPORT, ButtonKind.PRIMARY, onClick = { actions.openSupport(destination) }, tag = "support-contact")
-        }
+        WebsiteLink(destination, "support-contact", actions.openSupport)
     } else {
         Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 20.dp), contentAlignment = Alignment.Center) {
             Text(ReleaseText.UNAVAILABLE_SUPPORT, style = lightlyTextStyle(color = colors.ink2), modifier = Modifier.testTagResource("support-unavailable"))
@@ -338,4 +340,14 @@ private fun SupportBody(destination: String?, versionLabel: String, actions: Mor
 @Composable
 fun FullScreenMorePage(page: MorePage, content: MoreContent, actions: MoreActions) {
     MorePageView(page, content, actions, Modifier.fillMaxSize())
+}
+
+/** Plain web address with a full touch target; no filled button. */
+@Composable
+private fun WebsiteLink(url: String, tag: String, openUrl: (String) -> Unit) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp)
+        .heightIn(min = 48.dp).clickable(role = Role.Button) { openUrl(url) }
+        .testTagResource(tag), contentAlignment = Alignment.CenterStart) {
+        Text(url, style = lightlyTextStyle(15.sp, color = lightlyColors.sel), textDecoration = TextDecoration.Underline)
+    }
 }

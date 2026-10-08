@@ -105,7 +105,7 @@ class PreferencesTest {
         val terms = text.termsOfUse!!.sections
         assertTrue(privacy.any { it.heading == "Editing on your device" })
         assertTrue(terms.any { it.heading == "Your photographs" })
-        assertEquals("mailto:hello@lightly.pro", text.supportDestination)
+        assertEquals("https://lightly.pro/support", text.supportDestination)
         val all = (privacy + terms).joinToString(" ") { it.body }
         for (marker in listOf("[OWNER", "lorem", "TODO", "](http")) assertTrue(marker !in all, marker)
     }

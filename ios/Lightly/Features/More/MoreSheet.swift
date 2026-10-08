@@ -115,9 +115,9 @@ struct MoreSheet: View {
                 navigationRow(Text("legal.termsOfUse", bundle: .main), to: .termsOfUse)
             }
         case .privacyPolicy:
-            ReleaseDocumentPage(document: appState.releaseContent.availablePrivacyPolicy)
+            ReleaseDocumentPage(document: appState.releaseContent.availablePrivacyPolicy, onlineURL: URL(string: "https://lightly.pro/privacy")!)
         case .termsOfUse:
-            ReleaseDocumentPage(document: appState.releaseContent.availableTermsOfUse)
+            ReleaseDocumentPage(document: appState.releaseContent.availableTermsOfUse, onlineURL: URL(string: "https://lightly.pro/terms")!)
         case .about:
             AboutPage(version: appState.appVersion, openSupport: { open(.support) })
         case .support:

@@ -179,7 +179,7 @@ final class BundledContentTests: XCTestCase {
         let terms = try XCTUnwrap(content.availableTermsOfUse)
         XCTAssertTrue(privacy.sections.contains { $0.heading == "Editing on your device" })
         XCTAssertTrue(terms.sections.contains { $0.heading == "Your photographs" })
-        XCTAssertEqual(content.supportURL, URL(string: "mailto:hello@lightly.pro"))
+        XCTAssertEqual(content.supportURL, URL(string: "https://lightly.pro/support"))
         let all = (privacy.sections + terms.sections).flatMap(\.paragraphs).joined(separator: " ")
         for marker in ["[OWNER", "lorem", "TODO", "](http"] { XCTAssertFalse(all.contains(marker), marker) }
     }

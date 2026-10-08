@@ -3,12 +3,6 @@
  "privacyPolicy": {
   "sections": [
    {
-    "heading": "Last updated",
-    "paragraphs": [
-     "7 October 2026"
-    ]
-   },
-   {
     "heading": "Scope",
     "paragraphs": [
      "This policy covers the Lightly photo editor and lightly.pro. Privacy enquiries can be sent to hello@lightly.pro."
@@ -70,12 +64,6 @@
  "termsOfUse": {
   "sections": [
    {
-    "heading": "Last updated",
-    "paragraphs": [
-     "5 October 2026"
-    ]
-   },
-   {
     "heading": "About Lightly",
     "paragraphs": [
      "Lightly is a photo-editing app for iOS and Android. This website describes the product and provides support information. For questions about these terms, contact hello@lightly.pro."
@@ -126,6 +114,6 @@
   ]
  },
  "support": {
-  "url": "mailto:hello@lightly.pro"
+  "url": "https://lightly.pro/support"
  }
 }

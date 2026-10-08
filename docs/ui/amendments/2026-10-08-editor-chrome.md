@@ -7,3 +7,7 @@ Owner request: make the dark Save copy button a clean, smaller pill with space a
 - Selection remains distinguished by the existing underline/icon treatment. Auto's enabled control, sliders and unrelated blue controls are unchanged.
 
 This explicit owner amendment supersedes only these portions of the older prototype. Reference images are not re-recorded.
+
+## Legal and Support links
+
+The owner requested replacing the Last updated row in Privacy Policy and Terms of Use with their tappable public URLs, https://lightly.pro/privacy and https://lightly.pro/terms. Support displays a plain https://lightly.pro/support link instead of the filled Contact support button. Applies to iOS and Android; document body text is unchanged. All three website pages were checked live.

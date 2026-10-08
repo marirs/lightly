@@ -6,11 +6,19 @@ import SwiftUI
 /// placeholder bars or invented wording.
 struct ReleaseDocumentPage: View {
     let document: ReleaseContent.Document?
+    let onlineURL: URL
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         if let document {
             VStack(spacing: 0) {
+                Link(onlineURL.absoluteString, destination: onlineURL)
+                    .approvedText(15)
+                    .underline()
+                    .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
+                    .accessibilityIdentifier("legal.online")
                 ForEach(Array(document.sections.enumerated()), id: \.offset) { _, section in
                     if let heading = section.heading {
                         ApprovedGroupLabel(text: Text(verbatim: heading))
@@ -67,23 +75,22 @@ struct AboutPage: View {
     }
 }
 
-/// Support (approved `support`).
-///
-/// The Support destination is pending (plan D2): without one the page says contact details are
-/// not available in this build, and no address is shown or invented. Once `legal.json` names a
-/// mail or web destination, the approved text and Contact support appear.
+/// Support website, displayed as a plain link (owner amendment 2026-10-08).
 struct SupportPage: View {
     let version: AppVersion
     let supportURL: URL?
-    @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
             if let supportURL {
                 ApprovedNote("support.note", topPadding: 14)
                 HStack {
-                    Button { openURL(supportURL) } label: { Text("support.contact", bundle: .main) }
-                        .buttonStyle(ApprovedButtonStyle(kind: .primary))
+                    Link(supportURL.absoluteString, destination: supportURL)
+                        .approvedText(15)
+                        .underline()
+                        .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
+                        .frame(minHeight: 44)
                         .accessibilityIdentifier("support.contact")
                     Spacer(minLength: 0)
                 }
