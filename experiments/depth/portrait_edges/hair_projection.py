@@ -122,7 +122,7 @@ def composite_full(full, a_w, hexc, guided):
   return enc(F * a[..., None] + repl * (1 - a[..., None])) * 255, a
 
 
-def composite_joint(full, a_w, hexc, refined=False):
+def composite_joint(full, a_w, hexc, refined=False, hair_only=False, smooth=False):
   """Candidate 7 (2026-10-08): coverage and colour solved together per pixel at full resolution, from the compositing
   equation I = a F + (1 - a) B with B the local background (pull-push from a <= 0.05) and F constrained to the local
   interior chromaticity c (pull-push from a >= 0.95, luminance-normalised) with free brightness: I - B = u c - a B,
@@ -138,6 +138,13 @@ def composite_joint(full, a_w, hexc, refined=False):
     # 7b: interior pixels indistinguishable from the local background (wall pockets the matte called subject) say
     # nothing about the subject's colour: leave them out of the chromaticity estimate.
     interior &= np.linalg.norm(I - B, axis=-1) > 0.5 * np.linalg.norm(B, axis=-1)
+  if hair_only:
+    # 7c (2026-10-08): the subject colour comes from hair pixels only (MediaPipe hair segmenter >= 0.8). Development
+    # diagnosis: on pd03 only 29 % of the interior pixels near the band are hair, so 7b took skin chroma into the hair
+    # edge (redder than the hair-only estimate in 95 % of the band); pm02 97 % hair. Fallback to 7b's estimate where
+    # the photo has too little detected hair.
+    hair_interior = interior & (hair_mask(full) >= 0.8)
+    if hair_interior.sum() > 2000: interior = hair_interior
   Fi = pull_push(I, interior.astype(np.float64))
   c = Fi / np.maximum(y(Fi), 1e-4)[..., None]
   # normal equations for M = [c, -B], rhs = I - B
@@ -145,6 +152,13 @@ def composite_joint(full, a_w, hexc, refined=False):
   cr = (c * r).sum(-1); br = (B * r).sum(-1); det = cc * bb - cb * cb
   ok = det > 1e-3 * cc * bb   # sin^2 of the angle between c and B above 1e-3
   aj = np.clip((cc * (-br) + cb * cr) / np.maximum(det, 1e-12), 0, 1)
+  if smooth:
+    # 7d (2026-10-08): the per-pixel solve is noisy where the photo's noise is large against |F - B| (speckled edges on
+    # light backgrounds, development pd03). Edge-aware smoothing of the solved coverage (guided filter, photo luminance
+    # as guide, radius 4 px, eps 1e-3) before the brightness is solved for it.
+    g = 0.2126 * I[..., 0] + 0.7152 * I[..., 1] + 0.0722 * I[..., 2]; box = lambda x: cv2.boxFilter(x, -1, (9, 9))
+    src = np.where(ok, aj, a); mg, mp = box(g), box(src); A = (box(g * src) - mg * mp) / (box(g * g) - mg * mg + 1e-3)
+    aj = np.clip(box(A) * g + box(mp - A * mg), 0, 1)
   uj = np.maximum(((c * (r + aj[..., None] * B)).sum(-1)) / np.maximum(cc, 1e-12), 0)
   band = (a > 0.02) & (a < 0.98) & ok
   F_ship = np.clip(estimate_foreground_ml(I, a), 0, 1); repl = lin(np.array(hexc) / 255.)
@@ -194,8 +208,9 @@ def evaluate(tag, src):
   for sc, hexc in (('dark', (0x1F, 0x23, 0x28)), ('light', (0xF4, 0xF1, 0xEC))):
     outs = {}
     for name, aw in (('shipped', a_ship), ('projected', a_ship if VARIANT in ('chroma', 'interior') else a_proj)):
-      if name == 'projected' and VARIANT in ('joint', 'jointb'):
-        outs[name] = composite_joint(full, a_ship, hexc, refined=(VARIANT == 'jointb')); continue
+      if name == 'projected' and VARIANT in ('joint', 'jointb', 'jointhair', 'jointsmooth'):
+        outs[name] = composite_joint(full, a_ship, hexc, refined=(VARIANT != 'joint'), hair_only=(VARIANT in ('jointhair', 'jointsmooth')),
+                                     smooth=(VARIANT == 'jointsmooth')); continue
       if name == 'projected' and VARIANT in ('fullres', 'guidedfull'):
         outs[name] = composite_full(full, a_ship, hexc, guided=(VARIANT == 'guidedfull')); continue
       outs[name] = composite(full, aw, I_w, hexc, chroma=(name == 'projected' and VARIANT in ('chroma', 'interior', 'projchroma')))

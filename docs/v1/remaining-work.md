@@ -108,6 +108,18 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    segmenter reference), so natural brown, red or blonde hair is not fringe; P2c = red_c ≤ shipped + 2.0 in every case.
    Checked on 7b's spent outputs: 912899 dark red_c 4.6 → 7.0 and 19fd67 dark 6.3 → 7.1 remain increases; 912899 dark
    fails P2c, so 7b stays failed.
+   **Regression diagnosed on the development photos (2026-10-08):** 7b took the subject's chromaticity from every
+   interior pixel near the edge; on pd03 only 29 % of those are hair (the rest skin), so the hair edge got skin chroma
+   (redder than a hair-only estimate in 95 % of the band); pm02 97 % hair. **7c** (colour from hair pixels only,
+   MediaPipe hair segmenter) removes it on development (pd03 red_c 4.7 → 3.7 dark, 4.8 → 4.1 light; pm02 dark teal
+   31,998 → 207) but the per-pixel solve leaves **salt-and-pepper speckle** along hair and beard on light backgrounds
+   (pd03 light; 7b has it too): fails P4 on development. **7d** (7c with edge-aware smoothing of the solved coverage)
+   reduces the speckle but raises haze (pm02 dark 0.4 → 1.6, P3 limit 1.4) and draws a faint light outline around the
+   curls: fails P3/P4 on development. Neither was run on a validation set. All joint-solve variants keep the blobby curl
+   shapes of the 768 px matte. **Status: no candidate passes development; the joint-solve family is stopped here.** The
+   remaining limit is the coverage itself at 768 px in dense curls; the approach that works on iOS (a high-resolution
+   person segmentation refining the hair zone, 21bf473) has no bundled Android equivalent (the MediaPipe hair segmenter
+   is 512 × 512 for the whole frame).
 2. **Object cut-out (U²-Netp, in 1.0 scope):** halo reduced, not fixed. **No-subject rule not solved.** Area alone fails
    (held-out 4/9, independent 10/29). Area ≥ 2 % plus a depth step ≥ 0.1 along the mask edge (threshold read off those
    sets) on a **fresh labelled set** (105 PD12M photos, labels committed before the run, 3eed7b8;
