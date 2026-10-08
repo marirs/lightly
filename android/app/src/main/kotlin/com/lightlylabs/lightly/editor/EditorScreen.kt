@@ -2,6 +2,9 @@ package com.lightlylabs.lightly.editor
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,6 +43,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.Modifier
@@ -142,7 +150,7 @@ data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, va
 @Composable
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
-    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui); if (!ui.showsOriginal) AutoEnhanceOverlay(vm, ui) }, onPhotoBox = vm::onStagePhotoMeasured) }
+    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, chrome = { if (!ui.showsOriginal) AutoEnhanceOverlay(vm, ui) }, inspection = true, onPhotoBox = vm::onStagePhotoMeasured) }
     val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
     val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
     Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
@@ -320,19 +328,61 @@ internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, 
  * the "Original" badge at the photo's top-left corner.
  */
 @Composable
-private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
+private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
-    BoxWithConstraints(modifier.background(colors.canvas).testTagResource(EditorTags.STAGE), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.background(colors.canvas).clipToBounds().testTagResource(EditorTags.STAGE), contentAlignment = Alignment.Center) {
         if (image != null) {
             val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
             val ratio = image.width.toFloat() / image.height
             val width = minOf(maxWidth.value, maxHeight.value * ratio)
+            val density = LocalDensity.current
+            val viewport = with(density) { Offset(maxWidth.toPx(), maxHeight.toPx()) }
+            val fitted = with(density) { Offset(width.dp.toPx(), (width / ratio).dp.toPx()) }
+            var zoom by remember(ui.original) { mutableStateOf(1f) }
+            var pan by remember(ui.original) { mutableStateOf(Offset.Zero) }
+            fun clamp(offset: Offset, scale: Float): Offset {
+                val limitX = maxOf(0f, (fitted.x * scale - viewport.x) / 2)
+                val limitY = maxOf(0f, (fitted.y * scale - viewport.y) / 2)
+                return Offset(offset.x.coerceIn(-limitX, limitX), offset.y.coerceIn(-limitY, limitY))
+            }
+            LaunchedEffect(viewport, fitted) { pan = clamp(pan, zoom) }
+            val gestures = if (!inspection) Modifier else Modifier
+                .pointerInput(ui.original, viewport, fitted) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        var navigating = false
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.count { it.pressed } >= 2) {
+                                navigating = true
+                                val next = (zoom * event.calculateZoom()).coerceIn(1f, 6f)
+                                val anchor = event.calculateCentroid(useCurrent = false) - viewport / 2f
+                                pan = clamp(anchor - (anchor - pan) * (next / zoom) + event.calculatePan(), next)
+                                zoom = next
+                            }
+                            // Continue consuming until every finger is lifted: do not turn the last
+                            // finger of a pinch into a brush stroke or a watermark drag.
+                            if (navigating) event.changes.forEach { it.consume() }
+                        } while (event.changes.any { it.pressed })
+                    }
+                }
+                .pointerInput(ui.original, viewport, fitted) {
+                    detectTapGestures(onDoubleTap = { point ->
+                        if (zoom > 1.01f) { zoom = 1f; pan = Offset.Zero }
+                        else { zoom = 2.5f; pan = clamp((viewport / 2f - point) * (zoom - 1f), zoom) }
+                    })
+                }
+            val border = ui.session?.current?.let { EditMapping.border(it) }?.takeIf { !it.isNone && !ui.showsOriginal && ui.preview != null }
+            Box(Modifier.fillMaxSize().then(gestures).testTagResource("editor-inspection").semantics {
+                stateDescription = "${(zoom * 100).toInt()} percent zoom"
+            }, contentAlignment = Alignment.Center) {
             // Stage 11: with a border the preview is the canvas. `.pic` then has box-shadow 0 0 0 1px
             // rgba(0,0,0,.12), a ring just outside it (not while comparing: the original has no border).
-            val border = ui.session?.current?.let { EditMapping.border(it) }?.takeIf { !it.isNone && !ui.showsOriginal && ui.preview != null }
             Box(
-                Modifier.size(width.dp, (width / ratio).dp).then(
+                Modifier.size(width.dp, (width / ratio).dp).graphicsLayer {
+                    scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y
+                }.then(
                     if (border == null) Modifier else Modifier.drawBehind {
                         val ring = 1.dp.toPx()
                         drawRect(Color(0x1F000000), topLeft = Offset(-ring / 2, -ring / 2), size = androidx.compose.ui.geometry.Size(size.width + ring, size.height + ring), style = androidx.compose.ui.graphics.drawscope.Stroke(ring))
@@ -359,6 +409,14 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                 }
                 if (box == null || ui.tool == EditorTool.WATERMARK) overlay() else BoxWithConstraints(Modifier.fillMaxSize()) {
                     Box(Modifier.offset(x = maxWidth * box[0].toFloat(), y = maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { overlay() }
+                }
+            }
+            }
+            // Keep the Auto control at its approved size and position while inspecting the image.
+            Box(Modifier.size(width.dp, (width / ratio).dp)) {
+                val box = border?.let { com.lightlylabs.lightly.develop.BorderStage.imageBox(it, image.width, image.height) }
+                if (box == null) chrome() else BoxWithConstraints(Modifier.fillMaxSize()) {
+                    Box(Modifier.offset(maxWidth * box[0].toFloat(), maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { chrome() }
                 }
             }
         }
@@ -660,9 +718,7 @@ private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
 private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
     val applied = ui.auto == AutoState.APPLIED
     // The 30 dp disc sits 12 dp inside the fitted photo, with a separate 48 dp touch area.
-    val photoBox = if (ui.tool == EditorTool.WATERMARK) ui.preview?.let { image ->
-        ui.session?.current?.let { com.lightlylabs.lightly.develop.BorderStage.imageBox(EditMapping.border(it), image.width, image.height) }
-    } else null
+    val photoBox: DoubleArray? = null
     Box(Modifier.fillMaxSize().layout { measurable, constraints ->
         val b = photoBox ?: doubleArrayOf(0.0, 0.0, 1.0, 1.0)
         val w = (constraints.maxWidth * b[2]).toInt()

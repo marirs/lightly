@@ -1246,6 +1246,9 @@ class EditorViewModel(
         return (l.left + l.width / 2) / image.width to (l.top + l.height / 2) / image.height
     }
 
+    /** A two-finger inspection gesture cancels a one-finger draft without creating history. */
+    fun cancelPhotoGesturePreview() { state.value.session?.current?.let { requestPreview(it, globalOnly = false) } }
+
     fun dragWatermark(start: Pair<Double, Double>, dx: Double, dy: Double, release: Boolean) {
         val session = state.value.session ?: return
         val point = com.lightlylabs.lightly.session.NormalisedPoint((start.first + dx).coerceIn(0.0, 1.0), (start.second + dy).coerceIn(0.0, 1.0))

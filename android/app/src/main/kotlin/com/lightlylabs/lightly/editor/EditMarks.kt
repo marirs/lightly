@@ -154,6 +154,7 @@ private suspend fun PointerInputScope.cropGestures(vm: EditorViewModel, onDraft:
     while (true) {
         val event = awaitPointerEvent()
         val pressed = event.changes.firstOrNull { it.id == down.id } ?: break
+        if (pressed.isConsumed || event.changes.count { it.pressed } > 1) { onDraft(null); return@awaitEachGesture }
         if (!pressed.pressed) break
         last = pressed.position
         onDraft(CropGeometry.dragged(start, handle, ((last.x - down.position.x) / w).toDouble(), ((last.y - down.position.y) / h).toDouble(), ratio, frameAspect))
@@ -201,6 +202,7 @@ private suspend fun PointerInputScope.brushGestures(vm: EditorViewModel) = await
     val points = arrayListOf(down.position)
     while (true) {
         val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+        if (change.isConsumed) return@awaitEachGesture
         if (!change.pressed) break
         // Keep the stroke light: a new point every 4 px of travel.
         if (hypot(change.position.x - points.last().x, change.position.y - points.last().y) >= 4.dp.toPx()) points += change.position
@@ -221,6 +223,7 @@ private fun WatermarkDrag(vm: EditorViewModel, start: Pair<Double, Double>) {
                 var moved = false
                 while (true) {
                     val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                    if (change.isConsumed) { if (moved) vm.cancelPhotoGesturePreview(); return@awaitEachGesture }
                     if (!change.pressed) break
                     last = change.position
                     moved = true
@@ -255,6 +258,7 @@ private fun LeakDrag(vm: EditorViewModel) {
                 var moved = false
                 while (true) {
                     val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                    if (change.isConsumed) { if (moved) vm.cancelPhotoGesturePreview(); return@awaitEachGesture }
                     if (!change.pressed) break
                     position = change.position
                     moved = true

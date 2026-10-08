@@ -172,6 +172,9 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     /// canvas so a white border stays visible on the stage.
     var outlinesCanvas = false
     var marksCoverCanvas = false
+    var allowsInspection = false
+    var onInspectionBegan: () -> Void = {}
+    var photoChrome = AnyView(EmptyView())
     /// The photo inside the canvas, as fractions (prototype `.imgbox` inside `.frame`): marks are
     /// laid over this box, not over the border.
     var imageBox = CGRect(x: 0, y: 0, width: 1, height: 1)
@@ -187,6 +190,7 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
         GeometryReader { geometry in
             let fitted = Self.fittedSize(image: CGSize(width: image.width, height: image.height), in: geometry.size)
             ZStack {
+                InspectionViewport(enabled: allowsInspection, contentSize: fitted, viewportSize: geometry.size, onInspectionBegan: onInspectionBegan) {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.high)
@@ -220,6 +224,10 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                                 .offset(x: canvas.size.width * box.minX, y: canvas.size.height * box.minY)
                         }
                     }
+                }
+                photoChrome
+                    .frame(width: fitted.width * imageBox.width, height: fitted.height * imageBox.height)
+                    .offset(x: fitted.width * (imageBox.midX - 0.5), y: fitted.height * (imageBox.midY - 0.5))
                 overlay()
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -468,5 +476,101 @@ private struct ShrinkToFitLayout: Layout {
         // centred in it, not left at its leading edge.
         subview.place(at: CGPoint(x: bounds.midX, y: bounds.minY), anchor: .top,
                       proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
+}
+
+
+/// Inspection is view state only. Two fingers navigate so one-finger editing gestures keep their
+/// original coordinate system. Updating the rendered image never resets the viewport.
+private struct InspectionViewport<Content: View>: UIViewRepresentable {
+    let enabled: Bool
+    let contentSize: CGSize
+    let viewportSize: CGSize
+    var onInspectionBegan: () -> Void
+    @ViewBuilder var content: () -> Content
+
+    func makeCoordinator() -> Coordinator { Coordinator(content()) }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scroll = UIScrollView()
+        scroll.backgroundColor = .clear
+        scroll.delegate = context.coordinator
+        scroll.minimumZoomScale = 1
+        scroll.maximumZoomScale = enabled ? 6 : 1
+        scroll.showsHorizontalScrollIndicator = false
+        scroll.showsVerticalScrollIndicator = false
+        scroll.bouncesZoom = false
+        scroll.contentInsetAdjustmentBehavior = .never
+        scroll.panGestureRecognizer.minimumNumberOfTouches = 2
+        scroll.panGestureRecognizer.addTarget(context.coordinator, action: #selector(Coordinator.navigationBegan(_:)))
+        scroll.pinchGestureRecognizer?.addTarget(context.coordinator, action: #selector(Coordinator.navigationBegan(_:)))
+        scroll.accessibilityIdentifier = "editor.inspection"
+        let host = context.coordinator.host
+        host.view.backgroundColor = .clear
+        scroll.addSubview(host.view)
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.doubleTap(_:)))
+        tap.numberOfTapsRequired = 2
+        tap.isEnabled = enabled
+        scroll.addGestureRecognizer(tap)
+        context.coordinator.doubleTapRecognizer = tap
+        return scroll
+    }
+
+    func updateUIView(_ scroll: UIScrollView, context: Context) {
+        let c = context.coordinator
+        c.host.rootView = content()
+        c.onInspectionBegan = onInspectionBegan
+        scroll.maximumZoomScale = enabled ? 6 : 1
+        scroll.panGestureRecognizer.isEnabled = enabled
+        c.doubleTapRecognizer?.isEnabled = enabled
+        // Resizing the panel must not reset zoom. Geometry remains the unzoomed fitted photo.
+        if c.contentSize != contentSize || c.viewportSize != viewportSize {
+            let scale = scroll.zoomScale
+            let centre = CGPoint(x: (scroll.contentOffset.x + c.viewportSize.width / 2) / max(c.contentSize.width * scale, 1),
+                                 y: (scroll.contentOffset.y + c.viewportSize.height / 2) / max(c.contentSize.height * scale, 1))
+            let wasLaidOut = c.contentSize != .zero
+            c.contentSize = contentSize
+            c.viewportSize = viewportSize
+            c.host.view.bounds = CGRect(origin: .zero, size: contentSize)
+            c.host.view.center = CGPoint(x: contentSize.width * scale / 2, y: contentSize.height * scale / 2)
+            scroll.contentSize = CGSize(width: contentSize.width * scale, height: contentSize.height * scale)
+            c.centre(scroll)
+            if wasLaidOut {
+                let x = centre.x * scroll.contentSize.width - viewportSize.width / 2
+                let y = centre.y * scroll.contentSize.height - viewportSize.height / 2
+                scroll.contentOffset = CGPoint(
+                    x: min(max(x, -scroll.contentInset.left), max(-scroll.contentInset.left, scroll.contentSize.width - viewportSize.width + scroll.contentInset.right)),
+                    y: min(max(y, -scroll.contentInset.top), max(-scroll.contentInset.top, scroll.contentSize.height - viewportSize.height + scroll.contentInset.bottom)))
+            } else { scroll.contentOffset = CGPoint(x: -scroll.contentInset.left, y: -scroll.contentInset.top) }
+        }
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        let host: UIHostingController<Content>
+        var contentSize = CGSize.zero
+        var viewportSize = CGSize.zero
+        var onInspectionBegan: () -> Void = {}
+        weak var doubleTapRecognizer: UITapGestureRecognizer?
+        init(_ content: Content) { host = UIHostingController(rootView: content) }
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? { host.view }
+        func centre(_ scroll: UIScrollView) {
+            let x = max(0, (viewportSize.width - contentSize.width * scroll.zoomScale) / 2)
+            let y = max(0, (viewportSize.height - contentSize.height * scroll.zoomScale) / 2)
+            scroll.contentInset = UIEdgeInsets(top: y, left: x, bottom: y, right: x)
+            scroll.accessibilityValue = String(format: "%.1f times", scroll.zoomScale)
+        }
+        func scrollViewDidZoom(_ scrollView: UIScrollView) { centre(scrollView) }
+        @objc func navigationBegan(_ recognizer: UIGestureRecognizer) {
+            if recognizer.state == .began { onInspectionBegan() }
+        }
+        @objc func doubleTap(_ recognizer: UITapGestureRecognizer) {
+            guard let scroll = recognizer.view as? UIScrollView else { return }
+            if scroll.zoomScale > 1.01 { scroll.setZoomScale(1, animated: true) }
+            else {
+                let point = recognizer.location(in: host.view)
+                let size = CGSize(width: viewportSize.width / 2.5, height: viewportSize.height / 2.5)
+                scroll.zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2, width: size.width, height: size.height), animated: true)
+            }
+        }
     }
 }

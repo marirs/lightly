@@ -10,6 +10,11 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pinch
+import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.lifecycle.SavedStateHandle
@@ -101,6 +106,48 @@ class EditorScreenTest {
     }
 
     @Test
+    fun `inspection zoom survives tools and never commits an edit`() {
+        val vm = editor()
+        show(vm)
+        val before = vm.uiState.value.session
+        val viewport = compose.onNodeWithTag("editor-inspection")
+        viewport.performTouchInput {
+            pinch(center - Offset(30f, 0f), center + Offset(30f, 0f),
+                center - Offset(80f, 0f), center + Offset(80f, 0f), durationMillis = 400)
+        }
+        compose.waitForIdle()
+        val zoom = viewport.fetchSemanticsNode().config[SemanticsProperties.StateDescription]
+        assertTrue(zoom != "100 percent zoom", zoom)
+        assertEquals(before, vm.uiState.value.session)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
+        viewport.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, zoom))
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.DEVELOP)).performClick()
+        viewport.performTouchInput { doubleClick(center) }
+        viewport.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "100 percent zoom"))
+        assertEquals(before, vm.uiState.value.session)
+    }
+
+    @Test
+    fun `pinch in crop and remove never commits a crop or stroke`() {
+        val vm = editor()
+        show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
+        val before = vm.uiState.value.session
+        fun pinch() = compose.onNodeWithTag("editor-inspection").performTouchInput {
+            pinch(center - Offset(30f, 0f), center + Offset(30f, 0f),
+                center - Offset(80f, 0f), center + Offset(80f, 0f), durationMillis = 400)
+        }
+        pinch()
+        compose.waitForIdle()
+        assertEquals(before, vm.uiState.value.session)
+        compose.onNodeWithText("Remove").performClick()
+        pinch()
+        compose.waitForIdle()
+        assertEquals(before, vm.uiState.value.session)
+        assertTrue(vm.uiState.value.edit.pendingStroke == null)
+    }
+
+    @Test
     fun `the editor shows the approved controls, copy and every tool`() {
         val vm = editor()
         show(vm)
@@ -109,7 +156,7 @@ class EditorScreenTest {
         }
         compose.onNodeWithTag(EditorTags.UNDO).assertIsNotEnabled()
         compose.onNodeWithText("Save copy").assertIsDisplayed()
-        compose.onNodeWithText("Original").assertIsDisplayed()
+        compose.onNodeWithText("Original").assertDoesNotExist()
         compose.onNodeWithText("Automatic correction isn't available on this device. Presets still work.").assertDoesNotExist() // no standing notice (owner amendment 2026-10-05)
         compose.onNodeWithText("0 / 518").assertIsDisplayed()
         EditorTool.entries.forEach { compose.onNodeWithTag(EditorTags.tool(it)).assertExists() }
@@ -137,8 +184,8 @@ class EditorScreenTest {
         compose.onNodeWithTag(EditorTags.COMPARE).assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
         compose.onNodeWithTag(EditorTags.COMPARE).performSemanticsAction(SemanticsActions.OnClick)
         compose.waitForIdle()
-        // "Original" is now both the stop-0 name and the badge on the photo.
-        assertEquals(2, compose.onAllNodesWithText("Original").fetchSemanticsNodes().size)
+        // The owner removed the stop-0 title; Original appears only on Compare.
+        assertEquals(1, compose.onAllNodesWithText("Original").fetchSemanticsNodes().size)
     }
 
     @Test
@@ -157,7 +204,7 @@ class EditorScreenTest {
         show(vm)
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
         compose.waitForIdle()
-        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Original", "Free", "4:5", "Drag a corner or an edge to crop. Drag inside to move.").forEach {
+        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Drag corners or edges to crop.").forEach {
             compose.onNodeWithText(it).assertExists()
         }
         compose.onNodeWithText("Remove").performClick()
@@ -166,12 +213,12 @@ class EditorScreenTest {
         compose.onNodeWithText("Brush over anything you want removed.").assertExists()
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
         compose.waitForIdle()
-        listOf("Light Leaks", "Grain", "Vignette", "Off", "Warm edge", "Amber flare", "Rose", "Prism", "Intensity", "Rotation", "Drag on the photo to move the leak.").forEach {
+        listOf("Light Leaks", "Grain", "Vignette", "Warm edge", "Amber flare", "Rose", "Prism", "Intensity", "Rotation", "Drag on the photo to move the leak.").forEach {
             compose.onNodeWithText(it).assertExists()
         }
-        compose.onNodeWithTag("effects-on-off").performClick()
+        compose.onNodeWithTag("effects-on-off").assertDoesNotExist()
+        compose.onNodeWithText("Rose").performClick()
         compose.waitForIdle()
-        compose.onNodeWithText("On").assertExists()
         assertTrue(vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
     }
 }

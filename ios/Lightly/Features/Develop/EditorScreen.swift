@@ -206,15 +206,19 @@ struct EditorScreen: View {
                                showsOriginalBadge: session.isShowingOriginal,
                                outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                                marksCoverCanvas: tool == .watermark,
+                               allowsInspection: true,
+                               onInspectionBegan: {
+                                   let hadPreview = watermarkDragStart != nil || replacementDragStart != nil
+                                   watermarkDragStart = nil; replacementDragStart = nil
+                                   cropGestureStart = nil; cropDraft = nil
+                                   removePoints = []; refinePoints = []
+                                   if hadPreview || (tool == .effects && effectsPanel.sub == .leak) { session.cancelLookPreview() }
+                               },
+                               photoChrome: AnyView(autoEnhanceButton.padding(5).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).opacity(session.isShowingOriginal ? 0 : 1)),
                                imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
                                onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },
-                               marks: { if !session.isShowingOriginal { stageMarks.frame(maxWidth: .infinity, maxHeight: .infinity).overlay(alignment: .bottomLeading) { GeometryReader { g in
-                                   let box = tool == .watermark ? session.displayedImageBox : CGRect(x: 0, y: 0, width: 1, height: 1)
-                                   autoEnhanceButton.padding(5)
-                                       .frame(width: g.size.width * box.width, height: g.size.height * box.height, alignment: .bottomLeading)
-                                       .offset(x: g.size.width * box.minX, y: g.size.height * box.minY)
-                               } } } })
+                               marks: { if !session.isShowingOriginal { stageMarks.frame(maxWidth: .infinity, maxHeight: .infinity) } })
         switch layout.mode {
         case .below:
             VStack(spacing: 0) {

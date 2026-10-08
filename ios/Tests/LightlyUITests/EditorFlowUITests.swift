@@ -690,3 +690,41 @@ final class EditorFlowUITests: XCTestCase {
         try? screenshot.pngRepresentation.write(to: url)
     }
 }
+
+
+/// Inspection uses the ordinary editor, without changing its recipe or owner session.
+final class InspectionZoomUITests: XCTestCase {
+    func testZoomSurvivesRenderAndToolChangeAndReturnsToFit() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "inspection-test", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "dev-preset"]
+        app.launch()
+        let viewport = app.scrollViews["editor.inspection"]
+        XCTAssertTrue(viewport.waitForExistence(timeout: 60))
+        let photo = app.descendants(matching: .any)["editor.photo"].firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 10))
+        let fit = photo.frame
+        let undo = app.buttons["editor.undo"].isEnabled
+        viewport.pinch(withScale: 2, velocity: 1)
+        XCTAssertTrue(wait { photo.frame.width > fit.width * 1.5 })
+        XCTAssertEqual(app.buttons["editor.undo"].isEnabled, undo, "Inspection must not create an edit")
+        let auto = app.buttons["develop.auto"]
+        let autoSize = auto.frame.size
+        auto.tap()
+        XCTAssertTrue(wait { photo.frame.width > fit.width * 1.5 })
+        XCTAssertEqual(auto.frame.size, autoSize, "Auto chrome must not magnify")
+        let scale = viewport.value as? String
+        app.buttons["tool.effects"].tap()
+        XCTAssertTrue(wait { viewport.value as? String == scale })
+        app.buttons["tool.develop"].tap()
+        XCTAssertTrue(wait { viewport.value as? String == scale })
+        // Return to fit is reversible and does not require leaving the tool.
+        viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).doubleTap()
+        XCTAssertTrue(wait { abs(photo.frame.width - fit.width) < 2 })
+    }
+    private func wait(_ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline { if condition() { return true }; Thread.sleep(forTimeInterval: 0.1) }
+        return condition()
+    }
+}
