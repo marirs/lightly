@@ -95,6 +95,63 @@ def composite(full, a_w, I_w, hexc, chroma=False):
   return enc(np.clip(lin(full) + bil(shift, W, H), 0, 1) * a + repl * (1 - a)) * 255, a[..., 0]
 
 
+def guided_upsample(a_low, guide_lin, r=8, eps=1e-4):
+  """Candidate 6b: joint (guided-filter) upsampling of the working-size alpha with the full-resolution luminance as guide
+  (He et al.), so the alpha follows strands and wall pockets the 768 px solve averaged together."""
+  H, W = guide_lin.shape[:2]; p = np.clip(bil(a_low, W, H), 0, 1)
+  g = 0.2126 * guide_lin[..., 0] + 0.7152 * guide_lin[..., 1] + 0.0722 * guide_lin[..., 2]
+  box = lambda x: cv2.boxFilter(x, -1, (2 * r + 1, 2 * r + 1))
+  mg, mp = box(g), box(p); cov = box(g * p) - mg * mp; var = box(g * g) - mg * mg
+  A = cov / (var + eps); b = mp - A * mg
+  return np.clip(box(A) * g + box(b), 0, 1)
+
+
+def composite_full(full, a_w, hexc, guided):
+  """Candidate 6 (2026-10-08, resolution hypothesis): the foreground estimate at full resolution instead of a 768 px
+  shift added to the full-resolution photo. 6a: alpha bilinear from the working size (as shipped); 6b: guided upsampling."""
+  H, W, _ = full.shape; I = lin(full)
+  a = guided_upsample(a_w, I) if guided else np.clip(bil(a_w, W, H), 0, 1)
+  F = np.clip(estimate_foreground_ml(I, a), 0, 1); repl = lin(np.array(hexc) / 255.)
+  return enc(F * a[..., None] + repl * (1 - a[..., None])) * 255, a
+
+
+def composite_joint(full, a_w, hexc, refined=False):
+  """Candidate 7 (2026-10-08): coverage and colour solved together per pixel at full resolution, from the compositing
+  equation I = a F + (1 - a) B with B the local background (pull-push from a <= 0.05) and F constrained to the local
+  interior chromaticity c (pull-push from a >= 0.95, luminance-normalised) with free brightness: I - B = u c - a B,
+  linear in (u = a * lum(F), a), least squares per pixel, a clamped to [0, 1], u >= 0. Output = u c + (1 - a) R.
+  Wall pockets between curls (I ~ B) get a ~ 0 whatever the matte said; hair with wall light mixed in keeps its own
+  chromaticity instead of an over-subtracted (teal) estimate. Only in the soft band and where c and B are not
+  colinear (the system is singular there); the shipped route elsewhere."""
+  H, W, _ = full.shape; I = lin(full); a = np.clip(bil(a_w, W, H), 0, 1)
+  y = lambda x: 0.2126 * x[..., 0] + 0.7152 * x[..., 1] + 0.0722 * x[..., 2]
+  B = pull_push(I, (a <= 1 - SURE).astype(np.float64))
+  interior = a >= SURE
+  if refined:
+    # 7b: interior pixels indistinguishable from the local background (wall pockets the matte called subject) say
+    # nothing about the subject's colour: leave them out of the chromaticity estimate.
+    interior &= np.linalg.norm(I - B, axis=-1) > 0.5 * np.linalg.norm(B, axis=-1)
+  Fi = pull_push(I, interior.astype(np.float64))
+  c = Fi / np.maximum(y(Fi), 1e-4)[..., None]
+  # normal equations for M = [c, -B], rhs = I - B
+  r = I - B; cc = (c * c).sum(-1); bb = (B * B).sum(-1); cb = (c * B).sum(-1)
+  cr = (c * r).sum(-1); br = (B * r).sum(-1); det = cc * bb - cb * cb
+  ok = det > 1e-3 * cc * bb   # sin^2 of the angle between c and B above 1e-3
+  aj = np.clip((cc * (-br) + cb * cr) / np.maximum(det, 1e-12), 0, 1)
+  uj = np.maximum(((c * (r + aj[..., None] * B)).sum(-1)) / np.maximum(cc, 1e-12), 0)
+  band = (a > 0.02) & (a < 0.98) & ok
+  F_ship = np.clip(estimate_foreground_ml(I, a), 0, 1); repl = lin(np.array(hexc) / 255.)
+  ship = F_ship * a[..., None] + repl * (1 - a[..., None])
+  joint = np.clip(uj[..., None] * c, 0, 1) + repl * (1 - aj[..., None])
+  if refined:
+    # 7b: feather the switch between the joint solve and the shipped route (no hard band edge).
+    wgt = cv2.GaussianBlur(band.astype(np.float64), (0, 0), 3)[..., None]
+    out = joint * wgt + ship * (1 - wgt)
+  else:
+    out = np.where(band[..., None], joint, ship)
+  return enc(out) * 255, np.where(band, aj, a)
+
+
 def evaluate(tag, src):
   full = np.asarray(ImageOps.exif_transpose(Image.open(src)).convert('RGB')) / 255.; H, W, _ = full.shape
   s = 1600 / max(W, H); dw, dh = round(W * s), round(H * s); disp = area(full, dw, dh)
@@ -115,6 +172,10 @@ def evaluate(tag, src):
   for sc, hexc in (('dark', (0x1F, 0x23, 0x28)), ('light', (0xF4, 0xF1, 0xEC))):
     outs = {}
     for name, aw in (('shipped', a_ship), ('projected', a_ship if VARIANT in ('chroma', 'interior') else a_proj)):
+      if name == 'projected' and VARIANT in ('joint', 'jointb'):
+        outs[name] = composite_joint(full, a_ship, hexc, refined=(VARIANT == 'jointb')); continue
+      if name == 'projected' and VARIANT in ('fullres', 'guidedfull'):
+        outs[name] = composite_full(full, a_ship, hexc, guided=(VARIANT == 'guidedfull')); continue
       outs[name] = composite(full, aw, I_w, hexc, chroma=(name == 'projected' and VARIANT in ('chroma', 'interior', 'projchroma')))
     a1, a2 = outs['shipped'][1], outs['projected'][1]
     band = head & (((a1 > 0.02) & (a1 < 0.98)) | ((a2 > 0.02) & (a2 < 0.98)))

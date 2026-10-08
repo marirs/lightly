@@ -1,0 +1,19 @@
+{
+ "purpose": "A4 validation (2026-10-08): portraits never used for matte or composite development, chosen from a contact sheet of CC0 PD12M photos (single prominent person, hair edge visible, not paintings) before any model ran on them. Used once for candidate 7b (jointb); P1-P4 unchanged from hair_projection.py, over 9 portraits x dark/light = 18 cases.",
+ "replacements": {
+  "dark": "#1F2328",
+  "light": "#F4F1EC"
+ },
+ "photos": {
+  "pd12m_07d842": "auto/data/pd12m/eval_originals/07d8422113df1fb5c492cece88c36681.jpg",
+  "pd12m_177916": "auto/data/pd12m/eval_originals/1779160114749785c5687f0eb21f6c7d.jpg",
+  "pd12m_ec321c": "auto/data/pd12m/eval_originals/ec321c2ff9d0b9870b22b73a303ea07e.jpg",
+  "pd12m_19fd67": "auto/data/pd12m/eval_originals/19fd67bd00cfe428e807a86a54b7cde7.jpg",
+  "pd12m_5d6be6": "auto/data/pd12m/eval_originals/5d6be613832bb9fe9c697c48e105e8cc.jpg",
+  "pd12m_912899": "auto/data/pd12m/eval_originals/912899c60f3dfa79c570d14735731e8f.jpg",
+  "pd12m_bbab44": "auto/data/pd12m/eval_originals/bbab4499dd6fde165b90f0ea5d96bc2d.jpg",
+  "pd12m_268eb4": "auto/data/pd12m/eval_originals/268eb4d4f7d4631970cd5ba19c0eecdd.jpg",
+  "pd12m_9c2dc4": "auto/data/pd12m/eval_originals/9c2dc47a1b396131f1acc247a59ea6b4.jpg"
+ },
+ "excluded": "no visible hair (bald, cap, hat, headscarf, hijab), paintings and busts, groups, figures too small"
+}
