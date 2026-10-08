@@ -134,6 +134,7 @@ struct DebugScenario {
             background { $0.replacement = image0; $0.focus.blur = 60 }
             if screenID == "bg-replaced-grain" {
                 session.debugSetInitial { $0.tools.effects.grain.enabled = true; $0.tools.effects.grain.amount = 45 }
+                await saveCopyIfRequested(session: session, screenID: screenID)
             }
         case "bg-colour-blur":
             background { $0.replacement = .colour("#F4F1EC"); $0.focus.blur = 60 }
