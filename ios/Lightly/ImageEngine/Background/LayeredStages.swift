@@ -75,11 +75,21 @@ enum LayeredStages {
                 for i in 0..<matteWorking.data.count { matteWorking.data[i] = min(max(matteWorking.data[i], 0), 1) }
                 let shift = ForegroundShiftCache.shared.shift(photo: photoWorking, matte: matteWorking)
                 let shiftFull = shift.resized(width: width, height: height)
+                // The old background's colour cast at the soft edge (SpillSuppression): computed at the working size,
+                // applied per pixel at full resolution, the same in preview and Save copy.
+                // Sampled from the working-size field per pixel: a full-size copy would add 16 B/px (768 MB at 48 MP).
+                let spill = SpillSuppression.field(photo: photoWorking, matte: matteWorking)
                 for i in 0..<composite.pixelCount {
                     let a = matteFull.data[i]
+                    var subject = SIMD3<Float>(min(max(full.data[i * 3] + shiftFull.data[i * 3], 0), 1),
+                                               min(max(full.data[i * 3 + 1] + shiftFull.data[i * 3 + 1], 0), 1),
+                                               min(max(full.data[i * 3 + 2] + shiftFull.data[i * 3 + 2], 0), 1))
+                    if let spill, a < SpillSuppression.opaqueCoverage, a > 0 {
+                        let sample = spill.sample(x: i % width, y: i / width, frameWidth: width, frameHeight: height)
+                        SpillSuppression.apply(&subject, coverage: a, direction: sample.direction, zone: sample.zone)
+                    }
                     for c in 0..<3 {
-                        let subject = min(max(full.data[i * 3 + c] + shiftFull.data[i * 3 + c], 0), 1)
-                        composite.data[i * 3 + c] = subject * a + replacementFull.data[i * 3 + c] * (1 - a)
+                        composite.data[i * 3 + c] = subject[c] * a + replacementFull.data[i * 3 + c] * (1 - a)
                     }
                 }
             }
