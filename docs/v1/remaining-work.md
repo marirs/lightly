@@ -103,7 +103,11 @@ launch line is still missing after the owner opens the app, logging is diagnosed
    increases: 912899 16.5 → 33.3 (dark), 19fd67 8.9 → 13.1, ec321c 8.2 → 12.3. Crops show 7b's edges brown where the
    shipped route draws a black outline with red/teal specks, plus a lumpy hair-coloured edge on 912899. Not adopted;
    criteria unchanged. **Completion condition:** a candidate passes P1–P4 on an unused set. **Next:** owner decision on
-   the red metric (keep P2 as is, or decide by the blind visual review already proposed), then a further unused set.
+   a further unused set for the next candidate. **Scoring method fixed before any further candidate (2026-10-08,
+   `hair_projection.py` docstring):** red and teal are measured above the photo's own hair colour (MediaPipe hair
+   segmenter reference), so natural brown, red or blonde hair is not fringe; P2c = red_c ≤ shipped + 2.0 in every case.
+   Checked on 7b's spent outputs: 912899 dark red_c 4.6 → 7.0 and 19fd67 dark 6.3 → 7.1 remain increases; 912899 dark
+   fails P2c, so 7b stays failed.
 2. **Object cut-out (U²-Netp, in 1.0 scope):** halo reduced, not fixed. **No-subject rule not solved.** Area alone fails
    (held-out 4/9, independent 10/29). Area ≥ 2 % plus a depth step ≥ 0.1 along the mask edge (threshold read off those
    sets) on a **fresh labelled set** (105 PD12M photos, labels committed before the run, 3eed7b8;

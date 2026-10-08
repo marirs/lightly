@@ -23,6 +23,13 @@ Candidate 2 is the one attempted; its fresh run is decided by these conditions, 
   P2 red excess <= shipped + 2.0 and <= 7.5 in every case;
   P3 haze <= shipped + 1.0 in every case;
   P4 the visual sheet of all 18 shows no new visible fringe.
+Contamination metrics (method fixed 2026-10-08, before any candidate after 7b; used for every later candidate in place of
+the absolute red figure, whose 7.5 cap counts brown, red and blonde hair as fringe): reference = the photo's own hair
+(MediaPipe hair segmenter >= 0.8 inside the shipped matte >= 0.98, eroded 10 px); red_c = mean over the band of
+max(0, R-(G+B)/2 - q75 of the reference's R-(G+B)/2); teal_c = band pixels with (G+B)/2-R above max(0, q75 of the
+reference's (G+B)/2-R) + 8. Bars for later candidates: P1 on teal_c as on teal; P2c red_c <= shipped red_c + 2.0 in every
+case (the + 2.0 allowance of P2 unchanged; only the absolute cap goes); P3, P4 unchanged. Applied to 7b's spent
+validation outputs as a check of the method: 7b still fails (912899 dark red_c 4.6 -> 7.0).
 Metrics per case (shipped vs projected), as exp_alpha_opacity.py: teal px (cyan > 8) and red excess in the head's soft
 band (union of both mattes' bands), haze = mean |output - replacement| in a ring outside the subject (MODNet a > 0.5
 dilated 61 px, both mattes < 0.05).
@@ -152,6 +159,20 @@ def composite_joint(full, a_w, hexc, refined=False):
   return enc(out) * 255, np.where(band, aj, a)
 
 
+_hair_it = None
+def hair_mask(full):
+  """MediaPipe hair segmenter (experiments/android-vision/models/hair_segmenter.tflite): hair probability at the photo's
+  size. Used only by the evaluation, to take the natural hair colour as the contamination reference."""
+  global _hair_it
+  if _hair_it is None:
+    _hair_it = Interpreter(model_path=os.path.join(EXP, 'android-vision/models/hair_segmenter.tflite')); _hair_it.allocate_tensors()
+  H, W, _ = full.shape; x = np.zeros((1, 512, 512, 4), np.float32); x[0, ..., :3] = area(full.astype(np.float32), 512, 512)
+  _hair_it.set_tensor(_hair_it.get_input_details()[0]['index'], x); _hair_it.invoke()
+  o = _hair_it.get_tensor(_hair_it.get_output_details()[0]['index'])[0]
+  e = np.exp(o - o.max(-1, keepdims=True)); p = e[..., 1] / e.sum(-1)
+  return bil(p.astype(np.float64), W, H)
+
+
 def evaluate(tag, src):
   full = np.asarray(ImageOps.exif_transpose(Image.open(src)).convert('RGB')) / 255.; H, W, _ = full.shape
   s = 1600 / max(W, H); dw, dh = round(W * s), round(H * s); disp = area(full, dw, dh)
@@ -168,6 +189,7 @@ def evaluate(tag, src):
     a_proj = np.where(used, a_mod, a_ship)
   head = np.zeros((H, W), bool); head[:int(H * .45)] = True
   subject = bil(a_disp, W, H) > 0.5
+  hair_p = hair_mask(full)
   rows = []
   for sc, hexc in (('dark', (0x1F, 0x23, 0x28)), ('light', (0xF4, 0xF1, 0xEC))):
     outs = {}
@@ -181,16 +203,31 @@ def evaluate(tag, src):
     band = head & (((a1 > 0.02) & (a1 < 0.98)) | ((a2 > 0.02) & (a2 < 0.98)))
     ring = head & (cv2.dilate(subject.astype(np.uint8), np.ones((61, 61))) > 0) & (a1 < 0.05) & (a2 < 0.05)
     repl = enc(lin(np.array(hexc) / 255.)) * 255
+    # Contamination relative to the subject's own hair colour (method fixed 2026-10-08, before any further candidate):
+    # the reference is the photo's own hair colour (MediaPipe hair segmenter >= 0.8, inside the shipped matte >= 0.98
+    # eroded 10 px), so naturally brown, red or blonde hair is not counted as fringe. Red
+    # contamination = mean over the band of max(0, R-(G+B)/2 - q75 of the same quantity in the reference (eroded 10 px)); teal the same
+    # with (G+B)/2-R. The absolute P2/teal figures above are kept unchanged for comparison with recorded runs.
+    srcp = full * 255; a_full = np.clip(bil(a_ship, W, H), 0, 1)
+    soft = head & (a_full > 0.02) & (a_full < 0.98)
+    inner = cv2.erode((a_full >= 0.98).astype(np.uint8), np.ones((21, 21), np.uint8)) > 0
+    ref = inner & (hair_p >= 0.8)
+    rd_src = srcp[..., 0] - (srcp[..., 1] + srcp[..., 2]) / 2
+    ref_red = float(np.percentile(rd_src[ref], 75)) if ref.sum() > 500 else 0.0
+    ref_cyan = float(np.percentile(-rd_src[ref], 75)) if ref.sum() > 500 else 0.0
     m = {}
     for name, (on, _) in outs.items():
       cy = (on[..., 1] + on[..., 2]) / 2 - on[..., 0]; rd = on[..., 0] - (on[..., 1] + on[..., 2]) / 2
       m[name] = dict(teal=int((band & (cy > 8)).sum()), red=float(np.clip(rd, 0, None)[band].mean()) if band.any() else 0.0,
+                     red_c=float(np.clip(rd - ref_red, 0, None)[band].mean()) if band.any() else 0.0,
+                     teal_c=int((band & (cy - max(ref_cyan, 0.0) > 8)).sum()),
                      haze=float(np.abs(on[ring] - repl).mean()) if ring.any() else 0.0)
       Image.fromarray(on.astype(np.uint8)).save(f'{OUT}/{tag}-{sc}-{name}.jpg', quality=92)
     rows.append(dict(case=f'{tag}-{sc}', band_px=int(band.sum()), projected_px=int(used.sum()), **{f'{k}_{n}': v for n in m for k, v in m[n].items()}))
     r = rows[-1]
     print(f"{r['case']:28s} teal {r['teal_shipped']:6d} -> {r['teal_projected']:6d} | red {r['red_shipped']:5.1f} -> {r['red_projected']:5.1f} | "
-          f"haze {r['haze_shipped']:5.1f} -> {r['haze_projected']:5.1f}", flush=True)
+          f"haze {r['haze_shipped']:5.1f} -> {r['haze_projected']:5.1f} | red_c {r['red_c_shipped']:5.1f} -> {r['red_c_projected']:5.1f} | "
+          f"teal_c {r['teal_c_shipped']:6d} -> {r['teal_c_projected']:6d} (ref red q75 {ref_red:.1f})", flush=True)
   return rows
 
 
