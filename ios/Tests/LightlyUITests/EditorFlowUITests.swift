@@ -758,7 +758,7 @@ final class SliderHitTargetUITests: XCTestCase {
         app.terminate()
         app.launchArguments = base + ["bd-polaroid"]
         app.launch()
-        XCTAssertTrue(app.buttons["border.type.polaroid"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.buttons["border.type.Polaroid"].waitForExistence(timeout: 20))
         XCTAssertFalse(app.descendants(matching: .any)["border.polaroid.signature"].exists)
     }
 
