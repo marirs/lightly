@@ -731,6 +731,16 @@ final class InspectionZoomUITests: XCTestCase {
 
 
 final class SliderHitTargetUITests: XCTestCase {
+    func testResetAllDarkThemeOnDarkPhoto() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "reset-dark-test", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_deep_03.jpg", "--scenario", "fx-leak",
+            "-lightly.preferences.v1.appearance", "dark"]
+        app.launch()
+        XCTAssertTrue(app.buttons["editor.resetAll"].waitForExistence(timeout: 60))
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "reset-dark-photo-controls"; shot.lifetime = .keepAlways; add(shot)
+    }
+
     func testResetAllOnPhotoConfirmsAndUndoRestores() {
         let app = XCUIApplication()
         app.launchArguments = ["--keep-stored-session", "--session-store", "reset-ui-test", "--open-photo",
