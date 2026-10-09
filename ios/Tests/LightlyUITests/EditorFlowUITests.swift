@@ -731,6 +731,29 @@ final class InspectionZoomUITests: XCTestCase {
 
 
 final class SliderHitTargetUITests: XCTestCase {
+    func testDevelopResetAndFavouritesStartAtFirstPreset() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "develop-reset-favourites", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "dev-starred"]
+        app.launch()
+        let reset = app.buttons["develop.clear"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 60))
+        XCTAssertEqual(reset.label, "Reset preset")
+        let categoryY = app.buttons["develop.category.landscape"].frame.midY / app.frame.height
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: categoryY))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: categoryY)))
+        app.buttons["develop.category.favourites"].tap()
+        XCTAssertTrue(app.buttons["develop.apply"].exists)
+        XCTAssertTrue(app.staticTexts["develop.position"].label.hasPrefix("1 / "))
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "favourites-first-and-reset"; shot.lifetime = .keepAlways; add(shot)
+        app.buttons["develop.apply"].tap()
+        XCTAssertFalse(app.buttons["develop.apply"].exists)
+        reset.tap()
+        XCTAssertFalse(reset.exists)
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(reset.waitForExistence(timeout: 10))
+    }
+
     func testResetAllDarkThemeOnDarkPhoto() {
         let app = XCUIApplication()
         app.launchArguments = ["--keep-stored-session", "--session-store", "reset-dark-test", "--open-photo",

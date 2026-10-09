@@ -133,6 +133,25 @@ class EditorScreenTest {
     }
 
     @Test
+    fun `favourites starts at first and star edits the shown preset`() {
+        val vm = editor()
+        show(vm)
+        compose.runOnIdle {
+            vm.selectCategory("landscape")
+            vm.onRulerDrag(2); vm.onRulerRelease(2); vm.toggleStar()
+            vm.onRulerDrag(4); vm.onRulerRelease(4); vm.toggleStar()
+            vm.selectCategory("favourites")
+        }
+        assertEquals(1, vm.panelModel()!!.stop)
+        assertEquals(BundledPack.preset("landscape", 2).displayName, vm.panelModel()!!.name)
+        compose.onNodeWithTag("develop-apply").assertExists()
+        compose.onNodeWithText("Reset").assertExists()
+        compose.runOnIdle { vm.toggleStar() }
+        assertEquals(1, vm.panelModel()!!.presets.size)
+        assertEquals(BundledPack.preset("landscape", 4).displayName, vm.panelModel()!!.name)
+    }
+
+    @Test
     fun `inspection zoom survives tools and never commits an edit`() {
         val vm = editor()
         show(vm)

@@ -1428,7 +1428,7 @@ class EditorViewModel(
 
     /** Browsing another category never changes the applied Look (not an undo step). */
     fun selectCategory(categoryId: String) {
-        state.update { it.copy(develop = it.develop.copy(category = categoryId, dragStop = null, dragStart = null, amountOpen = false)) }
+        state.update { it.copy(develop = it.develop.copy(category = categoryId, startsAtFirst = true, dragStop = null, dragStart = null, amountOpen = false)) }
     }
 
     /** The needle crossed [stop] while dragging: preview only (the drag render is develop.global). */
@@ -1451,11 +1451,19 @@ class EditorViewModel(
     }
 
     /** Release: ONE undo step, and only when the Look actually changes. No interpolation between stops. */
+    fun applyBrowsedPreset() {
+        val model = panelModel() ?: return
+        val session = state.value.session ?: return
+        val look = lookAt(model, model.stop) ?: return
+        state.update { it.copy(develop = it.develop.copy(startsAtFirst = false)) }
+        commit(session.selectLook(look), state.value.auto, fastFirst = true)
+    }
+
     fun clearPreset() {
         val session = state.value.session ?: return
         if (session.current.look == null) return
         val category = panelModel()?.categoryId
-        state.update { it.copy(develop = it.develop.copy(category = category, dragStop = null, dragStart = null, fine = false, amountOpen = false, amountDrag = null)) }
+        state.update { it.copy(develop = it.develop.copy(category = category, startsAtFirst = false, dragStop = null, dragStart = null, fine = false, amountOpen = false, amountDrag = null)) }
         commit(session.selectLook(null), state.value.auto)
     }
 
@@ -1478,6 +1486,7 @@ class EditorViewModel(
             requestPreview(session.current, globalOnly = false)
             return
         }
+        state.update { it.copy(develop = it.develop.copy(startsAtFirst = false)) }
         commit(session.selectLook(look), state.value.auto, fastFirst = true)
     }
 
@@ -1508,7 +1517,8 @@ class EditorViewModel(
 
     fun toggleStar() {
         val library = library ?: return
-        val applied = library.preset(state.value.session?.current?.look) ?: return
+        val model = panelModel() ?: return
+        val applied = model.presets.getOrNull(model.stop - 1) ?: library.preset(state.value.session?.current?.look) ?: return
         val favourites = favourites.value
         when {
             applied.id in favourites -> env.favourites.update { it - applied.id }
@@ -1520,7 +1530,8 @@ class EditorViewModel(
     fun openFavouriteReplace() = state.update { it.copy(overlay = EditorOverlay.FAVOURITE_REPLACE) }
 
     fun replaceFavourite(replacedId: String) {
-        val applied = library?.preset(state.value.session?.current?.look) ?: return
+        val model = panelModel() ?: return
+        val applied = model.presets.getOrNull(model.stop - 1) ?: library?.preset(state.value.session?.current?.look) ?: return
         env.favourites.update { list -> list.map { if (it == replacedId) applied.id else it } }
         state.update { it.copy(overlay = null, develop = it.develop.copy(favouritesFull = false)) }
     }

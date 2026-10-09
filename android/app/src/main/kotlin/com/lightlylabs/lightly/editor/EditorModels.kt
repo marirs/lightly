@@ -109,6 +109,7 @@ data class EditorLayout(val mode: EditorMode, val widthDp: Float, val heightDp: 
 data class DevelopUi(
     /** The category being browsed; null = the applied preset's category, else Landscape. */
     val category: String? = null,
+    val startsAtFirst: Boolean = false,
     /** The stop under the needle while a finger drags the ruler. */
     val dragStop: Int? = null,
     /** The stop a ruler drag started from; releasing there is a cancel (nothing recorded). */
@@ -177,6 +178,7 @@ data class DevelopPanelModel(
             val favouritePresets = favourites.mapNotNull(pack::preset)
             val list = if (favouriteMode) favouritePresets else pack.category(current)?.presets.orEmpty()
             val committedStop = when {
+                ui.startsAtFirst -> if (list.isEmpty()) 0 else 1
                 applied == null -> 0
                 favouriteMode -> favouritePresets.indexOfFirst { it.id == applied.id } + 1
                 applied.categoryId == current -> list.indexOfFirst { it.id == applied.id } + 1
@@ -187,7 +189,7 @@ data class DevelopPanelModel(
             val base = ""
             // At rest, the applied preset is named even when it is not on this category's ruler; "Original" only while
             // dragging to stop 0, when the preview is the original (owner amendment 2026-10-05).
-            val offRuler = if (onRuler == null && ui.dragStop == null) applied else null
+            val offRuler = if (!ui.startsAtFirst && onRuler == null && ui.dragStop == null) applied else null
             val shown = onRuler ?: offRuler
             val offRulerCategory = offRuler?.let { pack.category(it.categoryId) }
             // While another category is browsed, the applied preset's own position goes into the context line;

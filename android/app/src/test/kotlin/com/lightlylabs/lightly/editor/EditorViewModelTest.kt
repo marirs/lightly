@@ -127,7 +127,7 @@ class EditorViewModelTest {
         assertNull(ui.session!!.current.look)
         assertFalse(ui.canUndo)
         assertNotNull(ui.preview)
-        assertEquals("Original", vm.panelModel()!!.name)
+        assertEquals("", vm.panelModel()!!.name)
     }
 
     private val brightening = com.lightlylabs.lightly.develop.auto.AutoCorrection(exposure = 1.5)
@@ -213,7 +213,8 @@ class EditorViewModelTest {
         vm.selectCategory("cinematic")
         advanceUntilIdle()
         assertEquals(hiking.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertTrue(vm.panelModel()!!.context.startsWith("Applied from Landscape · 37 / "))
+        assertEquals(1, vm.panelModel()!!.stop)
+        assertEquals("", vm.panelModel()!!.context)
         assertEquals(2, vm.uiState.value.session!!.history.entries.size)
     }
 
@@ -253,31 +254,31 @@ class EditorViewModelTest {
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId)
         assertEquals("landscape", model().categoryId); assertEquals(listOf("landscape"), dotted()); assertEquals(landscape.displayName, model().name)
 
-        vm.selectCategory("portrait"); advanceUntilIdle()
+        vm.selectCategory("cinematic"); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "browsing changes nothing")
-        assertEquals("portrait", model().categoryId); assertEquals(listOf("landscape"), dotted())
-        assertEquals(landscape.displayName, model().name)
-        assertEquals("Applied from Landscape · 3 / ${BundledPack.library.pack.category("landscape")!!.presets.size}", model().context)
-        assertEquals("", model().position); assertEquals(0, model().stop)
+        assertEquals("cinematic", model().categoryId); assertEquals(listOf("landscape"), dotted())
+        assertEquals(BundledPack.preset("cinematic", 1).displayName, model().name)
+        assertEquals("", model().context)
+        assertTrue(model().position.startsWith("1 / ")); assertEquals(1, model().stop)
         val steps = vm.uiState.value.session!!.history.entries.size
 
         // Dragging Portrait names what is under the needle with this ruler's position; back to the start is a cancel.
         vm.onRulerDrag(4); advanceUntilIdle()
-        assertEquals(BundledPack.preset("portrait", 4).displayName, model().name); assertEquals("", model().context)
+        assertEquals(BundledPack.preset("cinematic", 4).displayName, model().name); assertEquals("", model().context)
         assertTrue(model().position.startsWith("4 / "))
-        vm.onRulerDrag(0); vm.onRulerRelease(0); advanceUntilIdle()
+        vm.onRulerDrag(1); vm.onRulerRelease(1); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "releasing where the drag started changes nothing")
         assertEquals(steps, vm.uiState.value.session!!.history.entries.size)
-        assertEquals(landscape.displayName, model().name); assertEquals("portrait", model().categoryId)
+        assertEquals(BundledPack.preset("cinematic", 1).displayName, model().name); assertEquals("cinematic", model().categoryId)
         // A touch without movement (release with no drag) is a cancel too, never "no Look".
-        vm.onRulerRelease(0); advanceUntilIdle()
+        vm.onRulerRelease(1); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "a touch on the browsed ruler changes nothing")
         assertEquals(steps, vm.uiState.value.session!!.history.entries.size)
 
         vm.onRulerDrag(2); vm.onRulerRelease(2); advanceUntilIdle()
-        val portrait = BundledPack.preset("portrait", 2)
+        val portrait = BundledPack.preset("cinematic", 2)
         assertEquals(portrait.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("portrait", model().categoryId); assertEquals(listOf("portrait"), dotted()); assertEquals(portrait.displayName, model().name)
+        assertEquals("cinematic", model().categoryId); assertEquals(listOf("cinematic"), dotted()); assertEquals(portrait.displayName, model().name)
 
         vm.undo(); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId)
@@ -286,7 +287,7 @@ class EditorViewModelTest {
 
         vm.redo(); advanceUntilIdle()
         assertEquals(portrait.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("portrait", model().categoryId); assertEquals(listOf("portrait"), dotted()); assertEquals(2, model().stop)
+        assertEquals("cinematic", model().categoryId); assertEquals(listOf("cinematic"), dotted()); assertEquals(2, model().stop)
     }
 
     @Test
@@ -302,6 +303,7 @@ class EditorViewModelTest {
         val (vm, harness) = ready()
         val five = (1..5).map { BundledPack.preset("film", it).id }
         harness.favourites.update { five }
+        vm.selectCategory("landscape")
         vm.onRulerDrag(37); vm.onRulerRelease(37); advanceUntilIdle()
         vm.toggleStar()
         assertEquals(five, harness.favourites.favourites.value)

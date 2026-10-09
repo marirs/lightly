@@ -20,6 +20,8 @@ final class DevelopPanelModel {
 
     /// The category the person chose to browse; nil follows the applied preset.
     private(set) var browsedCategoryID: String?
+    private var startsAtFirst = false
+    var isBrowsingStart: Bool { startsAtFirst && browsedAtHistoryRevision == session.historyRevision }
     /// The session's history revision when browsing began (or the panel last committed). Undo, Redo or a step made
     /// elsewhere moves it, and browsing then returns to the applied preset's category (owner amendment 2026-10-05:
     /// underline, dot and photo agree).
@@ -87,6 +89,9 @@ final class DevelopPanelModel {
 
     /// Choosing a category only browses it; the applied Look stays.
     func selectCategory(_ id: String) {
+        startsAtFirst = true
+        dragStartStop = nil
+        session.cancelLookPreview()
         browsedCategoryID = id
         browsedAtHistoryRevision = session.historyRevision
         draggingStop = nil
@@ -97,6 +102,7 @@ final class DevelopPanelModel {
 
     /// The settled stop: the applied preset's position in this list, else 0.
     var settledStop: Int {
+        if isBrowsingStart { return currentPresets.isEmpty ? 0 : 1 }
         guard let applied = session.appliedPreset else { return 0 }
         guard let index = currentPresets.firstIndex(where: { $0.id == applied.id }) else { return 0 }
         return index + 1
@@ -115,7 +121,7 @@ final class DevelopPanelModel {
     /// The applied preset while it is not on this category's ruler and the ruler is at rest: the name row then
     /// shows it, never "Original" (owner amendment 2026-10-05). Dragging to stop zero previews the original and says so.
     var appliedPresetOffRuler: PresetPack.Preset? {
-        guard draggingStop == nil, presetAtStop == nil, let applied = session.appliedPreset else { return nil }
+        guard !isBrowsingStart, draggingStop == nil, presetAtStop == nil, let applied = session.appliedPreset else { return nil }
         return applied
     }
 
@@ -171,6 +177,7 @@ final class DevelopPanelModel {
         // Prototype `wireRuler`: commit only when the stop names another Look than the applied one
         // (stop zero means no Look). Releasing where it started changes nothing.
         let stillBrowsing = browsedAtHistoryRevision == session.historyRevision
+        startsAtFirst = false
         session.applyLook(target)
         // Applying from the browsed category (Favourites included) keeps it browsed.
         if stillBrowsing { browsedAtHistoryRevision = session.historyRevision }
@@ -186,7 +193,15 @@ final class DevelopPanelModel {
     var amountValue: Double { draggingAmount ?? session.appliedAmount }
     var amountButtonTitle: String { "Amount \(Int(amountValue.rounded()))" }
 
+    func applyBrowsedPreset() {
+        guard let preset = presetAtStop else { return }
+        startsAtFirst = false
+        session.applyLook(preset)
+        browsedAtHistoryRevision = session.historyRevision
+    }
+
     func clearPreset() {
+        startsAtFirst = false
         let category = currentCategoryID
         draggingAmount = nil
         draggingStop = nil; dragStartStop = nil; isFine = false; isAmountOpen = false
@@ -214,7 +229,7 @@ final class DevelopPanelModel {
 
     /// The star: add, remove, or (with five already) the full notice.
     func toggleStar() {
-        guard let preset = session.appliedPreset ?? presetAtStop else { return }
+        guard let preset = namedPreset else { return }
         if favourites.contains(preset.id) {
             favourites.remove(preset.id)
         } else if favourites.add(preset.id) == .full {
@@ -226,7 +241,7 @@ final class DevelopPanelModel {
 
     /// Replace a favourite › Replace: the applied preset takes that slot.
     func replaceFavourite(_ existingID: String) {
-        guard let applied = session.appliedPreset else { return }
+        guard let applied = namedPreset else { return }
         favourites.replace(existingID, with: applied.id)
         isReplaceSheetShown = false
         isFavouritesFullNoticeShown = false

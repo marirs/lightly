@@ -148,6 +148,11 @@ struct DevelopPanelView: View {
                 .fixedSize()
                 .accessibilityIdentifier("develop.position")
 
+            if model.isBrowsingStart && preset != nil {
+                Button("Apply", action: model.applyBrowsedPreset).buttonStyle(.plain)
+                    .foregroundStyle(c(ApprovedColor.selection)).frame(minHeight: 44)
+                    .accessibilityIdentifier("develop.apply")
+            } else {
             Button { model.openAmount() } label: {
                 Text(model.amountButtonTitle)
                     .approvedText(14, weight: .medium)
@@ -163,14 +168,15 @@ struct DevelopPanelView: View {
             .disabled(preset == nil)
             .accessibilityHidden(preset == nil)
             .accessibilityIdentifier("develop.amount")
+            }
             if model.session.recipe.look != nil {
                 Button(action: model.clearPreset) {
-                    Image(systemName: "xmark").font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(c(ApprovedColor.inkSecondary))
-                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                    Label("Reset", systemImage: "arrow.counterclockwise").font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(c(ApprovedColor.selection))
+                        .frame(minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear preset")
+                .accessibilityLabel("Reset preset")
                 .accessibilityIdentifier("develop.clear")
             }
         }

@@ -335,6 +335,9 @@ private fun NameRow(model: DevelopPanelModel, vm: EditorViewModel) {
             modifier = Modifier.weight(1f),
         )
         Text(model.position, style = lightlyTextStyle(13.sp, color = colors.ink3), maxLines = 1)
+        if (vm.uiState.value.develop.startsAtFirst && model.presetShown) {
+            QuietSmallButton("Apply", vm::applyBrowsedPreset, Modifier.testTagResource("develop-apply"))
+        } else {
         Box(
             Modifier
                 .heightIn(min = 44.dp)
@@ -344,11 +347,10 @@ private fun NameRow(model: DevelopPanelModel, vm: EditorViewModel) {
                 .padding(horizontal = 8.dp),
             contentAlignment = Alignment.Center,
         ) { Text("Amount ${model.amount}", style = lightlyTextStyle(14.sp, FontWeight.Medium, colors.sel), maxLines = 1) }
+        }
         if (vm.uiState.value.session?.current?.look != null) {
-            Box(Modifier.size(44.dp).clickable(role = Role.Button, onClick = vm::clearPreset)
-                .semantics { contentDescription = "Clear preset" }.testTagResource("develop-clear"), contentAlignment = Alignment.Center) {
-                LightlyIcon(LightlyIcons.Close, size = 14.dp, tint = colors.ink2)
-            }
+            QuietSmallButton("Reset", vm::clearPreset,
+                Modifier.semantics { contentDescription = "Reset preset" }.testTagResource("develop-clear"), icon = LightlyIcons.RotateLeft)
         }
     }
 }
