@@ -141,13 +141,6 @@ struct DevelopPanelView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(model.positionText)
-                .approvedText(13)
-                .monospacedDigit()
-                .foregroundStyle(c(ApprovedColor.inkTertiary))
-                .fixedSize()
-                .accessibilityIdentifier("develop.position")
-
             if model.isBrowsingStart && preset != nil {
                 Button("Apply", action: model.applyBrowsedPreset).buttonStyle(.plain)
                     .foregroundStyle(c(ApprovedColor.selection)).frame(minHeight: 44)
@@ -187,15 +180,14 @@ struct DevelopPanelView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var contextLine: some View {
-        Text(model.contextLine ?? "")
+        Text(model.contextLine ?? model.positionText)
             .approvedText(12.5)
             .foregroundStyle(c(ApprovedColor.inkTertiary))
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.horizontal, 18)
             .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
-            .accessibilityHidden(model.contextLine == nil)
-            .accessibilityIdentifier("develop.context")
+            .accessibilityIdentifier(model.contextLine == nil ? "develop.position" : "develop.context")
     }
 
     // MARK: Amount

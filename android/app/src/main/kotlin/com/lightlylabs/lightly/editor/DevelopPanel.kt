@@ -114,7 +114,7 @@ fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, 
     model.notice?.let { DevelopNoticeView(it, vm) }
     NameRow(model, vm)
     Text(
-        model.context,
+        model.context.ifEmpty { model.position },
         style = lightlyTextStyle(12.5.sp, color = lightlyColors.ink3),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -334,7 +334,6 @@ private fun NameRow(model: DevelopPanelModel, vm: EditorViewModel) {
             style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = colors.ink, letterSpacing = (-0.01).em, lineHeight = 17.sp * 1.2f, lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center, androidx.compose.ui.text.style.LineHeightStyle.Trim.None)),
             modifier = Modifier.weight(1f),
         )
-        Text(model.position, style = lightlyTextStyle(13.sp, color = colors.ink3), maxLines = 1)
         if (vm.uiState.value.develop.startsAtFirst && model.presetShown) {
             QuietSmallButton("Apply", vm::applyBrowsedPreset, Modifier.testTagResource("develop-apply"))
         } else {
