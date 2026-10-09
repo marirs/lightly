@@ -58,6 +58,7 @@ struct EditPanelView: View {
             PanelTabs(items: [(EditPanelModel.Sub.crop, "Crop", false), (.rotate, "Rotate", false), (.straighten, "Straighten", false),
                               (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Remove", false)],
                       selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0 }
+            PanelResetRow(session: model.session, section: "edit", title: model.sub.rawValue.capitalized, adjustment: model.sub.rawValue)
             switch model.sub {
             case .crop: crop
             case .rotate: rotate

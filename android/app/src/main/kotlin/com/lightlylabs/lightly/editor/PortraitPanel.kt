@@ -79,6 +79,7 @@ fun PortraitPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean, wrappe
     }
     val tabs = PortraitTab.entries.map { it to it.label }
     if (wrapped) WrappedPortraitTabs(tabs, ui.portrait.tab, vm::selectPortraitTab) else OptionTabs(tabs, ui.portrait.tab, vm::selectPortraitTab, tagPrefix = "portrait-tab")
+    ResetRow(vm, "portrait", ui.portrait.tab.label, ui.portrait.tab.name.lowercase())
     val edit = PortraitEdits.editFor(tool, faces[selected])
     for (slider in PortraitOptions.sliders(ui.portrait.tab)) {
         val value = vm.portraitDragValue(slider.field) ?: PortraitEdits.value(edit, slider.field)

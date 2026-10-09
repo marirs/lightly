@@ -404,6 +404,28 @@ final class SignatureStoreTests: XCTestCase {
 @MainActor
 final class WatermarkSessionTests: XCTestCase {
 
+    @MainActor
+    func testResetAllAndScopedEffectsAreOneUndoStep() async throws {
+        let session = try await EditorTestSupport.readySession()
+        session.commitEffects { $0.grain.enabled = true; $0.grain.amount = 45; $0.vignette.enabled = true; $0.vignette.amount = 55 }
+        session.commitBorder { $0.type = .polaroid }
+        let before = session.recipe
+        session.resetEdits(section: "effects", adjustment: "grain")
+        XCTAssertFalse(session.recipe.tools.effects.grain.enabled)
+        XCTAssertEqual(session.recipe.tools.effects.vignette, before.tools.effects.vignette)
+        XCTAssertEqual(session.recipe.tools.border, before.tools.border)
+        session.undo()
+        XCTAssertEqual(session.recipe, before)
+        session.resetEdits()
+        XCTAssertEqual(session.recipe.tools, .neutral(grainSeed: before.tools.effects.grain.seed))
+        XCTAssertEqual(session.recipe.auto.strength, 0)
+        XCTAssertNil(session.recipe.look)
+        session.undo()
+        XCTAssertEqual(session.recipe, before)
+        session.redo()
+        XCTAssertFalse(session.canReset(section: "all"))
+    }
+
     private func decoded(_ data: Data) throws -> CGImage {
         let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
         return try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))

@@ -78,6 +78,7 @@ fun WatermarkPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Col
     val saved by vm.signatures.collectAsStateWithLifecycle()
     val tab = vm.watermarkTab(ui)
     OptionTabs(WatermarkOptions.TABS, tab, vm::chooseWatermark, tagPrefix = "watermark-tab")
+    ResetRow(vm, "watermark", "Watermark")
     val hasBorder = recipe.tools.border.type != BorderType.NONE
     when (tab) {
         WatermarkType.NONE -> PanelNote("No watermark. Choose Signature, Text or Logo to add one.")

@@ -23,6 +23,7 @@ fun BorderPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column
     val border = ui.session?.current?.tools?.border ?: return@Column
     val tab = vm.borderTab(ui)
     OptionTabs(BorderOptions.TABS, tab, vm::chooseBorder, tagPrefix = "border-tab")
+    ResetRow(vm, "border", "Border")
     when (tab) {
         BorderType.NONE -> PanelNote("No border. Your preferred border in Preferences is ${vm.preferredBorderName}; it is never added automatically.")
         BorderType.SOLID -> {

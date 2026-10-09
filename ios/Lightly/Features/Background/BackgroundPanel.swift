@@ -65,6 +65,7 @@ struct BackgroundPanelView: View {
                           (.change, Text("Change background"), "background.mode.change")],
                 selection: Binding(get: { model.mode == .refine ? .focus : model.mode }, set: { model.mode = $0 }))
                 .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 4)
+            PanelResetRow(session: session, section: "background", title: model.mode == .focus ? "Focus & Blur" : model.mode == .change ? "Change background" : "Refine edges", adjustment: model.mode == .focus ? "focus" : model.mode == .change ? "change" : "refine")
             content
         }
         // Re-run when the mode changes: switching to Focus & Blur is what starts depth.

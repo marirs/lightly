@@ -55,6 +55,7 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
     if (roomy) PanelTitle("Edit")
     val edit = ui.session?.current?.tools?.edit ?: return@Column
     OptionTabs(EditSub.entries.map { it to it.label }, ui.edit.sub, vm::selectEditSub, tagPrefix = "edit-tab")
+    ResetRow(vm, "edit", ui.edit.sub.label, ui.edit.sub.name.lowercase())
     when (ui.edit.sub) {
         EditSub.CROP -> {
             Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp).heightIn(min = 44.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -154,6 +155,7 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
         EffectsSub.SELECTIVE -> fx.selectiveColour != null
     }
     OptionTabs(EffectsSub.entries.map { it to it.label }, sub, vm::selectEffectsSub, dotted = ::on, tagPrefix = "effects-tab")
+    ResetRow(vm, "effects", sub.label, sub.name.lowercase())
     // The approved notice sits between the tabs and the body.
     if ((sub == EffectsSub.GRAIN || sub == EffectsSub.VIGNETTE) && on(sub) && vm.presetHasOwn(sub, ui)) {
         Notice(LightlyIcons.Info, AnnotatedString("The applied preset already includes its own ${if (sub == EffectsSub.GRAIN) "grain" else "vignette"}. This one is added to it, not replaced."))

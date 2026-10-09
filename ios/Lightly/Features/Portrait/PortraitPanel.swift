@@ -73,6 +73,18 @@ struct PortraitPanelView: View {
                 PanelTabs(items: [(PortraitPanelModel.Tab.skin, "Skin", false), (.under, "Under-eye", false), (.eyes, "Eyes", false),
                                   (.teeth, "Teeth", false), (.hair, "Hair & Beard", false)],
                           selected: model.tab, wraps: wraps, identifierPrefix: "portrait.tab") { model.tab = $0 }
+                PanelResetRow(session: model.session, section: "portrait", title: ["skin": "Skin", "under": "Under-eye", "eyes": "Eyes", "teeth": "Teeth", "hair": "Hair & Beard"][model.tab.rawValue]!, adjustment: model.tab.rawValue, resetAdjustment: {
+                model.update({ edit in
+                    let neutral = PortraitPanelModel.neutral(for: nil)
+                    switch model.tab {
+                    case .skin: edit.skin = neutral.skin
+                    case .under: edit.underEye = neutral.underEye
+                    case .eyes: edit.eyes = neutral.eyes
+                    case .teeth: edit.teeth = neutral.teeth
+                    case .hair: edit.hair = neutral.hair
+                    }
+                }, commit: true)
+            })
                 sliders
             }
         }

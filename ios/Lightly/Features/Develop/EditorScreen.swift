@@ -31,6 +31,7 @@ struct EditorScreen: View {
     @State private var captureReadySequence: String?
     #endif
     @State private var isLeaveAlertShown = false
+    @State private var isResetAlertShown = false
     @State private var shareItem: ShareItem?
 
     let onClose: () -> Void
@@ -131,6 +132,13 @@ struct EditorScreen: View {
             }
             #endif
         }
+        .alert("Reset all edits?", isPresented: $isResetAlertShown) {
+            Button("Reset all edits", role: .destructive) {
+                cropDraft = nil; cropGestureStart = nil; removePoints = []; refinePoints = []
+                session.resetEdits()
+            }
+            Button("Keep editing", role: .cancel) {}
+        } message: { Text("Return to the original photo. This also turns Auto off. You can undo this.") }
         .alert(Text("Leave without saving?"), isPresented: $isLeaveAlertShown) {
             Button("Save copy") { session.saveCopy() }.keyboardShortcut(.defaultAction)
             Button("Discard edits", role: .destructive) { onClose() }
@@ -197,6 +205,24 @@ struct EditorScreen: View {
 
     // MARK: - Editor layouts
 
+    private var photoActions: some View {
+        HStack(spacing: 2) {
+            autoEnhanceButton
+            if session.canReset(section: "all") {
+                Button { isResetAlertShown = true } label: {
+                    Label("Reset all", systemImage: "arrow.counterclockwise")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(colorScheme == .dark ? Color(red: 0.61, green: 0.73, blue: 1) : Color(red: 0.14, green: 0.35, blue: 0.84))
+                        .padding(.horizontal, 12).frame(height: 34)
+                        .background(colorScheme == .dark ? Color(white: 0.12) : .white, in: Capsule())
+                        .overlay(Capsule().strokeBorder(colorScheme == .dark ? Color.white.opacity(0.28) : Color.black.opacity(0.18), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+                        .frame(minHeight: 44)
+                }.buttonStyle(.plain).accessibilityLabel("Reset all edits").accessibilityIdentifier("editor.resetAll")
+            }
+        }
+    }
+
     @ViewBuilder
     private func editor(_ layout: EditorLayout) -> some View {
         let tools = EditorTool.available(hasPerson: session.hasPerson ?? false)
@@ -214,7 +240,7 @@ struct EditorScreen: View {
                                    removePoints = []; refinePoints = []
                                    if hadPreview || (tool == .effects && effectsPanel.sub == .leak) { session.cancelLookPreview() }
                                },
-                               photoChrome: AnyView(autoEnhanceButton.padding(5).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).opacity(session.isShowingOriginal ? 0 : 1)),
+                               photoChrome: AnyView(photoActions.padding(5).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).opacity(session.isShowingOriginal ? 0 : 1)),
                                imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
                                onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },

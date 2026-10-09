@@ -128,6 +128,7 @@ struct BorderPanelView: View {
             PanelTabs(items: [(EditRecipe.Border.Kind.none, "None", false), (.solid, "Solid", false),
                               (.frame, "Photo Frame", false), (.polaroid, "Polaroid", false)],
                       selected: model.selectedType, wraps: wraps, identifierPrefix: "border.type") { model.choose($0) }
+            PanelResetRow(session: model.session, section: "border", title: "Border")
             switch model.selectedType {
             case .none: none
             case .solid: solid

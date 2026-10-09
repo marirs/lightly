@@ -1154,6 +1154,83 @@ final class EditorSession {
 
     // MARK: - History
 
+    /// One undoable operation; cached assets stay available to Undo.
+    func resetEdits(section: String = "all", adjustment: String? = nil) {
+        if section == "all" || section == "edit" { cancelRemove() }
+        let next = recipeAfterReset(section: section, adjustment: adjustment)
+        if section == "all", autoState == .applied { autoState = .off }
+        commit(next)
+    }
+
+    func canReset(section: String, adjustment: String? = nil) -> Bool {
+        if section == "all" {
+            return autoState == .applied || recipe.look != nil ||
+                ["effects", "edit", "background", "portrait", "watermark", "border"].contains { canReset(section: $0) }
+        }
+        if section == "background", adjustment == nil {
+            return recipe.tools.background.replacement != nil || recipe.tools.background.focus.blur > 0 || !recipe.tools.background.subject.refinements.isEmpty
+        }
+        if section == "portrait", adjustment == nil {
+            return recipe.tools.portrait.faces.contains { PortraitPanelModel(session: self).changeCount(for: $0) > 0 }
+        }
+        if section == "watermark" { return recipe.tools.watermark.type != .none }
+        if section == "border" { return recipe.tools.border.type != .none }
+        return recipeAfterReset(section: section, adjustment: adjustment) != recipe
+    }
+
+    private func recipeAfterReset(section: String, adjustment: String?) -> EditRecipe {
+        var next = recipe
+        let neutral = EditRecipe.Tools.neutral(grainSeed: recipe.tools.effects.grain.seed)
+        switch section {
+        case "all":
+            next.look = nil; next.auto.strength = 0; next.tools = neutral
+        case "develop": next.look = nil
+        case "effects":
+            switch adjustment {
+            case "leak": next.tools.effects.lightLeak = neutral.effects.lightLeak
+            case "grain": next.tools.effects.grain = neutral.effects.grain
+            case "vignette": next.tools.effects.vignette = neutral.effects.vignette
+            case "selective": next.tools.effects.selectiveColour = .none
+            default: next.tools.effects = neutral.effects
+            }
+        case "edit":
+            switch adjustment {
+            case "crop": next.tools.edit.geometry.cropRect = neutral.edit.geometry.cropRect; next.tools.edit.geometry.cropAspect = .original
+            case "rotate": next.tools.edit.geometry.quarterTurns = 0; next.tools.edit.geometry.flipHorizontal = false; next.tools.edit.geometry.flipVertical = false
+            case "straighten": next.tools.edit.geometry.straighten = 0
+            case "perspective": next.tools.edit.geometry.perspectiveHorizontal = 0; next.tools.edit.geometry.perspectiveVertical = 0
+            case "adjust": next.tools.edit.adjust = neutral.edit.adjust
+            case "remove": next.tools.edit.remove = neutral.edit.remove
+            default: next.tools.edit = neutral.edit
+            }
+        case "background":
+            switch adjustment {
+            case "focus": next.tools.background.focus = neutral.background.focus
+            case "change": next.tools.background.replacement = nil
+            case "refine": next.tools.background.subject.refinements = []
+            default: next.tools.background = neutral.background
+            }
+        case "portrait":
+            if let adjustment {
+                let face = PortraitPanelModel.neutral(for: nil)
+                for i in next.tools.portrait.faces.indices {
+                    switch adjustment {
+                    case "skin": next.tools.portrait.faces[i].skin = face.skin
+                    case "under": next.tools.portrait.faces[i].underEye = face.underEye
+                    case "eyes": next.tools.portrait.faces[i].eyes = face.eyes
+                    case "teeth": next.tools.portrait.faces[i].teeth = face.teeth
+                    case "hair": next.tools.portrait.faces[i].hair = face.hair
+                    default: break
+                    }
+                }
+            } else { next.tools.portrait = neutral.portrait }
+        case "watermark": next.tools.watermark = neutral.watermark
+        case "border": next.tools.border = neutral.border
+        default: return recipe
+        }
+        return next
+    }
+
     func undo() {
         guard canUndo else { return }
         historyIndex -= 1

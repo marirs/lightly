@@ -107,6 +107,32 @@ class EditorScreenTest {
     }
 
     @Test
+    fun `reset all confirms and one undo restores scoped edits`() {
+        val vm = editor()
+        show(vm)
+        compose.runOnIdle {
+            vm.toggleEffect(EffectsSub.GRAIN)
+            vm.toggleEffect(EffectsSub.VIGNETTE)
+        }
+        val before = vm.uiState.value.session!!.current
+        compose.runOnIdle { vm.resetEdits("effects", "grain") }
+        assertTrue(!vm.uiState.value.session!!.current.tools.effects.grain.enabled)
+        assertEquals(before.tools.effects.vignette, vm.uiState.value.session!!.current.tools.effects.vignette)
+        compose.runOnIdle { vm.undo() }
+        assertEquals(before, vm.uiState.value.session!!.current)
+        compose.onNodeWithTag("editor-reset-all").performClick()
+        compose.onNodeWithText("Keep editing").performClick()
+        assertEquals(before, vm.uiState.value.session!!.current)
+        compose.onNodeWithTag("editor-reset-all").performClick()
+        compose.onNodeWithText("Reset all edits").performClick()
+        assertTrue(!vm.canReset("all"))
+        compose.runOnIdle { vm.undo() }
+        assertEquals(before, vm.uiState.value.session!!.current)
+        compose.runOnIdle { vm.redo() }
+        assertTrue(!vm.canReset("all"))
+    }
+
+    @Test
     fun `inspection zoom survives tools and never commits an edit`() {
         val vm = editor()
         show(vm)
@@ -264,7 +290,7 @@ class EditorScreenTest {
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
         compose.waitForIdle()
         listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Drag corners or edges to crop.").forEach {
-            compose.onNodeWithText(it).assertExists()
+            assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
         }
         compose.onNodeWithText("Remove").performClick()
         compose.waitForIdle()
@@ -273,7 +299,7 @@ class EditorScreenTest {
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
         compose.waitForIdle()
         listOf("Light Leaks", "Grain", "Vignette", "Warm edge", "Amber flare", "Rose", "Prism", "Intensity", "Rotation", "Drag on the photo to move the leak.").forEach {
-            compose.onNodeWithText(it).assertExists()
+            assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
         }
         compose.onNodeWithTag("effects-on-off").assertDoesNotExist()
         compose.onNodeWithText("Rose").performClick()

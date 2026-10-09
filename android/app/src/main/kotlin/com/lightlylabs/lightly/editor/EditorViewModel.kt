@@ -1809,6 +1809,72 @@ class EditorViewModel(
 
     // --- commit and preview ---------------------------------------------------------------------
 
+    fun resetEdits(section: String = "all", adjustment: String? = null) {
+        if (section == "all" || section == "edit") cancelRemove()
+        val session = state.value.session ?: return
+        val next = resetRecipe(session.current, section, adjustment)
+        commit(session.commit { next }, if (section == "all" && state.value.auto == AutoState.APPLIED) AutoState.OFF else state.value.auto)
+    }
+
+    fun canReset(section: String, adjustment: String? = null): Boolean {
+        val current = state.value.session?.current ?: return false
+        if (section == "all") return state.value.auto == AutoState.APPLIED || current.look != null ||
+            canReset("background") || canReset("portrait") || canReset("edit") || ToolUsed.effects(current) ||
+            current.tools.border.type != com.lightlylabs.lightly.session.BorderType.NONE ||
+            current.tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE
+        if (section == "background" && adjustment == null) return current.tools.background.let {
+            it.replacement != null || it.focus.blur > 0 || it.subject.refinements.isNotEmpty()
+        }
+        if (section == "portrait" && adjustment == null) return current.tools.portrait.faces.any { PortraitEdits.changeCount(it) > 0 }
+        return resetRecipe(current, section, adjustment) != current
+    }
+
+    private fun resetRecipe(r: EditState, section: String, adjustment: String?): EditState {
+        val n = com.lightlylabs.lightly.session.EditTools.neutral(r.tools.effects.grain.seed)
+        val t = r.tools
+        return when (section) {
+            "all" -> r.copy(auto = r.auto.copy(strength = 0f), look = null, tools = n)
+            "develop" -> r.copy(look = null)
+            "effects" -> r.copy(tools = t.copy(effects = when (adjustment) {
+                "leak" -> t.effects.copy(lightLeak = n.effects.lightLeak)
+                "grain" -> t.effects.copy(grain = n.effects.grain)
+                "vignette" -> t.effects.copy(vignette = n.effects.vignette)
+                "selective" -> t.effects.copy(selectiveColour = null)
+                else -> n.effects
+            }))
+            "edit" -> r.copy(tools = t.copy(edit = when (adjustment) {
+                "crop" -> t.edit.copy(geometry = t.edit.geometry.copy(crop = n.edit.geometry.crop))
+                "rotate" -> t.edit.copy(geometry = t.edit.geometry.copy(quarterTurns = 0, flipHorizontal = false, flipVertical = false))
+                "straighten" -> t.edit.copy(geometry = t.edit.geometry.copy(straighten = 0.0))
+                "perspective" -> t.edit.copy(geometry = t.edit.geometry.copy(perspective = n.edit.geometry.perspective))
+                "adjust" -> t.edit.copy(adjust = n.edit.adjust)
+                "remove" -> t.edit.copy(remove = n.edit.remove)
+                else -> n.edit
+            }))
+            "background" -> r.copy(tools = t.copy(background = when (adjustment) {
+                "focus" -> t.background.copy(focus = n.background.focus)
+                "change" -> t.background.copy(replacement = null)
+                "refine" -> t.background.copy(subject = t.background.subject.copy(refinements = emptyList()))
+                else -> n.background
+            }))
+            "portrait" -> r.copy(tools = t.copy(portrait = if (adjustment == null) n.portrait else t.portrait.copy(faces = t.portrait.faces.map { f ->
+                if (f.face.box != selectedFace()?.box) return@map f
+                val neutral = PortraitEdits.neutral(f.face.box)
+                when (adjustment) {
+                    "skin" -> f.copy(skin = neutral.skin)
+                    "under" -> f.copy(underEye = neutral.underEye)
+                    "eyes" -> f.copy(eyes = neutral.eyes)
+                    "teeth" -> f.copy(teeth = neutral.teeth)
+                    "hair" -> f.copy(hair = neutral.hair)
+                    else -> f
+                }
+            })))
+            "watermark" -> r.copy(tools = t.copy(watermark = n.watermark))
+            "border" -> r.copy(tools = t.copy(border = n.border))
+            else -> r
+        }
+    }
+
     /**
      * [fastFirst] (Undo, Redo, ruler release, 2026-10-06): a quick interactive-quality frame of the new state first, so
      * the photo agrees with the name row at once; the full frame follows. Without it the previous look stayed on screen

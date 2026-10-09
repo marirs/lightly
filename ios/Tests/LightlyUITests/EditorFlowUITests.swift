@@ -731,6 +731,49 @@ final class InspectionZoomUITests: XCTestCase {
 
 
 final class SliderHitTargetUITests: XCTestCase {
+    func testResetAllOnPhotoConfirmsAndUndoRestores() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "reset-ui-test", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "fx-leak"]
+        app.launch()
+        let reset = app.buttons["editor.resetAll"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 60))
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "reset-photo-controls"; shot.lifetime = .keepAlways; add(shot)
+        reset.tap()
+        app.alerts.buttons["Keep editing"].tap()
+        XCTAssertTrue(reset.exists)
+        reset.tap()
+        app.alerts.buttons["Reset all edits"].tap()
+        XCTAssertTrue(reset.waitForNonExistence(timeout: 10))
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(reset.waitForExistence(timeout: 10))
+    }
+
+    func testForceQuitFromAppSwitcherDoesNotRestorePhoto() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "force-quit-repro-20261009", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "dev-preset"]
+        app.launch()
+        XCTAssertTrue(app.buttons["develop.clear"].waitForExistence(timeout: 60))
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 2)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let bottom = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.995))
+        let middle = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        bottom.press(forDuration: 0.1, thenDragTo: middle, withVelocity: .slow, thenHoldForDuration: 1)
+        Thread.sleep(forTimeInterval: 2)
+        let before = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); before.name = "force-quit-app-switcher"; before.lifetime = .keepAlways; add(before)
+        print("APP SWITCHER TREE: \(springboard.debugDescription)")
+        let card = springboard.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Lightly")).firstMatch
+        guard card.waitForExistence(timeout: 5) else { XCTFail("App-switcher card unavailable; force quit not exercised"); return }
+        card.swipeUp()
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 10), "The real app-switcher swipe must terminate Lightly")
+        app.launchArguments = ["--keep-stored-session", "--session-store", "force-quit-repro-20261009"]
+        app.launch()
+        let welcome = app.buttons["welcome.choosePhoto"].waitForExistence(timeout: 30)
+        let after = XCTAttachment(screenshot: app.screenshot()); after.name = "after-force-quit-relaunch"; after.lifetime = .keepAlways; add(after)
+        XCTAssertTrue(welcome, "Force quit must return to Welcome rather than restore the photo")
+    }
     func testClearPresetAndSignatureAndNoBorderSignatureOption() {
         let app = XCUIApplication()
         let base = ["--keep-stored-session", "--session-store", "clear-actions-test", "--open-photo",

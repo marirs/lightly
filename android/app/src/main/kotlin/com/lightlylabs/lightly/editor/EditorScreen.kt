@@ -1,5 +1,8 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.luminance
+
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -505,6 +508,23 @@ private fun LoadingScreen(vm: EditorViewModel, ui: EditorUiState, frame: EditorF
 // --- tool panel and navigation ---------------------------------------------------------------------
 
 @Composable
+fun ResetRow(vm: EditorViewModel, section: String, title: String, adjustment: String? = null) {
+    var choices by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = lightlyTextStyle(), modifier = Modifier.weight(1f))
+        if (vm.canReset(section)) androidx.compose.material3.TextButton(onClick = { choices = true }, modifier = Modifier.testTagResource("reset-$section")) {
+            LightlyIcon(LightlyIcons.RotateLeft, size = 16.dp, tint = lightlyColors.sel)
+            Spacer(Modifier.width(6.dp)); Text("Reset", color = lightlyColors.sel)
+        } else Spacer(Modifier.height(48.dp))
+    }
+    if (choices) androidx.compose.material3.AlertDialog(onDismissRequest = { choices = false }, title = { Text("Reset") },
+        text = { Column {
+            if (adjustment != null) androidx.compose.material3.TextButton(onClick = { choices = false; vm.resetEdits(section, adjustment) }) { Text("Reset ${title.lowercase()}") }
+            androidx.compose.material3.TextButton(onClick = { choices = false; vm.resetEdits(section) }) { Text("Reset $section") }
+        } }, confirmButton = { androidx.compose.material3.TextButton(onClick = { choices = false }) { Text("Cancel") } })
+}
+
+@Composable
 private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, roomy: Boolean, wrapped: Boolean) {
     when (ui.tool) {
         EditorTool.DEVELOP -> if (model != null) DevelopPanel(vm, model, roomy, wrapped)
@@ -717,6 +737,13 @@ private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
 @Composable
 private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
     val applied = ui.auto == AutoState.APPLIED
+    var resetConfirmation by remember { mutableStateOf(false) }
+    if (resetConfirmation) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { resetConfirmation = false },
+        title = { Text("Reset all edits?") },
+        text = { Text("Return to the original photo. This also turns Auto off. You can undo this.") },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { resetConfirmation = false; vm.resetEdits() }) { Text("Reset all edits") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { resetConfirmation = false }) { Text("Keep editing") } })
     // The 30 dp disc sits 12 dp inside the fitted photo, with a separate 48 dp touch area.
     val photoBox: DoubleArray? = null
     Box(Modifier.fillMaxSize().layout { measurable, constraints ->
@@ -728,6 +755,7 @@ private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
             child.place((constraints.maxWidth * b[0]).toInt(), (constraints.maxHeight * b[1]).toInt())
         }
     }, contentAlignment = Alignment.BottomStart) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.padding(3.dp).size(48.dp)
             .clickable(onClick = vm::toggleAuto)
             .semantics {
@@ -749,6 +777,23 @@ private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
                     LightlyIcon(LightlyIcons.Check, size = 9.dp, tint = Color(0xFF222923))
                 }
             }
+        }
+        if (vm.canReset("all")) {
+            val dark = lightlyColors.bg.luminance() < 0.5f
+            val surface = if (dark) Color(0xFF202024) else Color.White
+            val ink = if (dark) Color(0xFF9BBAFF) else Color(0xFF2459D5)
+            Box(Modifier.height(48.dp).clickable { resetConfirmation = true }
+                .semantics { contentDescription = "Reset all edits" }
+                .testTagResource("editor-reset-all"), contentAlignment = Alignment.Center) {
+                Row(Modifier.background(surface, RoundedCornerShape(20.dp))
+                    .border(1.dp, if (dark) Color.White.copy(alpha = 0.28f) else Color.Black.copy(alpha = 0.18f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LightlyIcon(LightlyIcons.RotateLeft, size = 15.dp, tint = ink)
+                    Text("Reset all", style = lightlyTextStyle(13.sp, color = ink))
+                }
+            }
+        }
         }
     }
 }

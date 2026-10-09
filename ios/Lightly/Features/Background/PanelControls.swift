@@ -1,5 +1,34 @@
 import SwiftUI
 
+/// Owner-approved reset row: current adjustment or the entire section, both undoable.
+struct PanelResetRow: View {
+    let session: EditorSession
+    let section: String
+    let title: String
+    var adjustment: String? = nil
+    var resetAdjustment: (() -> Void)? = nil
+    @State private var showsChoices = false
+    var body: some View {
+        HStack {
+            Text(title).approvedText(15, weight: .semibold)
+            Spacer()
+            Button { showsChoices = true } label: {
+                Label("Reset", systemImage: "arrow.counterclockwise").font(.system(size: 14, weight: .medium))
+            }.frame(minHeight: 44).buttonStyle(.plain).foregroundStyle(Color.accentColor)
+                .accessibilityIdentifier("reset.\(section)")
+                .opacity(session.canReset(section: section) ? 1 : 0)
+                .disabled(!session.canReset(section: section))
+        }.padding(.horizontal, 18)
+        .confirmationDialog("Reset", isPresented: $showsChoices, titleVisibility: .visible) {
+            if let adjustment {
+                Button("Reset \(title.lowercased())") { if let resetAdjustment { resetAdjustment() } else { session.resetEdits(section: section, adjustment: adjustment) } }
+            }
+            Button("Reset \(section)") { session.resetEdits(section: section) }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+}
+
 /// Controls the tool panels share (approved `styles.css`): `.tabs`, `.sl`, `.opt`, `.sw`,
 /// `.thumbopt`, `.chiprow`, the panel title and the stage progress box.
 

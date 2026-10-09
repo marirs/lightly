@@ -253,6 +253,7 @@ struct WatermarkPanelView: View {
             PanelTabs(items: [(EditRecipe.Watermark.Kind.none, "None", false), (.signature, "Signature", false),
                               (.text, "Text", false), (.logo, "Logo", false)],
                       selected: model.selectedType, wraps: wraps, identifierPrefix: "watermark.type") { model.choose($0) }
+            PanelResetRow(session: model.session, section: "watermark", title: "Watermark")
             switch model.selectedType {
             case .none: ApprovedNote("No watermark. Choose Signature, Text or Logo to add one.")
             case .signature: signature

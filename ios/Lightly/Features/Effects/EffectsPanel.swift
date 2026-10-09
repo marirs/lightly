@@ -61,6 +61,7 @@ struct EffectsPanelView: View {
                               (.vignette, "Vignette", effects.vignette.enabled),
                               (.selective, "Selective Colour", !effects.selectiveColour.colours.isEmpty)],
                       selected: model.sub, wraps: wraps, identifierPrefix: "effects.sub") { model.sub = $0 }
+            PanelResetRow(session: session, section: "effects", title: ["leak": "Light Leaks", "grain": "Grain", "vignette": "Vignette", "selective": "Selective Colour"][model.sub.rawValue]!, adjustment: model.sub.rawValue)
             if let notice = model.conflictNotice {
                 DevelopNotice(icon: .info, bold: nil, text: notice, actions: [])
             }
