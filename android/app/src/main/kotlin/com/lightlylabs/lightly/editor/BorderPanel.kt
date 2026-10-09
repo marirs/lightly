@@ -30,13 +30,13 @@ object BorderOptions {
 /** Prototype `borderPanel`: None, Solid, Photo Frame, Polaroid with the approved swatches, sliders and copy verbatim. */
 @Composable
 fun BorderPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth()) {
-    if (roomy) PanelTitle("Border")
     val border = ui.session?.current?.tools?.border ?: return@Column
     val tab = vm.borderTab(ui)
+    if (roomy && tab != BorderType.NONE) PanelTitle("Border")
     OptionTabs(BorderOptions.TABS, tab, vm::chooseBorder, tagPrefix = "border-tab")
-    ResetRow(vm, "border", "Border")
+    if (tab != BorderType.NONE) ResetRow(vm, "border", "Border")
     when (tab) {
-        BorderType.NONE -> PanelNote("No border. Your preferred border in Preferences is ${vm.preferredBorderName}; it is never added automatically.")
+        BorderType.NONE -> Unit
         BorderType.SOLID -> {
             ColourControl("Border colour", border.colour, ui.original, "border-colour", vm::setBorderColour, previewPhoto = ui.preview, preview = { vm.previewColour("border-colour", it) }, cancel = vm::cancelPhotoGesturePreview)
             BorderSlider(vm, ui, "Width", "width", border.width, 1.0, 15.0)

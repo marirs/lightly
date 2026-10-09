@@ -20,3 +20,7 @@ This is a focused slice, not acceptance of the complete device/theme/text-size m
 ## Follow-up: gesture expansion
 
 Owner approved replacing visible Expand/Collapse buttons with gestures. Swipe up on the compact tray (or its grab handle) to expand over the unchanged photo. Horizontal swipes keep browsing the compact tray. In the expanded grid, downward scrolling browses normally until the top; pulling down from the top collapses it. The grab handle can collapse the panel from any scroll position. Screen-reader custom actions expose the same operations without visible buttons.
+
+### Border None state — owner approved
+
+When None is selected, show the border style choices only. Remove the redundant Border heading/reset row and preferred-border explanation from this state on both platforms. Style adjustment controls remain conditional on the selected style.

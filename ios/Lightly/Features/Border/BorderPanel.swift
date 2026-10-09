@@ -124,24 +124,21 @@ struct BorderPanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if roomy { PanelTitle(text: "Border") }
+            if roomy && model.selectedType != .none { PanelTitle(text: "Border") }
             PanelTabs(items: [(EditRecipe.Border.Kind.none, "None", false), (.solid, "Solid", false),
                               (.frame, "Photo Frame", false), (.polaroid, "Polaroid", false), (.paper, "Paper", false)],
                       selected: model.selectedType, wraps: wraps, identifierPrefix: "border.type") { model.choose($0) }
-            PanelResetRow(session: model.session, section: "border", title: "Border")
+            if model.selectedType != .none {
+                PanelResetRow(session: model.session, section: "border", title: "Border")
+            }
             switch model.selectedType {
-            case .none: none
+            case .none: EmptyView()
             case .solid: solid
             case .frame: frame
             case .polaroid: polaroid
             case .paper: paper
             }
         }
-    }
-
-    // The prototype's `${'None'}` is a placeholder for the Preferences value (None by default).
-    private var none: some View {
-        ApprovedNote("No border. Your preferred border in Preferences is \(model.preferredBorderName); it is never added automatically.")
     }
 
     @ViewBuilder
