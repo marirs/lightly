@@ -258,12 +258,15 @@ struct EditRecipe: Equatable, Sendable {
     }
 
     struct Border: Equatable, Sendable {
-        enum Kind: String, Sendable, CaseIterable { case none, solid, frame, polaroid }
+        enum Kind: String, Sendable, CaseIterable { case none, solid, frame, polaroid, paper }
         var type: Kind
         var colour: String
         var width: Double
         var spacing: Double
         var mat: String
+        enum PaperFinish: String, Sendable, CaseIterable { case clean, deckled, torn }
+        var paperFinish: PaperFinish = .deckled
+        var texture: Double = 25
     }
 }
 

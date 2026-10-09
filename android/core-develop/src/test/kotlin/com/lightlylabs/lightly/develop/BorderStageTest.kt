@@ -52,4 +52,21 @@ class BorderStageTest {
         assertEquals(p.side.toDouble() / whole.width, box[0], 1e-12)
         assertEquals(70.0 / whole.height, box[3], 1e-12)
     }
+    @Test fun `paper tile seams match whole render for every finish`() {
+        for (finish in listOf("clean", "deckled", "torn")) {
+            val b = BorderParams("paper", "#ECE8DF", width = 8.0, paperFinish = finish, texture = 70.0)
+            val f = frame(400,300); val p = BorderStage.placement(b,400,300)
+            val whole = BorderStage.apply(b,f)
+            assertContentEquals(whole.pixels, BorderStage.apply(b,f).pixels)
+            assertContentEquals(px(f,200,150),px(whole,p.side+200,p.top+150))
+            for (y in 0 until whole.height step 73) for (x in 0 until whole.width step 91) {
+                val tile = PixelRect(x,y,minOf(91,whole.width-x),minOf(73,whole.height-y))
+                val part = BorderStage.renderTile(b,p,tile) { r -> Rgba8Image(r.width,r.height,ByteArray(r.width*r.height*4).also { out ->
+                    for(row in 0 until r.height) System.arraycopy(f.pixels,((r.y+row)*f.width+r.x)*4,out,row*r.width*4,r.width*4)
+                }) }
+                for(row in 0 until tile.height) for(col in 0 until tile.width) assertContentEquals(px(whole,x+col,y+row),px(part,col,row))
+            }
+        }
+    }
+
 }

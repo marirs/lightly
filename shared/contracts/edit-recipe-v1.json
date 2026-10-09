@@ -206,7 +206,7 @@
 
   "border": {"type": "object", "additionalProperties": false, "required": ["type", "colour", "width", "spacing", "mat"],
              "description": "Insets as fractions of the image width (rendering-v2 stage border). solid: colour, width 1..15; frame: colour (frame), width 1..10, mat colour, spacing 0..12; polaroid: colour, fixed margins; none: other fields kept at their last values and ignored. The polaroid 'signature on the margin' is watermark.placement = border.",
-             "properties": {"type": {"enum": ["none", "solid", "frame", "polaroid"]}, "colour": {"$ref": "#/$defs/colour"},
+             "properties": {"paperFinish": {"enum": ["clean", "deckled", "torn"]}, "texture": {"type": "number", "minimum": 0, "maximum": 100}, "type": {"enum": ["none", "solid", "frame", "polaroid", "paper"]}, "colour": {"$ref": "#/$defs/colour"},
                             "width": {"type": "number", "minimum": 1, "maximum": 15}, "spacing": {"type": "number", "minimum": 0, "maximum": 12},
                             "mat": {"$ref": "#/$defs/colour"}}}
  }

@@ -15,6 +15,8 @@ final class DevelopPanelModel {
     /// The prototype opens on Landscape when no preset is applied (`ui.cat || … : 'landscape'`).
     static let defaultCategoryID = "landscape"
 
+    var isExpanded = false
+
     let session: EditorSession
     let favourites: FavouritePresetsStore
 
@@ -192,6 +194,13 @@ final class DevelopPanelModel {
 
     var amountValue: Double { draggingAmount ?? session.appliedAmount }
     var amountButtonTitle: String { "Amount \(Int(amountValue.rounded()))" }
+
+    func selectThumbnail(_ preset: PresetPack.Preset?) {
+        let category = currentCategoryID
+        startsAtFirst = false; draggingStop = nil; isAmountOpen = false
+        session.applyLook(preset)
+        browsedCategoryID = category; browsedAtHistoryRevision = session.historyRevision
+    }
 
     func applyBrowsedPreset() {
         guard let preset = presetAtStop else { return }

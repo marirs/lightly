@@ -377,9 +377,11 @@ enum EditRecipeCodec {
     }
 
     private static func readBorder(_ r: Reader) throws -> EditRecipe.Border {
-        try r.requireExactly(["type", "colour", "width", "spacing", "mat"])
+        try r.requireExactly(["type", "colour", "width", "spacing", "mat"] + ["paperFinish", "texture"].filter { r.raw($0) != nil })
         return EditRecipe.Border(type: try r.enumeration("type"), colour: try r.colour("colour"), width: try r.number("width", 1...15),
-                                 spacing: try r.number("spacing", 0...12), mat: try r.colour("mat"))
+                                 spacing: try r.number("spacing", 0...12), mat: try r.colour("mat"),
+                                 paperFinish: r.raw("paperFinish") == nil ? .deckled : try r.enumeration("paperFinish"),
+                                 texture: r.raw("texture") == nil ? 25 : try r.percent("texture"))
     }
 
     // MARK: - Encode
@@ -544,7 +546,9 @@ enum EditRecipeCodec {
         ])
         let b = t.border
         let border = CanonicalJSON.object([("type", .string(b.type.rawValue)), ("colour", .string(b.colour)),
-                                           ("width", number(b.width)), ("spacing", number(b.spacing)), ("mat", .string(b.mat))])
+                                           ("width", number(b.width)), ("spacing", number(b.spacing)), ("mat", .string(b.mat))]
+            + (b.paperFinish != .deckled ? [("paperFinish", .string(b.paperFinish.rawValue))] : [])
+            + (b.texture != 25 ? [("texture", number(b.texture))] : []))
         return .object([("background", background), ("portrait", portrait), ("edit", edit), ("effects", effects),
                         ("watermark", watermark), ("border", border)])
     }

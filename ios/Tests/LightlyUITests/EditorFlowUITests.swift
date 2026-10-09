@@ -731,6 +731,61 @@ final class InspectionZoomUITests: XCTestCase {
 
 
 final class SliderHitTargetUITests: XCTestCase {
+    func testPresetGalleryOverlaysWithoutResizingPhoto() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "gallery-check", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "dev-starred"]
+        app.launch()
+        let expand = app.buttons["develop.expand"]
+        XCTAssertTrue(expand.waitForExistence(timeout: 60))
+        let before = app.descendants(matching: .any)["editor.photo"].firstMatch.frame
+        expand.tap()
+        XCTAssertTrue(app.otherElements["develop.expanded"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].firstMatch.frame, before)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "expanded-presets-over-photo"; shot.lifetime = .keepAlways; add(shot)
+        app.buttons.matching(NSPredicate(format: "identifier == 'develop.expand' AND label CONTAINS 'Collapse'")).firstMatch.tap()
+        let reset = app.buttons["develop.clear"]
+        reset.tap(); XCTAssertFalse(reset.exists)
+        app.buttons["editor.undo"].tap(); XCTAssertTrue(reset.waitForExistence(timeout: 10))
+    }
+
+    func testPaperAndSharedColourPicker() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "paper-check", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "bd-solid"]
+        app.launch()
+        XCTAssertTrue(app.buttons["border.type.Paper"].waitForExistence(timeout: 60))
+        app.buttons["border.type.Paper"].tap()
+        app.buttons["border.paper.torn"].tap()
+        app.buttons["border.paper.colour.picker"].tap()
+        XCTAssertTrue(app.staticTexts["From your photo"].waitForExistence(timeout: 10))
+        let field = app.textFields["Hex colour"]; XCTAssertTrue(field.exists)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "shared-colour-sheet"; shot.lifetime = .keepAlways; add(shot)
+        app.buttons["Colour #334538"].tap()
+        app.buttons["Done"].tap()
+        let picker = app.buttons["border.paper.colour.picker"]
+        XCTAssertEqual(picker.value as? String, "#334538")
+        app.buttons["editor.undo"].tap()
+        XCTAssertEqual(picker.value as? String, "#FFFFFF")
+        picker.tap()
+        app.buttons["Colour #D4C9B5"].tap()
+        app.buttons["Cancel"].tap()
+        XCTAssertEqual(picker.value as? String, "#FFFFFF")
+    }
+
+    func testPresetGalleryDarkTheme() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "gallery-dark", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "dev-starred",
+            "-lightly.preferences.v1.appearance", "dark"]
+        app.launch()
+        XCTAssertTrue(app.buttons["develop.expand"].waitForExistence(timeout: 60))
+        let compact = XCTAttachment(screenshot: app.screenshot()); compact.name = "compact-gallery-dark"; compact.lifetime = .keepAlways; add(compact)
+        app.buttons["develop.expand"].tap()
+        XCTAssertTrue(app.buttons["Collapse"].waitForExistence(timeout: 10))
+        let expanded = XCTAttachment(screenshot: app.screenshot()); expanded.name = "expanded-gallery-dark"; expanded.lifetime = .keepAlways; add(expanded)
+    }
+
     func testDevelopResetAndFavouritesStartAtFirstPreset() {
         let app = XCUIApplication()
         app.launchArguments = ["--keep-stored-session", "--session-store", "develop-reset-favourites", "--open-photo",
@@ -743,11 +798,12 @@ final class SliderHitTargetUITests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: categoryY))
             .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: categoryY)))
         app.buttons["develop.category.favourites"].tap()
-        XCTAssertTrue(app.buttons["develop.apply"].exists)
-        XCTAssertTrue(app.staticTexts["develop.position"].label.hasPrefix("1 / "))
+        let original = app.buttons["develop.thumbnail.original"]
+        XCTAssertTrue(original.isHittable)
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "favourites-first-and-reset"; shot.lifetime = .keepAlways; add(shot)
-        app.buttons["develop.apply"].tap()
-        XCTAssertFalse(app.buttons["develop.apply"].exists)
+        let preset = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'develop.thumbnail.' AND identifier != 'develop.thumbnail.original'")).firstMatch
+        XCTAssertTrue(preset.isHittable)
+        preset.tap()
         reset.tap()
         XCTAssertFalse(reset.exists)
         app.buttons["editor.undo"].tap()

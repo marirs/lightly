@@ -116,6 +116,7 @@ data class DevelopUi(
     val dragStart: Int? = null,
     /** Hold-still fine mode during a drag. */
     val fine: Boolean = false,
+    val expanded: Boolean = false,
     val amountOpen: Boolean = false,
     /** The Amount value while the slider is being dragged. */
     val amountDrag: Int? = null,

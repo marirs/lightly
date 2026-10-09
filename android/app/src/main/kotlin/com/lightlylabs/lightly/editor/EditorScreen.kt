@@ -156,6 +156,7 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
     val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, chrome = { if (!ui.showsOriginal) AutoEnhanceOverlay(vm, ui) }, inspection = true, onPhotoBox = vm::onStagePhotoMeasured) }
     val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
     val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
         when (layout.mode) {
             EditorMode.BELOW, EditorMode.WIDE -> {
@@ -164,7 +165,7 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
                 stage(Modifier.weight(1f).fillMaxWidth())
                 val wide = layout.mode == EditorMode.WIDE
                 // The panel never takes more than its share of the height: it scrolls, so the photo stays dominant.
-                val maxPanel = (layout.heightDp * if (wide) 0.3f else 0.34f).let { kotlin.math.round(it) }.dp
+                val maxPanel = (if(ui.tool == EditorTool.DEVELOP) maxOf(350f, layout.heightDp * 0.34f) else layout.heightDp * if (wide) 0.3f else 0.34f).let { kotlin.math.round(it) }.dp
                 Column(Modifier.fillMaxWidth()) {
                     Column(
                         Modifier
@@ -231,6 +232,22 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
             }
         }
     }
+    if(ui.tool == EditorTool.DEVELOP && ui.develop.expanded && model != null) {
+        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 72.dp + frame.bottom).fillMaxWidth()
+            .heightIn(max = (layout.heightDp - 140).dp).background(lightlyColors.bg, androidx.compose.foundation.shape.RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))) {
+            var handleDrag by remember { mutableStateOf(0f) }
+            Box(Modifier.fillMaxWidth().height(24.dp).pointerInput(Unit) {
+                detectDragGestures(onDragStart = { handleDrag = 0f }, onDragEnd = {
+                    if (handleDrag > 30.dp.toPx()) vm.setPresetExpanded(false)
+                }) { change, delta -> handleDrag += delta.y; change.consume() }
+            }, contentAlignment = Alignment.Center) {
+                Box(Modifier.width(34.dp).height(4.dp).background(lightlyColors.hair, CircleShape))
+            }
+            DevelopPanel(vm, model, false, false, expanded = true)
+        }
+    }
+    }
+
 }
 
 // --- top bar ----------------------------------------------------------------------------------------

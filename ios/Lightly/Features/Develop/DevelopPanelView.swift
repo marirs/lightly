@@ -16,6 +16,7 @@ enum DevelopPanelStyle: Equatable {
 struct DevelopPanelView: View {
     @Bindable var model: DevelopPanelModel
     let style: DevelopPanelStyle
+    var expanded = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -33,14 +34,31 @@ struct DevelopPanelView: View {
             header
             if style == .list { categoryList }
             notice
-            nameRow
-            contextLine
-            if model.isAmountOpen, model.namedPreset != nil {
-                amountRow
-            } else {
-                StopRuler(model: model)
-            }
+            thumbnailHeading
+            PresetGallery(model: model, expanded: expanded)
+            Group {
+                ApprovedSlider(label: "Amount", value: model.amountValue, range: 0...100,
+                               onChange: model.amountChanged, onEnd: model.amountEnded)
+            }.disabled(model.session.recipe.look == nil).opacity(model.session.recipe.look == nil ? 0.4 : 1)
+
         }
+    }
+
+    private var thumbnailHeading: some View {
+        HStack(spacing: 8) {
+            Button { model.toggleStar() } label: {
+                Image(systemName: model.isPresetAtStopFavourite ? "star.fill" : "star").frame(width: 34, height: 44)
+            }.disabled(model.namedPreset == nil).accessibilityLabel("Favourite").accessibilityIdentifier("develop.star")
+            Text(model.namedPreset?.displayName ?? "Original").approvedText(14, weight: .semibold)
+                .foregroundStyle(c(ApprovedColor.ink)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("develop.name")
+            Button { model.isExpanded.toggle() } label: {
+                Label(expanded ? "Collapse" : "Expand", systemImage: expanded ? "chevron.down" : "chevron.up").approvedText(13).frame(minHeight: 44)
+            }.accessibilityIdentifier("develop.expand")
+            if model.session.recipe.look != nil {
+                Button(action: model.clearPreset) { Label("Reset", systemImage: "arrow.counterclockwise").approvedText(13).frame(minHeight: 44) }
+                    .accessibilityLabel("Reset preset").accessibilityIdentifier("develop.clear")
+            }
+        }.buttonStyle(.plain).foregroundStyle(c(ApprovedColor.selection)).padding(.horizontal, 12).frame(minHeight: 48)
     }
 
     // MARK: Auto and categories

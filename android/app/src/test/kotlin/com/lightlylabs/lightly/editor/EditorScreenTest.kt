@@ -144,7 +144,7 @@ class EditorScreenTest {
         }
         assertEquals(1, vm.panelModel()!!.stop)
         assertEquals(BundledPack.preset("landscape", 2).displayName, vm.panelModel()!!.name)
-        compose.onNodeWithTag("develop-apply").assertExists()
+        compose.onNodeWithTag("develop-thumbnail-original").assertExists()
         compose.onNodeWithText("Reset").assertExists()
         compose.runOnIdle { vm.toggleStar() }
         assertEquals(1, vm.panelModel()!!.presets.size)
@@ -220,7 +220,8 @@ class EditorScreenTest {
     @Test
     fun `clear preset preserves other edits and undo restores it`() {
         val vm = editor(); show(vm)
-        compose.onNodeWithTag(EditorTags.RULER).performSemanticsAction(SemanticsActions.SetProgress) { it(37f) }
+        val chosen = vm.panelModel()!!.presets.first()
+        compose.onNodeWithTag("develop-thumbnail-${chosen.id}").performClick()
         val before = vm.uiState.value.session!!.current
         compose.onNodeWithTag("develop-clear").performClick()
         compose.waitForIdle()
@@ -255,30 +256,30 @@ class EditorScreenTest {
     fun `the editor shows the approved controls, copy and every tool`() {
         val vm = editor()
         show(vm)
-        listOf(EditorTags.CLOSE, EditorTags.UNDO, EditorTags.REDO, EditorTags.COMPARE, EditorTags.SAVE, EditorTags.MORE, EditorTags.RULER).forEach {
+        listOf(EditorTags.CLOSE, EditorTags.UNDO, EditorTags.REDO, EditorTags.COMPARE, EditorTags.SAVE, EditorTags.MORE, "develop-thumbnail-original").forEach {
             compose.onNodeWithTag(it).assertIsDisplayed()
         }
         compose.onNodeWithTag(EditorTags.UNDO).assertIsNotEnabled()
         compose.onNodeWithText("Save copy").assertIsDisplayed()
-        compose.onNodeWithText("Original").assertDoesNotExist()
+        compose.onNodeWithTag("develop-thumbnail-original").assertIsDisplayed()
         compose.onNodeWithText("Automatic correction isn't available on this device. Presets still work.").assertDoesNotExist() // no standing notice (owner amendment 2026-10-05)
-        compose.onNodeWithText("0 / 518").assertIsDisplayed()
+        assertEquals(null, vm.uiState.value.session!!.current.look)
         EditorTool.entries.forEach { compose.onNodeWithTag(EditorTags.tool(it)).assertExists() }
     }
 
     @Test
-    fun `the ruler is an accessible range whose release is one undo step`() {
+    fun `thumbnail selection is one undo step`() {
         val vm = editor()
         show(vm)
-        compose.onNodeWithTag(EditorTags.RULER).performSemanticsAction(SemanticsActions.SetProgress) { it(37f) }
+        val chosen = vm.panelModel()!!.presets.first()
+        compose.onNodeWithTag("develop-thumbnail-${chosen.id}").performClick()
         compose.waitForIdle()
-        compose.onNodeWithText("05 Hiking 05").assertIsDisplayed()
-        compose.onNodeWithText("37 / 518").assertIsDisplayed()
+        assertEquals(chosen.id, vm.uiState.value.session!!.current.look?.lookId)
         compose.onNodeWithTag(EditorTags.UNDO).assertIsEnabled()
         assertEquals(2, vm.uiState.value.session!!.history.entries.size)
         compose.onNodeWithTag(EditorTags.UNDO).performClick()
         compose.waitForIdle()
-        compose.onNodeWithText("0 / 518").assertIsDisplayed()
+        assertEquals(null, vm.uiState.value.session!!.current.look)
     }
 
     @Test
@@ -288,8 +289,7 @@ class EditorScreenTest {
         compose.onNodeWithTag(EditorTags.COMPARE).assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
         compose.onNodeWithTag(EditorTags.COMPARE).performSemanticsAction(SemanticsActions.OnClick)
         compose.waitForIdle()
-        // The owner removed the stop-0 title; Original appears only on Compare.
-        assertEquals(1, compose.onAllNodesWithText("Original").fetchSemanticsNodes().size)
+        compose.onNodeWithTag(EditorTags.COMPARE).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Showing the original"))
     }
 
     @Test

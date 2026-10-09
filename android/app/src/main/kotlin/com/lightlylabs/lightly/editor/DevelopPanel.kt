@@ -103,7 +103,7 @@ import androidx.compose.ui.graphics.StrokeCap
  * then the ruler or the Amount slider.
  */
 @Composable
-fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, wrapped: Boolean) = Column(Modifier.fillMaxWidth()) {
+fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, wrapped: Boolean, expanded: Boolean = false) = Column(Modifier.fillMaxWidth()) {
     if (roomy) PanelTitle("Develop")
     Column(Modifier.fillMaxWidth()) {
         if (!roomy) {
@@ -112,15 +112,15 @@ fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, 
     }
     if (roomy) CategoryList(model, vm::selectCategory)
     model.notice?.let { DevelopNoticeView(it, vm) }
-    NameRow(model, vm)
-    Text(
-        model.context.ifEmpty { model.position },
-        style = lightlyTextStyle(12.5.sp, color = lightlyColors.ink3),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 18.dp).padding(horizontal = 18.dp),
-    )
-    if (model.amountOpen) AmountRow(model.amount, vm) else Ruler(model, vm)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.TextButton(onClick = vm::toggleStar, enabled = model.presetShown) { Text(if(model.starred) "★" else "☆") }
+        Text(model.name.ifEmpty { "Original" }, style = lightlyTextStyle(14.sp, color = lightlyColors.ink), maxLines = 2, modifier = Modifier.weight(1f))
+        androidx.compose.material3.TextButton(onClick = { vm.setPresetExpanded(!expanded) }) { Text(if(expanded) "Collapse" else "Expand", fontSize = 13.sp) }
+        if(vm.uiState.value.session?.current?.look != null) androidx.compose.material3.TextButton(onClick = vm::clearPreset, modifier = Modifier.testTagResource("develop-clear")) { LightlyIcon(LightlyIcons.RotateLeft, size = 17.dp, tint = lightlyColors.sel); Text("Reset", fontSize = 13.sp) }
+    }
+    PresetGallery(vm, model, expanded)
+    SliderRow("Amount", model.amount.toDouble(), 0.0, 100.0, onDrag = { vm.onAmountDrag(it.toInt()) }, onRelease = { vm.onAmountRelease(it.toInt()) }, tag = "develop-amount-slider")
+
 }
 
 @Composable

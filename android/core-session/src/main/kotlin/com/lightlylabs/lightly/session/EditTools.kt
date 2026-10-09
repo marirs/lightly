@@ -382,12 +382,14 @@ data class WatermarkTool(
 
 // --- border -----------------------------------------------------------------------------------------
 
-@Serializable enum class BorderType { @SerialName("none") NONE, @SerialName("solid") SOLID, @SerialName("frame") FRAME, @SerialName("polaroid") POLAROID }
+@Serializable enum class BorderType { @SerialName("none") NONE, @SerialName("solid") SOLID, @SerialName("frame") FRAME, @SerialName("polaroid") POLAROID, @SerialName("paper") PAPER }
 
 @Serializable
-data class BorderTool(val type: BorderType, val colour: String, val width: Double, val spacing: Double, val mat: String) {
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+data class BorderTool(val type: BorderType, val colour: String, val width: Double, val spacing: Double, val mat: String, @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.NEVER) val paperFinish: String = "deckled", @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.NEVER) val texture: Double = 25.0) {
     init {
         requireColour(colour); requireColour(mat)
+        require(paperFinish in listOf("clean", "deckled", "torn")); require(texture in 0.0..100.0)
         require(width in 1.0..15.0) { "border width must be in 1..15" }
         require(spacing in 0.0..12.0) { "border spacing must be in 0..12" }
     }

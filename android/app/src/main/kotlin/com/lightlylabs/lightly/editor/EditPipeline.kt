@@ -53,7 +53,7 @@ object EditMapping {
 
     fun border(state: EditState): BorderParams {
         val b = state.tools.border
-        return BorderParams(b.type.name.lowercase(), b.colour, b.width, b.spacing, b.mat)
+        return BorderParams(b.type.name.lowercase(), b.colour, b.width, b.spacing, b.mat, b.paperFinish, b.texture)
     }
 
     /** The applied strokes' patch digests, in order. */

@@ -32,6 +32,7 @@ struct EditorScreen: View {
     #endif
     @State private var isLeaveAlertShown = false
     @State private var isResetAlertShown = false
+    @State private var presetDockHeight: CGFloat = 59
     @State private var shareItem: ShareItem?
 
     let onClose: () -> Void
@@ -69,6 +70,21 @@ struct EditorScreen: View {
                     editor(layout)
                 } else {
                     loading(layout)
+                }
+                if tool == .develop && panel.isExpanded {
+                    VStack(spacing: 0) {
+                        Capsule().fill(.secondary.opacity(0.35)).frame(width: 36, height: 4).padding(10)
+                            .frame(maxWidth: .infinity).contentShape(Rectangle())
+                            .gesture(DragGesture().onEnded { if $0.translation.height > 30 { panel.isExpanded = false } })
+                        DevelopPanelView(model: panel, style: .tabs, expanded: true)
+                    }
+                    .frame(height: min(600, geometry.size.height - 120))
+                    .background(ApprovedColor.background.resolved(colorScheme), in: UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
+                    .shadow(color: .black.opacity(0.15), radius: 12, y: -3)
+                    .padding(.bottom, layout.mode == .side ? 0 : presetDockHeight)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("develop.expanded")
                 }
                 overlays(layout)
             }
@@ -251,8 +267,9 @@ struct EditorScreen: View {
                 topBar
                 stage
                 VStack(spacing: 0) {
-                    CappedScrollView(maximumHeight: layout.panelMaximumHeight) { toolPanel(style: .tabs) }
+                    CappedScrollView(maximumHeight: tool == .develop ? max(layout.panelMaximumHeight, 350) : layout.panelMaximumHeight) { toolPanel(style: .tabs) }
                     ToolNavigation(kind: .dockScrolls, tools: tools, selected: tool, used: used, onSelect: select)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { presetDockHeight = $0 }
                 }
                 .background(ApprovedColor.background.resolved(colorScheme))
             }
@@ -261,12 +278,13 @@ struct EditorScreen: View {
                 topBar
                 stage
                 VStack(spacing: 0) {
-                    CappedScrollView(maximumHeight: layout.panelMaximumHeight) {
+                    CappedScrollView(maximumHeight: tool == .develop ? max(layout.panelMaximumHeight, 350) : layout.panelMaximumHeight) {
                         toolPanel(style: .wrappedTabs).padding(.top, 4)
                     }
                     .frame(maxWidth: layout.contentWidth)
                     .frame(maxWidth: .infinity)
                     ToolNavigation(kind: .dockFits, tools: tools, selected: tool, used: used, onSelect: select)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { presetDockHeight = $0 }
                 }
                 .background(ApprovedColor.background.resolved(colorScheme))
             }
@@ -371,6 +389,7 @@ struct EditorScreen: View {
     #endif
 
     private func select(_ next: EditorTool) {
+        panel.isExpanded = false
         if next != tool {
             // Prototype `tool:` resets the sub-tool.
             backgroundPanel.mode = .focus

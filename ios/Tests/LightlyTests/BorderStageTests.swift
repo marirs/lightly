@@ -49,4 +49,29 @@ final class BorderStageTests: XCTestCase {
         XCTAssertEqual(pixel(out.pixels, out.width, 55, 55), [100, 100, 100, 100])
         XCTAssertEqual(pixel(out.pixels, out.width, 55, 855), [255, 255, 255, 255], "bottom margin below the photo")
     }
+    func testPaperIsDeterministicAndKeepsInteriorPixels() {
+        let input = frame(width: 400, height: 300)
+        for finish in EditRecipe.Border.PaperFinish.allCases {
+            var b = border(.paper, colour: "#ECE8DF", width: 8)
+            b.paperFinish = finish; b.texture = 70
+            let a = BorderStage.apply(b, pixels: input, width: 400, height: 300)
+            let repeatRender = BorderStage.apply(b, pixels: input, width: 400, height: 300)
+            XCTAssertEqual(a.pixels, repeatRender.pixels)
+            XCTAssertEqual(pixel(a.pixels, a.width, 232, 182), [100,100,100,100])
+            XCTAssertEqual(a.width, 464); XCTAssertEqual(a.height, 364)
+            XCTAssertNotEqual(pixel(a.pixels, a.width, 0, 0), pixel(a.pixels, a.width, 5, 3))
+        }
+    }
+
+    func testCleanPaperWithoutTextureMatchesSolidAndTornChangesOnlyEdges() {
+        let input = frame(width: 600, height: 400)
+        var b = border(.paper); b.paperFinish = .clean; b.texture = 0
+        XCTAssertEqual(BorderStage.apply(b, pixels: input, width: 600, height: 400).pixels,
+                       BorderStage.apply(border(.solid), pixels: input, width: 600, height: 400).pixels)
+        b.paperFinish = .torn
+        let torn = BorderStage.apply(b, pixels: input, width: 600, height: 400)
+        XCTAssertNotEqual(pixel(torn.pixels, torn.width, 30, 30), [100,100,100,100])
+        XCTAssertEqual(pixel(torn.pixels, torn.width, 100, 100), [100,100,100,100])
+    }
+
 }

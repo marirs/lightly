@@ -1277,6 +1277,34 @@ final class EditorSession {
 
     var originalImage: CGImage { originalPreview }
 
+    @ObservationIgnored private var thumbnailImages: [String: CGImage] = [:]
+    @ObservationIgnored private var thumbnailContext: Data?
+    var thumbnailKey: Data {
+        var r = recipe; r.look = nil; r.revision = 0
+        return EditRecipeCodec.encode(r)
+    }
+
+    /// Visible tiles only; exact pipeline on a small source, with a bounded per-photo cache.
+    func presetThumbnail(_ preset: PresetPack.Preset?) async -> CGImage? {
+        let context = thumbnailKey, key = preset?.lookVersion ?? "original"
+        if thumbnailContext != context { thumbnailImages.removeAll(); thumbnailContext = context }
+        if let image = thumbnailImages[key] { return image }
+        guard !isClosed, saveState == .idle, let renderer = library.renderer, let cache = library.cache,
+              let small = PhotoColours.small(originalPreview, edge: 200), let pixels = try? MetalLUTRenderer.rgba8Bytes(of: small) else { return nil }
+        var job = RenderJob(look: preset, strength: 1, autoLUT: autoState == .applied ? autoLUT : nil,
+                            autoStrength: recipe.auto.strength, includePixelStages: true, generation: 0)
+        job.layered = layeredInputs(for: recipe); job.layeredCap = 200
+        attachEditAndEffects(recipe, to: &job)
+        let snapshot = job
+        let result = try? await PresetThumbnailWorker.shared.run {
+            let frame = try Self.renderPixels(snapshot, base: pixels, width: small.width, height: small.height, renderer: renderer, cache: cache)
+            return try MetalLUTRenderer.makeImage(rgba8: frame.pixels, width: frame.width, height: frame.height)
+        }
+        guard !Task.isCancelled, !isClosed, context == thumbnailKey else { return nil }
+        if let result { if thumbnailImages.count >= 48 { thumbnailImages.removeAll() }; thumbnailImages[key] = result }
+        return result
+    }
+
     // MARK: - Rendering
 
     private struct RenderJob: Sendable {
@@ -2114,5 +2142,13 @@ final class SaveTiming: @unchecked Sendable {
         Self.log.notice("save \(self.width, privacy: .public)x\(self.height, privacy: .public) \(configuration, privacy: .public): \(line, privacy: .public)")
         Self.lastReport = "\(width)x\(height) \(configuration): \(line)"
         DiagnosticTrace.note("save timing \(configuration) \(line)")
+    }
+}
+
+private actor PresetThumbnailWorker {
+    static let shared = PresetThumbnailWorker()
+    func run(_ work: @Sendable () throws -> CGImage) throws -> CGImage {
+        try Task.checkCancellation()
+        return try autoreleasepool { try work() }
     }
 }

@@ -5,7 +5,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /** `tools.border` as plain values (edit-recipe-v1 `border`). [type] is none, solid, frame or polaroid; colours "#RRGGBB". */
-data class BorderParams(val type: String = "none", val colour: String = "#FFFFFF", val width: Double = 4.0, val spacing: Double = 3.0, val mat: String = "#F4F1EC") {
+data class BorderParams(val type: String = "none", val colour: String = "#FFFFFF", val width: Double = 4.0, val spacing: Double = 3.0, val mat: String = "#F4F1EC", val paperFinish: String = "deckled", val texture: Double = 25.0) {
     val isNone: Boolean get() = type == "none"
 }
 
@@ -24,7 +24,7 @@ object BorderStage {
     data class Insets(val side: Double, val top: Double, val bottom: Double)
 
     fun insets(b: BorderParams): Insets = when (b.type) {
-        "solid" -> (b.width / 100).let { Insets(it, it, it) }
+        "solid", "paper" -> (b.width / 100).let { Insets(it, it, it) }
         "frame" -> ((b.width + b.spacing) / 100).let { Insets(it, it, it) }
         "polaroid" -> Insets(0.055, 0.055, 0.24)
         else -> Insets(0.0, 0.0, 0.0)
@@ -90,6 +90,7 @@ object BorderStage {
                 System.arraycopy(photo.pixels, row * photo.width * 4, out, ((y0 - tile.y + row) * tile.width + (x0 - tile.x)) * 4, photo.width * 4)
             }
         }
+        if (b.type == "paper") PaperBorder.paint(b, p, tile, out)
         return Rgba8Image(tile.width, tile.height, out)
     }
 

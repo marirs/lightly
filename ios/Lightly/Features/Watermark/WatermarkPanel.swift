@@ -394,20 +394,10 @@ struct WatermarkPanelView: View {
                     onChange: { v in session.previewWatermark { $0.opacity = v.rounded() } },
                     onEnd: { v in session.commitWatermark { $0.opacity = v.rounded() } })
         if colours {
-            // `.chiprow` with "Colour" (min-width 84, ink-2) before the swatches.
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Text("Colour").approvedText(15).foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-                        .frame(minWidth: 84, alignment: .leading)
-                    ForEach(WatermarkPanelModel.colours, id: \.self) { hex in
-                        SwatchButton(fill: Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0), isOn: watermark.colour == hex,
-                                     label: "Colour", identifier: "watermark.colour.\(hex.dropFirst())",
-                                     colourName: SwatchButton<Color>.name(ofHex: hex)) { model.setColour(hex) }
-                    }
-                }
-                .padding(.horizontal, 18).padding(.vertical, 6)
-            }
-            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            ColourControl(title: "Colour", selected: watermark.colour, photo: model.session.originalImage,
+                          identifier: "watermark.colour", preview: { hex in session.previewWatermark { $0.colour = hex } },
+                          previewImage: { session.displayedImage }, cancel: session.cancelLookPreview, choose: model.setColour)
+
         }
     }
 }

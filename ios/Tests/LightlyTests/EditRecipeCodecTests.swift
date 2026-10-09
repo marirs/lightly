@@ -16,6 +16,14 @@ final class EditRecipeCodecTests: XCTestCase {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
+    func testPaperRoundTripsAndOldBorderDefaultsRemainReadable() throws {
+        let file = try XCTUnwrap(Self.recipeFixtures().first { $0.lastPathComponent == "border-solid.json" })
+        var recipe = try EditRecipeCodec.decode(Data(contentsOf: file))
+        XCTAssertEqual(recipe.tools.border.paperFinish, .deckled)
+        recipe.tools.border.type = .paper; recipe.tools.border.paperFinish = .torn; recipe.tools.border.texture = 73
+        XCTAssertEqual(try EditRecipeCodec.decode(EditRecipeCodec.encode(recipe)), recipe)
+    }
+
     func testEveryValidFixtureRoundTripsByteForByte() throws {
         let valid = try Self.recipeFixtures().filter { !$0.lastPathComponent.hasPrefix("invalid-") }
         XCTAssertEqual(valid.count, 25)   // 25th: effects-selective-colour (rendering-v2 revision 4)

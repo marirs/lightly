@@ -153,16 +153,18 @@ private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundT
             }
             AddTile("Choose a photo", vm::chooseBackgroundPhoto, tag = "background-add-photo") { LightlyIcon(LightlyIcons.Plus, tint = lightlyColors.ink2) }
         }
-        ReplacementKind.COLOUR -> ChipRow {
-            BackgroundOptions.SWATCHES.forEach { hex ->
-                Swatch({ SolidColor(colourOf(hex)) }, (replaced as? Replacement.Colour)?.colour == hex, "Colour $hex", { vm.chooseBackgroundColour(hex) }, tag = "swatch-$hex", colourName = SwatchNames.of(hex))
-            }
-        }
+        ReplacementKind.COLOUR -> ColourControl("Background colour", (replaced as? Replacement.Colour)?.colour ?: "#F4F1EC", ui.original, "background-colour", vm::chooseBackgroundColour, previewPhoto = ui.preview, preview = { vm.previewColour("background-colour", it) }, cancel = vm::cancelPhotoGesturePreview)
         ReplacementKind.GRADIENT -> ChipRow {
             BackgroundOptions.GRADIENTS.forEachIndexed { index, (angle, stops) ->
                 val on = (replaced as? Replacement.Gradient)?.let { g -> g.angle == angle && g.stops.map { it.colour } == stops } == true
                 Swatch({ size -> cssLinearGradient(angle, stops.map(::colourOf), size.width, size.height) }, on, "Gradient", { vm.chooseBackgroundGradient(index) }, tag = "gradient-$index", width = 52.dp, cornerRadius = 10.dp)
             }
+        }
+    }
+    if(kind == ReplacementKind.GRADIENT && replaced is Replacement.Gradient) {
+        replaced.stops.forEachIndexed { index, stop ->
+            ColourControl("Colour ${index+1}", stop.colour, ui.original, "gradient-colour-$index", { vm.gradientColour(index,it,false) },
+                previewPhoto = ui.preview, preview = { vm.gradientColour(index,it,true) }, cancel = vm::cancelPhotoGesturePreview)
         }
     }
     if (kind == ReplacementKind.IMAGE && replaced is Replacement.Image) {

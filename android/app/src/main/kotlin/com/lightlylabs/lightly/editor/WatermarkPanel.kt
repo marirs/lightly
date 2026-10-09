@@ -221,10 +221,7 @@ private fun CommonControls(vm: EditorViewModel, ui: EditorUiState, hasBorder: Bo
     val colors = lightlyColors
     WatermarkSlider(vm, ui, "Size", "size", w.size, 10.0, 80.0)
     WatermarkSlider(vm, ui, "Opacity", "opacity", w.opacity, 0.0, 100.0)
-    if (colours) ChipRow {
-        Text("Colour", style = lightlyTextStyle(color = colors.ink2), modifier = Modifier.widthIn(min = 84.dp))
-        WatermarkOptions.COLOURS.forEach { hex -> Swatch({ SolidColor(colourOf(hex)) }, w.colour == hex, "Colour", { vm.setWatermarkColour(hex) }, tag = "watermark-colour-$hex", colourName = SwatchNames.of(hex)) }
-    }
+    if (colours) ColourControl("Colour", w.colour, ui.original, "watermark-colour", vm::setWatermarkColour, previewPhoto = ui.preview, preview = { vm.previewColour("watermark-colour", it) }, cancel = vm::cancelPhotoGesturePreview)
 }
 
 @Composable

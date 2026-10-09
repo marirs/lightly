@@ -51,6 +51,11 @@ struct BackgroundPanelView: View {
     let roomy: Bool
     let wraps: Bool
 
+    private var backgroundColour: String {
+        if case .colour(let hex) = model.background.replacement { return hex }
+        return "#F4F1EC"
+    }
+
     @Environment(\.colorScheme) private var colorScheme
 
     private var session: EditorSession { model.session }
@@ -203,14 +208,10 @@ struct BackgroundPanelView: View {
                 AddBackgroundButton()
             }
         case .colour:
-            ChipRow {
-                ForEach(BackgroundPanelModel.swatches, id: \.self) { hex in
-                    SwatchButton(fill: Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0), isOn: model.background.replacement == .colour(hex),
-                                 label: "Colour \(hex)", identifier: "background.colour.\(hex)",
-                                 colourName: SwatchButton<Color>.name(ofHex: hex)) {
-                        session.commitBackground { $0.replacement = .colour(hex) }
-                    }
-                }
+            ColourControl(title: "Background colour", selected: backgroundColour, photo: session.originalImage, identifier: "background.colour",
+                          preview: { hex in session.previewBackground { $0.replacement = .colour(hex) } },
+                          previewImage: { session.displayedImage }, cancel: session.cancelLookPreview) { hex in
+                session.commitBackground { $0.replacement = .colour(hex) }
             }
         case .gradient:
             ChipRow {
@@ -221,6 +222,16 @@ struct BackgroundPanelView: View {
                                  label: "Gradient", identifier: "background.gradient.\(index)") {
                         session.commitBackground { $0.replacement = .gradient(angle: g.angle, stops: g.stops) }
                     }
+                }
+            }
+        }
+        if model.currentKind == .gradient, case .gradient(let angle, let stops)? = model.background.replacement {
+            ForEach(stops.indices, id: \.self) { index in
+                ColourControl(title: "Colour \(index + 1)", selected: stops[index].colour, photo: session.originalImage, identifier: "background.gradient.colour.\(index)",
+                              preview: { hex in var next = stops; next[index].colour = hex; session.previewBackground { $0.replacement = .gradient(angle: angle, stops: next) } },
+                              previewImage: { session.displayedImage }, cancel: session.cancelLookPreview) { hex in
+                    var next = stops; next[index].colour = hex
+                    session.commitBackground { $0.replacement = .gradient(angle: angle, stops: next) }
                 }
             }
         }

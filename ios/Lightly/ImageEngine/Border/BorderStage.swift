@@ -21,7 +21,7 @@ enum BorderStage {
     static func insets(_ border: EditRecipe.Border) -> Insets {
         switch border.type {
         case .none: return Insets(side: 0, top: 0, bottom: 0)
-        case .solid: let w = border.width / 100; return Insets(side: w, top: w, bottom: w)
+        case .solid, .paper: let w = border.width / 100; return Insets(side: w, top: w, bottom: w)
         case .frame: let t = (border.width + border.spacing) / 100; return Insets(side: t, top: t, bottom: t)
         case .polaroid: return Insets(side: 0.055, top: 0.055, bottom: 0.24)
         }
@@ -81,6 +81,7 @@ enum BorderStage {
             let destination = ((y + top) * canvasWidth + side) * 4
             canvas.replaceSubrange(destination..<(destination + rowBytes), with: pixels[source..<(source + rowBytes)])
         }
+        if border.type == .paper { PaperBorder.paint(border, placement: placement, pixels: &canvas) }
         return (canvas, canvasWidth, canvasHeight)
     }
 

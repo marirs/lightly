@@ -545,6 +545,14 @@ class EditorViewModel(
 
     fun chooseBackgroundColour(hex: String) = commitBackground { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour(hex)) }
 
+    fun gradientColour(index: Int, hex: String, preview: Boolean) {
+        val current = state.value.session?.current ?: return
+        val gradient = current.tools.background.replacement as? com.lightlylabs.lightly.session.Replacement.Gradient ?: return
+        val next = gradient.copy(stops = gradient.stops.mapIndexed { i, stop -> if(i == index) stop.copy(colour = hex) else stop })
+        if(preview) requestPreview(current.copy(tools = current.tools.copy(background = current.tools.background.copy(replacement = next))), globalOnly = false)
+        else commitBackground { it.copy(replacement = next) }
+    }
+
     fun chooseBackgroundGradient(index: Int) {
         val (angle, stops) = BackgroundOptions.GRADIENTS[index]
         commitBackground {
@@ -923,10 +931,25 @@ class EditorViewModel(
 
     fun setBorderColour(hex: String) = commitOnShownTab { it.copy(colour = hex) }
 
+    fun previewColour(target: String, hex: String) {
+        val current = state.value.session?.current ?: return
+        val tools = current.tools
+        val next = when {
+            target.startsWith("watermark") -> tools.copy(watermark = tools.watermark.copy(colour = hex))
+            target.startsWith("background") -> tools.copy(background = tools.background.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour(hex)))
+            target == "border-mat" -> tools.copy(border = withType(tools.border, borderTab()).copy(mat = hex))
+            else -> tools.copy(border = withType(tools.border, borderTab()).copy(colour = hex))
+        }
+        requestPreview(current.copy(tools = next), globalOnly = false)
+    }
+
+    fun setPaperFinish(finish: String) = commitOnShownTab { it.copy(paperFinish = finish) }
+
     fun setBorderMat(hex: String) = commitOnShownTab { it.copy(mat = hex) }
 
     private fun withBorderSlider(b: com.lightlylabs.lightly.session.BorderTool, field: String, value: Double) = when (field) {
         "width" -> b.copy(width = value.coerceIn(1.0, 15.0))
+        "texture" -> b.copy(texture = value.coerceIn(0.0, 100.0))
         "frameWidth" -> b.copy(width = value.coerceIn(1.0, 10.0))
         "spacing" -> b.copy(spacing = value.coerceIn(0.0, 12.0))
         else -> b
@@ -1451,6 +1474,40 @@ class EditorViewModel(
     }
 
     /** Release: ONE undo step, and only when the Look actually changes. No interpolation between stops. */
+    fun setPresetExpanded(expanded: Boolean) = state.update { it.copy(develop = it.develop.copy(expanded = expanded)) }
+
+    fun selectThumbnail(preset: LookPreset?) {
+        val session = state.value.session ?: return
+        val look = preset?.let { LookRef(it.id, it.lookVersion, (state.value.rememberedAmounts[it.id] ?: 100) / 100f) }
+        state.update { it.copy(develop = it.develop.copy(startsAtFirst = false, dragStop = null)) }
+        commit(session.selectLook(look), state.value.auto)
+    }
+
+    private val thumbnailCache = linkedMapOf<String, Rgba8Image>()
+    private var thumbnailRecipe: EditState? = null
+    suspend fun presetThumbnail(preset: LookPreset?): Rgba8Image? {
+        val current = state.value.session?.current ?: return null
+        val source = state.value.original ?: return null
+        val library = library ?: return null
+        val context = current.copy(look = null, revision = 0)
+        val key = preset?.lookVersion ?: "original"
+        return withContext(env.renderDispatcher) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            if (thumbnailRecipe != context) { thumbnailCache.clear(); thumbnailRecipe = context }
+            thumbnailCache[key]?.let { return@withContext it }
+            val ratio = 200.0 / maxOf(source.width, source.height)
+            val small = BackgroundSession.resize(source, maxOf(1,(source.width*ratio).toInt()), maxOf(1,(source.height*ratio).toInt()))
+            val edit = current.copy(look = preset?.let { LookRef(it.id,it.lookVersion,1f) })
+            val patched = RemoveEngine.composite(EditMapping.patchDigests(edit).mapNotNull { removePatches[it] }, small)
+            val plan = planOf(library, edit)
+            val result = EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library))
+                .renderPreview(patched, edit, plan, sourceStages(edit,library,200))
+            if (thumbnailCache.size >= 48) thumbnailCache.clear()
+            thumbnailCache[key] = result
+            result
+        }
+    }
+
     fun applyBrowsedPreset() {
         val model = panelModel() ?: return
         val session = state.value.session ?: return
