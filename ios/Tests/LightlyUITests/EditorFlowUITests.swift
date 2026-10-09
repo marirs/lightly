@@ -731,6 +731,36 @@ final class InspectionZoomUITests: XCTestCase {
 
 
 final class SliderHitTargetUITests: XCTestCase {
+    /// Hardware-only camera flow, using a separate session store.
+    func testCameraReviewRetakeAndUsePhoto() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Requires a physical camera")
+        #else
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "camera-review-check"]
+        app.launch()
+        XCTAssertTrue(app.buttons["welcome.camera"].waitForExistence(timeout: 30))
+        app.buttons["welcome.camera"].tap()
+        let permission = app.alerts.buttons["Allow"]
+        if permission.waitForExistence(timeout: 2) { permission.tap() }
+        XCTAssertTrue(app.buttons["camera.switch"].waitForExistence(timeout: 30))
+        app.buttons["camera.switch"].tap()
+        let live = XCTAttachment(screenshot: app.screenshot()); live.name = "front-camera-live"; live.lifetime = .keepAlways; add(live)
+        app.buttons["camera.shutter"].tap()
+        XCTAssertTrue(app.buttons["camera.use"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["camera.shutter"].exists)
+        let review = XCTAttachment(screenshot: app.screenshot()); review.name = "front-camera-review"; review.lifetime = .keepAlways; add(review)
+        app.buttons["camera.retake"].tap()
+        XCTAssertTrue(app.buttons["camera.shutter"].waitForExistence(timeout: 10))
+        app.buttons["camera.shutter"].tap()
+        XCTAssertTrue(app.buttons["camera.use"].waitForExistence(timeout: 30))
+        app.buttons["camera.use"].tap()
+        XCTAssertTrue(app.buttons["editor.saveCopy"].waitForExistence(timeout: 60))
+        let editor = XCTAttachment(screenshot: app.screenshot()); editor.name = "front-camera-editor"; editor.lifetime = .keepAlways; add(editor)
+        #endif
+    }
+
     func testPresetGalleryOverlaysWithoutResizingPhoto() {
         let app = XCUIApplication()
         app.launchArguments = ["--keep-stored-session", "--session-store", "gallery-check", "--open-photo",

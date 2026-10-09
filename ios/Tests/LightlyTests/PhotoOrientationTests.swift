@@ -168,6 +168,40 @@ final class PhotoOrientationTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testCameraReviewUsesExactlyTheImageHandedToEditor() throws {
+        var delivered: Data?
+        let coordinator = CameraCaptureView.Coordinator(onCapture: { delivered = $0 }, onCancel: { XCTFail("Unexpected cancel") })
+        let original = UIImage(cgImage: TestFixtures.makeImage(width: 96, height: 64), scale: 1, orientation: .right)
+        coordinator.receive(original, camera: .front)
+        XCTAssertNil(delivered, "Capture must wait for Use Photo")
+        let pending = try XCTUnwrap(coordinator.pendingCapture)
+        let displayed = try XCTUnwrap(coordinator.overlay.reviewImage.image)
+        let decoded = try XCTUnwrap(UIImage(data: pending))
+        XCTAssertEqual(displayed.imageOrientation, decoded.imageOrientation)
+        XCTAssertEqual(TestFixtures.rgbaBytes(of: try XCTUnwrap(displayed.cgImage)), TestFixtures.rgbaBytes(of: try XCTUnwrap(decoded.cgImage)))
+        coordinator.usePhoto()
+        XCTAssertEqual(delivered, pending)
+        XCTAssertNil(coordinator.pendingCapture)
+        coordinator.usePhoto() // No second delivery.
+    }
+
+    @MainActor
+    func testRetakeDiscardsConfirmationAndDoesNotDeliverPhoto() throws {
+        var deliveries = 0
+        let coordinator = CameraCaptureView.Coordinator(onCapture: { _ in deliveries += 1 }, onCancel: { XCTFail("Unexpected cancel") })
+        coordinator.receive(UIImage(cgImage: TestFixtures.makeImage()), camera: .front)
+        XCTAssertNotNil(coordinator.pendingCapture)
+        coordinator.retake()
+        XCTAssertNil(coordinator.pendingCapture)
+        XCTAssertNil(coordinator.overlay.reviewImage.image)
+        coordinator.usePhoto()
+        XCTAssertEqual(deliveries, 0)
+        coordinator.receive(UIImage(cgImage: TestFixtures.makeImage()), camera: .rear)
+        coordinator.usePhoto()
+        XCTAssertEqual(deliveries, 1)
+    }
+
     // MARK: - Helpers
 
     private struct Pixel {

@@ -28,3 +28,7 @@ When None is selected, show the border style choices only. Remove the redundant 
 ### Front-camera capture — owner approved
 
 Keep front-camera captures mirrored horizontally to match the viewfinder when entering the editor. Apply the transform before HEIC/JPEG encoding, respecting sensor orientation, so previews, session recovery and saved copies share the same source. Rear-camera and library photos are unchanged.
+
+### Camera confirmation mirroring — follow-up correction
+
+The prior correction ran after the system Use Photo screen and missed the reported transition. The supported UIImagePickerController overlay now owns capture controls and Retake / Use Photo review. Capture remains system-managed. Review displays the mirrored encoded image itself; Use Photo delivers those same bytes, with no second transform. Front-camera, rear-camera, flash, shutter and cancellation remain available. The native camera confirmation is bypassed via showsCameraControls=false and takePicture(), without inspecting private UIKit views.
