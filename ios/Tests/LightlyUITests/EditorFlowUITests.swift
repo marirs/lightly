@@ -728,3 +728,60 @@ final class InspectionZoomUITests: XCTestCase {
         return condition()
     }
 }
+
+
+final class SliderHitTargetUITests: XCTestCase {
+    func testClearPresetAndSignatureAndNoBorderSignatureOption() {
+        let app = XCUIApplication()
+        let base = ["--keep-stored-session", "--session-store", "clear-actions-test", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario"]
+        app.launchArguments = base + ["dev-preset"]
+        app.launch()
+        let clear = app.buttons["develop.clear"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 60))
+        let presetShot = XCTAttachment(screenshot: app.screenshot()); presetShot.name = "preset-clear-control"; presetShot.lifetime = .keepAlways; add(presetShot)
+        clear.tap()
+        XCTAssertFalse(clear.exists)
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(clear.waitForExistence(timeout: 10))
+        app.terminate()
+        app.launchArguments = base + ["wm-signature"]
+        app.launch()
+        let signatureClear = app.buttons["watermark.signature.clear"]
+        XCTAssertTrue(signatureClear.waitForExistence(timeout: 60))
+        let signatureShot = XCTAttachment(screenshot: app.screenshot()); signatureShot.name = "signature-clear-controls"; signatureShot.lifetime = .keepAlways; add(signatureShot)
+        signatureClear.tap()
+        XCTAssertTrue(app.buttons["watermark.signature.drawn"].exists)
+        XCTAssertFalse(signatureClear.exists)
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(signatureClear.waitForExistence(timeout: 10))
+        app.terminate()
+        app.launchArguments = base + ["bd-polaroid"]
+        app.launch()
+        XCTAssertTrue(app.buttons["border.type.polaroid"].waitForExistence(timeout: 60))
+        XCTAssertFalse(app.descendants(matching: .any)["border.polaroid.signature"].exists)
+    }
+
+    func testAdjacentEffectSlidersOwnTheirVisibleRows() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--keep-stored-session", "--session-store", "slider-hit-test", "--open-photo",
+            "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "fx-leak"]
+        app.launch()
+        let top = app.descendants(matching: .any)["slider.intensity"].firstMatch
+        let bottom = app.descendants(matching: .any)["slider.rotation"].firstMatch
+        XCTAssertTrue(top.waitForExistence(timeout: 60))
+        XCTAssertTrue(bottom.exists)
+        for offset in [-10.0, 0.0, 10.0] {
+            let unchanged = bottom.value as? String
+            let beforeTop = top.value as? String
+            let start = top.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).withOffset(CGVector(dx: 0, dy: offset))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 60, dy: 0)))
+            XCTAssertEqual(bottom.value as? String, unchanged, "Upper row touch must not move Rotation; offset \(offset)")
+            if offset == -10 { XCTAssertNotEqual(top.value as? String, beforeTop, "The touched slider must move") }
+        }
+        let unchanged = top.value as? String
+        let start = bottom.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: -50, dy: 0)))
+        XCTAssertEqual(top.value as? String, unchanged, "Lower row must not move Intensity")
+    }
+}

@@ -163,6 +163,16 @@ struct DevelopPanelView: View {
             .disabled(preset == nil)
             .accessibilityHidden(preset == nil)
             .accessibilityIdentifier("develop.amount")
+            if model.session.recipe.look != nil {
+                Button(action: model.clearPreset) {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(c(ApprovedColor.inkSecondary))
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear preset")
+                .accessibilityIdentifier("develop.clear")
+            }
         }
         .padding(.leading, 8).padding(.trailing, 6).padding(.top, 2)
         .frame(minHeight: 44)
@@ -292,7 +302,7 @@ struct ApprovedSlider: View {
                         .offset(x: width * fraction - 9)
                 }
                 .frame(maxHeight: .infinity)
-                .contentShape(Rectangle().inset(by: -20))
+                .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
                         let next = range.lowerBound + min(max(Double(gesture.location.x / max(width, 1)), 0), 1) * (range.upperBound - range.lowerBound)
@@ -306,6 +316,7 @@ struct ApprovedSlider: View {
                     })
             }
             .frame(minWidth: 90, idealWidth: fixedTrackWidth ?? 90, maxWidth: fixedTrackWidth ?? .infinity)
+            .frame(height: 44)
             Text("\(Int(value.rounded()))")
                 .approvedText(13).monospacedDigit()
                 .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))

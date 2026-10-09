@@ -409,6 +409,22 @@ final class WatermarkSessionTests: XCTestCase {
         return try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
     }
 
+    func testClearSignatureKeepsDrawingAndUndoWhileDeleteRemovesDrawing() async throws {
+        let session = try await EditorTestSupport.readySession()
+        let panel = WatermarkPanelModel(session: session, signatures: session.signatures)
+        panel.saveDrawn(.prototypeSample)
+        let saved = session.signatures.drawn
+        let before = session.recipe.tools.watermark
+        panel.clearSignature()
+        XCTAssertEqual(session.recipe.tools.watermark.type, .none)
+        XCTAssertEqual(session.signatures.drawn, saved)
+        session.undo()
+        XCTAssertEqual(session.recipe.tools.watermark, before)
+        panel.deleteDrawnSignature()
+        XCTAssertNil(session.signatures.drawn)
+        XCTAssertEqual(session.recipe.tools.watermark.type, .none)
+    }
+
     func testSaveCopyCarriesTheBorderAndTheWatermarkAndTheSessionKeepsTheOriginal() async throws {
         let session = try await EditorTestSupport.readySession()
         let original = session.photo.originalData

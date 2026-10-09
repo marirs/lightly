@@ -19,6 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -80,7 +84,11 @@ fun WatermarkPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Col
         WatermarkType.SIGNATURE -> {
             val chosen = if (w.type == WatermarkType.SIGNATURE) w.signature?.kind else null
             ChipRow {
-                saved.drawn?.let { s -> SignatureChip(s, chosen == SignatureKind.DRAWN, vm) { vm.chooseSignature(SignatureKind.DRAWN) } }
+                saved.drawn?.let { s ->
+                    SignatureChip(s, chosen == SignatureKind.DRAWN, vm) { vm.chooseSignature(SignatureKind.DRAWN) }
+                    SavedDrawingMenu(vm)
+                }
+                if (chosen != null) QuietSmallButton("Clear", vm::clearSignature, Modifier.testTagResource("watermark-signature-clear"))
                 saved.imported?.let { s -> SignatureChip(s, chosen == SignatureKind.IMPORTED, vm) { vm.chooseSignature(SignatureKind.IMPORTED) } }
                 OptChip(false, "Draw", vm::openDrawSignature, tag = "watermark-draw") { ChipLabel(LightlyIcons.Plus, "Draw") }
                 OptChip(false, "Import", { vm.onChooseSignaturePhoto() }, tag = "watermark-import") { ChipLabel(LightlyIcons.Photo, "Import") }
@@ -237,4 +245,26 @@ internal fun watermarkFontFamily(assets: android.content.res.AssetManager, font:
         WatermarkFont.INTER -> family("Inter-Variable.ttf", weight ?: 400)
         WatermarkFont.CAVEAT -> family("Caveat-Variable.ttf", 500)
     }
+}
+
+
+@Composable
+private fun SavedDrawingMenu(vm: EditorViewModel) {
+    var expanded by remember { mutableStateOf(false) }
+    var confirm by remember { mutableStateOf(false) }
+    Box {
+        Box(Modifier.size(44.dp).clickable { expanded = true }
+            .semantics { contentDescription = "Manage saved signature" }.testTagResource("watermark-signature-manage"), contentAlignment = Alignment.Center) {
+            LightlyIcon(LightlyIcons.More, tint = lightlyColors.ink2)
+        }
+        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text("Draw replacement") }, onClick = { expanded = false; vm.openDrawSignature() })
+            DropdownMenuItem(text = { Text("Delete saved signature") }, onClick = { expanded = false; confirm = true })
+        }
+    }
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false },
+        title = { Text("Delete saved signature?") },
+        text = { Text("This removes the saved drawing and its signature from this photo.") },
+        confirmButton = { TextButton(onClick = { confirm = false; vm.deleteDrawnSignature() }) { Text("Delete signature") } },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } })
 }

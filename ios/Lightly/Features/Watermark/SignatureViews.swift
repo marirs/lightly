@@ -55,7 +55,7 @@ final class SignaturePadModel {
     /// True while a finger is down: the points go to the last stroke.
     private var isDrawing = false
 
-    func clear() { strokes = [] }
+    func clear() { strokes = []; isDrawing = false }
 
     func continueStroke(at location: CGPoint) {
         let point = DrawnSignature.Point(x: Double(location.x), y: Double(location.y))

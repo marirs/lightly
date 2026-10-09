@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.geometry.Offset
@@ -145,6 +146,64 @@ class EditorScreenTest {
         compose.waitForIdle()
         assertEquals(before, vm.uiState.value.session)
         assertTrue(vm.uiState.value.edit.pendingStroke == null)
+    }
+
+    @Test
+    fun `adjacent sliders only change the touched row and border has no signature switch`() {
+        val vm = editor()
+        show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
+        val rotation = vm.uiState.value.session!!.current.tools.effects.lightLeak.rotation
+        val intensity = vm.uiState.value.session!!.current.tools.effects.lightLeak.intensity
+        compose.onNodeWithTag("effects-slider-leakIntensity").performTouchInput {
+            swipe(Offset(width * 0.3f, height * 0.5f), Offset(width * 0.8f, height * 0.5f), 300)
+        }
+        compose.waitForIdle()
+        assertEquals(rotation, vm.uiState.value.session!!.current.tools.effects.lightLeak.rotation)
+        assertTrue(intensity != vm.uiState.value.session!!.current.tools.effects.lightLeak.intensity)
+        val top = vm.uiState.value.session!!.current.tools.effects.lightLeak.intensity
+        compose.onNodeWithTag("effects-slider-leakRotation").performTouchInput {
+            swipe(Offset(width * 0.5f, height * 0.5f), Offset(width * 0.2f, height * 0.5f), 300)
+        }
+        compose.waitForIdle()
+        assertEquals(top, vm.uiState.value.session!!.current.tools.effects.lightLeak.intensity)
+        compose.runOnIdle { vm.selectTool(EditorTool.BORDER); vm.chooseBorder(com.lightlylabs.lightly.session.BorderType.POLAROID) }
+        compose.onNodeWithText("Signature on the margin").assertDoesNotExist()
+        compose.onNodeWithTag("border-signature-on-margin").assertDoesNotExist()
+    }
+
+    @Test
+    fun `clear preset preserves other edits and undo restores it`() {
+        val vm = editor(); show(vm)
+        compose.onNodeWithTag(EditorTags.RULER).performSemanticsAction(SemanticsActions.SetProgress) { it(37f) }
+        val before = vm.uiState.value.session!!.current
+        compose.onNodeWithTag("develop-clear").performClick()
+        compose.waitForIdle()
+        val cleared = vm.uiState.value.session!!.current
+        assertEquals(null, cleared.look)
+        assertEquals(before.tools, cleared.tools)
+        compose.onNodeWithTag(EditorTags.UNDO).performClick()
+        assertEquals(before.look, vm.uiState.value.session!!.current.look)
+    }
+
+    @Test
+    fun `clear signature keeps saved drawing and delete removes it`() {
+        val vm = editor(); show(vm)
+        compose.runOnIdle {
+            vm.selectTool(EditorTool.WATERMARK)
+            vm.chooseWatermark(com.lightlylabs.lightly.session.WatermarkType.SIGNATURE)
+            vm.padStroke(listOf(listOf(com.lightlylabs.lightly.signatures.DrawnSignature.Point(0.0, 0.0), com.lightlylabs.lightly.signatures.DrawnSignature.Point(40.0, 25.0))))
+            vm.saveDrawnSignature()
+        }
+        compose.onNodeWithTag("watermark-signature-clear").performClick()
+        compose.waitForIdle()
+        assertEquals(com.lightlylabs.lightly.session.WatermarkType.NONE, vm.uiState.value.session!!.current.tools.watermark.type)
+        assertTrue(vm.signatures.value.drawn != null)
+        compose.runOnIdle { vm.undo() }
+        assertEquals(com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, vm.uiState.value.session!!.current.tools.watermark.type)
+        compose.runOnIdle { vm.deleteDrawnSignature() }
+        assertEquals(null, vm.signatures.value.drawn)
+        assertEquals(com.lightlylabs.lightly.session.WatermarkType.NONE, vm.uiState.value.session!!.current.tools.watermark.type)
     }
 
     @Test

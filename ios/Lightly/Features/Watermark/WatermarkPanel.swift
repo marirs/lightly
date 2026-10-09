@@ -92,6 +92,15 @@ final class WatermarkPanelModel {
         session.commitWatermark { w in Self.setType(.signature, on: &w); w.signature = saved.reference }
     }
 
+    func clearSignature() {
+        session.commitWatermark { Self.setType(.none, on: &$0) }
+    }
+
+    func deleteDrawnSignature() {
+        if watermark.type == .signature && watermark.signature?.kind == .drawn { clearSignature() }
+        signatures.delete(.drawn)
+    }
+
     func openDraw() {
         pad.clear()
         sheet = .draw
@@ -229,6 +238,7 @@ struct WatermarkPanelView: View {
     let wraps: Bool
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var confirmsDeleteDrawing = false
     @State private var signaturePhoto: PhotosPickerItem?
     @State private var logoPhoto: PhotosPickerItem?
     @State private var editedText = ""
@@ -274,11 +284,30 @@ struct WatermarkPanelView: View {
                 OptionChip(isOn: chosen == .drawn, identifier: "watermark.signature.drawn", minWidth: 120,
                            action: { model.chooseSignature(.drawn) }) { SignatureGlyph(signature: drawn, height: 26) }
                     .accessibilityLabel(Text("Drawn signature"))
+                Menu {
+                    Button("Draw replacement", action: model.openDraw)
+                    Button("Delete saved signature", role: .destructive) { confirmsDeleteDrawing = true }
+                } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 18))
+                        .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .accessibilityLabel("Manage saved signature")
+                .accessibilityIdentifier("watermark.signature.manage")
+                .confirmationDialog("Delete saved signature?", isPresented: $confirmsDeleteDrawing, titleVisibility: .visible) {
+                    Button("Delete signature", role: .destructive, action: model.deleteDrawnSignature)
+                } message: { Text("This removes the saved drawing and its signature from this photo.") }
             }
             if let imported = model.signatures.imported {
                 OptionChip(isOn: chosen == .imported, identifier: "watermark.signature.imported", minWidth: 120,
                            action: { model.chooseSignature(.imported) }) { SignatureGlyph(signature: imported, height: 26) }
                     .accessibilityLabel(Text("Imported signature"))
+            }
+            if chosen != nil {
+                Button("Clear", action: model.clearSignature)
+                    .buttonStyle(QuietButtonStyle())
+                    .accessibilityLabel("Clear signature from photo")
+                    .accessibilityIdentifier("watermark.signature.clear")
             }
             OptionChip(isOn: false, identifier: "watermark.signature.draw", action: model.openDraw) {
                 ApprovedIconView(icon: .plus, size: 18); Text("Draw").approvedText(15)

@@ -144,7 +144,7 @@ struct PanelSlider: View {
                         .offset(x: width * fraction - 9)
                 }
                 .frame(maxHeight: .infinity)
-                .contentShape(Rectangle().inset(by: -20))
+                .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
                         let next = range.lowerBound + min(max(Double(gesture.location.x / max(width, 1)), 0), 1) * (range.upperBound - range.lowerBound)
@@ -158,6 +158,7 @@ struct PanelSlider: View {
                     })
             }
             .frame(minWidth: 90)
+            .frame(height: 44)
             Text("\(value > 0 && mid ? "+" : "")\(Int(value.rounded()))")
                 .approvedText(13).monospacedDigit()
                 .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))

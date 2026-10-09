@@ -186,6 +186,15 @@ final class DevelopPanelModel {
     var amountValue: Double { draggingAmount ?? session.appliedAmount }
     var amountButtonTitle: String { "Amount \(Int(amountValue.rounded()))" }
 
+    func clearPreset() {
+        let category = currentCategoryID
+        draggingAmount = nil
+        draggingStop = nil; dragStartStop = nil; isFine = false; isAmountOpen = false
+        session.applyLook(nil)
+        browsedCategoryID = category
+        browsedAtHistoryRevision = session.historyRevision
+    }
+
     func openAmount() { if namedPreset != nil { isAmountOpen = true } }
     func closeAmount() { isAmountOpen = false }
 

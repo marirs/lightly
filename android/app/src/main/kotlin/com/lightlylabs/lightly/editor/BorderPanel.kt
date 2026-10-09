@@ -1,23 +1,12 @@
 package com.lightlylabs.lightly.editor
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.lightlylabs.lightly.session.BorderType
-import com.lightlylabs.lightly.shell.ToggleKnob
-import com.lightlylabs.lightly.shell.lightlyColors
-import com.lightlylabs.lightly.shell.lightlyTextStyle
-import com.lightlylabs.lightly.shell.testTagResource
 
 object BorderOptions {
     val TABS = listOf(BorderType.NONE to "None", BorderType.SOLID to "Solid", BorderType.FRAME to "Photo Frame", BorderType.POLAROID to "Polaroid")
@@ -51,20 +40,7 @@ fun BorderPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column
         BorderType.POLAROID -> {
             Swatches(BorderOptions.POLAROID, border.colour, vm::setBorderColour, "border-colour")
             PanelNote("A wider bottom margin, as on an instant print.")
-            // `<button class="listrow" style="border:0;width:100%">`: the label and the approved switch.
-            val on = vm.signatureOnMargin(ui)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 52.dp)
-                    .toggleable(value = on, role = Role.Switch, onValueChange = { vm.toggleSignatureOnMargin() })
-                    .testTagResource("border-signature-on-margin")
-                    .padding(horizontal = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Signature on the margin", style = lightlyTextStyle(color = lightlyColors.ink), modifier = Modifier.weight(1f))
-                ToggleKnob(on)
-            }
+
         }
     }
 }

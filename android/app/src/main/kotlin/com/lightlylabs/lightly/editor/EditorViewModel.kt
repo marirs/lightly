@@ -1108,6 +1108,14 @@ class EditorViewModel(
         commitWatermark { withType(it, com.lightlylabs.lightly.session.WatermarkType.SIGNATURE, signature = saved.reference) }
     }
 
+    fun clearSignature() = commitWatermark { withType(it, com.lightlylabs.lightly.session.WatermarkType.NONE) }
+
+    fun deleteDrawnSignature() {
+        val w = state.value.session?.current?.tools?.watermark
+        if (w?.type == com.lightlylabs.lightly.session.WatermarkType.SIGNATURE && w.signature?.kind == com.lightlylabs.lightly.session.SignatureKind.DRAWN) clearSignature()
+        env.signatures.delete(com.lightlylabs.lightly.session.SignatureKind.DRAWN)
+    }
+
     fun openDrawSignature() = state.update { it.copy(overlay = EditorOverlay.SIGNATURE_DRAW, watermark = it.watermark.copy(pad = emptyList(), fromPreferences = false)) }
 
     // --- Preferences › Saved signature (the same sheets and store; the recipe is not changed) ---
@@ -1443,6 +1451,14 @@ class EditorViewModel(
     }
 
     /** Release: ONE undo step, and only when the Look actually changes. No interpolation between stops. */
+    fun clearPreset() {
+        val session = state.value.session ?: return
+        if (session.current.look == null) return
+        val category = panelModel()?.categoryId
+        state.update { it.copy(develop = it.develop.copy(category = category, dragStop = null, dragStart = null, fine = false, amountOpen = false, amountDrag = null)) }
+        commit(session.selectLook(null), state.value.auto)
+    }
+
     fun onRulerRelease(stop: Int) {
         try { releaseRuler(stop) } finally { logRuler("release") }
     }

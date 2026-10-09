@@ -170,15 +170,7 @@ struct BorderPanelView: View {
             model.commit { $0.colour = c }
         }
         ApprovedNote("A wider bottom margin, as on an instant print.")
-        // `.listrow` with `border:0;width:100%`, the switch at the trailing edge.
-        Toggle(isOn: Binding(get: { model.signatureOnMargin }, set: { _ in model.toggleSignatureOnMargin() })) {
-            Text("Signature on the margin").approvedText(15).foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
-        }
-        .toggleStyle(ApprovedSwitchToggleStyle())
-        .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
-        // `.listrow` keeps its 52 pt min-height here (only Effects' On rows set 44).
-        .frame(minHeight: ApprovedMetrics.rowMinimumHeight)
-        .accessibilityIdentifier("border.polaroid.signature")
+
     }
 
     /// `.note` with `padding-bottom:0`: a section caption above a swatch row.
