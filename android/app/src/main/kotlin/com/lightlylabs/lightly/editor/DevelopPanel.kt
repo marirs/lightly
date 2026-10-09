@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.calculateTargetValue
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -104,6 +105,15 @@ import androidx.compose.ui.graphics.StrokeCap
  */
 @Composable
 fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, wrapped: Boolean, expanded: Boolean = false) = Column(Modifier.fillMaxWidth()) {
+    if (!expanded) Box(Modifier.fillMaxWidth().height(24.dp).pointerInput(Unit) {
+        var distance = 0f
+        detectVerticalDragGestures(onDragStart = { distance = 0f }) { change, dy ->
+            distance += dy
+            if (distance < -24.dp.toPx()) { change.consume(); vm.setPresetExpanded(true) }
+        }
+    }, contentAlignment = Alignment.Center) {
+        Box(Modifier.width(36.dp).height(4.dp).background(lightlyColors.hair, CircleShape))
+    }
     if (roomy) PanelTitle("Develop")
     Column(Modifier.fillMaxWidth()) {
         if (!roomy) {
@@ -115,7 +125,6 @@ fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, 
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         androidx.compose.material3.TextButton(onClick = vm::toggleStar, enabled = model.presetShown) { Text(if(model.starred) "★" else "☆") }
         Text(model.name.ifEmpty { "Original" }, style = lightlyTextStyle(14.sp, color = lightlyColors.ink), maxLines = 2, modifier = Modifier.weight(1f))
-        androidx.compose.material3.TextButton(onClick = { vm.setPresetExpanded(!expanded) }) { Text(if(expanded) "Collapse" else "Expand", fontSize = 13.sp) }
         if(vm.uiState.value.session?.current?.look != null) androidx.compose.material3.TextButton(onClick = vm::clearPreset, modifier = Modifier.testTagResource("develop-clear")) { LightlyIcon(LightlyIcons.RotateLeft, size = 17.dp, tint = lightlyColors.sel); Text("Reset", fontSize = 13.sp) }
     }
     PresetGallery(vm, model, expanded)

@@ -107,6 +107,27 @@ class EditorScreenTest {
     }
 
     @Test
+    fun `preset tray expands vertically and collapses from grid top`() {
+        val vm = editor(); show(vm)
+        val before = vm.uiState.value.session!!.current
+        compose.onNodeWithTag("develop-gallery-compact").performTouchInput {
+            swipe(Offset(width * .8f, height * .5f), Offset(width * .2f, height * .5f), 300)
+        }
+        assertTrue(!vm.uiState.value.develop.expanded)
+        compose.onNodeWithTag("develop-gallery-compact").performTouchInput {
+            swipe(Offset(width * .5f, height * .8f), Offset(width * .5f, height * .2f), 300)
+        }
+        compose.waitForIdle()
+        assertTrue(vm.uiState.value.develop.expanded)
+        compose.onNodeWithTag("develop-gallery-expanded").performTouchInput {
+            swipe(Offset(width * .5f, height * .2f), Offset(width * .5f, height * .8f), 300)
+        }
+        compose.waitForIdle()
+        assertTrue(!vm.uiState.value.develop.expanded)
+        assertEquals(before, vm.uiState.value.session!!.current)
+    }
+
+    @Test
     fun `reset all confirms and one undo restores scoped edits`() {
         val vm = editor()
         show(vm)

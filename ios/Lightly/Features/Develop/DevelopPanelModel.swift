@@ -16,6 +16,7 @@ final class DevelopPanelModel {
     static let defaultCategoryID = "landscape"
 
     var isExpanded = false
+    var galleryPull: CGFloat = 0
 
     let session: EditorSession
     let favourites: FavouritePresetsStore

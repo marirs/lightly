@@ -31,6 +31,17 @@ struct DevelopPanelView: View {
                     .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 4)
                     .accessibilityAddTraits(.isHeader)
             }
+            if !expanded {
+                Capsule().fill(.secondary.opacity(0.35)).frame(width: 36, height: 4)
+                    .frame(maxWidth: .infinity).frame(height: 24).contentShape(Rectangle())
+                    .gesture(DragGesture().onChanged { value in
+                        if value.translation.height < -24 && abs(value.translation.height) > abs(value.translation.width) {
+                            withAnimation(.snappy(duration: 0.25)) { model.isExpanded = true }
+                        }
+                    })
+                    .accessibilityLabel("Preset browser")
+                    .accessibilityAction(named: "Expand presets") { model.isExpanded = true }
+            }
             header
             if style == .list { categoryList }
             notice
@@ -51,9 +62,6 @@ struct DevelopPanelView: View {
             }.disabled(model.namedPreset == nil).accessibilityLabel("Favourite").accessibilityIdentifier("develop.star")
             Text(model.namedPreset?.displayName ?? "Original").approvedText(14, weight: .semibold)
                 .foregroundStyle(c(ApprovedColor.ink)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("develop.name")
-            Button { model.isExpanded.toggle() } label: {
-                Label(expanded ? "Collapse" : "Expand", systemImage: expanded ? "chevron.down" : "chevron.up").approvedText(13).frame(minHeight: 44)
-            }.accessibilityIdentifier("develop.expand")
             if model.session.recipe.look != nil {
                 Button(action: model.clearPreset) { Label("Reset", systemImage: "arrow.counterclockwise").approvedText(13).frame(minHeight: 44) }
                     .accessibilityLabel("Reset preset").accessibilityIdentifier("develop.clear")

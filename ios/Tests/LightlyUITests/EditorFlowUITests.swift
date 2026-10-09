@@ -736,14 +736,20 @@ final class SliderHitTargetUITests: XCTestCase {
         app.launchArguments = ["--keep-stored-session", "--session-store", "gallery-check", "--open-photo",
             "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "dev-starred"]
         app.launch()
-        let expand = app.buttons["develop.expand"]
+        let expand = app.descendants(matching: .any)["develop.gallery.compact"].firstMatch
         XCTAssertTrue(expand.waitForExistence(timeout: 60))
         let before = app.descendants(matching: .any)["editor.photo"].firstMatch.frame
-        expand.tap()
+        expand.swipeLeft()
+        XCTAssertFalse(app.otherElements["develop.expanded"].exists)
+        expand.swipeUp()
         XCTAssertTrue(app.otherElements["develop.expanded"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.descendants(matching: .any)["editor.photo"].firstMatch.frame, before)
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "expanded-presets-over-photo"; shot.lifetime = .keepAlways; add(shot)
-        app.buttons.matching(NSPredicate(format: "identifier == 'develop.expand' AND label CONTAINS 'Collapse'")).firstMatch.tap()
+        XCTAssertFalse(app.buttons["Expand"].exists)
+        XCTAssertFalse(app.buttons["Collapse"].exists)
+        let grid = app.descendants(matching: .any)["develop.gallery.expanded"].firstMatch
+        grid.swipeDown()
+        XCTAssertTrue(app.otherElements["develop.expanded"].waitForNonExistence(timeout: 10))
         let reset = app.buttons["develop.clear"]
         reset.tap(); XCTAssertFalse(reset.exists)
         app.buttons["editor.undo"].tap(); XCTAssertTrue(reset.waitForExistence(timeout: 10))
@@ -779,10 +785,10 @@ final class SliderHitTargetUITests: XCTestCase {
             "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "dev-starred",
             "-lightly.preferences.v1.appearance", "dark"]
         app.launch()
-        XCTAssertTrue(app.buttons["develop.expand"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.descendants(matching: .any)["develop.gallery.compact"].firstMatch.waitForExistence(timeout: 60))
         let compact = XCTAttachment(screenshot: app.screenshot()); compact.name = "compact-gallery-dark"; compact.lifetime = .keepAlways; add(compact)
-        app.buttons["develop.expand"].tap()
-        XCTAssertTrue(app.buttons["Collapse"].waitForExistence(timeout: 10))
+        app.descendants(matching: .any)["develop.gallery.compact"].firstMatch.swipeUp()
+        XCTAssertTrue(app.otherElements["develop.expanded"].waitForExistence(timeout: 10))
         let expanded = XCTAttachment(screenshot: app.screenshot()); expanded.name = "expanded-gallery-dark"; expanded.lifetime = .keepAlways; add(expanded)
     }
 

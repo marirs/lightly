@@ -16,3 +16,7 @@ Paper uses a deterministic surface in source-width coordinates. Android whole/ti
 Focused iOS native tests cover Paper/picker entry, preset expansion with the photo frame unchanged, Reset/Undo, and Favourites beginning at the first tile. Colour Done/Cancel and dark-theme checks are recorded with the packaged evidence. Android screen tests are updated from ruler interactions to thumbnail selection; renderer/recipe tests remain applicable.
 
 This is a focused slice, not acceptance of the complete device/theme/text-size matrix. No approved reference image or mock was rewritten.
+
+## Follow-up: gesture expansion
+
+Owner approved replacing visible Expand/Collapse buttons with gestures. Swipe up on the compact tray (or its grab handle) to expand over the unchanged photo. Horizontal swipes keep browsing the compact tray. In the expanded grid, downward scrolling browses normally until the top; pulling down from the top collapses it. The grab handle can collapse the panel from any scroll position. Screen-reader custom actions expose the same operations without visible buttons.

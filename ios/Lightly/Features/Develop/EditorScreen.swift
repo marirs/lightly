@@ -75,12 +75,22 @@ struct EditorScreen: View {
                     VStack(spacing: 0) {
                         Capsule().fill(.secondary.opacity(0.35)).frame(width: 36, height: 4).padding(10)
                             .frame(maxWidth: .infinity).contentShape(Rectangle())
-                            .gesture(DragGesture().onEnded { if $0.translation.height > 30 { panel.isExpanded = false } })
+                             .gesture(DragGesture().onChanged { panel.galleryPull = max(0, $0.translation.height) }.onEnded { _ in
+                                withAnimation(.snappy(duration: 0.25)) {
+                                    if panel.galleryPull > 40 { panel.isExpanded = false }
+                                    panel.galleryPull = 0
+                                }
+                            })
+                            .accessibilityIdentifier("develop.gallery.handle")
+                            .accessibilityLabel("Preset browser")
+                            .accessibilityAction(named: "Collapse presets") { panel.isExpanded = false }
                         DevelopPanelView(model: panel, style: .tabs, expanded: true)
                     }
                     .frame(height: min(600, geometry.size.height - 120))
                     .background(ApprovedColor.background.resolved(colorScheme), in: UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
                     .shadow(color: .black.opacity(0.15), radius: 12, y: -3)
+                    .offset(y: panel.galleryPull)
+                    .transition(.move(edge: .bottom))
                     .padding(.bottom, layout.mode == .side ? 0 : presetDockHeight)
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .accessibilityElement(children: .contain)
@@ -267,7 +277,8 @@ struct EditorScreen: View {
                 topBar
                 stage
                 VStack(spacing: 0) {
-                    CappedScrollView(maximumHeight: tool == .develop ? max(layout.panelMaximumHeight, 350) : layout.panelMaximumHeight) { toolPanel(style: .tabs) }
+                    if tool == .develop { toolPanel(style: .tabs) }
+                    else { CappedScrollView(maximumHeight: layout.panelMaximumHeight) { toolPanel(style: .tabs) } }
                     ToolNavigation(kind: .dockScrolls, tools: tools, selected: tool, used: used, onSelect: select)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { presetDockHeight = $0 }
                 }
@@ -278,8 +289,9 @@ struct EditorScreen: View {
                 topBar
                 stage
                 VStack(spacing: 0) {
-                    CappedScrollView(maximumHeight: tool == .develop ? max(layout.panelMaximumHeight, 350) : layout.panelMaximumHeight) {
-                        toolPanel(style: .wrappedTabs).padding(.top, 4)
+                    Group {
+                        if tool == .develop { toolPanel(style: .wrappedTabs).padding(.top, 4) }
+                        else { CappedScrollView(maximumHeight: layout.panelMaximumHeight) { toolPanel(style: .wrappedTabs).padding(.top, 4) } }
                     }
                     .frame(maxWidth: layout.contentWidth)
                     .frame(maxWidth: .infinity)
