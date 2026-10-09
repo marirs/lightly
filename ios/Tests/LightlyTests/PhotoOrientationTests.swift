@@ -2,6 +2,7 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 import XCTest
+import UIKit
 @testable import Lightly
 
 /// Verifies EXIF orientation handling against real encoded data.
@@ -126,6 +127,45 @@ final class PhotoOrientationTests: XCTestCase {
 
         XCTAssertEqual(photo.image.width, 200)
         XCTAssertEqual(photo.image.height, 100)
+    }
+
+    /// Exercise both capture encoders and the real loader with asymmetric pixels,
+    /// including rotated sensor orientations: only the visible left/right changes.
+    @MainActor
+    func testFrontCameraMatchesMirroredPreviewAfterEncoding() async throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 96, height: 64), format: format).image { _ in
+            UIColor.red.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 48, height: 32))
+            UIColor.green.setFill(); UIRectFill(CGRect(x: 48, y: 0, width: 48, height: 32))
+            UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 32, width: 48, height: 32))
+            UIColor.yellow.setFill(); UIRectFill(CGRect(x: 48, y: 32, width: 48, height: 32))
+        }
+        for orientation: UIImage.Orientation in [.up, .down, .left, .right, .upMirrored, .downMirrored, .leftMirrored, .rightMirrored] {
+            let original = UIImage(cgImage: try XCTUnwrap(source.cgImage), scale: 1, orientation: orientation)
+            let front = CameraCaptureView.imageMatchingPreview(original, camera: .front)
+            let rear = CameraCaptureView.imageMatchingPreview(original, camera: .rear)
+            XCTAssertTrue(rear === original, "Rear camera must remain unchanged")
+            for heic in [false, true] {
+                let rearData = try XCTUnwrap(heic ? rear.heicData() : rear.jpegData(compressionQuality: 1))
+                let frontData = try XCTUnwrap(heic ? front.heicData() : front.jpegData(compressionQuality: 1))
+                let loader = ImageIOPhotoLoader()
+                let before = try await loader.loadPhoto(from: rearData, source: .camera)
+                let after = try await loader.loadPhoto(from: frontData, source: .camera)
+                XCTAssertEqual(before.image.width, after.image.width)
+                XCTAssertEqual(before.image.height, after.image.height)
+                for x in [before.image.width / 4, before.image.width * 3 / 4] {
+                    for y in [before.image.height / 4, before.image.height * 3 / 4] {
+                        let expected = try pixel(in: before.image, x: x, y: y)
+                        let actual = try pixel(in: after.image, x: after.image.width - 1 - x, y: y)
+                        XCTAssertEqual(expected.red, actual.red, accuracy: 0.04, "orientation \(orientation), HEIC \(heic)")
+                        XCTAssertEqual(expected.green, actual.green, accuracy: 0.04)
+                        XCTAssertEqual(expected.blue, actual.blue, accuracy: 0.04)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Helpers

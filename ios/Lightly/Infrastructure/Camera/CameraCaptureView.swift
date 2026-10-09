@@ -35,6 +35,27 @@ struct CameraCaptureView: UIViewControllerRepresentable {
         Coordinator(onCapture: onCapture, onCancel: onCancel)
     }
 
+    /// Match the front camera's mirrored viewfinder before encoding. Keeping the
+    /// transform in the capture bytes makes editor, restore and export agree.
+    static func imageMatchingPreview(_ image: UIImage, camera: UIImagePickerController.CameraDevice) -> UIImage {
+        guard camera == .front, let pixels = image.cgImage else { return image }
+        // Mirror in displayed coordinates, after sensor rotation. Merely
+        // toggling the mirrored variant flips vertically for left/right images.
+        let orientation: UIImage.Orientation
+        switch image.imageOrientation {
+        case .up: orientation = .upMirrored
+        case .upMirrored: orientation = .up
+        case .down: orientation = .downMirrored
+        case .downMirrored: orientation = .down
+        case .left: orientation = .rightMirrored
+        case .rightMirrored: orientation = .left
+        case .right: orientation = .leftMirrored
+        case .leftMirrored: orientation = .right
+        @unknown default: return image
+        }
+        return UIImage(cgImage: pixels, scale: image.scale, orientation: orientation)
+    }
+
     /// Bridges `UIImagePickerController`'s delegate callbacks to closures.
     final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         private let onCapture: (Data) -> Void
@@ -54,8 +75,12 @@ struct CameraCaptureView: UIViewControllerRepresentable {
             // (see phase-2-deferred.md item 2). The JPEG fallback handles
             // simulator environments and older devices that lack hardware
             // HEIC encoding.
-            guard let image = info[.originalImage] as? UIImage,
-                  let data = image.heicData() ?? image.jpegData(compressionQuality: 1.0) else {
+            guard let original = info[.originalImage] as? UIImage else {
+                onCancel()
+                return
+            }
+            let image = CameraCaptureView.imageMatchingPreview(original, camera: picker.cameraDevice)
+            guard let data = image.heicData() ?? image.jpegData(compressionQuality: 1.0) else {
                 // A capture that cannot be encoded is a defined failure state,
                 // not a silent no-op. Surfaced as cancellation here and mapped
                 // by the caller.

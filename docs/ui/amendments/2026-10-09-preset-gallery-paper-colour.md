@@ -24,3 +24,7 @@ Owner approved replacing visible Expand/Collapse buttons with gestures. Swipe up
 ### Border None state — owner approved
 
 When None is selected, show the border style choices only. Remove the redundant Border heading/reset row and preferred-border explanation from this state on both platforms. Style adjustment controls remain conditional on the selected style.
+
+### Front-camera capture — owner approved
+
+Keep front-camera captures mirrored horizontally to match the viewfinder when entering the editor. Apply the transform before HEIC/JPEG encoding, respecting sensor orientation, so previews, session recovery and saved copies share the same source. Rear-camera and library photos are unchanged.
