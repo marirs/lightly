@@ -68,16 +68,14 @@ struct BackgroundPanelView: View {
     private var session: EditorSession { model.session }
     private var focus: EditRecipe.Focus { model.background.focus }
 
+    /// Lightly 2 `backgroundPanel`: the mode switch, then the state's content; Focus & Blur in a 4 pt column, Change
+    /// background and Refine edges in 8 pt, notices in 12 pt.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if roomy { PanelTitle(text: "Background") }
-            ApprovedSegmentedControl(
-                accessibilityLabel: Text("Background"),
-                options: [(BackgroundPanelModel.Mode.focus, Text("Focus & Blur"), "background.mode.focus"),
-                          (.change, Text("Change background"), "background.mode.change")],
-                selection: Binding(get: { model.mode == .refine ? .focus : model.mode }, set: { model.mode = $0 }))
-                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 4)
-            PanelResetRow(session: session, section: "background", title: model.mode == .focus ? "Focus & Blur" : model.mode == .change ? "Change background" : "Refine edges", adjustment: model.mode == .focus ? "focus" : model.mode == .change ? "change" : "refine")
+        VStack(alignment: .leading, spacing: columnSpacing) {
+            L2Segmented(options: [(BackgroundPanelModel.Mode.focus, Text("Focus & Blur"), nil, "background.mode.focus"),
+                                  (.change, Text("Change background"), nil, "background.mode.change")],
+                        selection: model.mode == .refine ? .focus : model.mode,
+                        accessibilityLabel: Text("Background")) { model.mode = $0 }
             content
         }
         .task(id: selectedBackground) {
@@ -91,11 +89,25 @@ struct BackgroundPanelView: View {
             } catch is CancellationError { } catch { importFailed = true }
             selectedBackground = nil
         }
-        .alert("Couldn't open that photo", isPresented: $importFailed) {
-            Button("OK", role: .cancel) {}
-        } message: { Text("Choose another photo for the background.") }
+        .fullScreenCover(isPresented: $importFailed) {
+            L2Alert(title: "Couldn’t open that photo", message: "Choose another photo for the background.",
+                    buttons: [("OK", .preferred, "background.importFailed.ok", { importFailed = false })])
+                .presentationBackground(.clear)
+        }
+        .transaction { if importFailed { $0.disablesAnimations = true } }
         // Re-run when the mode changes: switching to Focus & Blur is what starts depth.
         .task(id: model.mode) { session.analyseSubjectIfNeeded(needsDepth: model.mode == .focus) }
+    }
+
+    private var columnSpacing: CGFloat {
+        guard case .controls = session.backgroundContent(needsDepth: model.mode == .focus) else { return 12 }
+        return model.mode == .focus ? 4 : 8
+    }
+
+    private var resetRow: some View {
+        PanelResetRow(session: session, section: "background",
+                      title: model.mode == .focus ? "Focus & Blur" : model.mode == .change ? "Change background" : "Refine edges",
+                      adjustment: model.mode == .focus ? "focus" : model.mode == .change ? "change" : "refine")
     }
 
     @ViewBuilder
@@ -103,23 +115,22 @@ struct BackgroundPanelView: View {
         // Only Focus & Blur waits for depth; Change background and Refine edges need the matte alone.
         switch session.backgroundContent(needsDepth: model.mode == .focus) {
         case .finding:
-            DevelopNotice(icon: .info, bold: nil, text: "Finding the subject…",
-                          actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
+            L2Notice(icon: .info, text: "Finding the subject…",
+                     actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
         case .estimatingDepth:
-            // PROPOSED copy (owner approval pending, 2026-10-07): see EditorSession.BackgroundContent.estimatingDepth.
-            DevelopNotice(icon: .info, bold: nil, text: "Estimating depth…",
-                          actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
+            L2Notice(icon: .info, text: "Estimating depth…",
+                     actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
         case .subjectFailed:
-            DevelopNotice(icon: .warn, bold: "Couldn't separate the subject.", text: " Your other edits are kept.",
-                          actions: [("Try again", "background.retry", { session.retrySubjectSeparation() })])
+            resetRow
+            L2Notice(icon: .warn, bold: "Couldn't separate the subject.", text: " Your other edits are kept.",
+                     actions: [("Try again", "background.retry", { session.retrySubjectSeparation() })])
         case .depthFailed:
-            // PROPOSED copy (owner approval pending, 2026-10-05): no approved depth-specific message exists, and
-            // "Couldn't separate the subject." would be untrue here (the outline is fine; Change background works).
-            DevelopNotice(icon: .warn, bold: "Couldn't measure depth.", text: " Blur needs it. Change background still works.",
-                          actions: [("Try again", "background.retry", { session.retrySubjectSeparation() })])
+            resetRow
+            L2Notice(icon: .warn, bold: "Couldn't measure depth.", text: " Blur needs it. Change background still works.",
+                     actions: [("Try again", "background.retry", { session.retrySubjectSeparation() })])
         case .noSubject:
-            DevelopNotice(icon: .info, bold: "No clear subject found.",
-                          text: " Change background needs a person or object in front. You can still blur by tapping where to focus.", actions: [])
+            L2Notice(icon: .info, bold: "No clear subject found.",
+                     text: " Change background needs a person or object in front. You can still blur by tapping where to focus.")
             blurSlider
         case .controls:
             switch model.mode {
@@ -140,20 +151,31 @@ struct BackgroundPanelView: View {
 
     @ViewBuilder
     private var focusControls: some View {
+        let c = L2(scheme: colorScheme)
         PanelTabs(items: [(EditRecipe.Focus.Style.lens, "Lens", false), (.soft, "Soft", false), (.swirl, "Swirl", false), (.motion, "Motion", false)],
                   selected: focus.style, wraps: wraps, identifierPrefix: "background.style") { style in
             session.commitBackground { $0.focus.style = style }
         }
+        resetRow
         switch focus.style {
         case .lens:
-            ChipRow {
-                Text("Bokeh").approvedText(15).foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme)).frame(minWidth: 72, alignment: .leading)
+            // "Bokeh" (92 pt, 13 pt semibold ink2), then four 44×36 shape buttons, 14 pt corners, 8 pt apart.
+            HStack(spacing: 8) {
+                Text("Bokeh").l2Text(13, weight: .semibold).foregroundStyle(c(ApprovedColor.inkSecondary)).frame(width: 92, alignment: .leading)
                 ForEach(Self.bokehOptions, id: \.bokeh) { option in
-                    OptionChip(isOn: focus.bokeh == option.bokeh, identifier: "background.bokeh.\(option.bokeh.rawValue)",
-                               action: { session.commitBackground { $0.focus.bokeh = option.bokeh } }) {
+                    let isOn = focus.bokeh == option.bokeh
+                    Button { session.commitBackground { $0.focus.bokeh = option.bokeh } } label: {
                         ApprovedIconView(icon: option.icon, size: 18)
+                            .foregroundStyle(isOn ? c(ApprovedColor.onInk) : c(ApprovedColor.inkSecondary))
+                            .frame(width: 44, height: 36)
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(isOn ? c(ApprovedColor.segmentSelected) : .clear))
+                            .overlay { if !isOn { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1) } }
+                            .frame(minHeight: 44).contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel(Text("\(option.bokeh.rawValue) bokeh"))
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                    .accessibilityIdentifier("background.bokeh.\(option.bokeh.rawValue)")
                 }
             }
         case .soft: styleSlider("Glow")
@@ -167,16 +189,12 @@ struct BackgroundPanelView: View {
         PanelSlider(label: "Focus depth", value: focus.depthOfField, range: 0...100, identifier: "slider.focusDepth",
                     onChange: { v in session.previewBackground { $0.focus.depthOfField = v.rounded() } },
                     onEnd: { v in session.commitBackground { $0.focus.depthOfField = v.rounded() } })
-        HStack(spacing: 0) {
-            Button { model.mode = .refine } label: {
-                HStack(spacing: 8) { ApprovedIconView(icon: .brush, size: 17); Text("Refine edges") }
-            }
-            .buttonStyle(ApprovedSmallQuietButtonStyle())
-            .accessibilityIdentifier("background.refine")
-            Text("Tap the photo to set focus.").approvedText(13).foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
-                .padding(.horizontal, 8)
+        HStack(spacing: 10) {
+            Button { model.mode = .refine } label: { L2Label(title: Text("Refine edges"), icon: .brush, iconSize: 16) }
+                .buttonStyle(L2QuietButtonStyle(accent: true))
+                .accessibilityIdentifier("background.refine")
+            L2Note(text: Text("Tap the photo to set focus."))
         }
-        .padding(.horizontal, 6)
     }
 
     /// Prototype bokeh options: round, hex, heart, star.
@@ -194,20 +212,19 @@ struct BackgroundPanelView: View {
 
     @ViewBuilder
     private var refine: some View {
-        ApprovedNote("Brush over the edge to add to or remove from the subject.")
-        IconSegmentedControl(options: [(EditRecipe.RefineStroke.Mode.add, ApprovedIcon.brush, "Add", "background.brush.add"),
-                                       (.erase, .erase, "Remove", "background.brush.erase")],
-                             selection: $model.brush)
-            .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 4)
+        resetRow
+        L2Note(text: Text("Brush over the edge to add to or remove from the subject."))
+        L2Segmented(options: [(EditRecipe.RefineStroke.Mode.add, Text("Add"), ApprovedIcon.brush, "background.brush.add"),
+                              (.erase, Text("Remove"), .erase, "background.brush.erase")],
+                    selection: model.brush) { model.brush = $0 }
         PanelSlider(label: "Brush size", value: model.brushSize, range: 0...100, identifier: "slider.brushSize",
                     onChange: { model.brushSize = $0 }, onEnd: { model.brushSize = $0 })
         HStack {
             Spacer(minLength: 0)
             Button("Done") { model.mode = .focus }
-                .buttonStyle(ApprovedButtonStyle(kind: .quiet))
+                .buttonStyle(L2QuietButtonStyle())
                 .accessibilityIdentifier("background.refine.done")
         }
-        .padding(.horizontal, 10)
     }
 
     // MARK: Change background
@@ -216,9 +233,16 @@ struct BackgroundPanelView: View {
     private var change: some View {
         PanelTabs(items: [(BackgroundPanelModel.Kind.image, "Image", false), (.colour, "Colour", false), (.gradient, "Gradient", false)],
                   selected: model.currentKind, wraps: wraps, identifierPrefix: "background.kind") { model.kind = $0 }
+        resetRow
         switch model.currentKind {
         case .image:
+            // The (+) tile first, then the bundled backgrounds and the imported photo: 60 pt, 16 pt corners.
             ChipRow {
+                PhotosPicker(selection: $selectedBackground, matching: .images) { AddBackgroundButton() }
+                    .buttonStyle(.plain)
+                    .disabled(importingBackground)
+                    .accessibilityLabel("Choose a background photo")
+                    .accessibilityIdentifier("background.image.add")
                 ForEach(BackgroundPanelModel.bundledImages, id: \.self) { name in
                     BackgroundThumbnail(name: name, isOn: isBundled(name)) {
                         session.commitBackground {
@@ -227,18 +251,17 @@ struct BackgroundPanelView: View {
                     }
                 }
                 if let image = session.importedBackgroundImage {
-                    Image(image, scale: 1, label: Text("Selected background photo")).resizable().scaledToFill()
-                        .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(ApprovedColor.selection.resolved(colorScheme), lineWidth: 2))
-                        .accessibilityIdentifier("background.image.imported")
+                    BackgroundThumbnailFrame(isOn: isImported) {
+                        Image(image, scale: 1, label: Text("Selected background photo")).resizable().scaledToFill()
+                    }
+                    .accessibilityIdentifier("background.image.imported")
                 }
-                PhotosPicker(selection: $selectedBackground, matching: .images) {
-                    AddBackgroundButton()
-                }
-                .buttonStyle(.plain)
-                .disabled(importingBackground)
-                .accessibilityLabel("Choose a background photo")
-                .accessibilityIdentifier("background.image.add")
+            }
+            if case .image(_, _, _, let scale)? = model.background.replacement {
+                PanelSlider(label: "Scale", value: scale, range: 100...200, identifier: "slider.scale",
+                            onChange: { v in session.previewBackground { Self.setScale(&$0, v.rounded()) } },
+                            onEnd: { v in session.commitBackground { Self.setScale(&$0, v.rounded()) } })
+                L2Note(text: Text("Drag the photo to position the background."))
             }
         case .colour:
             ColourControl(title: "Background colour", selected: backgroundColour, photo: session.originalImage, identifier: "background.colour",
@@ -247,43 +270,45 @@ struct BackgroundPanelView: View {
                 session.commitBackground { $0.replacement = .colour(hex) }
             }
         case .gradient:
-            ChipRow {
+            HStack(spacing: 10) {
                 ForEach(BackgroundPanelModel.gradients.indices, id: \.self) { index in
                     let g = BackgroundPanelModel.gradients[index]
-                    SwatchButton(fill: Self.swiftGradient(g.angle, g.stops), width: 52, cornerRadius: 10,
+                    SwatchButton(fill: Self.swiftGradient(g.angle, g.stops),
                                  isOn: model.background.replacement == .gradient(angle: g.angle, stops: g.stops),
-                                 label: "Gradient", identifier: "background.gradient.\(index)") {
+                                 label: "Gradient \(index + 1)", identifier: "background.gradient.\(index)") {
                         session.commitBackground { $0.replacement = .gradient(angle: g.angle, stops: g.stops) }
+                    }
+                    .padding(-4)
+                }
+            }
+            .padding(.vertical, 4).padding(.horizontal, 2)
+            if case .gradient(let angle, let stops)? = model.background.replacement {
+                ForEach(stops.indices, id: \.self) { index in
+                    ColourControl(title: "Colour \(index + 1)", selected: stops[index].colour, photo: session.originalImage, identifier: "background.gradient.colour.\(index)",
+                                  preview: { hex in var next = stops; next[index].colour = hex; session.previewBackground { $0.replacement = .gradient(angle: angle, stops: next) } },
+                                  previewImage: { session.displayedImage }, cancel: session.cancelLookPreview) { hex in
+                        var next = stops; next[index].colour = hex
+                        session.commitBackground { $0.replacement = .gradient(angle: angle, stops: next) }
                     }
                 }
             }
         }
-        if model.currentKind == .gradient, case .gradient(let angle, let stops)? = model.background.replacement {
-            ForEach(stops.indices, id: \.self) { index in
-                ColourControl(title: "Colour \(index + 1)", selected: stops[index].colour, photo: session.originalImage, identifier: "background.gradient.colour.\(index)",
-                              preview: { hex in var next = stops; next[index].colour = hex; session.previewBackground { $0.replacement = .gradient(angle: angle, stops: next) } },
-                              previewImage: { session.displayedImage }, cancel: session.cancelLookPreview) { hex in
-                    var next = stops; next[index].colour = hex
-                    session.commitBackground { $0.replacement = .gradient(angle: angle, stops: next) }
-                }
-            }
-        }
-        if model.currentKind == .image, case .image(_, _, _, let scale)? = model.background.replacement {
-            PanelSlider(label: "Scale", value: scale, range: 100...200, identifier: "slider.scale",
-                        onChange: { v in session.previewBackground { Self.setScale(&$0, v.rounded()) } },
-                        onEnd: { v in session.commitBackground { Self.setScale(&$0, v.rounded()) } })
-            ApprovedNote("Drag the photo to position the background.")
-        }
         if model.background.replacement != nil {
-            HStack(spacing: 0) {
+            HStack(spacing: 10) {
                 Button("Remove background change") { session.commitBackground { $0.replacement = nil } }
-                    .buttonStyle(ApprovedSmallQuietButtonStyle())
+                    .buttonStyle(L2QuietButtonStyle())
                     .accessibilityIdentifier("background.remove")
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 6)
-            ApprovedNote("Focus & Blur still works on the new background.")
+            L2Note(text: Text("Focus & Blur still works on the new background."))
         }
+    }
+
+    private var isImported: Bool {
+        // The imported photo is the one replacement image that is not a bundled background.
+        if case .image(let asset, _, _, _)? = model.background.replacement, case .bundled = asset { return false }
+        if case .image? = model.background.replacement { return true }
+        return false
     }
 
     private func isBundled(_ name: String) -> Bool {
@@ -309,7 +334,26 @@ struct BackgroundPanelView: View {
     }
 }
 
-/// `.thumbopt`: a 64 pt background thumbnail, a 2 pt selection border when chosen.
+/// A background choice (Lightly 2): 60 pt, 16 pt corners; when chosen, a 2 pt sheet-coloured gap and a 2 pt accent ring.
+struct BackgroundThumbnailFrame<Content: View>: View {
+    let isOn: Bool
+    @ViewBuilder let content: () -> Content
+    @Environment(\.colorScheme) private var colorScheme
+    var body: some View {
+        let c = L2(scheme: colorScheme)
+        content()
+            .frame(width: 60, height: 60)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                if isOn {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(c(ApprovedColor.sheet), lineWidth: 2).padding(-1)
+                    RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(c(ApprovedColor.selection), lineWidth: 2).padding(-3)
+                }
+            }
+            .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
 struct BackgroundThumbnail: View {
     let name: String
     let isOn: Bool
@@ -318,36 +362,30 @@ struct BackgroundThumbnail: View {
 
     var body: some View {
         Button(action: action) {
-            Group {
+            BackgroundThumbnailFrame(isOn: isOn) {
                 if let image = BundledBackgrounds.thumbnail(name) {
                     Image(decorative: image, scale: 1).resizable().scaledToFill()
                 } else {
                     ApprovedColor.backgroundSecondary.resolved(colorScheme)
                 }
             }
-            .frame(width: 64, height: 64)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(isOn ? ApprovedColor.selection.resolved(colorScheme) : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Background image"))
-        .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("background.image.\(name)")
     }
 }
 
-/// `.thumbopt.add`: choose a photo from the library as the background.
+/// The (+) tile: choose a photo from the library as the background. 60 pt, 16 pt corners, 1.5 pt dashed ink3, 22 pt plus.
 struct AddBackgroundButton: View {
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
-        Group {
-            ApprovedIconView(icon: .plus, size: 22)
-                .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-                .frame(width: 64, height: 64)
-                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(ApprovedColor.inkTertiary.resolved(colorScheme), style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("Choose a photo"))
+        ApprovedIconView(icon: .plus, size: 22)
+            .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
+            .frame(width: 60, height: 60)
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(ApprovedColor.inkTertiary.resolved(colorScheme), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+            .accessibilityLabel(Text("Choose a photo"))
     }
 }
 

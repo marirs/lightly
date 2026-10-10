@@ -583,3 +583,103 @@ struct L2GroupLabel: View {
             .accessibilityAddTraits(.isHeader)
     }
 }
+
+// MARK: - Action sheet and alert
+
+/// `actionSheet` (iOS): over the scrim, a card (18 pt corners, sheet fill) with the title (13 pt semibold ink2, 14 pt
+/// padding) and the options (54 pt rows, hairline above each, 17 pt danger), then a separate 56 pt Cancel card
+/// (17 pt bold accent), 8 pt apart. Phones: 8 pt from the sides, at the bottom; wider screens: 320 pt, centred.
+struct L2ActionSheet: View {
+    let title: String
+    let options: [(title: String, identifier: String, action: () -> Void)]
+    let onCancel: () -> Void
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    var body: some View {
+        let c = L2(scheme: scheme)
+        let wide = sizeClass == .regular
+        ZStack(alignment: wide ? .center : .bottom) {
+            ApprovedColor.scrim(scheme).ignoresSafeArea().onTapGesture(perform: onCancel).accessibilityHidden(true)
+            VStack(spacing: 8) {
+                VStack(spacing: 0) {
+                    Text(LocalizedStringKey(title)).l2Text(13, weight: .semibold).foregroundStyle(c(ApprovedColor.inkSecondary))
+                        .padding(14).frame(maxWidth: .infinity)
+                    ForEach(options.indices, id: \.self) { index in
+                        Button(action: options[index].action) {
+                            Text(LocalizedStringKey(options[index].title)).l2Text(17).foregroundStyle(c(ApprovedColor.danger))
+                                .frame(maxWidth: .infinity, minHeight: 54).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .overlay(alignment: .top) { Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1) }
+                        .accessibilityIdentifier(options[index].identifier)
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(c(ApprovedColor.sheet)))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                Button(action: onCancel) {
+                    Text("Cancel").l2Text(17, weight: .bold).foregroundStyle(c(ApprovedColor.selection))
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(c(ApprovedColor.sheet)))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("actionsheet.cancel")
+            }
+            .frame(maxWidth: wide ? 320 : .infinity)
+            .padding(.horizontal, wide ? 0 : 8)
+            .accessibilityAddTraits(.isModal)
+        }
+        .accessibilityAction(.escape, onCancel)
+    }
+}
+
+/// `dialog` (iOS): over the scrim, a 290 pt card (22 pt corners, sheet fill, hairline, shadow 0 24 60 at 40 %): the
+/// title (16 pt bold) and message (13 pt ink2, line height 1.4) centred with 20/18/16 padding and 6 pt between, then
+/// one 48 pt button per row, hairline above: 16 pt; the preferred one bold accent, destructive ones danger, others ink.
+struct L2Alert: View {
+    enum Role { case preferred, destructive, normal }
+    let title: String
+    var message: String?
+    let buttons: [(title: String, role: Role, identifier: String, action: () -> Void)]
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let c = L2(scheme: scheme)
+        ZStack {
+            ApprovedColor.scrim(scheme).ignoresSafeArea().accessibilityHidden(true)
+            VStack(spacing: 0) {
+                VStack(spacing: 6) {
+                    Text(LocalizedStringKey(title)).l2Text(16, weight: .bold).foregroundStyle(c(ApprovedColor.ink))
+                        .accessibilityAddTraits(.isHeader)
+                    if let message {
+                        Text(LocalizedStringKey(message)).l2Text(13, lineHeight: 1.4).foregroundStyle(c(ApprovedColor.inkSecondary))
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 18).padding(.top, 20).padding(.bottom, 16)
+                ForEach(buttons.indices, id: \.self) { index in
+                    let button = buttons[index]
+                    Button(action: button.action) {
+                        Text(LocalizedStringKey(button.title))
+                            .l2Text(16, weight: button.role == .preferred ? .bold : .medium)
+                            .foregroundStyle(button.role == .destructive ? c(ApprovedColor.danger)
+                                             : button.role == .preferred ? c(ApprovedColor.selection) : c(ApprovedColor.ink))
+                            .frame(maxWidth: .infinity, minHeight: 48).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .overlay(alignment: .top) { Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1) }
+                    .accessibilityIdentifier(button.identifier)
+                }
+            }
+            .frame(width: 290)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(c(ApprovedColor.sheet)))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: .black.opacity(0.4), radius: 30, y: 24)
+            .accessibilityAddTraits(.isModal)
+            .accessibilityElement(children: .contain)
+        }
+    }
+}

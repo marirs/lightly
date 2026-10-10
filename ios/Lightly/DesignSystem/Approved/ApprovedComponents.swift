@@ -158,13 +158,9 @@ struct ApprovedNote: View {
         self.bottomPadding = bottomPadding
     }
 
+    /// Lightly 2 `note`: 12.5 pt ink2, line height 1.4; spacing comes from the panel's column, not the note.
     var body: some View {
-        ApprovedParagraph(text: text, pointSize: 13, colour: ApprovedColor.inkTertiary.resolved(colorScheme))
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
-            .padding(.top, topPadding)
-            .padding(.bottom, bottomPadding)
+        L2Note(text: Text(verbatim: text))
     }
 }
 

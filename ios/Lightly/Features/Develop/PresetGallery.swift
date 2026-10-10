@@ -1,18 +1,24 @@
 import SwiftUI
 
+/// The preset gallery (Lightly 2 `developPanel` gallery): "Original" first, then the browsed category's presets as
+/// live thumbnails of this photo.
+/// - Compact (phone panel): two 84 pt rows, 96 pt columns, 10 pt between rows and 12 pt between columns, scrolling
+///   sideways, the right edge fading (90 %). Swiping up expands it.
+/// - Expanded (the overlay, and landscape iPad): two equal columns, 14 pt rows, 12 pt columns, 142 pt thumbnails,
+///   scrolling down; pulling down from the top collapses it.
 struct PresetGallery: View {
     @Bindable var model: DevelopPanelModel
     let expanded: Bool
     @State private var scrollSpace = UUID()
     @State private var atTop = true
     @State private var dragStartedAtTop: Bool?
+
     var body: some View {
         ScrollViewReader { proxy in
             Group {
                 if expanded {
-                    ScrollView(.vertical) {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) { tiles }
-                            .padding(12)
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 14) { tiles }
                             .background(GeometryReader { geometry in
                                 Color.clear.preference(key: PresetScrollTop.self, value: geometry.frame(in: .named(scrollSpace)).minY)
                             })
@@ -32,10 +38,12 @@ struct PresetGallery: View {
                         dragStartedAtTop = nil
                     })
                 } else {
-                    ScrollView(.horizontal) {
-                        LazyHGrid(rows: [GridItem(.fixed(104)), GridItem(.fixed(104))], spacing: 12) { tiles }
-                            .padding(.horizontal, 16).padding(.vertical, 4)
-                    }.frame(height: 220)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHGrid(rows: [GridItem(.fixed(84), spacing: 10), GridItem(.fixed(84), spacing: 10)], spacing: 12) { tiles }
+                    }
+                    .frame(height: 84 * 2 + 10)
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
+                                         startPoint: .leading, endPoint: .trailing))
                     .simultaneousGesture(DragGesture(minimumDistance: 16).onChanged { value in
                         if value.translation.height < -32 && abs(value.translation.height) > abs(value.translation.width) * 1.3 {
                             withAnimation(.snappy(duration: 0.25)) { model.isExpanded = true }
@@ -49,16 +57,21 @@ struct PresetGallery: View {
             .onChange(of: model.currentCategoryID) { _, _ in proxy.scrollTo("original", anchor: .topLeading) }
         }
     }
+
     @ViewBuilder private var tiles: some View {
         tile(nil).id("original")
         ForEach(model.currentPresets, id: \.id) { preset in tile(preset).id(preset.id) }
     }
+
     private func tile(_ preset: PresetPack.Preset?) -> some View {
         PresetTile(session: model.session, preset: preset, expanded: expanded,
                    selected: model.session.recipe.look?.lookId == preset?.id) { model.selectThumbnail(preset) }
     }
 }
 
+/// One gallery tile: the thumbnail (62 pt compact, 142 pt expanded; 14 pt corners), the selected one with a 2 pt
+/// inset accent ring and a 20 pt lime check badge 6 pt in from the top-trailing corner; the name below (11.5 pt;
+/// bold ink when selected, medium ink2 otherwise), 5 pt between.
 private struct PresetTile: View {
     let session: EditorSession
     let preset: PresetPack.Preset?
@@ -66,24 +79,42 @@ private struct PresetTile: View {
     let selected: Bool
     let apply: () -> Void
     @State private var image: CGImage?
-    @Environment(\.colorScheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+
     var body: some View {
+        let c = L2(scheme: scheme)
         Button(action: apply) {
-            VStack(alignment: .leading, spacing: 6) {
-                ZStack(alignment: .topTrailing) {
-                    Group {
-                        if let image { Image(decorative: image, scale: 1).resizable().scaledToFill() }
-                        else { Rectangle().fill(.quaternary).overlay { ProgressView().controlSize(.small) } }
-                    }.frame(height: expanded ? 142 : 76).frame(maxWidth: .infinity).clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? ApprovedColor.selection.resolved(theme) : .clear, lineWidth: 2))
-                    if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(.white, ApprovedColor.selection.resolved(theme)).padding(5) }
+            VStack(alignment: .leading, spacing: 5) {
+                Group {
+                    if let image { Image(decorative: image, scale: 1).resizable().scaledToFill() }
+                    else { Rectangle().fill(c(ApprovedColor.chip)).overlay { ProgressView().controlSize(.small) } }
                 }
-                Text(preset?.displayName ?? "Original").approvedText(12).lineLimit(1).foregroundStyle(ApprovedColor.ink.resolved(theme))
-            }.frame(width: expanded ? nil : 96)
-        }.buttonStyle(.plain).accessibilityLabel(preset?.displayName ?? "Original").accessibilityAddTraits(selected ? .isSelected : [])
-            .accessibilityIdentifier("develop.thumbnail." + (preset?.id ?? "original"))
-            .task(id: session.thumbnailKey) { image = await session.presetThumbnail(preset) }
+                .frame(height: expanded ? 142 : 62).frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    if selected {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(c(ApprovedColor.selection), lineWidth: 2)
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if selected {
+                        ApprovedIconView(icon: .check, size: 13).foregroundStyle(c(ApprovedColor.onAccent))
+                            .frame(width: 20, height: 20).background(Circle().fill(c(ApprovedColor.accent)))
+                            .padding(6)
+                    }
+                }
+                Text(preset?.displayName ?? "Original")
+                    .l2Text(11.5, weight: selected ? .bold : .medium)
+                    .foregroundStyle(selected ? c(ApprovedColor.ink) : c(ApprovedColor.inkSecondary))
+                    .lineLimit(1).truncationMode(.tail)
+            }
+            .frame(width: expanded ? nil : 96, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(preset?.displayName ?? "Original")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("develop.thumbnail." + (preset?.id ?? "original"))
+        .task(id: session.thumbnailKey) { image = await session.presetThumbnail(preset) }
     }
 }
 

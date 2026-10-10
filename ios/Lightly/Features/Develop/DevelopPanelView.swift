@@ -10,9 +10,10 @@ enum DevelopPanelStyle: Equatable {
     case list
 }
 
-/// The approved Develop panel: Auto, categories with counts and the applied-category dot, the
-/// notices, the name row (star, name, position, Amount), the context line and the ruler — or the
-/// Amount slider with Done.
+/// The Lightly 2 Develop panel (`developPanel` in docs/ui/directions/lightly-2-concept/index.html), 6 pt between rows:
+/// the grab handle (phones, compact), the category tabs (orange underline on the browsed one, orange dot on the one
+/// holding the applied preset, Favourites with its star), a notice when one applies, the heading (star, the preset's
+/// name, Reset), the preset gallery and Amount. On landscape iPad (`.list`) the categories are a list above the rest.
 struct DevelopPanelView: View {
     @Bindable var model: DevelopPanelModel
     let style: DevelopPanelStyle
@@ -23,95 +24,89 @@ struct DevelopPanelView: View {
     private func c(_ token: ApprovedColor.Token) -> Color { token.resolved(colorScheme) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 6) {
             if style == .list {
-                Text("Develop")
-                    .approvedText(13, weight: .semibold)
-                    .foregroundStyle(c(ApprovedColor.inkSecondary))
-                    .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 4)
-                    .accessibilityAddTraits(.isHeader)
+                categoryList
+                Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1).padding(.vertical, 4)
+            } else {
+                if !expanded {
+                    // `handle`: 36×4, 6 pt tall row pulled 6 pt up; dragging it (or the gallery) up expands the presets.
+                    Capsule().fill(c(ApprovedColor.track)).frame(width: 36, height: 4)
+                        .frame(maxWidth: .infinity).frame(height: 6).padding(.top, -6)
+                        .frame(minHeight: 20).contentShape(Rectangle())
+                        .gesture(DragGesture().onChanged { value in
+                            if value.translation.height < -24 && abs(value.translation.height) > abs(value.translation.width) {
+                                withAnimation(.snappy(duration: 0.25)) { model.isExpanded = true }
+                            }
+                        })
+                        .padding(.vertical, -7)
+                        .accessibilityLabel("Preset browser")
+                        .accessibilityAction(named: "Expand presets") { model.isExpanded = true }
+                }
+                L2Tabs(items: model.categoryItems.map { item in
+                    .init(value: item.id, title: Text(item.name), icon: item.isFavourites ? .star : nil,
+                          dot: item.holdsAppliedPreset, identifier: "develop.category.\(item.id)")
+                }, selection: model.currentCategoryID, underline: true, onSelect: model.selectCategory)
             }
-            if !expanded {
-                Capsule().fill(.secondary.opacity(0.35)).frame(width: 36, height: 4)
-                    .frame(maxWidth: .infinity).frame(height: 24).contentShape(Rectangle())
-                    .gesture(DragGesture().onChanged { value in
-                        if value.translation.height < -24 && abs(value.translation.height) > abs(value.translation.width) {
-                            withAnimation(.snappy(duration: 0.25)) { model.isExpanded = true }
-                        }
-                    })
-                    .accessibilityLabel("Preset browser")
-                    .accessibilityAction(named: "Expand presets") { model.isExpanded = true }
-            }
-            header
-            if style == .list { categoryList }
             notice
-            thumbnailHeading
-            PresetGallery(model: model, expanded: expanded)
-            Group {
-                ApprovedSlider(label: "Amount", value: model.amountValue, range: 0...100,
-                               onChange: model.amountChanged, onEnd: model.amountEnded)
-            }.disabled(model.session.recipe.look == nil).opacity(model.session.recipe.look == nil ? 0.4 : 1)
-
+            heading
+            PresetGallery(model: model, expanded: expanded || style == .list)
+            L2Slider(label: "Amount", value: model.amountValue, range: 0...100, isEnabled: model.session.recipe.look != nil,
+                     onChange: model.amountChanged, onEnd: model.amountEnded)
         }
     }
 
-    private var thumbnailHeading: some View {
-        HStack(spacing: 8) {
+    /// `heading`: the star (30×36, 20 pt; accent when the preset is a favourite, ink3 otherwise, faint without a
+    /// preset), the name (17 pt heading, one line), and "Reset" when a preset is applied. 8 pt gaps, 36 pt tall.
+    private var heading: some View {
+        let starred = model.isPresetAtStopFavourite
+        let preset = model.namedPreset
+        return HStack(spacing: 8) {
             Button { model.toggleStar() } label: {
-                Image(systemName: model.isPresetAtStopFavourite ? "star.fill" : "star").frame(width: 34, height: 44)
-            }.disabled(model.namedPreset == nil).accessibilityLabel("Favourite").accessibilityIdentifier("develop.star")
-            Text(model.namedPreset?.displayName ?? "Original").approvedText(14, weight: .semibold)
-                .foregroundStyle(c(ApprovedColor.ink)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("develop.name")
+                ApprovedIconView(icon: .star, size: 20, filled: starred)
+                    .foregroundStyle(starred ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary))
+                    .frame(width: 30, height: 36).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(preset == nil).opacity(preset == nil ? 0.35 : 1)
+            .accessibilityLabel(Text("Favourite"))
+            .accessibilityAddTraits(starred ? .isSelected : [])
+            .accessibilityIdentifier("develop.star")
+            Text(preset?.displayName ?? "Original")
+                .l2Heading(17).lineLimit(1).truncationMode(.tail)
+                .foregroundStyle(c(ApprovedColor.ink))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("develop.name")
             if model.session.recipe.look != nil {
-                Button(action: model.clearPreset) { Label("Reset", systemImage: "arrow.counterclockwise").approvedText(13).frame(minHeight: 44) }
+                Button(action: model.clearPreset) { L2Label(title: Text("Reset"), icon: .reset, iconSize: 15) }
+                    .buttonStyle(L2LinkButtonStyle())
                     .accessibilityLabel("Reset preset").accessibilityIdentifier("develop.clear")
             }
-        }.buttonStyle(.plain).foregroundStyle(c(ApprovedColor.selection)).padding(.horizontal, 12).frame(minHeight: 48)
-    }
-
-    // MARK: Auto and categories
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            switch style {
-            case .tabs:
-                CategoryTabStrip(model: model)
-            case .wrappedTabs:
-                FlowLayout(spacing: 20) {
-                    ForEach(model.categoryItems) { item in categoryTab(item) }
-                }
-                .padding(.leading, 14).padding(.trailing, 18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            case .list:
-                EmptyView()
-            }
         }
-        .frame(minHeight: 44)
+        .frame(minHeight: 36)
     }
 
-    func categoryTab(_ item: DevelopPanelModel.CategoryItem) -> some View {
-        CategoryTab(model: model, item: item)
-    }
-
-    /// The side panel's `.catlist`.
+    /// Landscape iPad (`developList`): one 38 pt row per category, 12 pt corners; the browsed one bold on a chip fill
+    /// with the orange underline; the applied one dotted.
     private var categoryList: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 2) {
             ForEach(model.categoryItems) { item in
                 let isOn = item.id == model.currentCategoryID
-                Button {
-                    model.selectCategory(item.id)
-                } label: {
-                    HStack(spacing: 0) {
-                        if item.isFavourites { ApprovedIconView(icon: .star, size: 15) }
-                        Text(item.name).approvedText(15, weight: isOn ? .semibold : .regular)
-                            .overlay(alignment: .bottom) { BrowsedUnderline(isOn: isOn).offset(y: 6) }
-                        if item.holdsAppliedPreset { AppliedDot().padding(.leading, 6) }
-                        Spacer(minLength: 8)
+                Button { model.selectCategory(item.id) } label: {
+                    HStack(spacing: 6) {
+                        HStack(spacing: 6) {
+                            if item.isFavourites { ApprovedIconView(icon: .star, size: 14) }
+                            Text(item.name).l2Text(14.5, weight: isOn ? .bold : .medium)
+                        }
+                        .padding(.bottom, isOn ? 2 : 0)
+                        .overlay(alignment: .bottom) { if isOn { Rectangle().fill(c(ApprovedColor.browse)).frame(height: 2) } }
+                        if item.holdsAppliedPreset { Circle().fill(c(ApprovedColor.edited)).frame(width: 5, height: 5) }
+                        Spacer(minLength: 0)
                     }
                     .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkSecondary))
-                    .padding(.horizontal, 8)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .background(isOn ? RoundedRectangle(cornerRadius: 8).fill(c(ApprovedColor.backgroundSecondary)) : nil)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 38)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(isOn ? c(ApprovedColor.chip) : .clear))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -121,7 +116,6 @@ struct DevelopPanelView: View {
                 .accessibilityIdentifier("develop.category.\(item.id)")
             }
         }
-        .padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 4)
     }
 
     // MARK: Notices
@@ -129,168 +123,35 @@ struct DevelopPanelView: View {
     @ViewBuilder
     private var notice: some View {
         if model.isFavouritesFullNoticeShown {
-            DevelopNotice(icon: .star, bold: "Favourites holds five presets.", text: " Remove one in Preferences, or replace one now.",
-                          actions: [("Replace…", "develop.favourites.replace", { model.isReplaceSheetShown = true }),
-                                    ("Not now", "develop.favourites.notNow", { model.dismissFavouritesFullNotice() })])
+            L2Notice(icon: .star, bold: "Favourites holds five presets.", text: " Remove one in Preferences, or replace one now.",
+                     actions: [("Replace…", "develop.favourites.replace", { model.isReplaceSheetShown = true }),
+                               ("Not now", "develop.favourites.notNow", { model.dismissFavouritesFullNotice() })])
         } else if model.session.autoState == .failed {
-            DevelopNotice(icon: .warn, bold: "Automatic correction didn't finish.", text: " Your photo is unchanged and presets still work.",
-                          actions: [("Retry", "develop.auto.retry", { model.session.retryAuto() }),
-                                    ("Continue with original", "develop.auto.original", { model.session.continueWithOriginal() })])
+            L2Notice(icon: .warn, bold: "Automatic correction didn't finish.", text: " Your photo is unchanged and presets still work.",
+                     actions: [("Retry", "develop.auto.retry", { model.session.retryAuto() }),
+                               ("Continue with original", "develop.auto.original", { model.session.continueWithOriginal() })])
         }
         // Unavailable Auto: no standing notice (owner amendment 2026-10-05); tapping Auto explains it (EditorSession.toggleAuto).
     }
-
-    // MARK: Name row
-
-    private var nameRow: some View {
-        let preset = model.namedPreset
-        return HStack(spacing: 4) {
-            Button { model.toggleStar() } label: {
-                ApprovedIconView(icon: .star, size: 20, filled: model.isPresetAtStopFavourite)
-                    .foregroundStyle(model.isPresetAtStopFavourite ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .opacity(preset == nil ? 0 : 1)
-            .disabled(preset == nil)
-            .accessibilityHidden(preset == nil)
-            .accessibilityLabel(Text("Favourite"))
-            .accessibilityAddTraits(model.isPresetAtStopFavourite ? .isSelected : [])
-            .accessibilityIdentifier("develop.star")
-
-            // The reference's line breaks (M4): SwiftUI `Text` pushed "Winter" down so the name did not end on one
-            // word ("Landscape 15 - / Winter Wonderland" where the approved screen has "Landscape 15 - Winter /
-            // Wonderland"); ApprovedParagraph breaks at the last word that fits, as the notes do (858a06f).
-            ApprovedParagraph(text: model.displayedName, pointSize: 17, weight: .semibold, colour: c(ApprovedColor.ink),
-                              trackingEm: -0.01, naturalLineHeight: true, identifier: "develop.name")
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if model.isBrowsingStart && preset != nil {
-                Button("Apply", action: model.applyBrowsedPreset).buttonStyle(.plain)
-                    .foregroundStyle(c(ApprovedColor.selection)).frame(minHeight: 44)
-                    .accessibilityIdentifier("develop.apply")
-            } else {
-            Button { model.openAmount() } label: {
-                Text(model.amountButtonTitle)
-                    .approvedText(14, weight: .medium)
-                    .foregroundStyle(c(ApprovedColor.selection))
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .opacity(preset == nil ? 0 : 1)
-            .disabled(preset == nil)
-            .accessibilityHidden(preset == nil)
-            .accessibilityIdentifier("develop.amount")
-            }
-            if model.session.recipe.look != nil {
-                Button(action: model.clearPreset) {
-                    Label("Reset", systemImage: "arrow.counterclockwise").font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(c(ApprovedColor.selection))
-                        .frame(minHeight: 44).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Reset preset")
-                .accessibilityIdentifier("develop.clear")
-            }
-        }
-        .padding(.leading, 8).padding(.trailing, 6).padding(.top, 2)
-        .frame(minHeight: 44)
-    }
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var contextLine: some View {
-        Text(model.contextLine ?? model.positionText)
-            .approvedText(12.5)
-            .foregroundStyle(c(ApprovedColor.inkTertiary))
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .padding(.horizontal, 18)
-            .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
-            .accessibilityIdentifier(model.contextLine == nil ? "develop.position" : "develop.context")
-    }
-
-    // MARK: Amount
-
-    private var amountRow: some View {
-        // The prototype's row is `display:flex` around the `.sl` grid, which is not stretched: its
-        // `minmax(90px, 1fr)` track resolves to 90 pt, and Done follows straight after the value.
-        HStack(spacing: 0) {
-            ApprovedSlider(label: "Amount", value: model.amountValue, range: 0...100, fixedTrackWidth: 90,
-                           onChange: { model.amountChanged($0) }, onEnd: { model.amountEnded($0) })
-                .fixedSize(horizontal: true, vertical: false)
-            Button("Done") { model.closeAmount() }
-                .buttonStyle(ApprovedSmallQuietButtonStyle())
-                .accessibilityIdentifier("develop.amount.done")
-            Spacer(minLength: 0)
-        }
-    }
 }
 
-/// `.notice`: icon, text with an optional bold lead, and quiet small actions.
+/// A panel notice (Lightly 2 `notice`).
 struct DevelopNotice: View {
     let icon: ApprovedIcon
     let bold: String?
     let text: String
     let actions: [(title: String, identifier: String, action: () -> Void)]
 
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            ApprovedIconView(icon: icon, size: 18)
-                .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-            VStack(alignment: .leading, spacing: 0) {
-                (Text(bold ?? "").fontWeight(.semibold).foregroundColor(ApprovedColor.ink.resolved(colorScheme))
-                    + Text(text).foregroundColor(ApprovedColor.inkSecondary.resolved(colorScheme)))
-                    .approvedText(13.5)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !actions.isEmpty {
-                    HStack(spacing: 4) {
-                        ForEach(actions.indices, id: \.self) { index in
-                            Button(actions[index].title, action: actions[index].action)
-                                .buttonStyle(ApprovedSmallQuietButtonStyle())
-                                .accessibilityIdentifier(actions[index].identifier)
-                        }
-                    }
-                    .padding(.top, 4)
-                    .padding(.leading, -12)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(ApprovedColor.backgroundSecondary.resolved(colorScheme)))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(ApprovedColor.hairline.resolved(colorScheme), lineWidth: 1))
-        .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 2)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("develop.notice")
+        L2Notice(icon: icon, bold: bold, text: text, actions: actions).accessibilityIdentifier("develop.notice")
     }
 }
 
-/// `.btn.quiet.small`: 44 pt high, 12 pt padding, 14.5 pt semibold in the selection colour.
+/// `quietBtn`: the chip-filled 38 pt capsule.
 struct ApprovedSmallQuietButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
+    var accent = false
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .approvedText(14.5, weight: .semibold)
-            .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
-            // One line at the approved sizes; at accessibility sizes the title wraps instead of running off the panel
-            // ("Remove background change" at AX5, A11 2026-10-07).
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.7 : 1)
+        L2QuietButtonStyle(accent: accent).makeBody(configuration: configuration)
     }
 }
 

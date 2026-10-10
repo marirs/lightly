@@ -36,41 +36,37 @@ enum EditorTool: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// How the editor is arranged (`layoutFor` in docs/ui/app/data.js).
+/// How the editor is arranged (Lightly 2 device references in docs/ui/directions/lightly-2-concept/index.html).
 struct EditorLayout: Equatable {
     enum Mode: Equatable {
-        /// Phones: controls under the photo, tools in a scrolling dock.
-        case below
-        /// Tablet portrait: centred controls under a large photo, tools in a centred dock.
-        case wide
-        /// Tablet landscape: a side panel and a tool rail beside the photo.
-        case side
+        /// Phones (`mode: 'phone'`): glass top bar over the stage, the fixed 340 pt tool panel, the tool dock.
+        case phone
+        /// Unfolded foldables, iPhone Duo and other regular-width screens (`mode: 'split'`): the header bar, then the
+        /// photo and the tool panel in two equal panes.
+        case split
+        /// Landscape iPad (`mode: 'tablet'`): the header bar, then the tool panel (360 pt), the photo, "Your edit" (290 pt).
+        case tablet
     }
 
     let mode: Mode
-    /// The whole screen, safe areas included (`L.w`, `L.h`).
+    /// The whole screen, safe areas included.
     let screen: CGSize
-    /// 13-inch tablets (`big`): a wider panel and content column.
-    let isLarge: Bool
 
-    var panelWidth: CGFloat { isLarge ? 400 : 360 }
-    var contentWidth: CGFloat { isLarge ? 640 : 600 }
-
-    /// `below`: the panel never takes more than 34 % of the height (it scrolls); `wide`: 30 %.
-    var panelMaximumHeight: CGFloat { (screen.height * (mode == .wide ? 0.3 : 0.34)).rounded() }
+    /// `PANEL_HEIGHT`: on phones the tool panel is this tall for every tool and state; its contents scroll.
+    static let phonePanelHeight: CGFloat = 340
 
     static func resolve(screen: CGSize, horizontalSizeClass: UserInterfaceSizeClass?, verticalSizeClass: UserInterfaceSizeClass?) -> EditorLayout {
-        let isTablet = horizontalSizeClass == .regular && verticalSizeClass == .regular
-        guard isTablet else { return EditorLayout(mode: .below, screen: screen, isLarge: false) }
-        // The 13-inch iPad's short side is 1032 pt, the 11-inch's 834 pt.
-        let isLarge = min(screen.width, screen.height) >= 1_000
-        return EditorLayout(mode: screen.width > screen.height ? .side : .wide, screen: screen, isLarge: isLarge)
+        guard horizontalSizeClass == .regular else { return EditorLayout(mode: .phone, screen: screen) }
+        // iPad landscape (both size classes regular, wider than tall, room for three columns) has its own layout.
+        let isTablet = verticalSizeClass == .regular && screen.width > screen.height && screen.width >= 1_100
+        return EditorLayout(mode: isTablet ? .tablet : .split, screen: screen)
     }
 }
 
 // MARK: - Top bar
 
-/// `.topbar`: Close, Undo, Redo, hold-to-Compare; Save copy and ⋮ More at the end.
+/// Phone top bar (iOS): a glass capsule with Close, Undo and Redo on the leading side (3 pt padding, 2 pt gaps); on the
+/// trailing side, 6 pt apart, the glass hold-to-Compare button, Save and the lime ⋮ More. 12 pt from the screen edges.
 struct EditorTopBar: View {
     let session: EditorSession
     let onClose: () -> Void
@@ -80,46 +76,89 @@ struct EditorTopBar: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(spacing: 2) {
-            barButton(.close, label: "Close", identifier: "editor.close", enabled: true, action: onClose)
-            barButton(.undo, label: "Undo", identifier: "editor.undo", enabled: session.canUndo, action: session.undo)
-            barButton(.redo, label: "Redo", identifier: "editor.redo", enabled: session.canRedo, action: session.redo)
-            CompareButton(session: session)
-            Spacer(minLength: 0)
-            Button(action: onSave) {
-                Text("Save copy")
-                    .approvedText(14, weight: .semibold)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .foregroundStyle(ApprovedColor.background.resolved(colorScheme))
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 34)
-                    .background(Capsule().fill(ApprovedColor.ink.resolved(colorScheme)))
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
+        let c = L2(scheme: colorScheme)
+        HStack(spacing: 0) {
+            HStack(spacing: 2) {
+                L2IconButton(icon: .close, label: Text("Close"), identifier: "editor.close", action: onClose)
+                L2IconButton(icon: .undo, label: Text("Undo"), isEnabled: session.canUndo, identifier: "editor.undo", action: session.undo)
+                L2IconButton(icon: .redo, label: Text("Redo"), isEnabled: session.canRedo, identifier: "editor.redo", action: session.redo)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 4)
-            .accessibilityIdentifier("editor.saveCopy")
-            barButton(.more, label: "More", identifier: "editor.more", enabled: true, action: onMore)
+            .padding(3)
+            .background(Capsule().fill(c(ApprovedColor.glass)))
+            .overlay(Capsule().strokeBorder(c(ApprovedColor.glassLine), lineWidth: 1))
+            Spacer(minLength: 6)
+            HStack(spacing: 6) {
+                CompareButton(session: session, glass: true)
+                L2SaveButton(action: onSave)
+                L2MoreButton(action: onMore)
+            }
         }
-        .padding(.horizontal, 6)
-        .frame(height: 48)
+        .padding(.horizontal, 12)
+        .frame(height: 52, alignment: .top)
     }
+}
 
-    private func barButton(_ icon: ApprovedIcon, label: String, identifier: String, enabled: Bool,
-                           action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            ApprovedIconView(icon: icon, size: 22)
-                .foregroundStyle((enabled ? ApprovedColor.ink : ApprovedColor.inkTertiary).resolved(colorScheme))
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+/// The header bar of two-pane screens and landscape iPad (`header()`): 60 pt (72 pt on iPad), 24 pt corners, surface,
+/// hairline; the app-icon tile, Close, the tools (the selected one named, on an ink fill; on iPad every tool named; an
+/// orange dot on tools holding edits), then Undo, Redo, Compare, Save and ⋮ More.
+struct EditorHeaderBar: View {
+    let session: EditorSession
+    let tools: [EditorTool]
+    let selected: EditorTool
+    let used: Set<EditorTool>
+    let namesEveryTool: Bool
+    let onSelect: (EditorTool) -> Void
+    let onClose: () -> Void
+    let onSave: () -> Void
+    let onMore: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let c = L2(scheme: colorScheme)
+        HStack(spacing: 6) {
+            BrandMark(size: 44, style: .tile).accessibilityLabel(Text("Lightly"))
+            L2IconButton(icon: .close, label: Text("Close"), identifier: "editor.close", action: onClose)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    ForEach(tools) { tool in
+                        let isOn = tool == selected, named = isOn || namesEveryTool
+                        Button { onSelect(tool) } label: {
+                            HStack(spacing: 8) {
+                                ApprovedIconView(icon: tool.icon, size: 20)
+                                if named { Text(tool.title).l2Text(14, weight: .semibold).lineLimit(1).fixedSize() }
+                            }
+                            .foregroundStyle(isOn ? c(ApprovedColor.onInk) : c(ApprovedColor.inkSecondary))
+                            .padding(.horizontal, named ? 14 : 0)
+                            .frame(width: named ? nil : 44, height: 44)
+                            .background(Capsule().fill(isOn ? c(ApprovedColor.segmentSelected) : .clear))
+                            .overlay(alignment: .topTrailing) {
+                                if used.contains(tool) { Circle().fill(c(ApprovedColor.edited)).frame(width: 5, height: 5).padding(7) }
+                            }
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(UndimmedButtonStyle())
+                        .accessibilityLabel(Text(tool.title))
+                        .accessibilityValue(Text(used.contains(tool) ? "Edited" : ""))
+                        .accessibilityAddTraits(isOn ? .isSelected : [])
+                        .accessibilityIdentifier("tool.\(tool.rawValue)")
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .padding(.leading, 4)
+            Spacer(minLength: 4)
+            HStack(spacing: 4) {
+                L2IconButton(icon: .undo, label: Text("Undo"), isEnabled: session.canUndo, identifier: "editor.undo", action: session.undo)
+                L2IconButton(icon: .redo, label: Text("Redo"), isEnabled: session.canRedo, identifier: "editor.redo", action: session.redo)
+                CompareButton(session: session, glass: false)
+                L2SaveButton(action: onSave)
+                L2MoreButton(action: onMore)
+            }
         }
-        // `.ib[disabled]` is ink3 at full opacity; the plain style would dim it further.
-        .buttonStyle(UndimmedButtonStyle())
-        .disabled(!enabled)
-        .accessibilityLabel(Text(label))
-        .accessibilityIdentifier(identifier)
+        .padding(.horizontal, 10)
+        .frame(height: namesEveryTool ? 72 : 60)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(c(ApprovedColor.surface)))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
     }
 }
 
@@ -130,18 +169,23 @@ struct UndimmedButtonStyle: ButtonStyle {
     }
 }
 
-/// Compare: shows the original while pressed (`pointerdown` / `pointerup`). For VoiceOver and
-/// Switch Control the same button is a toggle (activate to show the original, again to return).
+/// Compare: shows the original while pressed. A 44 pt circle (glass on phones), ink-filled while showing the original
+/// (`iconBtn('compare', …, { glass, on })`). For VoiceOver and Switch Control the same button is a toggle.
 struct CompareButton: View {
     let session: EditorSession
+    var glass = false
     @State private var isPressing = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ApprovedIconView(icon: .compare, size: 22)
-            .foregroundStyle((session.isShowingOriginal ? ApprovedColor.selection : ApprovedColor.ink).resolved(colorScheme))
+        let c = L2(scheme: colorScheme)
+        let on = session.isShowingOriginal
+        ApprovedIconView(icon: .compare, size: 20)
+            .foregroundStyle(on ? c(ApprovedColor.onInk) : glass ? c(ApprovedColor.glassInk) : c(ApprovedColor.ink))
             .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
+            .background(Circle().fill(on ? c(ApprovedColor.segmentSelected) : glass ? c(ApprovedColor.glass) : .clear))
+            .overlay { if glass && !on { Circle().strokeBorder(c(ApprovedColor.glassLine), lineWidth: 1) } }
+            .contentShape(Circle())
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { _ in
                     guard !isPressing else { return }
@@ -154,7 +198,7 @@ struct CompareButton: View {
                 })
             .accessibilityElement()
             .accessibilityLabel(Text("Hold to compare with the original"))
-            .accessibilityValue(Text(session.isShowingOriginal ? "Showing the original" : "Showing your edit"))
+            .accessibilityValue(Text(on ? "Showing the original" : "Showing your edit"))
             .accessibilityAddTraits([.isButton, .isToggle])
             .accessibilityAction { session.toggleCompare() }
             .accessibilityIdentifier("editor.compare")
@@ -163,8 +207,10 @@ struct CompareButton: View {
 
 // MARK: - Photo stage
 
-/// `.stage`: the canvas colour with the photo contain-fitted, never cropped. While comparing, the
-/// original carries the "Original" badge (`.badge`).
+/// The photo stage (`photo()` in the Lightly 2 mockup): the photo contain-fitted inside a 12 pt (sides) / 8 pt
+/// (top and bottom) inset, never cropped, with 18 pt corners (3 pt with a border). The stage itself is transparent:
+/// its container provides the colour (--bg on phones, --stage in panes). While comparing, the original carries the
+/// "Original" badge.
 struct PhotoStage<Overlay: View, Marks: View>: View {
     let image: CGImage
     var showsOriginalBadge = false
@@ -190,27 +236,24 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let fitted = Self.fittedSize(image: CGSize(width: image.width, height: image.height), in: geometry.size)
+            let fitted = Self.fittedSize(image: CGSize(width: image.width, height: image.height),
+                                         in: CGSize(width: max(1, geometry.size.width - 24), height: max(1, geometry.size.height - 16)))
             ZStack {
                 InspectionViewport(enabled: allowsInspection, doubleTapEnabled: allowsDoubleTapZoom, contentSize: fitted, viewportSize: geometry.size, onInspectionBegan: onInspectionBegan) {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.high)
                     .frame(width: fitted.width, height: fitted.height)
+                    .clipShape(RoundedRectangle(cornerRadius: outlinesCanvas ? 3 : 18, style: .continuous))
                     .overlay(alignment: .topLeading) {
                         if showsOriginalBadge {
                             Text("Original")
-                                .font(.system(size: 12.5, weight: .semibold))
+                                .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 9).padding(.vertical, 3)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55)))
-                                .padding(10)
+                                .padding(.horizontal, 10).padding(.vertical, 6)
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.55)))
+                                .padding(12)
                                 .accessibilityIdentifier("editor.originalBadge")
-                        }
-                    }
-                    .overlay {
-                        if outlinesCanvas {
-                            Rectangle().inset(by: -0.5).stroke(Color.black.opacity(0.12), lineWidth: 1)
                         }
                     }
                     .accessibilityElement()
@@ -237,7 +280,8 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                 onPhotoSize?(size)
             }
         }
-        .background(cropWorkspace ? Color(white: 0.08) : ApprovedColor.canvas.resolved(colorScheme))
+        // The crop workspace is #141414 in both themes (`cropWorkspace`).
+        .background(cropWorkspace ? Color(hex: 0x141414) : Color.clear)
         .clipped()
     }
 
@@ -262,156 +306,151 @@ extension PhotoStage where Marks == EmptyView {
     }
 }
 
-/// `.progress`: the dark rounded box with a spinner, a label and a bar.
-///
-/// Over the photo the box is absolutely positioned at `left: 50%`, so CSS shrink-to-fit gives it
-/// at most half the stage's width (it is 200 pt minimum): on a phone the subtitle wraps there.
-/// Over the saving scrim it is in normal flow and takes its natural width.
+/// `progressCard`: at least 190 pt wide, 16/18 padding, 20 pt corners, rgba(14,15,17,.82); a 24 pt lime spinner, the
+/// label (14 pt semibold, #F2F3F0; an optional 12 pt sub-line at 75 %), an optional 150×4 lime bar on 20 % white, and
+/// an optional Cancel (34 pt capsule, 12 % white, 13 pt semibold), 10 pt apart.
 struct ProgressBox<Extra: View>: View {
     let title: String
     var subtitle: String?
-    let barFraction: CGFloat
-    /// Half the stage width over the photo; nil in normal flow.
+    var barFraction: CGFloat?
+    /// Kept for call sites; the card is as wide as its content (at least 190 pt).
     var maximumWidth: CGFloat?
     @ViewBuilder var extra: () -> Extra
 
     var body: some View {
-        VStack(spacing: 0) {
-            RingSpinner().padding(.bottom, 8)
-            Text(title).font(.system(size: 14)).fixedSize(horizontal: false, vertical: true)
-            if let subtitle { Text(subtitle).font(.system(size: 13)).opacity(0.75).fixedSize(horizontal: false, vertical: true) }
-            Capsule().fill(.white.opacity(0.25)).frame(height: 3)
-                .overlay(alignment: .leading) {
-                    GeometryReader { proxy in Capsule().fill(.white).frame(width: proxy.size.width * barFraction) }
-                }
-                .padding(.top, 10)
+        VStack(spacing: 10) {
+            RingSpinner()
+            VStack(spacing: 2) {
+                Text(LocalizedStringKey(title)).font(.system(size: 14, weight: .semibold))
+                if let subtitle { Text(LocalizedStringKey(subtitle)).font(.system(size: 12, weight: .medium)).opacity(0.75) }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            if let barFraction {
+                Capsule().fill(.white.opacity(0.2)).frame(width: 150, height: 4)
+                    .overlay(alignment: .leading) { Capsule().fill(Color(hex: 0xCFF26B)).frame(width: 150 * barFraction) }
+            }
             extra()
         }
         .multilineTextAlignment(.center)
-        .foregroundStyle(.white)
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .modifier(ShrinkToFitWidth(minimum: 200, maximum: maximumWidth.map { max(200, $0) }))
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 20 / 255, green: 20 / 255, blue: 22 / 255).opacity(0.72)))
+        .foregroundStyle(Color(hex: 0xF2F3F0))
+        .padding(.horizontal, 18).padding(.vertical, 16)
+        .frame(minWidth: 190)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color(hex: 0x0E0F11, opacity: 0.82)))
         .accessibilityElement(children: .contain)
     }
 }
 
-/// `.spinner`: a 22 pt ring, 2 pt as rendered (2.5px in the CSS), 35 % white with a white top quarter. The prototype draws it
-/// still; here it turns, as a spinner does, and every frame looks like the approved one.
+/// The progress card's Cancel: 34 pt capsule, 14 pt padding, 12 % white, 13 pt semibold.
+struct ProgressCancelButton: View {
+    let identifier: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Text("Cancel").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(hex: 0xF2F3F0))
+                .padding(.horizontal, 14).frame(height: 34)
+                .background(Capsule().fill(.white.opacity(0.12)))
+                .frame(minHeight: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// The 24 pt spinner: a 3 pt lime ring with its right quarter open, turning.
 struct RingSpinner: View {
     @State private var angle: Double = 0
     var body: some View {
-        ZStack {
-            // `.spinner` border: 2 pt as rendered (the approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px)).
-            Circle().strokeBorder(.white.opacity(0.35), lineWidth: 2)
-            Circle().inset(by: 1).trim(from: 0.625, to: 0.875).stroke(.white, lineWidth: 2)
-        }
-        .frame(width: 22, height: 22)
-        .rotationEffect(.degrees(angle))
-        .onAppear { withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) { angle = 360 } }
-        .accessibilityHidden(true)
+        Circle().inset(by: 1.5).trim(from: 0, to: 0.75)
+            .stroke(Color(hex: 0xCFF26B), style: StrokeStyle(lineWidth: 3))
+            .rotationEffect(.degrees(-45 + angle))
+            .frame(width: 24, height: 24)
+            .onAppear { withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) { angle = 360 } }
+            .accessibilityHidden(true)
     }
 }
 
 // MARK: - Tool navigation
 
-/// `.dock` (phones and tablet portrait) or `.rail` (tablet landscape). Every approved tool is
-/// shown; Portrait only when the photo has a person. A dot marks tools that hold edits.
+/// The phone tool dock (`phoneDock`): 62 pt plus the bottom inset, a hairline above, the tools in equal slots
+/// (6 pt top, 4 pt side padding). iOS: 22 pt icon (accent when selected), 9.5 pt semibold label (ink when selected,
+/// ink3 otherwise), then a 4 pt dot slot, orange on tools holding edits. Android: the selected icon sits on a 46×30
+/// lime pill (`android` style).
 struct ToolNavigation: View {
-    enum Kind { case dockScrolls, dockFits, rail }
-
-    let kind: Kind
     let tools: [EditorTool]
     let selected: EditorTool
     let used: Set<EditorTool>
+    var androidStyle = false
     let onSelect: (EditorTool) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    /// `.tool { flex: 0 0 76px }`. Up to the approved large text (XXL) every slot is exactly 76 pt
-    /// and labels may run a little past it, as in the reference ("Background" is 77.7 pt at XXL).
-    /// Beyond XXL the prototype has no layout; there a slot widens to its label plus the reference's
-    /// smallest gap between neighbouring labels at XXL (76 - (52.6 + 77.7) / 2 ≈ 11 pt), and the
-    /// dock scrolls, so labels never collide (at AX1 "Develop" and "Background" overlapped).
-    /// The same holds for the tablet rail (`.rail { flex: 0 0 84px }`): at AX1 "Background" and
-    /// "Watermark" were cut off at the screen edge, so beyond XXL the rail is as wide as its widest
-    /// label plus that gap.
-    private static let dockSlotWidth: CGFloat = 76
-    private static let railWidth: CGFloat = 84
-    private static let labelGapBeyondApprovedLarge: CGFloat = 11
-
-    private var slotsWidenForLabels: Bool { dynamicTypeSize > ApprovedType.approvedLargeSize }
-    private var slotWidth: CGFloat { kind == .rail ? Self.railWidth : Self.dockSlotWidth }
 
     var body: some View {
-        switch kind {
-        case .rail:
-            VStack(spacing: 2) {
-                ForEach(tools) { toolButton($0, minHeight: 62) }
-            }
-            .fixedSize(horizontal: slotsWidenForLabels, vertical: false)
-            .frame(width: slotsWidenForLabels ? nil : Self.railWidth)
-            .frame(maxHeight: .infinity)
-            .overlay(alignment: .leading) { ApprovedVerticalHairline() }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(Text("Tools"))
-        case .dockFits:
-            HStack(spacing: 6) {
-                ForEach(tools) { toolButton($0, minHeight: 56) }
-            }
-            .padding(.horizontal, 4).padding(.top, 3)  // border-top 1 + padding-top 2
-            .frame(maxWidth: .infinity)
-            .overlay(alignment: .top) { ApprovedHairline() }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(Text("Tools"))
-        case .dockScrolls:
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(tools) { toolButton($0, minHeight: 56) }
+        let c = L2(scheme: colorScheme)
+        HStack(spacing: 0) {
+            ForEach(tools) { tool in
+                let isOn = tool == selected
+                Button { onSelect(tool) } label: {
+                    VStack(spacing: 3) {
+                        ApprovedIconView(icon: tool.icon, size: 22)
+                            .foregroundStyle(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary))
+                        Text(tool.title).l2Text(9.5, weight: .semibold).lineLimit(1).minimumScaleFactor(0.8)
+                            .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkTertiary))
+                        Circle().fill(used.contains(tool) ? c(ApprovedColor.edited) : .clear).frame(width: 4, height: 4)
+                    }
+                    .padding(.top, 2)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .top)
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 4).padding(.top, 3)  // border-top 1 + padding-top 2
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(tool.title))
+                .accessibilityValue(Text(used.contains(tool) ? "Edited" : ""))
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+                .accessibilityIdentifier("tool.\(tool.rawValue)")
             }
-            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            // `.dock.scrolls`: mask-image: linear-gradient(90deg, #000 86%, transparent).
-            .mask(LinearGradient(stops: [.init(color: .black, location: 0.86), .init(color: .clear, location: 1)],
-                                 startPoint: .leading, endPoint: .trailing))
-            .overlay(alignment: .top) { ApprovedHairline() }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(Text("Tools"))
         }
+        .padding(.horizontal, 4).padding(.top, 6)
+        .frame(height: 62, alignment: .top)
+        .overlay(alignment: .top) { Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1) }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Tools"))
     }
+}
 
-    private func toolButton(_ tool: EditorTool, minHeight: CGFloat) -> some View {
-        let isOn = tool == selected
-        let isUsed = used.contains(tool)
-        return Button { onSelect(tool) } label: {
-            VStack(spacing: 3) {
-                ApprovedIconView(icon: tool.icon, size: 22)
-                    .foregroundStyle((isOn ? ApprovedColor.selection : ApprovedColor.inkTertiary).resolved(colorScheme))
-                Text(tool.title)
-                    .approvedText(11, weight: .medium)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.horizontal, slotsWidenForLabels ? Self.labelGapBeyondApprovedLarge / 2 : 0)
-                if isUsed {
-                    Circle()
-                        .fill(ApprovedColor.edited.resolved(colorScheme))
-                        .frame(width: 4, height: 4)
-                        .padding(.top, 1)
+/// "Your edit" (landscape iPad, right column): every tool with its state and an orange dot when it holds an edit; the
+/// selected tool's row on a chip fill (14 pt corners), the others divided by hairlines; then the reassurance line.
+struct EditSummaryPanel: View {
+    let rows: [(tool: EditorTool, value: String, edited: Bool)]
+    let selected: EditorTool
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let c = L2(scheme: colorScheme)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Your edit").l2Heading(17).foregroundStyle(c(ApprovedColor.ink)).padding(.bottom, 8)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(rows, id: \.tool) { row in
+                let isOn = row.tool == selected
+                HStack(spacing: 10) {
+                    ApprovedIconView(icon: row.tool.icon, size: 18).foregroundStyle(c(ApprovedColor.inkSecondary))
+                    Text(row.tool.title).l2Text(14, weight: .semibold).foregroundStyle(c(ApprovedColor.ink))
+                    Spacer(minLength: 8)
+                    Text(LocalizedStringKey(row.value)).l2Text(12).foregroundStyle(c(ApprovedColor.inkSecondary))
+                        .lineLimit(1).truncationMode(.tail).frame(maxWidth: 130, alignment: .trailing)
+                    Circle().fill(row.edited ? c(ApprovedColor.edited) : .clear).frame(width: 6, height: 6)
                 }
+                .frame(minHeight: 50)
+                .padding(.horizontal, isOn ? 10 : 0)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(isOn ? c(ApprovedColor.chip) : .clear))
+                .padding(.horizontal, isOn ? -10 : 0)
+                .padding(.vertical, isOn ? 2 : 0)
+                .overlay(alignment: .bottom) { if !isOn { Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1) } }
+                .accessibilityElement(children: .combine)
             }
-            .foregroundStyle((isOn ? ApprovedColor.ink : ApprovedColor.inkTertiary).resolved(colorScheme))
-            .frame(width: slotsWidenForLabels ? nil : slotWidth)
-            .frame(minWidth: slotsWidenForLabels ? slotWidth : nil)
-            .frame(minHeight: minHeight)
-            .contentShape(Rectangle())
+            Text("Edits stay on this device. Save writes a new photo; the original is unchanged.")
+                .l2Text(12, lineHeight: 1.4).foregroundStyle(c(ApprovedColor.inkTertiary))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 14)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(tool.title))
-        .accessibilityValue(Text(isUsed ? "Edited" : ""))
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-        .accessibilityIdentifier("tool.\(tool.rawValue)")
     }
 }
 

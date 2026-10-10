@@ -42,7 +42,6 @@ struct EditorScreen: View {
     #endif
     @State private var isLeaveAlertShown = false
     @State private var isResetAlertShown = false
-    @State private var presetDockHeight: CGFloat = 59
     @State private var shareItem: ShareItem?
 
     let onClose: () -> Void
@@ -77,15 +76,18 @@ struct EditorScreen: View {
             let layout = EditorLayout.resolve(screen: screen, horizontalSizeClass: horizontalSizeClass, verticalSizeClass: verticalSizeClass)
             ZStack {
                 if session.phase == .ready {
-                    editor(layout)
+                    editor(layout, safeArea: geometry.safeAreaInsets)
                 } else {
                     loading(layout)
                 }
-                if tool == .develop && panel.isExpanded {
-                    VStack(spacing: 0) {
-                        Capsule().fill(.secondary.opacity(0.35)).frame(width: 36, height: 4).padding(10)
-                            .frame(maxWidth: .infinity).contentShape(Rectangle())
-                             .gesture(DragGesture().onChanged { panel.galleryPull = max(0, $0.translation.height) }.onEnded { _ in
+                // Swiped up, the preset gallery overlays the photo without squeezing it (Lightly 2 `expandedSheet`):
+                // directly above the dock, min(600, screen − 120) tall, 30 pt top corners, sheet fill, shadow 0 −6 24.
+                if tool == .develop && panel.isExpanded && layout.mode == .phone && !isCropping {
+                    let c = L2(scheme: colorScheme)
+                    VStack(spacing: 6) {
+                        Capsule().fill(c(ApprovedColor.track)).frame(width: 36, height: 4).padding(.top, 2).padding(.bottom, 4)
+                            .frame(maxWidth: .infinity).frame(minHeight: 24).contentShape(Rectangle())
+                            .gesture(DragGesture().onChanged { panel.galleryPull = max(0, $0.translation.height) }.onEnded { _ in
                                 withAnimation(.snappy(duration: 0.25)) {
                                     if panel.galleryPull > 40 { panel.isExpanded = false }
                                     panel.galleryPull = 0
@@ -96,13 +98,15 @@ struct EditorScreen: View {
                             .accessibilityAction(named: "Collapse presets") { panel.isExpanded = false }
                         DevelopPanelView(model: panel, style: .tabs, expanded: true)
                     }
-                    .frame(height: min(600, geometry.size.height - 120))
-                    .background(ApprovedColor.background.resolved(colorScheme), in: UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
-                    .shadow(color: .black.opacity(0.15), radius: 12, y: -3)
+                    .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
+                    .frame(height: min(600, screen.height - 120), alignment: .top)
+                    .background(c(ApprovedColor.sheet), in: UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30, style: .continuous))
+                    .shadow(color: .black.opacity(0.25), radius: 12, y: -6)
                     .offset(y: panel.galleryPull)
                     .transition(.move(edge: .bottom))
-                    .padding(.bottom, layout.mode == .side ? 0 : presetDockHeight)
+                    .padding(.bottom, 62 + geometry.safeAreaInsets.bottom)
                     .frame(maxHeight: .infinity, alignment: .bottom)
+                    .ignoresSafeArea(edges: .bottom)
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("develop.expanded")
                 }
@@ -212,24 +216,21 @@ struct EditorScreen: View {
         if session.hasUnsavedEdits { isLeaveAlertShown = true } else { onClose() }
     }
 
+    /// Auto on the photo (`autoControls`): a 38 pt circle, rgba(14,15,17,.66); applied: a 1.5 pt 75 % white ring, the
+    /// wand in lime and a 15 pt lime badge with the check at its bottom-trailing corner; not applied: a 1 pt 18 % white
+    /// ring and a #F2F3F0 wand.
     private var autoEnhanceButton: some View {
         let applied = session.autoState == .applied
         return Button { session.toggleAuto() } label: {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(Color.white)
-                .frame(width: 30, height: 30)
-                .background(Color(red: 24 / 255, green: 27 / 255, blue: 25 / 255).opacity(0.72), in: Circle())
-                .overlay {
-                    if applied { Circle().strokeBorder(Color.white.opacity(0.7), lineWidth: 1) }
-                }
+            ApprovedIconView(icon: .wand, size: 19)
+                .foregroundStyle(applied ? Color(hex: 0xCFF26B) : Color(hex: 0xF2F3F0))
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(Color(hex: 0x0E0F11, opacity: 0.66)))
+                .overlay(Circle().strokeBorder(.white.opacity(applied ? 0.75 : 0.18), lineWidth: applied ? 1.5 : 1))
                 .overlay(alignment: .bottomTrailing) {
                     if applied {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundStyle(Color(red: 34 / 255, green: 41 / 255, blue: 35 / 255))
-                            .frame(width: 12, height: 12)
-                            .background(Color(white: 0.97), in: Circle())
+                        ApprovedIconView(icon: .check, size: 10).foregroundStyle(Color(hex: 0x121408))
+                            .frame(width: 15, height: 15).background(Circle().fill(Color(hex: 0xCFF26B)))
                             .offset(x: 3, y: 3)
                     }
                 }
@@ -245,104 +246,192 @@ struct EditorScreen: View {
 
     // MARK: - Editor layouts
 
+    /// Auto and "Reset all" (38 pt capsule, same fill, 1 pt 18 % white ring, 13 pt bold #F2F3F0 with the reset icon),
+    /// 6 pt apart, 10 pt from the photo's bottom-leading corner; the toast centred 58 pt above the photo's bottom.
     private var photoActions: some View {
-        HStack(spacing: 2) {
-            autoEnhanceButton
-            if session.canReset(section: "all") {
-                Button { isResetAlertShown = true } label: {
-                    Label("Reset all", systemImage: "arrow.counterclockwise")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(colorScheme == .dark ? Color(red: 0.61, green: 0.73, blue: 1) : Color(red: 0.14, green: 0.35, blue: 0.84))
-                        .padding(.horizontal, 12).frame(height: 34)
-                        .background(colorScheme == .dark ? Color(white: 0.12) : .white, in: Capsule())
-                        .overlay(Capsule().strokeBorder(colorScheme == .dark ? Color.white.opacity(0.28) : Color.black.opacity(0.18), lineWidth: 1))
-                        .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
-                        .frame(minHeight: 44)
-                }.buttonStyle(.plain).accessibilityLabel("Reset all edits").accessibilityIdentifier("editor.resetAll")
+        ZStack(alignment: .bottomLeading) {
+            if let toast = session.toast {
+                StageToast(text: toast).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).padding(.bottom, 58)
             }
+            HStack(spacing: 6) {
+                autoEnhanceButton.padding(-3)
+                if session.canReset(section: "all") {
+                    Button { isResetAlertShown = true } label: {
+                        HStack(spacing: 6) {
+                            ApprovedIconView(icon: .reset, size: 15)
+                            Text("Reset all").font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundStyle(Color(hex: 0xF2F3F0))
+                        .padding(.horizontal, 13).frame(height: 38)
+                        .background(Capsule().fill(Color(hex: 0x0E0F11, opacity: 0.66)))
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                        .frame(minHeight: 44).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).accessibilityLabel("Reset all edits").accessibilityIdentifier("editor.resetAll")
+                }
+            }
+            .padding(10)
+            .opacity(session.isShowingOriginal || isCropping ? 0 : 1)
+            .allowsHitTesting(!session.isShowingOriginal && !isCropping)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+    }
+
+    private func photoStage() -> PhotoStage<EmptyView, AnyView> {
+        PhotoStage(image: session.isShowingOriginal ? session.originalImage : session.displayedImage,
+                   showsOriginalBadge: session.isShowingOriginal,
+                   outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
+                   marksCoverCanvas: tool == .watermark,
+                   cropWorkspace: isCropping,
+                   allowsInspection: !isCropping,
+                   allowsDoubleTapZoom: tool != .watermark,
+                   onInspectionBegan: {
+                       let hadPreview = watermarkDragStart != nil || replacementDragStart != nil
+                       watermarkDragStart = nil; replacementDragStart = nil
+                       cropGestureStart = nil; cropDraft = nil
+                       removePoints = []; refinePoints = []
+                       if hadPreview || (tool == .effects && effectsPanel.sub == .leak) { session.cancelLookPreview() }
+                   },
+                   photoChrome: AnyView(photoActions),
+                   imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
+                   onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
+                   overlay: { EmptyView() },
+                   marks: { AnyView(Group { if !session.isShowingOriginal { stageMarks.frame(maxWidth: .infinity, maxHeight: .infinity) } }) })
     }
 
     @ViewBuilder
-    private func editor(_ layout: EditorLayout) -> some View {
+    private func editor(_ layout: EditorLayout, safeArea: EdgeInsets) -> some View {
         let tools = EditorTool.available(hasPerson: session.hasPerson ?? false)
         let used = usedTools
-        let topBar = EditorTopBar(session: session, onClose: close, onSave: session.saveCopy, onMore: onMore)
-        let stage = PhotoStage(image: session.isShowingOriginal ? session.originalImage : session.displayedImage,
-                               showsOriginalBadge: session.isShowingOriginal,
-                               outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
-                               marksCoverCanvas: tool == .watermark,
-                               cropWorkspace: isCropping,
-                               allowsInspection: !isCropping,
-                               allowsDoubleTapZoom: tool != .watermark,
-                               onInspectionBegan: {
-                                   let hadPreview = watermarkDragStart != nil || replacementDragStart != nil
-                                   watermarkDragStart = nil; replacementDragStart = nil
-                                   cropGestureStart = nil; cropDraft = nil
-                                   removePoints = []; refinePoints = []
-                                   if hadPreview || (tool == .effects && effectsPanel.sub == .leak) { session.cancelLookPreview() }
-                               },
-                               photoChrome: AnyView(photoActions.opacity(isCropping ? 0 : 1).allowsHitTesting(!isCropping).padding(5).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).opacity(session.isShowingOriginal ? 0 : 1)),
-                               imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
-                               onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
-                               overlay: { if let toast = session.toast { StageToast(text: toast) } },
-                               marks: { if !session.isShowingOriginal { stageMarks.frame(maxWidth: .infinity, maxHeight: .infinity) } })
+        let c = L2(scheme: colorScheme)
         if isCropping {
-            VStack(spacing: 0) {
-                HStack {
-                    Button("Cancel") { finishCrop(apply: false) }.accessibilityIdentifier("edit.crop.cancel")
-                    Spacer()
-                    Button("Reset") { cropDraft = .init(x: 0, y: 0, width: 1, height: 1) }.accessibilityIdentifier("edit.crop.reset")
-                    Spacer()
-                    Button("Done") { finishCrop(apply: true) }.fontWeight(.semibold).accessibilityIdentifier("edit.crop.done")
-                }.font(.system(size: 17)).foregroundStyle(.white).padding(.horizontal, 20).frame(height: 52)
-                stage.padding(24)
-                Text("Drag the edges to crop. Pinch to resize.")
-                    .font(.system(size: 14)).foregroundStyle(.white.opacity(0.8)).padding(.bottom, 20)
-            }.background(Color(white: 0.08))
+            cropWorkspace
         } else {
         switch layout.mode {
-        case .below:
-            VStack(spacing: 0) {
-                topBar
-                stage
+        case .phone:
+            ZStack(alignment: .top) {
                 VStack(spacing: 0) {
-                    if tool == .develop { toolPanel(style: .tabs) }
-                    else { CappedScrollView(maximumHeight: layout.panelMaximumHeight) { toolPanel(style: .tabs) } }
-                    ToolNavigation(kind: .dockScrolls, tools: tools, selected: tool, used: used, onSelect: select)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { presetDockHeight = $0 }
-                }
-                .background(ApprovedColor.background.resolved(colorScheme))
-            }
-        case .wide:
-            VStack(spacing: 0) {
-                topBar
-                stage
-                VStack(spacing: 0) {
-                    Group {
-                        if tool == .develop { toolPanel(style: .wrappedTabs).padding(.top, 4) }
-                        else { CappedScrollView(maximumHeight: layout.panelMaximumHeight) { toolPanel(style: .wrappedTabs).padding(.top, 4) } }
-                    }
-                    .frame(maxWidth: layout.contentWidth)
-                    .frame(maxWidth: .infinity)
-                    ToolNavigation(kind: .dockFits, tools: tools, selected: tool, used: used, onSelect: select)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { presetDockHeight = $0 }
-                }
-                .background(ApprovedColor.background.resolved(colorScheme))
-            }
-        case .side:
-            VStack(spacing: 0) {
-                topBar
-                HStack(spacing: 0) {
-                    stage
-                    ScrollView(.vertical, showsIndicators: false) { toolPanel(style: .list) }
+                    Color.clear.frame(height: 52)
+                    photoStage()
+                    VStack(spacing: 0) {
+                        // NO JUMPS: the same height for every tool and state; contents scroll (Lightly 2 PANEL_HEIGHT).
+                        ScrollView(.vertical, showsIndicators: false) {
+                            toolPanel(style: .tabs)
+                                .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 6)
+                        }
                         .scrollBounceBehavior(.basedOnSize)
-                        .frame(width: layout.panelWidth)
-                        .overlay(alignment: .leading) { ApprovedVerticalHairline() }
-                    ToolNavigation(kind: .rail, tools: tools, selected: tool, used: used, onSelect: select)
+                        .frame(height: EditorLayout.phonePanelHeight)
+                        .mask(panelFade(fades: tool != .develop || panel.isFavouritesFullNoticeShown || session.autoState == .failed))
+                        ToolNavigation(tools: tools, selected: tool, used: used, onSelect: select)
+                            .padding(.bottom, safeArea.bottom)
+                    }
+                    .background(c(ApprovedColor.sheet), in: UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30, style: .continuous))
+                    .overlay(alignment: .top) {
+                        UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30, style: .continuous)
+                            .stroke(c(ApprovedColor.hairline), lineWidth: 1)
+                            .mask(alignment: .top) { Rectangle().frame(height: 31) }
+                    }
+                }
+                .ignoresSafeArea(.container, edges: .bottom)
+                EditorTopBar(session: session, onClose: close, onSave: session.saveCopy, onMore: onMore)
+            }
+        case .split:
+            VStack(spacing: 12) {
+                EditorHeaderBar(session: session, tools: tools, selected: tool, used: used, namesEveryTool: false,
+                                onSelect: select, onClose: close, onSave: session.saveCopy, onMore: onMore)
+                HStack(spacing: 16) {
+                    photoStage()
+                        .background(c(ApprovedColor.canvas), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(tool.title).l2Heading(17).foregroundStyle(c(ApprovedColor.ink)).accessibilityAddTraits(.isHeader)
+                        ScrollView(.vertical, showsIndicators: false) { toolPanel(style: .tabs) }
+                            .scrollBounceBehavior(.basedOnSize)
+                            .mask(panelFade(fades: true))
+                    }
+                    .padding(.horizontal, 18).padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(c(ApprovedColor.surface), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
                 }
             }
+            .padding(layout.screen.height < 700 ? 12 : 16)
+        case .tablet:
+            VStack(spacing: 20) {
+                EditorHeaderBar(session: session, tools: tools, selected: tool, used: used, namesEveryTool: true,
+                                onSelect: select, onClose: close, onSave: session.saveCopy, onMore: onMore)
+                HStack(spacing: 20) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(tool.title).l2Heading(19).foregroundStyle(c(ApprovedColor.ink)).accessibilityAddTraits(.isHeader)
+                        ScrollView(.vertical, showsIndicators: false) { toolPanel(style: .list) }
+                            .scrollBounceBehavior(.basedOnSize)
+                            .mask(panelFade(fades: true))
+                    }
+                    .padding(.horizontal, 20).padding(.vertical, 18)
+                    .frame(width: 360, alignment: .topLeading).frame(maxHeight: .infinity, alignment: .top)
+                    .background(c(ApprovedColor.surface), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
+                    photoStage()
+                        .background(c(ApprovedColor.canvas), in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    EditSummaryPanel(rows: summaryRows(tools: tools, used: used), selected: tool)
+                        .padding(.horizontal, 20).padding(.vertical, 18)
+                        .frame(width: 290, alignment: .topLeading).frame(maxHeight: .infinity, alignment: .top)
+                        .background(c(ApprovedColor.surface), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
+                }
+            }
+            .padding(20)
         }
+        }
+    }
+
+    /// `fadeDown`: the panel's lower edge fades (#000 90 % → transparent) where its contents scroll.
+    private func panelFade(fades: Bool) -> LinearGradient {
+        LinearGradient(stops: [.init(color: .black, location: 0.9), .init(color: fades ? .clear : .black, location: 1)],
+                       startPoint: .top, endPoint: .bottom)
+    }
+
+    /// Crop (`cropWorkspace`): its own #141414 screen in both themes, no bar, panel or dock: Cancel, Reset and Done
+    /// (17 pt white; Done bold lime) in a 52 pt row with 20 pt sides; the photo 12/24 pt in; the 14 pt hint at 80 %.
+    private var cropWorkspace: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Cancel") { finishCrop(apply: false) }.accessibilityIdentifier("edit.crop.cancel")
+                Spacer()
+                Button("Reset") { cropDraft = .init(x: 0, y: 0, width: 1, height: 1) }.accessibilityIdentifier("edit.crop.reset")
+                Spacer()
+                Button { finishCrop(apply: true) } label: { Text("Done").fontWeight(.bold).foregroundStyle(Color(hex: 0xCFF26B)) }
+                    .accessibilityIdentifier("edit.crop.done")
+            }
+            .font(.system(size: 17)).foregroundStyle(.white).padding(.horizontal, 20).frame(height: 52)
+            photoStage().padding(.vertical, 12).padding(.horizontal, 12)
+            Text("Drag the edges to crop. Pinch to resize.")
+                .font(.system(size: 14)).foregroundStyle(.white.opacity(0.8))
+                .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 20)
+        }
+        .background(Color(hex: 0x141414).ignoresSafeArea())
+    }
+
+    /// "Your edit" rows: every tool's current state.
+    private func summaryRows(tools: [EditorTool], used: Set<EditorTool>) -> [(tool: EditorTool, value: String, edited: Bool)] {
+        let r = session.recipe
+        return tools.map { tool in
+            let value: String
+            switch tool {
+            case .develop:
+                value = panel.appliedPresetName ?? (session.autoState == .applied ? "Auto" : "Original")
+            case .background:
+                if r.tools.background.replacement != nil { value = "Changed" }
+                else if r.tools.background.focus.blur > 0 { value = "Blur \(Int(r.tools.background.focus.blur))" }
+                else { value = "Off" }
+            case .portrait: value = used.contains(.portrait) ? portraitPanel.changedSummary : "Off"
+            case .edit: value = used.contains(.edit) ? "Edited" : "Off"
+            case .effects: value = used.contains(.effects) ? effectsPanel.onSummary : "Off"
+            case .watermark: value = used.contains(.watermark) ? watermarkPanel.typeTitle : "Off"
+            case .border: value = used.contains(.border) ? borderPanel.typeTitle : "Off"
+            }
+            return (tool, value, used.contains(tool))
         }
     }
 
@@ -750,27 +839,26 @@ struct EditorScreen: View {
         }
     }
 
+    /// Loading (`loadingScreen`): the photo between the 52 pt bar area and 120 pt from the bottom (phones), the progress
+    /// card centred on it, Close at the top leading corner (12 pt in).
     @ViewBuilder
     private func loading(_ layout: EditorLayout) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                ApprovedIconButton(icon: .close, accessibilityLabel: Text("Cancel"), identifier: "loading.cancel") {
-                    session.close()
-                    onClose()
-                }
-                Spacer(minLength: 0)
+        ZStack(alignment: .topLeading) {
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 52)
+                PhotoStage(image: session.displayedImage, overlay: { EmptyView() }, marks: {
+                    GeometryReader { photo in
+                        loadingProgress(maximumWidth: photo.size.width / 2)
+                            .position(x: photo.size.width / 2, y: photo.size.height / 2)
+                    }
+                })
+                Color.clear.frame(height: layout.mode == .phone ? 120 : 16)
             }
-            .padding(.horizontal, 6)
-            .frame(height: 48)
-            // The prototype puts `.progress` among the photo's marks (inside `.imgbox`), so CSS
-            // shrink-to-fit caps it at half the fitted photo's width, not the screen's.
-            PhotoStage(image: session.displayedImage, overlay: { EmptyView() }, marks: {
-                GeometryReader { photo in
-                    loadingProgress(maximumWidth: photo.size.width / 2)
-                        .position(x: photo.size.width / 2, y: photo.size.height / 2)
-                }
-            })
-            Color.clear.frame(height: layout.mode == .side ? 20 : 120)
+            L2IconButton(icon: .close, label: Text("Cancel"), identifier: "loading.cancel") {
+                session.close()
+                onClose()
+            }
+            .padding(.leading, 12)
         }
     }
 
@@ -778,18 +866,13 @@ struct EditorScreen: View {
 
     @ViewBuilder
     private func overlays(_ layout: EditorLayout) -> some View {
-        let isTabletSheet = layout.screen.width > 700
+        let isTabletSheet = layout.mode != .phone
         if session.saveState == .saving {
             // `.scrim.middle` covers the whole screen, status bar included, and centres the box in it.
             ZStack {
                 ApprovedColor.scrim(colorScheme)
                 ProgressBox(title: "Saving a copy…", barFraction: 0.55) {
-                    Button("Cancel") { session.cancelSave() }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(minWidth: 64, minHeight: 44)
-                        .padding(.top, 6)
-                        .accessibilityIdentifier("saving.cancel")
+                    ProgressCancelButton(identifier: "saving.cancel") { session.cancelSave() }
                 }
                 .accessibilityIdentifier("saving")
             }
@@ -854,18 +937,74 @@ struct ActivityView: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
-/// `.toast`: bottom-centre of the stage, 24 pt up, dark translucent.
+/// `toast`: 9/14 padding, 14 pt corners, rgba(14,15,17,.88), 13 pt semibold #F2F3F0, one line.
 struct StageToast: View {
     let text: String
     var body: some View {
-        Text(text)
-            .approvedText(13.5)
-            .foregroundStyle(.white)
+        Text(LocalizedStringKey(text))
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Color(hex: 0xF2F3F0))
             .lineLimit(1)
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).opacity(0.9)))
-            .frame(maxHeight: .infinity, alignment: .bottom)
-            .padding(.bottom, 24)
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x0E0F11, opacity: 0.88)))
             .accessibilityIdentifier("editor.toast")
+    }
+}
+
+// MARK: - "Your edit" values (landscape iPad)
+
+extension DevelopPanelModel {
+    /// The applied preset's display name, if a preset is applied.
+    var appliedPresetName: String? {
+        session.recipe.look.flatMap { session.library.pack.preset(id: $0.lookId)?.displayName }
+    }
+}
+
+extension PortraitPanelModel {
+    /// The Portrait tabs holding changes on any face, named as the tabs are ("Skin, Eyes").
+    var changedSummary: String {
+        let edits = session.recipe.tools.portrait.faces
+        var names: [String] = []
+        if edits.contains(where: { $0.skin.smoothing != 0 || $0.skin.blemishes != 0 || $0.skin.evenTone != 0 || $0.skin.keepTexture != 85 }) { names.append("Skin") }
+        if edits.contains(where: { $0.underEye.brighten != 0 || $0.underEye.softenLines != 0 }) { names.append("Under-eye") }
+        if edits.contains(where: { $0.eyes.brighten != 0 || $0.eyes.clarity != 0 }) { names.append("Eyes") }
+        if edits.contains(where: { $0.teeth.brighten != 0 }) { names.append("Teeth") }
+        if edits.contains(where: { $0.hair.definition != 0 || $0.hair.flyaways != 0 || $0.hair.shine != 0 }) { names.append("Hair & Beard") }
+        return names.isEmpty ? "Off" : names.joined(separator: ", ")
+    }
+}
+
+extension EffectsPanelModel {
+    /// The effects switched on, named as the tabs are.
+    var onSummary: String {
+        var names: [String] = []
+        if effects.lightLeak.enabled { names.append("Light Leaks") }
+        if effects.grain.enabled { names.append("Grain") }
+        if effects.vignette.enabled { names.append("Vignette") }
+        if !effects.selectiveColour.colours.isEmpty { names.append("Selective Colour") }
+        return names.isEmpty ? "Off" : names.joined(separator: ", ")
+    }
+}
+
+extension WatermarkPanelModel {
+    var typeTitle: String {
+        switch watermark.type {
+        case .none: "Off"
+        case .signature: "Signature"
+        case .text: "Text"
+        case .logo: "Logo"
+        }
+    }
+}
+
+extension BorderPanelModel {
+    var typeTitle: String {
+        switch border.type {
+        case .none: "Off"
+        case .solid: "Solid"
+        case .frame: "Photo Frame"
+        case .polaroid: "Polaroid"
+        case .paper: "Paper"
+        }
     }
 }
