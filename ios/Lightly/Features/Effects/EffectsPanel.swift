@@ -53,9 +53,10 @@ struct EffectsPanelView: View {
     private var session: EditorSession { model.session }
     private var effects: EditRecipe.Effects { model.effects }
 
+    /// Lightly 2 `effectsPanel`, a 5 pt column: the tabs (orange dot on effects in use), the reset row, the preset
+    /// conflict notice, the effect's controls. No On/Off switches: choosing a style or moving a slider turns it on.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if roomy { PanelTitle(text: "Effects") }
+        VStack(alignment: .leading, spacing: 5) {
             PanelTabs(items: [(EffectsPanelModel.Sub.leak, "Light Leaks", effects.lightLeak.enabled),
                               (.grain, "Grain", effects.grain.enabled),
                               (.vignette, "Vignette", effects.vignette.enabled),
@@ -63,7 +64,7 @@ struct EffectsPanelView: View {
                       selected: model.sub, wraps: wraps, identifierPrefix: "effects.sub") { model.sub = $0 }
             PanelResetRow(session: session, section: "effects", title: ["leak": "Light Leaks", "grain": "Grain", "vignette": "Vignette", "selective": "Selective Colour"][model.sub.rawValue]!, adjustment: model.sub.rawValue)
             if let notice = model.conflictNotice {
-                DevelopNotice(icon: .info, bold: nil, text: notice, actions: [])
+                L2Notice(icon: .info, text: notice)
             }
             switch model.sub {
             case .leak: leak
@@ -79,11 +80,11 @@ struct EffectsPanelView: View {
     @ViewBuilder
     private var leak: some View {
         let l = effects.lightLeak
-        ChipRow {
+        ChipRow(spacing: 6) {
             ForEach(Self.leakStyles, id: \.style) { option in
                 OptionChip(isOn: l.enabled && l.style == option.style, identifier: "effects.leak.\(option.style.rawValue)",
                            action: { session.commitEffects { $0.lightLeak.style = option.style; $0.lightLeak.enabled = true; if $0.lightLeak.intensity == 0 { $0.lightLeak.intensity = 35 } } }) {
-                    Text(option.label).approvedText(15)
+                    Text(LocalizedStringKey(option.label))
                 }
             }
         }
@@ -99,11 +100,11 @@ struct EffectsPanelView: View {
     @ViewBuilder
     private var grain: some View {
         let g = effects.grain
-        ChipRow {
+        ChipRow(spacing: 6) {
             ForEach([(EditRecipe.Effects.Grain.Style.fine, "Fine"), (.film, "Film"), (.coarse, "Coarse")], id: \.0) { style, label in
                 OptionChip(isOn: g.enabled && g.style == style, identifier: "effects.grain.\(style.rawValue)",
                            action: { session.commitEffects { $0.grain.style = style; $0.grain.enabled = true; if $0.grain.amount == 0 { $0.grain.amount = 25 } } }) {
-                    Text(label).approvedText(15)
+                    Text(LocalizedStringKey(label))
                 }
             }
         }
@@ -123,77 +124,82 @@ struct EffectsPanelView: View {
 
     /// Nothing kept: one instruction. Then the kept colours, (+) and Clear on one row, Range and Strength below.
     /// No On switch: a kept colour applies the effect.
+    /// Nothing kept: the picker icon and "Tap a colour in the photo to keep it." (14 pt ink2, 44 pt row). Then the kept
+    /// colours (30 pt dots with a 2 pt sheet gap and a 1 pt line; × badges with several), the (+) circle (dashed ink3,
+    /// solid accent while adding) and Clear at the end; the hint while adding; Range and Strength.
     @ViewBuilder
     private var selective: some View {
         let colours = effects.selectiveColour.colours
-        if colours.isEmpty {
+        let c = L2(scheme: colorScheme)
+        if colours.isEmpty && !model.isAddingColour {
             HStack(spacing: 10) {
                 ApprovedIconView(icon: .picker, size: 20)
-                Text("Tap a colour in the photo to keep it.").approvedText(15)
+                Text("Tap a colour in the photo to keep it.").l2Text(14)
             }
-            .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-            .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
-            .padding(.vertical, 14)
+            .foregroundStyle(c(ApprovedColor.inkSecondary))
+            .frame(minHeight: 44)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("effects.selective.hint")
         } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(Array(colours.enumerated()), id: \.offset) { index, kept in
-                        keptColourDot(kept, index: index, removable: colours.count > 1)
-                    }
-                    addColourButton
-                    Button("Clear") { model.isAddingColour = false; session.clearSelectiveColour() }
-                        .buttonStyle(ApprovedSmallQuietButtonStyle())
-                        .accessibilityIdentifier("effects.selective.clear")
+            HStack(spacing: 10) {
+                ForEach(Array(colours.enumerated()), id: \.offset) { index, kept in
+                    keptColourDot(kept, index: index, removable: colours.count > 1)
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, 6)
+                addColourButton
+                Spacer(minLength: 0)
+                Button("Clear") { model.isAddingColour = false; session.clearSelectiveColour() }
+                    .buttonStyle(L2LinkButtonStyle())
+                    .accessibilityIdentifier("effects.selective.clear")
             }
-            if model.isAddingColour { ApprovedNote("Tap another colour in the photo.") }
+            .frame(minHeight: 44)
+            if model.isAddingColour { L2Note(text: Text("Tap another colour in the photo.")) }
+        }
+        if !colours.isEmpty || model.isAddingColour {
             selectiveSlider("Range", \.range)
             selectiveSlider("Strength", \.strength)
         }
     }
 
-    /// A kept colour: a 28 pt dot in a 44 pt target. With more than one colour, a small × removes just this one.
     @ViewBuilder
     private func keptColourDot(_ kept: EditRecipe.Effects.SelectiveColour.Kept, index: Int, removable: Bool) -> some View {
+        let c = L2(scheme: colorScheme)
         let dot = Circle().fill(Self.displayColour(kept.oklab))
-            .overlay(Circle().strokeBorder(ApprovedColor.hairline.resolved(colorScheme), lineWidth: 1))
-            .frame(width: 28, height: 28)
+            .frame(width: 30, height: 30)
+            .background(Circle().fill(c(ApprovedColor.sheet)).padding(-2))
+            .overlay(Circle().stroke(c(ApprovedColor.hairline), lineWidth: 1).padding(-3))
         if removable {
             Button { session.removeSelectiveColour(at: index) } label: {
                 dot.overlay(alignment: .topTrailing) {
                     ApprovedIconView(icon: .close, size: 10)
-                        .foregroundStyle(ApprovedColor.background.resolved(colorScheme))
+                        .foregroundStyle(c(ApprovedColor.background))
                         .frame(width: 16, height: 16)
-                        .background(Circle().fill(ApprovedColor.ink.resolved(colorScheme)))
-                        .offset(x: 4, y: -4)
+                        .background(Circle().fill(c(ApprovedColor.ink)))
+                        .offset(x: 6, y: -6)
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 36, height: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Remove colour \(index + 1)"))
             .accessibilityIdentifier("effects.selective.remove.\(index)")
         } else {
-            dot.frame(width: 44, height: 44)
+            dot.frame(width: 36, height: 44)
                 .accessibilityLabel(Text("Kept colour"))
                 .accessibilityIdentifier("effects.selective.colour.\(index)")
         }
     }
 
-    /// (+): the next tap on the photo keeps another colour.
     private var addColourButton: some View {
         let adding = model.isAddingColour
-        let tint = (adding ? ApprovedColor.selection : ApprovedColor.inkSecondary).resolved(colorScheme)
+        let c = L2(scheme: colorScheme)
+        let tint = adding ? c(ApprovedColor.selection) : c(ApprovedColor.inkSecondary)
         return Button { model.isAddingColour.toggle() } label: {
-            ApprovedIconView(icon: .plus, size: 15)
+            ApprovedIconView(icon: .plus, size: 16)
                 .foregroundStyle(tint)
-                .frame(width: 28, height: 28)
-                .overlay(Circle().strokeBorder(tint, style: StrokeStyle(lineWidth: 1, dash: adding ? [] : [2, 2])))
-                .frame(width: 44, height: 44)
+                .frame(width: 30, height: 30)
+                .overlay(Circle().strokeBorder(adding ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary),
+                                               style: StrokeStyle(lineWidth: 1.5, dash: adding ? [] : [3, 2])))
+                .frame(width: 36, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

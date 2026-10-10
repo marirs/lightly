@@ -122,9 +122,10 @@ struct BorderPanelView: View {
     private var session: EditorSession { model.session }
     private var border: EditRecipe.Border { model.border }
 
+    /// Lightly 2 `borderPanel`, a 6 pt column: the tabs, the reset row (with a border), the type's controls. Every
+    /// colour is the one colour strip.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if roomy && model.selectedType != .none { PanelTitle(text: "Border") }
+        VStack(alignment: .leading, spacing: 6) {
             PanelTabs(items: [(EditRecipe.Border.Kind.none, "None", false), (.solid, "Solid", false),
                               (.frame, "Photo Frame", false), (.polaroid, "Polaroid", false), (.paper, "Paper", false)],
                       selected: model.selectedType, wraps: wraps, identifierPrefix: "border.type") { model.choose($0) }
@@ -143,65 +144,60 @@ struct BorderPanelView: View {
 
     @ViewBuilder
     private var solid: some View {
-        swatches(BorderPanelModel.solidColours, selected: border.colour, identifier: "border.colour") { c in
-            model.commit { $0.colour = c }
-        }
+        colour("Border colour", selected: border.colour, identifier: "border.colour", key: \.colour)
         slider("Width", \.width, 1...15)
     }
 
     @ViewBuilder
     private var frame: some View {
-        sectionLabel("Frame")
-        swatches(BorderPanelModel.frameColours, selected: border.colour, identifier: "border.colour") { c in
-            model.commit { $0.colour = c }
-        }
+        colour("Frame colour", selected: border.colour, identifier: "border.colour", key: \.colour)
         slider("Frame width", \.width, 1...10)
-        sectionLabel("Mat")
-        swatches(BorderPanelModel.matColours, selected: border.mat, identifier: "border.mat") { c in
-            model.commit { $0.mat = c }
-        }
+        colour("Mat colour", selected: border.mat, identifier: "border.mat", key: \.mat)
         slider("Spacing", \.spacing, 0...12)
     }
 
     @ViewBuilder
     private var polaroid: some View {
-        swatches(BorderPanelModel.polaroidColours, selected: border.colour, identifier: "border.colour") { c in
-            model.commit { $0.colour = c }
+        colour("Border colour", selected: border.colour, identifier: "border.colour", key: \.colour)
+        L2Note(text: Text("A wider bottom margin, as on an instant print."))
+    }
+
+    private func colour(_ title: String, selected: String, identifier: String, key: WritableKeyPath<EditRecipe.Border, String>) -> some View {
+        ColourControl(title: title, selected: selected, photo: session.originalImage, identifier: identifier,
+                      preview: { hex in model.preview { $0[keyPath: key] = hex } },
+                      previewImage: { session.displayedImage }, cancel: session.cancelLookPreview) { hex in
+            model.commit { $0[keyPath: key] = hex }
         }
-        ApprovedNote("A wider bottom margin, as on an instant print.")
-
     }
 
-    /// `.note` with `padding-bottom:0`: a section caption above a swatch row.
-    private func sectionLabel(_ text: String) -> some View {
-        ApprovedNote(verbatim: text, bottomPadding: 0)
-    }
-
-    private func swatches(_ colours: [String], selected: String, identifier: String,
-                          choose: @escaping (String) -> Void) -> some View {
-        ColourControl(title: identifier == "border.mat" ? "Mat colour" : "Border colour", selected: selected,
-                      photo: session.originalImage, identifier: identifier,
-                      preview: { hex in model.preview { if identifier == "border.mat" { $0.mat = hex } else { $0.colour = hex } } },
-                      previewImage: { session.displayedImage }, cancel: session.cancelLookPreview, choose: choose)
-    }
-
+    /// Paper: the finishes (92×64 chip-filled tiles, 14 pt corners, a 64×40 sample; selected with a 2 pt accent ring;
+    /// 12.5 pt label, bold ink when selected), 12 pt apart; then the paper colour, Width and Texture.
+    @ViewBuilder
     private var paper: some View {
-        VStack(spacing: 0) {
-            ChipRow {
-                ForEach(EditRecipe.Border.PaperFinish.allCases, id: \.self) { finish in
-                    Button { model.commit { $0.paperFinish = finish } } label: {
-                        VStack(spacing: 8) {
-                            PaperFinishSample(finish: finish).frame(width: 82, height: 56)
-                            Text(finish.rawValue.capitalized).approvedText(13)
-                        }.padding(5).overlay(RoundedRectangle(cornerRadius: 9).stroke(border.paperFinish == finish ? Color.accentColor : .clear, lineWidth: 2))
-                    }.buttonStyle(.plain).accessibilityIdentifier("border.paper." + finish.rawValue)
+        let c = L2(scheme: colorScheme)
+        ChipRow(spacing: 12) {
+            ForEach(EditRecipe.Border.PaperFinish.allCases, id: \.self) { finish in
+                let isOn = border.paperFinish == finish
+                Button { model.commit { $0.paperFinish = finish } } label: {
+                    VStack(spacing: 5) {
+                        PaperFinishSample(finish: finish)
+                            .frame(width: 64, height: 40)
+                            .frame(width: 92, height: 64)
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(c(ApprovedColor.chip)))
+                            .overlay { if isOn { RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(c(ApprovedColor.selection), lineWidth: 2) } }
+                        Text(LocalizedStringKey(finish.rawValue.capitalized)).l2Text(12.5, weight: isOn ? .bold : .medium)
+                            .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkSecondary))
+                    }
+                    .padding(3)
                 }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+                .accessibilityIdentifier("border.paper." + finish.rawValue)
             }
-            ColourControl(title: "Paper colour", selected: border.colour, photo: session.originalImage, identifier: "border.paper.colour",
-                          preview: { hex in model.preview { $0.colour = hex } }, previewImage: { session.displayedImage }, cancel: session.cancelLookPreview) { c in model.commit { $0.colour = c } }
-            slider("Width", \.width, 1...15)
-            slider("Texture", \.texture, 0...100)
         }
+        colour("Paper colour", selected: border.colour, identifier: "border.paper.colour", key: \.colour)
+        slider("Width", \.width, 1...15)
+        slider("Texture", \.texture, 0...100)
     }
 
     private func slider(_ label: String, _ key: WritableKeyPath<EditRecipe.Border, Double>,
@@ -212,17 +208,29 @@ struct BorderPanelView: View {
     }
 }
 
+/// The finish samples, #ECE8DF: Clean (2 pt corners), Deckled and Torn (the mockup's `paperEdge` outlines).
 private struct PaperFinishSample: View {
     let finish: EditRecipe.Border.PaperFinish
+    static let deckled: [(CGFloat, CGFloat)] = [(0, 3), (6, 0), (14, 2), (24, 0), (35, 3), (47, 0), (58, 2), (70, 0), (82, 3), (92, 0), (100, 2), (98, 14), (100, 30), (97, 47), (100, 63), (98, 80), (100, 97), (90, 100), (78, 97), (66, 100), (52, 98), (40, 100), (27, 97), (15, 100), (4, 98), (0, 100), (2, 82), (0, 64), (3, 46), (0, 30), (2, 14)]
+    static let torn: [(CGFloat, CGFloat)] = [(0, 0), (18, 4), (30, 0), (52, 5), (68, 1), (86, 6), (100, 0), (96, 22), (100, 44), (95, 70), (100, 100), (76, 95), (58, 100), (36, 94), (18, 100), (0, 96), (4, 74), (0, 50), (5, 26)]
+
     var body: some View {
         Canvas { context, size in
-            var path = Path()
-            let amplitude = finish == .clean ? 0.0 : (finish == .deckled ? 1.0 : 3.0)
-            path.move(to: CGPoint(x: 4, y: 4))
-            for x in stride(from: 4.0, through: size.width-4, by: 1) { path.addLine(to: CGPoint(x: x, y: 4 + amplitude * PaperBorder.noise(x*0.8, 0))) }
-            path.addLine(to: CGPoint(x: size.width-4, y: size.height-4))
-            for x in stride(from: size.width-4, through: 4.0, by: -1) { path.addLine(to: CGPoint(x: x, y: size.height-4-amplitude*PaperBorder.noise(x*0.8, 17))) }
-            path.closeSubpath(); context.fill(path, with: .color(Color(red: 0.91, green: 0.88, blue: 0.82)))
-        }.background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+            let fill = Color(hex: 0xECE8DF)
+            switch finish {
+            case .clean:
+                context.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 2), with: .color(fill))
+            case .deckled, .torn:
+                let points = finish == .deckled ? Self.deckled : Self.torn
+                var path = Path()
+                for (index, point) in points.enumerated() {
+                    let p = CGPoint(x: size.width * point.0 / 100, y: size.height * point.1 / 100)
+                    if index == 0 { path.move(to: p) } else { path.addLine(to: p) }
+                }
+                path.closeSubpath()
+                context.fill(path, with: .color(fill))
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

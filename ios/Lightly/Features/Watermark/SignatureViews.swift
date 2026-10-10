@@ -80,7 +80,8 @@ final class SignaturePadModel {
     #endif
 }
 
-/// `sigDraw`: Cancel · "Draw signature" · Save; the dashed pad with its baseline; Clear and the note.
+/// `sigDraw` (Lightly 2): sheetHead (Cancel · Draw signature · Save); the pad (180 pt, 18 pt corners, --bg, 1.5 pt
+/// dashed ink3 border, a hairline baseline 20 pt in and 40 pt up), 4/16 pt margins; then Clear and the note, 6/16 pt.
 struct DrawSignatureSheetContent: View {
     @Bindable var pad: SignaturePadModel
     let onCancel: () -> Void
@@ -91,31 +92,27 @@ struct DrawSignatureSheetContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetHead(title: "Draw signature", trailing: "Save", trailingIdentifier: "signature.draw.save", onCancel: onCancel) {
-                if let signature = pad.signature { onSave(signature) }
-            }
+            L2SheetHeader(title: Text("Draw signature"),
+                          leading: { L2TextButton(title: "Cancel", identifier: "sheet.cancel", action: onCancel) },
+                          trailing: { L2TextButton(title: "Save", isBold: true, identifier: "signature.draw.save") {
+                              if let signature = pad.signature { onSave(signature) } } })
             padView
-            // `display:flex;padding:0 10px`: Clear, then the note, stretched to the row height.
-            HStack(alignment: .top, spacing: 0) {
+            HStack(spacing: 10) {
                 Button("Clear", action: pad.clear)
-                    .buttonStyle(QuietButtonStyle())
+                    .buttonStyle(L2QuietButtonStyle())
                     .accessibilityIdentifier("signature.draw.clear")
                 Spacer(minLength: 0)
-                Text("Saved for reuse. It keeps its own look.")
-                    .approvedText(13)
-                    .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
-                    .padding(.horizontal, 18).padding(.vertical, 6)
+                L2Note(text: Text("Saved for reuse. It keeps its own look.")).fixedSize()
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 16).padding(.vertical, 6)
         }
     }
 
-    /// `.sigpad`: 180 pt, 1 pt dashed ink-3 border, radius 12, background colour; `.line` 20 pt in
-    /// from each side, 40 pt above the bottom.
     private var padView: some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 12).fill(ApprovedColor.background.resolved(colorScheme))
-            Rectangle().fill(ApprovedColor.hairline.resolved(colorScheme)).frame(height: 1)
+        let c = L2(scheme: colorScheme)
+        return ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 18, style: .continuous).fill(c(ApprovedColor.background))
+            Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1)
                 .padding(.horizontal, 20)
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, 40)
@@ -124,30 +121,29 @@ struct DrawSignatureSheetContent: View {
                 let drawing = DrawnSignature(strokes: pad.strokes, viewBox: .init(x: 0, y: 0, width: 1, height: 1),
                                              strokeWidth: SignaturePadModel.penWidth)
                 context.stroke(Path(drawing.path(origin: .zero, height: 1)),
-                               with: .color(ApprovedColor.ink.resolved(colorScheme)),
+                               with: .color(c(ApprovedColor.ink)),
                                style: StrokeStyle(lineWidth: SignaturePadModel.penWidth, lineCap: .round, lineJoin: .round))
             }
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(ApprovedColor.inkTertiary.resolved(colorScheme), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(c(ApprovedColor.inkTertiary), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
         }
         .frame(height: Self.padHeight)
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 0)
             .onChanged { value in pad.continueStroke(at: value.location) }
             .onEnded { _ in pad.endStroke() })
-        .padding(.horizontal, 18).padding(.vertical, 12)
+        .padding(.horizontal, 16).padding(.vertical, 4)
         .accessibilityElement()
         .accessibilityLabel(Text("Signature pad"))
         .accessibilityHint(Text("Draw your signature with one finger."))
         .accessibilityIdentifier("signature.pad")
     }
-
 }
 
-// MARK: - Import signature (approved `sigImport`)
+// MARK: - Import signature
 
-/// `sigImport`: Cancel · "Import signature" · Use; the signature on paper colour with the dashed
-/// selection; the note.
+/// `sigImport` (Lightly 2): sheetHead (Cancel · Import signature · Use); the signature on #F7F4EE (170 pt, 18 pt
+/// corners) with the 1.5 pt dashed accent selection inset 14 pt; the note (8/16 pt).
 struct ImportSignatureSheetContent: View {
     /// The signature to use: PNG with the paper removed, or the photo as it is when no ink was found.
     let extracted: Data
@@ -157,73 +153,29 @@ struct ImportSignatureSheetContent: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let c = L2(scheme: colorScheme)
         VStack(spacing: 0) {
-            SheetHead(title: "Import signature", trailing: "Use", trailingIdentifier: "signature.import.use", onCancel: onCancel) {
-                onUse(extracted)
-            }
-            // `margin:10px 18px;height:170px;border-radius:12px;background:#F7F4EE`, the signature
-            // 70 pt tall centred, the dashed selection inset 14 pt (1.5 px, drawn 1 px as rendered).
+            L2SheetHeader(title: Text("Import signature"),
+                          leading: { L2TextButton(title: "Cancel", identifier: "sheet.cancel", action: onCancel) },
+                          trailing: { L2TextButton(title: "Use", isBold: true, identifier: "signature.import.use") { onUse(extracted) } })
             ZStack {
-                RoundedRectangle(cornerRadius: 12).fill(Color(red: 0xF7 / 255, green: 0xF4 / 255, blue: 0xEE / 255))
+                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(hex: 0xF7F4EE))
                 if let image = WatermarkStage.image(from: extracted) {
-                    // 70 pt tall as the prototype's sample; a wide photo is fitted inside the selection.
                     Image(decorative: image, scale: 1)
                         .resizable()
                         .interpolation(.high)
                         .scaledToFit()
-                        .frame(maxWidth: 70 * CGFloat(image.width) / CGFloat(max(image.height, 1)), maxHeight: 70)
-                        .padding(.horizontal, 15)
+                        .frame(maxWidth: 150, maxHeight: 70)
                         .accessibilityLabel(Text("Imported signature"))
                 }
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(ApprovedColor.selection.resolved(colorScheme), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(c(ApprovedColor.selection), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                     .padding(14)
             }
             .frame(height: 170)
-            .padding(.horizontal, 18).padding(.vertical, 10)
-            ApprovedNote("The paper is removed. The ink keeps its original colour and texture.")
+            .padding(.horizontal, 16).padding(.vertical, 4)
+            L2Note(text: Text("The paper is removed. The ink keeps its original colour and texture."))
+                .padding(.horizontal, 16).padding(.vertical, 8)
         }
-    }
-}
-
-/// `.sheethead`: Cancel, the centred title in the remaining width, the trailing action.
-struct SheetHead: View {
-    let title: String
-    let trailing: String
-    let trailingIdentifier: String
-    let onCancel: () -> Void
-    let onTrailing: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Button("Cancel", action: onCancel)
-                .buttonStyle(SheetHeadQuietButtonStyle())
-                .accessibilityIdentifier("sheet.cancel")
-            Text(title)
-                .approvedText(17, weight: .semibold)
-                .foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
-                .frame(maxWidth: .infinity)
-                .accessibilityAddTraits(.isHeader)
-            Button(trailing, action: onTrailing)
-                .buttonStyle(SheetHeadQuietButtonStyle())
-                .accessibilityIdentifier(trailingIdentifier)
-        }
-        .padding(.leading, 18).padding(.trailing, 8)
-        .frame(minHeight: 44)
-    }
-}
-
-/// `.btn.quiet` outside a sheet head: selection colour, 600 weight, 12 pt padding, 44 pt tall.
-struct QuietButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) private var colorScheme
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .approvedText(15, weight: .semibold)
-            .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }

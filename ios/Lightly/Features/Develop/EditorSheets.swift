@@ -169,16 +169,3 @@ struct ReplaceFavouriteSheetContent: View {
     }
 }
 
-/// Sheet-header text button for the signature sheets until they move to `L2SheetHeader` (Watermark stage).
-struct SheetHeadQuietButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) private var colorScheme
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .l2Text(15, weight: .semibold)
-            .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
-            .padding(.horizontal, 4)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.7 : 1)
-    }
-}

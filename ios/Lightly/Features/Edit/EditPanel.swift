@@ -52,9 +52,9 @@ struct EditPanelView: View {
     private var geometry: EditRecipe.Geometry { model.edit.geometry }
     private var adjust: EditRecipe.Adjust { model.edit.adjust }
 
+    /// Lightly 2 `editPanel`, a 6 pt column: the tabs, the reset row, the tab's controls.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if roomy { PanelTitle(text: "Edit") }
+        VStack(alignment: .leading, spacing: 6) {
             PanelTabs(items: [(EditPanelModel.Sub.crop, "Crop", false), (.rotate, "Rotate", false), (.straighten, "Straighten", false),
                               (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Remove", false)],
                       selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0; if $0 == .crop { model.cropPreview = false } }
@@ -72,29 +72,36 @@ struct EditPanelView: View {
 
     // MARK: Crop, Rotate, Straighten, Perspective
 
-    @ViewBuilder
+    /// "Crop photo": a 44 pt quiet button in the accent colour with the Edit icon; it reopens the crop workspace.
     private var crop: some View {
-        Button("Crop photo") { model.cropPreview = false }
-            .buttonStyle(ApprovedSmallQuietButtonStyle())
+        Button { model.cropPreview = false } label: { L2Label(title: Text("Crop photo"), icon: .edit, iconSize: 16) }
+            .buttonStyle(L2QuietButtonStyle(height: 44, accent: true))
             .accessibilityIdentifier("edit.crop.open")
-            .padding(.horizontal, 18).frame(minHeight: 44)
     }
 
+    /// Rotate: a 2×2 grid, 8 pt gaps, of 46 pt outlined buttons (16 pt corners) with an 18 pt icon and a 13 pt
+    /// semibold label; a flip that is on shows in the accent colour.
     private var rotate: some View {
-        ChipRow {
-            OptionChip(isOn: false, identifier: "edit.rotateLeft", action: { session.rotate(quarterTurns: -1) }) {
-                ApprovedIconView(icon: .rotl, size: 18); Text("Rotate left").approvedText(15)
-            }
-            OptionChip(isOn: false, identifier: "edit.rotateRight", action: { session.rotate(quarterTurns: 1) }) {
-                ApprovedIconView(icon: .rotr, size: 18); Text("Rotate right").approvedText(15)
-            }
-            OptionChip(isOn: false, identifier: "edit.flipHorizontal", action: { session.commitEdit { $0.geometry.flipHorizontal.toggle() } }) {
-                ApprovedIconView(icon: .fliph, size: 18); Text("Flip horizontal").approvedText(15)
-            }
-            OptionChip(isOn: false, identifier: "edit.flipVertical", action: { session.commitEdit { $0.geometry.flipVertical.toggle() } }) {
-                ApprovedIconView(icon: .flipv, size: 18); Text("Flip vertical").approvedText(15)
-            }
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+            rotateButton(.rotl, "Rotate left", "edit.rotateLeft", isOn: false) { session.rotate(quarterTurns: -1) }
+            rotateButton(.rotr, "Rotate right", "edit.rotateRight", isOn: false) { session.rotate(quarterTurns: 1) }
+            rotateButton(.fliph, "Flip horizontal", "edit.flipHorizontal", isOn: geometry.flipHorizontal) { session.commitEdit { $0.geometry.flipHorizontal.toggle() } }
+            rotateButton(.flipv, "Flip vertical", "edit.flipVertical", isOn: geometry.flipVertical) { session.commitEdit { $0.geometry.flipVertical.toggle() } }
         }
+    }
+
+    private func rotateButton(_ icon: ApprovedIcon, _ title: String, _ identifier: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        let c = L2(scheme: colorScheme)
+        return Button(action: action) {
+            HStack(spacing: 8) { ApprovedIconView(icon: icon, size: 18); Text(LocalizedStringKey(title)).l2Text(13, weight: .semibold) }
+                .foregroundStyle(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.ink))
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.hairline), lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
     }
 
     @ViewBuilder
@@ -119,8 +126,9 @@ struct EditPanelView: View {
 
     @ViewBuilder
     private var adjustControls: some View {
-        PanelTabs(items: [(EditPanelModel.Group.light, "Light", false), (.colour, "Colour", false), (.detail, "Detail", false)],
-                  selected: model.group, wraps: wraps, identifierPrefix: "edit.group") { model.group = $0 }
+        L2Segmented(options: [(EditPanelModel.Group.light, Text("Light"), nil, "edit.group.Light"),
+                              (.colour, Text("Colour"), nil, "edit.group.Colour"), (.detail, Text("Detail"), nil, "edit.group.Detail")],
+                    selection: model.group) { model.group = $0 }
         switch model.group {
         case .light:
             slider("Exposure", \.exposure, -100...100)
@@ -152,27 +160,21 @@ struct EditPanelView: View {
     private var remove: some View {
         switch session.removeState {
         case .removing:
-            DevelopNotice(icon: .info, bold: nil, text: "Removing…",
-                          actions: [("Cancel", "edit.remove.cancel", { session.cancelRemove() })])
+            L2Notice(icon: .info, text: "Removing…", actions: [("Cancel", "edit.remove.cancel", { session.cancelRemove() })])
         case .failed:
-            DevelopNotice(icon: .warn, bold: "Couldn't remove that area.", text: " Try a smaller stroke. Your other edits are kept.",
-                          actions: [("Try again", "edit.remove.retry", { session.retryRemove() })])
+            L2Notice(icon: .warn, bold: "Couldn't remove that area.", text: " Try a smaller stroke. Your other edits are kept.",
+                     actions: [("Try again", "edit.remove.retry", { session.retryRemove() })])
         case .idle:
             PanelSlider(label: "Brush size", value: model.brushSize, range: 0...100, identifier: "slider.brushSize",
                         onChange: { model.brushSize = $0.rounded() }, onEnd: { model.brushSize = $0.rounded() })
-            HStack(spacing: 0) {
+            HStack(spacing: 10) {
                 let canUndo = !model.edit.remove.strokes.isEmpty
                 Button("Undo stroke") { session.undoStroke() }
-                    .buttonStyle(ApprovedSmallQuietButtonStyle())
+                    .buttonStyle(L2QuietButtonStyle(dimmed: !canUndo))
                     .disabled(!canUndo)
-                    .opacity(canUndo ? 1 : 0.4)
                     .accessibilityIdentifier("edit.remove.undoStroke")
-                ApprovedParagraph(text: String(localized: "Brush over anything you want removed."), pointSize: 13,
-                                  colour: ApprovedColor.inkTertiary.resolved(colorScheme))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding).padding(.vertical, 6)
+                L2Note(text: Text("Brush over anything you want removed."))
             }
-            .padding(.horizontal, 6)
         }
     }
 }

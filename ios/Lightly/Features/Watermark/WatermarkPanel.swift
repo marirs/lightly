@@ -247,15 +247,19 @@ struct WatermarkPanelView: View {
     private var session: EditorSession { model.session }
     private var watermark: EditRecipe.Watermark { model.watermark }
 
+    /// Lightly 2 `watermarkPanel`, a 6 pt column: the tabs; with a watermark, the reset row and "Drag the watermark on
+    /// the photo to place it."; then the type's controls.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if roomy { PanelTitle(text: "Watermark") }
+        VStack(alignment: .leading, spacing: 6) {
             PanelTabs(items: [(EditRecipe.Watermark.Kind.none, "None", false), (.signature, "Signature", false),
                               (.text, "Text", false), (.logo, "Logo", false)],
                       selected: model.selectedType, wraps: wraps, identifierPrefix: "watermark.type") { model.choose($0) }
-            PanelResetRow(session: model.session, section: "watermark", title: "Watermark")
+            if model.selectedType != .none {
+                PanelResetRow(session: model.session, section: "watermark", title: "Watermark")
+                L2Note(text: Text("Drag the watermark on the photo to place it."))
+            }
             switch model.selectedType {
-            case .none: ApprovedNote("No watermark. Choose Signature, Text or Logo to add one.")
+            case .none: L2Note(text: Text("No watermark. Choose Signature, Text or Logo to add one."))
             case .signature: signature
             case .text: text
             case .logo: logo
@@ -273,80 +277,94 @@ struct WatermarkPanelView: View {
             logoPhoto = nil
             model.replaceLogo(with: item)
         }
+        .fullScreenCover(isPresented: $confirmsDeleteDrawing) {
+            L2Alert(title: "Delete saved signature?", message: "This removes the saved drawing and its signature from this photo.",
+                    buttons: [("Delete signature", .destructive, "watermark.signature.delete.confirm", { confirmsDeleteDrawing = false; model.deleteDrawnSignature() }),
+                              ("Cancel", .normal, "watermark.signature.delete.cancel", { confirmsDeleteDrawing = false })])
+                .presentationBackground(.clear)
+        }
+        .fullScreenCover(isPresented: $isEditingText) {
+            WatermarkTextEditor(text: editedText) { model.setText($0) } dismiss: { isEditingText = false }
+                .presentationBackground(.clear)
+        }
+        .transaction { if confirmsDeleteDrawing { $0.disablesAnimations = true } }
     }
 
     // MARK: Signature
 
+    /// The signature row (8 pt gaps): the drawn signature (50 pt card, at least 112 pt), its ⋯ menu, the imported
+    /// signature, Clear, + Draw and Import; then the note, Size, Opacity and the colour strip (drawn signatures).
     @ViewBuilder
     private var signature: some View {
         let chosen = watermark.type == .signature ? watermark.signature?.kind : nil
+        let c = L2(scheme: colorScheme)
         ChipRow {
             if let drawn = model.signatures.drawn {
-                OptionChip(isOn: chosen == .drawn, identifier: "watermark.signature.drawn", minWidth: 120,
-                           action: { model.chooseSignature(.drawn) }) { SignatureGlyph(signature: drawn, height: 26) }
+                OptionChip(isOn: chosen == .drawn, identifier: "watermark.signature.drawn", minWidth: 112, card: true,
+                           action: { model.chooseSignature(.drawn) }) { SignatureGlyph(signature: drawn, height: 24) }
                     .accessibilityLabel(Text("Drawn signature"))
                 Menu {
                     Button("Draw replacement", action: model.openDraw)
                     Button("Delete saved signature", role: .destructive) { confirmsDeleteDrawing = true }
                 } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 18))
-                        .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                    ApprovedIconView(icon: .ellipsis, size: 18).foregroundStyle(c(ApprovedColor.ink))
+                        .frame(width: 50, height: 50)
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Manage saved signature")
                 .accessibilityIdentifier("watermark.signature.manage")
-                .confirmationDialog("Delete saved signature?", isPresented: $confirmsDeleteDrawing, titleVisibility: .visible) {
-                    Button("Delete signature", role: .destructive, action: model.deleteDrawnSignature)
-                } message: { Text("This removes the saved drawing and its signature from this photo.") }
             }
             if let imported = model.signatures.imported {
-                OptionChip(isOn: chosen == .imported, identifier: "watermark.signature.imported", minWidth: 120,
-                           action: { model.chooseSignature(.imported) }) { SignatureGlyph(signature: imported, height: 26) }
+                OptionChip(isOn: chosen == .imported, identifier: "watermark.signature.imported", minWidth: 112, card: true,
+                           action: { model.chooseSignature(.imported) }) { SignatureGlyph(signature: imported, height: 24) }
                     .accessibilityLabel(Text("Imported signature"))
             }
             if chosen != nil {
                 Button("Clear", action: model.clearSignature)
-                    .buttonStyle(QuietButtonStyle())
+                    .buttonStyle(L2QuietButtonStyle(height: 50))
                     .accessibilityLabel("Clear signature from photo")
                     .accessibilityIdentifier("watermark.signature.clear")
             }
-            OptionChip(isOn: false, identifier: "watermark.signature.draw", action: model.openDraw) {
-                ApprovedIconView(icon: .plus, size: 18); Text("Draw").approvedText(15)
+            OptionChip(isOn: false, identifier: "watermark.signature.draw", minWidth: 50, card: true, action: model.openDraw) {
+                ApprovedIconView(icon: .plus, size: 16); Text("Draw")
             }
-            OptionChip(isOn: false, identifier: "watermark.signature.import", action: { model.isPickingSignaturePhoto = true }) {
-                ApprovedIconView(icon: .photo, size: 18); Text("Import").approvedText(15)
+            OptionChip(isOn: false, identifier: "watermark.signature.import", minWidth: 50, card: true, action: { model.isPickingSignaturePhoto = true }) {
+                ApprovedIconView(icon: .photo, size: 16); Text("Import")
             }
         }
-        ApprovedNote(verbatim: String(localized: "Saved signatures keep their own look. ")
+        L2Note(text: Text(verbatim: String(localized: "Saved signatures keep their own look. ")
             + (model.signatureKind == .drawn ? String(localized: "You can change the ink colour of a drawn signature.")
-                                             : String(localized: "An imported signature keeps its own ink.")))
+                                             : String(localized: "An imported signature keeps its own ink."))))
         commonControls(colours: model.signatureKind == .drawn)
     }
 
     // MARK: Text
 
+    /// The text field (46 pt, 16 pt corners, chip fill, hairline, 16 pt text and the pencil), the six fonts (108×58
+    /// cards, the text at 19 pt over the font's name), then Size, Opacity and the colour strip.
     @ViewBuilder
     private var text: some View {
         let current = watermark.text ?? .init(text: WatermarkPanelModel.defaultText, font: .allura)
+        let c = L2(scheme: colorScheme)
         Button {
             editedText = current.text
             isEditingText = true
         } label: {
             HStack {
-                Text(current.text).foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
+                Text(current.text).l2Text(16).foregroundStyle(c(ApprovedColor.ink))
                 Spacer()
-                Image(systemName: "pencil").foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
+                ApprovedIconView(icon: .pencil, size: 18).foregroundStyle(c(ApprovedColor.ink))
             }
-            .approvedText(16).padding(14)
-            .background(ApprovedColor.ink.resolved(colorScheme).opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(ApprovedColor.ink.resolved(colorScheme).opacity(0.18)))
+            .padding(.horizontal, 14)
+            .frame(minHeight: 46)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(c(ApprovedColor.chip)))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain).padding(.horizontal, 18).padding(.vertical, 10)
+        .buttonStyle(.plain)
         .accessibilityLabel("Edit watermark text")
         .accessibilityIdentifier("watermark.text.value")
-        .sheet(isPresented: $isEditingText) {
-            WatermarkTextEditor(text: current.text) { model.setText($0) }
-        }
         ChipRow {
             ForEach(EditRecipe.Watermark.Font.allCases, id: \.self) { font in
                 FontOption(text: current.text, font: font, isOn: current.font == font) { model.chooseFont(font) }
@@ -357,33 +375,27 @@ struct WatermarkPanelView: View {
 
     // MARK: Logo
 
+    /// The current logo (50 pt, 16 pt padding and corners, 2 pt accent border; not a button) and Replace logo (50 pt quiet).
     @ViewBuilder
     private var logo: some View {
+        let c = L2(scheme: colorScheme)
         ChipRow {
-            // `span.opt.on`: the current logo, not a button.
-            HStack(spacing: 6) {
-                LogoGlyph(logo: watermark.logo ?? .bundled(id: WatermarkStage.sampleLogoID), store: model.signatures, height: 26,
-                          ink: UIColor(ApprovedColor.selection.resolved(colorScheme)).cgColor)
-            }
-                .frame(minWidth: 18, minHeight: 44)
-                .padding(.horizontal, 13)
-                .background(RoundedRectangle(cornerRadius: 10).fill(selectionSoft))
-                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(ApprovedColor.selection.resolved(colorScheme), lineWidth: 1))
+            LogoGlyph(logo: watermark.logo ?? .bundled(id: WatermarkStage.sampleLogoID), store: model.signatures, height: 26,
+                      ink: UIColor(c(ApprovedColor.ink)).cgColor)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 50)
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(c(ApprovedColor.selection), lineWidth: 2))
                 .accessibilityElement()
                 .accessibilityLabel(Text("Current logo"))
                 .accessibilityIdentifier("watermark.logo.current")
-            OptionChip(isOn: false, identifier: "watermark.logo.replace", action: { model.isPickingLogo = true }) {
-                ApprovedIconView(icon: .photo, size: 18); Text("Replace logo").approvedText(15)
-            }
+            Button { model.isPickingLogo = true } label: { L2Label(title: Text("Replace logo"), icon: .photo, iconSize: 16) }
+                .buttonStyle(L2QuietButtonStyle(height: 50))
+                .accessibilityIdentifier("watermark.logo.replace")
         }
         commonControls(colours: false)
     }
 
-    private var selectionSoft: Color {
-        colorScheme == .dark ? Color(red: 122 / 255, green: 162 / 255, blue: 1).opacity(0.14) : Color(red: 34 / 255, green: 87 / 255, blue: 210 / 255).opacity(0.08)
-    }
-
-    // MARK: Shared: placement, position, size, opacity, colour
+    // MARK: Shared: size, opacity, colour
 
     @ViewBuilder
     private func commonControls(colours: Bool) -> some View {
@@ -397,13 +409,12 @@ struct WatermarkPanelView: View {
             ColourControl(title: "Colour", selected: watermark.colour, photo: model.session.originalImage,
                           identifier: "watermark.colour", preview: { hex in session.previewWatermark { $0.colour = hex } },
                           previewImage: { session.displayedImage }, cancel: session.cancelLookPreview, choose: model.setColour)
-
         }
     }
 }
 
-/// `.fontopt`: the text in the font at 20 pt over the font's name (Inter 500, 10.5 pt, ink-3);
-/// min 100 × 60, radius 10, selected in the selection colour on its soft fill.
+/// A font option: at least 108×58, 16 pt corners, the text at 19 pt in the font over the font's name (10.5 pt ink3);
+/// selected with a 2 pt accent border, otherwise a hairline.
 struct FontOption: View {
     let text: String
     let font: EditRecipe.Watermark.Font
@@ -412,30 +423,25 @@ struct FontOption: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let c = L2(scheme: colorScheme)
         Button(action: action) {
             VStack(spacing: 2) {
                 Text(text)
-                    .font(Font(WatermarkFonts.font(font, size: 20, cssPixels: 20)))
-                    .foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
+                    .font(Font(WatermarkFonts.font(font, size: 19, cssPixels: 19)))
+                    .foregroundStyle(c(ApprovedColor.ink))
                     .lineLimit(1)
-                Text(font.rawValue)
-                    .approvedText(10.5, weight: .medium)
-                    .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
+                Text(font.rawValue).font(.system(size: 10.5)).foregroundStyle(c(ApprovedColor.inkTertiary))
             }
-            .padding(.horizontal, 11).padding(.vertical, 5)
-            .frame(minWidth: 100, minHeight: 60)
-            .background(RoundedRectangle(cornerRadius: 10).fill(isOn ? selectionSoft : .clear))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder((isOn ? ApprovedColor.selection : ApprovedColor.hairline).resolved(colorScheme), lineWidth: 1))
+            .padding(.horizontal, 10)
+            .frame(minWidth: 108, minHeight: 58)
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.hairline), lineWidth: isOn ? 2 : 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(font.rawValue))
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("watermark.font.\(font.rawValue)")
-    }
-
-    private var selectionSoft: Color {
-        colorScheme == .dark ? Color(red: 122 / 255, green: 162 / 255, blue: 1).opacity(0.14) : Color(red: 34 / 255, green: 87 / 255, blue: 210 / 255).opacity(0.08)
     }
 }
 
@@ -468,32 +474,33 @@ struct LogoGlyph: View {
     }
 }
 
-/// Dedicated text entry keeps the field and actions above the keyboard.
+/// "Watermark text" (Lightly 2 `textEdit`): sheetHead (Cancel · Watermark text · Done), then the field (52 pt, 16 pt
+/// corners, 2 pt accent border, 19 pt), up to 80 characters, with the keyboard below.
 private struct WatermarkTextEditor: View {
-    @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Bool
     @State var text: String
     let commit: (String) -> Void
+    let dismiss: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
     var body: some View {
-        NavigationStack {
-            VStack {
-                TextField("Your watermark", text: $text, axis: .vertical)
-                    .font(.title3).lineLimit(1...3).focused($focused)
-                    .padding(16).background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
-                    .accessibilityIdentifier("watermark.text.editor")
-                    .onChange(of: text) { _, value in text = String(value.prefix(80)) }
-                Spacer()
-            }.padding(20)
-                .navigationTitle("Watermark text").navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { commit(text); dismiss() }
-                            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                }
+        let c = L2(scheme: colorScheme)
+        ApprovedSheetOverlay(isTablet: sizeClass == .regular, onDismiss: dismiss) {
+            L2SheetHeader(title: Text("Watermark text"),
+                          leading: { L2TextButton(title: "Cancel", identifier: "watermark.text.cancel", action: dismiss) },
+                          trailing: { L2TextButton(title: "Done", isBold: true,
+                                                   isEnabled: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                                   identifier: "watermark.text.done") { commit(text); dismiss() } })
+            TextField("Your watermark", text: $text, axis: .vertical)
+                .font(.system(size: 19)).lineLimit(1...3).focused($focused)
+                .foregroundStyle(c(ApprovedColor.ink))
+                .padding(.horizontal, 14).frame(minHeight: 52)
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(c(ApprovedColor.selection), lineWidth: 2))
+                .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 10)
+                .accessibilityIdentifier("watermark.text.editor")
+                .onChange(of: text) { _, value in text = String(value.prefix(80)) }
         }
-        .presentationDetents([.medium]).presentationDragIndicator(.visible)
         .onAppear { focused = true }
     }
 }

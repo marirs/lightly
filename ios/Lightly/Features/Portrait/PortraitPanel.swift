@@ -62,46 +62,54 @@ struct PortraitPanelView: View {
     let wraps: Bool
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Lightly 2 `portraitPanel`, a 4 pt column: the faces (several faces only), the tabs (an orange dot on tabs with
+    /// changes for this face), the reset row, the sliders and notes.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if roomy { PanelTitle(text: "Portrait") }
+        VStack(alignment: .leading, spacing: 4) {
             if model.faces.isEmpty {
-                DevelopNotice(icon: .info, bold: "No face can be edited in this photo.",
-                              text: " Faces are too small, turned away or too dark. Portrait controls need a clear face.", actions: [])
+                L2Notice(icon: .info, bold: "No face can be edited in this photo.",
+                         text: " Faces are too small, turned away or too dark. Portrait controls need a clear face.")
             } else {
                 if model.faces.count > 1 { faceStrip }
-                PanelTabs(items: [(PortraitPanelModel.Tab.skin, "Skin", false), (.under, "Under-eye", false), (.eyes, "Eyes", false),
-                                  (.teeth, "Teeth", false), (.hair, "Hair & Beard", false)],
+                let e = model.edit(forFace: model.selectedFace)
+                PanelTabs(items: [(PortraitPanelModel.Tab.skin, "Skin", e.skin.smoothing != 0 || e.skin.blemishes != 0 || e.skin.evenTone != 0 || e.skin.keepTexture != 85),
+                                  (.under, "Under-eye", e.underEye.brighten != 0 || e.underEye.softenLines != 0),
+                                  (.eyes, "Eyes", e.eyes.brighten != 0 || e.eyes.clarity != 0),
+                                  (.teeth, "Teeth", e.teeth.brighten != 0),
+                                  (.hair, "Hair & Beard", e.hair.definition != 0 || e.hair.flyaways != 0 || e.hair.shine != 0)],
                           selected: model.tab, wraps: wraps, identifierPrefix: "portrait.tab") { model.tab = $0 }
                 PanelResetRow(session: model.session, section: "portrait", title: ["skin": "Skin", "under": "Under-eye", "eyes": "Eyes", "teeth": "Teeth", "hair": "Hair & Beard"][model.tab.rawValue]!, adjustment: model.tab.rawValue, resetAdjustment: {
-                model.update({ edit in
-                    let neutral = PortraitPanelModel.neutral(for: nil)
-                    switch model.tab {
-                    case .skin: edit.skin = neutral.skin
-                    case .under: edit.underEye = neutral.underEye
-                    case .eyes: edit.eyes = neutral.eyes
-                    case .teeth: edit.teeth = neutral.teeth
-                    case .hair: edit.hair = neutral.hair
-                    }
-                }, commit: true)
-            })
+                    model.update({ edit in
+                        let neutral = PortraitPanelModel.neutral(for: nil)
+                        switch model.tab {
+                        case .skin: edit.skin = neutral.skin
+                        case .under: edit.underEye = neutral.underEye
+                        case .eyes: edit.eyes = neutral.eyes
+                        case .teeth: edit.teeth = neutral.teeth
+                        case .hair: edit.hair = neutral.hair
+                        }
+                    }, commit: true)
+                })
                 sliders
             }
         }
     }
 
+    /// The faces: chips ("Face 1 · 4" with changes), then "Each face keeps its own settings.", 10 pt apart.
     private var faceStrip: some View {
-        ChipRow {
-            ForEach(model.faces.indices, id: \.self) { index in
-                let count = model.changeCount(forFace: index)
-                OptionChip(isOn: index == model.selectedFace, identifier: "portrait.face.\(index + 1)",
-                           action: { model.selectedFace = index }) {
-                    Text(count > 0 ? "Face \(index + 1) · \(count)" : "Face \(index + 1)").approvedText(15)
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                ForEach(model.faces.indices, id: \.self) { index in
+                    let count = model.changeCount(forFace: index)
+                    OptionChip(isOn: index == model.selectedFace, identifier: "portrait.face.\(index + 1)",
+                               action: { model.selectedFace = index }) {
+                        Text(count > 0 ? "Face \(index + 1) · \(count)" : "Face \(index + 1)")
+                    }
                 }
             }
-            Text("Each face keeps its own settings.").approvedText(13).foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
-                .fixedSize()
+            L2Note(text: Text("Each face keeps its own settings."))
         }
+        .padding(.bottom, 4)
     }
 
     @ViewBuilder
