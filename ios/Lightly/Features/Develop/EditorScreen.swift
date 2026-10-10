@@ -21,11 +21,21 @@ struct EditorScreen: View {
     @State private var cropGestureStart: (rect: EditRecipe.Rect, handle: CropGeometry.Handle)?
     /// The rectangle shown while a crop drag moves (committed when it ends).
     @State private var cropDraft: EditRecipe.Rect?
+    @State private var cropPinchStart: EditRecipe.Rect?
+    private var isCropping: Bool { tool == .edit && editPanel.sub == .crop && !editPanel.cropPreview }
     /// Change background › Image: dragging the photo moves the background.
     @State private var replacementDragStart: (x: Double, y: Double)?
     /// Refine edges: the stroke being drawn (source coordinates).
     @State private var refinePoints: [EditRecipe.Point] = []
     @State private var tool: EditorTool = .develop
+    private func finishCrop(apply: Bool) {
+        if apply, let rect = cropDraft, rect != session.recipe.tools.edit.geometry.cropRect {
+            session.commitEdit { Self.setCrop(&$0.geometry, rect) }
+        }
+        editPanel.cropPreview = true
+        cropGestureStart = nil; cropPinchStart = nil
+    }
+
     #if DEBUG
     /// Capture sessions: the sequence this screen finished for (DebugCaptureDriver).
     @State private var captureReadySequence: String?
@@ -119,7 +129,11 @@ struct EditorScreen: View {
         }
         #endif
         // Free crop shows the uncropped frame while Edit › Crop is open (owner amendment 2026-10-05).
-        .onChange(of: tool == .edit && editPanel.sub == .crop && !editPanel.cropPreview, initial: true) { _, cropping in session.isCropEditing = cropping }
+        .onChange(of: tool == .edit && editPanel.sub == .crop && !editPanel.cropPreview, initial: true) { _, cropping in
+            cropDraft = cropping ? session.recipe.tools.edit.geometry.cropRect : nil
+            cropGestureStart = nil; cropPinchStart = nil
+            session.isCropEditing = cropping
+        }
         .task {
             session.start()
             #if DEBUG
@@ -258,7 +272,7 @@ struct EditorScreen: View {
                                showsOriginalBadge: session.isShowingOriginal,
                                outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                                marksCoverCanvas: tool == .watermark,
-                               allowsInspection: true,
+                               allowsInspection: !isCropping,
                                allowsDoubleTapZoom: tool != .watermark,
                                onInspectionBegan: {
                                    let hadPreview = watermarkDragStart != nil || replacementDragStart != nil
@@ -267,11 +281,25 @@ struct EditorScreen: View {
                                    removePoints = []; refinePoints = []
                                    if hadPreview || (tool == .effects && effectsPanel.sub == .leak) { session.cancelLookPreview() }
                                },
-                               photoChrome: AnyView(photoActions.padding(5).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).opacity(session.isShowingOriginal ? 0 : 1)),
+                               photoChrome: AnyView(photoActions.opacity(isCropping ? 0 : 1).allowsHitTesting(!isCropping).padding(5).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).opacity(session.isShowingOriginal ? 0 : 1)),
                                imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
                                onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
                                overlay: { if let toast = session.toast { StageToast(text: toast) } },
                                marks: { if !session.isShowingOriginal { stageMarks.frame(maxWidth: .infinity, maxHeight: .infinity) } })
+        if isCropping {
+            VStack(spacing: 0) {
+                HStack {
+                    Button("Cancel") { finishCrop(apply: false) }.accessibilityIdentifier("edit.crop.cancel")
+                    Spacer()
+                    Button("Reset") { cropDraft = .init(x: 0, y: 0, width: 1, height: 1) }.accessibilityIdentifier("edit.crop.reset")
+                    Spacer()
+                    Button("Done") { finishCrop(apply: true) }.fontWeight(.semibold).accessibilityIdentifier("edit.crop.done")
+                }.font(.system(size: 17)).foregroundStyle(.white).padding(.horizontal, 20).frame(height: 52)
+                stage.padding(24)
+                Text("Drag the edges to crop. Pinch to resize.")
+                    .font(.system(size: 14)).foregroundStyle(.white.opacity(0.8)).padding(.bottom, 20)
+            }.background(Color(white: 0.08))
+        } else {
         switch layout.mode {
         case .below:
             VStack(spacing: 0) {
@@ -313,6 +341,7 @@ struct EditorScreen: View {
                     ToolNavigation(kind: .rail, tools: tools, selected: tool, used: used, onSelect: select)
                 }
             }
+        }
         }
     }
 
@@ -409,6 +438,7 @@ struct EditorScreen: View {
             backgroundPanel.kind = nil
             portraitPanel.tab = .skin
             editPanel.sub = .crop
+            editPanel.cropPreview = false
             editPanel.group = .light
             effectsPanel.sub = .leak
             borderPanel.shownType = nil
@@ -622,10 +652,11 @@ struct EditorScreen: View {
         Color.clear.contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 2)
                 .onChanged { value in
-                    let geometry = session.recipe.tools.edit.geometry
+                    guard cropPinchStart == nil else { return }
+                    let rect = cropDraft ?? session.recipe.tools.edit.geometry.cropRect
                     if cropGestureStart == nil {
-                        guard let handle = CropGeometry.handle(at: value.startLocation, rect: geometry.cropRect, size: size) else { return }
-                        cropGestureStart = (geometry.cropRect, handle)
+                        guard let handle = CropGeometry.handle(at: value.startLocation, rect: rect, size: size) else { return }
+                        cropGestureStart = (rect, handle)
                     }
                     guard let start = cropGestureStart else { return }
                     cropDraft = draggedCrop(start, by: value.translation, size: size)
@@ -634,9 +665,12 @@ struct EditorScreen: View {
                     guard let start = cropGestureStart else { return }
                     let rect = draggedCrop(start, by: value.translation, size: size)
                     cropGestureStart = nil
-                    cropDraft = nil
-                    session.commitEdit { Self.setCrop(&$0.geometry, rect) }
+                    cropDraft = rect
                 })
+            .simultaneousGesture(MagnifyGesture().onChanged { value in
+                if cropPinchStart == nil { cropPinchStart = cropDraft ?? session.recipe.tools.edit.geometry.cropRect; cropGestureStart = nil }
+                if let start = cropPinchStart { cropDraft = CropGeometry.scaled(start, magnification: value.magnification) }
+            }.onEnded { _ in cropPinchStart = nil })
             .accessibilityHidden(true)
     }
 

@@ -58,12 +58,7 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
     ResetRow(vm, "edit", ui.edit.sub.label, ui.edit.sub.name.lowercase())
     when (ui.edit.sub) {
         EditSub.CROP -> {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp).heightIn(min = 44.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(if (ui.edit.cropPreview) "Cropped preview" else "Drag corners or edges to crop.", style = lightlyTextStyle(), modifier = Modifier.weight(1f))
-                OptChip(false, if (ui.edit.cropPreview) "Adjust crop" else "Done", vm::toggleCropPreview, tag = "edit-crop-done") {
-                    Text(if (ui.edit.cropPreview) "Adjust crop" else "Done", style = lightlyTextStyle(color = lightlyColors.sel))
-                }
-            }
+            OptChip(false, "Crop photo", vm::toggleCropPreview, tag = "edit-crop-open") { Text("Crop photo", style = lightlyTextStyle(color = lightlyColors.sel)) }
         }
         EditSub.ROTATE -> ChipRow {
             listOf(

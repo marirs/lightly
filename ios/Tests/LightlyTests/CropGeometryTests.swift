@@ -10,6 +10,14 @@ final class CropGeometryTests: XCTestCase {
     private let rect = EditRecipe.Rect(x: 0.2, y: 0.2, width: 0.5, height: 0.4)
     private let size = CGSize(width: 300, height: 200)
 
+    func testPinchKeepsCentreAndClampsToImage() {
+        let small = CropGeometry.scaled(rect, magnification: 2)
+        XCTAssertEqual(small.width, 0.25, accuracy: 1e-9)
+        XCTAssertEqual(small.x + small.width / 2, rect.x + rect.width / 2, accuracy: 1e-9)
+        let whole = CropGeometry.scaled(rect, magnification: 0.1)
+        XCTAssertEqual(whole, .init(x: 0, y: 0, width: 1, height: 1))
+    }
+
     func testHandlesAreCornersEdgesInsideAndNothingFarAway() {
         // The rectangle spans x 60…210, y 40…120 points.
         XCTAssertEqual(CropGeometry.handle(at: CGPoint(x: 62, y: 42), rect: rect, size: size), .corner(left: true, top: true))

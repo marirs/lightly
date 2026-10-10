@@ -51,10 +51,10 @@ struct CropFrameMark: View {
                     .offset(x: frame.minX, y: frame.minY)
                 ForEach(0..<4, id: \.self) { corner in
                     cornerHandle(corner)
-                        .frame(width: 18, height: 18)
+                        .frame(width: 26, height: 26)
                         // `left/top: −3px` from the padding box, inside the 1 pt border.
-                        .offset(x: corner % 2 == 0 ? frame.minX - 2 : frame.maxX - 16,
-                                y: corner < 2 ? frame.minY - 2 : frame.maxY - 16)
+                        .offset(x: corner % 2 == 0 ? frame.minX + 1 : frame.maxX - 27,
+                                y: corner < 2 ? frame.minY + 1 : frame.maxY - 27)
                 }
             }
         }
@@ -66,11 +66,11 @@ struct CropFrameMark: View {
     private func cornerHandle(_ corner: Int) -> some View {
         Path { path in
             let left = corner % 2 == 0, top = corner < 2
-            let x: CGFloat = left ? 0 : 15, y: CGFloat = top ? 0 : 15
-            path.addRect(CGRect(x: x, y: 0, width: 3, height: 18))
-            path.addRect(CGRect(x: 0, y: y, width: 18, height: 3))
+            let x: CGFloat = left ? 0 : 22, y: CGFloat = top ? 0 : 22
+            path.addRect(CGRect(x: x, y: 0, width: 4, height: 26))
+            path.addRect(CGRect(x: 0, y: y, width: 26, height: 4))
         }
-        .fill(.white)
+        .fill(.white).shadow(color: .black, radius: 1)
     }
 }
 

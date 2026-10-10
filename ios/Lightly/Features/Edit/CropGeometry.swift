@@ -5,6 +5,14 @@ import CoreGraphics
 /// that frame uncropped and the rectangle is edited in its own fractions. Rotation and straightening therefore need no
 /// extra mapping. Pure functions, tested in CropGeometryTests.
 enum CropGeometry {
+    static func scaled(_ rect: EditRecipe.Rect, magnification: Double) -> EditRecipe.Rect {
+        let scale = max(0.01, magnification)
+        let width = min(1, max(minimumFraction, rect.width / scale))
+        let height = min(1, max(minimumFraction, rect.height / scale))
+        return .init(x: min(max(rect.x + (rect.width - width) / 2, 0), 1 - width),
+                     y: min(max(rect.y + (rect.height - height) / 2, 0), 1 - height), width: width, height: height)
+    }
+
     enum Edge: Equatable { case left, right, top, bottom }
 
     enum Handle: Equatable {

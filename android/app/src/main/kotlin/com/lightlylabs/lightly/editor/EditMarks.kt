@@ -1,5 +1,6 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.systemGestureExclusion
@@ -44,7 +45,7 @@ fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
     if (ui.showsOriginal) return
     when (ui.tool) {
         EditorTool.EDIT -> when (ui.edit.sub) {
-            EditSub.CROP -> if (!ui.edit.cropPreview) CropFrame(vm)
+            EditSub.CROP -> if (!ui.edit.cropPreview) CropFrame(vm, ui)
             EditSub.STRAIGHTEN, EditSub.PERSPECTIVE -> Canvas(Modifier.fillMaxSize()) { thirdsGrid(Offset.Zero, size) }
             EditSub.REMOVE -> RemoveMarks(vm, ui)
             else -> Unit
@@ -81,15 +82,14 @@ private fun DrawScope.thirdsGrid(origin: Offset, box: Size) {
  * The drag shows the rectangle; its end is one undo step.
  */
 @Composable
-private fun CropFrame(vm: EditorViewModel) {
+private fun CropFrame(vm: EditorViewModel, ui: EditorUiState) {
     val committed = vm.cropState()?.first ?: return
-    var draft by remember { mutableStateOf<com.lightlylabs.lightly.session.NormalisedRect?>(null) }
-    val rect = draft ?: committed
+    val rect = ui.edit.cropDraft ?: committed
     Canvas(
         Modifier
             .fillMaxSize()
             .cropHandleGestureExclusion(rect)
-            .pointerInput(Unit) { cropGestures(vm) { draft = it } }
+            .pointerInput(Unit) { cropGestures(vm) { if (it != null) vm.previewCrop(it) } }
             .semantics { contentDescription = "Drag a corner or an edge to crop. Drag inside to move." },
     ) {
         val inset = Offset(size.width * rect.x.toFloat(), size.height * rect.y.toFloat())
@@ -103,12 +103,12 @@ private fun CropFrame(vm: EditorViewModel) {
         drawRect(Color.White, inset + Offset(border / 2, border / 2), Size(frame.width - border, frame.height - border), style = Stroke(border))
         thirdsGrid(inset + Offset(border, border), Size(frame.width - 2 * border, frame.height - 2 * border))
         // Handles: 18 px squares at the frame's corners, a 3 px border on the two outer sides.
-        val handle = 18.dp.toPx()
-        val thick = 3.dp.toPx()
-        val left = inset.x + border - thick
-        val top = inset.y + border - thick
-        val right = inset.x + frame.width - border + thick - handle
-        val bottom = inset.y + frame.height - border + thick - handle
+        val handle = 26.dp.toPx()
+        val thick = 4.dp.toPx()
+        val left = inset.x + border
+        val top = inset.y + border
+        val right = inset.x + frame.width - border - handle
+        val bottom = inset.y + frame.height - border - handle
         for ((x, y) in listOf(left to top, right to top, left to bottom, right to bottom)) {
             val atLeft = x == left
             val atTop = y == top
@@ -151,18 +151,32 @@ private suspend fun PointerInputScope.cropGestures(vm: EditorViewModel, onDraft:
     val h = size.height.toFloat()
     val handle = CropGeometry.handle(down.position.x, down.position.y, start, w, h, reach = 22.dp.toPx()) ?: return@awaitEachGesture
     var last = down.position
+    var pinching = false
+    var pinched = start
     while (true) {
         val event = awaitPointerEvent()
+        if (event.changes.count { it.pressed } > 1) {
+            pinching = true
+            pinched = CropGeometry.scaled(pinched, event.calculateZoom().toDouble())
+            onDraft(pinched)
+            event.changes.forEach { it.consume() }
+            continue
+        }
+        if (pinching) {
+            event.changes.forEach { it.consume() }
+            if (event.changes.none { it.pressed }) break
+            continue
+        }
         val pressed = event.changes.firstOrNull { it.id == down.id } ?: break
-        if (pressed.isConsumed || event.changes.count { it.pressed } > 1) { onDraft(null); return@awaitEachGesture }
+        if (pressed.isConsumed) { onDraft(null); return@awaitEachGesture }
         if (!pressed.pressed) break
         last = pressed.position
         onDraft(CropGeometry.dragged(start, handle, ((last.x - down.position.x) / w).toDouble(), ((last.y - down.position.y) / h).toDouble(), ratio, frameAspect))
         event.changes.forEach { it.consume() }
     }
-    onDraft(null)
-    if (last != down.position) {
-        vm.commitCrop(CropGeometry.dragged(start, handle, ((last.x - down.position.x) / w).toDouble(), ((last.y - down.position.y) / h).toDouble(), ratio, frameAspect))
+    if (pinching) { onDraft(pinched) }
+    else if (last != down.position) {
+        onDraft(CropGeometry.dragged(start, handle, ((last.x - down.position.x) / w).toDouble(), ((last.y - down.position.y) / h).toDouble(), ratio, frameAspect))
     }
 }
 

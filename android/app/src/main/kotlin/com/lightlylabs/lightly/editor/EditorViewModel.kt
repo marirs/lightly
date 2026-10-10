@@ -674,13 +674,27 @@ class EditorViewModel(
 
     fun selectEditSub(sub: EditSub) {
         val was = isCropEditing()
-        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null)) }
+        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null, cropPreview = if (sub == EditSub.CROP) false else it.edit.cropPreview, cropDraft = null)) }
         refreshAfterCropEditingChange(was)
+    }
+
+    fun previewCrop(rect: com.lightlylabs.lightly.session.NormalisedRect) {
+        state.update { it.copy(edit = it.edit.copy(cropDraft = rect)) }
+    }
+
+    fun resetCropDraft() = previewCrop(FULL_RECT)
+
+    fun finishCrop(apply: Boolean) {
+        val was = isCropEditing()
+        val draft = state.value.edit.cropDraft
+        state.update { it.copy(edit = it.edit.copy(cropPreview = true, cropDraft = null)) }
+        if (apply && draft != null && draft != state.value.session?.current?.tools?.edit?.geometry?.crop?.rect) commitCrop(draft)
+        else refreshAfterCropEditingChange(was)
     }
 
     fun toggleCropPreview() {
         val was = isCropEditing()
-        state.update { it.copy(edit = it.edit.copy(cropPreview = !it.edit.cropPreview)) }
+        state.update { it.copy(edit = it.edit.copy(cropPreview = !it.edit.cropPreview, cropDraft = null)) }
         refreshAfterCropEditingChange(was)
     }
 
@@ -776,7 +790,7 @@ class EditorViewModel(
     fun cropState(): Triple<com.lightlylabs.lightly.session.NormalisedRect, Double?, Double>? {
         val g = state.value.session?.current?.tools?.edit?.geometry ?: return null
         val (w, h) = turnedDisplaySize(g.quarterTurns)
-        return Triple(g.crop.rect, null, w.toDouble() / h.coerceAtLeast(1))
+        return Triple(state.value.edit.cropDraft ?: g.crop.rect, null, w.toDouble() / h.coerceAtLeast(1))
     }
 
     private fun rectOf(left: Double, top: Double, right: Double, bottom: Double): com.lightlylabs.lightly.session.NormalisedRect {

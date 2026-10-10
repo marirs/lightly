@@ -21,6 +21,7 @@ data class PendingRemoveStroke(val points: List<Pair<Double, Double>>, val radiu
 data class EditUi(
     val sub: EditSub = EditSub.CROP,
     val cropPreview: Boolean = false,
+    val cropDraft: com.lightlylabs.lightly.session.NormalisedRect? = null,
     val group: AdjustGroup = AdjustGroup.LIGHT,
     /** A slider being dragged: field → value (preview only until release). */
     val sliderDrag: Pair<String, Double>? = null,

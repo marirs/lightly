@@ -153,6 +153,19 @@ data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, va
 @Composable
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
+    if (vm.isCropEditing(ui)) {
+        androidx.activity.compose.BackHandler { vm.finishCrop(false) }
+        Column(Modifier.fillMaxSize().background(Color(0xFF141414)).padding(top = frame.top, bottom = frame.bottom)) {
+            Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.TextButton(onClick = { vm.finishCrop(false) }, modifier = Modifier.testTagResource("edit-crop-cancel")) { Text("Cancel", color = Color.White) }
+                androidx.compose.material3.TextButton(onClick = vm::resetCropDraft, modifier = Modifier.testTagResource("edit-crop-reset")) { Text("Reset", color = Color.White) }
+                androidx.compose.material3.TextButton(onClick = { vm.finishCrop(true) }, modifier = Modifier.testTagResource("edit-crop-done")) { Text("Done", color = Color.White) }
+            }
+            Stage(ui, Modifier.weight(1f).fillMaxWidth().padding(24.dp), overlay = { EditMarks(vm, ui) }, inspection = false, onPhotoBox = vm::onStagePhotoMeasured)
+            Text("Drag the edges to crop. Pinch to resize.", color = Color.White, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 20.dp))
+        }
+        return
+    }
     val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, chrome = { if (!ui.showsOriginal) AutoEnhanceOverlay(vm, ui) }, inspection = true, onPhotoBox = vm::onStagePhotoMeasured) }
     val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
     val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
@@ -393,7 +406,7 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                         else { zoom = 2.5f; pan = clamp((viewport / 2f - point) * (zoom - 1f), zoom) }
                     })
                 }
-            val border = ui.session?.current?.let { EditMapping.border(it) }?.takeIf { !it.isNone && !ui.showsOriginal && ui.preview != null }
+            val border = ui.session?.current?.let { EditMapping.border(it) }?.takeIf { !it.isNone && !ui.showsOriginal && ui.preview != null && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.edit.cropPreview) }
             Box(Modifier.fillMaxSize().then(gestures).testTagResource("editor-inspection").semantics {
                 stateDescription = "${(zoom * 100).toInt()} percent zoom"
             }, contentAlignment = Alignment.Center) {

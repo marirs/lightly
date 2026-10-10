@@ -12,6 +12,15 @@ import kotlin.math.min
  * extra mapping. Pure; tested in CropGeometryTest.
  */
 object CropGeometry {
+    fun scaled(rect: com.lightlylabs.lightly.session.NormalisedRect, magnification: Double): com.lightlylabs.lightly.session.NormalisedRect {
+        val scale = magnification.coerceAtLeast(0.01)
+        val width = (rect.width / scale).coerceIn(0.05, 1.0)
+        val height = (rect.height / scale).coerceIn(0.05, 1.0)
+        return com.lightlylabs.lightly.session.NormalisedRect(
+            (rect.x + (rect.width - width) / 2).coerceIn(0.0, 1.0 - width),
+            (rect.y + (rect.height - height) / 2).coerceIn(0.0, 1.0 - height), width, height)
+    }
+
     enum class Edge { LEFT, RIGHT, TOP, BOTTOM }
 
     sealed interface Handle {

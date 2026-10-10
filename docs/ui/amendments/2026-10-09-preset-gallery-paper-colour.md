@@ -42,3 +42,7 @@ The owner supplied an Instagram camera reference and approved rounded camera-pre
 ### Watermark editing — 2026-10-10
 
 Owner requested visible keyboard-safe text editing, a clear full-width text input entry, smooth positioning without accidental zoom, and additional fonts. Text entry uses a dedicated editor with Done/Cancel. One-finger watermark gestures no longer compete with double-tap inspection on iOS; explicit pinch inspection remains available. Preview reuses the complete photo/effects/border canvas while the watermark moves. Dancing Script and Lora join the bundled font choices on both platforms.
+
+### Crop interaction — 2026-10-10
+
+Owner requested an iOS Photos-style crop on both platforms. Crop opens a dedicated workspace with Cancel, Reset and Done beside the photo, larger handles drawn inside the image, and dimming outside the selection. Corners and edges resize, the interior moves the crop, and pinch resizes about its centre. Inspection zoom is disabled during cropping so it cannot create a crop that is only a viewport change. Draft changes remain outside edit history until Done commits the chosen rectangle once; Cancel discards them. Returning to the editor shows the cropped result immediately. Re-enter using Crop photo. No aspect-ratio chips are reintroduced.

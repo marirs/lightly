@@ -8,6 +8,12 @@ import kotlin.test.assertTrue
 
 /** Free crop (owner amendment 2026-10-05): the same cases as iOS CropGeometryTests. */
 class CropGeometryTest {
+    @Test fun `pinch preserves centre and clamps to image`() {
+        val small = CropGeometry.scaled(rect, 2.0)
+        assertEquals(0.25, small.width, 1e-9)
+        assertEquals(rect.x + rect.width / 2, small.x + small.width / 2, 1e-9)
+        assertEquals(NormalisedRect(0.0, 0.0, 1.0, 1.0), CropGeometry.scaled(rect, 0.1))
+    }
     private val rect = NormalisedRect(0.2, 0.2, 0.5, 0.4)
 
     @Test

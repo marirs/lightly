@@ -57,7 +57,7 @@ struct EditPanelView: View {
             if roomy { PanelTitle(text: "Edit") }
             PanelTabs(items: [(EditPanelModel.Sub.crop, "Crop", false), (.rotate, "Rotate", false), (.straighten, "Straighten", false),
                               (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Remove", false)],
-                      selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0 }
+                      selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0; if $0 == .crop { model.cropPreview = false } }
             PanelResetRow(session: model.session, section: "edit", title: model.sub.rawValue.capitalized, adjustment: model.sub.rawValue)
             switch model.sub {
             case .crop: crop
@@ -74,16 +74,10 @@ struct EditPanelView: View {
 
     @ViewBuilder
     private var crop: some View {
-        HStack {
-            Text(model.cropPreview ? "Cropped preview" : "Drag corners or edges to crop.")
-                .approvedText(15)
-            Spacer()
-            Button(model.cropPreview ? "Adjust crop" : "Done") { model.cropPreview.toggle() }
-                .buttonStyle(ApprovedSmallQuietButtonStyle())
-                .accessibilityIdentifier("edit.crop.done")
-        }
-        .padding(.horizontal, 18)
-        .frame(minHeight: 44)
+        Button("Crop photo") { model.cropPreview = false }
+            .buttonStyle(ApprovedSmallQuietButtonStyle())
+            .accessibilityIdentifier("edit.crop.open")
+            .padding(.horizontal, 18).frame(minHeight: 44)
     }
 
     private var rotate: some View {
