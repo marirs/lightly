@@ -73,20 +73,56 @@ fun fixedTextSize(px: Float): TextUnit = with(androidx.compose.ui.platform.Local
 fun lightlyTextStyle(size: TextUnit = 15.sp, weight: FontWeight = FontWeight.Normal, color: Color = Color.Unspecified) =
     TextStyle(fontSize = size, fontWeight = weight, color = color, lineHeight = size * 1.35f, lineHeightStyle = cssLineBox)
 
-/** `.ib`: a 44 dp square icon button. */
+/**
+ * Lightly 2 text: the system font at [size] (CSS px as sp), [weight]; normal line height unless [lineHeight] (a multiple
+ * of the size) is given, as the mockup sets it.
+ */
+fun l2TextStyle(size: TextUnit, weight: FontWeight = FontWeight.Normal, color: Color = Color.Unspecified, lineHeight: Float? = null, tracking: TextUnit = TextUnit.Unspecified) =
+    TextStyle(fontSize = size, fontWeight = weight, color = color, letterSpacing = tracking,
+        lineHeight = lineHeight?.let { size * it } ?: TextUnit.Unspecified, lineHeightStyle = if (lineHeight != null) cssLineBox else null)
+
+/** `iconBtn`: a 44 dp circle; plain (ink), [glass] (glass fill and line) or [on] (ink fill, on-ink icon). */
 @Composable
-fun IconTapTarget(icon: ImageVector, description: String, onClick: () -> Unit, modifier: Modifier = Modifier, tag: String? = null) {
+fun IconTapTarget(
+    icon: ImageVector, description: String, onClick: () -> Unit, modifier: Modifier = Modifier, tag: String? = null,
+    glass: Boolean = false, on: Boolean = false, enabled: Boolean = true,
+) {
+    val colors = lightlyColors
     Box(
         modifier
             .size(44.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(role = Role.Button, onClickLabel = null, onClick = onClick)
+            .clip(CircleShape)
+            .background(if (on) colors.segmentOn else if (glass) colors.glass else Color.Transparent, CircleShape)
+            .then(if (glass && !on) Modifier.border(1.dp, colors.glassLine, CircleShape) else Modifier)
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = null, onClick = onClick)
             .semantics { contentDescription = description }
             .then(if (tag != null) Modifier.testTagResource(tag) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        LightlyIcon(icon, tint = lightlyColors.ink)
+        LightlyIcon(icon, size = 20.dp, tint = (if (on) colors.onInk else if (glass) colors.glassInk else colors.ink).copy(alpha = if (enabled) 1f else 0.38f))
     }
+}
+
+/** `moreBtn`: ⋮ on a lime 44 dp circle with the 1 dp lime rim. */
+@Composable
+fun MoreButton(onClick: () -> Unit, modifier: Modifier = Modifier, tag: String = "editor-more") {
+    val colors = lightlyColors
+    Box(
+        modifier.size(44.dp).clip(CircleShape).background(colors.accent, CircleShape).border(1.dp, colors.accentEdge, CircleShape)
+            .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = "More" }.testTagResource(tag),
+        contentAlignment = Alignment.Center,
+    ) { LightlyIcon(LightlyIcons.More, size = 20.dp, tint = colors.onAccent) }
+}
+
+/** `saveBtn`: "Save", a lime capsule ([height] 44 dp, 40 on the Android app bar), 16 dp padding, 14 sp bold, rim. */
+@Composable
+fun SaveButton(onClick: () -> Unit, modifier: Modifier = Modifier, height: Dp = 44.dp) {
+    val colors = lightlyColors
+    Box(
+        modifier.height(height).clip(RoundedCornerShape(50)).background(colors.accent).border(1.dp, colors.accentEdge, RoundedCornerShape(50))
+            .clickable(role = Role.Button, onClick = onClick).testTagResource("editor-save").padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text("Save", style = l2TextStyle(14.sp, FontWeight.Bold, colors.onAccent), maxLines = 1) }
 }
 
 /** `.topbar`: 48 dp tall, 6 dp side padding. */
@@ -98,8 +134,8 @@ fun TopBar(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Un
 enum class ButtonKind { PRIMARY, LINE, QUIET }
 
 /**
- * `.btn` (min height 44, radius 10, weight 600) in its three approved kinds. [minHeight] and
- * [fontSize] follow the Welcome overrides (52 dp, 16 sp, radius 12) where used.
+ * Lightly 2 buttons: PRIMARY (`primary`: lime capsule with the rim, 15 sp bold, [minHeight] 52/56), LINE (`lineBtn`:
+ * outlined capsule, 15 sp semibold), QUIET (`quietBtn`: a chip-filled 38 dp capsule, 13 sp semibold; [accent] text).
  */
 @Composable
 fun LightlyButton(
@@ -108,80 +144,126 @@ fun LightlyButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    minHeight: androidx.compose.ui.unit.Dp = 44.dp,
-    fontSize: TextUnit = 15.sp,
-    cornerRadius: androidx.compose.ui.unit.Dp = 10.dp,
+    minHeight: androidx.compose.ui.unit.Dp = if (kind == ButtonKind.QUIET) 38.dp else 52.dp,
+    fontSize: TextUnit = if (kind == ButtonKind.QUIET) 13.sp else 15.sp,
+    cornerRadius: androidx.compose.ui.unit.Dp = 0.dp,
     underline: Boolean = false,
     tag: String? = null,
+    accent: Boolean = false,
+    dimmed: Boolean = false,
+    fillsWidth: Boolean = kind != ButtonKind.QUIET,
 ) {
     val colors = lightlyColors
-    val shape = RoundedCornerShape(cornerRadius)
+    val shape = RoundedCornerShape(50)
     val (background, foreground) = when (kind) {
-        ButtonKind.PRIMARY -> colors.ink to colors.bg
+        ButtonKind.PRIMARY -> colors.accent to colors.onAccent
         ButtonKind.LINE -> Color.Transparent to colors.ink
-        ButtonKind.QUIET -> Color.Transparent to colors.sel
+        ButtonKind.QUIET -> colors.chip to (if (accent) colors.sel else colors.ink)
     }
     Row(
         modifier
+            .then(if (fillsWidth) Modifier.fillMaxWidth() else Modifier)
             .heightIn(min = minHeight)
             .clip(shape)
             .background(background, shape)
-            .then(if (kind == ButtonKind.LINE) Modifier.border(1.dp, colors.hair, shape) else Modifier)
+            .then(when (kind) {
+                ButtonKind.PRIMARY -> Modifier.border(1.dp, colors.accentEdge, shape)
+                ButtonKind.LINE -> Modifier.border(1.dp, colors.hair, shape)
+                else -> Modifier
+            })
             .clickable(role = Role.Button, onClick = onClick)
             .then(if (tag != null) Modifier.testTagResource(tag) else Modifier)
-            .padding(horizontal = if (kind == ButtonKind.QUIET) 12.dp else 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            .padding(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (kind == ButtonKind.QUIET) 6.dp else 10.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CompositionLocalProvider(LocalContentColor provides foreground) {
-            if (icon != null) LightlyIcon(icon, size = 20.dp, tint = foreground)
+        val fg = foreground.copy(alpha = if (dimmed) 0.4f else 1f)
+        CompositionLocalProvider(LocalContentColor provides fg) {
+            if (icon != null) LightlyIcon(icon, size = if (kind == ButtonKind.QUIET) 16.dp else 20.dp, tint = fg)
             Text(
                 text,
-                style = lightlyTextStyle(fontSize, FontWeight.SemiBold, foreground).copy(textDecoration = if (underline) TextDecoration.Underline else null),
+                style = l2TextStyle(fontSize, if (kind == ButtonKind.PRIMARY) FontWeight.Bold else FontWeight.SemiBold, fg)
+                    .copy(textDecoration = if (underline) TextDecoration.Underline else null),
                 maxLines = 2,
             )
         }
     }
 }
 
-/** `.page .head`: back or close, then the centred title (17 sp, 600). */
+/** `linkBtn`: accent text, 13 sp bold, optional 15 dp icon (leading, or trailing for "More colours ›"). */
 @Composable
-fun PageHead(title: String, navigationIcon: ImageVector, navigationDescription: String, onNavigation: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconTapTarget(navigationIcon, navigationDescription, onNavigation, tag = "page-navigation")
-        Text(
-            title,
-            style = lightlyTextStyle(17.sp, FontWeight.SemiBold, lightlyColors.ink),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f).padding(end = 44.dp).semantics { heading() },
-        )
+fun LinkButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, iconTrailing: Boolean = false, tag: String? = null) {
+    val colors = lightlyColors
+    Row(
+        modifier.heightIn(min = 34.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onClick)
+            .then(if (tag != null) Modifier.testTagResource(tag) else Modifier).padding(horizontal = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null && !iconTrailing) LightlyIcon(icon, size = 15.dp, tint = colors.sel)
+        Text(text, style = l2TextStyle(13.sp, FontWeight.Bold, colors.sel), maxLines = 1)
+        if (icon != null && iconTrailing) LightlyIcon(icon, size = 15.dp, tint = colors.sel)
     }
 }
 
-/** `.group`: small uppercase section label. */
+/**
+ * Lightly 2 page header (`morePage`): on the first page "More" (30 sp heading, −0.6 sp tracking, 6 dp in) and a 44 dp
+ * chip-filled Close; on other pages Back and the title (22 sp heading).
+ */
+@Composable
+fun PageHead(title: String, navigationIcon: ImageVector, navigationDescription: String, onNavigation: () -> Unit, root: Boolean = false) {
+    val colors = lightlyColors
+    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (root) {
+            Text(title, style = l2TextStyle(30.sp, FontWeight.SemiBold, colors.ink, tracking = (-0.6).sp),
+                modifier = Modifier.weight(1f).padding(start = 6.dp).semantics { heading() })
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(colors.chip).clickable(role = Role.Button, onClick = onNavigation)
+                    .semantics { contentDescription = navigationDescription }.testTagResource("page-navigation"),
+                contentAlignment = Alignment.Center,
+            ) { LightlyIcon(LightlyIcons.Close, size = 20.dp, tint = colors.ink) }
+        } else {
+            IconTapTarget(LightlyIcons.BackChevron, navigationDescription, onNavigation, tag = "page-navigation")
+            Text(title, style = l2TextStyle(22.sp, FontWeight.SemiBold, colors.ink), modifier = Modifier.weight(1f).semantics { heading() })
+        }
+    }
+}
+
+/** `groupLabel`: 11 sp bold, 0.8 sp tracking, ink2, upper case, 6 dp sides, 7 dp below. */
 @Composable
 fun GroupLabel(text: String) {
     Text(
         text.uppercase(),
-        style = lightlyTextStyle(12.5.sp, color = lightlyColors.ink3).copy(letterSpacing = 0.04.em),
-        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 4.dp).semantics { heading() },
+        style = l2TextStyle(11.sp, FontWeight.Bold, lightlyColors.ink2, tracking = 0.8.sp),
+        modifier = Modifier.padding(start = 6.dp, end = 6.dp, bottom = 7.dp).semantics { heading() },
     )
 }
 
-/** `.note`: 13 sp secondary text. */
+/** `note`: 12.5 sp ink2, line height 1.4. Spacing comes from the column it is in. */
 @Composable
 fun Note(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = lightlyTextStyle(13.sp, color = lightlyColors.ink3), modifier = modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp))
+    Text(text, style = l2TextStyle(12.5.sp, color = lightlyColors.ink2, lineHeight = 1.4f), modifier = modifier.fillMaxWidth())
 }
 
-/** Bottom hairline of a `.listrow`. */
+/** A hairline above (Lightly 2 rows in a card divide from the row before). */
+internal fun Modifier.hairlineAbove(color: Color) = drawBehind {
+    drawLine(color, Offset(0f, 0.5.dp.toPx()), Offset(size.width, 0.5.dp.toPx()), strokeWidth = 1.dp.toPx())
+}
+
 internal fun Modifier.hairlineBelow(color: Color) = drawBehind {
     drawLine(color, Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), strokeWidth = 1.dp.toPx())
 }
 
+/** `card`: 22 dp corners, surface fill, hairline border. */
+@Composable
+fun L2Card(modifier: Modifier = Modifier, padding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp), content: @Composable () -> Unit) {
+    val colors = lightlyColors
+    val shape = RoundedCornerShape(22.dp)
+    Column(modifier.fillMaxWidth().clip(shape).background(colors.surface, shape).border(1.dp, colors.hair, shape).padding(padding)) { content() }
+}
+
 /**
- * `.listrow`: min 52 dp, 18 dp padding, hairline below. [onClick] null renders a static row;
- * [enabled] false greys it and removes the action (used for slice-5 rows that exist but do nothing yet).
+ * `listRow`: 54 dp minimum, 8/16 dp padding, 12 dp gap; 15 sp semibold title, 12 sp ink2 sub-line; trailing ink3;
+ * a hairline above every row but the first ([first]).
  */
 @Composable
 fun ListRow(
@@ -192,6 +274,7 @@ fun ListRow(
     enabled: Boolean = true,
     labelColor: Color = Color.Unspecified,
     tag: String? = null,
+    first: Boolean = false,
     trailing: @Composable (RowScope.() -> Unit)? = { LightlyIcon(LightlyIcons.Chevron, size = 18.dp, tint = lightlyColors.ink3) },
 ) {
     val colors = lightlyColors
@@ -199,24 +282,30 @@ fun ListRow(
     Row(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .hairlineBelow(colors.hair)
+            .heightIn(min = 54.dp)
+            .then(if (first) Modifier else Modifier.hairlineAbove(colors.hair))
             .then(if (onClick != null && enabled) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .then(if (tag != null) Modifier.testTagResource(tag) else Modifier)
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // No vertical padding: `.listrow` is min-height 52 with the text centred (prototype).
-        Column(Modifier.weight(1f)) {
-            Text(label, style = lightlyTextStyle(color = ink))
-            if (sub != null) Text(sub, style = lightlyTextStyle(13.sp, color = colors.ink3))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, style = l2TextStyle(15.sp, FontWeight.SemiBold, ink))
+            if (sub != null) Text(sub, style = l2TextStyle(12.sp, color = colors.ink2))
         }
-        if (trailing != null && enabled) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), content = trailing)
+        if (trailing != null && enabled) {
+            CompositionLocalProvider(LocalContentColor provides colors.ink3) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), content = trailing)
+            }
+        }
     }
 }
 
-/** `.seg`: the segmented control (Appearance). Each segment is a radio for accessibility. */
+/**
+ * `seg`: 4 dp padding on a chip-filled 22 dp capsule, 4 dp gaps; 36 dp segments; selected on an ink fill with on-ink
+ * text, bold. Each segment is a radio for accessibility.
+ */
 @Composable
 fun <T> SegmentedControl(
     options: List<Pair<T, String>>,
@@ -224,92 +313,77 @@ fun <T> SegmentedControl(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     icons: Map<T, ImageVector> = emptyMap(),
-    marginTop: Dp = 8.dp,
-    marginBottom: Dp = 4.dp,
+    marginTop: Dp = 0.dp,
+    marginBottom: Dp = 0.dp,
 ) {
     val colors = lightlyColors
     Row(
         modifier
-            // `.seg { margin: 8px 18px 4px }`. Vertical CSS margins collapse with a neighbour's, so a caller
-            // whose neighbour already provides margin passes the remainder (see PreferencesBody).
-            .padding(start = 18.dp, end = 18.dp, top = marginTop, bottom = marginBottom)
+            .padding(top = marginTop, bottom = marginBottom)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(colors.bg2)
-            .border(1.dp, colors.hair, RoundedCornerShape(10.dp))
-            // The 1px CSS border takes layout space (Compose's border does not), then `padding: 2px`.
-            .padding(1.dp + 2.dp),
+            .clip(RoundedCornerShape(22.dp))
+            .background(colors.chip)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         options.forEach { (value, label) ->
             val on = value == selected
             Box(
                 Modifier
                     .weight(1f)
-                    .heightIn(min = 44.dp)
-                    .then(if (on) Modifier.shadow(1.dp, RoundedCornerShape(8.dp)).background(colors.segmentOn, RoundedCornerShape(8.dp)) else Modifier)
-                    .clip(RoundedCornerShape(8.dp))
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(if (on) colors.segmentOn else Color.Transparent)
                     .selectable(selected = on, role = Role.RadioButton, onClick = { onSelect(value) })
                     .testTagResource("segment-$label"),
                 contentAlignment = Alignment.Center,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    icons[value]?.let { LightlyIcon(it, size = 16.dp, tint = if (on) colors.ink else colors.ink2); Spacer(Modifier.size(4.dp)) }
-                    // One line up to the approved large text (font scale 1.24); beyond it the label wraps, centred, instead of
-                    // being cut ("Change" for "Change background" at font scale 2.0; A11, 2026-10-07).
-                    val wraps = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.24f
-                    Text(label, style = lightlyTextStyle(14.sp, FontWeight.Medium, if (on) colors.ink else colors.ink2),
-                        maxLines = if (wraps) Int.MAX_VALUE else 1, textAlign = if (wraps) androidx.compose.ui.text.style.TextAlign.Center else null)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    icons[value]?.let { LightlyIcon(it, size = 16.dp, tint = if (on) colors.onInk else colors.ink2) }
+                    Text(label, style = l2TextStyle(14.sp, if (on) FontWeight.Bold else FontWeight.SemiBold, if (on) colors.onInk else colors.ink2), maxLines = 1)
                 }
             }
         }
     }
 }
 
-/** `.toggle`: 46×28 track, 22 dp knob. Drawn to match the approved switch; semantics are a Switch. */
+/** `toggle`: a 50×30 track (accent when on, `--off` when off) with a 26 dp knob. Semantics are a Switch. */
 @Composable
 fun ToggleKnob(on: Boolean) {
     val colors = lightlyColors
-    Box(
-        Modifier.size(width = 46.dp, height = 28.dp).clip(RoundedCornerShape(14.dp)).background(if (on) colors.sel else colors.track),
-    ) {
-        Box(
-            Modifier
-                .offset(x = if (on) 21.dp else 3.dp, y = 3.dp)
-                .size(22.dp)
-                .shadow(1.dp, CircleShape)
-                .background(Color.White, CircleShape),
-        )
+    Box(Modifier.size(width = 50.dp, height = 30.dp).clip(RoundedCornerShape(15.dp)).background(if (on) colors.accent else colors.track)) {
+        Box(Modifier.offset(x = if (on) 22.dp else 2.dp, y = 2.dp).size(26.dp).shadow(2.dp, CircleShape).background(colors.knob, CircleShape))
     }
 }
 
-/** A switch row (`.listrow.export-pref`): label, explanation, approved toggle. The whole row toggles. */
+/** `toggleRow` in a card: 14 sp semibold title, 12 sp ink2 sub-line, the switch; 16 dp sides, a hairline above. */
 @Composable
 fun SwitchRow(label: String, sub: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, tag: String) {
     val colors = lightlyColors
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .hairlineBelow(colors.hair)
+            .heightIn(min = 48.dp)
+            .hairlineAbove(colors.hair)
             .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
             .testTagResource(tag)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(label, style = lightlyTextStyle(color = colors.ink))
-            Text(sub, style = lightlyTextStyle(13.sp, color = colors.ink3))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, style = l2TextStyle(14.sp, FontWeight.SemiBold, colors.ink))
+            Text(sub, style = l2TextStyle(12.sp, color = colors.ink2))
         }
         ToggleKnob(checked)
     }
 }
 
-/** `.grab`: the sheet handle. */
+/** The sheet handle: 40×5, `--off`, 8 dp above and 4 dp below. */
 @Composable
 fun SheetGrabber() {
-    Box(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(width = 36.dp, height = 5.dp).clip(RoundedCornerShape(3.dp)).background(lightlyColors.hair))
+    Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(width = 40.dp, height = 5.dp).clip(RoundedCornerShape(3.dp)).background(lightlyColors.track))
     }
 }
 

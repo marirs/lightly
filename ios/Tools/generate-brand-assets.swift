@@ -5,7 +5,13 @@
 //   (the mockup's 228-unit corner radius is that mask's stand-in).
 // - LaunchMark: `launch()` = SPARK(112) centred on --bg, so the mark alone, 112 pt, no tile, transparent background.
 //
-//   swift ios/Tools/generate-brand-assets.swift ios/Lightly/Resources/Assets.xcassets
+// With a second argument (android/app/src/main/res) it also writes the Android rasters (xxxhdpi, scaled by the system):
+// - drawable-xxxhdpi/ic_lightly_foreground.png: the adaptive-icon foreground, 108 dp, the mark sized as on the iOS
+//   tile within the 72 dp visible area (background colour #050506 from icon_colors.xml);
+// - drawable-xxxhdpi/launch_splash_mark.png: the Android 12+ splash icon, 288 dp, SPARK(112) centred;
+// - drawable-xxxhdpi/launch_mark.png: the pre-12 launch window mark, SPARK(112).
+//
+//   swift ios/Tools/generate-brand-assets.swift ios/Lightly/Resources/Assets.xcassets [android/app/src/main/res]
 import CoreGraphics
 import CoreImage
 import Foundation
@@ -87,3 +93,14 @@ let contents: [String: Any] = ["images": images, "info": ["author": "xcode", "ve
 try JSONSerialization.data(withJSONObject: contents, options: [.prettyPrinted, .sortedKeys])
     .write(to: launch.appendingPathComponent("Contents.json"))
 print("Wrote the app icon and \(images.count) launch marks")
+
+if CommandLine.arguments.count > 2 {
+    let res = URL(fileURLWithPath: CommandLine.arguments[2]).appendingPathComponent("drawable-xxxhdpi")
+    try FileManager.default.createDirectory(at: res, withIntermediateDirectories: true)
+    // 4 px per dp. Foreground: 1024 tile units fill the 72 dp visible area, so the 108 dp canvas spans 1536 units.
+    write(renderMark(pixels: 432, viewOrigin: -256, viewSize: 1536, background: nil), to: res.appendingPathComponent("ic_lightly_foreground.png"))
+    // Splash: 784 units are 112 dp, so the 288 dp canvas spans 2016 units, centred on 512.
+    write(renderMark(pixels: 1152, viewOrigin: -496, viewSize: 2016, background: nil), to: res.appendingPathComponent("launch_splash_mark.png"))
+    write(renderMark(pixels: 448, viewOrigin: 120, viewSize: 784, background: nil), to: res.appendingPathComponent("launch_mark.png"))
+    print("Wrote the Android launcher foreground and launch marks")
+}

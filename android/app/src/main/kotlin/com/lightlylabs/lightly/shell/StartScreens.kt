@@ -1,5 +1,12 @@
 package com.lightlylabs.lightly.shell
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -81,81 +88,65 @@ fun FoldPanes(layout: ShellLayout, modifier: Modifier = Modifier, first: @Compos
     }
 }
 
+/** Lightly 2 `welcome` brand: the coloured mark (84 dp), "Lightly" (44 sp heading, −1 sp) and the tagline (18 sp ink2), 16 dp apart. */
 @Composable
 private fun WelcomeBrand() {
     val colors = lightlyColors
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        LightlyMark(56.dp, colors.ink)
-        Text(
-            StartCopy.WORDMARK,
-            style = lightlyTextStyle(34.sp, FontWeight.SemiBold, colors.ink).copy(letterSpacing = (-0.02).em),
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(StartCopy.TAGLINE, style = lightlyTextStyle(17.sp, color = colors.ink2), textAlign = TextAlign.Center)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LightlyMark(84.dp)
+        Text(StartCopy.WORDMARK, style = l2TextStyle(44.sp, FontWeight.SemiBold, colors.ink, tracking = (-1).sp), modifier = Modifier.semantics { heading() })
+        Text(StartCopy.TAGLINE, style = l2TextStyle(18.sp, color = colors.ink2), textAlign = TextAlign.Center)
     }
 }
 
+/**
+ * The actions (at most 360 dp, 12 dp apart): Choose a photo (lime, 56 dp), Camera (outlined, 56 dp), the privacy line
+ * (13 sp ink2, 8 dp more above) and the Privacy Policy link (14 sp semibold accent, 10 dp padding).
+ */
 @Composable
 private fun WelcomeActions(onChoosePhoto: () -> Unit, onCamera: () -> Unit, onPrivacyPolicy: () -> Unit) {
     val colors = lightlyColors
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            LightlyButton(
-                StartCopy.CHOOSE_PHOTO, ButtonKind.PRIMARY, onChoosePhoto, Modifier.fillMaxWidth(),
-                icon = LightlyIcons.Photo, minHeight = 52.dp, fontSize = 16.sp, cornerRadius = 12.dp, tag = ShellTags.CHOOSE_PHOTO,
-            )
-            LightlyButton(
-                StartCopy.CAMERA, ButtonKind.LINE, onCamera, Modifier.fillMaxWidth(),
-                icon = LightlyIcons.Camera, minHeight = 52.dp, fontSize = 16.sp, cornerRadius = 12.dp, tag = ShellTags.CAMERA,
-            )
-        }
+    Column(Modifier.widthIn(max = 360.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LightlyButton(StartCopy.CHOOSE_PHOTO, ButtonKind.PRIMARY, onChoosePhoto, icon = LightlyIcons.Photo, minHeight = 56.dp, tag = ShellTags.CHOOSE_PHOTO)
+        LightlyButton(StartCopy.CAMERA, ButtonKind.LINE, onCamera, icon = LightlyIcons.Camera, minHeight = 56.dp, tag = ShellTags.CAMERA)
+        Text(StartCopy.PRIVACY_LINE, style = l2TextStyle(13.sp, color = colors.ink2), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         Text(
-            StartCopy.PRIVACY_LINE,
-            style = lightlyTextStyle(12.5.sp, color = colors.ink3),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp),
+            StartCopy.PRIVACY_POLICY, style = l2TextStyle(14.sp, FontWeight.SemiBold, colors.sel),
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onPrivacyPolicy)
+                .testTagResource(ShellTags.PRIVACY_LINK).padding(10.dp),
         )
-        LightlyButton(StartCopy.PRIVACY_POLICY, ButtonKind.QUIET, onPrivacyPolicy, Modifier.padding(top = 4.dp), underline = true, tag = ShellTags.PRIVACY_LINK)
     }
 }
 
 /**
- * Welcome (prototype `welcomeHTML`): ⋮, the mark, "Lightly", tagline, Choose a photo, Camera, the
- * privacy line and the Privacy Policy link. On an unfolded foldable the brand takes one pane and the
- * actions the other, so nothing sits on the fold. No sign-in, no onboarding.
+ * Welcome (Lightly 2 `welcome`): the lime ⋮ More top right; on phones the brand centred above the actions (24 dp sides,
+ * 10 dp above the bottom); on unfolded foldables the brand and the actions side by side, centred in two equal columns.
  */
 @Composable
 fun WelcomeScreen(layout: ShellLayout, onChoosePhoto: () -> Unit, onCamera: () -> Unit, onPrivacyPolicy: () -> Unit, onMore: () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        // Prototype: max(28px, 6% of the screen height) below the link.
-        val bottomSpace = max(28.dp, maxHeight * 0.06f)
-        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-            TopBar {
-                Spacer(Modifier.weight(1f))
-                IconTapTarget(LightlyIcons.More, "More", onMore, tag = ShellTags.MORE)
+    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = if (layout.isSplit) 16.dp else 24.dp)
+        .padding(top = if (layout.isSplit) 16.dp else 0.dp, bottom = if (layout.isSplit) 16.dp else 10.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            Spacer(Modifier.weight(1f))
+            MoreButton(onMore, tag = ShellTags.MORE)
+        }
+        if (layout.isSplit) {
+            Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { WelcomeBrand() }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { WelcomeActions(onChoosePhoto, onCamera, onPrivacyPolicy) }
             }
-            if (layout.isSplit) {
-                FoldPanes(
-                    layout, Modifier.weight(1f).fillMaxWidth(),
-                    first = { WelcomeBrand() },
-                    second = { WelcomeActions(onChoosePhoto, onCamera, onPrivacyPolicy) },
-                )
-            } else {
-                Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Spacer(Modifier.weight(1f))
-                    WelcomeBrand()
-                    Spacer(Modifier.weight(1f))
-                    WelcomeActions(onChoosePhoto, onCamera, onPrivacyPolicy)
-                    Spacer(Modifier.height(bottomSpace))
-                }
-            }
+        } else {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { WelcomeBrand() }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { WelcomeActions(onChoosePhoto, onCamera, onPrivacyPolicy) }
         }
     }
 }
 
 /**
- * A full-screen message with two actions (prototype `messageScreen`): Camera access is off, and
- * This photo can't be opened. On an unfolded foldable the message and the actions take one pane each.
+ * Lightly 2 `messageScreen`: Close top-left (12 dp in); a 72 dp photo tile (24 dp corners, card fill, hairline, 34 dp
+ * accent icon), the title (22 sp heading) and the message (14 sp ink2, line height 1.45), 14 dp apart, at most 340 dp;
+ * the actions (primary then outlined, 10 dp apart, at most 340 dp); 28 dp between, centred. Foldables: side by side.
  */
 @Composable
 fun MessageScreen(
@@ -169,43 +160,33 @@ fun MessageScreen(
     onBack: () -> Unit,
 ) {
     val colors = lightlyColors
-    // Prototype: the text block is at most 380 dp wide, or 360 dp in a fold pane.
-    val headMaxWidth = if (layout.isSplit) 360.dp else 380.dp
     val head: @Composable () -> Unit = {
-        // As approved: the icon sits at the start of the text block (a block-level icon in the
-        // prototype), the title and body are centred lines.
-        Column(Modifier.widthIn(max = headMaxWidth)) {
-            LightlyIcon(LightlyIcons.Photo, size = 44.dp, tint = colors.ink)
-            Text(
-                title,
-                style = lightlyTextStyle(20.sp, FontWeight.SemiBold, colors.ink),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp).semantics { heading() },
-            )
-            Text(body, style = lightlyTextStyle(color = colors.ink2), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Column(Modifier.widthIn(max = 340.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(Modifier.size(72.dp).clip(RoundedCornerShape(24.dp)).background(colors.bg2).border(1.dp, colors.hair, RoundedCornerShape(24.dp)),
+                contentAlignment = Alignment.Center) { LightlyIcon(LightlyIcons.Photo, size = 34.dp, tint = colors.sel) }
+            Text(title, style = l2TextStyle(22.sp, FontWeight.SemiBold, colors.ink), textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
+            Text(body, style = l2TextStyle(14.sp, color = colors.ink2, lineHeight = 1.45f), textAlign = TextAlign.Center)
         }
     }
     val actions: @Composable () -> Unit = {
-        Column(Modifier.widthIn(max = 380.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            LightlyButton(primaryLabel, ButtonKind.PRIMARY, onPrimary, Modifier.fillMaxWidth(), tag = ShellTags.MESSAGE_PRIMARY)
-            LightlyButton(secondaryLabel, ButtonKind.LINE, onSecondary, Modifier.fillMaxWidth(), tag = ShellTags.MESSAGE_SECONDARY)
+        Column(Modifier.widthIn(max = 340.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LightlyButton(primaryLabel, ButtonKind.PRIMARY, onPrimary, tag = ShellTags.MESSAGE_PRIMARY)
+            LightlyButton(secondaryLabel, ButtonKind.LINE, onSecondary, tag = ShellTags.MESSAGE_SECONDARY)
         }
     }
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        TopBar { IconTapTarget(LightlyIcons.BackArrow, "Back", onBack, tag = ShellTags.BACK) }
+    Box(Modifier.fillMaxSize().safeDrawingPadding()) {
         if (layout.isSplit) {
-            FoldPanes(
-                layout, Modifier.weight(1f).fillMaxWidth(),
-                first = { Box(Modifier.padding(24.dp)) { head() } },
-                second = { Box(Modifier.padding(24.dp)) { actions() } },
-            )
+            Row(Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 50.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { head() }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { actions() }
+            }
         } else {
-            Box(Modifier.weight(1f).fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                Column(Modifier.widthIn(max = 380.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    head()
-                    actions()
-                }
+            Column(Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 50.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterVertically)) {
+                head()
+                actions()
             }
         }
+        IconTapTarget(LightlyIcons.Close, "Close", onBack, Modifier.padding(start = 12.dp), tag = ShellTags.BACK)
     }
 }

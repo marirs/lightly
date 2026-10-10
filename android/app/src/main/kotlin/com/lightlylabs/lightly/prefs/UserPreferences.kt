@@ -15,6 +15,8 @@ enum class PreferredBorder(val label: String) {
     SOLID("Solid"),
     PHOTO_FRAME("Photo Frame"),
     POLAROID("Polaroid"),
+    /** Lightly 2: Paper is offered as a preferred border too (`prefborder` in the approved mockup). */
+    PAPER("Paper"),
 }
 
 /**

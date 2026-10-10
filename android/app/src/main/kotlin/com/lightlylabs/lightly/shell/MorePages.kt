@@ -1,6 +1,10 @@
 package com.lightlylabs.lightly.shell
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -100,80 +104,158 @@ class MoreContent(
 )
 
 /**
- * One More page: its head (✕ on the root page, ‹ elsewhere) and its scrolling body. The same
- * composable fills a full-screen page, a form sheet or a pane sheet; see [MorePresentation].
+ * One More page (Lightly 2 `morePage`): 16 dp sides; the head (the root page's large title and Close, otherwise Back
+ * and the title), 12 dp above the scrolling body.
  */
 @Composable
-fun MorePageView(page: MorePage, content: MoreContent, actions: MoreActions, modifier: Modifier = Modifier) {
-    Column(modifier) {
+fun MorePageView(page: MorePage, content: MoreContent, actions: MoreActions, modifier: Modifier = Modifier, inSheet: Boolean = false) {
+    Column(modifier.padding(start = 16.dp, end = 16.dp, top = if (inSheet) 18.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (page.parent == null) {
-            PageHead(page.title, LightlyIcons.Close, "Close", actions.close)
+            PageHead(page.title, LightlyIcons.Close, "Close", actions.close, root = true)
         } else {
             PageHead(page.title, LightlyIcons.BackChevron, "Back", actions.back)
         }
-        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).testTagResource("more-page-${page.name.lowercase()}")) {
+        Column(
+            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = 16.dp).testTagResource("more-page-${page.name.lowercase()}"),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             when (page) {
-                MorePage.MORE -> {
-                    ListRow(MorePage.PREFERENCES.title, onClick = { actions.openPage(MorePage.PREFERENCES) }, tag = "row-preferences")
-                    ListRow(MorePage.LEGAL.title, onClick = { actions.openPage(MorePage.LEGAL) }, tag = "row-legal")
-                    ListRow(MorePage.ABOUT.title, onClick = { actions.openPage(MorePage.ABOUT) }, tag = "row-about")
-                }
-                MorePage.PREFERENCES -> PreferencesBody(content.preferences, actions)
+                MorePage.MORE -> MoreBody(content, actions)
                 MorePage.FAVOURITES -> FavouritesBody(content.preferences, content.catalogue, actions)
                 MorePage.SIGNATURE -> SignatureBody(content.signature, actions)
                 MorePage.PREFERRED_BORDER -> PreferredBorderBody(content.preferences, actions)
-                MorePage.LEGAL -> {
-                    ListRow(MorePage.PRIVACY.title, onClick = { actions.openPage(MorePage.PRIVACY) }, tag = "row-privacy")
+                MorePage.LEGAL -> L2Card {
+                    ListRow(MorePage.PRIVACY.title, onClick = { actions.openPage(MorePage.PRIVACY) }, tag = "row-privacy", first = true)
                     ListRow(MorePage.TERMS.title, onClick = { actions.openPage(MorePage.TERMS) }, tag = "row-terms")
                 }
                 MorePage.PRIVACY -> ReleaseDocumentBody(content.releaseText.privacyPolicy, "https://lightly.pro/privacy", actions.openSupport)
                 MorePage.TERMS -> ReleaseDocumentBody(content.releaseText.termsOfUse, "https://lightly.pro/terms", actions.openSupport)
-                MorePage.ABOUT -> AboutBody(content.versionLabel, actions)
-                MorePage.SUPPORT -> SupportBody(content.releaseText.supportDestination, content.versionLabel, actions)
+                MorePage.ABOUT -> AboutBody(content, actions)
             }
         }
     }
 }
 
+/**
+ * The More page (`morePage('more')`): the app card; Appearance (the three preview tiles); Shortcuts (Favourite presets,
+ * Saved signature); Saving (Preferred border, Keep photo metadata, Include location); Help (About, Legal).
+ */
 @Composable
-private fun PreferencesBody(preferences: UserPreferences, actions: MoreActions) {
-    GroupLabel(MoreCopy.APPEARANCE)
-    // CSS margin collapsing: `.group` margin-bottom 4 and `.seg` margin-top 8 give 8 (4 here, after the
-    // label's 4); `.seg` margin-bottom 4 and the next `.group` margin-top 14 give 14 (0 here).
-    SegmentedControl(
-        marginTop = 4.dp,
-        marginBottom = 0.dp,
-        options = listOf(Appearance.SYSTEM to MoreCopy.SYSTEM, Appearance.LIGHT to MoreCopy.LIGHT, Appearance.DARK to MoreCopy.DARK),
-        selected = preferences.appearance,
-        onSelect = { appearance -> actions.updatePreferences { it.copy(appearance = appearance) } },
-    )
-    GroupLabel(MoreCopy.SHORTCUTS)
-    ListRow(
-        MorePage.FAVOURITES.title,
-        sub = MoreCopy.favouritesSub(preferences.favouritePresetIds.size),
-        onClick = { actions.openPage(MorePage.FAVOURITES) },
-        tag = "row-favourites",
-    )
-    ListRow(MorePage.SIGNATURE.title, sub = MoreCopy.SAVED_SIGNATURE_SUB, onClick = { actions.openPage(MorePage.SIGNATURE) }, tag = "row-signature")
-    GroupLabel(MoreCopy.SAVING)
+private fun MoreBody(content: MoreContent, actions: MoreActions) {
     val colors = lightlyColors
-    ListRow(
-        MorePage.PREFERRED_BORDER.title,
-        sub = preferences.preferredBorder.label,
-        onClick = { actions.openPage(MorePage.PREFERRED_BORDER) },
-        tag = "row-preferred-border",
-    ) {
-        Text(preferences.preferredBorder.label, style = lightlyTextStyle(color = colors.ink3))
-        LightlyIcon(LightlyIcons.Chevron, size = 18.dp, tint = colors.ink3)
+    val preferences = content.preferences
+    L2Card(padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LightlyMark(44.dp, tile = true)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(StartCopy.WORDMARK, style = l2TextStyle(16.sp, FontWeight.SemiBold, colors.ink))
+                Text("${MoreCopy.VERSION} ${content.versionLabel} · edits stay on this device", style = l2TextStyle(12.sp, color = colors.ink2),
+                    modifier = Modifier.testTagResource("about-version"))
+            }
+        }
     }
-    SwitchRow(
-        MoreCopy.KEEP_METADATA, MoreCopy.KEEP_METADATA_SUB, preferences.keepPhotoMetadata,
-        onCheckedChange = { on -> actions.updatePreferences { it.copy(keepPhotoMetadata = on) } }, tag = ShellTags.KEEP_METADATA,
-    )
-    SwitchRow(
-        MoreCopy.INCLUDE_LOCATION, MoreCopy.INCLUDE_LOCATION_SUB, preferences.includeLocation,
-        onCheckedChange = { on -> actions.updatePreferences { it.copy(includeLocation = on) } }, tag = ShellTags.INCLUDE_LOCATION,
-    )
+    Column {
+        GroupLabel(MoreCopy.APPEARANCE)
+        AppearanceTiles(preferences.appearance) { appearance -> actions.updatePreferences { it.copy(appearance = appearance) } }
+    }
+    Column {
+        GroupLabel(MoreCopy.SHORTCUTS)
+        L2Card {
+            ListRow(MorePage.FAVOURITES.title, sub = MoreCopy.favouritesSub(preferences.favouritePresetIds.size),
+                onClick = { actions.openPage(MorePage.FAVOURITES) }, tag = "row-favourites", first = true) {
+                // Without an open photo the favourite thumbnails are chip-filled circles.
+                Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                    preferences.favouritePresetIds.take(3).forEach { _ ->
+                        Box(Modifier.size(30.dp).background(colors.surface, androidx.compose.foundation.shape.CircleShape).padding(2.dp)
+                            .background(colors.chip, androidx.compose.foundation.shape.CircleShape))
+                    }
+                }
+                LightlyIcon(LightlyIcons.Chevron, size = 18.dp, tint = colors.ink3)
+            }
+            ListRow(MorePage.SIGNATURE.title, sub = MoreCopy.SAVED_SIGNATURE_SUB, onClick = { actions.openPage(MorePage.SIGNATURE) }, tag = "row-signature") {
+                content.signature?.let { com.lightlylabs.lightly.editor.SavedSignatureGlyph(it, 20.dp, colors.ink) }
+                LightlyIcon(LightlyIcons.Chevron, size = 18.dp, tint = colors.ink3)
+            }
+        }
+    }
+    Column {
+        GroupLabel(MoreCopy.SAVING)
+        L2Card {
+            ListRow(MorePage.PREFERRED_BORDER.title, onClick = { actions.openPage(MorePage.PREFERRED_BORDER) }, tag = "row-preferred-border", first = true) {
+                Text(preferences.preferredBorder.label, style = l2TextStyle(14.sp, color = colors.ink3))
+                LightlyIcon(LightlyIcons.Chevron, size = 18.dp, tint = colors.ink3)
+            }
+            SwitchRow(MoreCopy.KEEP_METADATA, MoreCopy.KEEP_METADATA_SUB, preferences.keepPhotoMetadata,
+                onCheckedChange = { on -> actions.updatePreferences { it.copy(keepPhotoMetadata = on) } }, tag = ShellTags.KEEP_METADATA)
+            SwitchRow(MoreCopy.INCLUDE_LOCATION, MoreCopy.INCLUDE_LOCATION_SUB, preferences.includeLocation,
+                onCheckedChange = { on -> actions.updatePreferences { it.copy(includeLocation = on) } }, tag = ShellTags.INCLUDE_LOCATION)
+        }
+    }
+    Column {
+        GroupLabel("Help")
+        L2Card {
+            ListRow(MorePage.ABOUT.title, sub = "Details and support email", onClick = { actions.openPage(MorePage.ABOUT) }, tag = "row-about", first = true)
+            ListRow(MorePage.LEGAL.title, sub = "Privacy Policy, Terms of Use", onClick = { actions.openPage(MorePage.LEGAL) }, tag = "row-legal")
+        }
+    }
+}
+
+/**
+ * `appearanceTiles`: a card (16/12/14 dp padding) with System, Light and Dark previews (64×76 dp, 14 dp corners; the
+ * chosen one with a 2 dp accent border and a 22 dp lime check badge), 13 sp labels (bold when chosen).
+ */
+@Composable
+private fun AppearanceTiles(selected: Appearance, onSelect: (Appearance) -> Unit) {
+    val colors = lightlyColors
+    L2Card(padding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 14.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            listOf(Appearance.SYSTEM to MoreCopy.SYSTEM, Appearance.LIGHT to MoreCopy.LIGHT, Appearance.DARK to MoreCopy.DARK).forEach { (value, label) ->
+                val on = value == selected
+                Column(
+                    Modifier.weight(1f).clickable(role = Role.RadioButton) { onSelect(value) }.testTagResource("segment-$label")
+                        .semantics { if (on) contentDescription = "$label, selected" },
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.size(width = 64.dp, height = 76.dp)) {
+                        Box(
+                            Modifier.fillMaxSize().border(if (on) 2.dp else 1.dp, if (on) colors.sel else colors.hair, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                                .padding(3.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)),
+                        ) { AppearancePreview(value) }
+                        if (on) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).size(22.dp)
+                                    .border(2.dp, colors.surface, androidx.compose.foundation.shape.CircleShape)
+                                    .background(colors.accent, androidx.compose.foundation.shape.CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) { LightlyIcon(LightlyIcons.Check, size = 13.dp, tint = colors.onAccent) }
+                        }
+                    }
+                    Text(label, style = l2TextStyle(13.sp, if (on) FontWeight.Bold else FontWeight.SemiBold, colors.ink))
+                }
+            }
+        }
+    }
+}
+
+/** The preview: the theme's background (System split diagonally), two text lines and a lime pill. */
+@Composable
+private fun AppearancePreview(value: Appearance) {
+    val ink = when (value) { Appearance.LIGHT -> androidx.compose.ui.graphics.Color(0xFF141513); Appearance.DARK -> androidx.compose.ui.graphics.Color(0xFFF2F3F0); else -> androidx.compose.ui.graphics.Color(0xFF8A8E86) }
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        val light = androidx.compose.ui.graphics.Color(0xFFF3F3F0); val dark = androidx.compose.ui.graphics.Color(0xFF0D0E10)
+        when (value) {
+            Appearance.LIGHT -> drawRect(light)
+            Appearance.DARK -> drawRect(dark)
+            else -> {
+                drawRect(dark)
+                drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(0f, size.height); close() }, light)
+            }
+        }
+        val u = 1.dp.toPx()
+        drawRoundRect(ink.copy(alpha = 0.9f), Offset(5 * u, 6 * u), androidx.compose.ui.geometry.Size(size.width - 10 * u, 5 * u), androidx.compose.ui.geometry.CornerRadius(3 * u))
+        drawRoundRect(ink.copy(alpha = 0.45f), Offset(5 * u, 16 * u), androidx.compose.ui.geometry.Size(size.width - 20 * u, 4 * u), androidx.compose.ui.geometry.CornerRadius(2 * u))
+        drawRoundRect(androidx.compose.ui.graphics.Color(0xFFCFF26B), Offset(5 * u, size.height - 15 * u), androidx.compose.ui.geometry.Size(22 * u, 10 * u), androidx.compose.ui.geometry.CornerRadius(5 * u))
+    }
 }
 
 /**
@@ -185,6 +267,7 @@ private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalo
     val colors = lightlyColors
     Note(MoreCopy.FAVOURITES_NOTE)
     val ids = preferences.favouritePresetIds
+    if (ids.isNotEmpty()) L2Card {
     var draggedIndex by remember { mutableIntStateOf(-1) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     var rowHeightPx by remember { mutableIntStateOf(1) }
@@ -197,13 +280,13 @@ private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalo
         Row(
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = 52.dp)
+                .heightIn(min = 58.dp)
                 .onSizeChanged { rowHeightPx = it.height.coerceAtLeast(1) }
                 .zIndex(if (dragging) 1f else 0f)
                 .graphicsLayer { translationY = if (dragging) dragOffsetPx else 0f }
                 .drawBehind {
-                    if (dragging) drawRect(colors.bg2)
-                    drawLine(colors.hair, Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), 1.dp.toPx())
+                    drawRect(colors.surface)
+                    if (index > 0) drawLine(colors.hair, Offset(0f, 0.5.dp.toPx()), Offset(size.width, 0.5.dp.toPx()), 1.dp.toPx())
                 }
                 .semantics(mergeDescendants = true) {
                     customActions = listOfNotNull(
@@ -211,13 +294,13 @@ private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalo
                         CustomAccessibilityAction("Move down") { actions.updatePreferences { it.withFavouriteMoved(index, index + 1) }; true }.takeIf { index < ids.lastIndex },
                     )
                 }
-                .padding(horizontal = 18.dp),
+                .padding(start = 14.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
                 Modifier
-                    .size(44.dp)
+                    .size(width = 24.dp, height = 44.dp)
                     .pointerInput(id) {
                         detectDragGestures(
                             onDragStart = { draggedIndex = currentIds.indexOf(id); dragOffsetPx = 0f },
@@ -242,12 +325,14 @@ private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalo
                     .semantics { contentDescription = "Reorder" },
                 contentAlignment = Alignment.Center,
             ) { LightlyIcon(LightlyIcons.Grip, size = 18.dp, tint = colors.ink3) }
+            Box(Modifier.size(36.dp).background(colors.chip, androidx.compose.foundation.shape.CircleShape))
             Column(Modifier.weight(1f)) {
-                Text(name, style = lightlyTextStyle(color = colors.ink))
-                preset?.categoryName?.let { Text(it, style = lightlyTextStyle(13.sp, color = colors.ink3)) }
+                Text(name, style = l2TextStyle(15.sp, FontWeight.SemiBold, colors.ink))
+                preset?.categoryName?.let { Text(it, style = l2TextStyle(12.sp, color = colors.ink2)) }
             }
             IconTapTarget(LightlyIcons.Trash, "Remove", onClick = { actions.updatePreferences { it.withFavouriteRemoved(id) } }, tag = "favourite-remove-$index")
         }
+    }
     }
     val free = UserPreferences.MAX_FAVOURITES - ids.size
     if (free > 0) Note(MoreCopy.favouritesFree(free))
@@ -261,80 +346,103 @@ private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalo
 @Composable
 private fun SignatureBody(signature: com.lightlylabs.lightly.signatures.SavedSignature?, actions: MoreActions) {
     val colors = lightlyColors
-    if (signature != null) {
-        Box(Modifier.fillMaxWidth().hairlineBelow(colors.hair).padding(horizontal = 18.dp, vertical = 24.dp).testTagResource("saved-signature"), contentAlignment = Alignment.Center) {
-            com.lightlylabs.lightly.editor.SavedSignatureGlyph(signature, 54.dp, colors.ink)
+    L2Card {
+        Box(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(vertical = 26.dp).testTagResource("saved-signature"), contentAlignment = Alignment.Center) {
+            if (signature != null) com.lightlylabs.lightly.editor.SavedSignatureGlyph(signature, 64.dp, colors.ink)
+            else Text("No saved signature", style = l2TextStyle(15.sp, color = colors.ink3))
         }
     }
-    ListRow(MoreCopy.DRAW_SIGNATURE, onClick = actions.drawSignature, tag = "row-draw-signature")
-    ListRow(MoreCopy.IMPORT_SIGNATURE, onClick = actions.importSignature, tag = "row-import-signature")
-    if (signature != null) ListRow(MoreCopy.DELETE_SIGNATURE, onClick = actions.deleteSignature, labelColor = colors.danger, tag = "row-delete-signature", trailing = null)
+    L2Card {
+        ListRow(MoreCopy.DRAW_SIGNATURE, onClick = actions.drawSignature, tag = "row-draw-signature", first = true)
+        ListRow(MoreCopy.IMPORT_SIGNATURE, onClick = actions.importSignature, tag = "row-import-signature")
+        if (signature != null) ListRow(MoreCopy.DELETE_SIGNATURE, onClick = actions.deleteSignature, labelColor = colors.danger, tag = "row-delete-signature", trailing = null)
+    }
     Note(MoreCopy.SIGNATURE_NOTE)
 }
 
 @Composable
 private fun PreferredBorderBody(preferences: UserPreferences, actions: MoreActions) {
     val colors = lightlyColors
-    PreferredBorder.entries.forEach { border ->
-        val selected = border == preferences.preferredBorder
-        ListRow(
-            border.label,
-            onClick = { actions.updatePreferences { it.copy(preferredBorder = border) } },
-            tag = "border-${border.name.lowercase()}",
-            modifier = Modifier.semantics { if (selected) contentDescription = "${border.label}, selected" },
-            trailing = if (selected) { { LightlyIcon(LightlyIcons.Check, size = 20.dp, tint = colors.sel) } } else null,
-        )
+    L2Card {
+        PreferredBorder.entries.forEachIndexed { index, border ->
+            val selected = border == preferences.preferredBorder
+            ListRow(
+                border.label,
+                onClick = { actions.updatePreferences { it.copy(preferredBorder = border) } },
+                tag = "border-${border.name.lowercase()}",
+                first = index == 0,
+                modifier = Modifier.semantics { if (selected) contentDescription = "${border.label}, selected" },
+                trailing = if (selected) { { LightlyIcon(LightlyIcons.Check, size = 20.dp, tint = colors.sel) } } else { {} },
+            )
+        }
     }
     Note(MoreCopy.BORDER_NOTE)
 }
 
-/** Bundled legal text with its public website address. */
+/** Privacy Policy or Terms of Use (`doc`): the address (14 sp accent), each heading (15 sp bold) and paragraph (14 sp ink2, 1.5). */
 @Composable
 private fun ReleaseDocumentBody(document: ReleaseDocument?, onlineUrl: String, openUrl: (String) -> Unit) {
     val colors = lightlyColors
     if (document == null) {
-        Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 28.dp), contentAlignment = Alignment.Center) {
-            Text(ReleaseText.UNAVAILABLE_DOCUMENT, style = lightlyTextStyle(color = colors.ink2), modifier = Modifier.testTagResource("document-unavailable"))
-        }
+        Note(ReleaseText.UNAVAILABLE_DOCUMENT, Modifier.testTagResource("document-unavailable"))
         return
     }
-    Column(Modifier.padding(top = 8.dp, bottom = 24.dp)) {
-        WebsiteLink(onlineUrl, "legal-online", openUrl)
+    Column(Modifier.padding(horizontal = 4.dp)) {
+        Text(onlineUrl.removePrefix("https://"), style = l2TextStyle(14.sp, FontWeight.SemiBold, colors.sel),
+            modifier = Modifier.clickable(role = Role.Button) { openUrl(onlineUrl) }.testTagResource("legal-online").padding(top = 2.dp, bottom = 14.dp))
         document.sections.forEach { section ->
-            if (section.heading.isNotBlank()) GroupLabel(section.heading)
-            Text(section.body, style = lightlyTextStyle(color = colors.ink), modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp))
+            if (section.heading.isNotBlank()) Text(section.heading, style = l2TextStyle(15.sp, FontWeight.Bold, colors.ink), modifier = Modifier.padding(bottom = 6.dp).semantics { heading() })
+            Text(section.body, style = l2TextStyle(14.sp, color = colors.ink2, lineHeight = 1.5f), modifier = Modifier.padding(bottom = 16.dp))
         }
     }
-}
-
-@Composable
-private fun AboutBody(versionLabel: String, actions: MoreActions) {
-    val colors = lightlyColors
-    Column(Modifier.fillMaxWidth().padding(top = 28.dp, bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        LightlyMark(44.dp, colors.ink)
-        Text(StartCopy.WORDMARK, style = lightlyTextStyle(19.sp, FontWeight.SemiBold, colors.ink), modifier = Modifier.semantics { heading() })
-        Text("${MoreCopy.VERSION} $versionLabel", style = lightlyTextStyle(13.sp, color = colors.ink3), modifier = Modifier.testTagResource("about-version"))
-    }
-    ListRow(MorePage.SUPPORT.title, onClick = { actions.openPage(MorePage.SUPPORT) }, tag = "row-support")
 }
 
 /**
- * Support. The destination is release text (D2); without it there is no Contact button, because a
- * button that goes nowhere (or somewhere invented) must not ship.
+ * About (owner 2026-10-10: details, then the support email, no Support page): the app-icon tile (72 dp), "Lightly"
+ * (22 sp heading), the version; the description; the details card; "Support" and the email row (opens mail).
  */
 @Composable
-private fun SupportBody(destination: String?, versionLabel: String, actions: MoreActions) {
+private fun AboutBody(content: MoreContent, actions: MoreActions) {
     val colors = lightlyColors
-    if (destination != null) {
-        Note(MoreCopy.SUPPORT_NOTE, Modifier.padding(top = 8.dp))
-        WebsiteLink(destination, "support-contact", actions.openSupport)
-    } else {
-        Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 20.dp), contentAlignment = Alignment.Center) {
-            Text(ReleaseText.UNAVAILABLE_SUPPORT, style = lightlyTextStyle(color = colors.ink2), modifier = Modifier.testTagResource("support-unavailable"))
+    Column(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LightlyMark(72.dp, tile = true)
+        Text(StartCopy.WORDMARK, style = l2TextStyle(22.sp, FontWeight.SemiBold, colors.ink), modifier = Modifier.semantics { heading() })
+        Text("${MoreCopy.VERSION} ${content.versionLabel}", style = l2TextStyle(13.sp, color = colors.ink2), modifier = Modifier.testTagResource("about-version"))
+    }
+    Text(
+        "A photo editor that develops your photo in one tap, then lets you fine-tune it with presets, background, portrait, effects, watermark and border.",
+        style = l2TextStyle(14.sp, color = colors.ink2, lineHeight = 1.5f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+    )
+    L2Card {
+        val presets = content.catalogue.size
+        listOf(
+            "Editing" to "On your device", "Account" to "Not needed", "Advertising and analytics" to "None",
+            "Presets" to "${String.format(java.util.Locale.getDefault(), "%,d", presets)} in ${content.catalogue.categoryCount} categories",
+            "Website" to "lightly.pro",
+        ).forEachIndexed { index, (label, value) ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 46.dp).then(if (index > 0) Modifier.hairlineAbove(colors.hair) else Modifier).padding(horizontal = 16.dp)
+                    .semantics(mergeDescendants = true) {},
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(label, style = l2TextStyle(14.sp, color = colors.ink2), modifier = Modifier.weight(1f))
+                Text(value, style = l2TextStyle(14.sp, FontWeight.SemiBold, colors.ink), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            }
         }
     }
-    ListRow(MoreCopy.VERSION, trailing = { Text(versionLabel, style = lightlyTextStyle(color = colors.ink3)) })
+    Column {
+        GroupLabel("Support")
+        L2Card {
+            ListRow(SUPPORT_EMAIL, sub = "Questions or a problem with a photo? Include your version number.",
+                onClick = { actions.openSupport("mailto:$SUPPORT_EMAIL") }, tag = "support-contact", first = true) {
+                LightlyIcon(LightlyIcons.Mail, size = 20.dp, tint = colors.sel)
+            }
+        }
+    }
 }
+
+const val SUPPORT_EMAIL = "hello@lightly.pro"
 
 /** Fills the remaining space of a full-screen page. */
 @Composable
@@ -342,12 +450,3 @@ fun FullScreenMorePage(page: MorePage, content: MoreContent, actions: MoreAction
     MorePageView(page, content, actions, Modifier.fillMaxSize())
 }
 
-/** Plain web address with a full touch target; no filled button. */
-@Composable
-private fun WebsiteLink(url: String, tag: String, openUrl: (String) -> Unit) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp)
-        .heightIn(min = 48.dp).clickable(role = Role.Button) { openUrl(url) }
-        .testTagResource(tag), contentAlignment = Alignment.CenterStart) {
-        Text(url, style = lightlyTextStyle(15.sp, color = lightlyColors.sel), textDecoration = TextDecoration.Underline)
-    }
-}

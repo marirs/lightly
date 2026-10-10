@@ -1,6 +1,8 @@
 package com.lightlylabs.lightly.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -64,11 +66,10 @@ fun LightlyAppContent(
                 .semantics { testTagsAsResourceId = true },
         ) {
             val page = state.morePage
-            // Phones: More itself is a sheet over the screen it was opened from; the pages it leads to
-            // are full screen (prototype: `welcome-more` / `more` are sheets, `preferences` … are pages).
-            val fullScreenPage = page != null && page != MorePage.MORE && layout == ShellLayout.Compact
+            // Lightly 2: on phones More and its pages are full screen; elsewhere they are the centred sheet card.
+            val fullScreenPage = page != null && layout == ShellLayout.Compact
             if (fullScreenPage) {
-                Column(Modifier.fillMaxSize().safeDrawingPadding()) { FullScreenMorePage(page, content, actions.more) }
+                Column(Modifier.fillMaxSize().background(colors.bg).safeDrawingPadding()) { FullScreenMorePage(page, content, actions.more) }
             } else {
                 BaseScreenView(state, layout, actions, editor)
                 if (page != null) MoreSheet(page, layout, content, actions.more)
@@ -104,12 +105,8 @@ private fun BaseScreenView(state: AppNavState, layout: ShellLayout, actions: She
 }
 
 /**
- * More as a sheet (prototype `overlayHTML('page')`):
- * - phones: bottom sheet with a grabber, 92% of the screen capped at 88% (`.sheet` max-height), so 88%;
- * - tablets: centred form sheet, min(540 dp, 92%) wide and 70% tall, no grabber;
- * - unfolded foldables: a bottom sheet confined to the right (vertical fold) or lower (horizontal
- *   fold) pane, as tall as its content, so it never crosses the fold.
- * A tap on the scrim closes More.
+ * More as the centred sheet card (Lightly 2 `sheetOverlay` on wide screens): min(560 dp, 60 % of the width), 92 % of
+ * the height, 28 dp corners, sheet fill, hairline, shadow, over the scrim; a tap on the scrim closes More.
  */
 @Composable
 private fun MoreSheet(page: MorePage, layout: ShellLayout, content: MoreContent, actions: MoreActions) {
@@ -123,58 +120,22 @@ private fun MoreSheet(page: MorePage, layout: ShellLayout, content: MoreContent,
                 .semantics { contentDescription = "Close More" }
                 .testTagResource(ShellTags.SHEET_SCRIM),
         )
-        // Swallows taps inside the sheet so they never reach the scrim. A pointer handler, not
-        // `clickable`: clickable would merge the whole sheet into one accessibility node.
+        // Swallows taps inside the sheet so they never reach the scrim (a pointer handler keeps the page's own nodes).
         val sheetSurface = Modifier.pointerInput(Unit) { detectTapGestures {} }
-        when (layout) {
-            ShellLayout.Compact -> Column(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(maxHeight * 0.88f)
-                    .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
-                    .background(colors.sheet)
-                    .then(sheetSurface)
-                    .padding(top = 8.dp)
-                    .navigationBarsPadding()
-                    .padding(bottom = 6.dp),
-            ) {
-                SheetGrabber()
-                MorePageView(page, content, actions, Modifier.weight(1f))
-            }
-            ShellLayout.Large -> Column(
-                Modifier
-                    .align(Alignment.Center)
-                    .width(min(540.dp, maxWidth * 0.92f))
-                    .height(maxHeight * 0.7f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(colors.sheet)
-                    .then(sheetSurface)
-                    .padding(top = 8.dp, bottom = 16.dp),
-            ) {
-                MorePageView(page, content, actions, Modifier.weight(1f))
-            }
-            // Prototype `.scrim.paneR` / `.paneB`: the sheet lives in the right / lower half of the
-            // screen (padding 50%), bottom-aligned, as tall as its content.
-            is ShellLayout.SplitVertical, is ShellLayout.SplitHorizontal -> {
-                val paneModifier = if (layout is ShellLayout.SplitVertical) {
-                    Modifier.align(Alignment.BottomEnd).width(maxWidth / 2).heightIn(max = maxHeight)
-                } else {
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max = maxHeight / 2)
-                }
-                Column(
-                    paneModifier
-                        .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
-                        .background(colors.sheet)
-                        .then(sheetSurface)
-                        .padding(top = 8.dp)
-                        .navigationBarsPadding()
-                        .padding(bottom = 6.dp),
-                ) {
-                    SheetGrabber()
-                    MorePageView(page, content, actions, Modifier.weight(1f, fill = false))
-                }
-            }
+        val shape = RoundedCornerShape(28.dp)
+        Column(
+            Modifier
+                .align(Alignment.Center)
+                .width(min(560.dp, maxWidth * 0.6f))
+                .height(maxHeight * 0.92f)
+                .shadow(30.dp, shape)
+                .clip(shape)
+                .background(colors.sheet)
+                .border(1.dp, colors.hair, shape)
+                .then(sheetSurface)
+                .padding(bottom = 14.dp),
+        ) {
+            MorePageView(page, content, actions, Modifier.weight(1f), inSheet = true)
         }
     }
 }

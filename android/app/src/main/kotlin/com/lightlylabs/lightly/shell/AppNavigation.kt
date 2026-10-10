@@ -5,16 +5,15 @@ package com.lightlylabs.lightly.shell
  * Titles are the approved ones verbatim.
  */
 enum class MorePage(val title: String, val parent: MorePage?) {
+    // Lightly 2: preferences live on More itself; About carries the support email (no Preferences or Support pages).
     MORE("More", null),
-    PREFERENCES("Preferences", MORE),
-    FAVOURITES("Favourite presets", PREFERENCES),
-    SIGNATURE("Saved signature", PREFERENCES),
-    PREFERRED_BORDER("Preferred border", PREFERENCES),
+    FAVOURITES("Favourite presets", MORE),
+    SIGNATURE("Saved signature", MORE),
+    PREFERRED_BORDER("Preferred border", MORE),
     LEGAL("Legal", MORE),
     PRIVACY("Privacy Policy", LEGAL),
     TERMS("Terms of Use", LEGAL),
     ABOUT("About", MORE),
-    SUPPORT("Support", ABOUT),
 }
 
 /** The full-screen destination underneath any More page. */

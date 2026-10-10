@@ -1,2 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources><color name="ic_lightly_background">#0B0B0B</color></resources>
+<!-- Lightly 2 app icon background (#050506, the tile behind the spectrum mark). -->
+<resources><color name="ic_lightly_background">#050506</color></resources>

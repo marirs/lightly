@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Approved tokens (docs/ui/app/styles.css) needed before Compose draws: launch window and splash. -->
+<!-- Lightly 2 tokens (docs/ui/directions/lightly-2-concept/index.html) needed before Compose draws: launch window and splash. -->
 <resources>
-    <color name="lightly_bg">#FFFFFF</color>
-    <color name="lightly_ink">#121214</color>
+    <color name="lightly_bg">#F3F3F0</color>
+    <color name="lightly_ink">#141513</color>
 </resources>
