@@ -1,5 +1,25 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.animation.core.animateFloat
+
+import androidx.compose.ui.semantics.heading
+
+import androidx.compose.ui.draw.shadow
+
+import androidx.compose.foundation.layout.wrapContentHeight
+
+import com.lightlylabs.lightly.shell.LightlyMark
+
+import com.lightlylabs.lightly.shell.LinkButton
+
+import com.lightlylabs.lightly.shell.SaveButton
+
+import com.lightlylabs.lightly.shell.MoreButton
+
+import com.lightlylabs.lightly.shell.IconTapTarget
+
+import com.lightlylabs.lightly.shell.l2TextStyle
+
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.luminance
 
@@ -150,188 +170,169 @@ fun EditorScreen(vm: EditorViewModel, shellLayout: ShellLayout, actions: EditorA
 /** The window's layout plus its system insets and the fold position (dp from the window's top/left). */
 data class EditorFrame(val layout: EditorLayout, val top: Dp, val bottom: Dp, val start: Dp, val end: Dp, val foldDp: Float?)
 
+/** Lightly 2 `PANEL_HEIGHT`: on phones the tool panel is this tall for every tool and state; its contents scroll. */
+internal val PHONE_PANEL_HEIGHT = 340.dp
+
 @Composable
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
+    val colors = lightlyColors
     if (vm.isCropEditing(ui)) {
         androidx.activity.compose.BackHandler { vm.finishCrop(false) }
+        // `cropWorkspace`: #141414 in both themes; Cancel, Reset, Done (17 sp white, Done bold lime) in a 52 dp row with
+        // 20 dp sides; the photo 12/24 dp in; the 14 sp hint at 80 %.
         Column(Modifier.fillMaxSize().background(Color(0xFF141414)).padding(top = frame.top, bottom = frame.bottom)) {
             Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.material3.TextButton(onClick = { vm.finishCrop(false) }, modifier = Modifier.testTagResource("edit-crop-cancel")) { Text("Cancel", color = Color.White) }
-                androidx.compose.material3.TextButton(onClick = vm::resetCropDraft, modifier = Modifier.testTagResource("edit-crop-reset")) { Text("Reset", color = Color.White) }
-                androidx.compose.material3.TextButton(onClick = { vm.finishCrop(true) }, modifier = Modifier.testTagResource("edit-crop-done")) { Text("Done", color = Color.White) }
+                CropWorkspaceButton("Cancel", "edit-crop-cancel") { vm.finishCrop(false) }
+                CropWorkspaceButton("Reset", "edit-crop-reset", onClick = vm::resetCropDraft)
+                CropWorkspaceButton("Done", "edit-crop-done", done = true) { vm.finishCrop(true) }
             }
-            Stage(ui, Modifier.weight(1f).fillMaxWidth().padding(24.dp), overlay = { EditMarks(vm, ui) }, inspection = false, onPhotoBox = vm::onStagePhotoMeasured)
-            Text("Drag the edges to crop. Pinch to resize.", color = Color.White, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 20.dp))
+            Stage(ui, Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp), overlay = { EditMarks(vm, ui) }, inspection = false, onPhotoBox = vm::onStagePhotoMeasured)
+            Text("Drag the edges to crop. Pinch to resize.", style = l2TextStyle(14.sp, color = Color.White.copy(alpha = 0.8f)),
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 20.dp))
         }
         return
     }
     val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, chrome = { if (!ui.showsOriginal) AutoEnhanceOverlay(vm, ui) }, inspection = true, onPhotoBox = vm::onStagePhotoMeasured) }
-    val panel: @Composable (roomy: Boolean, wrapped: Boolean) -> Unit = { roomy, wrapped -> ToolPanel(vm, ui, model, roomy, wrapped) }
-    val tools: @Composable (kind: DockKind) -> Unit = { kind -> ToolNav(vm, ui, kind) }
     Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
-        when (layout.mode) {
-            EditorMode.BELOW, EditorMode.WIDE -> {
+        if (layout.mode == EditorMode.BELOW) {
+            // Phone (Android): the app bar, the photo, then the sheet: the fixed panel and the dock.
+            Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
                 Spacer(Modifier.height(frame.top))
-                EditorTopBar(vm, ui, actions)
+                EditorAppBar(vm, ui, actions)
                 stage(Modifier.weight(1f).fillMaxWidth())
-                val wide = layout.mode == EditorMode.WIDE
-                // The panel never takes more than its share of the height: it scrolls, so the photo stays dominant.
-                val maxPanel = (if(ui.tool == EditorTool.DEVELOP) maxOf(350f, layout.heightDp * 0.34f) else layout.heightDp * if (wide) 0.3f else 0.34f).let { kotlin.math.round(it) }.dp
-                Column(Modifier.fillMaxWidth()) {
+                val sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                Column(Modifier.fillMaxWidth().clip(sheetShape).background(colors.sheet, sheetShape).border(1.dp, colors.hair, sheetShape)) {
+                    val fades = ui.tool != EditorTool.DEVELOP || (model?.notice != null)
                     Column(
-                        Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .then(if (wide) Modifier.widthIn(max = layout.contentWidthDp.dp).fillMaxWidth().padding(top = 4.dp) else Modifier.fillMaxWidth())
-                            .heightIn(max = maxPanel)
-                            .verticalScroll(rememberScrollState()),
-                    ) { panel(false, wide) }
-                    tools(if (wide) DockKind.FITS else DockKind.SCROLLS)
+                        Modifier.fillMaxWidth().height(PHONE_PANEL_HEIGHT).then(if (fades) Modifier.fadeBottom() else Modifier)
+                            .verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
+                    ) { ToolPanel(vm, ui, model, false, false) }
+                    ToolNav(vm, ui)
                     Spacer(Modifier.height(frame.bottom))
                 }
             }
-            EditorMode.SIDE -> {
-                Spacer(Modifier.height(frame.top))
-                EditorTopBar(vm, ui, actions)
-                Row(Modifier.weight(1f).fillMaxWidth()) {
-                    stage(Modifier.weight(1f).fillMaxHeight())
+        } else {
+            // Two panes (unfolded foldables and other wide windows): the header bar, the photo pane and the panel card.
+            val inset = if (layout.heightDp < 700f) 12.dp else 16.dp
+            Column(Modifier.fillMaxSize().padding(start = frame.start + inset, end = frame.end + inset, top = frame.top + inset, bottom = frame.bottom + inset),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                EditorHeaderBar(vm, ui, actions)
+                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    val paneShape = RoundedCornerShape(26.dp)
+                    stage(Modifier.weight(1f).fillMaxHeight().clip(paneShape).background(colors.canvas, paneShape))
                     Column(
-                        Modifier.width(layout.panelWidthDp.dp).fillMaxHeight().hairlineStart(lightlyColors.hair).verticalScroll(rememberScrollState()),
-                    ) { panel(true, false) }
-                    tools(DockKind.RAIL)
-                }
-                Spacer(Modifier.height(frame.bottom))
-            }
-            EditorMode.SPLIT_V -> {
-                val half = ((frame.foldDp ?: (layout.widthDp / 2)) - frame.start.value).dp
-                Spacer(Modifier.height(frame.top))
-                // Top bar split at the fold: history and compare over the photo, Save copy and ⋮ over the panel.
-                Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-                    // Prototype: the left group is a plain row (no gap) of width half with 6 dp start padding.
-                    Row(Modifier.width(half).padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TopBarLeft(vm, ui)
+                        Modifier.weight(1f).fillMaxHeight().clip(paneShape).background(colors.surface, paneShape).border(1.dp, colors.hair, paneShape)
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(ui.tool.label, style = l2TextStyle(17.sp, FontWeight.SemiBold, colors.ink), modifier = Modifier.semantics { heading() })
+                        Column(Modifier.weight(1f).fadeBottom().verticalScroll(rememberScrollState())) { ToolPanel(vm, ui, model, false, false) }
                     }
-                    Spacer(Modifier.weight(1f))
-                    TopBarRight(vm, actions)
-                }
-                Row(Modifier.weight(1f).fillMaxWidth()) {
-                    stage(Modifier.width(half).fillMaxHeight())
-                    Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) { panel(true, false) }
-                    tools(DockKind.RAIL)
-                }
-                Spacer(Modifier.height(frame.bottom))
-            }
-            EditorMode.SPLIT_H -> {
-                // The whole upper half above the fold is photo; actions, controls and tools share the lower half.
-                val fold = (frame.foldDp ?: (layout.heightDp / 2)).dp
-                Column(Modifier.height(fold).fillMaxWidth()) {
-                    Spacer(Modifier.height(frame.top))
-                    stage(Modifier.weight(1f).fillMaxWidth())
-                }
-                Column(Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp)) {
-                    EditorTopBar(vm, ui, actions)
-                    // Prototype `.panel.grow`: `.panel` (flex 0 0 auto) wins over `.grow`, so the panel is as
-                    // tall as its content and the tools sit right under it; the rest of the pane stays empty.
-                    Column(Modifier.fillMaxWidth().weight(1f, fill = false)) {
-                        Column(
-                            Modifier.align(Alignment.CenterHorizontally).widthIn(max = layout.contentWidthDp.dp).fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()),
-                        ) { panel(false, false) }
-                        tools(DockKind.FITS)
-                    }
-                    Spacer(Modifier.weight(0.001f))
-                    Spacer(Modifier.height(frame.bottom))
                 }
             }
         }
-    }
-    if(ui.tool == EditorTool.DEVELOP && ui.develop.expanded && model != null) {
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 72.dp + frame.bottom).fillMaxWidth()
-            .heightIn(max = (layout.heightDp - 140).dp).background(lightlyColors.bg, androidx.compose.foundation.shape.RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))) {
-            var handleDrag by remember { mutableStateOf(0f) }
-            Box(Modifier.fillMaxWidth().height(24.dp).pointerInput(Unit) {
-                detectDragGestures(onDragStart = { handleDrag = 0f }, onDragEnd = {
-                    if (handleDrag > 30.dp.toPx()) vm.setPresetExpanded(false)
-                }) { change, delta -> handleDrag += delta.y; change.consume() }
-            }, contentAlignment = Alignment.Center) {
-                Box(Modifier.width(34.dp).height(4.dp).background(lightlyColors.hair, CircleShape))
+        // Swiped up, the preset gallery overlays the photo above the dock without squeezing it (`expandedSheet`):
+        // min(600, screen − 120) tall, 30 dp top corners, sheet fill, a shadow above.
+        if (ui.tool == EditorTool.DEVELOP && ui.develop.expanded && model != null && layout.mode == EditorMode.BELOW) {
+            val shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+            Column(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = DOCK_HEIGHT + frame.bottom).fillMaxWidth()
+                    .height(minOf(600f, layout.heightDp - 120f).dp).shadow(12.dp, shape).clip(shape).background(colors.sheet, shape)
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
+            ) {
+                var handleDrag by remember { mutableStateOf(0f) }
+                Box(Modifier.fillMaxWidth().height(24.dp).pointerInput(Unit) {
+                    detectDragGestures(onDragStart = { handleDrag = 0f }, onDragEnd = {
+                        if (handleDrag > 40.dp.toPx()) vm.setPresetExpanded(false)
+                    }) { change, delta -> handleDrag += delta.y; change.consume() }
+                }.semantics { contentDescription = "Preset browser" }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.width(36.dp).height(4.dp).background(colors.track, CircleShape))
+                }
+                DevelopPanel(vm, model, false, false, expanded = true)
             }
-            DevelopPanel(vm, model, false, false, expanded = true)
         }
     }
+}
+
+@Composable
+private fun CropWorkspaceButton(label: String, tag: String, done: Boolean = false, onClick: () -> Unit) {
+    Text(label, style = l2TextStyle(17.sp, if (done) FontWeight.Bold else FontWeight.Normal, if (done) Color(0xFFCFF26B) else Color.White),
+        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onClick).testTagResource(tag).padding(8.dp))
+}
+
+// --- top bars ---------------------------------------------------------------------------------------
+
+/** Android phone app bar (56 dp, 4 dp sides): Back, the tool's name (18 sp heading), Undo, Redo, Compare, Save (40 dp), ⋮. */
+@Composable
+private fun EditorAppBar(vm: EditorViewModel, ui: EditorUiState, actions: EditorActions) {
+    Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconTapTarget(LightlyIcons.BackChevron, "Back", vm::close, tag = EditorTags.CLOSE)
+        Text(ui.tool.label, style = l2TextStyle(18.sp, FontWeight.SemiBold, lightlyColors.ink), maxLines = 1,
+            modifier = Modifier.weight(1f).padding(start = 2.dp).semantics { heading() })
+        IconTapTarget(LightlyIcons.Undo, "Undo", vm::undo, enabled = ui.canUndo, tag = EditorTags.UNDO)
+        IconTapTarget(LightlyIcons.Redo, "Redo", vm::redo, enabled = ui.canRedo, tag = EditorTags.REDO)
+        CompareButton(vm, ui, glass = false)
+        SaveButton(vm::saveCopy, height = 40.dp)
+        MoreButton(actions.more, tag = EditorTags.MORE)
     }
-
-}
-
-// --- top bar ----------------------------------------------------------------------------------------
-
-@Composable
-private fun EditorTopBar(vm: EditorViewModel, ui: EditorUiState, actions: EditorActions) {
-    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        TopBarLeft(vm, ui)
-        Spacer(Modifier.weight(1f))
-        TopBarRight(vm, actions)
-    }
-}
-
-@Composable
-private fun TopBarLeft(vm: EditorViewModel, ui: EditorUiState) {
-    // Android: the back arrow closes the editor (prototype closeIcon: backA, label "Back").
-    BarIcon(LightlyIcons.BackArrow, "Back", vm::close, tag = EditorTags.CLOSE)
-    BarIcon(LightlyIcons.Undo, "Undo", vm::undo, enabled = ui.canUndo, tag = EditorTags.UNDO)
-    BarIcon(LightlyIcons.Redo, "Redo", vm::redo, enabled = ui.canRedo, tag = EditorTags.REDO)
-    CompareButton(vm, ui)
-}
-
-@Composable
-private fun TopBarRight(vm: EditorViewModel, actions: EditorActions) {
-    val colors = lightlyColors
-    // Compact 34 dp pill within the full 48 dp touch target (owner amendment 2026-10-08).
-    Box(
-        Modifier
-            .padding(horizontal = 4.dp)
-            .heightIn(min = 48.dp)
-            .clickable(role = Role.Button, onClick = vm::saveCopy)
-            .testTagResource(EditorTags.SAVE),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            Modifier.heightIn(min = 34.dp).background(colors.ink, CircleShape)
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("Save copy", style = lightlyTextStyle(14.sp, FontWeight.SemiBold, colors.bg), maxLines = 1)
-        }
-    }
-    BarIcon(LightlyIcons.More, "More", actions.more, tag = EditorTags.MORE)
-}
-
-/** `.ib`: 44 dp, radius 10; disabled icons are ink3. */
-@Composable
-private fun BarIcon(icon: ImageVector, description: String, onClick: () -> Unit, enabled: Boolean = true, tag: String) {
-    val colors = lightlyColors
-    Box(
-        Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = description }
-            .testTagResource(tag),
-        contentAlignment = Alignment.Center,
-    ) { LightlyIcon(icon, tint = if (enabled) colors.ink else colors.ink3) }
 }
 
 /**
- * Hold to compare: the original shows while a finger is down. For TalkBack and switch access the same
- * button is a toggle (double-tap shows the original until double-tapped again).
+ * The header bar of two-pane windows (`header()`): 60 dp, 24 dp corners, surface, hairline; the app-icon tile, Back, the
+ * tools (the selected one named on an ink fill, an orange dot on tools holding edits), then Undo, Redo, Compare, Save, ⋮.
  */
 @Composable
-private fun CompareButton(vm: EditorViewModel, ui: EditorUiState) {
+private fun EditorHeaderBar(vm: EditorViewModel, ui: EditorUiState, actions: EditorActions) {
     val colors = lightlyColors
+    val shape = RoundedCornerShape(24.dp)
+    Row(
+        Modifier.fillMaxWidth().height(60.dp).clip(shape).background(colors.surface, shape).border(1.dp, colors.hair, shape).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        LightlyMark(44.dp, tile = true)
+        IconTapTarget(LightlyIcons.BackChevron, "Back", vm::close, tag = EditorTags.CLOSE)
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start = 4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            ui.tools.forEach { tool ->
+                val on = tool == ui.tool
+                val used = toolUsed(ui, tool)
+                Box(
+                    Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(if (on) colors.segmentOn else Color.Transparent)
+                        .clickable(role = Role.Tab) { vm.selectTool(tool) }
+                        .semantics { selected = on; contentDescription = tool.label; if (used) stateDescription = "Edited" }
+                        .testTagResource(EditorTags.tool(tool))
+                        .then(if (on) Modifier.padding(horizontal = 14.dp) else Modifier.width(44.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LightlyIcon(toolIcon(tool), size = 20.dp, tint = if (on) colors.onInk else colors.ink2)
+                        if (on) Text(tool.label, style = l2TextStyle(14.sp, FontWeight.SemiBold, colors.onInk), maxLines = 1)
+                    }
+                    if (used) Box(Modifier.align(Alignment.TopEnd).padding(7.dp).size(5.dp).background(colors.edited, CircleShape))
+                }
+            }
+        }
+        IconTapTarget(LightlyIcons.Undo, "Undo", vm::undo, enabled = ui.canUndo, tag = EditorTags.UNDO)
+        IconTapTarget(LightlyIcons.Redo, "Redo", vm::redo, enabled = ui.canRedo, tag = EditorTags.REDO)
+        CompareButton(vm, ui, glass = false)
+        SaveButton(vm::saveCopy)
+        MoreButton(actions.more, tag = EditorTags.MORE)
+    }
+}
+
+/**
+ * Hold to compare: the original shows while a finger is down; a 44 dp circle, ink-filled while showing the original.
+ * For TalkBack and switch access the same button is a toggle.
+ */
+@Composable
+private fun CompareButton(vm: EditorViewModel, ui: EditorUiState, glass: Boolean) {
+    val colors = lightlyColors
+    val on = ui.showsOriginal
     Box(
         Modifier
             .size(44.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(CircleShape)
+            .background(if (on) colors.segmentOn else if (glass) colors.glass else Color.Transparent)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     awaitFirstDown()
@@ -348,7 +349,7 @@ private fun CompareButton(vm: EditorViewModel, ui: EditorUiState) {
             }
             .testTagResource(EditorTags.COMPARE),
         contentAlignment = Alignment.Center,
-    ) { LightlyIcon(LightlyIcons.Compare, tint = if (ui.showsOriginal) colors.sel else colors.ink) }
+    ) { LightlyIcon(LightlyIcons.Compare, size = 20.dp, tint = if (on) colors.onInk else colors.ink) }
 }
 
 // --- photo stage ------------------------------------------------------------------------------------
@@ -364,7 +365,10 @@ internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, 
 private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
-    BoxWithConstraints(modifier.background(if (ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.edit.cropPreview) Color(0xFF141414) else colors.canvas).clipToBounds().testTagResource(EditorTags.STAGE), contentAlignment = Alignment.Center) {
+    // Lightly 2 `photo()`: the stage is transparent (its container gives --bg on phones, --stage in panes; the crop
+    // workspace #141414); the photo is contain-fitted 12 dp in from the sides and 8 dp from top and bottom, with 18 dp
+    // corners (3 dp with a border).
+    BoxWithConstraints(modifier.background(if (ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.edit.cropPreview) Color(0xFF141414) else Color.Transparent).clipToBounds().testTagResource(EditorTags.STAGE).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         if (image != null) {
             val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
             val ratio = image.width.toFloat() / image.height
@@ -422,13 +426,13 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                     },
                 ),
             ) {
-                Image(bitmap, contentDescription = if (ui.showsOriginal) "The original photo" else "Your photo with the edit", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                Image(bitmap, contentDescription = if (ui.showsOriginal) "The original photo" else "Your photo with the edit", contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(if (border != null) 3.dp else 18.dp)))
                 if (ui.showsOriginal) {
                     Text(
                         "Original",
-                        // `.badge { font-size:12.5px }`: fixed, not scaled with the text size.
-                        style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(12.5f), FontWeight.SemiBold, Color.White),
-                        modifier = Modifier.padding(10.dp).background(Color(0x8C000000), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 3.dp),
+                        style = l2TextStyle(com.lightlylabs.lightly.shell.fixedTextSize(12f), FontWeight.Bold, Color.White),
+                        modifier = Modifier.padding(12.dp).background(Color(0x8C000000), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                 }
                 // Marks and touches sit on the photo's box inside the border (prototype `.imgbox` in `.frame`).
@@ -451,59 +455,61 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                 if (box == null) chrome() else BoxWithConstraints(Modifier.fillMaxSize()) {
                     Box(Modifier.offset(maxWidth * box[0].toFloat(), maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { chrome() }
                 }
+                // `toast`: centred 58 dp above the photo's bottom; 9/14 dp padding, 14 dp corners, rgba(14,15,17,.88), 13 sp semibold.
+                ui.toast?.let { text ->
+                    Text(
+                        text,
+                        style = l2TextStyle(13.sp, FontWeight.SemiBold, Color(0xFFF2F3F0)),
+                        maxLines = 1,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 58.dp).background(Color(0xE00E0F11), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 9.dp),
+                    )
+                }
             }
         }
-        ui.toast?.let { text ->
-            Text(
-                text,
-                style = lightlyTextStyle(13.5.sp, color = Color.White),
-                maxLines = 1,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).background(Color(0xE61C1C1E), RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
-            )
-        }
-    }
-}
-
-/** `.progress`: the dark box centred on the photo with a spinner, the label and a progress bar. */
-@Composable
-internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, cancel: (() -> Unit)? = null) {
-    // `.progress` is absolutely positioned at left:50%, so its shrink-to-fit width is at most half the
-    // container (the rest of the width is to the left of it), and at least min-width 200 dp: a long
-    // line ("Applying thoughtful enhancements.") wraps instead of widening the box. The bar spans the box.
-    androidx.compose.foundation.layout.BoxWithConstraints {
-    val available = maxOf(200.dp, maxWidth / 2)
-    Column(
-        Modifier.width(IntrinsicSize.Max).widthIn(min = 200.dp, max = available).background(Color(0xB8141416), RoundedCornerShape(12.dp)).padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(Modifier.padding(bottom = 8.dp).size(22.dp).drawBehind {
-            // `.spinner { border:2.5px }` renders as 2px (Chrome floors fractional borders).
-            val stroke = 2.dp.toPx()
-            drawCircle(Color(0x59FFFFFF), radius = size.minDimension / 2 - stroke / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-            drawArc(Color.White, -135f, 90f, useCenter = false, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
-                topLeft = Offset(stroke / 2, stroke / 2), size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke))
-        })
-        // `.progress { font-size:14px }` and the detail's 13px are fixed: they do not follow the text size.
-        Text(label, style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(14f), color = Color.White), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        if (detail != null) Text(detail, style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(13f), color = Color.White.copy(alpha = 0.75f)), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        if (barFraction != null) {
-            Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x40FFFFFF))) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(barFraction).background(Color.White))
-            }
-        }
-        if (cancel != null) {
-            Box(Modifier.padding(top = 6.dp).heightIn(min = 44.dp).widthIn(min = 64.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = cancel).padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-                // `.progress .btn` inherits the box's fixed 14px.
-                Text("Cancel", style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(14f), FontWeight.SemiBold, Color.White))
-            }
-        }
-    }
     }
 }
 
 /**
- * Prototype `loadingHTML`: Cancel (the back arrow), the photo with "Opening photo…" (or "Developing…"
- * while a real Auto model runs), and the space the controls will take.
+ * `progressCard`: at least 190 dp wide, 16/18 dp padding, 20 dp corners, rgba(14,15,17,.82); a 24 dp lime spinner, the
+ * label (14 sp semibold; an optional 12 sp sub-line at 75 %), an optional 150×4 dp lime bar on 20 % white, and an
+ * optional Cancel (34 dp capsule, 12 % white, 13 sp semibold), 10 dp apart.
+ */
+@Composable
+internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, cancel: (() -> Unit)? = null) {
+    val ink = Color(0xFFF2F3F0)
+    val lime = Color(0xFFCFF26B)
+    Column(
+        Modifier.widthIn(min = 190.dp).background(Color(0xD10E0F11), RoundedCornerShape(20.dp)).padding(horizontal = 18.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val spin = androidx.compose.animation.core.rememberInfiniteTransition(label = "spinner")
+        val angle by spin.animateFloat(0f, 360f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.LinearEasing)), label = "angle")
+        Box(Modifier.size(24.dp).graphicsLayer { rotationZ = angle }.drawBehind {
+            val stroke = 3.dp.toPx()
+            drawArc(lime, -45f, 270f, useCenter = false, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
+                topLeft = Offset(stroke / 2, stroke / 2), size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke))
+        })
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, style = l2TextStyle(com.lightlylabs.lightly.shell.fixedTextSize(14f), FontWeight.SemiBold, ink), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            if (detail != null) Text(detail, style = l2TextStyle(com.lightlylabs.lightly.shell.fixedTextSize(12f), FontWeight.Medium, ink.copy(alpha = 0.75f)), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+        if (barFraction != null) {
+            Box(Modifier.width(150.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(barFraction).background(lime))
+            }
+        }
+        if (cancel != null) {
+            Box(Modifier.heightIn(min = 44.dp).clickable(role = Role.Button, onClick = cancel).testTagResource("progress-cancel"), contentAlignment = Alignment.Center) {
+                Text("Cancel", style = l2TextStyle(com.lightlylabs.lightly.shell.fixedTextSize(13f), FontWeight.SemiBold, ink),
+                    modifier = Modifier.height(34.dp).background(Color(0x1FFFFFFF), RoundedCornerShape(17.dp)).padding(horizontal = 14.dp).wrapContentHeight())
+            }
+        }
+    }
+}
+
+/**
+ * Loading (`loadingScreen`): the photo between the 52 dp bar area and 120 dp from the bottom (phones; 16 dp in panes), the
+ * progress card centred on it, Close at the top start (12 dp in).
  */
 @Composable
 private fun LoadingScreen(vm: EditorViewModel, ui: EditorUiState, frame: EditorFrame, developing: Boolean) {
@@ -513,45 +519,37 @@ private fun LoadingScreen(vm: EditorViewModel, ui: EditorUiState, frame: EditorF
             if (developing) ProgressBox("Developing…", "Applying thoughtful enhancements.", 0.7f) else ProgressBox("Opening photo…", null, 0.3f)
         }
     }
-    Column(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
-        Spacer(Modifier.height(frame.top))
-        Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            BarIcon(LightlyIcons.BackArrow, "Cancel", vm::discardAndLeave, tag = EditorTags.CLOSE)
+    Box(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
+        Column(Modifier.fillMaxSize()) {
+            Spacer(Modifier.height(frame.top + 52.dp))
+            Stage(ui.copy(preview = null, compareHeld = false, compareToggled = false, toast = null), Modifier.weight(1f).fillMaxWidth(), overlay = box)
+            Spacer(Modifier.height(if (layout.mode == EditorMode.BELOW) 120.dp else 16.dp))
+            Spacer(Modifier.height(frame.bottom))
         }
-        val stageModifier = when (layout.mode) {
-            EditorMode.SPLIT_V -> Modifier.weight(1f).padding(end = (layout.widthDp / 2).dp)
-            EditorMode.SPLIT_H -> Modifier.height(((frame.foldDp ?: (layout.heightDp / 2)) - frame.top.value - 48f).dp)
-            else -> Modifier.weight(1f)
-        }.fillMaxWidth()
-        Stage(ui.copy(preview = null, compareHeld = false, compareToggled = false, toast = null), stageModifier, overlay = box)
-        if (ui.original == null) Box(Modifier.fillMaxWidth()) {}
-        val below = when (layout.mode) {
-            EditorMode.SIDE, EditorMode.SPLIT_V -> 20.dp
-            EditorMode.SPLIT_H -> ((layout.heightDp / 2) - frame.bottom.value).dp
-            else -> 120.dp
-        }
-        if (layout.mode == EditorMode.SPLIT_H) Spacer(Modifier.weight(1f)) else Spacer(Modifier.height(below))
-        Spacer(Modifier.height(frame.bottom))
+        IconTapTarget(LightlyIcons.Close, "Cancel", vm::discardAndLeave, Modifier.padding(start = 12.dp, top = frame.top), tag = EditorTags.CLOSE)
     }
 }
 
 // --- tool panel and navigation ---------------------------------------------------------------------
 
+/**
+ * Scoped reset (`resetRow`): the section title (14 sp bold) and, when there is something to reset, "Reset" (accent,
+ * 13 sp bold, the reset icon). Reset offers this adjustment, the whole tool, or Cancel.
+ */
 @Composable
 fun ResetRow(vm: EditorViewModel, section: String, title: String, adjustment: String? = null) {
     var choices by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = lightlyTextStyle(), modifier = Modifier.weight(1f))
-        if (vm.canReset(section)) androidx.compose.material3.TextButton(onClick = { choices = true }, modifier = Modifier.testTagResource("reset-$section")) {
-            LightlyIcon(LightlyIcons.RotateLeft, size = 16.dp, tint = lightlyColors.sel)
-            Spacer(Modifier.width(6.dp)); Text("Reset", color = lightlyColors.sel)
-        } else Spacer(Modifier.height(48.dp))
+    Row(Modifier.fillMaxWidth().heightIn(min = 34.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = l2TextStyle(14.sp, FontWeight.Bold, lightlyColors.ink), modifier = Modifier.weight(1f))
+        if (vm.canReset(section)) LinkButton("Reset", { choices = true }, icon = LightlyIcons.Reset, tag = "reset-$section")
     }
-    if (choices) androidx.compose.material3.AlertDialog(onDismissRequest = { choices = false }, title = { Text("Reset") },
-        text = { Column {
-            if (adjustment != null) androidx.compose.material3.TextButton(onClick = { choices = false; vm.resetEdits(section, adjustment) }) { Text("Reset ${title.lowercase()}") }
-            androidx.compose.material3.TextButton(onClick = { choices = false; vm.resetEdits(section) }) { Text("Reset $section") }
-        } }, confirmButton = { androidx.compose.material3.TextButton(onClick = { choices = false }) { Text("Cancel") } })
+    if (choices) L2ResetChoices(
+        listOfNotNull(
+            adjustment?.let { L2DialogButton("Reset ${title.lowercase()}", "reset-$section-$it") { choices = false; vm.resetEdits(section, it) } },
+            L2DialogButton("Reset $section", "reset-$section-all") { choices = false; vm.resetEdits(section) },
+        ),
+        onCancel = { choices = false },
+    )
 }
 
 @Composable
@@ -570,88 +568,68 @@ private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPane
 
 enum class DockKind { SCROLLS, FITS, RAIL }
 
-/** The approved large text (slice 1/2 captures: system font scale 1.24). */
-private const val APPROVED_LARGE_FONT_SCALE = 1.24f
-/** The reference's smallest gap between neighbouring dock labels at large text (iOS ToolNavigation: 11 pt). */
-private val LABEL_GAP_BEYOND_LARGE = 11.dp
+/** The dock's height above the bottom inset (`dockHeight`). */
+internal val DOCK_HEIGHT = 62.dp
 
-@Composable
-private fun ToolNav(vm: EditorViewModel, ui: EditorUiState, kind: DockKind) {
-    val colors = lightlyColors
+/** Prototype `toolUsed`: the tools holding an edit (Auto alone does not count). */
+internal fun toolUsed(ui: EditorUiState, tool: EditorTool): Boolean {
     val recipe = ui.session?.current
-    // Prototype `toolUsed`: Develop when a Look is applied, Background when replaced or blurred, Edit and
-    // Effects as ToolUsed (exactly the approved rules).
-    fun used(tool: EditorTool) = when (tool) {
+    return when (tool) {
         EditorTool.DEVELOP -> recipe?.look != null
         EditorTool.BACKGROUND -> recipe?.tools?.background?.let { it.replacement != null || it.focus.blur > 0 } == true
-        // Prototype `toolUsed`: any face with a change.
         EditorTool.PORTRAIT -> recipe?.tools?.portrait?.faces?.any { PortraitEdits.changeCount(it) > 0 } == true
         EditorTool.EDIT -> recipe != null && ToolUsed.edit(recipe, pendingStroke = ui.edit.pendingStroke != null)
         EditorTool.EFFECTS -> recipe != null && ToolUsed.effects(recipe)
         EditorTool.BORDER -> recipe?.tools?.border?.type?.let { it != com.lightlylabs.lightly.session.BorderType.NONE } == true
         EditorTool.WATERMARK -> recipe?.tools?.watermark?.type?.let { it != com.lightlylabs.lightly.session.WatermarkType.NONE } == true
-        else -> false
-    }
-    // Beyond the approved large text (font scale 1.24) the prototype has no layout: as on iOS (ToolNavigation), a slot
-    // widens to its label plus the reference's smallest gap between labels at large text, the dock scrolls (a fitting
-    // tablet dock too) and the rail is as wide as its widest label. At font scale 2.0 the 76 dp slots cut the labels
-    // ("Develo", "Backgr"; A11, 2026-10-07).
-    val widen = LocalDensity.current.fontScale > APPROVED_LARGE_FONT_SCALE
-    val items: @Composable () -> Unit = {
-        ui.tools.forEach { tool -> ToolItem(tool, selected = tool == ui.tool, used = used(tool), rail = kind == DockKind.RAIL, widen = widen) { vm.selectTool(tool) } }
-    }
-    when (if (widen && kind == DockKind.FITS) DockKind.SCROLLS else kind) {
-        DockKind.RAIL -> Column(
-            Modifier.then(if (widen) Modifier.width(IntrinsicSize.Max).widthIn(min = 84.dp) else Modifier.width(84.dp))
-                .fillMaxHeight().hairlineStart(colors.hair).semantics { contentDescription = "Tools" },
-            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
-        ) { items() }
-        DockKind.FITS -> Row(
-            Modifier.fillMaxWidth().hairlineTop(colors.hair).padding(start = 4.dp, end = 4.dp, top = 2.dp).semantics { contentDescription = "Tools" },
-            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-        ) { items() }
-        DockKind.SCROLLS -> Row(
-            Modifier
-                .fillMaxWidth()
-                .hairlineTop(colors.hair)
-                .fadeEnd()
-                .horizontalScroll(rememberScrollState())
-                .padding(start = 4.dp, end = 4.dp, top = 2.dp)
-                .semantics { contentDescription = "Tools" },
-        ) { items() }
     }
 }
 
+internal fun toolIcon(tool: EditorTool): ImageVector = when (tool) {
+    EditorTool.DEVELOP -> LightlyIcons.Develop
+    EditorTool.BACKGROUND -> LightlyIcons.Background
+    EditorTool.PORTRAIT -> LightlyIcons.Portrait
+    EditorTool.EDIT -> LightlyIcons.Edit
+    EditorTool.EFFECTS -> LightlyIcons.Effects
+    EditorTool.WATERMARK -> LightlyIcons.Watermark
+    EditorTool.BORDER -> LightlyIcons.Border
+}
+
+/**
+ * The Android phone dock (`phoneDock`): 62 dp, a hairline above, the tools in equal slots (6 dp top, 4 dp sides); each a
+ * 46×30 dp pill (lime with the on-accent icon when selected), the 9.5 sp semibold label (ink when selected, ink2) and a
+ * 4 dp dot slot, orange on tools holding edits.
+ */
 @Composable
-private fun ToolItem(tool: EditorTool, selected: Boolean, used: Boolean, rail: Boolean, widen: Boolean = false, onClick: () -> Unit) {
+private fun ToolNav(vm: EditorViewModel, ui: EditorUiState) {
     val colors = lightlyColors
-    val icon = when (tool) {
-        EditorTool.DEVELOP -> LightlyIcons.Develop
-        EditorTool.BACKGROUND -> LightlyIcons.Background
-        EditorTool.PORTRAIT -> LightlyIcons.Portrait
-        EditorTool.EDIT -> LightlyIcons.Edit
-        EditorTool.EFFECTS -> LightlyIcons.Effects
-        EditorTool.WATERMARK -> LightlyIcons.Watermark
-        EditorTool.BORDER -> LightlyIcons.Border
-    }
-    Column(
-        Modifier
-            .then(when {
-                rail -> Modifier.fillMaxWidth().heightIn(min = 62.dp).then(if (widen) Modifier.padding(horizontal = LABEL_GAP_BEYOND_LARGE / 2) else Modifier)
-                widen -> Modifier.widthIn(min = 76.dp).padding(horizontal = LABEL_GAP_BEYOND_LARGE / 2).heightIn(min = 56.dp)
-                else -> Modifier.width(76.dp).heightIn(min = 56.dp)
-            })
-            .clickable(role = Role.Tab, onClick = onClick)
-            // The used dot is spoken as "Edited" (as iOS).
-            .semantics { this.selected = selected; if (used) stateDescription = "Edited" }
-            .testTagResource(EditorTags.tool(tool)),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+    Row(
+        Modifier.fillMaxWidth().height(DOCK_HEIGHT).hairlineTop(colors.hair).padding(start = 4.dp, end = 4.dp, top = 6.dp).semantics { contentDescription = "Tools" },
     ) {
-        LightlyIcon(icon, tint = if (selected) colors.sel else colors.ink3)
-        Text(tool.label, style = lightlyTextStyle(11.sp, FontWeight.Medium, if (selected) colors.ink else colors.ink3), maxLines = 1)
-        if (used) Box(Modifier.padding(top = 1.dp).size(4.dp).background(colors.browse, CircleShape))
+        ui.tools.forEach { tool ->
+            val on = tool == ui.tool
+            val used = toolUsed(ui, tool)
+            Column(
+                Modifier.weight(1f).clickable(role = Role.Tab) { vm.selectTool(tool) }
+                    .semantics { this.selected = on; if (used) stateDescription = "Edited" }
+                    .testTagResource(EditorTags.tool(tool)),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Box(Modifier.size(width = 46.dp, height = 30.dp).background(if (on) colors.accent else Color.Transparent, RoundedCornerShape(15.dp)),
+                    contentAlignment = Alignment.Center) {
+                    LightlyIcon(toolIcon(tool), size = 20.dp, tint = if (on) colors.onAccent else colors.ink2)
+                }
+                Text(tool.label, style = l2TextStyle(9.5.sp, FontWeight.SemiBold, if (on) colors.ink else colors.ink2), maxLines = 1)
+                Box(Modifier.size(4.dp).background(if (used) colors.edited else Color.Transparent, CircleShape))
+            }
+        }
     }
+}
+
+/** The panel's lower edge fades (#000 90 % → transparent) where its contents scroll (`fadeDown`). */
+internal fun Modifier.fadeBottom() = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+    drawContent()
+    drawRect(Brush.verticalGradient(0.9f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
 }
 
 // --- small drawing helpers -------------------------------------------------------------------------
@@ -660,16 +638,16 @@ internal fun Modifier.hairlineTop(color: Color) = drawBehind { drawLine(color, O
 
 internal fun Modifier.hairlineStart(color: Color) = drawBehind { drawLine(color, Offset(0.5f, 0f), Offset(0.5f, size.height), strokeWidth = 1.dp.toPx()) }
 
-/** `.dock.scrolls`: mask fading the last 14 % to transparent. */
-private fun Modifier.fadeEnd() = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+/** A row's end fading (88 %), as the mockup's scrolling rows. */
+internal fun Modifier.fadeEnd() = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
     drawContent()
-    drawRect(Brush.horizontalGradient(0.86f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+    drawRect(Brush.horizontalGradient(0.88f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
 }
 
+/** The panel's title is drawn by its container in Lightly 2 (the two-pane card), never inside the panel. */
+@Suppress("UNUSED_PARAMETER")
 @Composable
-internal fun ColumnScope.PanelTitle(text: String) {
-    Text(text, style = lightlyTextStyle(13.sp, FontWeight.SemiBold, lightlyColors.ink2), modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 4.dp))
-}
+internal fun ColumnScope.PanelTitle(text: String) {}
 
 
 /**
@@ -764,66 +742,49 @@ private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
     }
 }
 
+/**
+ * Auto and "Reset all" on the photo's bottom-start corner (`autoControls`), 6 dp apart, 10 dp in: Auto is a 38 dp circle,
+ * rgba(14,15,17,.66); applied, a 1.5 dp 75 % white ring, the wand in lime and a 15 dp lime badge with the check; not
+ * applied, a 1 dp 18 % white ring and a #F2F3F0 wand. Reset all: a 38 dp capsule, same fill, 1 dp 18 % white ring, 13 sp
+ * bold with the reset icon. Reset all asks first (the mockup's dialog).
+ */
 @Composable
 private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
     val applied = ui.auto == AutoState.APPLIED
     var resetConfirmation by remember { mutableStateOf(false) }
-    if (resetConfirmation) androidx.compose.material3.AlertDialog(
-        onDismissRequest = { resetConfirmation = false },
-        title = { Text("Reset all edits?") },
-        text = { Text("Return to the original photo. This also turns Auto off. You can undo this.") },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { resetConfirmation = false; vm.resetEdits() }) { Text("Reset all edits") } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = { resetConfirmation = false }) { Text("Keep editing") } })
-    // The 30 dp disc sits 12 dp inside the fitted photo, with a separate 48 dp touch area.
-    val photoBox: DoubleArray? = null
-    Box(Modifier.fillMaxSize().layout { measurable, constraints ->
-        val b = photoBox ?: doubleArrayOf(0.0, 0.0, 1.0, 1.0)
-        val w = (constraints.maxWidth * b[2]).toInt()
-        val h = (constraints.maxHeight * b[3]).toInt()
-        val child = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
-        layout(constraints.maxWidth, constraints.maxHeight) {
-            child.place((constraints.maxWidth * b[0]).toInt(), (constraints.maxHeight * b[1]).toInt())
-        }
-    }, contentAlignment = Alignment.BottomStart) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.padding(3.dp).size(48.dp)
-            .clickable(onClick = vm::toggleAuto)
-            .semantics {
-                contentDescription = "Auto enhance"
-                stateDescription = if (applied) "Applied" else "Not applied"
-                selected = applied
-            }
-            .testTagResource(EditorTags.AUTO), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(30.dp)
-                .background(Color(0xB8181B19), CircleShape)
-                .drawBehind {
-                    if (applied) drawCircle(Color.White.copy(alpha = 0.7f),
-                        radius = size.minDimension / 2 - 0.5.dp.toPx(),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
-                }, contentAlignment = Alignment.Center) {
-                LightlyIcon(LightlyIcons.AutoEnhance, size = 18.dp, tint = Color.White)
-                if (applied) Box(Modifier.align(Alignment.BottomEnd).offset(3.dp, 3.dp)
-                    .size(12.dp).background(Color(0xFFF7F9F7), CircleShape), contentAlignment = Alignment.Center) {
-                    LightlyIcon(LightlyIcons.Check, size = 9.dp, tint = Color(0xFF222923))
+    if (resetConfirmation) L2Dialog(
+        "Reset all edits?", "Return to the original photo. This also turns Auto off. You can undo this.",
+        listOf(L2DialogButton("Reset all edits", "dialog-Reset all edits", destructive = true) { resetConfirmation = false; vm.resetEdits() },
+            L2DialogButton("Keep editing", "dialog-Keep editing") { resetConfirmation = false }),
+        onDismiss = { resetConfirmation = false },
+    )
+    val fill = Color(0xA80E0F11)
+    val lime = Color(0xFFCFF26B)
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(
+                Modifier.size(38.dp).clip(CircleShape).background(fill)
+                    .border(if (applied) 1.5.dp else 1.dp, Color.White.copy(alpha = if (applied) 0.75f else 0.18f), CircleShape)
+                    .clickable(onClick = vm::toggleAuto)
+                    .semantics { contentDescription = "Auto enhance"; stateDescription = if (applied) "Applied" else "Not applied"; selected = applied }
+                    .testTagResource(EditorTags.AUTO),
+                contentAlignment = Alignment.Center,
+            ) { LightlyIcon(LightlyIcons.AutoEnhance, size = 19.dp, tint = if (applied) lime else Color(0xFFF2F3F0)) }
+            if (vm.canReset("all")) {
+                Row(
+                    Modifier.height(38.dp).clip(RoundedCornerShape(19.dp)).background(fill).border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(19.dp))
+                        .clickable { resetConfirmation = true }.semantics { contentDescription = "Reset all edits" }.testTagResource("editor-reset-all")
+                        .padding(horizontal = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    LightlyIcon(LightlyIcons.Reset, size = 15.dp, tint = Color(0xFFF2F3F0))
+                    Text("Reset all", style = l2TextStyle(13.sp, FontWeight.Bold, Color(0xFFF2F3F0)))
                 }
             }
         }
-        if (vm.canReset("all")) {
-            val dark = lightlyColors.bg.luminance() < 0.5f
-            val surface = if (dark) Color(0xFF202024) else Color.White
-            val ink = if (dark) Color(0xFF9BBAFF) else Color(0xFF2459D5)
-            Box(Modifier.height(48.dp).clickable { resetConfirmation = true }
-                .semantics { contentDescription = "Reset all edits" }
-                .testTagResource("editor-reset-all"), contentAlignment = Alignment.Center) {
-                Row(Modifier.background(surface, RoundedCornerShape(20.dp))
-                    .border(1.dp, if (dark) Color.White.copy(alpha = 0.28f) else Color.Black.copy(alpha = 0.18f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    LightlyIcon(LightlyIcons.RotateLeft, size = 15.dp, tint = ink)
-                    Text("Reset all", style = lightlyTextStyle(13.sp, color = ink))
-                }
-            }
-        }
+        // The applied badge sits on the circle's bottom-end corner, 3 dp outside it.
+        if (applied) Box(Modifier.padding(start = 10.dp + 38.dp - 12.dp, bottom = 10.dp - 3.dp).size(15.dp).background(lime, CircleShape), contentAlignment = Alignment.Center) {
+            LightlyIcon(LightlyIcons.Check, size = 10.dp, tint = Color(0xFF121408))
         }
     }
 }
