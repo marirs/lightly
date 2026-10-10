@@ -130,7 +130,10 @@ fun WelcomeScreen(layout: ShellLayout, onChoosePhoto: () -> Unit, onCamera: () -
             Spacer(Modifier.weight(1f))
             MoreButton(onMore, tag = ShellTags.MORE)
         }
-        if (layout.isSplit) {
+        if (layout is ShellLayout.SplitHorizontal) {
+            // No mockup reference for a horizontal fold: the agreed behaviour keeps the brand above it and the actions below.
+            FoldPanes(layout, Modifier.weight(1f).fillMaxWidth(), first = { WelcomeBrand() }, second = { WelcomeActions(onChoosePhoto, onCamera, onPrivacyPolicy) })
+        } else if (layout.isSplit) {
             Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { WelcomeBrand() }
@@ -175,7 +178,10 @@ fun MessageScreen(
         }
     }
     Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-        if (layout.isSplit) {
+        if (layout is ShellLayout.SplitHorizontal) {
+            // As Welcome: nothing on a horizontal fold (no mockup reference; agreed behaviour).
+            FoldPanes(layout, Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 50.dp), first = head, second = actions)
+        } else if (layout.isSplit) {
             Row(Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 50.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { head() }
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { actions() }

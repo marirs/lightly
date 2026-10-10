@@ -59,7 +59,12 @@ fun ColourControl(title: String = "Colour", selected: String, photo: Rgba8Image?
         }
         BoxWithConstraints(
             Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(40.dp)
-                .semantics { contentDescription = title; stateDescription = name }
+                // TalkBack adjusts the strip like a slider: its value is the colour's index, spoken by name.
+                .semantics {
+                    contentDescription = title; stateDescription = name
+                    progressBarRangeInfo = ProgressBarRangeInfo((selectedIndex ?: 0).toFloat(), 0f..STRIP_COLOURS.lastIndex.toFloat(), steps = STRIP_COLOURS.size - 2)
+                    setProgress { value -> choose(STRIP_COLOURS[value.roundToInt().coerceIn(0, STRIP_COLOURS.lastIndex)].second); true }
+                }
                 .testTagResource("$tag-strip")
                 .pointerInput(Unit) {
                     fun indexAt(x: Float) = (x / size.width * STRIP_COLOURS.size).toInt().coerceIn(0, STRIP_COLOURS.lastIndex)

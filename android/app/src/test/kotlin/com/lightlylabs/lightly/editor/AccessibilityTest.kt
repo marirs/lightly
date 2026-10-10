@@ -13,6 +13,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
@@ -145,19 +146,16 @@ class AccessibilityTest {
     }
 
     @Test
-    fun `Effects switch is named by its effect, sliders speak their values and accept SetProgress`() {
+    fun `Effects has no switch, sliders speak their values and accept SetProgress`() {
         val vm = editor()
         show(vm)
         vm.selectTool(EditorTool.EFFECTS)
         vm.selectEffectsSub(EffectsSub.VIGNETTE)
         compose.waitForIdle()
-        val toggle = node("effects-on-off")
-        assertEquals(Role.Switch, toggle.role())
-        assertEquals("Vignette", toggle.description())
-        assertEquals(ToggleableState.Off, toggle.config.getOrNull(SemanticsProperties.ToggleableState))
+        // Lightly 2: no On/Off switch; moving a slider turns the effect on.
+        compose.onNodeWithTag("effects-on-off").assertDoesNotExist()
         vm.toggleEffect(EffectsSub.VIGNETTE)
         compose.waitForIdle()
-        assertEquals(ToggleableState.On, node("effects-on-off").config.getOrNull(SemanticsProperties.ToggleableState))
         val sliders = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo).and(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)))
             .fetchSemanticsNodes().filter { it.description() != "Presets" }
         assertTrue(sliders.isNotEmpty())
@@ -174,20 +172,23 @@ class AccessibilityTest {
         vm.selectTool(EditorTool.WATERMARK)
         vm.chooseWatermark(WatermarkType.TEXT)
         compose.waitForIdle()
-        val white = node("watermark-colour-#FFFFFF")
-        assertEquals("Colour", white.description())
-        assertEquals("White", white.state())
-        assertEquals(Role.RadioButton, white.role())
-        assertEquals("Tan", node("watermark-colour-#C9A27E").state())
+        // Lightly 2: one 24-colour strip, adjustable for TalkBack (the colour is its value).
+        val strip = node("watermark-colour-strip")
+        assertEquals("Colour", strip.description())
+        assertEquals("White", strip.state())
+        val tan = STRIP_COLOURS.indexOfFirst { it.first == "Tan" }
+        compose.onNodeWithTag("watermark-colour-strip").performSemanticsAction(SemanticsActions.SetProgress) { it(tan.toFloat()) }
+        compose.waitForIdle()
+        assertEquals("Tan", node("watermark-colour-strip").state())
     }
 
     @Test
-    fun `the ruler speaks the preset and its place, and Compare is a switch with a state`() {
+    fun `gallery tiles speak the preset and their selection, and Compare is a switch with a state`() {
         val vm = editor()
         show(vm)
-        val ruler = node(EditorTags.RULER)
-        assertEquals("Presets", ruler.description())
-        assertEquals("Original, 0 of 518", ruler.state())
+        val original = node("develop-thumbnail-original")
+        assertEquals("Original", original.description())
+        assertEquals(true, original.config.getOrNull(SemanticsProperties.Selected))
         val compare = node(EditorTags.COMPARE)
         assertEquals(Role.Switch, compare.role())
         assertEquals("Showing your edit", compare.state())

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.lifecycle.SavedStateHandle
@@ -143,7 +144,10 @@ class PortraitTest {
         compose.waitForIdle()
         compose.onNodeWithText("Each face keeps its own settings.").assertDoesNotExist()
         listOf("Skin", "Under-eye", "Eyes", "Teeth", "Hair & Beard", "Smoothing", "Blemishes", "Even tone", "Keep texture",
-            "Blemish reduction is temporary marks only. Pores, freckles, moles and skin tone colour stay.").forEach { compose.onNodeWithText(it).assertExists() }
+            "Blemish reduction is temporary marks only. Pores, freckles, moles and skin tone colour stay.").forEach {
+            // "Skin" is both the tab and the reset row's label (Lightly 2 `resetRow(names[sub])`).
+            assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
+        }
         compose.onNodeWithText("85").assertExists()
         compose.onNodeWithText("Eyes").performClick()
         compose.waitForIdle()

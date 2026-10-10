@@ -198,7 +198,7 @@ class EditorScreenTest {
     fun `pinch in crop and remove never commits a crop or stroke`() {
         val vm = editor()
         show(vm)
-        compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick() // opens the crop workspace
         val before = vm.uiState.value.session
         fun pinch() = compose.onNodeWithTag("editor-inspection").performTouchInput {
             pinch(center - Offset(30f, 0f), center + Offset(30f, 0f),
@@ -207,7 +207,8 @@ class EditorScreenTest {
         pinch()
         compose.waitForIdle()
         assertEquals(before, vm.uiState.value.session)
-        compose.onNodeWithText("Remove").performClick()
+        compose.onNodeWithTag("edit-crop-cancel").performClick()
+        compose.onNodeWithTag("edit-tab-remove").performClick()
         pinch()
         compose.waitForIdle()
         assertEquals(before, vm.uiState.value.session)
@@ -281,7 +282,7 @@ class EditorScreenTest {
             compose.onNodeWithTag(it).assertIsDisplayed()
         }
         compose.onNodeWithTag(EditorTags.UNDO).assertIsNotEnabled()
-        compose.onNodeWithText("Save copy").assertIsDisplayed()
+        compose.onNodeWithText("Save").assertIsDisplayed()
         compose.onNodeWithTag("develop-thumbnail-original").assertIsDisplayed()
         compose.onNodeWithText("Automatic correction isn't available on this device. Presets still work.").assertDoesNotExist() // no standing notice (owner amendment 2026-10-05)
         assertEquals(null, vm.uiState.value.session!!.current.look)
@@ -329,10 +330,12 @@ class EditorScreenTest {
         show(vm)
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
         compose.waitForIdle()
-        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Drag corners or edges to crop.").forEach {
+        compose.onNodeWithTag("edit-crop-cancel").performClick() // Edit opens in the crop workspace
+        compose.waitForIdle()
+        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Crop photo").forEach {
             assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
         }
-        compose.onNodeWithText("Remove").performClick()
+        compose.onNodeWithTag("edit-tab-remove").performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Undo stroke").assertExists()
         compose.onNodeWithText("Brush over anything you want removed.").assertExists()

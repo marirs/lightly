@@ -14,12 +14,10 @@ class AppNavigatorTest {
     @Test
     fun `More opens over Welcome and its pages step back to their parents`() {
         val more = AppNavigator.openMore(welcome)
-        val preferences = AppNavigator.openPage(more, MorePage.PREFERENCES)
-        val favourites = AppNavigator.openPage(preferences, MorePage.FAVOURITES)
+        val favourites = AppNavigator.openPage(more, MorePage.FAVOURITES)
 
         assertEquals(AppNavState(BaseScreen.WELCOME, MorePage.FAVOURITES), favourites)
-        assertEquals(preferences, AppNavigator.back(favourites))
-        assertEquals(more, AppNavigator.back(preferences))
+        assertEquals(more, AppNavigator.back(favourites))
         assertEquals(welcome, AppNavigator.back(more), "Back on the root More page closes it")
         assertNull(AppNavigator.back(welcome), "Back on Welcome leaves the app")
     }
@@ -29,10 +27,11 @@ class AppNavigatorTest {
         val parents = MorePage.entries.associateWith { it.parent }
         assertEquals(
             mapOf(
-                MorePage.MORE to null, MorePage.PREFERENCES to MorePage.MORE, MorePage.FAVOURITES to MorePage.PREFERENCES,
-                MorePage.SIGNATURE to MorePage.PREFERENCES, MorePage.PREFERRED_BORDER to MorePage.PREFERENCES,
+                // Lightly 2: no Preferences or Support pages; the shortcuts and Saving rows sit on More itself.
+                MorePage.MORE to null, MorePage.FAVOURITES to MorePage.MORE,
+                MorePage.SIGNATURE to MorePage.MORE, MorePage.PREFERRED_BORDER to MorePage.MORE,
                 MorePage.LEGAL to MorePage.MORE, MorePage.PRIVACY to MorePage.LEGAL, MorePage.TERMS to MorePage.LEGAL,
-                MorePage.ABOUT to MorePage.MORE, MorePage.SUPPORT to MorePage.ABOUT,
+                MorePage.ABOUT to MorePage.MORE,
             ),
             parents,
         )

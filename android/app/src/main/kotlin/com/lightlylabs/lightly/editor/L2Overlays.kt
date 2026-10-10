@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,8 +60,9 @@ fun L2Dialog(title: String, body: String?, buttons: List<L2DialogButton>, onDism
     val colors = lightlyColors
     BackHandler(onBack = onDismiss)
     Box(
-        Modifier.fillMaxSize().background(colors.scrim)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+        // The scrim swallows taps without `clickable`: a clickable parent merges its descendants' semantics, and merging
+        // the card's paneTitle throws ("unmergeable property PaneTitle") whenever the merged tree is built (TalkBack, tests).
+        Modifier.fillMaxSize().background(colors.scrim).pointerInput(Unit) { detectTapGestures {} },
         contentAlignment = Alignment.Center,
     ) {
         val shape = RoundedCornerShape(28.dp)
@@ -107,8 +106,8 @@ fun L2Sheet(big: Boolean, heightFraction: Float? = null, bare: Boolean = false, 
     val colors = lightlyColors
     BackHandler(onBack = onDismiss)
     BoxWithConstraints(
-        Modifier.fillMaxSize().background(colors.scrim)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+        // Tap-to-dismiss without `clickable`, for the same paneTitle merge reason as L2Dialog's scrim.
+        Modifier.fillMaxSize().background(colors.scrim).pointerInput(onDismiss) { detectTapGestures { onDismiss() } },
         contentAlignment = if (big) Alignment.Center else Alignment.BottomCenter,
     ) {
         val shape = if (big) RoundedCornerShape(28.dp) else RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)

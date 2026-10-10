@@ -1,6 +1,7 @@
 package com.lightlylabs.lightly.shell
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
@@ -212,7 +213,7 @@ private fun AppearanceTiles(selected: Appearance, onSelect: (Appearance) -> Unit
             listOf(Appearance.SYSTEM to MoreCopy.SYSTEM, Appearance.LIGHT to MoreCopy.LIGHT, Appearance.DARK to MoreCopy.DARK).forEach { (value, label) ->
                 val on = value == selected
                 Column(
-                    Modifier.weight(1f).clickable(role = Role.RadioButton) { onSelect(value) }.testTagResource("segment-$label")
+                    Modifier.weight(1f).selectable(selected = on, role = Role.RadioButton) { onSelect(value) }.testTagResource("segment-$label")
                         .semantics { if (on) contentDescription = "$label, selected" },
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {

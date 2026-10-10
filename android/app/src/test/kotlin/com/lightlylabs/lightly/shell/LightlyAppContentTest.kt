@@ -108,27 +108,27 @@ class LightlyAppContentTest {
     }
 
     @Test
-    fun `phone - More is a sheet over Welcome, its pages are full screen`() {
+    fun `phone - More and its pages are full screen`() {
         show()
 
+        // Lightly 2 `morePage` on phones: a full-screen page, no scrim, Welcome not underneath.
         compose.onNodeWithTag(ShellTags.MORE).performClick()
-        compose.onNodeWithTag(ShellTags.SHEET_SCRIM).assertExists()
-        compose.onNodeWithText("Choose a photo").assertExists() // still underneath
-
-        compose.onNodeWithTag("row-preferences").performClick()
         compose.onNodeWithTag(ShellTags.SHEET_SCRIM).assertDoesNotExist()
         compose.onNodeWithText("Choose a photo").assertDoesNotExist()
         compose.onNodeWithText("Appearance".uppercase()).assertIsDisplayed()
 
-        compose.onNodeWithTag("page-navigation").performClick() // back to the More sheet
+        compose.onNodeWithTag("row-about").performClick()
+        compose.onNodeWithText("Choose a photo").assertDoesNotExist()
+
+        compose.onNodeWithTag("page-navigation").performClick() // back to More
         assertEquals(MorePage.MORE, nav.morePage)
         compose.onNodeWithTag("page-navigation").performClick() // ✕ closes it
         assertEquals(AppNavState(), nav)
     }
 
     @Test
-    fun `Preferences change Appearance, border and the two independent switches`() {
-        show(start = AppNavigator.openPage(AppNavState(), MorePage.PREFERENCES))
+    fun `More changes Appearance, border and the two independent switches`() {
+        show(start = AppNavigator.openMore(AppNavState()))
 
         compose.onNodeWithTag("segment-Dark").performClick()
         assertEquals(Appearance.DARK, preferences.appearance)
@@ -159,13 +159,12 @@ class LightlyAppContentTest {
     }
 
     @Test
-    fun `About shows the build version and Support offers no invented destination`() {
+    fun `About shows the build version and the support email, with no Support page`() {
         show(start = AppNavigator.openPage(AppNavState(), MorePage.ABOUT))
 
-        compose.onNodeWithText("Version 1.0 (1)").assertIsDisplayed()
-        compose.onNodeWithTag("row-support").performClick()
-        compose.onNodeWithText(ReleaseText.UNAVAILABLE_SUPPORT).assertIsDisplayed()
-        compose.onNodeWithText("Contact support").assertDoesNotExist()
+        compose.onNodeWithText("Version 1.0 (1)", substring = true).assertExists()
+        compose.onNodeWithText("hello@lightly.pro", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("row-support").assertDoesNotExist()
     }
 
     @Test
@@ -202,11 +201,11 @@ class LightlyAppContentTest {
     @Test
     @Config(qualifiers = "w800dp-h1280dp")
     fun `tablet - More pages are a centred form sheet over Welcome`() {
-        show(layout = ShellLayout.Large, start = AppNavigator.openPage(AppNavState(), MorePage.PREFERENCES))
+        show(layout = ShellLayout.Large, start = AppNavigator.openPage(AppNavState(), MorePage.ABOUT))
 
         compose.onNodeWithTag(ShellTags.SHEET_SCRIM).assertExists()
         compose.onNodeWithText("Choose a photo").assertExists()
-        val page = compose.onNodeWithTag("more-page-preferences").getBoundsInRoot()
+        val page = compose.onNodeWithTag("more-page-about").getBoundsInRoot()
         val root = compose.onRoot().getBoundsInRoot()
         assertTrue(page.left.value > 100f && page.right.value < root.right.value - 100f, "centred and narrower than the window: $page")
     }
@@ -221,9 +220,13 @@ class LightlyAppContentTest {
         assertTrue(brand.right.value <= 426f, "brand left of the fold: $brand")
         assertTrue(actions.left.value >= 426f, "actions right of the fold: $actions")
 
+        // Lightly 2 `sheetOverlay` on wide windows: a centred card, min(560 dp, 60 % of the width). The mockup's foldable
+        // shows it across the fold; this replaces the earlier right-pane rule (raised with the owner as a conflict).
         compose.onNodeWithTag(ShellTags.MORE).performClick()
+        compose.onNodeWithTag(ShellTags.SHEET_SCRIM).assertExists()
         val sheet = compose.onNodeWithTag("more-page-more").getBoundsInRoot()
-        assertTrue(sheet.left.value >= 426f, "the More sheet never crosses the fold: $sheet")
+        val root = compose.onRoot().getBoundsInRoot()
+        assertTrue(kotlin.math.abs((sheet.left.value + sheet.right.value) / 2 - root.right.value / 2) < 2f, "centred: $sheet")
     }
 
     @Test
