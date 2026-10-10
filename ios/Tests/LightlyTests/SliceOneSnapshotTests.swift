@@ -69,13 +69,13 @@ final class SliceOneSnapshotTests: XCTestCase {
     // MARK: - More pages
 
     func testMoreMenu() { SnapshotAssertion.assert(of: page(.menu, state: makeState()), named: "more-menu") }
-    func testPreferences() { SnapshotAssertion.assert(of: page(.preferences, state: makeState()), named: "more-preferences") }
-    func testPreferencesDark() {
-        SnapshotAssertion.assert(of: page(.preferences, state: makeState()), named: "more-preferences-dark", colorScheme: .dark)
+    // Lightly 2: the preferences live on the More page itself (no Preferences page).
+    func testMoreMenuDark() {
+        SnapshotAssertion.assert(of: page(.menu, state: makeState()), named: "more-menu-dark", colorScheme: .dark)
     }
-    func testPreferencesAccessibilityTextSize() {
-        let view = page(.preferences, state: makeState()).environment(\.dynamicTypeSize, .accessibility3)
-        SnapshotAssertion.assert(of: view, named: "more-preferences-accessibility3")
+    func testMoreMenuAccessibilityTextSize() {
+        let view = page(.menu, state: makeState()).environment(\.dynamicTypeSize, .accessibility3)
+        SnapshotAssertion.assert(of: view, named: "more-menu-accessibility3")
     }
     func testFavourites() { SnapshotAssertion.assert(of: page(.favourites, state: makeState()), named: "more-favourites") }
     /// Slice 5: the approved page with a saved (drawn) signature: the prototype's sample.
@@ -88,7 +88,6 @@ final class SliceOneSnapshotTests: XCTestCase {
     func testLegal() { SnapshotAssertion.assert(of: page(.legal, state: makeState()), named: "more-legal") }
     func testPrivacyPolicyUnavailable() { SnapshotAssertion.assert(of: page(.privacyPolicy, state: makeState()), named: "more-privacy") }
     func testAbout() { SnapshotAssertion.assert(of: page(.about, state: makeState()), named: "more-about") }
-    func testSupportUnavailable() { SnapshotAssertion.assert(of: page(.support, state: makeState()), named: "more-support") }
 }
 
 /// Opens `MoreSheet` directly on one page, the way the sheet shows it after navigating there.
@@ -103,10 +102,8 @@ private struct MorePageHost: View {
     private func pathTo(_ page: MorePage) -> [MorePage] {
         switch page {
         case .menu: [.menu]
-        case .preferences, .legal, .about: [.menu, page]
-        case .favourites, .savedSignature, .preferredBorder: [.menu, .preferences, page]
+        case .legal, .about, .favourites, .savedSignature, .preferredBorder: [.menu, page]
         case .privacyPolicy, .termsOfUse: [.menu, .legal, page]
-        case .support: [.menu, .about, page]
         }
     }
 }
@@ -129,7 +126,7 @@ final class WelcomeLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(link.height, 44, "Privacy Policy target below 44 pt at \(size)", file: file, line: line)
     }
 
-    /// At the default size everything fits without scrolling: the link sits above the bottom space.
+    /// At the default size everything fits without scrolling: the link sits above Welcome's 10 pt bottom padding.
     func testDefaultSizeFitsTheScreen() throws {
         try assertLayout(at: .large)
         let layout = LayoutProbe(
@@ -138,7 +135,7 @@ final class WelcomeLayoutTests: XCTestCase {
         )
         defer { layout.tearDown() }
         let link = try XCTUnwrap(layout.frame("welcome.privacyPolicy"))
-        XCTAssertLessThanOrEqual(link.maxY, SnapshotAssertion.defaultSize.height - WelcomeView.bottomSpace(forScreenHeight: SnapshotAssertion.defaultSize.height) + 0.5)
+        XCTAssertLessThanOrEqual(link.maxY, SnapshotAssertion.defaultSize.height - 10 + 0.5)
     }
 
     func testAccessibility3() throws { try assertLayout(at: .accessibility3) }
