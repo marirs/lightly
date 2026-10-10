@@ -272,6 +272,7 @@ struct EditorScreen: View {
                                showsOriginalBadge: session.isShowingOriginal,
                                outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                                marksCoverCanvas: tool == .watermark,
+                               cropWorkspace: isCropping,
                                allowsInspection: !isCropping,
                                allowsDoubleTapZoom: tool != .watermark,
                                onInspectionBegan: {

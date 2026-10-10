@@ -364,7 +364,7 @@ internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, 
 private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
-    BoxWithConstraints(modifier.background(colors.canvas).clipToBounds().testTagResource(EditorTags.STAGE), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.background(if (ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.edit.cropPreview) Color(0xFF141414) else colors.canvas).clipToBounds().testTagResource(EditorTags.STAGE), contentAlignment = Alignment.Center) {
         if (image != null) {
             val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
             val ratio = image.width.toFloat() / image.height

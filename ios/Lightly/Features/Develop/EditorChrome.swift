@@ -172,6 +172,7 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     /// canvas so a white border stays visible on the stage.
     var outlinesCanvas = false
     var marksCoverCanvas = false
+    var cropWorkspace = false
     var allowsInspection = false
     var allowsDoubleTapZoom = true
     var onInspectionBegan: () -> Void = {}
@@ -236,7 +237,7 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                 onPhotoSize?(size)
             }
         }
-        .background(ApprovedColor.canvas.resolved(colorScheme))
+        .background(cropWorkspace ? Color(white: 0.08) : ApprovedColor.canvas.resolved(colorScheme))
         .clipped()
     }
 
