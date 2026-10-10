@@ -47,7 +47,12 @@ enum LayeredStages {
             var replacementFull: FloatImage?
             if let replacement = background.replacement {
                 var image: CGImage?
-                if case .image(.bundled(let id), _, _, _) = replacement { image = inputs.cache.replacementImages[id] }
+                if case .image(let asset, _, _, _) = replacement {
+                    switch asset {
+                    case .bundled(let id), .file(let id): image = inputs.cache.replacementImages[id]
+                    default: break
+                    }
+                }
                 if var rgba = BackgroundStage.replacementRGBA8(replacement, width: width, height: height, image: image) {
                     let passes = [inputs.autoLUT, inputs.developLUT, inputs.adjustLUT].compactMap { $0 }
                     if !passes.isEmpty {

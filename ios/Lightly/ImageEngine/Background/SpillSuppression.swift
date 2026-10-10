@@ -70,8 +70,12 @@ enum SpillSuppression {
         let near = soft.dilated(threshold: 0.5, radius: radius)
         var direction = FloatImage(width: photo.width, height: photo.height, channels: 3)
         var zone = FloatImage(width: photo.width, height: photo.height, channels: 1)
+        let protected = HairDetailRefinement.protectionMask(faces: faces,
+            region: CGRect(x: 0, y: 0, width: photo.width, height: photo.height),
+            width: photo.width, height: photo.height, sourceWidth: photo.width, sourceHeight: photo.height,
+            includeEars: true)
         var any = false
-        for i in 0..<n where near.data[i] > 0 {
+        for i in 0..<n where near.data[i] > 0 && protected.data[i] == 0 {
             let r = filled.data[i * 3], g = filled.data[i * 3 + 1], b = filled.data[i * 3 + 2]
             let mean = (r + g + b) / 3
             let cr = r - mean, cg = g - mean, cb = b - mean

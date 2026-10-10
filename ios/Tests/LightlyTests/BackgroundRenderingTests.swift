@@ -148,6 +148,26 @@ final class BackgroundRenderingTests: XCTestCase {
         XCTAssertNotEqual(centred, left, "x moves the image")
     }
 
+    func testImportedAndBundledImagesUseTheSamePreviewAndExportPath() throws {
+        let s = scene()
+        let pixels = s.linear.rgba8FromLinear()
+        let image = try MetalLUTRenderer.makeImage(rgba8: [UInt8](repeating: 255, count: 4*8*8), width: 8, height: 8)
+        let renderer = try MetalLUTRenderer()
+        let neutral = EditRecipe.Tools.neutral(grainSeed: 1)
+        var cache = SceneCache()
+        cache.subject = SubjectMatte(matte: s.matte, model: .init(id: "test", version: "1"))
+        cache.replacementImages["sample"] = image
+        for cap in [LayeredStages.previewCap, LayeredStages.exportCap] {
+            var inputs = LayeredStages.Inputs(background: neutral.background, portrait: neutral.portrait, cache: cache, developLUT: nil, autoLUT: nil)
+            inputs.background.replacement = .image(.bundled(id: "sample"), x: 50, y: 50, scale: 100)
+            let bundled = try LayeredStages.render(pixels, width: 160, height: 120, inputs: inputs, cap: cap, lutApplier: renderer)
+            inputs.background.replacement = .image(.file(sha256: "sample"), x: 50, y: 50, scale: 100)
+            let imported = try LayeredStages.render(pixels, width: 160, height: 120, inputs: inputs, cap: cap, lutApplier: renderer)
+            XCTAssertEqual(imported, bundled)
+            XCTAssertNotEqual(imported, pixels)
+        }
+    }
+
     func testDisparityNormalisationUsesPercentiles() {
         var map = FloatImage(width: 100, height: 1, channels: 1)
         for i in 0..<100 { map.data[i] = Float(i) }

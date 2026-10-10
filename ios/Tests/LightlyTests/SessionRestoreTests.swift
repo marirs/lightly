@@ -55,6 +55,29 @@ final class SessionRestoreTests: XCTestCase {
         return session
     }
 
+    func testImportedBackgroundSurvivesUndoAndRestore() async throws {
+        let store = EditSessionStore(directory: sessionDirectory)
+        let before = try await EditorTestSupport.readySession(library: library, sessionStore: store)
+        let data = try Data(contentsOf: DevelopParityTests.fixture("docs/ui/assets/photos/landscape_02.jpg"))
+        try await before.importBackground(data)
+        let replacement = before.recipe.tools.background.replacement
+        XCTAssertNotNil(before.importedBackgroundImage)
+        before.undo()
+        XCTAssertNil(before.recipe.tools.background.replacement)
+        before.redo()
+        XCTAssertEqual(before.recipe.tools.background.replacement, replacement)
+        await before.settleRendering()
+        store.flush()
+        let saved = try XCTUnwrap(store.load())
+        XCTAssertEqual(saved.backgrounds.count, 1)
+        before.close()
+        let photo = try await ImageIOPhotoLoader().loadPhoto(from: saved.original, source: .photoLibrary)
+        let after = try await EditorTestSupport.readySession(photo: photo, library: library, sessionStore: store, restoring: saved)
+        XCTAssertNotNil(after.importedBackgroundImage)
+        XCTAssertEqual(after.recipe.tools.background.replacement, replacement)
+        after.close()
+    }
+
     func testKillAndRecoverRestoresTheExactSessionFromStorageOnly() async throws {
         let store = EditSessionStore(directory: sessionDirectory)
         let before = try await editedSession(store: store)

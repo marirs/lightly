@@ -74,6 +74,22 @@ targets:
         buildPhase: resources
       - path: ../docs/ui/assets/photos/backlit_02_thumb.jpg
         buildPhase: resources
+      - path: ../docs/ui/assets/photos/landscape_02.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/landscape_02_thumb.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/landscape_03.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/landscape_03_thumb.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/sunset_02.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/sunset_02_thumb.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/wellexposed_03.jpg
+        buildPhase: resources
+      - path: ../docs/ui/assets/photos/wellexposed_03_thumb.jpg
+        buildPhase: resources
       # The four approved watermark fonts and their licences (shared/fonts, SIL OFL 1.1; the OFL
       # requires the licence to ship with the fonts). Read by URL in WatermarkFonts.
       - path: ../shared/fonts/Allura-Regular.ttf

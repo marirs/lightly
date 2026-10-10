@@ -1,4 +1,5 @@
 import CoreGraphics
+import ImageIO
 import CryptoKit
 import Foundation
 import Observation
@@ -1851,6 +1852,34 @@ final class EditorSession {
             ?? UIApplication.shared.connectedScenes.first?.session.persistentIdentifier
     }
 
+    @ObservationIgnored private var importedBackgrounds: [String: Data] = [:]
+
+    var importedBackgroundImage: CGImage? {
+        if case .image(.file(let digest), _, _, _)? = recipe.tools.background.replacement {
+            return sceneCache.replacementImages[digest]
+        }
+        return nil
+    }
+
+    /// Decode the selected photo upright at a bounded working size off the UI thread.
+    func importBackground(_ data: Data) async throws {
+        let encoded = try await Task.detached(priority: .userInitiated) {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 4096] as CFDictionary),
+                  let encoded = UIImage(cgImage: image).jpegData(compressionQuality: 0.95) else { throw LightlyError.exportFailed }
+            return encoded
+        }.value
+        try Task.checkCancellation()
+        guard !isClosed, let image = UIImage(data: encoded)?.cgImage else { throw LightlyError.exportFailed }
+        let digest = SHA256.hash(data: encoded).map { String(format: "%02x", $0) }.joined()
+        importedBackgrounds[digest] = encoded
+        sceneCache.replacementImages[digest] = image
+        commitBackground { $0.replacement = .image(.file(sha256: digest), x: 50, y: 50, scale: 100) }
+    }
+
     private func persistSession() {
         guard let sessionStore, !isClosed else { return }
         guard hasUnsavedEdits else {
@@ -1863,6 +1892,7 @@ final class EditorSession {
             sessionStore.saveOriginal(photo.originalData)
             sessionPersisted = true
         }
+        sessionStore.saveBackgrounds(importedBackgrounds)
         sessionStore.saveHistory(history, index: historyIndex, autoState: autoState.rawValue, sceneSessionID: sceneSessionID(),
                                  autoCorrection: autoCorrection?.json)
         if analysisPersistedRevision != analysisRevision {
@@ -1879,6 +1909,10 @@ final class EditorSession {
     // never by analysing the photo again. A stored applied/off Auto without its correction restores as unavailable,
     // never as a different result.
     private func applyRestored(_ saved: PersistedEditSession) {
+        importedBackgrounds = saved.backgrounds
+        for (digest, data) in saved.backgrounds {
+            sceneCache.replacementImages[digest] = UIImage(data: data)?.cgImage
+        }
         let analysis = saved.analysis
         hasPerson = analysis.hasPerson ?? false
         people = analysis.people

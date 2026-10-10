@@ -434,6 +434,42 @@ final class EditorFlowUITests: XCTestCase {
         saveScreenshot("crop-result-shown")
     }
 
+    func testBackgroundPlusImportsLibraryPhoto() throws {
+        let matte = "\(EditorCaptureUITests.repositoryRoot)/ios/Tests/Fixtures/SubjectMattes/portrait_medium_02.png"
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02"), "--subject-matte-fixture", matte])
+        XCTAssertTrue(element("editor.photo").waitForExistence(timeout: timeout))
+        element("tool.background").tap()
+        element("background.mode.change").tap()
+        let add = element("background.image.add")
+        XCTAssertTrue(add.waitForExistence(timeout: 60))
+        // The background thumbnails form one horizontal strip.
+        let first = element("background.image.landscape_01")
+        let stripY = first.frame.midY / app.frame.height
+        for _ in 0..<3 where add.frame.maxX > app.frame.width {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: stripY)).press(forDuration: 0.05,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: stripY)))
+        }
+        XCTAssertTrue(add.isHittable)
+        add.tap()
+        let grid = app.scrollViews["photosView_content_scroll_view"]
+        XCTAssertTrue(grid.waitForExistence(timeout: timeout), "Plus must open Photos")
+        let cancel = app.buttons["Cancel"].firstMatch
+        if cancel.exists { cancel.tap() } else { grid.swipeDown(velocity: .fast) }
+        XCTAssertTrue(add.waitForExistence(timeout: timeout))
+        add.tap()
+        XCTAssertTrue(grid.waitForExistence(timeout: timeout))
+        let close = app.buttons["Close"].firstMatch
+        if close.exists && close.isHittable { close.tap() }
+        grid.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.12)).tap()
+        XCTAssertTrue(element("background.image.imported").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("slider.scale").exists)
+        capture(named: "background-library-import")
+        element("editor.undo").tap()
+        XCTAssertFalse(element("background.image.imported").exists)
+        element("editor.redo").tap()
+        XCTAssertTrue(element("background.image.imported").waitForExistence(timeout: timeout))
+    }
+
     /// Owner check 2026-10-05: Cancel → leave the tool → reopen → retry. Cancel returns to the panel (no indicator),
     /// navigation works, reopening does not restart the analysis, and the next Background edit does.
     func testBackgroundCancelLeaveReopenRetry() {

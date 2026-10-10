@@ -30,6 +30,7 @@ struct PersistedEditSession: Sendable {
     var analysis: PersistedAnalysis
     /// Core Image Auto: the filters and parameters that were applied (iOS 1.0 Auto).
     var autoCorrection: CoreImageAutoCorrection? = nil
+    var backgrounds: [String: Data] = [:]
 }
 
 /// Keeps the working session on disk while it has unsaved edits, so that when the system ends
@@ -61,6 +62,17 @@ final class EditSessionStore: @unchecked Sendable {
     }
 
     // MARK: - Writing
+
+    func saveBackgrounds(_ backgrounds: [String: Data]) {
+        write { directory in
+            for (digest, data) in backgrounds {
+                let name = "background-\(digest).jpg"
+                if !FileManager.default.fileExists(atPath: directory.appendingPathComponent(name).path) {
+                    try self.writeFile(data, named: name, in: directory)
+                }
+            }
+        }
+    }
 
     func saveOriginal(_ data: Data) {
         write { directory in try self.writeFile(data, named: "original.bin", in: directory) }
@@ -177,9 +189,17 @@ final class EditSessionStore: @unchecked Sendable {
                     (try? Data(contentsOf: directory.appendingPathComponent(name))).flatMap(Self.decodeImage)
                 }) ?? PersistedAnalysis()
             }
+            var backgrounds: [String: Data] = [:]
+            for recipe in history {
+                if case .image(.file(let digest), _, _, _)? = recipe.tools.background.replacement {
+                    guard digest.count == 64, digest.allSatisfy({ $0.isHexDigit }),
+                          let data = try? Data(contentsOf: directory.appendingPathComponent("background-\(digest).jpg")) else { return nil }
+                    backgrounds[digest] = data
+                }
+            }
             return PersistedEditSession(original: original, history: history, index: index, autoState: auto,
                                         sceneSessionID: header["scene"] as? String, analysis: analysis,
-                                        autoCorrection: CoreImageAutoCorrection(json: header["autoCorrection"]))
+                                        autoCorrection: CoreImageAutoCorrection(json: header["autoCorrection"]), backgrounds: backgrounds)
         }
     }
 

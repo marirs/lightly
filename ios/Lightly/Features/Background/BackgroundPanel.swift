@@ -1,4 +1,5 @@
 import ImageIO
+import PhotosUI
 import SwiftUI
 
 /// UI state of the Background panel (approved `backgroundPanel`, prototype `ui.sub`, `ui.bgKind`,
@@ -33,7 +34,7 @@ final class BackgroundPanelModel {
     var brushRadius: Double { 0.005 + 0.055 * brushSize / 100 }
 
     /// The approved bundled backgrounds (prototype `BACKGROUNDS`).
-    static let bundledImages = ["landscape_01", "sunset_03", "wellexposed_02", "backlit_02"]
+    static let bundledImages = ["landscape_01", "sunset_03", "wellexposed_02", "backlit_02", "landscape_02", "landscape_03", "sunset_02", "wellexposed_03"]
     /// Prototype `SWATCHES`.
     static let swatches = ["#F4F1EC", "#D9D4CC", "#9AA3A8", "#3C4A55", "#1F2328", "#C9A27E", "#8A5A44", "#4E6B5A"]
     /// Prototype `GRADIENTS` as recipe gradients.
@@ -50,6 +51,10 @@ struct BackgroundPanelView: View {
     @Bindable var model: BackgroundPanelModel
     let roomy: Bool
     let wraps: Bool
+
+    @State private var selectedBackground: PhotosPickerItem?
+    @State private var importingBackground = false
+    @State private var importFailed = false
 
     private var backgroundColour: String {
         if case .colour(let hex) = model.background.replacement { return hex }
@@ -73,6 +78,20 @@ struct BackgroundPanelView: View {
             PanelResetRow(session: session, section: "background", title: model.mode == .focus ? "Focus & Blur" : model.mode == .change ? "Change background" : "Refine edges", adjustment: model.mode == .focus ? "focus" : model.mode == .change ? "change" : "refine")
             content
         }
+        .task(id: selectedBackground) {
+            guard let item = selectedBackground else { return }
+            importingBackground = true
+            defer { importingBackground = false }
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else { throw LightlyError.exportFailed }
+                try Task.checkCancellation()
+                try await session.importBackground(data)
+            } catch is CancellationError { } catch { importFailed = true }
+            selectedBackground = nil
+        }
+        .alert("Couldn't open that photo", isPresented: $importFailed) {
+            Button("OK", role: .cancel) {}
+        } message: { Text("Choose another photo for the background.") }
         // Re-run when the mode changes: switching to Focus & Blur is what starts depth.
         .task(id: model.mode) { session.analyseSubjectIfNeeded(needsDepth: model.mode == .focus) }
     }
@@ -205,7 +224,19 @@ struct BackgroundPanelView: View {
                         }
                     }
                 }
-                AddBackgroundButton()
+                if let image = session.importedBackgroundImage {
+                    Image(image, scale: 1, label: Text("Selected background photo")).resizable().scaledToFill()
+                        .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(ApprovedColor.selection.resolved(colorScheme), lineWidth: 2))
+                        .accessibilityIdentifier("background.image.imported")
+                }
+                PhotosPicker(selection: $selectedBackground, matching: .images) {
+                    AddBackgroundButton()
+                }
+                .buttonStyle(.plain)
+                .disabled(importingBackground)
+                .accessibilityLabel("Choose a background photo")
+                .accessibilityIdentifier("background.image.add")
             }
         case .colour:
             ColourControl(title: "Background colour", selected: backgroundColour, photo: session.originalImage, identifier: "background.colour",
@@ -307,9 +338,7 @@ struct BackgroundThumbnail: View {
 struct AddBackgroundButton: View {
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
-        // DEFERRED(slice 3 follow-up): "Choose a photo" opens the system picker; the prototype's
-        // control is a no-op too (`data-act="noop"`).
-        Button {} label: {
+        Group {
             ApprovedIconView(icon: .plus, size: 22)
                 .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
                 .frame(width: 64, height: 64)
@@ -317,7 +346,6 @@ struct AddBackgroundButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Choose a photo"))
-        .accessibilityIdentifier("background.image.add")
     }
 }
 

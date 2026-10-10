@@ -78,4 +78,18 @@ final class SpillSuppressionTests: XCTestCase {
         XCTAssertEqual(protectedSkin, SIMD3(0.5,0.25,0.15))
     }
 
+    func testEarSkinIsExcludedFromSpillAndHairCorrection() throws {
+        let (photo, matte) = scene(wall: SIMD3(0.6, 0.03, 0.03))
+        let face = DetectedFace(box: .init(x: 0.48, y: 0.2, width: 0.3, height: 0.6),
+            faceContour: [], leftEye: [], rightEye: [], leftEyebrow: [], rightEyebrow: [], outerLips: [], innerLips: [], quality: nil)
+        let field = try XCTUnwrap(SpillSuppression.field(photo: photo, matte: matte, faces: [face]))
+        let sample = field.sample(x: 32, y: 31, frameWidth: 64, frameHeight: 64)
+        XCTAssertEqual(sample.zone, 0)
+        XCTAssertEqual(field.hairSample(x: 32, y: 31, frameWidth: 64, frameHeight: 64).w, 0)
+        var skin = SIMD3<Float>(0.5, 0.25, 0.15)
+        SpillSuppression.apply(&skin, coverage: 0.5, direction: sample.direction, zone: sample.zone)
+        XCTAssertEqual(skin, SIMD3(0.5, 0.25, 0.15))
+    }
+
+
 }

@@ -130,7 +130,7 @@ enum HairDetailRefinement {
 
     /// Use the detected jaw/cheeks and forehead, rather than a box that also protects wall between side curls.
     static func protectionMask(faces: [DetectedFace], region: CGRect, width: Int, height: Int,
-                               sourceWidth: Int, sourceHeight: Int) -> FloatImage {
+                               sourceWidth: Int, sourceHeight: Int, includeEars: Bool = false) -> FloatImage {
         var bytes = [UInt8](repeating: 0, count: width*height)
         bytes.withUnsafeMutableBytes { ptr in
             guard let context = CGContext(data: ptr.baseAddress, width: width, height: height,
@@ -145,6 +145,16 @@ enum HairDetailRefinement {
                             y: (p.y*Double(sourceHeight)-region.minY)*Double(height)/region.height)
                 }
                 let b = face.box
+                if includeEars {
+                    // Colour correction must not mistake ears outside Vision's jaw contour for hair.
+                    // This protection is deliberately separate from matte refinement.
+                    for side in [0.035, 0.965] {
+                        let centre = point(CGPoint(x: b.x + side*b.width, y: b.y + 0.47*b.height))
+                        let rx = 0.11*b.width*Double(sourceWidth)*Double(width)/region.width
+                        let ry = 0.25*b.height*Double(sourceHeight)*Double(height)/region.height
+                        context.fillEllipse(in: CGRect(x: centre.x-rx, y: centre.y-ry, width: 2*rx, height: 2*ry))
+                    }
+                }
                 guard face.faceContour.count > 4 else {
                     context.fill(CGRect(x: (b.x*Double(sourceWidth)-region.minX)*Double(width)/region.width,
                                         y: (b.y*Double(sourceHeight)-region.minY)*Double(height)/region.height,
