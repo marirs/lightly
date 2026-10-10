@@ -151,7 +151,7 @@ const chips = (all, on) => { const items = scrolled(all, all.findIndex(([k]) => 
 const seg = (items, on) => `<div role="group" style="padding: 4px; border-radius: 22px; background: var(--chip); display: grid; grid-template-columns: repeat(${items.length}, minmax(0, 1fr)); gap: 4px">${items.map(([k, l]) =>
   `<button style="height: 36px; border-radius: 18px; border: none; font-weight: ${k === on ? 700 : 600}; font-size: 14px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 6px; ${k === on ? 'background: var(--on-bg); color: var(--on-ink)' : 'background: transparent; color: var(--ink2)'}">${l}</button>`).join('')}</div>`;
 // Tool tabs: selected bold; a 5 pt orange dot on tabs holding an edit; the orange underline only in Develop (browsed category).
-const tabs = (all, on, { underline = false } = {}) => { const items = scrolled(all, all.findIndex(([k]) => k === on)); return `<div style="display: flex; gap: 20px; overflow: hidden; ${fadeRight}">${items.map(([k, l, dot]) =>
+const tabs = (all, on, { underline = false } = {}) => { const items = scrolled(all, all.findIndex(([k]) => k === on)); return `<div data-tabs style="display: flex; gap: 20px; overflow: hidden; ${fadeRight}">${items.map(([k, l, dot]) =>
   `<button style="border: none; background: transparent; padding: 8px 0 7px; flex-shrink: 0; font-weight: ${k === on ? 700 : 500}; font-size: 14.5px; white-space: nowrap; display: flex; align-items: center; gap: 5px; ${k === on ? `color: var(--ink); ${underline ? 'box-shadow: inset 0 -2px 0 var(--browse)' : ''}` : 'color: var(--ink3)'}">${l}${dot ? '<span style="width: 5px; height: 5px; border-radius: 3px; background: var(--edited)"></span>' : ''}</button>`).join('')}</div>`; };
 function slider(label, v, min = 0, max = 100, { disabled = false } = {}) {
   const f = (v - min) / (max - min) * 100, mid = min < 0;
@@ -188,7 +188,7 @@ const listRow = (label, sub = '', end = ic('chevron', 18), { first = false, colo
 const card = (inner, pad = '0') => `<div style="border-radius: 22px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; padding: ${pad}">${inner}</div>`;
 const groupLabel = (t) => `<div style="font-weight: 700; font-size: 11px; letter-spacing: 0.8px; color: var(--ink2); padding: 0 6px 7px; text-transform: uppercase">${t}</div>`;
 const col = (gap, inner) => `<div style="display: flex; flex-direction: column; gap: ${gap}px">${inner}</div>`;
-const rowOf = (inner, gap = 8) => `<div style="display: flex; align-items: center; gap: ${gap}px; overflow: hidden; ${fadeRight}">${inner}</div>`;
+const rowOf = (inner, gap = 8) => `<div data-fade-row style="display: flex; align-items: center; gap: ${gap}px; overflow: hidden; ${fadeRight}">${inner}</div>`;
 
 /* =============================================================== Develop (current app: tabs, heading, preset gallery, Amount) */
 function developState(s) {
@@ -349,10 +349,10 @@ function progressCard(label, cancel, pct) {
     ${pct != null ? `<span style="width: 150px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden"><i style="display: block; width: ${pct}%; height: 100%; background: #CFF26B"></i></span>` : ''}
     ${cancel ? '<button style="height: 34px; padding: 0 14px; border-radius: 17px; border: none; background: rgba(255,255,255,0.12); color: #F2F3F0; font-weight: 600; font-size: 13px">Cancel</button>' : ''}</div>`;
 }
-// Auto (wand, ✓ badge when applied) and "Reset all" on the photo's bottom-leading corner (EditorScreen.swift:215-264).
+// Auto (wand, ✓ badge when applied) and "Reset all" on the photo area's bottom-leading corner (EditorScreen.swift:215-264).
 function autoControls(s) {
   const applied = !(s.auto === 'off' || s.auto === 'failed' || s.auto === 'unavailable');
-  return `<div style="position: absolute; left: 10px; bottom: 10px; display: flex; gap: 6px; align-items: center; z-index: 2">
+  return `<div style="position: absolute; left: 10px; bottom: 10px; display: flex; gap: 6px; align-items: center; z-index: 2; pointer-events: auto">
     <button aria-label="Auto enhance" style="position: relative; width: 38px; height: 38px; border-radius: 19px; border: ${applied ? '1.5px solid rgba(255,255,255,0.75)' : '1px solid rgba(255,255,255,0.18)'}; background: rgba(14,15,17,0.66); color: ${applied ? '#CFF26B' : '#F2F3F0'}; padding: 0; display: flex; align-items: center; justify-content: center">${ic('wand', 19)}${applied ? `<span style="position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 8px; background: #CFF26B; color: #121408; display: flex; align-items: center; justify-content: center">${ic('check', 10)}</span>` : ''}</button>
     ${s.canResetAll ? `<button style="height: 38px; padding: 0 13px; border-radius: 19px; border: 1px solid rgba(255,255,255,0.18); background: rgba(14,15,17,0.66); color: #F2F3F0; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px">${ic('reset', 15)}Reset all</button>` : ''}</div>`;
 }
@@ -407,11 +407,10 @@ function photo(s, W, H) {
   const frameBg = !b ? 'transparent' : b.type === 'frame' ? '#111111' : b.type === 'paper' ? '#F3E3C3' : '#FFFFFF';
   const mat = b && b.type === 'frame' ? `<div style="position: absolute; left: ${padX * 0.45}px; top: ${padY * 0.45}px; right: ${padX * 0.45}px; bottom: ${padY * 0.45}px; background: #F4F1EC"></div>` : '';
   const paper = b && b.type === 'paper' ? paperEdge(1) + ';' : '';
-  const autoUI = s.tool && !s.compare && !s.crop && !s.photoProgress ? autoControls(s) : '';
   return `<div style="position: relative; width: ${w}px; height: ${h}px; flex-shrink: 0">
     <div style="position: absolute; inset: 0; background: ${frameBg}; border-radius: ${b ? 3 : 18}px; overflow: hidden; ${paper}">${mat}
     <div style="position: absolute; left: ${padX}px; top: ${padY}px; width: ${pw}px; height: ${phh}px; overflow: hidden; border-radius: ${b ? 0 : 18}px">${layers}${over}${m.join('')}</div>${wmark}
-    ${s.compare ? '<span style="position: absolute; left: 12px; top: 12px; padding: 6px 10px; border-radius: 10px; background: rgba(0,0,0,0.55); color: #FFFFFF; font-size: 12px; font-weight: 700">Original</span>' : ''}</div>${autoUI}
+    ${s.compare ? '<span style="position: absolute; left: 12px; top: 12px; padding: 6px 10px; border-radius: 10px; background: rgba(0,0,0,0.55); color: #FFFFFF; font-size: 12px; font-weight: 700">Original</span>' : ''}</div>
     ${s.toast ? `<span style="position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); padding: 9px 14px; border-radius: 14px; background: rgba(14,15,17,0.88); color: #F2F3F0; font-size: 13px; font-weight: 600; white-space: nowrap; z-index: 3">${s.toast}</span>` : ''}</div>`;
 }
 
@@ -772,9 +771,14 @@ function screen(spec, d) {
 }
 // Draw each photo at its stage's measured size.
 function fillStages() {
+  // Owner amendment (2026-10-10): tabs and chip rows fade at the end only while more tabs are hidden there; when they all fit, no fade.
+  document.querySelectorAll('[data-tabs], [data-fade-row]').forEach((el) => { if (el.scrollWidth <= el.clientWidth + 1) { el.style.webkitMaskImage = 'none'; el.style.maskImage = 'none'; } });
   document.querySelectorAll('[data-stage]').forEach((el) => {
     const s = FILLS[+el.dataset.stage]; const w = el.clientWidth - 24, h = el.clientHeight - 16;
-    if (w > 20 && h > 20) el.innerHTML = `<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center">${photo(s, w, h)}</div>`;
+    // Owner amendment (2026-10-10): Auto and Reset all sit on the photo area's bottom-left corner for every photo (on or
+    // beside the photo), 10 px inside the stage's 12/8 px inset, not on the photo's own corner.
+    const autoUI = s.tool && !s.compare && !s.crop && !s.photoProgress ? `<div style="position: absolute; left: 12px; right: 12px; top: 8px; bottom: 8px; pointer-events: none">${autoControls(s)}</div>` : '';
+    if (w > 20 && h > 20) el.innerHTML = `<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center">${photo(s, w, h)}</div>${autoUI}`;
   });
 }
 const state = { device: 'iphone', themes: ['t-dark', 't-light'], zoom: 0.6 };

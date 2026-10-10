@@ -100,7 +100,8 @@ fun <T> OptionTabs(
         scroll.scrollTo(target.coerceIn(0, scroll.maxValue))
     }
     Row(
-        Modifier.fillMaxWidth().fadeEnd().horizontalScroll(scroll),
+        // The end fades only while tabs are hidden past it (owner amendment 2026-10-10).
+        Modifier.fillMaxWidth().fadeEnd(scroll.canScrollForward).horizontalScroll(scroll),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -205,8 +206,10 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
 /** A sideways-scrolling row (`rowOf`/`chips`): [spacing] dp gaps, the end fading (88 %). */
 @Composable
 fun ChipRow(spacing: Dp = 8.dp, content: @Composable RowScope.() -> Unit) {
+    val rowScroll = rememberScrollState()
     Row(
-        Modifier.fillMaxWidth().fadeEnd().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp, horizontal = 2.dp),
+        // The end fades only while chips are hidden past it (owner amendment 2026-10-10).
+        Modifier.fillMaxWidth().fadeEnd(rowScroll.canScrollForward).horizontalScroll(rowScroll).padding(vertical = 4.dp, horizontal = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(spacing),
         verticalAlignment = Alignment.CenterVertically,
         content = content,

@@ -72,12 +72,16 @@ struct PanelSlider: View {
 struct ChipRow<Content: View>: View {
     var spacing: CGFloat = 8
     @ViewBuilder let content: () -> Content
+    /// The end fades only while chips are hidden past it (owner amendment 2026-10-10, as `L2Tabs`).
+    @State private var hidesMore = false
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: spacing) { content() }.padding(.vertical, 4).padding(.horizontal, 2)
+                .reportsTrailingEdge(in: "chiprow")
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        .mask(LinearGradient(stops: [.init(color: .black, location: 0.88), .init(color: .clear, location: 1)],
+        .modifier(TrailingOverflowReader(space: "chiprow", hidesMore: $hidesMore))
+        .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
                              startPoint: .leading, endPoint: .trailing))
     }
 }

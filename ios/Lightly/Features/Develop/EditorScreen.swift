@@ -213,21 +213,32 @@ struct EditorScreen: View {
 
     // MARK: - Editor layouts
 
-    /// Auto and "Reset all" (38 pt capsule, same fill, 1 pt 18 % white ring, 13 pt bold #F2F3F0 with the reset icon),
-    /// 6 pt apart, 10 pt from the photo's bottom-leading corner; the toast centred 58 pt above the photo's bottom.
-    private var photoActions: some View {
-        ZStack(alignment: .bottomLeading) {
+    /// The toast, centred 58 pt above the photo's bottom.
+    private var photoToast: some View {
+        ZStack {
             if let toast = session.toast {
                 StageToast(text: toast).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).padding(.bottom, 58)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Auto and "Reset all" (38 pt capsule, same fill, 1 pt 18 % white ring, 13 pt bold #F2F3F0 with the reset icon),
+    /// 6 pt apart.
+    /// Owner amendment (2026-10-10): pinned to the photo area's bottom-leading corner for every photo, on or beside the
+    /// photo, instead of following the photo's own corner (the mockup's `autoControls` sat inside the photo).
+    private var photoActions: some View {
+        ZStack(alignment: .bottomLeading) {
             HStack(spacing: 6) {
-                autoEnhanceButton.padding(-3)
+                autoEnhanceButton.padding(-3).fixedSize()
                 if session.canReset(section: "all") {
                     Button { isResetAlertShown = true } label: {
                         HStack(spacing: 6) {
                             ApprovedIconView(icon: .reset, size: 15)
                             Text("Reset all").font(.system(size: 13, weight: .bold))
                         }
+                        // Never squeezed by a narrow photo: the mockup's button keeps its one-line natural width.
+                        .fixedSize()
                         .foregroundStyle(Color(hex: 0xF2F3F0))
                         .padding(.horizontal, 13).frame(height: 38)
                         .background(Capsule().fill(Color(hex: 0x0E0F11, opacity: 0.66)))
@@ -244,7 +255,13 @@ struct EditorScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
     }
 
-    private func photoStage() -> PhotoStage<EmptyView, AnyView> {
+    /// The stage with Auto and Reset all over its bottom-leading corner: 10 pt inside the stage's own 12/8 pt inset,
+    /// where the photo's corner sits when it fills the width.
+    private func photoStage() -> some View {
+        stageOnly().overlay(alignment: .bottomLeading) { photoActions.padding(.leading, 12).padding(.bottom, 8) }
+    }
+
+    private func stageOnly() -> PhotoStage<EmptyView, AnyView> {
         PhotoStage(image: session.isShowingOriginal ? session.originalImage : session.displayedImage,
                    showsOriginalBadge: session.isShowingOriginal,
                    outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
@@ -259,7 +276,7 @@ struct EditorScreen: View {
                        removePoints = []; refinePoints = []
                        if hadPreview || (tool == .effects && effectsPanel.sub == .leak) { session.cancelLookPreview() }
                    },
-                   photoChrome: AnyView(photoActions),
+                   photoChrome: AnyView(photoToast),
                    imageBox: session.isShowingOriginal ? CGRect(x: 0, y: 0, width: 1, height: 1) : session.displayedImageBox,
                    onPhotoSize: session.isShowingOriginal ? nil : { session.setDisplayedPhotoSize($0) },
                    overlay: { EmptyView() },

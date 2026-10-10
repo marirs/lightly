@@ -57,6 +57,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -193,7 +194,14 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
         }
         return
     }
-    val stage: @Composable (Modifier) -> Unit = { modifier -> Stage(ui, modifier, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, chrome = { if (!ui.showsOriginal) AutoEnhanceOverlay(vm, ui) }, inspection = true, onPhotoBox = vm::onStagePhotoMeasured) }
+    // Owner amendment (2026-10-10): Auto and Reset all sit on the photo area's bottom-start corner for every photo (on or
+    // beside the photo), 10 dp inside the stage's 12/8 dp inset, instead of following the photo's own corner.
+    val stage: @Composable (Modifier) -> Unit = { modifier ->
+        Box(modifier) {
+            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = true, onPhotoBox = vm::onStagePhotoMeasured)
+            if (!ui.showsOriginal) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         if (layout.mode == EditorMode.BELOW) {
             // Phone (Android): the app bar, the photo, then the sheet: the fixed panel and the dock.
@@ -639,7 +647,7 @@ internal fun Modifier.hairlineTop(color: Color) = drawBehind { drawLine(color, O
 internal fun Modifier.hairlineStart(color: Color) = drawBehind { drawLine(color, Offset(0.5f, 0f), Offset(0.5f, size.height), strokeWidth = 1.dp.toPx()) }
 
 /** A row's end fading (88 %), as the mockup's scrolling rows. */
-internal fun Modifier.fadeEnd() = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+internal fun Modifier.fadeEnd(enabled: Boolean = true) = if (!enabled) this else graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
     drawContent()
     drawRect(Brush.horizontalGradient(0.88f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
 }
@@ -752,16 +760,21 @@ private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
 private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
     val applied = ui.auto == AutoState.APPLIED
     var resetConfirmation by remember { mutableStateOf(false) }
-    if (resetConfirmation) L2Dialog(
-        "Reset all edits?", "Return to the original photo. This also turns Auto off. You can undo this.",
-        listOf(L2DialogButton("Reset all edits", "dialog-Reset all edits", destructive = true) { resetConfirmation = false; vm.resetEdits() },
-            L2DialogButton("Keep editing", "dialog-Keep editing") { resetConfirmation = false }),
-        onDismiss = { resetConfirmation = false },
-    )
+    // In its own full-screen window: drawn here it would be confined (scrim and card) to the stage's corner.
+    if (resetConfirmation) androidx.compose.ui.window.Dialog(onDismissRequest = { resetConfirmation = false },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        L2Dialog(
+            "Reset all edits?", "Return to the original photo. This also turns Auto off. You can undo this.",
+            listOf(L2DialogButton("Reset all edits", "dialog-Reset all edits", destructive = true) { resetConfirmation = false; vm.resetEdits() },
+                L2DialogButton("Keep editing", "dialog-Keep editing") { resetConfirmation = false }),
+            onDismiss = { resetConfirmation = false },
+        )
+    }
     val fill = Color(0xA80E0F11)
     val lime = Color(0xFFCFF26B)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
-        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Unbounded: a narrow photo never squeezes or wraps "Reset all" (the mockup's button keeps its natural width).
+        Row(Modifier.wrapContentWidth(Alignment.Start, unbounded = true).padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(
                 Modifier.size(38.dp).clip(CircleShape).background(fill)
                     .border(if (applied) 1.5.dp else 1.dp, Color.White.copy(alpha = if (applied) 0.75f else 0.18f), CircleShape)
@@ -778,7 +791,7 @@ private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     LightlyIcon(LightlyIcons.Reset, size = 15.dp, tint = Color(0xFFF2F3F0))
-                    Text("Reset all", style = l2TextStyle(13.sp, FontWeight.Bold, Color(0xFFF2F3F0)))
+                    Text("Reset all", style = l2TextStyle(13.sp, FontWeight.Bold, Color(0xFFF2F3F0)), maxLines = 1, softWrap = false)
                 }
             }
         }

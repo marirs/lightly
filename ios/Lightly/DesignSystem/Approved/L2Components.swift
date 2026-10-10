@@ -285,6 +285,9 @@ struct L2Tabs<Value: Hashable>: View {
     var underline = false
     let onSelect: (Value) -> Void
     @Environment(\.colorScheme) private var scheme
+    /// True while some tabs are hidden past the trailing edge: only then does the end fade (owner amendment
+    /// 2026-10-10: a fade on tabs that all fit read as "there is more to scroll").
+    @State private var hidesMore = false
 
     var body: some View {
         let c = L2(scheme: scheme)
@@ -315,9 +318,11 @@ struct L2Tabs<Value: Hashable>: View {
                         .accessibilityIdentifier(item.identifier)
                     }
                 }
+                .reportsTrailingEdge(in: "l2tabs")
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            .mask(LinearGradient(stops: [.init(color: .black, location: 0.88), .init(color: .clear, location: 1)],
+            .modifier(TrailingOverflowReader(space: "l2tabs", hidesMore: $hidesMore))
+            .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
                                  startPoint: .leading, endPoint: .trailing))
             // `scrolled()`: the item before the selected one sits at the leading edge.
             .onChange(of: selection, initial: true) { _, value in
@@ -325,6 +330,41 @@ struct L2Tabs<Value: Hashable>: View {
                 proxy.scrollTo(max(0, at - 1), anchor: .leading)
             }
         }
+    }
+}
+
+/// The trailing edge of a horizontal scroll view's content, in the scroll view's own coordinate space.
+private struct TrailingContentEdge: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+extension View {
+    /// On a horizontal scroll view's content: reports where the content ends (as the scroll view moves it).
+    func reportsTrailingEdge(in space: String) -> some View {
+        background(GeometryReader { proxy in
+            Color.clear.preference(key: TrailingContentEdge.self, value: proxy.frame(in: .named(space)).maxX)
+        })
+    }
+}
+
+/// On the horizontal scroll view: `hidesMore` is true while its content runs past the trailing edge. Layout
+/// preferences report the first layout too (iOS 17 has no scroll-geometry reader, and that reader skips it).
+struct TrailingOverflowReader: ViewModifier {
+    let space: String
+    @Binding var hidesMore: Bool
+    @State private var contentEdge: CGFloat = 0
+    @State private var viewportWidth: CGFloat = 0
+    func body(content: Content) -> some View {
+        content
+            .coordinateSpace(name: space)
+            .background(GeometryReader { proxy in
+                Color.clear.onAppear { viewportWidth = proxy.size.width }
+                    .onChange(of: proxy.size.width) { _, width in viewportWidth = width }
+            })
+            .onPreferenceChange(TrailingContentEdge.self) { edge in contentEdge = edge }
+            .onChange(of: contentEdge > viewportWidth + 1, initial: true) { _, more in hidesMore = more }
+            .onChange(of: viewportWidth) { _, width in hidesMore = contentEdge > width + 1 }
     }
 }
 
