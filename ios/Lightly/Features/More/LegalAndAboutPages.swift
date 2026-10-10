@@ -52,7 +52,7 @@ struct AboutPage: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
-                BrandMark(size: 44, tint: ApprovedColor.ink.resolved(colorScheme), minimumStrokeWidth: 1.6)
+                BrandMark(size: 72, style: .tile)
                 Text("brand.wordmark", bundle: .main)
                     .approvedText(19, weight: .semibold)
                     .foregroundStyle(ApprovedColor.ink.resolved(colorScheme))

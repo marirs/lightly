@@ -1,125 +1,97 @@
 import SwiftUI
 
-/// Welcome (approved `welcomeHTML`): ⋮ More top right; the mark, "Lightly" and the tagline;
-/// Choose a photo and Camera; the privacy line and the Privacy Policy link. No login, no
-/// onboarding.
+/// Welcome (Lightly 2 `welcome`): the lime ⋮ More top right; the coloured mark (84 pt), "Lightly" (44 pt heading,
+/// −1 pt tracking) and the tagline (18 pt ink2), 16 pt apart; Choose a photo (lime, 56 pt) and Camera (outlined, 56 pt)
+/// 12 pt apart in a column at most 360 pt wide; the privacy line (13 pt ink2, 8 pt more space above) and the
+/// Privacy Policy link (14 pt accent, 10 pt padding). Phones stack it with 24 pt sides; wide screens (unfolded
+/// foldables, iPhone Duo, iPad) put the brand and the actions side by side in two equal columns.
 struct WelcomeView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
 
-    /// The prototype keeps max(28, 6% of the screen height) below the Privacy Policy link,
-    /// above the home-indicator inset.
-    static func bottomSpace(forScreenHeight height: CGFloat) -> CGFloat {
-        max(28, height * 0.06)
-    }
-
     var body: some View {
         GeometryReader { geometry in
-            let screenHeight = geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom
+            let wide = geometry.size.width >= 600
             VStack(spacing: 0) {
-                topBar
-                FillingScrollView {
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 24)
-                        brand.layoutAnchor("welcome.brand")
-                        Spacer(minLength: 32)
-                        actions.layoutAnchor("welcome.actions")
-                        privacyLine
-                        privacyPolicyLink.layoutAnchor("welcome.privacyPolicy")
-                        Color.clear.frame(height: Self.bottomSpace(forScreenHeight: screenHeight))
+                HStack { Spacer(minLength: 0); L2MoreButton(identifier: "welcome.more") { appState.openMore() } }
+                if wide {
+                    HStack(spacing: 32) {
+                        brand.frame(maxWidth: .infinity)
+                        actions.frame(maxWidth: .infinity)
+                    }
+                    .padding(.horizontal, 24)
+                    .frame(maxHeight: .infinity)
+                } else {
+                    FillingScrollView {
+                        VStack(spacing: 0) {
+                            Spacer(minLength: 24)
+                            brand.layoutAnchor("welcome.brand")
+                            Spacer(minLength: 32)
+                            actions.layoutAnchor("welcome.actions")
+                        }
                     }
                 }
             }
+            // Phones: 24 pt sides, 10 pt above the home indicator. Wide: the frame inset (16 pt), columns 24 pt in.
+            .padding(.horizontal, wide ? 16 : 24)
+            .padding(.vertical, wide ? 16 : 0)
+            .padding(.bottom, wide ? 0 : 10)
         }
         .background(ApprovedColor.background.resolved(colorScheme).ignoresSafeArea())
     }
 
-    private var topBar: some View {
-        HStack(spacing: 0) {
-            Spacer(minLength: 0)
-            ApprovedIconButton(
-                icon: .more,
-                accessibilityLabel: Text("more.accessibility", bundle: .main),
-                identifier: "welcome.more",
-                action: { appState.openMore() }
-            )
-        }
-        .padding(.horizontal, ApprovedMetrics.headerHorizontalPadding)
-        .frame(height: ApprovedMetrics.headerHeight)
-    }
-
     private var brand: some View {
-        VStack(spacing: 14) {
-            BrandMark(size: 56, tint: ApprovedColor.ink.resolved(colorScheme), minimumStrokeWidth: 1.6)
-            VStack(spacing: 14) {
-                Text("brand.wordmark", bundle: .main)
-                    .approvedText(34, weight: .semibold, trackingEm: -0.02)
-                    .foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
-                    .accessibilityAddTraits(.isHeader)
-                Text("welcome.tagline", bundle: .main)
-                    .approvedText(17)
-                    .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-            }
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
+        let c = L2(scheme: colorScheme)
+        return VStack(spacing: 16) {
+            BrandMark(size: 84)
+            Text("brand.wordmark", bundle: .main)
+                .l2Heading(44, tracking: -1)
+                .foregroundStyle(c(ApprovedColor.ink))
+                .accessibilityAddTraits(.isHeader)
+            Text("welcome.tagline", bundle: .main)
+                .l2Text(18)
+                .foregroundStyle(c(ApprovedColor.inkSecondary))
         }
-        .padding(.horizontal, 20)
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var actions: some View {
-        VStack(spacing: 10) {
-            Button {
-                appState.chooseFromLibrary()
-            } label: {
-                Label {
-                    Text("welcome.choosePhoto", bundle: .main)
-                } icon: {
-                    ApprovedIconView(icon: .photo, size: 20)
-                }
-                .labelStyle(ApprovedButtonLabelStyle())
+        let c = L2(scheme: colorScheme)
+        return VStack(spacing: 12) {
+            Button { appState.chooseFromLibrary() } label: {
+                L2Label(title: Text("welcome.choosePhoto", bundle: .main), icon: .photo, iconSize: 20)
             }
-            .buttonStyle(ApprovedButtonStyle(kind: .primary, isLarge: true, fillsWidth: true))
+            .buttonStyle(L2WideButtonStyle(kind: .primary, height: 56))
             .accessibilityIdentifier("welcome.choosePhoto")
 
-            Button {
-                Task { await appState.chooseCamera() }
-            } label: {
-                Label {
-                    Text("welcome.camera", bundle: .main)
-                } icon: {
-                    ApprovedIconView(icon: .camera, size: 20)
-                }
-                .labelStyle(ApprovedButtonLabelStyle())
+            Button { Task { await appState.chooseCamera() } } label: {
+                L2Label(title: Text("welcome.camera", bundle: .main), icon: .camera, iconSize: 20)
             }
-            .buttonStyle(ApprovedButtonStyle(kind: .line, isLarge: true, fillsWidth: true))
+            .buttonStyle(L2WideButtonStyle(kind: .line, height: 56))
             .accessibilityIdentifier("welcome.camera")
-        }
-        // `.welcome .actions`: at most 420 pt including 20 pt padding each side.
-        .frame(maxWidth: 380)
-        .padding(.horizontal, 20)
-    }
 
-    private var privacyLine: some View {
-        Text("welcome.privacyLine", bundle: .main)
-            .approvedText(12.5)
-            .foregroundStyle(ApprovedColor.inkTertiary.resolved(colorScheme))
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
-    }
+            Text("welcome.privacyLine", bundle: .main)
+                .l2Text(13)
+                .foregroundStyle(c(ApprovedColor.inkSecondary))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+                .layoutAnchor("welcome.privacyLine")
 
-    private var privacyPolicyLink: some View {
-        Button {
-            appState.openPrivacyPolicyFromWelcome()
-        } label: {
-            Text("welcome.privacyPolicy", bundle: .main)
-                .underline()
+            Button { appState.openPrivacyPolicyFromWelcome() } label: {
+                Text("welcome.privacyPolicy", bundle: .main)
+                    .l2Text(14, weight: .semibold)
+                    .foregroundStyle(c(ApprovedColor.selection))
+                    .padding(10)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(.isLink)
+            .accessibilityIdentifier("welcome.privacyPolicy")
+            .layoutAnchor("welcome.privacyPolicy")
         }
-        .buttonStyle(ApprovedButtonStyle(kind: .quiet))
-        .accessibilityAddTraits(.isLink)
-        .accessibilityIdentifier("welcome.privacyPolicy")
-        .padding(.top, 4)
+        .frame(maxWidth: 360)
     }
 }
 

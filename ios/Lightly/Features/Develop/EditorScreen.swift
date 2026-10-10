@@ -827,8 +827,10 @@ struct EditorScreen: View {
 }
 
 extension ApprovedColor {
-    /// `--scrim`: 32 % black in light, 50 % in dark.
-    static func scrim(_ scheme: ColorScheme) -> Color { .black.opacity(scheme == .dark ? 0.5 : 0.32) }
+    /// `--scrim`: rgba(10,10,10,.32) in light, rgba(0,0,0,.55) in dark (Lightly 2).
+    static func scrim(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? .black.opacity(0.55) : Color(hex: 0x0A0A0A, opacity: 0.32)
+    }
 }
 
 struct ShareItem: Identifiable {

@@ -1,8 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// Colour tokens of the approved Lightly 1.0 design (`docs/ui/app/styles.css`, revision ff5c5ae):
-/// neutral light theme, charcoal dark theme, one restrained selection colour.
+/// Colour tokens of the approved Lightly 2 design (`docs/ui/directions/lightly-2-concept/index.html`, 2026-10-10):
+/// warm light theme, near-black dark theme, lime accent.
 ///
 /// Every screen built from slice 1 on uses these. `LightlyColor` (the earlier warm palette)
 /// remains only for the legacy editor, which slice 2 replaces.
@@ -37,29 +37,47 @@ enum ApprovedColor {
         }
     }
 
+    // Lightly 2 tokens: `.t-light` / `.t-dark` in docs/ui/directions/lightly-2-concept/index.html (approved 2026-10-10).
+    // Values are copied from the mockup's CSS; rgba() values keep their alpha.
+
     // Surfaces.
-    static let background = Token(light: 0xFFFFFF, dark: 0x1C1C1E)        // --bg
-    static let backgroundSecondary = Token(light: 0xF6F6F7, dark: 0x232326) // --bg2
-    static let canvas = Token(light: 0xEEEEF0, dark: 0x111113)            // --canvas
-    static let sheet = Token(light: 0xFFFFFF, dark: 0x26262A)             // --sheet
+    static let background = Token(light: 0xF3F3F0, dark: 0x0D0E10)                // --bg
+    static let surface = Token(light: 0xFFFFFF, dark: 0x131518)                   // --surface
+    static let backgroundSecondary = Token(light: 0xF4F4F1, dark: 0x1A1C20)       // --card
+    static let canvas = Token(light: 0xE6E6E2, dark: 0x0A0B0C)                    // --stage (two-pane and iPad stage)
+    static let sheet = Token(light: 0xFFFFFF, dark: 0x17191C)                     // --sheet
 
     // Ink.
-    static let ink = Token(light: 0x121214, dark: 0xF2F2F4)               // --ink
-    static let inkSecondary = Token(light: 0x55555C, dark: 0xAEAEB4)      // --ink2
-    static let inkTertiary = Token(light: 0x6C6C74, dark: 0x94949C)       // --ink3
+    static let ink = Token(light: 0x141513, dark: 0xF2F3F0)                       // --ink
+    static let inkSecondary = Token(light: 0x5A5E57, dark: 0xA6ABA3)              // --ink2
+    static let inkTertiary = Token(light: 0x7D8179, dark: 0x7E837B)               // --ink3
+    /// Text on an ink fill (`--on-ink`): selected chips, segments, tabs.
+    static let onInk = Token(light: 0xFFFFFF, dark: 0x121408)                     // --on-ink
 
     // Lines and controls.
-    static let hairline = Token(light: 0xE3E3E6, dark: 0x2E2E32)          // --hair
-    static let track = Token(light: 0xDEDEE2, dark: 0x38383D)             // --track
-    static let selection = Token(light: 0x2257D2, dark: 0x7AA2FF)         // --sel
-    /// The browsed Develop category's underline (owner amendment 2026-10-05, docs/ui/amendments/2026-10-05-develop.md).
-    /// Browsing uses an underline; applied changes use a dot. ≥ 3:1 against --bg in both themes.
+    static let hairline = Token(light: 0x141513, dark: 0xFFFFFF, lightAlpha: 0.09, darkAlpha: 0.08)   // --line
+    static let track = Token(light: 0x141513, dark: 0xFFFFFF, lightAlpha: 0.18, darkAlpha: 0.18)      // --off
+    static let chip = Token(light: 0x141513, dark: 0xFFFFFF, lightAlpha: 0.055, darkAlpha: 0.07)      // --chip
+    static let knob = Token(light: 0xFFFFFF, dark: 0xF2F3F0)                                          // --knob
+    static let glass = Token(light: 0xFFFFFF, dark: 0x0E0F11, lightAlpha: 0.78, darkAlpha: 0.64)      // --glass
+    static let glassInk = Token(light: 0x141513, dark: 0xF2F3F0)                                      // --glass-ink
+    static let glassLine = Token(light: 0x141513, dark: 0xFFFFFF, lightAlpha: 0.10, darkAlpha: 0.10)  // --glass-line
+
+    // Accent.
+    static let accent = Token(light: 0xCFF26B, dark: 0xCFF26B)                    // --accent (lime fills)
+    static let onAccent = Token(light: 0x121408, dark: 0x121408)                  // --on-accent
+    /// The lime buttons' 1 pt rim (`--accent-edge`).
+    static let accentEdge = Token(light: 0x8FAE2E, dark: 0xE4FF9A)
+    /// Accent for text, lines, rings and selection (`--accent-ink`).
+    static let selection = Token(light: 0x557311, dark: 0xCFF26B)                 // --accent-ink
+
+    /// The browsed Develop category's underline (`--browse`).
     static let browse = Token(light: 0xC25E00, dark: 0xFF9F43)
-    /// Edited-section dots (owner amendment 2026-10-08).
-    static let edited = browse
-    static let danger = Token(light: 0xC2342B, dark: 0xFF6B5E)            // --danger
-    /// The selected segment's fill: --bg in light, #3A3A3F in dark (`.dark .seg .on`).
-    static let segmentSelected = Token(light: 0xFFFFFF, dark: 0x3A3A3F)
+    /// Edited-tool dots (`--edited`).
+    static let edited = Token(light: 0xC25E00, dark: 0xFF9F43)
+    static let danger = Token(light: 0xC7362B, dark: 0xFF8A7A)                    // --danger
+    /// The selected segment / chip / tab fill: `--on-bg` (the ink colour), text in `onInk`.
+    static let segmentSelected = Token(light: 0x141513, dark: 0xF2F3F0)
 }
 
 extension Color {

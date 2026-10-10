@@ -1,9 +1,13 @@
 import SwiftUI
 
-/// The prototype's own sheet (`overlayHTML` → `sheet`): on phones a bottom sheet with a grabber
-/// over a 32 % scrim; on screens wider than 700 pt a centred form sheet (540 pt, radius 14).
+/// `sheetOverlay` (Lightly 2): on phones a bottom sheet (30 pt top corners, hairline top edge, 40×5 grabber unless
+/// `bare`) over the scrim; on wider screens a centred card, min(560, 60 % of the width), 28 pt corners, hairline,
+/// shadow 0 24 60 at 40 %. `heightFraction` gives the sheet a fixed height (`h: '90%'`); otherwise it fits its content
+/// (at most 86 % on tablets).
 struct ApprovedSheetOverlay<Content: View>: View {
     let isTablet: Bool
+    var heightFraction: CGFloat?
+    var bare = false
     let onDismiss: () -> Void
     @ViewBuilder let content: () -> Content
 
@@ -13,26 +17,34 @@ struct ApprovedSheetOverlay<Content: View>: View {
         GeometryReader { geometry in
             let screen = CGSize(width: geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing,
                                 height: geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom)
+            let c = L2(scheme: colorScheme)
+            let shape = UnevenRoundedRectangle(topLeadingRadius: isTablet ? 28 : 30, bottomLeadingRadius: isTablet ? 28 : 0,
+                                               bottomTrailingRadius: isTablet ? 28 : 0, topTrailingRadius: isTablet ? 28 : 30, style: .continuous)
             ZStack(alignment: isTablet ? .center : .bottom) {
                 ApprovedColor.scrim(colorScheme)
                     .onTapGesture(perform: onDismiss)
                     .accessibilityHidden(true)
                 VStack(spacing: 0) {
-                    if !isTablet {
-                        Capsule().fill(ApprovedColor.hairline.resolved(colorScheme))
-                            .frame(width: 36, height: 5).padding(.top, 2).padding(.bottom, 8)
+                    if !isTablet && !bare {
+                        Capsule().fill(c(ApprovedColor.track))
+                            .frame(width: 40, height: 5).padding(.top, 8).padding(.bottom, 4)
                             .accessibilityHidden(true)
                     }
                     content()
+                    if heightFraction != nil { Spacer(minLength: 0) }
                 }
-                .padding(.top, 8)
-                .padding(.bottom, isTablet ? 16 : 30)
-                .frame(width: isTablet ? min(540, screen.width * 0.92) : screen.width)
-                .frame(maxHeight: screen.height * (isTablet ? 0.86 : 0.88), alignment: .top)
-                .fixedSize(horizontal: false, vertical: true)
-                .background(ApprovedColor.sheet.resolved(colorScheme))
-                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 14, bottomLeadingRadius: isTablet ? 14 : 0,
-                                                  bottomTrailingRadius: isTablet ? 14 : 0, topTrailingRadius: 14))
+                .padding(.bottom, isTablet ? 14 : geometry.safeAreaInsets.bottom + 6)
+                .frame(width: isTablet ? min(560, screen.width * 0.6) : screen.width)
+                .frame(height: heightFraction.map { screen.height * $0 })
+                .frame(maxHeight: heightFraction == nil ? screen.height * (isTablet ? 0.86 : 0.92) : nil, alignment: .top)
+                .fixedSize(horizontal: false, vertical: heightFraction == nil)
+                .background(c(ApprovedColor.sheet), in: shape)
+                .overlay {
+                    if isTablet { shape.strokeBorder(c(ApprovedColor.hairline), lineWidth: 1) }
+                    else { shape.stroke(c(ApprovedColor.hairline), lineWidth: 1).mask(alignment: .top) { Rectangle().frame(height: 31) } }
+                }
+                .clipShape(shape)
+                .shadow(color: isTablet ? .black.opacity(0.4) : .clear, radius: 30, y: 24)
                 .accessibilityAddTraits(.isModal)
             }
             .frame(width: screen.width, height: screen.height)
@@ -40,6 +52,42 @@ struct ApprovedSheetOverlay<Content: View>: View {
         }
         .ignoresSafeArea()
         .accessibilityAction(.escape, onDismiss)
+    }
+}
+
+/// `sheetHead`: a 90 pt leading slot, the centred 16 pt bold title, a 90 pt trailing slot; 6/12/10 padding.
+struct L2SheetHeader<Leading: View, Trailing: View>: View {
+    let title: Text
+    @ViewBuilder let leading: () -> Leading
+    @ViewBuilder let trailing: () -> Trailing
+    @Environment(\.colorScheme) private var colorScheme
+    var body: some View {
+        HStack(spacing: 0) {
+            leading().frame(width: 90, alignment: .leading)
+            title.l2Text(16, weight: .bold).foregroundStyle(L2(scheme: colorScheme)(ApprovedColor.ink))
+                .frame(maxWidth: .infinity).multilineTextAlignment(.center).accessibilityAddTraits(.isHeader)
+            trailing().frame(width: 90, alignment: .trailing)
+        }
+        .padding(.top, 6).padding(.horizontal, 12).padding(.bottom, 10)
+    }
+}
+
+/// `textBtn`: accent text, 15 pt (bold when `isBold`), 8/4 padding.
+struct L2TextButton: View {
+    let title: String
+    var isBold = false
+    var isEnabled = true
+    var identifier: String?
+    let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    var body: some View {
+        Button(action: action) {
+            Text(LocalizedStringKey(title)).l2Text(15, weight: isBold ? .bold : .semibold)
+                .foregroundStyle(L2(scheme: colorScheme)(ApprovedColor.selection))
+                .padding(.vertical, 8).padding(.horizontal, 4).frame(minHeight: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).disabled(!isEnabled).opacity(isEnabled ? 1 : 0.4)
+        .accessibilityIdentifier(identifier ?? "")
     }
 }
 
@@ -52,69 +100,65 @@ struct SavedSheetContent: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    /// `saved`: a 52 pt lime circle with the 28 pt check, "Saved as a new photo" (20 pt heading, 6 pt above), "The
+    /// original is unchanged." (14 pt ink2); then Share (primary), Keep editing (line), Choose another photo (plain,
+    /// 44 pt, 15 pt semibold), 10 pt apart, padding 18/20/4.
     var body: some View {
+        let c = L2(scheme: colorScheme)
         VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                ApprovedIconView(icon: .check, size: 30)
-                    .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
-                    .padding(.bottom, 8)
-                Text("Saved as a new photo")
-                    .approvedText(18, weight: .semibold)
-                    .foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("saved.title")
-                Text("The original is unchanged.")
-                    .approvedText(15)
-                    .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-                    .padding(.top, 4).padding(.bottom, 14)
+            VStack(spacing: 6) {
+                ApprovedIconView(icon: .check, size: 28)
+                    .foregroundStyle(c(ApprovedColor.onAccent))
+                    .frame(width: 52, height: 52)
+                    .background(Circle().fill(c(ApprovedColor.accent)))
+                    .accessibilityHidden(true)
+                Text("Saved as a new photo").l2Heading(20).foregroundStyle(c(ApprovedColor.ink))
+                    .padding(.top, 6)
+                    .accessibilityAddTraits(.isHeader).accessibilityIdentifier("saved.title")
+                Text("The original is unchanged.").l2Text(14).foregroundStyle(c(ApprovedColor.inkSecondary))
             }
             .multilineTextAlignment(.center)
-            .padding(.horizontal, 18).padding(.top, 8)
-            VStack(spacing: 8) {
-                Button(action: onShare) {
-                    HStack(spacing: 8) { ApprovedIconView(icon: .share, size: 20); Text("Share") }
-                }
-                .buttonStyle(ApprovedButtonStyle(kind: .primary, fillsWidth: true))
-                .accessibilityIdentifier("saved.share")
+            .padding(.horizontal, 20).padding(.top, 10)
+            VStack(spacing: 10) {
+                Button(action: onShare) { L2Label(title: Text("Share"), icon: .share, iconSize: 20) }
+                    .buttonStyle(L2WideButtonStyle(kind: .primary))
+                    .accessibilityIdentifier("saved.share")
                 Button("Keep editing", action: onKeepEditing)
-                    .buttonStyle(ApprovedButtonStyle(kind: .line, fillsWidth: true))
+                    .buttonStyle(L2WideButtonStyle(kind: .line))
                     .accessibilityIdentifier("saved.keepEditing")
-                Button("Choose another photo", action: onChooseAnother)
-                    .buttonStyle(ApprovedButtonStyle(kind: .quiet, fillsWidth: true))
-                    .accessibilityIdentifier("saved.chooseAnother")
+                Button(action: onChooseAnother) {
+                    Text("Choose another photo").l2Text(15, weight: .semibold).foregroundStyle(c(ApprovedColor.ink))
+                        .frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("saved.chooseAnother")
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 4)
         }
     }
 }
 
-/// `favReplace`: Cancel, "Replace a favourite", one row per favourite with "Replace".
+/// `favReplace`: sheetHead (Cancel · "Replace a favourite"), then one listRow per favourite: name, category, and
+/// "Replace" in bold accent.
 struct ReplaceFavouriteSheetContent: View {
     let model: DevelopPanelModel
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let c = L2(scheme: colorScheme)
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                // `.sheethead` sets 17 pt semibold and `.btn` inherits it.
-                Button("Cancel") { model.isReplaceSheetShown = false }
-                    .buttonStyle(SheetHeadQuietButtonStyle())
-                    .accessibilityIdentifier("replace.cancel")
-                Text("Replace a favourite")
-                    .approvedText(17, weight: .semibold)
-                    .foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
-                    .frame(maxWidth: .infinity)
-                    .accessibilityAddTraits(.isHeader)
-                Color.clear.frame(width: 70, height: 1)
-            }
-            .padding(.leading, 18).padding(.trailing, 8)
-            .frame(minHeight: 44)
-            ForEach(model.favourites.presetIDs, id: \.self) { id in
+            L2SheetHeader(title: Text("Replace a favourite"),
+                          leading: { L2TextButton(title: "Cancel", identifier: "replace.cancel") { model.isReplaceSheetShown = false } },
+                          trailing: { EmptyView() })
+            let ids = model.favourites.presetIDs
+            ForEach(ids.indices, id: \.self) { index in
+                let id = ids[index]
                 if let preset = model.session.library.pack.preset(id: id) {
                     Button { model.replaceFavourite(id) } label: {
-                        ApprovedListRow(title: Text(preset.displayName),
-                                        subtitle: Text(model.session.library.pack.category(id: preset.categoryID)?.name ?? "")) {
-                            Text("Replace").approvedText(15).foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
+                        L2ListRow(title: Text(preset.displayName),
+                                  subtitle: Text(model.session.library.pack.category(id: preset.categoryID)?.name ?? ""),
+                                  isFirst: index == 0) {
+                            Text("Replace").l2Text(14, weight: .bold).foregroundStyle(c(ApprovedColor.selection))
                         }
                     }
                     .buttonStyle(.plain)
@@ -125,14 +169,14 @@ struct ReplaceFavouriteSheetContent: View {
     }
 }
 
-/// `.btn.quiet` inside `.sheethead`: the head's 17 pt semibold, selection colour, 12 pt padding.
+/// Sheet-header text button for the signature sheets until they move to `L2SheetHeader` (Watermark stage).
 struct SheetHeadQuietButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var colorScheme
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .approvedText(17, weight: .semibold)
+            .l2Text(15, weight: .semibold)
             .foregroundStyle(ApprovedColor.selection.resolved(colorScheme))
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 4)
             .frame(minHeight: 44)
             .contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.7 : 1)

@@ -1,89 +1,73 @@
 import SwiftUI
 
-/// The Lightly Labs eight-ray aperture/spark mark.
+/// The Lightly logo (owner choice 2026-10-10, Lightly 2 "spectrum rays"): the eight-ray aperture mark, each ray in
+/// its own colour with a soft glow of that colour.
 ///
-/// Drawn as a vector rather than shipped as a raster so that spec §32 can be
-/// satisfied: the mark must stay legible from 16pt to 1024pt, and stroke weight
-/// must be *optically* corrected rather than mathematically uniform.
-///
-/// Optical corrections applied here:
-/// - Cardinal rays (N/E/S/W) are drawn slightly longer than diagonal rays.
-///   Mathematically equal rays read as *shorter* on the cardinals because the
-///   eye compares them against the square bounding box.
-/// - Stroke weight scales with size but is floored, so the mark does not
-///   disappear into a hairline at favicon dimensions.
+/// Geometry and colours are copied from the approved mockup (`rayEnds`, `SPECTRUM`, `SPARK`, `appIcon('rays')` in
+/// docs/ui/directions/lightly-2-concept/index.html), in its 1024-unit space:
+/// - ray i points at (i·45° − 90°), i.e. clockwise from the top; it runs from radius 118 to radius 352, and the
+///   diagonal rays stop at 0.86 of that;
+/// - each ray is a 38-unit round-capped stroke, over a 64-unit stroke at 75 % opacity blurred by 22 units (the glow);
+/// - `.mark` is the mark alone (`SPARK`, view box 120…904); `.tile` is the app icon: the mark on #050506 with
+///   228-unit corners (`LOGO_TILE`).
 struct BrandMark: View {
-    /// Edge length of the square the mark is drawn into.
+    enum Style { case mark, tile }
+
+    /// Edge length of the square the mark (or tile) is drawn into.
     let size: CGFloat
-    /// Colour of the rays.
-    let tint: Color
-    /// Floor for the stroke weight. The approved design's mark (`mark()` in
-    /// `docs/ui/app/app.js`) floors at 1.6 pt; the legacy screens keep 1.25.
-    var minimumStrokeWidth: CGFloat = 1.25
+    var style: Style = .mark
 
-    /// Fraction of the radius left empty at the centre. The gap is what makes
-    /// the mark read as an aperture rather than an asterisk.
-    private let innerGapRatio: CGFloat = 0.30
-
-    /// Diagonal rays stop short of the cardinals by this fraction, correcting
-    /// the optical illusion that makes equal-length rays look uneven.
-    private let diagonalShortening: CGFloat = 0.86
+    /// `SPECTRUM`, from the top ray clockwise.
+    static let spectrum: [UInt32] = [0x6E5BFF, 0x2F86FF, 0x18C8F0, 0x14C99B, 0xCFF26B, 0xFFC23D, 0xFF5A5F, 0xE447C8]
+    private static let innerRadius: CGFloat = 118
+    private static let outerRadius: CGFloat = 352
+    private static let diagonalShortening: CGFloat = 0.86
+    private static let rayWidth: CGFloat = 38
+    private static let glowWidth: CGFloat = 64
+    private static let glowBlur: CGFloat = 22
+    private static let tileCornerRadius: CGFloat = 228
+    private static let tileFill: UInt32 = 0x050506
 
     var body: some View {
         Canvas { context, canvasSize in
-            let centre = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
-            let radius = min(canvasSize.width, canvasSize.height) / 2
-            let innerRadius = radius * innerGapRatio
+            // `.mark` shows units 120…904 (784 wide); `.tile` the whole 1024.
+            let viewOrigin: CGFloat = style == .mark ? 120 : 0
+            let viewSize: CGFloat = style == .mark ? 784 : 1024
+            let scale = min(canvasSize.width, canvasSize.height) / viewSize
+            func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: (x - viewOrigin) * scale, y: (y - viewOrigin) * scale) }
 
-            var path = Path()
-            for index in 0..<8 {
-                let angle = Angle.degrees(Double(index) * 45)
-                let isCardinal = index.isMultiple(of: 2)
-                let outerRadius = isCardinal ? radius : radius * diagonalShortening
-
-                path.move(to: point(from: centre, angle: angle, distance: innerRadius))
-                path.addLine(to: point(from: centre, angle: angle, distance: outerRadius))
+            if style == .tile {
+                let tile = Path(roundedRect: CGRect(x: 0, y: 0, width: 1024 * scale, height: 1024 * scale),
+                                cornerRadius: Self.tileCornerRadius * scale, style: .circular)
+                context.fill(tile, with: .color(Color(hex: Self.tileFill)))
+                context.clip(to: tile)
             }
-
-            context.stroke(
-                path,
-                with: .color(tint),
-                style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
-            )
+            for index in 0..<8 {
+                let angle = (CGFloat(index) * 45 - 90) * .pi / 180
+                let outer = index.isMultiple(of: 2) ? Self.outerRadius : Self.outerRadius * Self.diagonalShortening
+                var ray = Path()
+                ray.move(to: point(512 + cos(angle) * Self.innerRadius, 512 + sin(angle) * Self.innerRadius))
+                ray.addLine(to: point(512 + cos(angle) * outer, 512 + sin(angle) * outer))
+                let colour = Color(hex: Self.spectrum[index])
+                context.drawLayer { glow in
+                    glow.addFilter(.blur(radius: Self.glowBlur * scale))
+                    glow.opacity = 0.75
+                    glow.stroke(ray, with: .color(colour), style: StrokeStyle(lineWidth: Self.glowWidth * scale, lineCap: .round))
+                }
+                context.stroke(ray, with: .color(colour), style: StrokeStyle(lineWidth: Self.rayWidth * scale, lineCap: .round))
+            }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true) // Decorative; the wordmark carries the label.
     }
-
-    /// Stroke weight as a fraction of size, with a floor so the mark survives at
-    /// favicon and notification sizes (spec §32 size ladder).
-    private var strokeWidth: CGFloat {
-        max(minimumStrokeWidth, size * 0.035)
-    }
-
-    private func point(from centre: CGPoint, angle: Angle, distance: CGFloat) -> CGPoint {
-        CGPoint(
-            x: centre.x + cos(angle.radians) * distance,
-            y: centre.y + sin(angle.radians) * distance
-        )
-    }
 }
 
-#Preview("Size ladder — spec §32") {
-    // Renders the exact ladder the spec requires verifying before the mark is
-    // locked: 16, 24, 32, 40, 60, 120, 1024 (1024 shown scaled for preview).
+#Preview("Lightly 2 mark and tile") {
     VStack(spacing: 24) {
+        BrandMark(size: 112)
         HStack(alignment: .bottom, spacing: 16) {
-            ForEach([16, 24, 32, 40, 60, 120] as [CGFloat], id: \.self) { size in
-                VStack(spacing: 6) {
-                    BrandMark(size: size, tint: .primary)
-                    Text("\(Int(size))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            ForEach([120, 60, 44, 29] as [CGFloat], id: \.self) { BrandMark(size: $0, style: .tile) }
         }
-        BrandMark(size: 200, tint: .primary)
     }
     .padding()
 }

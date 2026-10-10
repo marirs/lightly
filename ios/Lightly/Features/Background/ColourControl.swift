@@ -1,9 +1,13 @@
 import SwiftUI
 import UIKit
 
-/// Shared picker for colours in Border, Watermark and Background. A sheet is one undo step.
+/// The one colour control (Lightly 2 `colourStrip`), identical wherever a colour is chosen (Background, Border,
+/// Watermark): a header row ("Title · Name", and "More colours ›"), then the 24-colour strip, 40 pt tall, a 22 pt
+/// accent ring on the chosen colour. Dragging along the strip previews; lifting commits one undo step. "More colours"
+/// opens the colour sheet (any colour).
 struct ColourControl: View {
     var title = "Colour"
+    /// The current colour, `#RRGGBB`.
     let selected: String
     let photo: CGImage
     var identifier = "colour"
@@ -11,96 +15,225 @@ struct ColourControl: View {
     var previewImage: (() -> CGImage)? = nil
     var cancel: (() -> Void)? = nil
     let choose: (String) -> Void
-    @State private var shown = false
+
+    /// `COLOURS` in the mockup, in strip order.
+    static let colours: [(name: String, hex: String)] = [
+        ("White", "#FFFFFF"), ("Warm white", "#F4F1EC"), ("Light stone", "#D9D4CC"), ("Cool grey", "#C4C9CE"),
+        ("Blue grey", "#9AA3A8"), ("Slate", "#3C4A55"), ("Charcoal", "#1F2328"), ("Black", "#0B0B0C"),
+        ("Cream", "#F3E3C3"), ("Mustard", "#D9A82E"), ("Tan", "#C9A27E"), ("Terracotta", "#C2684A"),
+        ("Rust", "#8A5A44"), ("Blush", "#E8B4B0"), ("Rose", "#B5536B"), ("Plum", "#5B3A6B"),
+        ("Lilac", "#B8A9D9"), ("Sky", "#A9D3EE"), ("Ocean", "#2F6F9F"), ("Navy", "#1E2F4D"),
+        ("Mint", "#BFE3D0"), ("Sage", "#A8B89A"), ("Olive", "#6E6B3A"), ("Forest green", "#4E6B5A"),
+    ]
+
+    @State private var sheetShown = false
+    @State private var dragIndex: Int?
+    @Environment(\.colorScheme) private var scheme
+
+    private var selectedIndex: Int? {
+        Self.colours.firstIndex { $0.hex.caseInsensitiveCompare(selected) == .orderedSame }
+    }
+
     var body: some View {
-        HStack {
-            Text(title).approvedText(15)
-            Spacer()
-            Button { shown = true } label: {
-                HStack(spacing: 8) {
-                    Circle().fill(Color(hex: UInt32(selected.dropFirst(), radix: 16) ?? 0))
-                        .overlay(Circle().stroke(.gray.opacity(0.4), lineWidth: 1)).frame(width: 24, height: 24)
-                    Text("Choose colour").approvedText(14)
-                    Image(systemName: "chevron.right").font(.system(size: 12))
-                }.padding(.horizontal, 12).frame(minHeight: 44)
-                    .background(.quaternary, in: Capsule())
-            }.buttonStyle(.plain).accessibilityValue(selected).accessibilityIdentifier(identifier + ".picker")
-        }.padding(.horizontal, 18).padding(.vertical, 6)
-            .sheet(isPresented: $shown, onDismiss: { cancel?() }) { ColourSheet(title: title, selected: selected, photo: photo, preview: preview, previewImage: previewImage, choose: choose) }
+        let c = L2(scheme: scheme)
+        let shownIndex = dragIndex ?? selectedIndex
+        // A colour from the sheet that is not on the strip is named by its hex value and has no ring.
+        let name = shownIndex.map { Self.colours[$0].name } ?? selected.uppercased()
+        VStack(spacing: 8) {
+            HStack {
+                (Text(LocalizedStringKey(title)) + Text(" · ") + Text(LocalizedStringKey(name)).foregroundColor(c(ApprovedColor.ink)))
+                    .l2Text(13, weight: .semibold)
+                    .foregroundStyle(c(ApprovedColor.inkSecondary))
+                Spacer(minLength: 8)
+                Button { sheetShown = true } label: { L2Label(title: Text("More colours"), icon: .chevron, iconSize: 15, iconTrailing: true) }
+                    .buttonStyle(L2LinkButtonStyle())
+                    .accessibilityIdentifier(identifier + ".more")
+            }
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let segment = width / CGFloat(Self.colours.count)
+                ZStack(alignment: .leading) {
+                    HStack(spacing: 0) {
+                        ForEach(Self.colours.indices, id: \.self) { index in
+                            Rectangle().fill(Color(hex: UInt32(Self.colours[index].hex.dropFirst(), radix: 16) ?? 0))
+                        }
+                    }
+                    .clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
+                    if let shownIndex {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(c(ApprovedColor.selection), lineWidth: 3)
+                            .frame(width: 22, height: 50)
+                            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(c(ApprovedColor.sheet), lineWidth: 2).padding(-1))
+                            .shadow(color: .black.opacity(0.35), radius: 6, y: 4)
+                            .offset(x: segment * (CGFloat(shownIndex) + 0.5) - 11)
+                    }
+                }
+                .frame(height: 40)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let index = min(max(Int(value.location.x / max(segment, 1)), 0), Self.colours.count - 1)
+                        if dragIndex != index { dragIndex = index; preview?(Self.colours[index].hex) }
+                    }
+                    .onEnded { value in
+                        let index = min(max(Int(value.location.x / max(segment, 1)), 0), Self.colours.count - 1)
+                        dragIndex = nil
+                        choose(Self.colours[index].hex)
+                    })
+            }
+            .frame(height: 40)
+            .padding(.horizontal, 2)
+            .accessibilityElement()
+            .accessibilityLabel(Text(LocalizedStringKey(title)))
+            .accessibilityValue(Text(LocalizedStringKey(name)))
+            .accessibilityAdjustableAction { direction in
+                let current = selectedIndex ?? 0
+                let next = min(max(current + (direction == .increment ? 1 : -1), 0), Self.colours.count - 1)
+                choose(Self.colours[next].hex)
+            }
+            .accessibilityIdentifier(identifier + ".strip")
+        }
+        .fullScreenCover(isPresented: $sheetShown, onDismiss: { cancel?() }) {
+            ColourSheet(title: title, selected: selected, photo: photo, preview: preview, previewImage: previewImage,
+                        choose: choose, dismiss: { sheetShown = false })
+                .presentationBackground(.clear)
+        }
+        .transaction { if sheetShown { $0.disablesAnimations = false } }
     }
 }
 
+/// `colourSheet`: the sheet behind "More colours", the same from every colour control. sheetHead (Cancel · title ·
+/// Done), the live preview (170 pt phone / 200 pt tablet, 18 pt corners, stage fill), "From your photo", "Paper & ink",
+/// "Earth" (five 40 pt swatches each, 12 pt corners, 9 pt gaps, lime check on the chosen one), the Custom row (picker,
+/// hex field, Pick from photo) and "Recent".
 struct ColourSheet: View {
     let title: String
     let photo: CGImage
     let choose: (String) -> Void
     let preview: ((String) -> Void)?
     let previewImage: (() -> CGImage)?
-    @Environment(\.dismiss) private var dismiss
+    let dismiss: () -> Void
     @AppStorage("lightly.recentColours") private var recent = "#FFFFFF,#111111,#F4F1EC"
     @State private var hex: String
     @State private var sampling = false
     @State private var palette: [String] = []
-    init(title: String, selected: String, photo: CGImage, preview: ((String) -> Void)?, previewImage: (() -> CGImage)?, choose: @escaping (String) -> Void) {
-        self.title = title; self.photo = photo; self.preview = preview; self.previewImage = previewImage; self.choose = choose; _hex = State(initialValue: selected)
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    init(title: String, selected: String, photo: CGImage, preview: ((String) -> Void)?, previewImage: (() -> CGImage)?,
+         choose: @escaping (String) -> Void, dismiss: @escaping () -> Void) {
+        self.title = title; self.photo = photo; self.preview = preview; self.previewImage = previewImage
+        self.choose = choose; self.dismiss = dismiss
+        _hex = State(initialValue: selected.uppercased())
     }
+
     private var valid: Bool { hex.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil }
+    private var isTablet: Bool { sizeClass == .regular }
+
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if !sampling {
-                        Image(decorative: previewImage?() ?? photo, scale: 1).resizable().scaledToFit()
-                            .frame(maxWidth: .infinity).frame(height: 180)
+        let c = L2(scheme: scheme)
+        ApprovedSheetOverlay(isTablet: isTablet, heightFraction: isTablet ? 0.92 : 0.9, onDismiss: dismiss) {
+            L2SheetHeader(title: Text(LocalizedStringKey(title)),
+                          leading: { L2TextButton(title: "Cancel", identifier: "colour.cancel", action: dismiss) },
+                          trailing: { L2TextButton(title: "Done", isBold: true, isEnabled: valid, identifier: "colour.done", action: done) })
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous).fill(c(ApprovedColor.canvas))
+                        Image(decorative: sampling ? photo : (previewImage?() ?? photo), scale: 1)
+                            .resizable().scaledToFit().padding(8)
+                            .overlay {
+                                if sampling {
+                                    GeometryReader { geo in
+                                        Color.clear.contentShape(Rectangle()).gesture(SpatialTapGesture().onEnded { tap in
+                                            hex = PhotoColours.sample(photo, x: tap.location.x / geo.size.width, y: tap.location.y / geo.size.height)
+                                            sampling = false
+                                        })
+                                    }
+                                }
+                            }
+                            .accessibilityLabel(Text(sampling ? "Tap a colour in the photo." : "Preview"))
                     }
-                    if sampling {
-                        Image(decorative: photo, scale: 1).resizable().scaledToFit()
-                            .overlay { GeometryReader { geo in Color.clear.contentShape(Rectangle()).gesture(SpatialTapGesture().onEnded { tap in
-                                hex = PhotoColours.sample(photo, x: tap.location.x / geo.size.width, y: tap.location.y / geo.size.height)
-                                sampling = false
-                            }) } }.accessibilityLabel("Tap a colour in the photo")
-                        Text("Tap a colour in the photo.").font(.footnote)
-                    }
-                    section("From your photo", colours: palette)
-                    Text("Palettes").font(.subheadline).foregroundStyle(.secondary)
-                    section("Paper & ink", colours: ["#FFFFFF", "#ECE8DF", "#D4C9B5", "#9C9284", "#242423"])
-                    section("Earth", colours: ["#DFC7AE", "#B98767", "#914E3E", "#66775D", "#334538"])
-                    HStack {
-                        ColorPicker("Custom", selection: Binding(get: { Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0) }, set: { value in
-                            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-                            UIColor(value).getRed(&r, green: &g, blue: &b, alpha: &a)
-                            hex = String(format: "#%02X%02X%02X", Int((r*255).rounded()), Int((g*255).rounded()), Int((b*255).rounded()))
-                        }), supportsOpacity: false)
-                        TextField("#RRGGBB", text: $hex).textInputAutocapitalization(.characters).autocorrectionDisabled()
-                            .font(.system(.body, design: .monospaced)).frame(width: 105).textFieldStyle(.roundedBorder)
-                            .accessibilityLabel("Hex colour")
-                        Button { sampling.toggle() } label: { Image(systemName: "eyedropper").frame(width: 44, height: 44) }.accessibilityLabel("Pick from photo")
-                    }
-                    section("Recent", colours: recent.split(separator: ",").map(String.init))
-                }.padding(20)
-            }.navigationTitle(title).navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                    ToolbarItem(placement: .confirmationAction) { Button("Done") {
-                        let colour = hex.uppercased()
-                        recent = ([colour] + recent.split(separator: ",").map(String.init).filter { $0 != colour }).prefix(8).joined(separator: ",")
-                        choose(colour); dismiss()
-                    }.disabled(!valid) }
+                    .frame(height: isTablet ? 200 : 170)
+                    if sampling { L2Note(text: Text("Tap a colour in the photo.")) }
+                    section("From your photo", palette)
+                    section("Paper & ink", ["#FFFFFF", "#ECE8DF", "#D4C9B5", "#9C9284", "#242423"])
+                    section("Earth", ["#DFC7AE", "#B98767", "#914E3E", "#66775D", "#334538"])
+                    customRow
+                    section("Recent", recent.split(separator: ",").map(String.init), fixedWidth: true)
                 }
-        }.task { palette = PhotoColours.palette(photo) }
-            .onChange(of: hex) { _, value in if valid { preview?(value.uppercased()) } }
-    }
-    private func section(_ name: String, colours: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(name).font(.subheadline).foregroundStyle(.secondary)
-            HStack(spacing: 9) {
-                ForEach(colours, id: \.self) { c in Button { hex = c } label: {
-                    RoundedRectangle(cornerRadius: 8).fill(Color(hex: UInt32(c.dropFirst(), radix: 16) ?? 0))
-                        .frame(height: 40).overlay(RoundedRectangle(cornerRadius: 8).stroke(.gray.opacity(0.4)))
-                        .overlay { if hex.uppercased() == c.uppercased() { Image(systemName: "checkmark.circle.fill").foregroundStyle(.white, .black) } }
-                }.buttonStyle(.plain).accessibilityLabel("Colour " + c).accessibilityAddTraits(hex == c ? .isSelected : []) }
+                .padding(.horizontal, 18).padding(.bottom, 12)
             }
         }
+        .task { palette = PhotoColours.palette(photo) }
+        .onChange(of: hex) { _, value in if valid { preview?(value.uppercased()) } }
+    }
+
+    private var customRow: some View {
+        let c = L2(scheme: scheme)
+        return HStack(spacing: 10) {
+            ColorPicker(selection: Binding(get: { Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0) }, set: { value in
+                var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                UIColor(value).getRed(&r, green: &g, blue: &b, alpha: &a)
+                hex = String(format: "#%02X%02X%02X", Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
+            }), supportsOpacity: false) { EmptyView() }
+                .labelsHidden()
+                .frame(width: 40, height: 40)
+                // The mockup's swatch: a 40 pt conic-gradient circle; the system well stays underneath to take the tap.
+                .overlay {
+                    Circle().fill(AngularGradient(colors: [0xFF4444, 0xFFDD44, 0x44FF88, 0x44DDFF, 0x8844FF, 0xFF44CC, 0xFF4444].map { Color(hex: $0) },
+                                                  center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)))
+                        .allowsHitTesting(false)
+                }
+                .accessibilityLabel(Text("Custom"))
+            Text("Custom").l2Text(14, weight: .semibold).foregroundStyle(c(ApprovedColor.ink))
+            Spacer(minLength: 0)
+            TextField("#RRGGBB", text: $hex)
+                .textInputAutocapitalization(.characters).autocorrectionDisabled()
+                .font(.system(size: 14, design: .monospaced))
+                .padding(.horizontal, 10)
+                .frame(width: 96, height: 38)
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
+                .accessibilityLabel(Text("Hex colour"))
+            L2IconButton(icon: .dropper, label: Text("Pick from photo"), identifier: "colour.pick") { sampling.toggle() }
+        }
+    }
+
+    private func section(_ name: String, _ colours: [String], fixedWidth: Bool = false) -> some View {
+        let c = L2(scheme: scheme)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(LocalizedStringKey(name)).l2Text(12, weight: .bold).foregroundStyle(c(ApprovedColor.inkSecondary))
+                .padding(.top, 4)
+            HStack(spacing: 9) {
+                ForEach(colours, id: \.self) { colour in
+                    let isOn = hex.caseInsensitiveCompare(colour) == .orderedSame
+                    Button { hex = colour.uppercased() } label: {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(hex: UInt32(colour.dropFirst(), radix: 16) ?? 0))
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
+                            .overlay(alignment: .topTrailing) {
+                                if isOn {
+                                    ApprovedIconView(icon: .check, size: 10).foregroundStyle(c(ApprovedColor.onAccent))
+                                        .frame(width: 16, height: 16).background(Circle().fill(c(ApprovedColor.accent))).padding(4)
+                                }
+                            }
+                            .frame(width: fixedWidth ? 40 : nil, height: 40)
+                            .frame(maxWidth: fixedWidth ? nil : .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Colour \(colour)"))
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    private func done() {
+        let colour = hex.uppercased()
+        recent = ([colour] + recent.split(separator: ",").map(String.init).filter { $0 != colour }).prefix(8).joined(separator: ",")
+        choose(colour)
+        dismiss()
     }
 }
 

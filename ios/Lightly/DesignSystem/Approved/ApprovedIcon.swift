@@ -5,16 +5,13 @@ import SwiftUI
 ///
 /// Drawn natively from the same path data rather than substituted with SF Symbols, whose shapes
 /// and weights differ visibly at these sizes.
+/// The approved Lightly 2 line icons, copied from the mockup's own 24-unit SVG geometry (`IC` and `ic()` in
+/// docs/ui/directions/lightly-2-concept/index.html): 1.9-unit round strokes that scale with the icon.
+///
+/// Drawn natively from the same path data rather than substituted with SF Symbols, whose shapes
+/// and weights differ visibly at these sizes.
 enum ApprovedIcon: String, CaseIterable, Sendable {
-    case more, close, back, chevron, photo, camera, grip, trash, check
-    // Editor (slice 2): top bar, tool navigation, Develop and the save sheets.
-    case undo, redo, compare, develop, background, portrait, edit, effects, watermark, border, star, info, warn, share
-    // Background (slice 3): refine brush, add, bokeh shapes.
-    case brush, erase, plus, circle, hex, heart, starShape
-    /// Effects › Selective Colour (reference: docs/ui/proposals/selective-colour at 330cf5b; status in its README): eyedropper.
-    case picker
-    // Edit (slice 4): Rotate left/right, Flip horizontal/vertical.
-    case rotl, rotr, fliph, flipv
+    case close, back, undo, redo, chevron, check, star, develop, background, portrait, edit, effects, watermark, border, photo, camera, brush, erase, info, warn, share, plus, eye, rotl, rotr, fliph, flipv, grip, trash, search, flash, circle, hex, heart, starShape, reset, wand, pencil, dropper, flip, ellipsis, mail, picker, more, compare
 
     /// One drawing primitive in the 24×24 view box.
     enum Element: Sendable {
@@ -22,87 +19,108 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
         /// `fill="currentColor" stroke="none"` (the filled half of Compare).
         case filledPath(String)
         case rect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, cornerRadius: CGFloat)
-        case circle(cx: CGFloat, cy: CGFloat, r: CGFloat, filled: Bool)
+        case circle(cx: CGFloat, cy: CGFloat, r: CGFloat, filled: Bool, strokeWidth: CGFloat = ApprovedIcon.strokeWidth)
     }
 
     static let viewBox: CGFloat = 24
-    static let strokeWidth: CGFloat = 1.6
+    /// `stroke-width="1.9"` in `ic()`.
+    static let strokeWidth: CGFloat = 1.9
 
     var elements: [Element] {
         switch self {
+        // `ic('more')`: three filled dots, r 1.8.
         case .more:
-            [.circle(cx: 12, cy: 5.5, r: 1.3, filled: true), .circle(cx: 12, cy: 12, r: 1.3, filled: true), .circle(cx: 12, cy: 18.5, r: 1.3, filled: true)]
+            [.circle(cx: 12, cy: 5, r: 1.8, filled: true), .circle(cx: 12, cy: 12, r: 1.8, filled: true), .circle(cx: 12, cy: 19, r: 1.8, filled: true)]
+        // `ic('compare')`: a 2-unit ring, r 8, its right half filled.
+        case .compare:
+            [.circle(cx: 12, cy: 12, r: 8, filled: false, strokeWidth: 2), .filledPath("M12 4a8 8 0 010 16z")]
+        // `ic('ellipsis')` draws its dots with a 3.2-unit stroke.
+        case .ellipsis:
+            [.path("M5 12h.01M12 12h.01M19 12h.01", strokeWidth: 3.2)]
         case .close:
             [.path("M6 6l12 12M18 6L6 18")]
         case .back:
             [.path("M15 5l-7 7 7 7")]
-        case .chevron:
-            [.path("M9 5l7 7-7 7")]
-        case .photo:
-            [.rect(x: 3.5, y: 4.5, width: 17, height: 15, cornerRadius: 2.5), .circle(cx: 9, cy: 10, r: 1.8, filled: false), .path("M4 17l4.5-4.5 4 4 2.5-2.5 5 5")]
-        case .camera:
-            [.path("M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"), .circle(cx: 12, cy: 12.5, r: 3.4, filled: false)]
-        case .grip:
-            [.path("M8 7h.01M8 12h.01M8 17h.01M16 7h.01M16 12h.01M16 17h.01", strokeWidth: 3)]
-        case .trash:
-            [.path("M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13")]
-        case .check:
-            [.path("M5 12.5l4.5 4.5L19 7.5")]
         case .undo:
-            [.path("M9 7H5V3"), .path("M5.5 7.5A8 8 0 1 1 4 13")]
+            [.path("M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3")]
         case .redo:
-            [.path("M15 7h4V3"), .path("M18.5 7.5A8 8 0 1 0 20 13")]
-        case .compare:
-            [.rect(x: 4.5, y: 4.5, width: 15, height: 15, cornerRadius: 2.5), .path("M12 4.5v15"),
-             .filledPath("M12 4.5h5a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5h-5z")]
-        case .develop:
-            [.path("M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1")]
-        case .background:
-            [.rect(x: 3.5, y: 5, width: 17, height: 14, cornerRadius: 2.5), .circle(cx: 12, cy: 11, r: 2.6, filled: false),
-             .path("M7 19c.8-2.6 2.8-4 5-4s4.2 1.4 5 4")]
-        case .portrait:
-            [.circle(cx: 12, cy: 8.5, r: 3.6, filled: false), .path("M5 20c1.2-3.8 4-5.6 7-5.6s5.8 1.8 7 5.6")]
-        case .edit:
-            [.path("M5 7h9M18 7h1M5 17h1M10 17h9"), .circle(cx: 16, cy: 7, r: 2, filled: false), .circle(cx: 8, cy: 17, r: 2, filled: false)]
-        case .effects:
-            [.path("M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z")]
-        case .watermark:
-            [.path("M4 17c2.5-4 4.5-9 7-9 1.6 0 1 4 2.6 4 1.3 0 1.7-2 3-2 1 0 1.6 1 3.4 2"), .path("M4 20h16")]
-        case .border:
-            [.rect(x: 3.5, y: 3.5, width: 17, height: 17, cornerRadius: 1.5), .rect(x: 7, y: 7, width: 10, height: 8, cornerRadius: 0.5)]
+            [.path("M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3")]
+        case .chevron:
+            [.path("M9 6l6 6-6 6")]
+        case .check:
+            [.path("M5 12l5 5 9-10")]
         case .star:
-            [.path("M12 4.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 9.8l5-.7z")]
-        case .info:
-            [.circle(cx: 12, cy: 12, r: 8.5, filled: false), .path("M12 11v5M12 8v.5")]
-        case .warn:
-            [.path("M12 4l9 16H3z"), .path("M12 10v4M12 17v.5")]
+            [.path("M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z")]
+        case .develop:
+            [.path("M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18")]
+        case .background:
+            [.path("M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM12 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM7.5 20c.8-3 2.4-4.5 4.5-4.5s3.7 1.5 4.5 4.5")]
+        case .portrait:
+            [.path("M12 4.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7zM5 20c1-4 3.6-6 7-6s6 2 7 6")]
+        case .edit:
+            [.path("M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4")]
+        case .effects:
+            [.path("M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z")]
+        case .watermark:
+            [.path("M3 17c3 0 4-9 6-9s1 8 3 8 2-5 4-5 2 3 5 3")]
+        case .border:
+            [.path("M4 4h16v16H4zM8 8h8v8H8z")]
+        case .photo:
+            [.path("M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM9 8.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6zM21 16l-5-5-9 9")]
+        case .camera:
+            [.path("M4 8h3l2-3h6l2 3h3v11H4zM12 9.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z")]
         case .brush:
-            [.path("M14.5 4.5l5 5-8 8H6.5v-5z"), .path("M4 20h7")]
+            [.path("M14 4l6 6-8 8H6v-6z")]
         case .erase:
-            [.path("M8 20h12M5.5 14.5l7-7 5 5-5.5 5.5H9z")]
+            [.path("M7 20h10M4 14l8-8 6 6-6 6H8z")]
+        case .info:
+            [.path("M12 3a9 9 0 100 18 9 9 0 000-18zM12 11v5M12 8h.01")]
+        case .warn:
+            [.path("M12 3l10 18H2zM12 10v5M12 18h.01")]
+        case .share:
+            [.path("M12 15V4M7 9l5-5 5 5M5 14v6h14v-6")]
         case .plus:
             [.path("M12 5v14M5 12h14")]
-        case .picker:
-            [.path("M14.6 4.6A2.6 2.6 0 0 1 18.3 4.6L19.4 5.7A2.6 2.6 0 0 1 19.4 9.4L17.2 11.6L12.4 6.8Z"),
-             .path("M11.2 7.6l5.2 5.2"), .path("M13.6 10.2L6.4 17.4L5 20L7.6 18.6L14.8 11.4")]
+        case .eye:
+            [.path("M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z")]
         case .rotl:
-            [.path("M4 4v5h5"), .path("M4.5 9A8 8 0 1 1 6 16")]
+            [.path("M4 8v5h5M5 13a8 8 0 112 5")]
         case .rotr:
-            [.path("M20 4v5h-5"), .path("M19.5 9A8 8 0 1 0 18 16")]
+            [.path("M20 8v5h-5M19 13a8 8 0 11-2 5")]
         case .fliph:
-            [.path("M12 3v18"), .path("M9 7L4 12l5 5z"), .path("M15 7l5 5-5 5z")]
+            [.path("M12 3v18M8 7L4 12l4 5zM16 7l4 5-4 5z")]
         case .flipv:
-            [.path("M3 12h18"), .path("M7 9l5-5 5 5z"), .path("M7 15l5 5 5-5z")]
+            [.path("M3 12h18M7 8l5-4 5 4zM7 16l5 4 5-4z")]
+        case .grip:
+            [.path("M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01")]
+        case .trash:
+            [.path("M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3")]
+        case .search:
+            [.path("M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4")]
+        case .flash:
+            [.path("M13 2L5 14h6l-1 8 8-12h-6z")]
         case .circle:
-            [.circle(cx: 12, cy: 12, r: 7, filled: false)]
+            [.path("M12 4a8 8 0 100 16 8 8 0 000-16z")]
         case .hex:
-            [.path("M12 4.5l6.5 3.75v7.5L12 19.5l-6.5-3.75v-7.5z")]
+            [.path("M12 3l8 4.5v9L12 21l-8-4.5v-9z")]
         case .heart:
-            [.path("M12 19s-7-4.4-7-9.5A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7 2.5C19 14.6 12 19 12 19z")]
+            [.path("M12 20s-8-5-8-11a4.5 4.5 0 018-2.8A4.5 4.5 0 0120 9c0 6-8 11-8 11z")]
         case .starShape:
-            [.path("M12 5l2 4.6 5 .4-3.8 3.3 1.2 4.9L12 15.6 7.6 18.2l1.2-4.9L5 10l5-.4z")]
-        case .share:
-            [.path("M12 3v12M7.5 7.5 12 3l4.5 4.5"), .path("M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12")]
+            [.path("M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z")]
+        case .reset:
+            [.path("M4 4v6h6M5.5 15a8 8 0 102-8.5L4 10")]
+        case .wand:
+            [.path("M4 20L15 9M14 4v3M18.5 5.5l-2 2M20 10h-3M9 4.5l1 1.5M17 14l1 1.5")]
+        case .pencil:
+            [.path("M4 20h4L19 9l-4-4L4 16zM13 7l4 4")]
+        case .dropper:
+            [.path("M14 5l5 5M12 7l5 5-8 8H4v-5zM16 3l5 5-2 2-5-5z")]
+        case .flip:
+            [.path("M4 8h12l-3-3M20 16H8l3 3")]
+        case .mail:
+            [.path("M3 6h18v12H3zM3 7l9 6 9-6")]
+        case .picker:
+            [.path("M12 3a9 9 0 100 18 9 9 0 000-18zM12 8v8M8 12h8")]
         }
     }
 }
@@ -129,12 +147,12 @@ struct ApprovedIconView: View {
                 case .rect(let x, let y, let width, let height, let radius):
                     let rect = Path(roundedRect: CGRect(x: x, y: y, width: width, height: height), cornerRadius: radius)
                     context.stroke(rect.applying(transform), with: .foreground, style: Self.style(ApprovedIcon.strokeWidth * scale))
-                case .circle(let cx, let cy, let r, let filled):
+                case .circle(let cx, let cy, let r, let filled, let width):
                     let circle = Path(ellipseIn: CGRect(x: cx - r, y: cy - r, width: 2 * r, height: 2 * r)).applying(transform)
                     if filled {
                         context.fill(circle, with: .foreground)
                     } else {
-                        context.stroke(circle, with: .foreground, style: Self.style(ApprovedIcon.strokeWidth * scale))
+                        context.stroke(circle, with: .foreground, style: Self.style(width * scale))
                     }
                 }
             }
@@ -148,8 +166,8 @@ struct ApprovedIconView: View {
     }
 }
 
-/// Parses the subset of SVG path data the prototype's icons use: M, L, H, V, C, S, A and Z, absolute
-/// and relative, with implicit command repetition and compact numbers ("4.5-4.5", ".01").
+/// Parses the subset of SVG path data the mockup's icons use: M, L, H, V, C, S, A and Z, absolute
+/// and relative, with implicit command repetition, compact numbers ("4.5-4.5", ".01") and compact arc flags ("0 012 2").
 enum SVGPathParser {
 
     static func path(_ data: String) -> Path {
@@ -213,12 +231,14 @@ enum SVGPathParser {
                 current = end
                 previousControl = control2
             case "A":
+                // The two arc flags are single digits that may run into the next number ("a6 6 0 010 12" is
+                // flags 0 and 1, then x 0): read them one character each, as SVG specifies.
                 guard let rx = scanner.number(), let ry = scanner.number(), let rotation = scanner.number(),
-                      let largeArc = scanner.number(), let sweep = scanner.number(),
+                      let largeArc = scanner.flag(), let sweep = scanner.flag(),
                       let x = scanner.number(), let y = scanner.number() else { return path }
                 let end = CGPoint(x: origin.x + x, y: origin.y + y)
                 addArc(to: &path, from: current, to: end, radii: CGSize(width: rx, height: ry),
-                       rotationDegrees: rotation, largeArc: largeArc != 0, sweep: sweep != 0)
+                       rotationDegrees: rotation, largeArc: largeArc, sweep: sweep)
                 current = end
             default:
                 return path
@@ -298,6 +318,14 @@ enum SVGPathParser {
                 return .command(character)
             }
             return number().map(Token.number)
+        }
+
+        /// An arc flag: exactly one "0" or "1".
+        mutating func flag() -> Bool? {
+            skipSeparators()
+            guard index < characters.count, characters[index] == "0" || characters[index] == "1" else { return nil }
+            defer { index += 1 }
+            return characters[index] == "1"
         }
 
         mutating func number() -> CGFloat? {
