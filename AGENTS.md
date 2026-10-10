@@ -6,7 +6,8 @@ Read `/Users/sg/.codex/RTK.md` and follow the workspace hygiene instructions sup
 
 The user explicitly requires **NO UX DEVIATIONS**. This applies to every implementation and every review, on iOS and Android and any later desktop implementation.
 
-- The approved design in `docs/ui/app/` is the source of truth. Earlier explorations in `docs/ui/directions/` are not the target. Read `docs/ui/REVIEW-RULES.md` before every review.
+- **Source of truth (owner, 2026-10-10): the Lightly 2 design, `docs/ui/directions/lightly-2-concept/index.html`** (served locally at `http://localhost:8765/docs/ui/directions/lightly-2-concept/index.html`). It supersedes `docs/ui/app/` and every other file in `docs/ui/directions/`, which are history only. Preserve the mockup and its `assets/` unchanged; never edit them to match an implementation. Read `docs/ui/REVIEW-RULES.md` before every review.
+- Lightly 2 rules that apply on every screen: on phones the tool panel is one fixed height for every tool and state, and its contents scroll (the photo never moves); the expanded preset gallery overlays the photo without squeezing it; unfolded foldables and iPhone Duo use two panes; landscape iPad uses its own three-column layout; every colour choice uses the same 24-colour strip plus "More colours"; implement on iOS and Android, light and dark.
 - Match the approved appearance, screen flow, controls, copy, hierarchy, interactions, conditional states, and device-specific layouts exactly. Do not redesign, simplify, substitute, or introduce unapproved alternatives.
 - A deviation requires explicit user approval. Engineering convenience, native defaults, passing tests, or reviewer preference do not authorize it.
 - Never alter the approved mockups or re-record reference baselines to make a divergent implementation pass review.

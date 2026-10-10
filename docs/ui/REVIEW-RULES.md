@@ -4,7 +4,7 @@ User directive, 2026-10-03: “the UX is exactly what was created NO DEVIATIONS 
 
 ## Acceptance baseline
 
-Use the approved `docs/ui/app/` prototype, the fixed preset catalogue, and `docs/v1/implementation-checklist.md`. The canonical relocation was committed at `0352972`; retain the approved design and incorporate only subsequent changes explicitly approved by the user. Implementation changes never constitute design approval.
+Since 2026-10-10 the approved design is the Lightly 2 mockup, `docs/ui/directions/lightly-2-concept/index.html` with its `assets/`, served locally at `http://localhost:8765/docs/ui/directions/lightly-2-concept/index.html`. It supersedes the `docs/ui/app/` prototype (commit `0352972`), which is now history only. Use it with the fixed preset catalogue, choose the matching device (iPhone, Android, Android foldable, iPhone Duo, iPad landscape) and theme in its bar, and compare like for like. Incorporate only later changes the user explicitly approves. Implementation changes never constitute design approval, and the mockup is never edited to match an implementation.
 
 ## Every review
 
