@@ -288,7 +288,8 @@ final class CameraPreviewController: UIViewController {
     @objc private func focusAtTap(_ gesture: UITapGestureRecognizer) {
         let point = gesture.location(in: view)
         guard preview.frame.contains(point), overlay.hitTest(point, with: nil) == nil else { return }
-        engine.focus(at: preview.captureDevicePointConverted(fromLayerPoint: point))
+        let localPoint = CGPoint(x: point.x - preview.frame.minX, y: point.y - preview.frame.minY)
+        engine.focus(at: preview.captureDevicePointConverted(fromLayerPoint: localPoint))
     }
 }
 
