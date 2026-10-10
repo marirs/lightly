@@ -1,5 +1,9 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.ui.focus.focusRequester
+
+import androidx.compose.foundation.layout.imePadding
+
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -71,17 +75,23 @@ import com.lightlylabs.lightly.signatures.SavedSignature
 
 /** Prototype `watermarkPanel`: None, Signature, Text, Logo with the approved controls and copy verbatim. */
 @Composable
-fun WatermarkPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth()) {
-    if (roomy) PanelTitle("Watermark")
+fun WatermarkPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Lightly 2 `watermarkPanel`, a 6 dp column: the tabs; with a watermark, the reset row and "Drag the watermark on the
+    // photo to place it."; then the type's controls.
     val recipe = ui.session?.current ?: return@Column
     val w = recipe.tools.watermark
     val saved by vm.signatures.collectAsStateWithLifecycle()
     val tab = vm.watermarkTab(ui)
     OptionTabs(WatermarkOptions.TABS, tab, vm::chooseWatermark, tagPrefix = "watermark-tab")
-    ResetRow(vm, "watermark", "Watermark")
+    if (tab != WatermarkType.NONE) {
+        ResetRow(vm, "watermark", "Watermark")
+        PanelNote("Drag the watermark on the photo to place it.")
+    }
     val hasBorder = recipe.tools.border.type != BorderType.NONE
     when (tab) {
         WatermarkType.NONE -> PanelNote("No watermark. Choose Signature, Text or Logo to add one.")
+        // The signature row (8 dp gaps): the drawn signature (50 dp card, at least 112 dp), its ⋯ menu, the imported
+        // signature, Clear, + Draw and Import; then the note, Size, Opacity and the colour strip (drawn signatures).
         WatermarkType.SIGNATURE -> {
             val chosen = if (w.type == WatermarkType.SIGNATURE) w.signature?.kind else null
             ChipRow {
@@ -89,31 +99,33 @@ fun WatermarkPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Col
                     SignatureChip(s, chosen == SignatureKind.DRAWN, vm) { vm.chooseSignature(SignatureKind.DRAWN) }
                     SavedDrawingMenu(vm)
                 }
-                if (chosen != null) QuietSmallButton("Clear", vm::clearSignature, Modifier.testTagResource("watermark-signature-clear"))
                 saved.imported?.let { s -> SignatureChip(s, chosen == SignatureKind.IMPORTED, vm) { vm.chooseSignature(SignatureKind.IMPORTED) } }
-                OptChip(false, "Draw", vm::openDrawSignature, tag = "watermark-draw") { ChipLabel(LightlyIcons.Plus, "Draw") }
-                OptChip(false, "Import", { vm.onChooseSignaturePhoto() }, tag = "watermark-import") { ChipLabel(LightlyIcons.Photo, "Import") }
+                if (chosen != null) QuietSmallButton("Clear", vm::clearSignature, Modifier.testTagResource("watermark-signature-clear"), height = 50.dp)
+                OptChip(false, "Draw", vm::openDrawSignature, tag = "watermark-draw", card = true, minWidth = 50.dp) { ChipLabel(LightlyIcons.Plus, "Draw") }
+                OptChip(false, "Import", { vm.onChooseSignaturePhoto() }, tag = "watermark-import", card = true, minWidth = 50.dp) { ChipLabel(LightlyIcons.Photo, "Import") }
             }
             val drawnKind = (w.signature?.kind ?: SignatureKind.DRAWN) == SignatureKind.DRAWN
             PanelNote("Saved signatures keep their own look. " + if (drawnKind) "You can change the ink colour of a drawn signature." else "An imported signature keeps its own ink.")
             CommonControls(vm, ui, hasBorder, colours = drawnKind)
         }
+        // The text field (46 dp, 16 dp corners, chip fill, hairline, 16 sp text and the pencil), the six fonts, Size,
+        // Opacity and the colour strip.
         WatermarkType.TEXT -> {
             val current = w.text ?: com.lightlylabs.lightly.session.WatermarkText(WatermarkOptions.DEFAULT_TEXT, WatermarkFont.ALLURA)
             TextRow(current.text, vm::setWatermarkText)
             ChipRow { WatermarkOptions.FONTS.forEach { (font, name) -> FontOption(current.text, font, name, current.font == font, vm) { vm.chooseFont(font) } } }
             CommonControls(vm, ui, hasBorder, colours = true)
         }
+        // The current logo (50 dp, 16 dp padding and corners, 2 dp accent border; not a button) and Replace logo.
         WatermarkType.LOGO -> {
             ChipRow {
-                // `span.opt.on`: the current logo (not a button), in the selection colour.
-                val shape = RoundedCornerShape(10.dp)
+                val shape = RoundedCornerShape(16.dp)
                 Box(
-                    Modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).clip(shape).background(lightlyColors.selSoft).border(1.dp, lightlyColors.sel, shape)
-                        .semantics { contentDescription = "Current logo" }.padding(horizontal = 13.dp),
+                    Modifier.heightIn(min = 50.dp).border(2.dp, lightlyColors.sel, shape)
+                        .semantics { contentDescription = "Current logo" }.padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center,
-                ) { LogoGlyph(vm, w.logo?.image, 26.dp, lightlyColors.sel) }
-                OptChip(false, "Replace logo", { vm.onChooseLogo() }, tag = "watermark-replace-logo") { ChipLabel(LightlyIcons.Photo, "Replace logo") }
+                ) { LogoGlyph(vm, w.logo?.image, 26.dp, lightlyColors.ink) }
+                QuietSmallButton("Replace logo", { vm.onChooseLogo() }, Modifier.testTagResource("watermark-replace-logo"), icon = LightlyIcons.Photo, height = 50.dp)
             }
             CommonControls(vm, ui, hasBorder, colours = false)
         }
@@ -122,17 +134,16 @@ fun WatermarkPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Col
 
 @Composable
 private fun ChipLabel(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
-    LightlyIcon(icon, size = 18.dp, tint = lightlyColors.ink2)
-    Text(label, style = lightlyTextStyle(color = lightlyColors.ink2), maxLines = 1)
+    LightlyIcon(icon, size = 16.dp, tint = lightlyColors.ink)
+    Text(label, style = com.lightlylabs.lightly.shell.l2TextStyle(13.sp, FontWeight.SemiBold, lightlyColors.ink), maxLines = 1)
 }
 
-/** `.opt` with `min-width:120px` holding a saved signature 26 dp tall (`currentColor`: ink-2, or the selection colour when chosen). */
+/** A saved signature card: 50 dp, at least 112 dp, the signature 24 dp tall in ink; a 2 dp accent border when chosen. */
 @Composable
 private fun SignatureChip(signature: SavedSignature, on: Boolean, vm: EditorViewModel, onClick: () -> Unit) {
-    OptChip(on, if (signature.kind == SignatureKind.DRAWN) "Drawn signature" else "Imported signature", onClick, tag = "watermark-signature-${signature.kind.name.lowercase()}") {
-        Box(Modifier.widthIn(min = 120.dp - 26.dp), contentAlignment = Alignment.Center) {
-            SignatureGlyph(vm, signature, 26.dp, if (on) lightlyColors.sel else lightlyColors.ink2)
-        }
+    OptChip(on, if (signature.kind == SignatureKind.DRAWN) "Drawn signature" else "Imported signature", onClick,
+        tag = "watermark-signature-${signature.kind.name.lowercase()}", card = true, minWidth = 112.dp) {
+        SignatureGlyph(vm, signature, 24.dp, lightlyColors.ink)
     }
 }
 
@@ -169,47 +180,66 @@ fun LogoGlyph(vm: EditorViewModel, logo: com.lightlylabs.lightly.session.AssetRe
     }
 }
 
-/** `.listrow` (border 0): "Text" in ink-2 and the text itself at the end in ink, editable in place. */
+/** The text field: 46 dp, 16 dp corners, chip fill, hairline, the text at 16 sp and the pencil; it opens "Watermark text". */
 @Composable
 private fun TextRow(value: String, onCommit: (String) -> Unit) {
-    var edited by remember { mutableStateOf(value) }
     var editing by remember { mutableStateOf(false) }
-    androidx.compose.material3.OutlinedButton(onClick = { edited = value; editing = true },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp).testTagResource("watermark-text-value")) {
-        Text(value, modifier = Modifier.weight(1f), style = lightlyTextStyle(color = lightlyColors.ink))
-        Text("Edit", style = lightlyTextStyle(color = lightlyColors.sel))
+    val colors = lightlyColors
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 46.dp).clip(shape).background(colors.chip).border(1.dp, colors.hair, shape)
+            .clickable(role = Role.Button) { editing = true }.semantics { contentDescription = "Edit watermark text" }
+            .testTagResource("watermark-text-value").padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(value, modifier = Modifier.weight(1f), style = com.lightlylabs.lightly.shell.l2TextStyle(16.sp, color = colors.ink), maxLines = 1)
+        LightlyIcon(LightlyIcons.Pencil, size = 18.dp, tint = colors.ink)
     }
-    if (editing) androidx.compose.material3.AlertDialog(
-        onDismissRequest = { editing = false },
-        title = { Text("Watermark text") },
-        text = { androidx.compose.material3.OutlinedTextField(value = edited, onValueChange = { edited = it.take(80) },
-            label = { Text("Your watermark") }, modifier = Modifier.fillMaxWidth()) },
-        confirmButton = { androidx.compose.material3.TextButton(enabled = edited.isNotBlank(), onClick = { onCommit(edited); editing = false }) { Text("Done") } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = { editing = false }) { Text("Cancel") } },
-    )
+    if (editing) WatermarkTextSheet(value, onDone = { onCommit(it); editing = false }, onCancel = { editing = false })
+}
+
+/** "Watermark text" (`textEdit`): sheetHead (Cancel · Watermark text · Done) and the field (52 dp, 16 dp corners, 2 dp accent border, 19 sp), up to 80 characters. */
+@Composable
+private fun WatermarkTextSheet(initial: String, onDone: (String) -> Unit, onCancel: () -> Unit) {
+    var edited by remember { mutableStateOf(initial) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val colors = lightlyColors
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        L2Sheet(big = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600, onDismiss = onCancel) {
+            L2SheetHead("Watermark text",
+                leading = { L2TextButton("Cancel", "watermark-text-cancel", onClick = onCancel) },
+                trailing = { L2TextButton("Done", "watermark-text-done", bold = true, enabled = edited.isNotBlank()) { onDone(edited) } })
+            androidx.compose.foundation.text.BasicTextField(edited, { edited = it.take(80) },
+                textStyle = TextStyle(fontSize = 19.sp, color = colors.ink), cursorBrush = androidx.compose.ui.graphics.SolidColor(colors.sel),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp).heightIn(min = 52.dp)
+                    .border(2.dp, colors.sel, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 14.dp)
+                    .focusRequester(focus).imePadding().testTagResource("watermark-text-editor"))
+        }
+    }
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 /**
- * `.fontopt`: the text in the font at 20 px over the font's name (Inter 500, 10.5 px, ink-3); min 100 × 60,
- * radius 10, border-box padding 4 10 plus the 1 px border; selected: selection border on its soft fill.
+ * A font option: at least 108×58 dp, 16 dp corners, the text at 19 sp in the font over the font's name (10.5 sp ink3);
+ * selected with a 2 dp accent border, otherwise a hairline.
  */
 @Composable
 private fun FontOption(text: String, font: WatermarkFont, name: String, on: Boolean, vm: EditorViewModel, onClick: () -> Unit) {
     val colors = lightlyColors
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(16.dp)
     Column(
-        Modifier.widthIn(min = 100.dp).heightIn(min = 60.dp).clip(shape)
-            .then(if (on) Modifier.background(colors.selSoft) else Modifier)
-            .border(1.dp, if (on) colors.sel else colors.hair, shape)
+        Modifier.widthIn(min = 108.dp).heightIn(min = 58.dp).clip(shape)
+            .border(if (on) 2.dp else 1.dp, if (on) colors.sel else colors.hair, shape)
             .clickable(role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = name; selected = on }
             .testTagResource("watermark-font-$name")
-            .padding(horizontal = 11.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
-        Text(text, style = TextStyle(fontFamily = vm.composeFont(font), fontSize = 20.sp, color = colors.ink), maxLines = 1)
-        Text(name, style = TextStyle(fontFamily = vm.composeFont(WatermarkFont.INTER, weight = 500), fontSize = com.lightlylabs.lightly.shell.fixedTextSize(10.5f), color = colors.ink3), modifier = Modifier.padding(top = 2.dp), maxLines = 1)
+        Text(text, style = TextStyle(fontFamily = vm.composeFont(font), fontSize = 19.sp, color = colors.ink), maxLines = 1)
+        Text(name, style = TextStyle(fontSize = com.lightlylabs.lightly.shell.fixedTextSize(10.5f), color = colors.ink3), maxLines = 1)
     }
 }
 
@@ -252,18 +282,21 @@ private fun SavedDrawingMenu(vm: EditorViewModel) {
     var expanded by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
     Box {
-        Box(Modifier.size(44.dp).clickable { expanded = true }
+        // The ⋯ card: 50 dp, 16 dp corners, hairline.
+        Box(Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).border(1.dp, lightlyColors.hair, RoundedCornerShape(16.dp)).clickable { expanded = true }
             .semantics { contentDescription = "Manage saved signature" }.testTagResource("watermark-signature-manage"), contentAlignment = Alignment.Center) {
-            LightlyIcon(LightlyIcons.More, tint = lightlyColors.ink2)
+            LightlyIcon(LightlyIcons.Ellipsis, size = 18.dp, tint = lightlyColors.ink)
         }
         DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(text = { Text("Draw replacement") }, onClick = { expanded = false; vm.openDrawSignature() })
             DropdownMenuItem(text = { Text("Delete saved signature") }, onClick = { expanded = false; confirm = true })
         }
     }
-    if (confirm) AlertDialog(onDismissRequest = { confirm = false },
-        title = { Text("Delete saved signature?") },
-        text = { Text("This removes the saved drawing and its signature from this photo.") },
-        confirmButton = { TextButton(onClick = { confirm = false; vm.deleteDrawnSignature() }) { Text("Delete signature") } },
-        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } })
+    if (confirm) androidx.compose.ui.window.Dialog(onDismissRequest = { confirm = false },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        L2Dialog("Delete saved signature?", "This removes the saved drawing and its signature from this photo.",
+            listOf(L2DialogButton("Delete signature", "dialog-Delete signature", destructive = true) { confirm = false; vm.deleteDrawnSignature() },
+                L2DialogButton("Cancel", "dialog-Cancel") { confirm = false }),
+            onDismiss = { confirm = false })
+    }
 }

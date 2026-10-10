@@ -54,8 +54,8 @@ object PortraitTags {
  * (only with more than one face), the five tabs and the tab's sliders and note, all copy verbatim.
  */
 @Composable
-fun PortraitPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean, wrapped: Boolean) = Column(Modifier.fillMaxWidth()) {
-    if (roomy) PanelTitle("Portrait")
+fun PortraitPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean, wrapped: Boolean) = Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // Lightly 2 `portraitPanel`, a 4 dp column: the faces (several faces only), the tabs, the reset row, sliders, notes.
     val faces = vm.usableFaces
     val tool = ui.session?.current?.tools?.portrait ?: return@Column
     if (faces.isEmpty()) {
@@ -64,21 +64,23 @@ fun PortraitPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean, wrappe
     }
     val selected = ui.portrait.selectedFace.coerceIn(0, faces.size - 1)
     if (faces.size > 1) {
-        ChipRow {
-            faces.forEachIndexed { index, face ->
-                val count = PortraitEdits.changeCount(PortraitEdits.editFor(tool, face))
-                val label = if (count > 0) "Face ${index + 1} · $count" else "Face ${index + 1}"
-                OptChip(index == selected, label, { vm.selectPortraitFace(index) }, PortraitTags.face(index)) {
-                    Text(label, style = lightlyTextStyle(15.sp, color = if (index == selected) lightlyColors.sel else lightlyColors.ink2), maxLines = 1)
+        // The faces ("Face 1 · 4" with changes), then "Each face keeps its own settings.", 10 dp apart.
+        Row(Modifier.padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                faces.forEachIndexed { index, face ->
+                    val count = PortraitEdits.changeCount(PortraitEdits.editFor(tool, face))
+                    val label = if (count > 0) "Face ${index + 1} · $count" else "Face ${index + 1}"
+                    OptChip(index == selected, label, { vm.selectPortraitFace(index) }, PortraitTags.face(index)) { Text(label, maxLines = 1) }
                 }
             }
-            // `<span class="note">` inside the chip row: the note's own padding (6 18) applies to the span.
-            Text("Each face keeps its own settings.", style = lightlyTextStyle(13.sp, color = lightlyColors.ink3), maxLines = 1,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp))
+            PanelNote("Each face keeps its own settings.")
         }
     }
     val tabs = PortraitTab.entries.map { it to it.label }
-    if (wrapped) WrappedPortraitTabs(tabs, ui.portrait.tab, vm::selectPortraitTab) else OptionTabs(tabs, ui.portrait.tab, vm::selectPortraitTab, tagPrefix = "portrait-tab")
+    val edit0 = PortraitEdits.editFor(tool, faces[selected])
+    // An orange dot on the tabs holding changes for this face.
+    OptionTabs(tabs, ui.portrait.tab, vm::selectPortraitTab, tagPrefix = "portrait-tab",
+        dotted = { tab -> PortraitOptions.sliders(tab).any { slider -> PortraitEdits.value(edit0, slider.field) != PortraitEdits.value(PortraitEdits.neutral(faces[selected].box), slider.field) } })
     ResetRow(vm, "portrait", ui.portrait.tab.label, ui.portrait.tab.name.lowercase())
     val edit = PortraitEdits.editFor(tool, faces[selected])
     for (slider in PortraitOptions.sliders(ui.portrait.tab)) {

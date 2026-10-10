@@ -18,90 +18,186 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import com.lightlylabs.lightly.shell.*
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.asImageBitmap
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** `COLOURS` in the mockup: the one colour strip, in order. */
+val STRIP_COLOURS = listOf(
+    "White" to "#FFFFFF", "Warm white" to "#F4F1EC", "Light stone" to "#D9D4CC", "Cool grey" to "#C4C9CE",
+    "Blue grey" to "#9AA3A8", "Slate" to "#3C4A55", "Charcoal" to "#1F2328", "Black" to "#0B0B0C",
+    "Cream" to "#F3E3C3", "Mustard" to "#D9A82E", "Tan" to "#C9A27E", "Terracotta" to "#C2684A",
+    "Rust" to "#8A5A44", "Blush" to "#E8B4B0", "Rose" to "#B5536B", "Plum" to "#5B3A6B",
+    "Lilac" to "#B8A9D9", "Sky" to "#A9D3EE", "Ocean" to "#2F6F9F", "Navy" to "#1E2F4D",
+    "Mint" to "#BFE3D0", "Sage" to "#A8B89A", "Olive" to "#6E6B3A", "Forest green" to "#4E6B5A",
+)
+
+/**
+ * The one colour control (Lightly 2 `colourStrip`), identical wherever a colour is chosen: "Title · Name" (13 sp semibold
+ * ink2, the name in ink) and "More colours ›"; then the 24-colour strip, 40 dp tall, a 22 dp accent ring on the chosen
+ * colour. Dragging previews; lifting commits one undo step. "More colours" opens the colour sheet (any colour).
+ */
 @Composable
 fun ColourControl(title: String = "Colour", selected: String, photo: Rgba8Image?, tag: String, choose: (String) -> Unit, previewPhoto: Rgba8Image? = photo, preview: ((String) -> Unit)? = null, cancel: (() -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = lightlyTextStyle(color = lightlyColors.ink))
-        Spacer(Modifier.weight(1f))
-        Row(Modifier.clip(CircleShape).background(lightlyColors.bg2).clickable { open = true }.semantics { stateDescription = selected }.testTagResource("$tag-picker").padding(horizontal = 12.dp).heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(24.dp).background(colourOf(selected), CircleShape).border(1.dp, lightlyColors.hair, CircleShape))
-            Text("Choose colour", style = lightlyTextStyle(14.sp, color = lightlyColors.ink))
+    var dragIndex by remember { mutableStateOf<Int?>(null) }
+    val colors = lightlyColors
+    val selectedIndex = STRIP_COLOURS.indexOfFirst { it.second.equals(selected, ignoreCase = true) }.takeIf { it >= 0 }
+    val shownIndex = dragIndex ?: selectedIndex
+    // A colour from the sheet that is not on the strip is named by its hex value and has no ring.
+    val name = shownIndex?.let { STRIP_COLOURS[it].first } ?: selected.uppercase()
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                androidx.compose.ui.text.buildAnnotatedString {
+                    append("$title · ")
+                    pushStyle(androidx.compose.ui.text.SpanStyle(color = colors.ink)); append(name); pop()
+                },
+                style = l2TextStyle(13.sp, androidx.compose.ui.text.font.FontWeight.SemiBold, colors.ink2), modifier = Modifier.weight(1f),
+            )
+            LinkButton("More colours", { open = true }, icon = LightlyIcons.Chevron, iconTrailing = true, tag = "$tag-more")
+        }
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(40.dp)
+                .semantics { contentDescription = title; stateDescription = name }
+                .testTagResource("$tag-strip")
+                .pointerInput(Unit) {
+                    fun indexAt(x: Float) = (x / size.width * STRIP_COLOURS.size).toInt().coerceIn(0, STRIP_COLOURS.lastIndex)
+                    detectDragGestures(
+                        onDragStart = { o -> val i = indexAt(o.x); dragIndex = i; preview?.invoke(STRIP_COLOURS[i].second) },
+                        onDragEnd = { dragIndex?.let { choose(STRIP_COLOURS[it].second) }; dragIndex = null },
+                        onDragCancel = { dragIndex = null; cancel?.invoke() },
+                    ) { change, _ ->
+                        val i = indexAt(change.position.x)
+                        if (i != dragIndex) { dragIndex = i; preview?.invoke(STRIP_COLOURS[i].second) }
+                        change.consume()
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures { o -> choose(STRIP_COLOURS[(o.x / size.width * STRIP_COLOURS.size).toInt().coerceIn(0, STRIP_COLOURS.lastIndex)].second) }
+                },
+        ) {
+            val segment = maxWidth / STRIP_COLOURS.size
+            Row(Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp)).border(1.dp, colors.hair, RoundedCornerShape(20.dp))) {
+                STRIP_COLOURS.forEach { (_, hex) -> Box(Modifier.weight(1f).fillMaxHeight().background(colourOf(hex))) }
+            }
+            if (shownIndex != null) {
+                Box(
+                    Modifier.offset(x = segment * (shownIndex + 0.5f) - 11.dp, y = (-5).dp).size(width = 22.dp, height = 50.dp)
+                        .border(2.dp, colors.sheet, RoundedCornerShape(13.dp)).padding(1.dp)
+                        .border(3.dp, colors.sel, RoundedCornerShape(12.dp)),
+                )
+            }
         }
     }
-    if (open) {
-        var hex by remember { mutableStateOf(selected.uppercase()) }
-        var picking by remember { mutableStateOf(false) }
-        val prefs = LocalContext.current.getSharedPreferences("lightly-colours", 0)
-        val recent = remember { prefs.getString("recent", "#FFFFFF,#111111,#F4F1EC")!!.split(',') }
-        LaunchedEffect(hex) { if(Regex("#[0-9A-Fa-f]{6}").matches(hex)) preview?.invoke(hex.uppercase()) }
-        val palette = remember(photo) { photo?.let(::photoPalette).orEmpty() }
-        ModalBottomSheet(onDismissRequest = { cancel?.invoke(); open = false }, containerColor = lightlyColors.bg) {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, style = lightlyTextStyle(color = lightlyColors.ink)); Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { cancel?.invoke(); open = false }) { Text("Cancel") }
-                    TextButton(enabled = Regex("#[0-9A-Fa-f]{6}").matches(hex), onClick = {
-                        val c = hex.uppercase(); prefs.edit().putString("recent", (listOf(c)+recent.filter { it != c }).take(8).joinToString(",")).apply()
-                        choose(c); open = false
-                    }) { Text("Done") }
+    if (open) ColourSheet(title, selected, photo, previewPhoto, preview, choose, onClose = { cancelled -> if (cancelled) cancel?.invoke(); open = false })
+}
+
+/**
+ * The colour sheet behind "More colours" (`colourSheet`), the same from every colour control: sheetHead (Cancel · title ·
+ * Done), the live preview (170 dp, 18 dp corners, stage fill), "From your photo", "Paper & ink", "Earth" (five 40 dp
+ * swatches, 12 dp corners, 9 dp gaps, a lime check on the chosen one), the Custom row (the colour wheel, which opens the
+ * picker below it; the hex field; Pick from photo) and "Recent".
+ */
+@Composable
+private fun ColourSheet(title: String, selected: String, photo: Rgba8Image?, previewPhoto: Rgba8Image?, preview: ((String) -> Unit)?, choose: (String) -> Unit, onClose: (cancelled: Boolean) -> Unit) {
+    var hex by remember { mutableStateOf(selected.uppercase()) }
+    var picking by remember { mutableStateOf(false) }
+    var custom by remember { mutableStateOf(false) }
+    val prefs = LocalContext.current.getSharedPreferences("lightly-colours", 0)
+    val recent = remember { prefs.getString("recent", "#FFFFFF,#111111,#F4F1EC")!!.split(',') }
+    val valid = Regex("#[0-9A-Fa-f]{6}").matches(hex)
+    LaunchedEffect(hex) { if (valid) preview?.invoke(hex.uppercase()) }
+    val palette = remember(photo) { photo?.let(::photoPalette).orEmpty() }
+    val colors = lightlyColors
+    androidx.compose.ui.window.Dialog(onDismissRequest = { onClose(true) },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        val big = LocalConfiguration.current.screenWidthDp >= 600
+        L2Sheet(big, heightFraction = if (big) 0.92f else 0.9f, onDismiss = { onClose(true) }) {
+            L2SheetHead(title,
+                leading = { L2TextButton("Cancel", "colour-cancel") { onClose(true) } },
+                trailing = { L2TextButton("Done", "colour-done", bold = true, enabled = valid) {
+                    val c = hex.uppercase(); prefs.edit().putString("recent", (listOf(c) + recent.filter { it != c }).take(8).joinToString(",")).apply()
+                    choose(c); onClose(false)
+                } })
+            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.fillMaxWidth().height(if (big) 200.dp else 170.dp).clip(RoundedCornerShape(18.dp)).background(colors.canvas).padding(8.dp), contentAlignment = Alignment.Center) {
+                    val shown = if (picking) photo else previewPhoto ?: photo
+                    if (shown != null) {
+                        val bitmap = remember(shown) { shown.toBitmap().asImageBitmap() }
+                        Image(bitmap, if (picking) "Tap a colour in the photo." else "Preview", Modifier.fillMaxSize().then(if (picking && photo != null) Modifier.pointerInput(photo) {
+                            detectTapGestures { p ->
+                                // The photo is fitted inside the box; map the tap through the fitted rectangle.
+                                val scale = minOf(size.width.toFloat() / photo.width, size.height.toFloat() / photo.height)
+                                val left = (size.width - photo.width * scale) / 2; val top = (size.height - photo.height * scale) / 2
+                                val x = ((p.x - left) / scale).toInt().coerceIn(0, photo.width - 1)
+                                val y = ((p.y - top) / scale).toInt().coerceIn(0, photo.height - 1)
+                                hex = photoHex(photo, x, y); picking = false
+                            }
+                        } else Modifier))
+                    }
                 }
-                if (!picking && previewPhoto != null) {
-                    val rendered = remember(previewPhoto) { previewPhoto.toBitmap().asImageBitmap() }
-                    Image(rendered, "Colour preview", Modifier.fillMaxWidth().height(180.dp))
-                }
-                if (picking && photo != null) {
-                    val bitmap = remember(photo) { photo.toBitmap().asImageBitmap() }
-                    Image(bitmap, "Tap a colour in the photo", Modifier.fillMaxWidth().aspectRatio(photo.width.toFloat()/photo.height).pointerInput(photo) {
-                        detectTapGestures { p ->
-                            val x = (p.x/size.width*photo.width).toInt().coerceIn(0,photo.width-1)
-                            val y = (p.y/size.height*photo.height).toInt().coerceIn(0,photo.height-1)
-                            hex = photoHex(photo, x, y); picking = false
-                        }
-                    })
-                }
+                if (picking) PanelNote("Tap a colour in the photo.")
                 ColourPalette("From your photo", palette, hex) { hex = it }
-                ColourPalette("Paper & ink", listOf("#FFFFFF","#ECE8DF","#D4C9B5","#9C9284","#242423"), hex) { hex = it }
-                ColourPalette("Earth", listOf("#DFC7AE","#B98767","#914E3E","#66775D","#334538"), hex) { hex = it }
-                Text("Custom", style = lightlyTextStyle(13.sp, color = lightlyColors.ink2))
-                val hsv = remember(hex) { FloatArray(3).also { android.graphics.Color.colorToHSV(runCatching { android.graphics.Color.parseColor(hex) }.getOrDefault(android.graphics.Color.BLACK), it) } }
-                fun setHSV(h: Float, s: Float, v: Float) { hex = "#%06X".format(android.graphics.Color.HSVToColor(floatArrayOf(h,s,v)) and 0xffffff) }
-                val hue by rememberUpdatedState(hsv[0])
-                Box(Modifier.fillMaxWidth().height(100.dp).clip(RoundedCornerShape(10.dp))
-                    .background(Brush.horizontalGradient(listOf(Color.White, Color.hsv(hsv[0],1f,1f))))
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
-                    .pointerInput(Unit) {
-                        detectTapGestures { p -> setHSV(hue,(p.x/size.width).coerceIn(0f,1f),(1-p.y/size.height).coerceIn(0f,1f)) }
-                    }.pointerInput(Unit) {
-                        fun pick(p: androidx.compose.ui.geometry.Offset) { setHSV(hue,(p.x/size.width).coerceIn(0f,1f),(1-p.y/size.height).coerceIn(0f,1f)) }
-                        detectDragGestures(onDragStart = ::pick) { change, _ -> pick(change.position); change.consume() }
-                    }.semantics { contentDescription = "Saturation and brightness; exact colour can also be entered below" })
-                Slider(hsv[0], onValueChange = { setHSV(it,hsv[1],hsv[2]) }, valueRange = 0f..359f, modifier = Modifier.semantics { contentDescription = "Hue" })
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(hex, { hex = it }, label = { Text("HEX") }, singleLine = true, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { picking = !picking }) { Text("Eyedropper") }
+                ColourPalette("Paper & ink", listOf("#FFFFFF", "#ECE8DF", "#D4C9B5", "#9C9284", "#242423"), hex) { hex = it }
+                ColourPalette("Earth", listOf("#DFC7AE", "#B98767", "#914E3E", "#66775D", "#334538"), hex) { hex = it }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(40.dp).clip(CircleShape)
+                        .background(Brush.sweepGradient(listOf(Color(0xFFFF4444), Color(0xFFFFDD44), Color(0xFF44FF88), Color(0xFF44DDFF), Color(0xFF8844FF), Color(0xFFFF44CC), Color(0xFFFF4444))))
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button) { custom = !custom }
+                        .semantics { contentDescription = "Custom" })
+                    Text("Custom", style = l2TextStyle(14.sp, androidx.compose.ui.text.font.FontWeight.SemiBold, colors.ink), modifier = Modifier.weight(1f))
+                    androidx.compose.foundation.text.BasicTextField(hex, { hex = it.take(7) }, singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 14.sp, color = colors.ink),
+                        cursorBrush = SolidColor(colors.sel),
+                        modifier = Modifier.width(96.dp).height(38.dp).border(1.dp, colors.hair, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 9.dp)
+                            .semantics { contentDescription = "Hex colour" })
+                    IconTapTarget(LightlyIcons.Dropper, "Pick from photo", { picking = !picking }, tag = "colour-pick")
                 }
-                ColourPalette("Recent", recent, hex) { hex = it }
-                Spacer(Modifier.height(20.dp))
+                if (custom) HsvPicker(hex) { hex = it }
+                ColourPalette("Recent", recent, hex, fixed = true) { hex = it }
             }
         }
     }
 }
 
-@Composable private fun ColourPalette(title: String, values: List<String>, selected: String, choose: (String) -> Unit) {
+/** The custom picker under the colour wheel: saturation and brightness, then hue. */
+@Composable
+private fun HsvPicker(hex: String, onChange: (String) -> Unit) {
+    val hsv = remember(hex) { FloatArray(3).also { android.graphics.Color.colorToHSV(runCatching { android.graphics.Color.parseColor(hex) }.getOrDefault(android.graphics.Color.BLACK), it) } }
+    fun setHSV(h: Float, s: Float, v: Float) { onChange("#%06X".format(android.graphics.Color.HSVToColor(floatArrayOf(h, s, v)) and 0xffffff)) }
+    val hue by rememberUpdatedState(hsv[0])
+    Box(Modifier.fillMaxWidth().height(100.dp).clip(RoundedCornerShape(12.dp))
+        .background(Brush.horizontalGradient(listOf(Color.White, Color.hsv(hsv[0], 1f, 1f))))
+        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
+        .pointerInput(Unit) { detectTapGestures { p -> setHSV(hue, (p.x / size.width).coerceIn(0f, 1f), (1 - p.y / size.height).coerceIn(0f, 1f)) } }
+        .pointerInput(Unit) {
+            fun pick(p: androidx.compose.ui.geometry.Offset) { setHSV(hue, (p.x / size.width).coerceIn(0f, 1f), (1 - p.y / size.height).coerceIn(0f, 1f)) }
+            detectDragGestures(onDragStart = ::pick) { change, _ -> pick(change.position); change.consume() }
+        }.semantics { contentDescription = "Saturation and brightness" })
+    SliderRow("Hue", hsv[0].toDouble(), 0.0, 359.0, onDrag = { setHSV(it.toFloat(), hsv[1], hsv[2]) }, onRelease = { setHSV(it.toFloat(), hsv[1], hsv[2]) }, tag = "colour-hue")
+}
+
+@Composable private fun ColourPalette(title: String, values: List<String>, selected: String, fixed: Boolean = false, choose: (String) -> Unit) {
     if (values.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = lightlyTextStyle(13.sp, color = lightlyColors.ink2))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            values.forEach { c -> Box(Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(8.dp)).background(colourOf(c))
-                .border(if(c==selected) 2.dp else 1.dp, if(c==selected) lightlyColors.ink else lightlyColors.hair, RoundedCornerShape(8.dp))
-                .clickable { choose(c) }.semantics { contentDescription = "Colour $c"; this.selected = c == selected }) }
+    val colors = lightlyColors
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(title, style = l2TextStyle(12.sp, androidx.compose.ui.text.font.FontWeight.Bold, colors.ink2), modifier = Modifier.padding(top = 4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            values.forEach { c ->
+                val on = c.equals(selected, ignoreCase = true)
+                Box(Modifier.then(if (fixed) Modifier.size(40.dp) else Modifier.weight(1f).height(40.dp)).clip(RoundedCornerShape(12.dp)).background(colourOf(c))
+                    .border(1.dp, colors.hair, RoundedCornerShape(12.dp))
+                    .clickable { choose(c.uppercase()) }.semantics { contentDescription = "Colour $c"; this.selected = on }) {
+                    if (on) Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(16.dp).background(colors.accent, CircleShape), contentAlignment = Alignment.Center) {
+                        LightlyIcon(LightlyIcons.Check, size = 10.dp, tint = colors.onAccent)
+                    }
+                }
+            }
         }
     }
 }
+
 private fun photoHex(p: Rgba8Image, x: Int, y: Int): String {
     val i=(y*p.width+x)*4; return "#%02X%02X%02X".format(p.pixels[i].toInt() and 255,p.pixels[i+1].toInt() and 255,p.pixels[i+2].toInt() and 255)
 }

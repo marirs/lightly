@@ -1,5 +1,13 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.foundation.layout.Arrangement
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.foundation.layout.Spacer
+
+import androidx.compose.foundation.layout.Box
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.platform.testTag
@@ -51,26 +59,37 @@ object EditTags {
 
 /** Prototype `editPanel`: Crop, Rotate, Straighten, Perspective, Adjust and Remove, with the approved copy verbatim. */
 @Composable
-fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth()) {
-    if (roomy) PanelTitle("Edit")
+fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Lightly 2 `editPanel`, a 6 dp column: the tabs, the reset row, the tab's controls.
     val edit = ui.session?.current?.tools?.edit ?: return@Column
     OptionTabs(EditSub.entries.map { it to it.label }, ui.edit.sub, vm::selectEditSub, tagPrefix = "edit-tab")
     ResetRow(vm, "edit", ui.edit.sub.label, ui.edit.sub.name.lowercase())
     when (ui.edit.sub) {
-        EditSub.CROP -> {
-            OptChip(false, "Crop photo", vm::toggleCropPreview, tag = "edit-crop-open") { Text("Crop photo", style = lightlyTextStyle(color = lightlyColors.sel)) }
-        }
-        EditSub.ROTATE -> ChipRow {
+        // "Crop photo": a 44 dp quiet button in the accent colour with the Edit icon; it reopens the crop workspace.
+        EditSub.CROP -> QuietSmallButton("Crop photo", vm::toggleCropPreview, Modifier.testTagResource("edit-crop-open"), icon = LightlyIcons.Edit, accent = true, height = 44.dp)
+        // Rotate: a 2×2 grid, 8 dp gaps, of 46 dp outlined buttons (16 dp corners), an 18 dp icon and a 13 sp semibold
+        // label; a flip that is on shows in the accent colour.
+        EditSub.ROTATE -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val geometry = edit.geometry
             listOf(
-                Triple(LightlyIcons.RotateLeft, "Rotate left", { vm.rotate(-1) }),
-                Triple(LightlyIcons.RotateRight, "Rotate right", { vm.rotate(1) }),
-                Triple(LightlyIcons.FlipHorizontal, "Flip horizontal", vm::flipHorizontal),
-                Triple(LightlyIcons.FlipVertical, "Flip vertical", vm::flipVertical),
-            ).forEach { (icon, label, action) ->
-                // Prototype: plain `.opt` buttons (never shown selected).
-                OptChip(false, label, action, tag = EditTags.geometry(label.lowercase().replace(' ', '-'))) {
-                    LightlyIcon(icon, size = 18.dp, tint = lightlyColors.ink2)
-                    Text(label, style = lightlyTextStyle(color = lightlyColors.ink2), maxLines = 1)
+                listOf(Triple(LightlyIcons.RotateLeft, "Rotate left", false) to { vm.rotate(-1) }, Triple(LightlyIcons.RotateRight, "Rotate right", false) to { vm.rotate(1) }),
+                listOf(Triple(LightlyIcons.FlipHorizontal, "Flip horizontal", geometry.flipHorizontal) to vm::flipHorizontal,
+                    Triple(LightlyIcons.FlipVertical, "Flip vertical", geometry.flipVertical) to vm::flipVertical),
+            ).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { (spec, action) ->
+                        val (icon, label, on) = spec
+                        val ink = if (on) lightlyColors.sel else lightlyColors.ink
+                        Row(
+                            Modifier.weight(1f).heightIn(min = 46.dp).clip(RoundedCornerShape(16.dp)).border(1.dp, if (on) lightlyColors.sel else lightlyColors.hair, RoundedCornerShape(16.dp))
+                                .clickable(role = Role.Button, onClick = action).semantics { selected = on }
+                                .testTagResource(EditTags.geometry(label.lowercase().replace(' ', '-'))),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            LightlyIcon(icon, size = 18.dp, tint = ink)
+                            Text(label, style = com.lightlylabs.lightly.shell.l2TextStyle(13.sp, FontWeight.SemiBold, ink), maxLines = 1)
+                        }
+                    }
                 }
             }
         }
@@ -84,7 +103,7 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
         }
         EditSub.ADJUST -> {
             val a = edit.adjust
-            OptionTabs(AdjustGroup.entries.map { it to it.label }, ui.edit.group, vm::selectAdjustGroup, tagPrefix = "adjust-group")
+            com.lightlylabs.lightly.shell.SegmentedControl(AdjustGroup.entries.map { it to it.label }, ui.edit.group, vm::selectAdjustGroup)
             when (ui.edit.group) {
                 AdjustGroup.LIGHT -> {
                     EditSlider(vm, ui, "Exposure", "exposure", a.exposure, -100.0, 100.0)
@@ -117,9 +136,8 @@ private fun RemoveBody(vm: EditorViewModel, ui: EditorUiState, hasStrokes: Boole
         RemoveOp.IDLE -> {
             // The prototype's brush size is a UI-only value (`ui.brushSize`, 35); strokes store their own radius.
             SliderRow("Brush size", ui.edit.brushSize.toDouble(), 0.0, 100.0, onDrag = { vm.setRemoveBrushSize(it.toInt()) }, onRelease = { vm.setRemoveBrushSize(it.toInt()) }, tag = EditTags.slider("brushSize"))
-            Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                // `disabled style="opacity:.4"` without strokes.
-                QuietSmallButton("Undo stroke", { if (hasStrokes) vm.undoStroke() }, Modifier.alpha(if (hasStrokes) 1f else 0.4f).testTagResource(EditTags.UNDO_STROKE))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuietSmallButton("Undo stroke", { if (hasStrokes) vm.undoStroke() }, Modifier.testTagResource(EditTags.UNDO_STROKE), dimmed = !hasStrokes)
                 PanelNote("Brush over anything you want removed.")
             }
         }
@@ -128,7 +146,7 @@ private fun RemoveBody(vm: EditorViewModel, ui: EditorUiState, hasStrokes: Boole
 
 @Composable
 internal fun boldLead(head: String, rest: String) = buildAnnotatedString {
-    withStyle(SpanStyle(color = lightlyColors.ink, fontWeight = FontWeight.SemiBold)) { append(head) }
+    withStyle(SpanStyle(color = lightlyColors.ink, fontWeight = FontWeight.Bold)) { append(head) }
     append(rest)
 }
 
@@ -141,8 +159,8 @@ private fun EditSlider(vm: EditorViewModel, ui: EditorUiState, label: String, fi
 
 /** Prototype `effectsPanel`: the three tabs (dot when on), the On/Off row, the controls and the preset notice. */
 @Composable
-fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth()) {
-    if (roomy) PanelTitle("Effects")
+fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+    // Lightly 2 `effectsPanel`, a 5 dp column: tabs (dots on effects in use), reset row, conflict notice, controls.
     val fx = ui.session?.current?.tools?.effects ?: return@Column
     val sub = ui.effects.sub
     fun on(s: EffectsSub) = when (s) {
@@ -158,12 +176,10 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
     // Selective Colour has no On switch: a kept colour applies it (reference: docs/ui/proposals/selective-colour at 330cf5b; status in its README).
     when (sub) {
         EffectsSub.LEAK -> {
-            ChipRow {
+            ChipRow(spacing = 6.dp) {
                 EditOptions.LEAK_STYLES.forEach { (style, label) ->
                     val selected = fx.lightLeak.enabled && fx.lightLeak.style == style
-                    OptChip(selected, label, { vm.setLeakStyle(style) }, tag = "leak-${style.name.lowercase()}") {
-                        Text(label, style = lightlyTextStyle(color = if (selected) lightlyColors.sel else lightlyColors.ink2), maxLines = 1)
-                    }
+                    OptChip(selected, label, { vm.setLeakStyle(style) }, tag = "leak-${style.name.lowercase()}") { Text(label, maxLines = 1) }
                 }
             }
             EffectsSlider(vm, ui, "Intensity", "leakIntensity", fx.lightLeak.intensity, 0.0, 100.0)
@@ -171,12 +187,10 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
             PanelNote("Drag on the photo to move the leak.")
         }
         EffectsSub.GRAIN -> {
-            ChipRow {
+            ChipRow(spacing = 6.dp) {
                 EditOptions.GRAIN_STYLES.forEach { (style, label) ->
                     val selected = fx.grain.enabled && fx.grain.style == style
-                    OptChip(selected, label, { vm.setGrainStyle(style) }, tag = "grain-${style.name.lowercase()}") {
-                        Text(label, style = lightlyTextStyle(color = if (selected) lightlyColors.sel else lightlyColors.ink2), maxLines = 1)
-                    }
+                    OptChip(selected, label, { vm.setGrainStyle(style) }, tag = "grain-${style.name.lowercase()}") { Text(label, maxLines = 1) }
                 }
             }
             EffectsSlider(vm, ui, "Amount", "grainAmount", fx.grain.amount, 0.0, 100.0)
@@ -197,62 +211,73 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
  * one instruction; then the kept colours (28 dp dots in 48 dp targets; with more than one, a small × removes just that
  * colour), (+) to add another (the next tap on the photo) and Clear on one row; Range and Strength below.
  */
+/**
+ * Selective Colour: nothing kept, the picker icon and "Tap a colour in the photo to keep it." (14 sp ink2, 44 dp row);
+ * then the kept colours (30 dp dots with a 2 dp sheet gap and a 1 dp line; × badges with several), the (+) circle (dashed
+ * ink3, solid accent while adding) and Clear at the end; the hint while adding; Range and Strength.
+ */
 @Composable
 private fun SelectiveColourBody(vm: EditorViewModel, ui: EditorUiState, selective: com.lightlylabs.lightly.session.SelectiveColourTool?) {
-    if (selective == null) {
+    val colors = lightlyColors
+    if (selective == null && !ui.effects.addingColour) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp).semantics(mergeDescendants = true) {}.testTag("effects-selective-hint"),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).semantics(mergeDescendants = true) {}.testTag("effects-selective-hint"),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            LightlyIcon(LightlyIcons.Picker, size = 20.dp, tint = lightlyColors.ink2)
-            androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
-            Text("Tap a colour in the photo to keep it.", style = lightlyTextStyle(15.sp, color = lightlyColors.ink2))
+            LightlyIcon(LightlyIcons.Picker, size = 20.dp, tint = colors.ink2)
+            Text("Tap a colour in the photo to keep it.", style = com.lightlylabs.lightly.shell.l2TextStyle(14.sp, color = colors.ink2))
         }
         return
     }
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 8.dp, top = 6.dp, end = 8.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        val removable = selective.colours.size > 1
-        selective.colours.forEachIndexed { index, kept -> KeptColourDot(kept, removable, index) { vm.removeSelectiveColour(index) } }
-        AddColourButton(adding = ui.effects.addingColour, enabled = selective.colours.size < EditorViewModel.MAX_KEPT_COLOURS, onClick = vm::toggleAddingColour)
-        QuietSmallButton("Clear", vm::clearSelectiveColour, Modifier.testTag("effects-selective-clear"))
+    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        val kept = selective?.colours.orEmpty()
+        val removable = kept.size > 1
+        kept.forEachIndexed { index, k -> KeptColourDot(k, removable, index) { vm.removeSelectiveColour(index) } }
+        AddColourButton(adding = ui.effects.addingColour, enabled = kept.size < EditorViewModel.MAX_KEPT_COLOURS, onClick = vm::toggleAddingColour)
+        Spacer(Modifier.weight(1f))
+        com.lightlylabs.lightly.shell.LinkButton("Clear", vm::clearSelectiveColour, tag = "effects-selective-clear")
     }
     if (ui.effects.addingColour) PanelNote("Tap another colour in the photo.")
-    EffectsSlider(vm, ui, "Range", "selectiveRange", selective.range, 0.0, 100.0)
-    EffectsSlider(vm, ui, "Strength", "selectiveStrength", selective.strength, 0.0, 100.0)
+    if (selective != null) {
+        EffectsSlider(vm, ui, "Range", "selectiveRange", selective.range, 0.0, 100.0)
+        EffectsSlider(vm, ui, "Strength", "selectiveStrength", selective.strength, 0.0, 100.0)
+    }
 }
 
 @Composable
 private fun KeptColourDot(kept: com.lightlylabs.lightly.session.KeptColourRecipe, removable: Boolean, index: Int, onRemove: () -> Unit) {
     val colour = remember(kept) { displayColour(kept.oklab) }
-    val target = Modifier.size(48.dp)
+    val colors = lightlyColors
+    val target = Modifier.size(width = 36.dp, height = 44.dp)
     val modifier = if (removable) target.clickable(onClickLabel = "Remove colour ${index + 1}", role = Role.Button, onClick = onRemove)
         .semantics { contentDescription = "Remove colour ${index + 1}" }.testTag("effects-selective-remove-$index")
         else target.semantics { contentDescription = "Kept colour" }.testTag("effects-selective-colour-$index")
-    androidx.compose.foundation.layout.Box(modifier, contentAlignment = androidx.compose.ui.Alignment.Center) {
-        androidx.compose.foundation.layout.Box(Modifier.size(28.dp).clip(CircleShape).background(colour).border(1.dp, lightlyColors.hair, CircleShape))
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(36.dp).border(1.dp, colors.hair, CircleShape).padding(1.dp).border(2.dp, colors.sheet, CircleShape).padding(2.dp).clip(CircleShape).background(colour))
         if (removable) {
-            androidx.compose.foundation.layout.Box(
-                Modifier.align(androidx.compose.ui.Alignment.Center).offset(x = 12.dp, y = (-12).dp).size(16.dp).clip(CircleShape).background(lightlyColors.ink),
-                contentAlignment = androidx.compose.ui.Alignment.Center,
-            ) { LightlyIcon(LightlyIcons.Close, size = 10.dp, tint = lightlyColors.bg) }
+            Box(
+                Modifier.align(Alignment.Center).offset(x = 15.dp, y = (-15).dp).size(16.dp).clip(CircleShape).background(colors.ink),
+                contentAlignment = Alignment.Center,
+            ) { LightlyIcon(LightlyIcons.Close, size = 10.dp, tint = colors.bg) }
         }
     }
 }
 
 @Composable
 private fun AddColourButton(adding: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val tint = if (adding) lightlyColors.sel else lightlyColors.ink2
-    androidx.compose.foundation.layout.Box(
-        Modifier.size(48.dp).clickable(enabled = enabled, onClickLabel = "Add another colour", role = Role.Button, onClick = onClick)
+    val colors = lightlyColors
+    val tint = if (adding) colors.sel else colors.ink2
+    Box(
+        Modifier.size(width = 36.dp, height = 44.dp).clickable(enabled = enabled, onClickLabel = "Add another colour", role = Role.Button, onClick = onClick)
             .semantics { contentDescription = "Add another colour"; selected = adding }.testTag("effects-selective-add"),
-        contentAlignment = androidx.compose.ui.Alignment.Center,
+        contentAlignment = Alignment.Center,
     ) {
-        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f, pathEffect = if (adding) null else androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
-        androidx.compose.foundation.Canvas(Modifier.size(28.dp)) { drawCircle(tint, radius = size.minDimension / 2 - 1f, style = stroke) }
-        LightlyIcon(LightlyIcons.Plus, size = 15.dp, tint = tint)
+        androidx.compose.foundation.Canvas(Modifier.size(30.dp)) {
+            val w = 1.5.dp.toPx()
+            drawCircle(if (adding) colors.sel else colors.ink3, radius = size.minDimension / 2 - w / 2,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(w, pathEffect = if (adding) null else androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.dp.toPx()))))
+        }
+        LightlyIcon(LightlyIcons.Plus, size = 16.dp, tint = tint)
     }
 }
 

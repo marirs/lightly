@@ -1,5 +1,15 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.ui.draw.drawBehind
+
+import androidx.compose.foundation.layout.heightIn
+
+import androidx.compose.foundation.layout.width
+
+import androidx.compose.foundation.background
+
+import com.lightlylabs.lightly.shell.l2TextStyle
+
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
@@ -57,37 +67,40 @@ object BackgroundTags {
 }
 
 /**
- * Prototype `backgroundPanel`: the Focus & Blur / Change background segment, then the state the
- * photo and this build allow ([BackgroundPanelState]) with the approved copy, verbatim.
+ * Lightly 2 `backgroundPanel`: the Focus & Blur / Change background switch, then the state's content: Focus & Blur in a
+ * 4 dp column, Change background and Refine edges in 8 dp, notices in 12 dp; the reset row follows the style or kind tabs.
  */
 @Composable
-fun BackgroundPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth()) {
-    if (roomy) PanelTitle("Background")
-    val tool = ui.session?.current?.tools?.background ?: return@Column
+fun BackgroundPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) {
+    val tool = ui.session?.current?.tools?.background ?: return
     val bg = ui.background
-    val segment = if (bg.sub == BackgroundSub.CHANGE) BackgroundSub.CHANGE else BackgroundSub.FOCUS
-    SegmentedControl(listOf(BackgroundSub.FOCUS to "Focus & Blur", BackgroundSub.CHANGE to "Change background"), segment, vm::selectBackgroundSub)
-    ResetRow(vm, "background", if (bg.sub == BackgroundSub.CHANGE) "Change background" else if (bg.sub == BackgroundSub.REFINE) "Refine edges" else "Focus & Blur", bg.sub.name.lowercase())
-    when (val state = BackgroundPanelState.of(bg, ui.separation, tool.replacement)) {
-        BackgroundPanelState.NoSubject -> {
-            Notice(LightlyIcons.Info, bold("No clear subject found.", " Change background needs a person or object in front. You can still blur by tapping where to focus."))
-            FocusSlider(vm, ui, "Blur", "blur", tool.focus.blur, 0.0, 100.0)
+    val state = BackgroundPanelState.of(bg, ui.separation, tool.replacement)
+    val gap = when (state) { BackgroundPanelState.Focus -> 4.dp; BackgroundPanelState.Refine, is BackgroundPanelState.Change -> 8.dp; else -> 12.dp }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(gap)) {
+        val segment = if (bg.sub == BackgroundSub.CHANGE) BackgroundSub.CHANGE else BackgroundSub.FOCUS
+        SegmentedControl(listOf(BackgroundSub.FOCUS to "Focus & Blur", BackgroundSub.CHANGE to "Change background"), segment, vm::selectBackgroundSub)
+        val reset: @Composable () -> Unit = {
+            ResetRow(vm, "background", if (bg.sub == BackgroundSub.CHANGE) "Change background" else if (bg.sub == BackgroundSub.REFINE) "Refine edges" else "Focus & Blur", bg.sub.name.lowercase())
         }
-        BackgroundPanelState.Separating -> Notice(LightlyIcons.Info, AnnotatedString("Finding the subject…"), listOf("Cancel" to vm::cancelSeparation))
-        // PROPOSED copy (owner approval pending, 2026-10-07): see BackgroundPanelState.EstimatingDepth.
-        BackgroundPanelState.EstimatingDepth -> Notice(LightlyIcons.Info, AnnotatedString("Estimating depth…"), listOf("Cancel" to vm::cancelSeparation))
-        BackgroundPanelState.Failed -> Notice(LightlyIcons.Warn, bold("Couldn't separate the subject.", " Your other edits are kept."), listOf("Try again" to vm::retrySeparation))
-        // PROPOSED copy (owner approval pending, 2026-10-05): see BackgroundPanelState.DepthFailed.
-        BackgroundPanelState.DepthFailed -> Notice(LightlyIcons.Warn, bold("Couldn't measure depth.", " Blur needs it. Change background still works."), listOf("Try again" to vm::retrySeparation))
-        BackgroundPanelState.Refine -> RefineBody(vm, ui)
-        is BackgroundPanelState.Change -> ChangeBody(vm, ui, tool, state.kind)
-        BackgroundPanelState.Focus -> FocusBody(vm, ui, tool)
+        when (state) {
+            BackgroundPanelState.NoSubject -> {
+                Notice(LightlyIcons.Info, bold("No clear subject found.", " Change background needs a person or object in front. You can still blur by tapping where to focus."))
+                FocusSlider(vm, ui, "Blur", "blur", tool.focus.blur, 0.0, 100.0)
+            }
+            BackgroundPanelState.Separating -> Notice(LightlyIcons.Info, AnnotatedString("Finding the subject…"), listOf("Cancel" to vm::cancelSeparation))
+            BackgroundPanelState.EstimatingDepth -> Notice(LightlyIcons.Info, AnnotatedString("Estimating depth…"), listOf("Cancel" to vm::cancelSeparation))
+            BackgroundPanelState.Failed -> { reset(); Notice(LightlyIcons.Warn, bold("Couldn't separate the subject.", " Your other edits are kept."), listOf("Try again" to vm::retrySeparation)) }
+            BackgroundPanelState.DepthFailed -> { reset(); Notice(LightlyIcons.Warn, bold("Couldn't measure depth.", " Blur needs it. Change background still works."), listOf("Try again" to vm::retrySeparation)) }
+            BackgroundPanelState.Refine -> { reset(); RefineBody(vm, ui) }
+            is BackgroundPanelState.Change -> ChangeBody(vm, ui, tool, state.kind, reset)
+            BackgroundPanelState.Focus -> FocusBody(vm, ui, tool, reset)
+        }
     }
 }
 
 @Composable
 private fun bold(head: String, rest: String) = buildAnnotatedString {
-    withStyle(SpanStyle(color = lightlyColors.ink, fontWeight = FontWeight.SemiBold)) { append(head) }
+    withStyle(SpanStyle(color = lightlyColors.ink, fontWeight = FontWeight.Bold)) { append(head) }
     append(rest)
 }
 
@@ -104,16 +117,28 @@ private fun FocusSlider(vm: EditorViewModel, ui: EditorUiState, label: String, f
 }
 
 @Composable
-private fun FocusBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundTool) {
+private fun FocusBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundTool, reset: @Composable () -> Unit) {
     val focus = tool.focus
+    val colors = lightlyColors
     OptionTabs(BackgroundOptions.STYLES, focus.style, vm::setFocusStyle, tagPrefix = "focus-style")
+    reset()
     when (focus.style) {
-        com.lightlylabs.lightly.session.FocusStyle.LENS -> ChipRow {
-            Text("Bokeh", style = lightlyTextStyle(color = lightlyColors.ink2), modifier = Modifier.widthIn(min = 72.dp))
+        // "Bokeh" (92 dp, 13 sp semibold ink2), then four 44×36 dp shape buttons, 14 dp corners, 8 dp apart.
+        com.lightlylabs.lightly.session.FocusStyle.LENS -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Bokeh", style = l2TextStyle(13.sp, FontWeight.SemiBold, colors.ink2), modifier = Modifier.width(92.dp))
             BackgroundOptions.BOKEH.forEach { (bokeh, name) ->
                 val icon = when (name) { "round" -> LightlyIcons.Circle; "hex" -> LightlyIcons.Hex; "heart" -> LightlyIcons.Heart; else -> LightlyIcons.StarShape }
-                OptChip(focus.bokeh == bokeh, "$name bokeh", { vm.setBokeh(bokeh) }, tag = "bokeh-$name") {
-                    LightlyIcon(icon, size = 18.dp, tint = if (focus.bokeh == bokeh) lightlyColors.sel else lightlyColors.ink2)
+                val on = focus.bokeh == bokeh
+                val shape = RoundedCornerShape(14.dp)
+                Box(
+                    Modifier.heightIn(min = 44.dp).clickable(role = Role.RadioButton) { vm.setBokeh(bokeh) }
+                        .semantics { contentDescription = "$name bokeh"; selected = on }.testTagResource("bokeh-$name"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.size(width = 44.dp, height = 36.dp).clip(shape).background(if (on) colors.segmentOn else androidx.compose.ui.graphics.Color.Transparent)
+                        .then(if (on) Modifier else Modifier.border(1.dp, colors.hair, shape)), contentAlignment = Alignment.Center) {
+                        LightlyIcon(icon, size = 18.dp, tint = if (on) colors.onInk else colors.ink2)
+                    }
                 }
             }
         }
@@ -124,9 +149,9 @@ private fun FocusBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundTo
     }
     FocusSlider(vm, ui, "Blur", "blur", focus.blur, 0.0, 100.0)
     FocusSlider(vm, ui, "Focus depth", "depthOfField", focus.depthOfField, 0.0, 100.0)
-    Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        QuietSmallButton("Refine edges", { vm.selectBackgroundSub(BackgroundSub.REFINE) }, Modifier.testTagResource(BackgroundTags.REFINE), icon = LightlyIcons.Brush)
-        Text("Tap the photo to set focus.", style = lightlyTextStyle(13.sp, color = lightlyColors.ink3), modifier = Modifier.padding(horizontal = 8.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        QuietSmallButton("Refine edges", { vm.selectBackgroundSub(BackgroundSub.REFINE) }, Modifier.testTagResource(BackgroundTags.REFINE), icon = LightlyIcons.Brush, accent = true)
+        PanelNote("Tap the photo to set focus.")
     }
 }
 
@@ -134,37 +159,39 @@ private fun FocusBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundTo
 private fun RefineBody(vm: EditorViewModel, ui: EditorUiState) {
     PanelNote("Brush over the edge to add to or remove from the subject.")
     SegmentedControl(listOf(BrushMode.ADD to "Add", BrushMode.ERASE to "Remove"), ui.background.brush, vm::setBrushMode, icons = mapOf(BrushMode.ADD to LightlyIcons.Brush, BrushMode.ERASE to LightlyIcons.Erase))
-    // The prototype's brush size is a UI-only value (`ui.brushSize`, 40); strokes store their own radius.
+    // The brush size is a UI-only value (`ui.brushSize`, 40); strokes store their own radius.
     SliderRow("Brush size", ui.background.brushSize.toDouble(), 0.0, 100.0, onDrag = { vm.setBrushSize(it.toInt()) }, onRelease = { vm.setBrushSize(it.toInt()) }, tag = BackgroundTags.slider("brushSize"))
-    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), horizontalArrangement = Arrangement.End) {
-        QuietSmallButton("Done", { vm.selectBackgroundSub(BackgroundSub.FOCUS) }, large = true)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        QuietSmallButton("Done", { vm.selectBackgroundSub(BackgroundSub.FOCUS) })
     }
 }
 
 @Composable
-private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundTool, kind: ReplacementKind) {
+private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundTool, kind: ReplacementKind, reset: @Composable () -> Unit) {
     val replaced = tool.replacement
     OptionTabs(ReplacementKind.entries.map { it to it.label }, kind, vm::selectReplacementKind, tagPrefix = "replacement-kind")
+    reset()
     when (kind) {
+        // The (+) tile first, then the bundled backgrounds: 60 dp, 16 dp corners.
         ReplacementKind.IMAGE -> ChipRow {
+            AddTile("Choose a photo", vm::chooseBackgroundPhoto, tag = "background-add-photo") { LightlyIcon(LightlyIcons.Plus, tint = lightlyColors.ink2) }
             BackgroundOptions.IMAGES.forEach { (id, file) ->
                 val on = (replaced as? Replacement.Image)?.image == AssetRef.Bundled(id)
                 BackgroundThumb(file, on) { vm.chooseBackgroundImage(id) }
             }
-            AddTile("Choose a photo", vm::chooseBackgroundPhoto, tag = "background-add-photo") { LightlyIcon(LightlyIcons.Plus, tint = lightlyColors.ink2) }
         }
         ReplacementKind.COLOUR -> ColourControl("Background colour", (replaced as? Replacement.Colour)?.colour ?: "#F4F1EC", ui.original, "background-colour", vm::chooseBackgroundColour, previewPhoto = ui.preview, preview = { vm.previewColour("background-colour", it) }, cancel = vm::cancelPhotoGesturePreview)
-        ReplacementKind.GRADIENT -> ChipRow {
+        ReplacementKind.GRADIENT -> Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             BackgroundOptions.GRADIENTS.forEachIndexed { index, (angle, stops) ->
                 val on = (replaced as? Replacement.Gradient)?.let { g -> g.angle == angle && g.stops.map { it.colour } == stops } == true
-                Swatch({ size -> cssLinearGradient(angle, stops.map(::colourOf), size.width, size.height) }, on, "Gradient", { vm.chooseBackgroundGradient(index) }, tag = "gradient-$index", width = 52.dp, cornerRadius = 10.dp)
+                Swatch({ size -> cssLinearGradient(angle, stops.map(::colourOf), size.width, size.height) }, on, "Gradient ${index + 1}", { vm.chooseBackgroundGradient(index) }, tag = "gradient-$index")
             }
         }
     }
-    if(kind == ReplacementKind.GRADIENT && replaced is Replacement.Gradient) {
+    if (kind == ReplacementKind.GRADIENT && replaced is Replacement.Gradient) {
         replaced.stops.forEachIndexed { index, stop ->
-            ColourControl("Colour ${index+1}", stop.colour, ui.original, "gradient-colour-$index", { vm.gradientColour(index,it,false) },
-                previewPhoto = ui.preview, preview = { vm.gradientColour(index,it,true) }, cancel = vm::cancelPhotoGesturePreview)
+            ColourControl("Colour ${index + 1}", stop.colour, ui.original, "gradient-colour-$index", { vm.gradientColour(index, it, false) },
+                previewPhoto = ui.preview, preview = { vm.gradientColour(index, it, true) }, cancel = vm::cancelPhotoGesturePreview)
         }
     }
     if (kind == ReplacementKind.IMAGE && replaced is Replacement.Image) {
@@ -172,31 +199,36 @@ private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundT
         PanelNote("Drag the photo to position the background.")
     }
     if (replaced != null) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
-            QuietSmallButton("Remove background change", vm::removeBackgroundChange, Modifier.testTagResource(BackgroundTags.REMOVE))
-        }
+        QuietSmallButton("Remove background change", vm::removeBackgroundChange, Modifier.testTagResource(BackgroundTags.REMOVE))
         PanelNote("Focus & Blur still works on the new background.")
     }
 }
 
-/** `.thumbopt`: a 64 dp bundled background photo, selection ring 2 dp. */
+/** A background choice: 60 dp, 16 dp corners; when chosen, a 2 dp sheet-coloured gap and a 2 dp accent ring outside it. */
 @Composable
 private fun BackgroundThumb(file: String, selected: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
+    val colors = lightlyColors
     val bitmap: ImageBitmap? = remember(file) {
         runCatching { context.assets.open("backgrounds/${file}_thumb.jpg").use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
     }
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(16.dp)
     Box(
         Modifier
-            .size(64.dp)
+            .size(60.dp)
+            .drawBehind {
+                if (selected) {
+                    drawRoundRect(colors.sheet, androidx.compose.ui.geometry.Offset(-2.dp.toPx(), -2.dp.toPx()), androidx.compose.ui.geometry.Size(size.width + 4.dp.toPx(), size.height + 4.dp.toPx()),
+                        androidx.compose.ui.geometry.CornerRadius(18.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+                    drawRoundRect(colors.sel, androidx.compose.ui.geometry.Offset(-3.dp.toPx(), -3.dp.toPx()), androidx.compose.ui.geometry.Size(size.width + 6.dp.toPx(), size.height + 6.dp.toPx()),
+                        androidx.compose.ui.geometry.CornerRadius(20.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+                }
+            }
             .clip(shape)
             .clickable(role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = "Background image"; this.selected = selected }
             .testTagResource("background-image-$file"),
     ) {
-        if (bitmap != null) Image(bitmap, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(shape))
-        // `.thumbopt` border (2 px, transparent unless selected) is drawn over the photo, as CSS does.
-        if (selected) Box(Modifier.fillMaxSize().border(2.dp, lightlyColors.sel, shape))
+        if (bitmap != null) Image(bitmap, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }
 }

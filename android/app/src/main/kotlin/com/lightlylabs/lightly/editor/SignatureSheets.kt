@@ -1,5 +1,7 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.foundation.layout.Arrangement
+
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -56,33 +58,23 @@ import com.lightlylabs.lightly.signatures.DrawnSignature
 private val CHROME_DASH = 3.dp
 private val CHROME_GAP = 2.dp
 
-/** `.sheethead`: Cancel, the centred title, the trailing action (`.btn.quiet` in the 17 px semibold head). */
+/** `sheetHead` with Cancel and a bold trailing action. */
 @Composable
 fun SheetHeadWithAction(title: String, action: String, onCancel: () -> Unit, onAction: () -> Unit, actionTag: String) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = 18.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        HeadButton("Cancel", onCancel, "sheet-cancel")
-        Text(title, style = lightlyTextStyle(17.sp, FontWeight.SemiBold, lightlyColors.ink), textAlign = TextAlign.Center, modifier = Modifier.weight(1f).semantics { heading() })
-        HeadButton(action, onAction, actionTag)
-    }
-}
-
-@Composable
-private fun HeadButton(label: String, onClick: () -> Unit, tag: String) {
-    Box(Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp).testTagResource(tag), contentAlignment = Alignment.Center) {
-        Text(label, style = lightlyTextStyle(17.sp, FontWeight.SemiBold, lightlyColors.sel))
-    }
+    L2SheetHead(title, leading = { L2TextButton("Cancel", "sheet-cancel", onClick = onCancel) }, trailing = { L2TextButton(action, actionTag, bold = true, onClick = onAction) })
 }
 
 /**
- * Prototype `sigDraw`: Cancel · "Draw signature" · Save; `.sigpad` (180 dp, 1 px dashed ink-3 border, radius
- * 12, `.line` 20 dp in from each side and 40 dp above the bottom); Clear and the note. Strokes are in pad dp.
+ * `sigDraw` (Lightly 2): sheetHead (Cancel · Draw signature · Save); the pad (180 dp, 18 dp corners, --bg, a 1.5 dp
+ * dashed ink3 border, a hairline baseline 20 dp in and 40 dp up), 4/16 dp margins; Clear and the note, 6/16 dp.
+ * Strokes are in pad dp.
  */
 @Composable
 fun ColumnScope.DrawSignatureSheet(strokes: List<List<DrawnSignature.Point>>, onStrokes: (List<List<DrawnSignature.Point>>) -> Unit, onCancel: () -> Unit, onSave: () -> Unit, onClear: () -> Unit) {
     val colors = lightlyColors
     SheetHeadWithAction("Draw signature", "Save", onCancel, onSave, "signature-draw-save")
     Box(
-        Modifier.padding(horizontal = 18.dp, vertical = 12.dp).fillMaxWidth().height(180.dp)
+        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(180.dp)
             .pointerInput(strokes) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -103,7 +95,7 @@ fun ColumnScope.DrawSignatureSheet(strokes: List<List<DrawnSignature.Point>>, on
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val line = 1.dp.toPx()
-            drawRoundRect(colors.bg, cornerRadius = CornerRadius(12.dp.toPx()))
+            drawRoundRect(colors.bg, cornerRadius = CornerRadius(18.dp.toPx()))
             drawRect(colors.hair, Offset(20.dp.toPx(), size.height - 40.dp.toPx() - line), androidx.compose.ui.geometry.Size(size.width - 40.dp.toPx(), line))
             val pen = WatermarkOptions.PEN_WIDTH.toFloat() * density
             strokes.filter { it.isNotEmpty() }.forEach { stroke ->
@@ -116,36 +108,37 @@ fun ColumnScope.DrawSignatureSheet(strokes: List<List<DrawnSignature.Point>>, on
                 }
                 drawPath(path, colors.ink, style = Stroke(pen, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
-            drawRoundRect(colors.ink3, topLeft = Offset(line / 2, line / 2), size = androidx.compose.ui.geometry.Size(size.width - line, size.height - line), cornerRadius = CornerRadius(12.dp.toPx()),
-                style = Stroke(line, pathEffect = PathEffect.dashPathEffect(floatArrayOf(CHROME_DASH.toPx(), CHROME_GAP.toPx()))))
+            val dash = 1.5.dp.toPx()
+            drawRoundRect(colors.ink3, topLeft = Offset(dash / 2, dash / 2), size = androidx.compose.ui.geometry.Size(size.width - dash, size.height - dash), cornerRadius = CornerRadius(18.dp.toPx()),
+                style = Stroke(dash, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
         }
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), verticalAlignment = Alignment.Top) {
-        QuietSmallButton("Clear", onClick = onClear, large = true, modifier = Modifier.testTagResource("signature-draw-clear"))
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        QuietSmallButton("Clear", onClick = onClear, modifier = Modifier.testTagResource("signature-draw-clear"))
         Spacer(Modifier.weight(1f))
-        PanelNote("Saved for reuse. It keeps its own look.")
+        Text("Saved for reuse. It keeps its own look.", style = com.lightlylabs.lightly.shell.l2TextStyle(12.5.sp, color = colors.ink2, lineHeight = 1.4f))
     }
 }
 
-/** Prototype `sigImport`: Cancel · "Import signature" · Use; the signature on paper colour with the dashed selection; the note. */
+/** `sigImport` (Lightly 2): sheetHead (Cancel · Import signature · Use); #F7F4EE (170 dp, 18 dp corners) with the 1.5 dp dashed accent selection inset 14 dp (12 dp corners); the note (8/16 dp). */
 @Composable
 fun ColumnScope.ImportSignatureSheet(png: ByteArray?, onCancel: () -> Unit, onUse: () -> Unit) {
     val colors = lightlyColors
     SheetHeadWithAction("Import signature", "Use", onCancel, onUse, "signature-import-use")
     Box(
-        Modifier.padding(horizontal = 18.dp, vertical = 10.dp).fillMaxWidth().height(170.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF7F4EE)),
+        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(170.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFFF7F4EE)),
         contentAlignment = Alignment.Center,
     ) {
         val bitmap = remember(png) { png?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() } }
-        if (bitmap != null) Image(bitmap, "Imported signature", Modifier.size(70.dp * (bitmap.width.toFloat() / bitmap.height), 70.dp))
+        if (bitmap != null) Image(bitmap, "Imported signature", Modifier.size(minOf(150.dp, 70.dp * (bitmap.width.toFloat() / bitmap.height)), 70.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
         // `inset:14px; border:1.5px dashed var(--sel); border-radius:8px` (the CSS source width).
         Canvas(Modifier.fillMaxSize().padding(14.dp)) {
             val w = 1.5.dp.toPx()
-            drawRoundRect(colors.sel, topLeft = Offset(w / 2, w / 2), size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w), cornerRadius = CornerRadius(8.dp.toPx()),
-                style = Stroke(w, pathEffect = PathEffect.dashPathEffect(floatArrayOf(CHROME_DASH.toPx(), CHROME_GAP.toPx()))))
+            drawRoundRect(colors.sel, topLeft = Offset(w / 2, w / 2), size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w), cornerRadius = CornerRadius(12.dp.toPx()),
+                style = Stroke(w, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
         }
     }
-    PanelNote("The paper is removed. The ink keeps its original colour and texture.")
+    PanelNote("The paper is removed. The ink keeps its original colour and texture.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
 }
 
 /** The prototype's sample in the pad (`sigSvg(70)` at left 24, bottom 34 of the 180 dp pad): design captures only. */
@@ -163,20 +156,9 @@ fun prototypePadStrokes(): List<List<DrawnSignature.Point>> {
 fun PreferencesSignatureSheet(vm: EditorViewModel) {
     val ui by vm.uiState.collectAsStateWithLifecycle()
     if (!vm.preferencesSheetOpen(ui)) return
-    val colors = lightlyColors
-    androidx.activity.compose.BackHandler(onBack = vm::closeSignatureSheet)
-    Box(
-        Modifier.fillMaxSize().background(colors.scrim).clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {},
-        contentAlignment = Alignment.BottomCenter,
-    ) {
-        androidx.compose.foundation.layout.Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)).background(colors.sheet)
-                .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {}
-                .padding(top = 8.dp, bottom = 30.dp),
-        ) {
-            com.lightlylabs.lightly.shell.SheetGrabber()
-            if (ui.overlay == EditorOverlay.SIGNATURE_DRAW) DrawSignatureSheet(ui.watermark.pad, vm::padStroke, onCancel = vm::closeSignatureSheet, onSave = vm::saveDrawnSignature, onClear = vm::clearPad)
-            else ImportSignatureSheet(ui.watermark.imported, onCancel = vm::closeSignatureSheet, onUse = vm::useImportedSignature)
-        }
+    val big = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
+    L2Sheet(big, onDismiss = vm::closeSignatureSheet) {
+        if (ui.overlay == EditorOverlay.SIGNATURE_DRAW) DrawSignatureSheet(ui.watermark.pad, vm::padStroke, onCancel = vm::closeSignatureSheet, onSave = vm::saveDrawnSignature, onClear = vm::clearPad)
+        else ImportSignatureSheet(ui.watermark.imported, onCancel = vm::closeSignatureSheet, onUse = vm::useImportedSignature)
     }
 }
