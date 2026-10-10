@@ -40,7 +40,6 @@ object StartCopy {
     const val TAGLINE = "See it as you remember it."
     const val CHOOSE_PHOTO = "Choose a photo"
     const val CAMERA = "Camera"
-    const val PRIVACY_LINE = "Your photos stay on your device by default."
     const val PRIVACY_POLICY = "Privacy Policy"
 
     const val CAMERA_DENIED_TITLE = "Camera access is off"
@@ -109,7 +108,6 @@ private fun WelcomeActions(onChoosePhoto: () -> Unit, onCamera: () -> Unit, onPr
     Column(Modifier.widthIn(max = 360.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         LightlyButton(StartCopy.CHOOSE_PHOTO, ButtonKind.PRIMARY, onChoosePhoto, icon = LightlyIcons.Photo, minHeight = 56.dp, tag = ShellTags.CHOOSE_PHOTO)
         LightlyButton(StartCopy.CAMERA, ButtonKind.LINE, onCamera, icon = LightlyIcons.Camera, minHeight = 56.dp, tag = ShellTags.CAMERA)
-        Text(StartCopy.PRIVACY_LINE, style = l2TextStyle(13.sp, color = colors.ink2), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         Text(
             StartCopy.PRIVACY_POLICY, style = l2TextStyle(14.sp, FontWeight.SemiBold, colors.sel),
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onPrivacyPolicy)

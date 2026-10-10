@@ -32,30 +32,11 @@ final class LockedDecisionsTests: XCTestCase {
         )
     }
 
-    // MARK: - Section 0.5 — qualified privacy language
+    // MARK: - Section 0.5 — privacy language
 
-    /// No absolute on-device claim may ship. Opt-in cloud features make the
-    /// unqualified form false, which is the exact risk the spec calls out.
-    func testPrivacyCopyIsQualifiedAndNotAbsolute() {
-        let copy = String(localized: "welcome.privacyLine")
-
-        XCTAssertEqual(copy, "Your photos stay on your device by default.")
-        XCTAssertTrue(
-            copy.lowercased().contains("by default"),
-            "Spec 0.5 forbids absolute on-device claims."
-        )
-
-        let forbiddenPhrases = [
-            "everything stays on your device",
-            "never leaves your device",
-            "photos never leave"
-        ]
-        for phrase in forbiddenPhrases {
-            XCTAssertFalse(
-                copy.lowercased().contains(phrase),
-                "Spec 0.5 forbids the absolute claim: \(phrase)"
-            )
-        }
+    /// Owner (2026-10-10): Welcome carries no on-device privacy line at all; the Privacy Policy link speaks for it.
+    func testWelcomeHasNoPrivacyLine() {
+        XCTAssertEqual(String(localized: "welcome.privacyLine"), "welcome.privacyLine", "the string was removed")
     }
 
     // MARK: - Section 0.4 — product voice
@@ -66,8 +47,7 @@ final class LockedDecisionsTests: XCTestCase {
         let keys = [
             "welcome.tagline",
             "welcome.choosePhoto",
-            "welcome.camera",
-            "welcome.privacyLine"
+            "welcome.camera"
         ]
 
         for key in keys {

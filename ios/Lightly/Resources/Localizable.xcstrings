@@ -2019,18 +2019,6 @@
         }
       }
     },
-    "welcome.privacyLine": {
-      "comment": "Welcome privacy line. Qualified on purpose: no absolute on-device claim (spec §0.5).",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your photos stay on your device by default."
-          }
-        }
-      }
-    },
     "welcome.privacyPolicy": {
       "comment": "Link at the bottom of Welcome that opens the Privacy Policy.",
       "extractionState": "manual",

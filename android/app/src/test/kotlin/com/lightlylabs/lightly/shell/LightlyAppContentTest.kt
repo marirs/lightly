@@ -86,7 +86,7 @@ class LightlyAppContentTest {
     fun `Welcome shows the approved content and no sign-in`() {
         show()
 
-        listOf("Lightly", "See it as you remember it.", "Choose a photo", "Camera", "Your photos stay on your device by default.", "Privacy Policy")
+        listOf("Lightly", "See it as you remember it.", "Choose a photo", "Camera", "Privacy Policy")
             .forEach { compose.onNodeWithText(it).assertIsDisplayed() }
         compose.onNodeWithTag(ShellTags.CHOOSE_PHOTO).performClick()
         compose.onNodeWithTag(ShellTags.CAMERA).performClick()

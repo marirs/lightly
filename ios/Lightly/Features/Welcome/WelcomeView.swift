@@ -71,14 +71,6 @@ struct WelcomeView: View {
             .buttonStyle(L2WideButtonStyle(kind: .line, height: 56))
             .accessibilityIdentifier("welcome.camera")
 
-            Text("welcome.privacyLine", bundle: .main)
-                .l2Text(13)
-                .foregroundStyle(c(ApprovedColor.inkSecondary))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
-                .layoutAnchor("welcome.privacyLine")
-
             Button { appState.openPrivacyPolicyFromWelcome() } label: {
                 Text("welcome.privacyPolicy", bundle: .main)
                     .l2Text(14, weight: .semibold)
