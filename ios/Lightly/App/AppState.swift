@@ -160,6 +160,9 @@ final class AppState {
 
     /// The saved signatures changed in Preferences: open editors re-render, so a watermark that
     /// used a signature now drawn again or deleted shows without it.
+    /// The open photo's editing session, if any (More's favourite thumbnails are drawn from it).
+    var currentEditorSession: EditorSession? { selectedPhoto.flatMap { editorSessions[$0.id] } }
+
     func signaturesChanged() {
         for session in editorSessions.values { session.signaturesChanged() }
     }

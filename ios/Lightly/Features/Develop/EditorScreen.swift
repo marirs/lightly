@@ -176,40 +176,7 @@ struct EditorScreen: View {
             }
             #endif
         }
-        .alert("Reset all edits?", isPresented: $isResetAlertShown) {
-            Button("Reset all edits", role: .destructive) {
-                cropDraft = nil; cropGestureStart = nil; removePoints = []; refinePoints = []
-                session.resetEdits()
-            }
-            Button("Keep editing", role: .cancel) {}
-        } message: { Text("Return to the original photo. This also turns Auto off. You can undo this.") }
-        .alert(Text("Leave without saving?"), isPresented: $isLeaveAlertShown) {
-            Button("Save copy") { session.saveCopy() }.keyboardShortcut(.defaultAction)
-            Button("Discard edits", role: .destructive) { onClose() }
-            Button("Keep editing", role: .cancel) {}
-        } message: {
-            Text("Your original photo is unchanged. Edits that are not saved as a copy will be lost.")
-        }
-        .alert(Text("Can’t save to Photos"), isPresented: alertBinding(.permissionDenied)) {
-            Button("Open Settings") {
-                session.dismissSaveState()
-                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-            }.keyboardShortcut(.defaultAction)
-            Button("Not now", role: .cancel) { session.dismissSaveState() }
-        } message: { Text("Allow Lightly to add photos in Settings. Your edits are kept.") }
-        .alert(Text("Not enough storage"), isPresented: alertBinding(.storageFull)) {
-            Button("Try again") { session.dismissSaveState(); session.saveCopy() }.keyboardShortcut(.defaultAction)
-            Button("OK", role: .cancel) { session.dismissSaveState() }
-        } message: { Text("Free up some space and try again. Your edits are kept.") }
-        .alert(Text("Couldn’t save the copy"), isPresented: alertBinding(.failed)) {
-            Button("Try again") { session.dismissSaveState(); session.saveCopy() }.keyboardShortcut(.defaultAction)
-            Button("Keep editing", role: .cancel) { session.dismissSaveState() }
-        } message: { Text("Something went wrong while saving. Your edits are kept and the original is unchanged.") }
         .sheet(item: $shareItem) { item in ActivityView(items: [item.url]).ignoresSafeArea() }
-    }
-
-    private func alertBinding(_ state: EditorSession.SaveState) -> Binding<Bool> {
-        Binding(get: { session.saveState == state }, set: { if !$0, session.saveState == state { session.dismissSaveState() } })
     }
 
     private func close() {
@@ -448,7 +415,42 @@ struct EditorScreen: View {
         case "share":
             // Saved › Share: the system share sheet with the saved copy (approved `share`).
             await session.debugWait { if case .saved = session.saveState { true } else { false } }
-            if case .saved(let data) = session.saveState { shareItem = ShareItem(data: data) }
+            // The mockup's drawn dialogs (`dialog`), over everything.
+        if isResetAlertShown {
+            L2Alert(title: "Reset all edits?", message: "Return to the original photo. This also turns Auto off. You can undo this.",
+                    buttons: [("Reset all edits", .destructive, "resetAll.confirm", {
+                                  isResetAlertShown = false
+                                  cropDraft = nil; cropGestureStart = nil; removePoints = []; refinePoints = []
+                                  session.resetEdits()
+                              }),
+                              ("Keep editing", .normal, "resetAll.keep", { isResetAlertShown = false })])
+        }
+        if isLeaveAlertShown {
+            L2Alert(title: "Leave without saving?", message: "Your original photo is unchanged. Edits that are not saved as a copy will be lost.",
+                    buttons: [("Save", .preferred, "leave.save", { isLeaveAlertShown = false; session.saveCopy() }),
+                              ("Discard edits", .destructive, "leave.discard", { isLeaveAlertShown = false; onClose() }),
+                              ("Keep editing", .normal, "leave.keep", { isLeaveAlertShown = false })])
+        }
+        switch session.saveState {
+        case .permissionDenied:
+            L2Alert(title: "Can’t save to Photos", message: "Allow Lightly to add photos in Settings. Your edits are kept.",
+                    buttons: [("Open Settings", .preferred, "saveDenied.settings", {
+                                  session.dismissSaveState()
+                                  if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                              }),
+                              ("Not now", .normal, "saveDenied.notNow", { session.dismissSaveState() })])
+        case .storageFull:
+            L2Alert(title: "Not enough storage", message: "Free up some space and try again. Your edits are kept.",
+                    buttons: [("Try again", .preferred, "storage.retry", { session.dismissSaveState(); session.saveCopy() }),
+                              ("OK", .normal, "storage.ok", { session.dismissSaveState() })])
+        case .failed:
+            L2Alert(title: "Couldn’t save the copy", message: "Something went wrong while saving. Your edits are kept and the original is unchanged.",
+                    buttons: [("Try again", .preferred, "saveFailed.retry", { session.dismissSaveState(); session.saveCopy() }),
+                              ("Keep editing", .normal, "saveFailed.keep", { session.dismissSaveState() })])
+        default:
+            EmptyView()
+        }
+        if case .saved(let data) = session.saveState { shareItem = ShareItem(data: data) }
             // The system share sheet loads its share services the first time it opens (seconds in the Simulator).
             try? await Task.sleep(for: .seconds(5))
         case "saving": await session.debugWait { session.saveState == .saving }

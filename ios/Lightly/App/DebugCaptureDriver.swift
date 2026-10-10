@@ -128,7 +128,7 @@ enum DebugCaptureDriver {
                 appState.signatures.debugReplace(drawn: DrawnSignature.prototypeSample, importedPNG: nil)
             }
             let page: MorePage = arguments[flag + 1] == "preferredBorder" ? .preferredBorder : .savedSignature
-            appState.debugOpenMore(path: [.menu, .preferences, page])
+            appState.debugOpenMore(path: [.menu, page])
             try? await Task.sleep(for: .milliseconds(700))
             await awaitScreenCommit()
             reportReady(sequence)

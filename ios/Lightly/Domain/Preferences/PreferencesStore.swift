@@ -38,6 +38,8 @@ enum PreferredBorder: String, CaseIterable, Identifiable, Sendable {
     case solid
     case photoFrame
     case polaroid
+    /// Lightly 2: Paper is offered as a preferred border too (`prefborder` in the approved mockup).
+    case paper
 
     var id: String { rawValue }
 }

@@ -44,6 +44,7 @@ final class BorderPanelModel {
         case .solid: shownType = .solid
         case .photoFrame: shownType = .frame
         case .polaroid: shownType = .polaroid
+        case .paper: shownType = .paper
         }
     }
 
@@ -54,6 +55,7 @@ final class BorderPanelModel {
         case .solid: "Solid"
         case .photoFrame: "Photo Frame"
         case .polaroid: "Polaroid"
+        case .paper: "Paper"
         }
     }
 

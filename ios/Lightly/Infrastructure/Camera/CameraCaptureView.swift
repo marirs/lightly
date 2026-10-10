@@ -130,16 +130,17 @@ final class CameraControlsOverlay: UIView {
         backgroundColor = .clear
         captureBar.backgroundColor = .black
         addSubview(captureBar)
-        icon(cancel, symbol: "xmark", label: "Cancel", id: "camera.cancel") { [weak self] in self?.onCancel?() }
-        icon(switchCamera, symbol: "arrow.triangle.2.circlepath.camera", label: "Switch camera", id: "camera.switch") { [weak self] in self?.onSwitch?() }
-        icon(flash, symbol: "bolt.fill", label: "Flash", id: "camera.flash") { [weak self] in self?.onFlash?() }
+        // Lightly 2 `cameraScreen`: the mockup's own icons (close and flip at 26 pt, flash at 22 pt), white.
+        icon(cancel, image: Self.render(.close, size: 26), label: "Cancel", id: "camera.cancel") { [weak self] in self?.onCancel?() }
+        icon(switchCamera, image: Self.render(.flip, size: 26), label: "Switch camera", id: "camera.switch") { [weak self] in self?.onSwitch?() }
+        icon(flash, image: Self.render(.flash, size: 22), label: "Flash", id: "camera.flash") { [weak self] in self?.onFlash?() }
         flash.backgroundColor = UIColor.black.withAlphaComponent(0.6)
         flash.layer.cornerRadius = 24
         addSubview(flash)
         shutter.backgroundColor = .white
         shutter.layer.cornerRadius = 36
         shutter.layer.borderWidth = 5
-        shutter.layer.borderColor = UIColor.darkGray.cgColor
+        shutter.layer.borderColor = UIColor(hex: 0x3A3A3C).cgColor
         shutter.accessibilityLabel = "Take photo"
         shutter.accessibilityIdentifier = "camera.shutter"
         shutter.addAction(UIAction { [weak self] _ in self?.onShutter?() }, for: .touchUpInside)
@@ -158,8 +159,17 @@ final class CameraControlsOverlay: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    private func icon(_ button: UIButton, symbol: String, label: String, id: String, action: @escaping () -> Void) {
-        button.setImage(UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 25, weight: .regular)), for: .normal)
+    /// An `ApprovedIcon` as a template image, for UIKit buttons.
+    @MainActor static func render(_ icon: ApprovedIcon, size: CGFloat) -> UIImage? {
+        let renderer = ImageRenderer(content: ZStack {
+            ApprovedIconView(icon: icon, size: size)
+        }.foregroundStyle(Color.white))
+        renderer.scale = UIScreen.main.scale
+        return renderer.uiImage?.withRenderingMode(.alwaysTemplate)
+    }
+
+    private func icon(_ button: UIButton, image: UIImage?, label: String, id: String, action: @escaping () -> Void) {
+        button.setImage(image, for: .normal)
         button.tintColor = .white
         button.accessibilityLabel = label
         button.accessibilityIdentifier = id
@@ -168,7 +178,8 @@ final class CameraControlsOverlay: UIView {
 
     private func text(_ button: UIButton, title: String, id: String, action: @escaping () -> Void) {
         button.setTitle(title, for: .normal)
-        button.titleLabel?.font = .preferredFont(forTextStyle: .title3)
+        // 18 pt; "Use Photo" semibold.
+        button.titleLabel?.font = .systemFont(ofSize: 18, weight: id == "camera.use" ? .semibold : .regular)
         button.tintColor = .white
         button.accessibilityIdentifier = id
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
@@ -194,15 +205,18 @@ final class CameraControlsOverlay: UIView {
         let barHeight: CGFloat = 132 + bottom
         onLayout?(CGRect(x: 0, y: safeAreaInsets.top, width: bounds.width, height: max(0, bounds.height - safeAreaInsets.top - barHeight)))
         captureBar.frame = CGRect(x: 0, y: bounds.height - barHeight, width: bounds.width, height: barHeight)
-        shutter.frame = CGRect(x: (bounds.width - 72) / 2, y: 24, width: 72, height: 72)
-        cancel.frame = CGRect(x: 20, y: 36, width: 56, height: 56)
-        switchCamera.frame = CGRect(x: bounds.width - 76, y: 36, width: 56, height: 56)
-        flash.frame = CGRect(x: 20, y: safeAreaInsets.top + 12, width: 48, height: 48)
+        // 30/26 pt bar padding: Close and Switch 56 pt boxes, the 72 pt shutter 8 pt higher.
+        shutter.frame = CGRect(x: (bounds.width - 72) / 2, y: 22, width: 72, height: 72)
+        cancel.frame = CGRect(x: 26, y: 30, width: 56, height: 56)
+        switchCamera.frame = CGRect(x: bounds.width - 82, y: 30, width: 56, height: 56)
+        flash.frame = CGRect(x: 14, y: safeAreaInsets.top + 12, width: 48, height: 48)
         review.frame = bounds
         let reviewBarHeight: CGFloat = 72 + bottom
         reviewImage.frame = CGRect(x: 0, y: safeAreaInsets.top, width: bounds.width, height: max(0, bounds.height - safeAreaInsets.top - reviewBarHeight))
-        retake.frame = CGRect(x: 16, y: bounds.height - reviewBarHeight + 8, width: 110, height: 56)
-        use.frame = CGRect(x: bounds.width - 146, y: bounds.height - reviewBarHeight + 8, width: 130, height: 56)
+        // The 72 pt bar: Retake 26 pt from the leading edge, Use Photo 26 pt from the trailing edge.
+        retake.sizeToFit(); use.sizeToFit()
+        retake.frame = CGRect(x: 26, y: bounds.height - reviewBarHeight + 8, width: max(retake.bounds.width, 44), height: 56)
+        use.frame = CGRect(x: bounds.width - 26 - max(use.bounds.width, 44), y: bounds.height - reviewBarHeight + 8, width: max(use.bounds.width, 44), height: 56)
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -281,9 +295,11 @@ final class CameraPreviewController: UIViewController {
         updateFlash()
     }
     private func updateFlash() {
-        overlay.flash.setImage(UIImage(systemName: flashMode == .off ? "bolt.slash.fill" : "bolt.fill"), for: .normal)
+        overlay.flash.setImage(CameraControlsOverlay.render(.flash, size: 22), for: .normal)
+        overlay.flash.alpha = flashMode == .off ? 0.7 : 1
         overlay.flash.accessibilityValue = flashMode == .auto ? "Auto" : flashMode == .on ? "On" : "Off"
-        overlay.flash.tintColor = flashMode == .off ? .white : .systemYellow
+        // #FFD60A (Auto, On), white when off.
+        overlay.flash.tintColor = flashMode == .off ? .white : UIColor(hex: 0xFFD60A)
     }
     @objc private func focusAtTap(_ gesture: UITapGestureRecognizer) {
         let point = gesture.location(in: view)

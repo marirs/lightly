@@ -20,7 +20,7 @@ struct RootView: View {
 
         GeometryReader { geometry in
             routeView
-                .sheet(item: $appState.moreEntry) { entry in
+                .fullScreenCover(item: $appState.moreEntry) { entry in
                     moreSheet(entry, windowSize: fullSize(of: geometry))
                 }
                 .overlay { signatureSheet(isTablet: fullSize(of: geometry).width > 700) }
@@ -205,30 +205,17 @@ struct RootView: View {
 
     // MARK: - More
 
-    /// Phones: a sheet 88% of the screen tall with its grabber (the prototype's `.sheet`: 92%
-    /// requested, capped by `max-height: 88%`). Tablets: a
-    /// centred form sheet 540 pt wide (at most 92% of the width) and 70% of the height.
+    /// Lightly 2 `overlay('more')`: phones show More full screen on --bg; wider screens show it as the centred sheet
+    /// card (min(560, 60 % of the width), 92 % of the height, no grabber) over the scrim.
     @ViewBuilder
     private func moreSheet(_ entry: MoreEntry, windowSize: CGSize) -> some View {
-        let isTablet = horizontalSizeClass == .regular
-        let content = MoreSheet(entry: entry, initialPath: moreInitialPath)
-            // The prototype's sheet puts the page header below its grabber (8 + 15 pt) on
-            // phones, and 8 pt from the top of the form sheet on tablets.
-            .padding(.top, isTablet ? 8 : 23)
-            .presentationBackground(ApprovedColor.sheet.dynamic)
-            .presentationCornerRadius(14)
-        if isTablet {
-            content
-                .frame(idealWidth: min(540, windowSize.width * 0.92), idealHeight: windowSize.height * 0.7)
-                .modifier(FittedFormSheetSizing())
-                .presentationDragIndicator(.hidden)
+        if horizontalSizeClass == .regular {
+            ApprovedSheetOverlay(isTablet: true, heightFraction: 0.92, bare: true, onDismiss: { appState.closeMore() }) {
+                MoreSheet(entry: entry, inSheet: true, initialPath: moreInitialPath)
+            }
+            .presentationBackground(.clear)
         } else {
-            // A height, not `.fraction`: fractions are of the largest sheet height, not of the
-            // screen, and `.large` would shrink Welcome behind the sheet, which the design does
-            // not do. The system caps the height at its largest sheet.
-            content
-                .presentationDetents([.height(windowSize.height * 0.88)])
-                .presentationDragIndicator(.visible)
+            MoreSheet(entry: entry, initialPath: moreInitialPath)
         }
     }
 
