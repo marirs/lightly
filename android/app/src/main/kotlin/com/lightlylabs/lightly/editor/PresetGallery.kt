@@ -60,22 +60,36 @@ fun PresetGallery(vm: EditorViewModel, model: DevelopPanelModel, expanded: Boole
         item(key = "original") { PresetTile(vm, null, expanded, ui.session?.current?.look == null, context) }
         items(model.presets, key = { it.id }) { preset -> PresetTile(vm,preset,expanded,ui.session?.current?.look?.lookId == preset.id,context) }
     }
-    if (expanded) LazyVerticalGrid(GridCells.Fixed(2), state = grid, modifier = Modifier.fillMaxWidth().height(390.dp).nestedScroll(collapseScroll).then(accessibility).testTagResource("develop-gallery-expanded"), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp), content = tiles)
-    else LazyHorizontalGrid(GridCells.Fixed(2), state = grid, modifier = Modifier.fillMaxWidth().height(220.dp).then(expandGesture).then(accessibility).testTagResource("develop-gallery-compact"), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = tiles)
+    // Lightly 2: compact = two 84 dp rows, 96 dp columns, 10 dp row and 12 dp column gaps, the end fading; expanded = two
+    // equal columns, 14 dp row and 12 dp column gaps, 142 dp thumbnails.
+    if (expanded) LazyVerticalGrid(GridCells.Fixed(2), state = grid, modifier = Modifier.fillMaxWidth().height(390.dp).nestedScroll(collapseScroll).then(accessibility).testTagResource("develop-gallery-expanded"), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = tiles)
+    else LazyHorizontalGrid(GridCells.Fixed(2), state = grid, modifier = Modifier.fillMaxWidth().height(84.dp * 2 + 10.dp).fadeEnd().then(expandGesture).then(accessibility).testTagResource("develop-gallery-compact"), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = tiles)
 }
 
+/**
+ * A gallery tile: the thumbnail (62 dp compact, 142 dp expanded; 14 dp corners), the selected one with a 2 dp inset accent
+ * ring and a 20 dp lime check badge 6 dp in; the name below (11.5 sp; bold ink when selected, medium ink2), 5 dp between.
+ */
 @Composable private fun PresetTile(vm: EditorViewModel, preset: LookPreset?, expanded: Boolean, selected: Boolean, context: Any?) {
-    var rendered by remember(preset?.id,context) { mutableStateOf<Rgba8Image?>(null) }
-    LaunchedEffect(preset?.id,context) { rendered = vm.presetThumbnail(preset) }
-    Column(Modifier.then(if(expanded) Modifier.fillMaxWidth() else Modifier.width(96.dp)).clickable { vm.selectThumbnail(preset) }
-        .semantics { this.selected = selected }.testTagResource("develop-thumbnail-${preset?.id ?: "original"}"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.fillMaxWidth().height(if(expanded) 142.dp else 76.dp).clip(RoundedCornerShape(7.dp))
-            .background(lightlyColors.bg2).border(if(selected) 2.dp else 0.dp, if(selected) lightlyColors.sel else lightlyColors.bg2, RoundedCornerShape(7.dp))) {
+    var rendered by remember(preset?.id, context) { mutableStateOf<Rgba8Image?>(null) }
+    LaunchedEffect(preset?.id, context) { rendered = vm.presetThumbnail(preset) }
+    val colors = lightlyColors
+    val shape = RoundedCornerShape(14.dp)
+    Column(Modifier.then(if (expanded) Modifier.fillMaxWidth() else Modifier.width(96.dp)).clickable { vm.selectThumbnail(preset) }
+        .semantics { this.selected = selected; contentDescription = preset?.displayName ?: "Original" }
+        .testTagResource("develop-thumbnail-${preset?.id ?: "original"}"), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(Modifier.fillMaxWidth().height(if (expanded) 142.dp else 62.dp).clip(shape).background(colors.chip)) {
             val bitmap = remember(rendered) { rendered?.toBitmap()?.asImageBitmap() }
-            if(bitmap != null) Image(bitmap, preset?.displayName ?: "Original", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            else CircularProgressIndicator(Modifier.size(18.dp).align(Alignment.Center), strokeWidth = 2.dp)
-            if(selected) Text("✓", Modifier.align(Alignment.TopEnd).padding(5.dp).background(lightlyColors.sel,RoundedCornerShape(20.dp)).padding(horizontal=5.dp), color=lightlyColors.bg)
+            if (bitmap != null) Image(bitmap, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            else CircularProgressIndicator(Modifier.size(18.dp).align(Alignment.Center), strokeWidth = 2.dp, color = colors.ink3)
+            if (selected) {
+                Box(Modifier.fillMaxSize().border(2.dp, colors.sel, shape))
+                Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(20.dp).background(colors.accent, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                    LightlyIcon(LightlyIcons.Check, size = 13.dp, tint = colors.onAccent)
+                }
+            }
         }
-        Text(preset?.displayName ?: "Original", style=lightlyTextStyle(12.sp,color=lightlyColors.ink),maxLines=1)
+        Text(preset?.displayName ?: "Original", style = l2TextStyle(11.5.sp, if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+            if (selected) colors.ink else colors.ink2), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }

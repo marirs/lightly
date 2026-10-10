@@ -1,5 +1,11 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.ui.layout.positionInParent
+
+import androidx.compose.runtime.mutableStateMapOf
+
+import com.lightlylabs.lightly.shell.l2TextStyle
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,63 +81,63 @@ import kotlin.math.sin
  * reused by every tool panel from slice 3 on.
  */
 
-/** `.tabs`: one scrolling row of text tabs, faded at both ends (or wrapping in the wide layout). */
+/**
+ * Tool tabs (Lightly 2 `tabs`): a scrolling row, 20 dp gaps, 14.5 sp; selected bold ink (with the 2 dp orange underline
+ * when [underline], Develop's browsed category), others medium ink3; a 5 dp orange dot on tabs holding an edit; the end
+ * fades (88 %). The tab before the selected one is scrolled to the start (`scrolled()`).
+ */
 @Composable
-fun <T> OptionTabs(items: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, dotted: (T) -> Boolean = { false }, tagPrefix: String = "tab") {
+fun <T> OptionTabs(
+    items: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, dotted: (T) -> Boolean = { false }, tagPrefix: String = "tab",
+    underline: Boolean = false, icon: (T) -> androidx.compose.ui.graphics.vector.ImageVector? = { null },
+) {
     val colors = lightlyColors
     val scroll = rememberScrollState()
-    // The selected tab's left edge in window coordinates, as currently scrolled.
-    var selectedWindowX by remember { mutableFloatStateOf(Float.NaN) }
-    val density = LocalDensity.current
-    // Prototype buildRulers, for every `.tabs` row that overflows: scrollLeft = max(0, on.offsetLeft − 120),
-    // with offsetLeft measured from the device frame's left edge, so the selected tab lands 120 dp in
-    // (the same rule as the Develop category strip).
-    LaunchedEffect(selected, selectedWindowX) {
-        if (selectedWindowX.isNaN() || scroll.maxValue == 0) return@LaunchedEffect
-        val target = (scroll.value + selectedWindowX - with(density) { 120.dp.toPx() }).roundToInt().coerceIn(0, scroll.maxValue)
-        if (abs(target - scroll.value) > 1) scroll.scrollTo(target)
+    val offsets = remember { mutableStateMapOf<Int, Int>() }
+    val selectedIndex = items.indexOfFirst { it.first == selected }
+    LaunchedEffect(selectedIndex, offsets[maxOf(0, selectedIndex - 1)]) {
+        val target = offsets[maxOf(0, selectedIndex - 1)] ?: return@LaunchedEffect
+        scroll.scrollTo(target.coerceIn(0, scroll.maxValue))
     }
     Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-            .drawWithContent {
-                drawContent()
-                val w = size.width
-                drawRect(Brush.horizontalGradient(0f to Color.Transparent, 16.dp.toPx() / w to Color.Black, 1f - 24.dp.toPx() / w to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
-            }
-            .horizontalScroll(scroll)
-            .padding(horizontal = 18.dp),
+        Modifier.fillMaxWidth().fadeEnd().horizontalScroll(scroll),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        items.forEach { (value, label) ->
+        items.forEachIndexed { index, (value, label) ->
             val on = value == selected
-            Row(
+            Box(
                 Modifier
                     .heightIn(min = 44.dp)
-                    .widthIn(min = 44.dp)
+                    .onGloballyPositioned { offsets[index] = it.positionInParent().x.roundToInt() }
                     .clickable(role = Role.Tab) { onSelect(value) }
-                    .semantics { this.selected = on }
-                    .then(if (on) Modifier.onGloballyPositioned { selectedWindowX = it.positionInWindow().x } else Modifier)
+                    .semantics { this.selected = on; if (dotted(value)) stateDescription = "Edited" }
                     .testTagResource("$tagPrefix-${label.lowercase().replace(' ', '-')}"),
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
+                contentAlignment = Alignment.Center,
             ) {
-                Text(label, style = lightlyTextStyle(15.sp, if (on) FontWeight.SemiBold else FontWeight.Normal, if (on) colors.ink else colors.ink2), maxLines = 1)
-                if (dotted(value)) Box(Modifier.padding(start = 3.dp).size(5.dp).background(colors.browse, CircleShape))
+                Row(
+                    // `padding: 8px 0 7px`, the underline an inset 2 dp at the bottom of that box.
+                    Modifier.drawBehind { if (on && underline) drawRect(colors.browse, Offset(0f, size.height - 2.dp.toPx()), Size(size.width, 2.dp.toPx())) }
+                        .padding(top = 8.dp, bottom = 7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    icon(value)?.let { com.lightlylabs.lightly.shell.LightlyIcon(it, size = 14.dp, tint = if (on) colors.ink else colors.ink3) }
+                    Text(label, style = l2TextStyle(14.5.sp, if (on) FontWeight.Bold else FontWeight.Medium, if (on) colors.ink else colors.ink3), maxLines = 1)
+                    if (dotted(value)) Box(Modifier.size(5.dp).background(colors.edited, CircleShape))
+                }
             }
         }
     }
 }
 
 /**
- * `.sl`: label (max-content), a track (at least 90 dp, filling the rest), the rounded value (36 dp,
- * right-aligned, "+" for positive values on centred sliders). Dragging calls [onDrag]; release [onRelease].
+ * Lightly 2 `slider`: the label (92 dp, 13 sp semibold ink2), a 3 dp `--off` track with the accent fill (from the centre
+ * on bipolar ranges, with a 2×12 dp ink3 centre mark), a 22 dp knob with a soft shadow, the value (34 dp, 13 sp bold ink,
+ * "+" when positive on bipolar ranges). Dragging calls [onDrag]; release [onRelease]. [enabled] false dims it to 40 %.
  */
 @Composable
-fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (Double) -> Unit, onRelease: (Double) -> Unit, tag: String) {
+fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (Double) -> Unit, onRelease: (Double) -> Unit, tag: String, enabled: Boolean = true) {
     var trackingValue by remember(tag) { mutableFloatStateOf(Float.NaN) }
     val dragCallback by rememberUpdatedState(onDrag)
     val releaseCallback by rememberUpdatedState(onRelease)
@@ -139,17 +145,16 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
     val colors = lightlyColors
     val centred = min < 0
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 18.dp),
+        Modifier.fillMaxWidth().heightIn(min = 38.dp).graphicsLayer { alpha = if (enabled) 1f else 0.4f },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(label, style = lightlyTextStyle(color = colors.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = l2TextStyle(13.sp, FontWeight.SemiBold, colors.ink2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(92.dp))
         Box(
             Modifier
                 .weight(1f)
-                .widthIn(min = 90.dp)
                 .height(44.dp)
-                .pointerInput(min, max) {
+                .then(if (!enabled) Modifier else Modifier.pointerInput(min, max) {
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         fun valueAt(x: Float) = (min + (x / size.width).coerceIn(0f, 1f) * (max - min)).toDouble()
@@ -168,103 +173,108 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
                         releaseCallback(current.roundToInt().toDouble())
                         trackingValue = Float.NaN
                     }
-                }
+                })
                 .semantics {
                     contentDescription = label
-                    // TalkBack speaks the shown value ("+12"), not a percentage of the range.
                     stateDescription = (if (centred && value.roundToInt() > 0) "+" else "") + value.roundToInt()
                     progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), min.toFloat()..max.toFloat(), steps = (max - min).toInt() - 1)
-                    setProgress { v -> onRelease(v.roundToInt().toDouble()); true }
+                    if (enabled) setProgress { v -> onRelease(v.roundToInt().toDouble()); true }
                 }
                 .testTagResource(tag),
             contentAlignment = Alignment.CenterStart,
         ) {
-            Canvas(Modifier.fillMaxWidth().height(18.dp)) {
+            Canvas(Modifier.fillMaxWidth().height(22.dp)) {
                 val y = size.height / 2
                 val track = 3.dp.toPx()
                 val f = ((displayedValue - min) / (max - min)).toFloat().coerceIn(0f, 1f)
                 drawRoundRect(colors.track, Offset(0f, y - track / 2), Size(size.width, track), CornerRadius(2.dp.toPx()))
+                if (centred) drawRoundRect(colors.ink3, Offset(size.width / 2 - 1.dp.toPx(), y - 6.dp.toPx()), Size(2.dp.toPx(), 12.dp.toPx()), CornerRadius(1.dp.toPx()))
                 val from = if (centred) minOf(0.5f, f) else 0f
                 val to = if (centred) maxOf(0.5f, f) else f
-                drawRoundRect(colors.ink, Offset(size.width * from, y - track / 2), Size(size.width * (to - from), track), CornerRadius(2.dp.toPx()))
-                val knob = 9.dp.toPx()
-                drawCircle(if (colors.isDark) colors.ink else colors.bg, knob, Offset(size.width * f, y))
-                // `.trk b { border:1.5px }` renders as 1px (Chrome floors fractional borders).
-                drawCircle(colors.ink, knob - 0.5.dp.toPx(), Offset(size.width * f, y), style = Stroke(1.dp.toPx()))
+                drawRoundRect(colors.sel, Offset(size.width * from, y - track / 2), Size(size.width * (to - from), track), CornerRadius(2.dp.toPx()))
+                val knob = 11.dp.toPx()
+                drawCircle(Color.Black.copy(alpha = 0.2f), knob + 1.dp.toPx(), Offset(size.width * f, y + 1.dp.toPx()))
+                drawCircle(colors.knob, knob, Offset(size.width * f, y))
             }
         }
         val shown = displayedValue.roundToInt()
-        Text((if (centred && shown > 0) "+" else "") + shown, style = lightlyTextStyle(13.sp, color = colors.ink3), textAlign = TextAlign.End, modifier = Modifier.width(36.dp), maxLines = 1)
+        Text((if (centred && shown > 0) "+" else "") + shown, style = l2TextStyle(13.sp, FontWeight.Bold, colors.ink), textAlign = TextAlign.End, modifier = Modifier.width(34.dp), maxLines = 1)
     }
 }
 
-/** `.chiprow`: a scrolling row of options, gap 8, padding 6 18. */
+/** A sideways-scrolling row (`rowOf`/`chips`): [spacing] dp gaps, the end fading (88 %). */
 @Composable
-fun ChipRow(content: @Composable RowScope.() -> Unit) {
+fun ChipRow(spacing: Dp = 8.dp, content: @Composable RowScope.() -> Unit) {
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().fadeEnd().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp, horizontal = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
     )
 }
 
-/** `.opt`: an outlined option (44 dp min, radius 10, border-box padding 0 12 + 1 border); selected = selection colour and soft fill. */
+/**
+ * An option (Lightly 2 `chips`): a 38 dp capsule, 13 dp padding, 13 sp semibold; selected on an ink fill with on-ink
+ * content, others outlined in ink2. [card] options (signatures, fonts) are [cardHeight] dp, 16 dp corners, a 2 dp accent
+ * border when selected.
+ */
 @Composable
-fun OptChip(selected: Boolean, description: String, onClick: () -> Unit, tag: String, content: @Composable RowScope.() -> Unit) {
+fun OptChip(selected: Boolean, description: String, onClick: () -> Unit, tag: String, card: Boolean = false, cardHeight: Dp = 50.dp, minWidth: Dp = 0.dp, content: @Composable RowScope.() -> Unit) {
     val colors = lightlyColors
-    val shape = RoundedCornerShape(10.dp)
-    Row(
-        Modifier
-            .heightIn(min = 44.dp)
-            .widthIn(min = 44.dp)
-            .clip(shape)
-            .then(if (selected) Modifier.background(colors.selSoft) else Modifier)
-            .border(1.dp, if (selected) colors.sel else colors.hair, shape)
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .semantics { contentDescription = description; this.selected = selected }
-            .testTagResource(tag)
-            // CSS border-box: `padding: 0 12px` plus the 1px border, which takes layout space in CSS but
-            // not in Compose (its border is drawn inside). 12 alone made every chip 2 dp narrower.
-            .padding(horizontal = 12.dp + 1.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
+    val shape = if (card) RoundedCornerShape(16.dp) else RoundedCornerShape(19.dp)
+    val ink = if (card) colors.ink else if (selected) colors.onInk else colors.ink2
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.material3.LocalContentColor provides ink,
+        androidx.compose.material3.LocalTextStyle provides l2TextStyle(13.sp, FontWeight.SemiBold, ink),
+    ) {
+        Row(
+            Modifier
+                .heightIn(min = if (card) cardHeight else 38.dp)
+                .widthIn(min = minWidth)
+                .clip(shape)
+                .then(if (!card && selected) Modifier.background(colors.segmentOn) else Modifier)
+                .then(when {
+                    card -> Modifier.border(if (selected) 2.dp else 1.dp, if (selected) colors.sel else colors.hair, shape)
+                    !selected -> Modifier.border(1.dp, colors.hair, shape)
+                    else -> Modifier
+                })
+                .clickable(role = Role.RadioButton, onClick = onClick)
+                .semantics { contentDescription = description; this.selected = selected }
+                .testTagResource(tag)
+                .padding(horizontal = if (card) 12.dp else 13.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
+    }
 }
 
-/** `.sw` (44 dp circle) or a gradient swatch (52 × 44, radius 10); selected = a 2 dp ring 5 dp outside. */
+/**
+ * A swatch (Lightly 2 gradient swatches: [width]×[height], 14 dp corners); selected, a 2 dp sheet-coloured gap and a
+ * 2 dp accent ring outside it.
+ */
 @Composable
-fun Swatch(fill: (Size) -> Brush, selected: Boolean, description: String, onClick: () -> Unit, tag: String, width: Dp = 44.dp, cornerRadius: Dp? = null, colourName: String? = null) {
+fun Swatch(fill: (Size) -> Brush, selected: Boolean, description: String, onClick: () -> Unit, tag: String, width: Dp = 56.dp, cornerRadius: Dp? = 14.dp, colourName: String? = null, height: Dp = 42.dp) {
     val colors = lightlyColors
-    val shape = if (cornerRadius == null) CircleShape else RoundedCornerShape(cornerRadius)
+    val radius = cornerRadius ?: (height / 2)
+    val shape = RoundedCornerShape(radius)
     Box(
         Modifier
-            .size(width = width, height = 44.dp)
+            .padding(4.dp)
+            .size(width = width, height = height)
             .drawBehind {
                 if (selected) {
-                    // `.sw.on::after`: absolutely positioned at inset -5px from the swatch's PADDING box
-                    // (inside its 1px border), so the ring's outer edge is 4 dp outside the swatch; a 2px
-                    // border; border-radius 50% of the ring box, i.e. a circle on round swatches and an
-                    // ellipse on the 52 × 44 gradient swatches.
-                    val outside = 4.dp.toPx()
-                    val stroke = 2.dp.toPx()
-                    drawOval(
-                        colors.sel,
-                        topLeft = Offset(-outside + stroke / 2, -outside + stroke / 2),
-                        size = Size(size.width + 2 * outside - stroke, size.height + 2 * outside - stroke),
-                        style = Stroke(stroke),
-                    )
+                    val r = radius.toPx()
+                    drawRoundRect(colors.sheet, Offset(-2.dp.toPx(), -2.dp.toPx()), Size(size.width + 4.dp.toPx(), size.height + 4.dp.toPx()), CornerRadius(r + 2.dp.toPx()), style = Stroke(2.dp.toPx()))
+                    drawRoundRect(colors.sel, Offset(-3.dp.toPx(), -3.dp.toPx()), Size(size.width + 6.dp.toPx(), size.height + 6.dp.toPx()), CornerRadius(r + 4.dp.toPx()), style = Stroke(2.dp.toPx()))
                 }
             }
             .clip(shape)
             .drawBehind { drawRect(fill(size)) }
-            .border(1.dp, colors.hair, shape)
             .clickable(role = Role.RadioButton, onClick = onClick)
             .semantics {
                 contentDescription = description
                 this.selected = selected
-                // The approved label is only "Colour"; TalkBack speaks the colour's name as its value (as iOS).
                 colourName?.let { stateDescription = it }
             }
             .testTagResource(tag),
@@ -283,17 +293,17 @@ object SwatchNames {
     fun of(hex: String): String? = names[hex.uppercase()]
 }
 
-/** `.thumbopt.add`: the dashed 64 dp tile with a plus. */
+/** The (+) tile: 60 dp, 16 dp corners, a 1.5 dp dashed ink3 outline. */
 @Composable
 fun AddTile(description: String, onClick: () -> Unit, tag: String, content: @Composable () -> Unit) {
     val colors = lightlyColors
     Box(
         Modifier
-            .size(64.dp)
+            .size(60.dp)
             .drawBehind {
-                drawRoundRect(colors.ink3, cornerRadius = CornerRadius(10.dp.toPx()), style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
+                drawRoundRect(colors.ink3, cornerRadius = CornerRadius(16.dp.toPx()), style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
             }
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(16.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description }
             .testTagResource(tag),
@@ -313,8 +323,9 @@ fun cssLinearGradient(angleDegrees: Double, colours: List<Color>, width: Float, 
 
 fun colourOf(hex: String): Color = Color(0xFF000000 or hex.substring(1).toLong(16))
 
-/** `.note`: 13 sp ink3, padding 6 18; [bottom] 0 for the prototype's `padding-bottom:0` captions above swatch rows. */
+/** Lightly 2 `note`: 12.5 sp ink2, line height 1.4; spacing comes from the panel's column. */
+@Suppress("UNUSED_PARAMETER")
 @Composable
-fun PanelNote(text: String, modifier: Modifier = Modifier, bottom: Dp = 6.dp) {
-    Text(text, style = lightlyTextStyle(13.sp, color = lightlyColors.ink3), modifier = modifier.padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = bottom))
+fun PanelNote(text: String, modifier: Modifier = Modifier, bottom: Dp = 0.dp) {
+    Text(text, style = l2TextStyle(12.5.sp, color = lightlyColors.ink2, lineHeight = 1.4f), modifier = modifier.fillMaxWidth())
 }

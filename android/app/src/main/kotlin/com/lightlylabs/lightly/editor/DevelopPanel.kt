@@ -1,5 +1,7 @@
 package com.lightlylabs.lightly.editor
 
+import com.lightlylabs.lightly.shell.l2TextStyle
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.calculateTargetValue
 import androidx.compose.animation.core.exponentialDecay
@@ -99,37 +101,49 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.graphics.StrokeCap
 
 /**
- * Prototype `developPanel`: Auto, categories (tabs on phones, wrapped tabs in wide layouts, a list in
- * side panels, Favourites first), the notice, name / position / star / Amount, the "Applied: …" line,
- * then the ruler or the Amount slider.
+ * The Lightly 2 Develop panel (`developPanel`), 6 dp between rows: the grab handle (compact), the category tabs (orange
+ * underline on the browsed one, orange dot on the one holding the applied preset, Favourites with its star), a notice
+ * when one applies, the heading (star, the preset's name, Reset), the preset gallery and Amount.
  */
 @Composable
-fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, wrapped: Boolean, expanded: Boolean = false) = Column(Modifier.fillMaxWidth()) {
-    if (!expanded) Box(Modifier.fillMaxWidth().height(24.dp).pointerInput(Unit) {
+fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, wrapped: Boolean, expanded: Boolean = false) =
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val colors = lightlyColors
+    if (!expanded) Box(Modifier.fillMaxWidth().height(20.dp).padding(bottom = 14.dp).pointerInput(Unit) {
         var distance = 0f
         detectVerticalDragGestures(onDragStart = { distance = 0f }) { change, dy ->
             distance += dy
             if (distance < -24.dp.toPx()) { change.consume(); vm.setPresetExpanded(true) }
         }
-    }, contentAlignment = Alignment.Center) {
-        Box(Modifier.width(36.dp).height(4.dp).background(lightlyColors.hair, CircleShape))
+    }.semantics { contentDescription = "Preset browser" }, contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.width(36.dp).height(4.dp).background(colors.track, CircleShape))
     }
-    if (roomy) PanelTitle("Develop")
-    Column(Modifier.fillMaxWidth()) {
-        if (!roomy) {
-            if (wrapped) WrappedTabs(model, vm::selectCategory, Modifier.fillMaxWidth()) else ScrollingTabs(model, vm::selectCategory, Modifier.fillMaxWidth())
-        }
-    }
-    if (roomy) CategoryList(model, vm::selectCategory)
+    OptionTabs(
+        model.categories.map { it.id to it.label }, model.categoryId, vm::selectCategory,
+        dotted = { id -> model.categories.firstOrNull { it.id == id }?.dotted == true },
+        tagPrefix = "develop-category", underline = true,
+        icon = { id -> if (model.categories.firstOrNull { it.id == id }?.isFavourites == true) LightlyIcons.Star else null },
+    )
     model.notice?.let { DevelopNoticeView(it, vm) }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.material3.TextButton(onClick = vm::toggleStar, enabled = model.presetShown) { Text(if(model.starred) "★" else "☆") }
-        Text(model.name.ifEmpty { "Original" }, style = lightlyTextStyle(14.sp, color = lightlyColors.ink), maxLines = 2, modifier = Modifier.weight(1f))
-        if(vm.uiState.value.session?.current?.look != null) androidx.compose.material3.TextButton(onClick = vm::clearPreset, modifier = Modifier.testTagResource("develop-clear")) { LightlyIcon(LightlyIcons.RotateLeft, size = 17.dp, tint = lightlyColors.sel); Text("Reset", fontSize = 13.sp) }
+    // `heading`: the star (30×36, 20 dp; accent when a favourite, ink3 otherwise, faint without a preset), the name
+    // (17 sp heading, one line), and "Reset" when a preset is applied; 8 dp gaps, 36 dp tall.
+    val applied = vm.uiState.value.session?.current?.look != null
+    Row(Modifier.fillMaxWidth().heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            Modifier.size(width = 30.dp, height = 36.dp).clickable(enabled = model.presetShown, role = Role.Button, onClick = vm::toggleStar)
+                .semantics { contentDescription = "Favourite"; selected = model.starred }.testTagResource("develop-star"),
+            contentAlignment = Alignment.Center,
+        ) {
+            LightlyIcon(if (model.starred) LightlyIcons.StarFilled else LightlyIcons.Star, size = 20.dp,
+                tint = (if (model.starred) colors.sel else colors.ink3).copy(alpha = if (model.presetShown) 1f else 0.35f))
+        }
+        Text(model.name.ifEmpty { "Original" }, style = l2TextStyle(17.sp, FontWeight.SemiBold, colors.ink), maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f).testTagResource("develop-name"))
+        if (applied) com.lightlylabs.lightly.shell.LinkButton("Reset", vm::clearPreset, icon = LightlyIcons.Reset, tag = "develop-clear")
     }
-    PresetGallery(vm, model, expanded)
-    SliderRow("Amount", model.amount.toDouble(), 0.0, 100.0, onDrag = { vm.onAmountDrag(it.toInt()) }, onRelease = { vm.onAmountRelease(it.toInt()) }, tag = "develop-amount-slider")
-
+    PresetGallery(vm, model, expanded || roomy)
+    SliderRow("Amount", model.amount.toDouble(), 0.0, 100.0, onDrag = { vm.onAmountDrag(it.toInt()) }, onRelease = { vm.onAmountRelease(it.toInt()) },
+        tag = "develop-amount-slider", enabled = applied)
 }
 
 @Composable
@@ -269,49 +283,45 @@ private fun DevelopNoticeView(notice: DevelopNotice, vm: EditorViewModel) {
 
 @Composable
 private fun bold(head: String, rest: String) = buildAnnotatedString {
-    withStyle(SpanStyle(color = lightlyColors.ink, fontWeight = FontWeight.SemiBold)) { append(head) }
+    withStyle(SpanStyle(color = lightlyColors.ink, fontWeight = FontWeight.Bold)) { append(head) }
     append(rest)
 }
 
+/**
+ * A panel notice (Lightly 2 `notice`): an 18 dp icon (accent; danger for warnings), 13 sp text (line height 1.4) with a
+ * bold lead, quiet actions 8 dp apart; 12/14 dp padding, 18 dp corners, card fill, hairline.
+ */
 @Composable
 internal fun Notice(icon: androidx.compose.ui.graphics.vector.ImageVector, text: AnnotatedString, actions: List<Pair<String, () -> Unit>> = emptyList()) {
     val colors = lightlyColors
+    val shape = RoundedCornerShape(18.dp)
     Row(
-        Modifier
-            .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 2.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(colors.bg2)
-            .border(1.dp, colors.hair, RoundedCornerShape(10.dp))
-            // CSS border-box: the 1px border takes layout space inside the box (Compose's border does not).
-            .padding(horizontal = 12.dp + 1.dp, vertical = 10.dp + 1.dp),
+        Modifier.fillMaxWidth().clip(shape).background(colors.bg2).border(1.dp, colors.hair, shape).padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        LightlyIcon(icon, size = 18.dp, tint = colors.ink2)
-        Column(Modifier.weight(1f)) {
-            Text(text, style = lightlyTextStyle(13.5.sp, color = colors.ink2))
+        LightlyIcon(icon, size = 18.dp, tint = if (icon == LightlyIcons.Warn) colors.danger else colors.sel, modifier = Modifier.padding(top = 1.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(text, style = l2TextStyle(13.sp, color = colors.ink, lineHeight = 1.4f))
             if (actions.isNotEmpty()) {
-                Row(Modifier.padding(top = 4.dp).offset(x = (-12).dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    actions.forEach { (label, action) -> QuietSmallButton(label, action) }
-                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { actions.forEach { (label, action) -> QuietSmallButton(label, action) } }
             }
         }
     }
 }
 
-/**
- * `.btn.quiet.small`: min-height 44, padding 0 12, 14.5 sp semibold in the selection colour, an
- * optional leading icon (gap 8). [large] is `.btn.quiet` (15 sp).
- */
+/** `quietBtn`: a chip-filled capsule ([height] 38 dp), 14 dp padding, 13 sp semibold ink (accent when [accent]); an optional 16 dp icon. */
 @Composable
-internal fun QuietSmallButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, large: Boolean = false) {
+internal fun QuietSmallButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    large: Boolean = false, accent: Boolean = false, height: androidx.compose.ui.unit.Dp = 38.dp, dimmed: Boolean = false) {
+    val colors = lightlyColors
+    val ink = (if (accent) colors.sel else colors.ink).copy(alpha = if (dimmed) 0.4f else 1f)
     Row(
-        modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        modifier.height(height).clip(RoundedCornerShape(50)).background(colors.chip).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) LightlyIcon(icon, size = 17.dp, tint = lightlyColors.sel)
-        Text(label, style = lightlyTextStyle(if (large) 15.sp else 14.5.sp, FontWeight.SemiBold, lightlyColors.sel), maxLines = 1)
+        if (icon != null) LightlyIcon(icon, size = 16.dp, tint = ink)
+        Text(label, style = l2TextStyle(13.sp, FontWeight.SemiBold, ink), maxLines = 1)
     }
 }
 
