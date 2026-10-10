@@ -32,3 +32,7 @@ Keep front-camera captures mirrored horizontally to match the viewfinder when en
 ### Camera confirmation mirroring — follow-up correction
 
 The prior correction ran after the system Use Photo screen and missed the reported transition. The supported UIImagePickerController overlay now owns capture controls and Retake / Use Photo review. Capture remains system-managed. Review displays the mirrored encoded image itself; Use Photo delivers those same bytes, with no second transform. Front-camera, rear-camera, flash, shutter and cancellation remain available. The native camera confirmation is bypassed via showsCameraControls=false and takePicture(), without inspecting private UIKit views.
+
+### Camera preview layout — 2026-10-10
+
+Replace the system picker's unmanaged preview frame with an AVCaptureVideoPreviewLayer explicitly filling the area above the capture controls. Aspect-fill preserves proportions (it crops the viewfinder to its frame); the complete captured photo is retained and shown aspect-fit at confirmation. No sensor pixels are discarded for the layout. Front preview mirroring and the encoded selfie correction remain explicit, rear captures remain unmirrored. Session configuration, switching and start/stop are serialized off the UI thread.

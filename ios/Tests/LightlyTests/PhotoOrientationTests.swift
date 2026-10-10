@@ -202,6 +202,21 @@ final class PhotoOrientationTests: XCTestCase {
         XCTAssertEqual(deliveries, 1)
     }
 
+    @MainActor
+    func testCameraPreviewMeetsControlsWithoutAnUnusedGap() {
+        for size in [CGSize(width: 375, height: 667), CGSize(width: 414, height: 896), CGSize(width: 440, height: 956)] {
+            let overlay = CameraControlsOverlay()
+            var preview = CGRect.zero
+            overlay.onLayout = { preview = $0 }
+            overlay.frame = CGRect(origin: .zero, size: size)
+            overlay.layoutIfNeeded()
+            XCTAssertEqual(preview.minY, 0)
+            XCTAssertEqual(preview.width, size.width)
+            XCTAssertEqual(preview.maxY, overlay.shutter.superview!.frame.minY)
+            XCTAssertGreaterThan(preview.height / size.height, 0.75)
+        }
+    }
+
     // MARK: - Helpers
 
     private struct Pixel {

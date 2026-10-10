@@ -1,37 +1,21 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 
-/// System camera capture with a supported control overlay. The stock camera's
-/// confirmation screen unmirrors selfies before the delegate receives them;
-/// our review displays the same encoded image that will enter the editor.
+/// Explicitly sized camera preview and a mirrored confirmation image.
 struct CameraCaptureView: UIViewControllerRepresentable {
     /// Called with encoded image data when the user keeps a capture.
     let onCapture: (Data) -> Void
     /// Called when the user backs out. Must not be treated as an error (§28).
     let onCancel: () -> Void
 
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let controller = UIImagePickerController()
-        // v3 differs: v1 fell back to the legacy library picker when there was
-        // no camera. The approved flow has no such picker: `AppState` presents
-        // this view only when capture is available (`CameraAccessing`).
-        if UIImagePickerController.isSourceTypeAvailable(.camera) {
-            controller.sourceType = .camera
-        } else {
-            // Unreachable through AppState; never show a library instead.
-            DispatchQueue.main.async { onCancel() }
-        }
-        controller.delegate = context.coordinator
-        if controller.sourceType == .camera {
-            controller.showsCameraControls = false
-            context.coordinator.attach(to: controller)
-        }
+    func makeUIViewController(context: Context) -> CameraPreviewController {
+        let controller = CameraPreviewController(overlay: context.coordinator.overlay)
+        context.coordinator.attach(to: controller)
         return controller
     }
 
-    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {
-        // No dynamic configuration; the flow is fully system-driven.
-    }
+    func updateUIViewController(_ controller: CameraPreviewController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onCapture: onCapture, onCancel: onCancel)
@@ -59,55 +43,32 @@ struct CameraCaptureView: UIViewControllerRepresentable {
     }
 
     /// Bridges `UIImagePickerController`'s delegate callbacks to closures.
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    @MainActor
+    final class Coordinator: NSObject {
         private let onCapture: (Data) -> Void
         private let onCancel: () -> Void
-        private weak var picker: UIImagePickerController?
+        private weak var picker: CameraPreviewController?
         let overlay = CameraControlsOverlay()
         private(set) var pendingCapture: Data?
         private var capturing = false
 
-        func attach(to picker: UIImagePickerController) {
+        func attach(to picker: CameraPreviewController) {
             self.picker = picker
-            overlay.frame = picker.view.bounds
-            overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            picker.cameraOverlayView = overlay
+            picker.onPhoto = { [weak self] image, front in
+                self?.receive(image, camera: front ? .front : .rear)
+            }
+            picker.onFailure = { [weak self] in self?.onCancel() }
             overlay.onShutter = { [weak self] in
-                guard let self, !self.capturing, self.pendingCapture == nil, let picker = self.picker else { return }
+                guard let self, !self.capturing, self.pendingCapture == nil else { return }
                 self.capturing = true
                 self.overlay.setCapturing(true)
-                picker.takePicture()
+                self.picker?.takePhoto()
             }
             overlay.onCancel = { [weak self] in self?.onCancel() }
-            overlay.onSwitch = { [weak self] in
-                guard let self, !self.capturing, let picker = self.picker else { return }
-                let next: UIImagePickerController.CameraDevice = picker.cameraDevice == .front ? .rear : .front
-                guard UIImagePickerController.isCameraDeviceAvailable(next) else { return }
-                picker.cameraDevice = next
-                self.updateFlash()
-            }
-            overlay.onFlash = { [weak self] in
-                guard let self, !self.capturing, let picker = self.picker else { return }
-                switch picker.cameraFlashMode {
-                case .auto: picker.cameraFlashMode = .on
-                case .on: picker.cameraFlashMode = .off
-                default: picker.cameraFlashMode = .auto
-                }
-                self.updateFlash()
-            }
-            overlay.onReviewDismissed = { [weak self] in self?.updateFlash() }
+            overlay.onSwitch = { [weak self] in self?.picker?.switchCamera() }
+            overlay.onFlash = { [weak self] in self?.picker?.cycleFlash() }
             overlay.onRetake = { [weak self] in self?.retake() }
             overlay.onUse = { [weak self] in self?.usePhoto() }
-            updateFlash()
-        }
-
-        private func updateFlash() {
-            guard let picker else { return }
-            overlay.flash.isHidden = !UIImagePickerController.isFlashAvailable(for: picker.cameraDevice)
-            let mode = picker.cameraFlashMode
-            overlay.flash.setImage(UIImage(systemName: mode == .off ? "bolt.slash.fill" : "bolt.fill"), for: .normal)
-            overlay.flash.accessibilityValue = mode == .auto ? "Auto" : mode == .on ? "On" : "Off"
-            overlay.flash.tintColor = mode == .off ? .white : .systemYellow
         }
 
         func retake() {
@@ -139,25 +100,12 @@ struct CameraCaptureView: UIViewControllerRepresentable {
             self.onCancel = onCancel
         }
 
-        func imagePickerController(
-            _ picker: UIImagePickerController,
-            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
-        ) {
-            guard let original = info[.originalImage] as? UIImage else {
-                onCancel()
-                return
-            }
-            receive(original, camera: picker.cameraDevice)
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            onCancel()
-        }
     }
+
 }
 
 /// Opaque review prevents any unmirrored system confirmation from being shown.
-/// Capture controls use the system camera overlay API; no private camera views.
+/// Capture controls and preview share one explicit layout.
 @MainActor
 final class CameraControlsOverlay: UIView {
     var onShutter: (() -> Void)?
@@ -166,6 +114,7 @@ final class CameraControlsOverlay: UIView {
     var onFlash: (() -> Void)?
     var onRetake: (() -> Void)?
     var onUse: (() -> Void)?
+    var onLayout: ((CGRect) -> Void)?
     let flash = UIButton(type: .system)
     let shutter = UIButton(type: .system)
     private let cancel = UIButton(type: .system)
@@ -243,6 +192,7 @@ final class CameraControlsOverlay: UIView {
         super.layoutSubviews()
         let bottom = safeAreaInsets.bottom
         let barHeight: CGFloat = 132 + bottom
+        onLayout?(CGRect(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - barHeight)))
         captureBar.frame = CGRect(x: 0, y: bounds.height - barHeight, width: bounds.width, height: barHeight)
         shutter.frame = CGRect(x: (bounds.width - 72) / 2, y: 24, width: 72, height: 72)
         cancel.frame = CGRect(x: 20, y: 36, width: 56, height: 56)
@@ -259,5 +209,155 @@ final class CameraControlsOverlay: UIView {
         let hit = super.hitTest(point, with: event)
         // Let tap-to-focus and camera gestures reach the system preview.
         return hit === self ? nil : hit
+    }
+}
+
+
+/// Owns the preview's bounds instead of depending on UIImagePickerController's
+/// undocumented internal preview frame. The original capture is kept in full.
+@MainActor
+final class CameraPreviewController: UIViewController {
+    private let engine = CameraCaptureEngine()
+    private let preview = AVCaptureVideoPreviewLayer()
+    private let overlay: CameraControlsOverlay
+    private var flashMode: AVCaptureDevice.FlashMode = .auto
+    var onPhoto: ((UIImage, Bool) -> Void)?
+    var onFailure: (() -> Void)?
+
+    init(overlay: CameraControlsOverlay) {
+        self.overlay = overlay
+        super.init(nibName: nil, bundle: nil)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override var prefersStatusBarHidden: Bool { true }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        preview.session = engine.session
+        preview.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(preview)
+        view.addSubview(overlay)
+        overlay.setCapturing(true)
+        overlay.onLayout = { [weak self] frame in
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            self?.preview.frame = frame
+            CATransaction.commit()
+        }
+        let focus = UITapGestureRecognizer(target: self, action: #selector(focusAtTap(_:)))
+        view.addGestureRecognizer(focus)
+        focus.cancelsTouchesInView = false
+        engine.onReady = { [weak self] front, hasFlash in
+            guard let self else { return }
+            if let connection = self.preview.connection {
+                if connection.isVideoRotationAngleSupported(90) { connection.videoRotationAngle = 90 }
+                connection.automaticallyAdjustsVideoMirroring = false
+                if connection.isVideoMirroringSupported { connection.isVideoMirrored = front }
+            }
+            self.overlay.flash.isHidden = !hasFlash
+            self.overlay.setCapturing(false)
+            self.updateFlash()
+        }
+        engine.onPhoto = { [weak self] image, front in self?.onPhoto?(image, front) }
+        engine.onFailure = { [weak self] in self?.onFailure?() }
+        overlay.onReviewDismissed = { [weak self] in self?.engine.refreshControls() }
+    }
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        overlay.frame = view.bounds
+        overlay.setNeedsLayout()
+        overlay.layoutIfNeeded()
+    }
+    override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); engine.start() }
+    override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); engine.stop() }
+    func takePhoto() { engine.takePhoto(flash: flashMode) }
+    func switchCamera() { overlay.setCapturing(true); engine.switchCamera() }
+    func cycleFlash() {
+        flashMode = flashMode == .auto ? .on : flashMode == .on ? .off : .auto
+        updateFlash()
+    }
+    private func updateFlash() {
+        overlay.flash.setImage(UIImage(systemName: flashMode == .off ? "bolt.slash.fill" : "bolt.fill"), for: .normal)
+        overlay.flash.accessibilityValue = flashMode == .auto ? "Auto" : flashMode == .on ? "On" : "Off"
+        overlay.flash.tintColor = flashMode == .off ? .white : .systemYellow
+    }
+    @objc private func focusAtTap(_ gesture: UITapGestureRecognizer) {
+        let point = gesture.location(in: view)
+        guard preview.frame.contains(point), overlay.hitTest(point, with: nil) == nil else { return }
+        engine.focus(at: preview.captureDevicePointConverted(fromLayerPoint: point))
+    }
+}
+
+/// All session mutations and start/stop run on one queue, never on the UI thread.
+final class CameraCaptureEngine: NSObject, AVCapturePhotoCaptureDelegate, @unchecked Sendable {
+    let session = AVCaptureSession()
+    private let queue = DispatchQueue(label: "pro.lightly.camera", qos: .userInitiated)
+    private let output = AVCapturePhotoOutput()
+    private var input: AVCaptureDeviceInput?
+    private var captureFront = false
+    var onReady: (@MainActor (Bool, Bool) -> Void)?
+    var onPhoto: (@MainActor (UIImage, Bool) -> Void)?
+    var onFailure: (@MainActor () -> Void)?
+
+    func start() { queue.async { [self] in
+        if input == nil {
+            session.beginConfiguration()
+            session.sessionPreset = .photo
+            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+                  let candidate = try? AVCaptureDeviceInput(device: device), session.canAddInput(candidate), session.canAddOutput(output) else {
+                session.commitConfiguration(); fail(); return
+            }
+            session.addInput(candidate); input = candidate
+            session.addOutput(output)
+            session.commitConfiguration()
+        }
+        session.startRunning()
+        ready()
+    } }
+    func stop() { queue.async { [self] in session.stopRunning() } }
+    func refreshControls() { queue.async { [self] in ready() } }
+    private func ready() {
+        let front = input?.device.position == .front
+        let flash = input?.device.hasFlash ?? false
+        DispatchQueue.main.async { [self] in onReady?(front, flash) }
+    }
+    private func fail() { DispatchQueue.main.async { [self] in onFailure?() } }
+    func switchCamera() { queue.async { [self] in
+        guard let old = input else { ready(); return }
+        let position: AVCaptureDevice.Position = old.device.position == .front ? .back : .front
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
+              let candidate = try? AVCaptureDeviceInput(device: device) else { ready(); return }
+        session.beginConfiguration()
+        session.removeInput(old)
+        if session.canAddInput(candidate) { session.addInput(candidate); input = candidate }
+        else { session.addInput(old) }
+        session.commitConfiguration()
+        ready()
+    } }
+    func focus(at point: CGPoint) { queue.async { [self] in
+        guard let device = input?.device, (try? device.lockForConfiguration()) != nil else { return }
+        defer { device.unlockForConfiguration() }
+        if device.isFocusPointOfInterestSupported && device.isFocusModeSupported(.autoFocus) {
+            device.focusPointOfInterest = point; device.focusMode = .autoFocus
+        }
+        if device.isExposurePointOfInterestSupported && device.isExposureModeSupported(.continuousAutoExposure) {
+            device.exposurePointOfInterest = point; device.exposureMode = .continuousAutoExposure
+        }
+    } }
+    func takePhoto(flash: AVCaptureDevice.FlashMode) { queue.async { [self] in
+        guard session.isRunning, let connection = output.connection(with: .video) else { fail(); return }
+        if connection.isVideoRotationAngleSupported(90) { connection.videoRotationAngle = 90 }
+        connection.automaticallyAdjustsVideoMirroring = false
+        if connection.isVideoMirroringSupported { connection.isVideoMirrored = false }
+        captureFront = input?.device.position == .front
+        let settings = AVCapturePhotoSettings()
+        if output.supportedFlashModes.contains(flash) { settings.flashMode = flash }
+        output.capturePhoto(with: settings, delegate: self)
+    } }
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        guard error == nil, let data = photo.fileDataRepresentation(), let image = UIImage(data: data) else { fail(); return }
+        let front = captureFront
+        DispatchQueue.main.async { [self] in onPhoto?(image, front) }
     }
 }
