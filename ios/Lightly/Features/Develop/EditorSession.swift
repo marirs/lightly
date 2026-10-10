@@ -1319,6 +1319,7 @@ final class EditorSession {
         /// frame is requested. Queuing both at once would let the full frame replace the waiting
         /// fast one, and the photo would lag the release by a whole spatial render.
         var prefixKey: PreviewPrefixKey?
+        var canvasKey: PreviewPrefixKey?
         var followUpWithFullFrame = false
         /// A ruler drag's frame (2026-10-06): the reduced preview base and the coarse drag LUT, so every newly crossed
         /// stop renders while the finger moves. The settled selection renders at normal preview quality.
@@ -1362,7 +1363,7 @@ final class EditorSession {
 
     /// A rendered frame; geometry can change its size.
     private struct RenderedFrame: Sendable {
-        let pixels: [UInt8]
+        var pixels: [UInt8]
         let width: Int
         let height: Int
     }
@@ -1378,6 +1379,13 @@ final class EditorSession {
     private final class PreviewPrefixCache: @unchecked Sendable {
         private let lock = NSLock()
         private var entry: (PreviewPrefixKey, RenderedFrame)?
+        private var canvasEntry: (PreviewPrefixKey, RenderedFrame, CGRect)?
+        func canvas(_ key: PreviewPrefixKey?) -> (RenderedFrame, CGRect)? {
+            lock.withLock { guard let key, let canvasEntry, canvasEntry.0 == key else { return nil }; return (canvasEntry.1, canvasEntry.2) }
+        }
+        func putCanvas(_ frame: RenderedFrame, imageRect: CGRect, key: PreviewPrefixKey?) {
+            lock.withLock { if let key { canvasEntry = (key, frame, imageRect) } }
+        }
         func get(_ key: PreviewPrefixKey?) -> RenderedFrame? {
             lock.withLock { guard let key, let entry, entry.0 == key else { return nil }; return entry.1 }
         }
@@ -1423,12 +1431,21 @@ final class EditorSession {
 
     nonisolated private static func renderPixels(_ job: RenderJob, base: consuming [UInt8], width: Int, height: Int,
                                                  renderer: DevelopFrameRenderer, cache: DevelopLUTCache, prefixCache: PreviewPrefixCache? = nil) throws -> RenderedFrame {
-        let frame = try renderFrameBeforeBorder(job, base: consume base, width: width, height: height, renderer: renderer, cache: cache, prefixCache: prefixCache)
-        var canvas = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
+        var canvas: RenderedFrame
+        let imageRect: CGRect
+        if let cached = prefixCache?.canvas(job.canvasKey) {
+            canvas = cached.0
+            imageRect = cached.1
+        } else {
+            let frame = try renderFrameBeforeBorder(job, base: consume base, width: width, height: height, renderer: renderer, cache: cache, prefixCache: prefixCache)
+            let bordered = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
+            canvas = RenderedFrame(pixels: bordered.pixels, width: bordered.width, height: bordered.height)
+            imageRect = job.border.type == .none ? CGRect(x: 0, y: 0, width: frame.width, height: frame.height)
+                : BorderStage.placement(job.border, frameWidth: frame.width, frameHeight: frame.height).imageRect
+            prefixCache?.putCanvas(canvas, imageRect: imageRect, key: job.canvasKey)
+        }
         // Stage 12 on the canvas, after the border, so a watermark can sit in its margin.
         if job.watermark.type != .none, let content = job.watermarkContent {
-            let imageRect = job.border.type == .none ? CGRect(x: 0, y: 0, width: frame.width, height: frame.height)
-                : BorderStage.placement(job.border, frameWidth: frame.width, frameHeight: frame.height).imageRect
             WatermarkStage.apply(job.watermark, content: content, pixels: &canvas.pixels, canvasWidth: canvas.width,
                                  canvasHeight: canvas.height, imageRect: imageRect, border: job.border.type,
                                  displayShortEdgePoints: job.displayPhotoSize.map { Double(min($0.width, $0.height)) })
@@ -1579,6 +1596,9 @@ final class EditorSession {
         var upstream = target
         upstream.revision = 0
         let neutral = EditRecipe.Tools.neutral(grainSeed: 0)
+        upstream.tools.watermark = neutral.watermark
+        job.canvasKey = PreviewPrefixKey(recipe: upstream, sceneGeneration: sceneGeneration,
+                                        autoLUT: auto, displaySize: renderReferencePhotoSize ?? displayedPhotoSize)
         upstream.tools.effects = neutral.effects
         upstream.tools.border = neutral.border
         upstream.tools.watermark = neutral.watermark
@@ -1594,6 +1614,7 @@ final class EditorSession {
             job.layeredCap = LayeredStages.previewCap
         }
         job.dragFrame = dragFrame && dragBase != nil
+        if job.dragFrame { job.canvasKey = nil }
         submit(job)
     }
 

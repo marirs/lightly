@@ -51,6 +51,7 @@
 		1D8E11DA2A334E99DCFEE4BC /* CoreImageAutoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC72857982EE4A5982A1B91 /* CoreImageAutoTests.swift */; };
 		1DA776EDFE6F7D4D07D836BA /* landscape_03_thumb.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 394FEE2B60B918BA12791CC6 /* landscape_03_thumb.jpg */; };
 		2058B8142145D0EF52B0A2EF /* ColorPipelineLoadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */; };
+		20F56C16F9635DA22CB57554 /* DancingScript-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = E7B8765EC1F28572F5659C0E /* DancingScript-OFL.txt */; };
 		21ECEFFC568E5D4079FFC7B9 /* CropGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7C94EEE92F650E5802946F /* CropGeometry.swift */; };
 		228FFCD1BC0744D1F47D9682 /* SnapshotEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99944887E73D0A1E77E396D /* SnapshotEnvironment.swift */; };
 		2384620040907CC99DC27B0E /* ReleaseBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE2E0E9F910229CF50E0172 /* ReleaseBundleTests.swift */; };
@@ -74,6 +75,7 @@
 		3A4069EFCF4518CE35EC8A75 /* sunset_02.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 6AF6E09639F56A586169D317 /* sunset_02.jpg */; };
 		3C2CCE5AD79012C5E308B2EC /* EditHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389649D93331FEC5D49ED2BE /* EditHistory.swift */; };
 		3ECEA2214805D81D95984D0C /* ImageAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E2A8CE87D87EA973EB3F0F /* ImageAnalysisTests.swift */; };
+		4034BECAA9958CB0BD284544 /* Lora-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = EB0326FC48A5C9CF7849800D /* Lora-Variable.ttf */; };
 		40ADEFE66BFF14774E09F704 /* PresetGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F889A4C6E81EDF8E7EECA7D /* PresetGallery.swift */; };
 		41A0B6869C0268CEB2FA721D /* LUTKernelSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D966F6DE946474C26273E04A /* LUTKernelSource.swift */; };
 		41A373D0F07EA282336E27A6 /* Inter-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F56BC8020EA10E43FC877278 /* Inter-Variable.ttf */; };
@@ -135,6 +137,7 @@
 		755B584F704F694ABDDBD66D /* sunset_03_thumb.jpg in Resources */ = {isa = PBXBuildFile; fileRef = BF3AE79255283EB87EF973FC /* sunset_03_thumb.jpg */; };
 		75852201265537C4085AD00D /* ApprovedColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDF8A8521A6B83641A10C005 /* ApprovedColor.swift */; };
 		75F87B246A47414E9A6340FE /* MetalLUTRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 529B651D4F3A99C24DA64E71 /* MetalLUTRenderer.swift */; };
+		78D084A94A24D0C8005B8F6F /* DancingScript-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7E76C213DDB956BB84DB063B /* DancingScript-Variable.ttf */; };
 		79CA298D1E24997F1B842CE4 /* PresetCatalogLoadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E914E9E5E062EE6588DA665 /* PresetCatalogLoadingTests.swift */; };
 		79DFAEFE13F1C28BDEDF1CF4 /* backlit_02.jpg in Resources */ = {isa = PBXBuildFile; fileRef = FDF66869D5782D441ED5CBE1 /* backlit_02.jpg */; };
 		7A3EAA88E65E15F7022BE1B6 /* PortableRandom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F2E65626053875D0712B9B6 /* PortableRandom.swift */; };
@@ -210,6 +213,7 @@
 		C1A93CD389A42F5F63C6EEE9 /* LightlyPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9FE8BA8FCBFBB9BAC04F50A /* LightlyPreset.swift */; };
 		C1AD858A08E66B18572CCA72 /* EditHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCAFE13D807284DF5125AA1 /* EditHistoryTests.swift */; };
 		C25C62CEA4AECE1FC3C8DF11 /* FloatImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F562D6AAAFF8E0B3E9EF0F8A /* FloatImage.swift */; };
+		C405E618899019F9070CB949 /* Lora-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 4638D20123BCA0EE5B4865E0 /* Lora-OFL.txt */; };
 		C53D3F5636EB0DDA85B8EB9A /* DebugScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0721BBFBE9F76CFA70E529E3 /* DebugScenario.swift */; };
 		C5463B7951467FA740621050 /* SignatureInkExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C299F77044937D968CADC6 /* SignatureInkExtractor.swift */; };
 		C56FB95735F926BA8B6F6A59 /* ApprovedParagraphLineBreakTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80F02E90129E9A0698BFC41F /* ApprovedParagraphLineBreakTests.swift */; };
@@ -353,6 +357,7 @@
 		44F45EABD4900BC33AE340BA /* EditRecipeCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditRecipeCodecTests.swift; sourceTree = "<group>"; };
 		45660D74E1F87AA904A414CA /* ReleaseFeatureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseFeatureUITests.swift; sourceTree = "<group>"; };
 		4573A01F6D80E9780EB8ADAC /* PhotoLibraryWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryWriter.swift; sourceTree = "<group>"; };
+		4638D20123BCA0EE5B4865E0 /* Lora-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Lora-OFL.txt"; sourceTree = "<group>"; };
 		46A2557F630816ED676CA636 /* LUTGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTGoldenTests.swift; sourceTree = "<group>"; };
 		4765D240C1C6B67BBBF6D211 /* ExportColorPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportColorPipelineTests.swift; sourceTree = "<group>"; };
 		481CABD602C3E74D684287DA /* BorderPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BorderPanel.swift; sourceTree = "<group>"; };
@@ -405,6 +410,7 @@
 		7C3F3D3C685B0B45184C248B /* DebugFixedRecipeDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFixedRecipeDeveloper.swift; sourceTree = "<group>"; };
 		7CEF0EA614E4A4400CE96091 /* SaveCopyTimingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveCopyTimingTests.swift; sourceTree = "<group>"; };
 		7E4AD9E4B8D3846BD2466071 /* StageMarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageMarks.swift; sourceTree = "<group>"; };
+		7E76C213DDB956BB84DB063B /* DancingScript-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DancingScript-Variable.ttf"; sourceTree = "<group>"; };
 		7ED6748D67469348D11E4C57 /* PresetLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetLookupTests.swift; sourceTree = "<group>"; };
 		7F6E560883970B346EDA7FFF /* LightlyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LightlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		80380C1BC4914792574C004E /* BackgroundResponsivenessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundResponsivenessTests.swift; sourceTree = "<group>"; };
@@ -497,9 +503,11 @@
 		E058C31F9580EFE911C7CCE9 /* CanonicalJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalJSON.swift; sourceTree = "<group>"; };
 		E48B233453406911E7C00651 /* EffectsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectsPanel.swift; sourceTree = "<group>"; };
 		E6A4B8E6AAF2D8137FFEFF5C /* LegalAndAboutPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalAndAboutPages.swift; sourceTree = "<group>"; };
+		E7B8765EC1F28572F5659C0E /* DancingScript-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "DancingScript-OFL.txt"; sourceTree = "<group>"; };
 		E800D7214C751E5E330D9D5E /* PickerDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerDiagnostics.swift; sourceTree = "<group>"; };
 		E8A0C003F0F7254D4B5DF854 /* DevelopPixelOperators.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopPixelOperators.swift; sourceTree = "<group>"; };
 		EA0565FFF2F9D00640B6C056 /* WatermarkStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatermarkStage.swift; sourceTree = "<group>"; };
+		EB0326FC48A5C9CF7849800D /* Lora-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Lora-Variable.ttf"; sourceTree = "<group>"; };
 		EBA59668B377D73510341753 /* SceneAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneAnalysis.swift; sourceTree = "<group>"; };
 		EF2A3886AFF77F9367614BF6 /* BackgroundRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRenderingTests.swift; sourceTree = "<group>"; };
 		F0DDF6120393A4C77252DC4E /* ReleaseGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseGateTests.swift; sourceTree = "<group>"; };
@@ -550,8 +558,12 @@
 				C9956A1D2A5FC4A685745292 /* Caveat-Variable.ttf */,
 				605E6468C88A2B50C779BECC /* CormorantGaramond-OFL.txt */,
 				B1FAE689304DCD990F6C6D43 /* CormorantGaramond-Variable.ttf */,
+				E7B8765EC1F28572F5659C0E /* DancingScript-OFL.txt */,
+				7E76C213DDB956BB84DB063B /* DancingScript-Variable.ttf */,
 				346FA14A69A74E1014030D14 /* Inter-OFL.txt */,
 				F56BC8020EA10E43FC877278 /* Inter-Variable.ttf */,
+				4638D20123BCA0EE5B4865E0 /* Lora-OFL.txt */,
+				EB0326FC48A5C9CF7849800D /* Lora-Variable.ttf */,
 			);
 			path = fonts;
 			sourceTree = "<group>";
@@ -1432,9 +1444,13 @@
 				0CABFF2795A6A2F012337923 /* Caveat-Variable.ttf in Resources */,
 				5DD94C9F4711BBA9C9E5D757 /* CormorantGaramond-OFL.txt in Resources */,
 				039CC038CBF5207735EC7419 /* CormorantGaramond-Variable.ttf in Resources */,
+				20F56C16F9635DA22CB57554 /* DancingScript-OFL.txt in Resources */,
+				78D084A94A24D0C8005B8F6F /* DancingScript-Variable.ttf in Resources */,
 				F8EDD10E1AE07A3709464DE1 /* Inter-OFL.txt in Resources */,
 				41A373D0F07EA282336E27A6 /* Inter-Variable.ttf in Resources */,
 				52026FBFCF45B8F0BEAD4DBF /* Localizable.xcstrings in Resources */,
+				C405E618899019F9070CB949 /* Lora-OFL.txt in Resources */,
+				4034BECAA9958CB0BD284544 /* Lora-Variable.ttf in Resources */,
 				4EEAA5B04D3B35D06A0B4369 /* PrivacyInfo.xcprivacy in Resources */,
 				79DFAEFE13F1C28BDEDF1CF4 /* backlit_02.jpg in Resources */,
 				728F49138594C1493CACFB8D /* backlit_02_thumb.jpg in Resources */,

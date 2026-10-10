@@ -189,7 +189,7 @@
                                "signature": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/signatureRef"}]},
                                "text": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["text", "font"],
                                                                      "properties": {"text": {"type": "string", "minLength": 1, "maxLength": 80},
-                                                                                    "font": {"enum": ["Allura", "Cormorant Garamond", "Inter", "Caveat"]}}}]},
+                                                                                    "font": {"enum": ["Allura", "Cormorant Garamond", "Inter", "Caveat", "Dancing Script", "Lora"]}}}]},
                                "logo": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["image"],
                                                                      "properties": {"image": {"$ref": "#/$defs/assetRef"}}}]},
                                "placement": {"enum": ["photo", "border", "canvas"]},

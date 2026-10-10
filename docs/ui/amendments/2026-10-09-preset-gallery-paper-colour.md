@@ -38,3 +38,7 @@ The prior correction ran after the system Use Photo screen and missed the report
 Replace the system picker's unmanaged preview frame with an AVCaptureVideoPreviewLayer explicitly filling the area above the capture controls. Aspect-fill preserves proportions (it crops the viewfinder to its frame); the complete captured photo is retained and shown aspect-fit at confirmation. No sensor pixels are discarded for the layout. Front preview mirroring and the encoded selfie correction remain explicit, rear captures remain unmirrored. Session configuration, switching and start/stop are serialized off the UI thread.
 
 The owner supplied an Instagram camera reference and approved rounded camera-preview edges. Apply a 24 pt continuous corner radius to all four live-preview corners, below the top safe area. This clips only the preview layer, never the captured photo.
+
+### Watermark editing — 2026-10-10
+
+Owner requested visible keyboard-safe text editing, a clear full-width text input entry, smooth positioning without accidental zoom, and additional fonts. Text entry uses a dedicated editor with Done/Cancel. One-finger watermark gestures no longer compete with double-tap inspection on iOS; explicit pinch inspection remains available. Preview reuses the complete photo/effects/border canvas while the watermark moves. Dancing Script and Lora join the bundled font choices on both platforms.

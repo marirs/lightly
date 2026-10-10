@@ -259,6 +259,7 @@ struct EditorScreen: View {
                                outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                                marksCoverCanvas: tool == .watermark,
                                allowsInspection: true,
+                               allowsDoubleTapZoom: tool != .watermark,
                                onInspectionBegan: {
                                    let hadPreview = watermarkDragStart != nil || replacementDragStart != nil
                                    watermarkDragStart = nil; replacementDragStart = nil

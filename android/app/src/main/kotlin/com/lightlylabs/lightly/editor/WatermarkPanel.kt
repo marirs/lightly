@@ -173,21 +173,20 @@ fun LogoGlyph(vm: EditorViewModel, logo: com.lightlylabs.lightly.session.AssetRe
 @Composable
 private fun TextRow(value: String, onCommit: (String) -> Unit) {
     var edited by remember { mutableStateOf(value) }
-    var focused by remember { mutableStateOf(false) }
-    LaunchedEffect(value) { if (!focused) edited = value }
-    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Text", style = lightlyTextStyle(color = lightlyColors.ink2))
-        BasicTextField(
-            edited, { edited = it.take(80) },
-            singleLine = true,
-            textStyle = lightlyTextStyle(color = lightlyColors.ink).merge(TextStyle(textAlign = TextAlign.End)),
-            cursorBrush = SolidColor(lightlyColors.sel),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onCommit(edited) }),
-            modifier = Modifier.weight(1f).onFocusChanged { state -> if (focused && !state.isFocused) onCommit(edited); focused = state.isFocused }
-                .semantics { contentDescription = "Watermark text" }.testTagResource("watermark-text-value"),
-        )
+    var editing by remember { mutableStateOf(false) }
+    androidx.compose.material3.OutlinedButton(onClick = { edited = value; editing = true },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp).testTagResource("watermark-text-value")) {
+        Text(value, modifier = Modifier.weight(1f), style = lightlyTextStyle(color = lightlyColors.ink))
+        Text("Edit", style = lightlyTextStyle(color = lightlyColors.sel))
     }
+    if (editing) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { editing = false },
+        title = { Text("Watermark text") },
+        text = { androidx.compose.material3.OutlinedTextField(value = edited, onValueChange = { edited = it.take(80) },
+            label = { Text("Your watermark") }, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { androidx.compose.material3.TextButton(enabled = edited.isNotBlank(), onClick = { onCommit(edited); editing = false }) { Text("Done") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { editing = false }) { Text("Cancel") } },
+    )
 }
 
 /**
@@ -241,6 +240,8 @@ internal fun watermarkFontFamily(assets: android.content.res.AssetManager, font:
         WatermarkFont.ALLURA -> family("Allura-Regular.ttf", null)
         WatermarkFont.CORMORANT_GARAMOND -> family("CormorantGaramond-Variable.ttf", 500)
         WatermarkFont.INTER -> family("Inter-Variable.ttf", weight ?: 400)
+        WatermarkFont.DANCING_SCRIPT -> family("DancingScript-Variable.ttf", 400)
+        WatermarkFont.LORA -> family("Lora-Variable.ttf", 400)
         WatermarkFont.CAVEAT -> family("Caveat-Variable.ttf", 500)
     }
 }

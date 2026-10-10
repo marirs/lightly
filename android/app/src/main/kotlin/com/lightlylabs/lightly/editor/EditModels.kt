@@ -60,7 +60,7 @@ object WatermarkOptions {
     val COLOURS = listOf("#FFFFFF", "#111111", "#C9A27E", "#8A8A8F")
     val POSITIONS = listOf("Top left", "Top", "Top right", "Left", "Centre", "Right", "Bottom left", "Bottom", "Bottom right")
     val FONTS = listOf(com.lightlylabs.lightly.session.WatermarkFont.ALLURA to "Allura", com.lightlylabs.lightly.session.WatermarkFont.CORMORANT_GARAMOND to "Cormorant Garamond",
-        com.lightlylabs.lightly.session.WatermarkFont.INTER to "Inter", com.lightlylabs.lightly.session.WatermarkFont.CAVEAT to "Caveat")
+        com.lightlylabs.lightly.session.WatermarkFont.INTER to "Inter", com.lightlylabs.lightly.session.WatermarkFont.CAVEAT to "Caveat", com.lightlylabs.lightly.session.WatermarkFont.DANCING_SCRIPT to "Dancing Script", com.lightlylabs.lightly.session.WatermarkFont.LORA to "Lora")
 
     /** The prototype's sample text (`newSession`: `text:'A. Rivera'`; owner question W5, as iOS). */
     const val DEFAULT_TEXT = "A. Rivera"

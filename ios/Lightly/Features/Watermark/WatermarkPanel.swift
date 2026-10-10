@@ -242,7 +242,7 @@ struct WatermarkPanelView: View {
     @State private var signaturePhoto: PhotosPickerItem?
     @State private var logoPhoto: PhotosPickerItem?
     @State private var editedText = ""
-    @FocusState private var isEditingText: Bool
+    @State private var isEditingText = false
 
     private var session: EditorSession { model.session }
     private var watermark: EditRecipe.Watermark { model.watermark }
@@ -328,25 +328,25 @@ struct WatermarkPanelView: View {
     @ViewBuilder
     private var text: some View {
         let current = watermark.text ?? .init(text: WatermarkPanelModel.defaultText, font: .allura)
-        // `.listrow` with `border:0`: "Text" in ink-2, the text itself at the end in ink. The value
-        // is editable in place.
-        HStack(spacing: 12) {
-            Text("Text").approvedText(15).foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-            TextField("", text: $editedText)
-                .focused($isEditingText)
-                .multilineTextAlignment(.trailing)
-                .approvedText(15)
-                .foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
-                .submitLabel(.done)
-                .onSubmit { model.setText(editedText) }
-                .onChange(of: isEditingText) { _, editing in if !editing { model.setText(editedText) } }
-                .accessibilityLabel(Text("Watermark text"))
-                .accessibilityIdentifier("watermark.text.value")
+        Button {
+            editedText = current.text
+            isEditingText = true
+        } label: {
+            HStack {
+                Text(current.text).foregroundStyle(ApprovedColor.ink.resolved(colorScheme))
+                Spacer()
+                Image(systemName: "pencil").foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
+            }
+            .approvedText(16).padding(14)
+            .background(ApprovedColor.ink.resolved(colorScheme).opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(ApprovedColor.ink.resolved(colorScheme).opacity(0.18)))
         }
-        .padding(.horizontal, ApprovedMetrics.rowHorizontalPadding)
-        .frame(maxWidth: .infinity, minHeight: ApprovedMetrics.rowMinimumHeight)
-        .onAppear { editedText = current.text }
-        .onChange(of: current.text) { _, value in if !isEditingText { editedText = value } }
+        .buttonStyle(.plain).padding(.horizontal, 18).padding(.vertical, 10)
+        .accessibilityLabel("Edit watermark text")
+        .accessibilityIdentifier("watermark.text.value")
+        .sheet(isPresented: $isEditingText) {
+            WatermarkTextEditor(text: current.text) { model.setText($0) }
+        }
         ChipRow {
             ForEach(EditRecipe.Watermark.Font.allCases, id: \.self) { font in
                 FontOption(text: current.text, font: font, isOn: current.font == font) { model.chooseFont(font) }
@@ -465,5 +465,35 @@ struct LogoGlyph: View {
             .frame(width: height, height: height)
             .accessibilityHidden(true)
         }
+    }
+}
+
+/// Dedicated text entry keeps the field and actions above the keyboard.
+private struct WatermarkTextEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: Bool
+    @State var text: String
+    let commit: (String) -> Void
+    var body: some View {
+        NavigationStack {
+            VStack {
+                TextField("Your watermark", text: $text, axis: .vertical)
+                    .font(.title3).lineLimit(1...3).focused($focused)
+                    .padding(16).background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityIdentifier("watermark.text.editor")
+                    .onChange(of: text) { _, value in text = String(value.prefix(80)) }
+                Spacer()
+            }.padding(20)
+                .navigationTitle("Watermark text").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { commit(text); dismiss() }
+                            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+        }
+        .presentationDetents([.medium]).presentationDragIndicator(.visible)
+        .onAppear { focused = true }
     }
 }

@@ -173,6 +173,7 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     var outlinesCanvas = false
     var marksCoverCanvas = false
     var allowsInspection = false
+    var allowsDoubleTapZoom = true
     var onInspectionBegan: () -> Void = {}
     var photoChrome = AnyView(EmptyView())
     /// The photo inside the canvas, as fractions (prototype `.imgbox` inside `.frame`): marks are
@@ -190,7 +191,7 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
         GeometryReader { geometry in
             let fitted = Self.fittedSize(image: CGSize(width: image.width, height: image.height), in: geometry.size)
             ZStack {
-                InspectionViewport(enabled: allowsInspection, contentSize: fitted, viewportSize: geometry.size, onInspectionBegan: onInspectionBegan) {
+                InspectionViewport(enabled: allowsInspection, doubleTapEnabled: allowsDoubleTapZoom, contentSize: fitted, viewportSize: geometry.size, onInspectionBegan: onInspectionBegan) {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.high)
@@ -484,6 +485,7 @@ private struct ShrinkToFitLayout: Layout {
 /// original coordinate system. Updating the rendered image never resets the viewport.
 private struct InspectionViewport<Content: View>: UIViewRepresentable {
     let enabled: Bool
+    let doubleTapEnabled: Bool
     let contentSize: CGSize
     let viewportSize: CGSize
     var onInspectionBegan: () -> Void
@@ -494,6 +496,7 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
     func makeUIView(context: Context) -> UIScrollView {
         let scroll = UIScrollView()
         scroll.backgroundColor = .clear
+        scroll.delaysContentTouches = false
         scroll.delegate = context.coordinator
         scroll.minimumZoomScale = 1
         scroll.maximumZoomScale = enabled ? 6 : 1
@@ -510,7 +513,7 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
         scroll.addSubview(host.view)
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.doubleTap(_:)))
         tap.numberOfTapsRequired = 2
-        tap.isEnabled = enabled
+        tap.isEnabled = enabled && doubleTapEnabled
         scroll.addGestureRecognizer(tap)
         context.coordinator.doubleTapRecognizer = tap
         return scroll
@@ -522,7 +525,7 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
         c.onInspectionBegan = onInspectionBegan
         scroll.maximumZoomScale = enabled ? 6 : 1
         scroll.panGestureRecognizer.isEnabled = enabled
-        c.doubleTapRecognizer?.isEnabled = enabled
+        c.doubleTapRecognizer?.isEnabled = enabled && doubleTapEnabled
         // Resizing the panel must not reset zoom. Geometry remains the unzoomed fitted photo.
         if c.contentSize != contentSize || c.viewportSize != viewportSize {
             let scale = scroll.zoomScale

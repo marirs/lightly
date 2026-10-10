@@ -26,6 +26,28 @@ final class EditorFlowUITests: XCTestCase {
         app.launch()
     }
 
+    func testWatermarkTextKeyboardAndNewFonts() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02"), "--scenario", "wm-text"])
+        let edit = app.buttons["watermark.text.value"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 30))
+        edit.tap()
+        let field = app.descendants(matching: .any)["watermark.text.editor"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertLessThan(field.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        field.tap()
+        field.typeText(" Test")
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.isHittable)
+        capture(named: "watermark-keyboard-visible")
+        done.tap()
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        edit.tap()
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(edit.exists)
+    }
+
     // MARK: - Welcome
 
     /// Welcome shows the brand and both ways in; no login, no onboarding (approved Welcome).

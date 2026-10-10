@@ -92,6 +92,14 @@ targets:
         buildPhase: resources
       # The four approved watermark fonts and their licences (shared/fonts, SIL OFL 1.1; the OFL
       # requires the licence to ship with the fonts). Read by URL in WatermarkFonts.
+      - path: ../shared/fonts/DancingScript-Variable.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/DancingScript-OFL.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Lora-Variable.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/Lora-OFL.txt
+        buildPhase: resources
       - path: ../shared/fonts/Allura-Regular.ttf
         buildPhase: resources
       - path: ../shared/fonts/CormorantGaramond-Variable.ttf

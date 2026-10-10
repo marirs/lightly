@@ -9,6 +9,14 @@ import XCTest
 /// the approved prototype's `watermarkHTML`.
 final class WatermarkStageTests: XCTestCase {
 
+    func testAdditionalFontsResolveTheirActualFamilies() {
+        XCTAssertTrue(WatermarkFonts.allBundled)
+        for (font, expected) in [(EditRecipe.Watermark.Font.dancingScript, "Dancing Script"), (.lora, "Lora")] {
+            let resolved = WatermarkFonts.font(font, size: 24)
+            XCTAssertEqual(CTFontCopyFamilyName(resolved) as String, expected)
+        }
+    }
+
     private func watermark(_ type: EditRecipe.Watermark.Kind = .text, position: Int = 8, offset: EditRecipe.Point? = nil,
                            size: Double = 34, opacity: Double = 100, colour: String = "#FFFFFF",
                            placement: EditRecipe.Watermark.Placement = .photo) -> EditRecipe.Watermark {

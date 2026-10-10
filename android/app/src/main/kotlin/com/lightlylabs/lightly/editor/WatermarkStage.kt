@@ -308,6 +308,8 @@ class WatermarkFonts(val assets: AssetManager?) {
         WatermarkFont.ALLURA -> load("Allura-Regular.ttf", null)
         WatermarkFont.CORMORANT_GARAMOND -> load("CormorantGaramond-Variable.ttf", "'wght' 500")
         WatermarkFont.INTER -> load("Inter-Variable.ttf", "'wght' 400, 'opsz' ${opticalSize.coerceIn(14.0, 32.0).roundToInt()}")
+        WatermarkFont.DANCING_SCRIPT -> load("DancingScript-Variable.ttf", "'wght' 400")
+        WatermarkFont.LORA -> load("Lora-Variable.ttf", "'wght' 400")
         WatermarkFont.CAVEAT -> load("Caveat-Variable.ttf", "'wght' 500")
     }
 

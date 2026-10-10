@@ -33,8 +33,11 @@ enum WatermarkFonts {
     nonisolated(unsafe) private static let inter = descriptor(file: "Inter-Variable")
     nonisolated(unsafe) private static let caveat = descriptor(file: "Caveat-Variable")
 
+    nonisolated(unsafe) private static let dancing = descriptor(file: "DancingScript-Variable")
+    nonisolated(unsafe) private static let lora = descriptor(file: "Lora-Variable")
+
     /// True when every approved font file is in the bundle (checked by tests).
-    static var allBundled: Bool { allura != nil && cormorant != nil && inter != nil && caveat != nil }
+    static var allBundled: Bool { allura != nil && cormorant != nil && inter != nil && caveat != nil && dancing != nil && lora != nil }
 
     /// The watermark text font at `size` (any unit: points or pixels). `cssPixels` is the size the
     /// prototype would draw at (18 px × size/34), used only for Inter's optical size.
@@ -43,6 +46,8 @@ enum WatermarkFonts {
         case .allura: return make(allura, size: size, weight: nil, opticalSize: nil)
         case .cormorantGaramond: return make(cormorant, size: size, weight: 500, opticalSize: nil)
         case .inter: return make(inter, size: size, weight: 400, opticalSize: cssPixels ?? size)
+        case .dancingScript: return make(dancing, size: size, weight: 400, opticalSize: nil)
+        case .lora: return make(lora, size: size, weight: 400, opticalSize: nil)
         case .caveat: return make(caveat, size: size, weight: 500, opticalSize: nil)
         }
     }
