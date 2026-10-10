@@ -36,3 +36,5 @@ The prior correction ran after the system Use Photo screen and missed the report
 ### Camera preview layout — 2026-10-10
 
 Replace the system picker's unmanaged preview frame with an AVCaptureVideoPreviewLayer explicitly filling the area above the capture controls. Aspect-fill preserves proportions (it crops the viewfinder to its frame); the complete captured photo is retained and shown aspect-fit at confirmation. No sensor pixels are discarded for the layout. Front preview mirroring and the encoded selfie correction remain explicit, rear captures remain unmirrored. Session configuration, switching and start/stop are serialized off the UI thread.
+
+The owner supplied an Instagram camera reference and approved rounded camera-preview edges. Apply a 24 pt continuous corner radius to all four live-preview corners, below the top safe area. This clips only the preview layer, never the captured photo.

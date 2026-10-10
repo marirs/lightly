@@ -192,7 +192,7 @@ final class CameraControlsOverlay: UIView {
         super.layoutSubviews()
         let bottom = safeAreaInsets.bottom
         let barHeight: CGFloat = 132 + bottom
-        onLayout?(CGRect(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - barHeight)))
+        onLayout?(CGRect(x: 0, y: safeAreaInsets.top, width: bounds.width, height: max(0, bounds.height - safeAreaInsets.top - barHeight)))
         captureBar.frame = CGRect(x: 0, y: bounds.height - barHeight, width: bounds.width, height: barHeight)
         shutter.frame = CGRect(x: (bounds.width - 72) / 2, y: 24, width: 72, height: 72)
         cancel.frame = CGRect(x: 20, y: 36, width: 56, height: 56)
@@ -237,6 +237,9 @@ final class CameraPreviewController: UIViewController {
         view.backgroundColor = .black
         preview.session = engine.session
         preview.videoGravity = .resizeAspectFill
+        preview.cornerRadius = 24
+        preview.cornerCurve = .continuous
+        preview.masksToBounds = true
         view.layer.addSublayer(preview)
         view.addSubview(overlay)
         overlay.setCapturing(true)
