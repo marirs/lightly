@@ -122,7 +122,7 @@ object BackgroundOptions {
     val GRADIENTS = listOf(160.0 to listOf("#F6D5B8", "#9EB7D6"), 180.0 to listOf("#20242C", "#5B6476"), 140.0 to listOf("#E9E4DA", "#BFC8C2"), 170.0 to listOf("#F0B7A4", "#6E5A86"))
 
     /** Bundled background photos: recipe AssetRef ids and asset file names. */
-    val IMAGES = listOf("background.landscape_01" to "landscape_01", "background.sunset_03" to "sunset_03", "background.wellexposed_02" to "wellexposed_02", "background.backlit_02" to "backlit_02")
+    val IMAGES = listOf("background.landscape_01" to "landscape_01", "background.sunset_03" to "sunset_03", "background.wellexposed_02" to "wellexposed_02")
 
     val STYLES = listOf(FocusStyle.LENS to "Lens", FocusStyle.SOFT to "Soft", FocusStyle.SWIRL to "Swirl", FocusStyle.MOTION to "Motion")
     val BOKEH = listOf(Bokeh.ROUND to "round", Bokeh.HEX to "hex", Bokeh.HEART to "heart", Bokeh.STAR to "star")

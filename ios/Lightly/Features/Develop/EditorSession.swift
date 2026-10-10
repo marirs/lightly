@@ -687,7 +687,7 @@ final class EditorSession {
         guard !isClosed, subjectState == .separating, generation == subjectGeneration else { return }
         sceneCache.subject = matte
         sceneCache.subjectAnalysed = true
-        for name in BackgroundPanelModel.bundledImages where sceneCache.replacementImages[name] == nil {
+        for name in BackgroundPanelModel.renderableImages where sceneCache.replacementImages[name] == nil {
             sceneCache.replacementImages[name] = BundledBackgrounds.image(name)
         }
         matteImage = matte.flatMap { Self.maskImage($0.matte) }
@@ -1922,7 +1922,7 @@ final class EditorSession {
             sceneCache.subject = analysis.subject
             sceneCache.subjectAnalysed = true
             sceneCache.disparity = analysis.disparity
-            for name in BackgroundPanelModel.bundledImages where sceneCache.replacementImages[name] == nil {
+            for name in BackgroundPanelModel.renderableImages where sceneCache.replacementImages[name] == nil {
                 sceneCache.replacementImages[name] = BundledBackgrounds.image(name)
             }
             matteImage = analysis.subject.flatMap { Self.maskImage($0.matte) }

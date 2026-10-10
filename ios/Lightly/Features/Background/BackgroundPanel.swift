@@ -34,7 +34,9 @@ final class BackgroundPanelModel {
     var brushRadius: Double { 0.005 + 0.055 * brushSize / 100 }
 
     /// The approved bundled backgrounds (prototype `BACKGROUNDS`).
-    static let bundledImages = ["landscape_01", "sunset_03", "wellexposed_02", "backlit_02", "landscape_02", "landscape_03", "sunset_02", "wellexposed_03"]
+    static let bundledImages = ["landscape_01", "sunset_03", "wellexposed_02", "landscape_02", "landscape_03", "sunset_02", "wellexposed_03"]
+    /// Keep retired assets available to edits that already reference them.
+    static let renderableImages = bundledImages + ["backlit_02"]
     /// Prototype `SWATCHES`.
     static let swatches = ["#F4F1EC", "#D9D4CC", "#9AA3A8", "#3C4A55", "#1F2328", "#C9A27E", "#8A5A44", "#4E6B5A"]
     /// Prototype `GRADIENTS` as recipe gradients.
