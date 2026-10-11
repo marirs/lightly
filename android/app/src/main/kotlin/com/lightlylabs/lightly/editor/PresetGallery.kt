@@ -71,8 +71,10 @@ fun PresetGallery(vm: EditorViewModel, model: DevelopPanelModel, expanded: Boole
  * ring and a 20 dp lime check badge 6 dp in; the name below (11.5 sp; bold ink when selected, medium ink2), 5 dp between.
  */
 @Composable private fun PresetTile(vm: EditorViewModel, preset: LookPreset?, expanded: Boolean, selected: Boolean, context: Any?) {
-    var rendered by remember(preset?.id, context) { mutableStateOf<Rgba8Image?>(null) }
-    LaunchedEffect(preset?.id, context) { rendered = vm.presetThumbnail(preset) }
+    // Keyed by the preset only: when the edit under the thumbnails changes (the Auto wand, another tool), the tile keeps
+    // its picture until the new one is ready instead of blanking to a spinner (owner report, 2026-10-11).
+    var rendered by remember(preset?.id) { mutableStateOf<Rgba8Image?>(null) }
+    LaunchedEffect(preset?.id, context) { vm.presetThumbnail(preset)?.let { rendered = it } }
     val colors = lightlyColors
     val shape = RoundedCornerShape(14.dp)
     Column(Modifier.then(if (expanded) Modifier.fillMaxWidth() else Modifier.width(96.dp)).clickable { vm.selectThumbnail(preset) }

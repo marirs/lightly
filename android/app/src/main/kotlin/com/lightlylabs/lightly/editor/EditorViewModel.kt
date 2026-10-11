@@ -195,6 +195,7 @@ class EditorViewModel(
      */
     fun openPhoto(assetId: String) {
         val previousAsset = savedState.get<String>(KEY_ASSET)
+        synchronized(thumbnailCache) { thumbnailCache.clear() }   // another photo's thumbnails are never shown again
         env.photoAccess.retain(assetId)
         if (previousAsset != null && previousAsset != assetId) env.photoAccess.release(previousAsset)
         savedState[KEY_ASSET] = assetId
@@ -1531,18 +1532,21 @@ class EditorViewModel(
         commit(session.selectLook(look), state.value.auto, fastFirst = true)
     }
 
-    private val thumbnailCache = linkedMapOf<String, Rgba8Image>()
-    private var thumbnailRecipe: EditState? = null
+    /**
+     * Preset thumbnails by (the edit under them, lookVersion). Several edits are kept, least recently used dropped, so
+     * toggling the Auto wand back (or Undo) shows the earlier thumbnails at once instead of rendering them again.
+     */
+    private val thumbnailCache = object : LinkedHashMap<Pair<EditState, String>, Rgba8Image>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<EditState, String>, Rgba8Image>?) = size > THUMBNAIL_CACHE_SIZE
+    }
     suspend fun presetThumbnail(preset: LookPreset?): Rgba8Image? {
         val current = state.value.session?.current ?: return null
         val source = state.value.original ?: return null
         val library = library ?: return null
-        val context = current.copy(look = null, revision = 0)
-        val key = preset?.lookVersion ?: "original"
+        val key = current.copy(look = null, revision = 0) to (preset?.lookVersion ?: "original")
         return withContext(env.thumbnailDispatcher ?: env.renderDispatcher) {
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            if (thumbnailRecipe != context) { thumbnailCache.clear(); thumbnailRecipe = context }
-            thumbnailCache[key]?.let { return@withContext it }
+            synchronized(thumbnailCache) { thumbnailCache[key] }?.let { return@withContext it }
             val ratio = 200.0 / maxOf(source.width, source.height)
             val small = BackgroundSession.resize(source, maxOf(1,(source.width*ratio).toInt()), maxOf(1,(source.height*ratio).toInt()))
             val edit = current.copy(look = preset?.let { LookRef(it.id,it.lookVersion,1f) })
@@ -1550,8 +1554,7 @@ class EditorViewModel(
             val plan = planOf(library, edit, lutDimension = DevelopLibrary.THUMBNAIL_DIMENSION)
             val result = EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library))
                 .renderPreview(patched, edit, plan, sourceStages(edit,library,200))
-            if (thumbnailCache.size >= 48) thumbnailCache.clear()
-            thumbnailCache[key] = result
+            synchronized(thumbnailCache) { thumbnailCache[key] = result }
             result
         }
     }
@@ -2546,6 +2549,8 @@ class EditorViewModel(
     }
 
     companion object {
+        /** Thumbnails are at most 200 px (about 110 KB each): 240 of them, about 26 MB, cover several edits of a collection. */
+        private const val THUMBNAIL_CACHE_SIZE = 240
         /** edit-recipe-v1 `selectiveColour.colours` maxItems. */
         const val MAX_KEPT_COLOURS = 8
         const val KEY_ASSET = "editor.asset"
