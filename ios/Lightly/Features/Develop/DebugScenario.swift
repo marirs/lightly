@@ -70,7 +70,7 @@ struct DebugScenario {
         case "ed-adjust-colour": return EditorUI(tool: .edit, editSub: .adjust, editGroup: .colour)
         case "ed-adjust-detail": return EditorUI(tool: .edit, editSub: .adjust, editGroup: .detail)
         case "ed-remove", "ed-removing", "ed-remove-failed": return EditorUI(tool: .edit, editSub: .remove)
-        case "fx-leak": return EditorUI(tool: .effects, effectsSub: .leak)
+        case "fx-leak", "fx-leak-none": return EditorUI(tool: .effects, effectsSub: .leak)
         case "fx-selective": return EditorUI(tool: .effects, effectsSub: .selective)
         case "fx-grain", "fx-preset-conflict": return EditorUI(tool: .effects, effectsSub: .grain)
         case "fx-vignette", "fx-combined": return EditorUI(tool: .effects, effectsSub: .vignette)
@@ -197,6 +197,17 @@ struct DebugScenario {
         }
     }
 
+    /// `fx-leak` / `fx-combined`: the light leak on with the pack's first leak, centred, at the mockup's Intensity 50.
+    static func showFirstPackLeak(_ effects: inout EditRecipe.Effects) {
+        if let first = LeakPack.bundled.leaks.first, let style = EditRecipe.Effects.LightLeak.Style.leakImage(first.id) {
+            effects.lightLeak.style = style
+        }
+        effects.lightLeak.intensity = EditorSession.leakIntensityWhenChosen
+        effects.lightLeak.x = EditorSession.leakCentreWhenChosen
+        effects.lightLeak.y = EditorSession.leakCentreWhenChosen
+        effects.lightLeak.enabled = true
+    }
+
     /// The prototype's `ed-remove` stroke mark (`.stroke` at left 62 %, top 30 %, 16 % × 5 % of the
     /// photo, rotated −12°, fully rounded) as a Remove stroke: its centre line and radius, in
     /// source coordinates for a photo of `width × height`.
@@ -252,10 +263,12 @@ struct DebugScenario {
             if screenID == "ed-remove-failed" { preset("daylight", 37) }
             session.debugHoldRemoveState(screenID == "ed-removing" ? .removing : .failed,
                                          stroke: .init(radius: stroke.radius, points: stroke.points, status: .applied, patch: nil))
-        case "fx-leak": effects { $0.lightLeak.enabled = true }
+        // Owner amendment 2026-10-11: the mockup shows the pack's first leak (`LEAKS[0]`) at Intensity 50. Without a
+        // bundled pack the drawn warm leak stands in, as before. `fx-leak-none` needs no setup: the effect is off.
+        case "fx-leak": effects { Self.showFirstPackLeak(&$0) }
         case "fx-grain": effects { $0.grain.enabled = true; $0.grain.amount = 45 }
         case "fx-vignette": effects { $0.vignette.enabled = true }
-        case "fx-combined": effects { $0.lightLeak.enabled = true; $0.grain.enabled = true; $0.vignette.enabled = true }
+        case "fx-combined": effects { Self.showFirstPackLeak(&$0); $0.grain.enabled = true; $0.vignette.enabled = true }
         case "fx-preset-conflict":
             // The prototype picks Film 5 with a stand-in hash (`presetHasEffect`); Film 5's real
             // recipe has no grain. Film 3 ("01 Vintage 01") is the first Film preset that carries

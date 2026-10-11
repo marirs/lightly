@@ -54,7 +54,7 @@ struct EffectsPanelView: View {
     private var effects: EditRecipe.Effects { model.effects }
 
     /// Lightly 2 `effectsPanel`, a 5 pt column: the tabs (orange dot on effects in use), the reset row, the preset
-    /// conflict notice, the effect's controls. No On/Off switches: choosing a style or moving a slider turns it on.
+    /// conflict notice, the effect's controls. No On/Off switches: choosing a leak or style, or moving a slider, turns it on.
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             PanelTabs(items: [(EffectsPanelModel.Sub.leak, "Light Leaks", effects.lightLeak.enabled),
@@ -75,27 +75,15 @@ struct EffectsPanelView: View {
         }
     }
 
-    /// `.listrow` "On"/"Off" with the switch (`onRow`), 44 pt high, no rule.
-    /// VoiceOver names the effect ("Vignette, switch, on"); the row itself shows only On/Off.
+    /// Owner amendment 2026-10-11 (mockup `effectsPanel` › `leakGallery`): the leak gallery replaces the four style
+    /// chips; Intensity, Rotation and the note are unchanged.
     @ViewBuilder
     private var leak: some View {
-        let l = effects.lightLeak
-        ChipRow(spacing: 6) {
-            ForEach(Self.leakStyles, id: \.style) { option in
-                OptionChip(isOn: l.enabled && l.style == option.style, identifier: "effects.leak.\(option.style.rawValue)",
-                           action: { session.commitEffects { $0.lightLeak.style = option.style; $0.lightLeak.enabled = true; if $0.lightLeak.intensity == 0 { $0.lightLeak.intensity = 35 } } }) {
-                    Text(LocalizedStringKey(option.label))
-                }
-            }
-        }
+        LeakGallery(session: session)
         slider("Intensity", \.lightLeak.intensity, 0...100)
         slider("Rotation", \.lightLeak.rotation, -180...180)
         ApprovedNote("Drag on the photo to move the leak.")
     }
-
-    static let leakStyles: [(style: EditRecipe.Effects.LightLeak.Style, label: String)] = [
-        (.warm, "Warm edge"), (.amber, "Amber flare"), (.rose, "Rose"), (.prism, "Prism")
-    ]
 
     @ViewBuilder
     private var grain: some View {

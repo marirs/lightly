@@ -136,7 +136,8 @@ final class OwnerAmendmentsSecondTests: XCTestCase {
         let bundled = BackgroundPanelModel.bundledImages.map(BackgroundPanelModel.ImageTile.bundled)
         XCTAssertEqual(BackgroundPanelModel.imageTiles(hasImportedPhoto: false), bundled + [.choosePhoto])
         XCTAssertEqual(BackgroundPanelModel.imageTiles(hasImportedPhoto: true), bundled + [.imported, .choosePhoto])
-        XCTAssertEqual(BackgroundImageGrid<EmptyView>.tileSide, 60)
+        // Owner amendment 2026-10-11 (third): the tiles fill the row, four across (LightLeakImageTests).
+        XCTAssertEqual(BackgroundImageGrid<EmptyView>.tileSide(gridWidth: 343), (343 - 24) / 4)
         XCTAssertEqual(BackgroundImageGrid<EmptyView>.rowGap, 10)
         XCTAssertEqual(BackgroundImageGrid<EmptyView>.columnGap, 8)
     }

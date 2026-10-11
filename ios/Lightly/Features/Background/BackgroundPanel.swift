@@ -308,8 +308,9 @@ struct BackgroundPanelView: View {
     }
 
     /// Owner amendment 2026-10-11 (second; mockup `backgroundPanel` kind 'image'): two rows like the preset gallery, of
-    /// 60 pt tiles 10 pt apart vertically and 8 pt horizontally, filled column by column and scrolling sideways with the
-    /// right edge fading; the bundled backgrounds, then the imported photo, then the dashed (+) tile last.
+    /// square tiles 10 pt apart vertically and 8 pt horizontally, filled column by column and scrolling sideways with the
+    /// right edge fading; the bundled backgrounds, then the imported photo, then the dashed (+) tile last. Owner
+    /// amendment 2026-10-11 (third, screen `bg-change-image`): the tiles fill the row, four across.
     private var imageGrid: some View {
         BackgroundImageGrid {
             ForEach(BackgroundPanelModel.imageTiles(hasImportedPhoto: session.importedBackgroundImage != nil), id: \.self) { tile in
@@ -373,24 +374,48 @@ struct BackgroundPanelView: View {
     }
 }
 
-/// The two-row background grid (mockup: `grid-auto-flow: column; grid-template-rows: repeat(2, 60px); gap: 10px 8px;
-/// padding: 4px 2px`), scrolling sideways; as `ChipRow`, the right edge fades (88 %) only while tiles are hidden past it.
+/// The two-row background grid (mockup: `grid-auto-flow: column; grid-template-rows: repeat(2, auto);
+/// grid-auto-columns: calc((100% - 24px) / 4); gap: 10px 8px; padding: 4px 2px`), scrolling sideways; as `ChipRow`, the
+/// right edge fades (88 %) only while tiles are hidden past it.
 struct BackgroundImageGrid<Content: View>: View {
-    static var tileSide: CGFloat { 60 }
+    static var columnsAcross: Int { 4 }
     static var rowGap: CGFloat { 10 }
     static var columnGap: CGFloat { 8 }
+    /// The mockup grid's own horizontal padding (2 pt each side): its `100%` is the width inside it.
+    static var horizontalPadding: CGFloat { 2 }
+    /// Before the panel's width is known (the first layout pass): the earlier fixed tile.
+    static var provisionalTileSide: CGFloat { 60 }
+
+    /// Owner amendment 2026-10-11 (third): four square tiles fill the grid's width, `(width − 3 × 8) / 4`.
+    static func tileSide(gridWidth: CGFloat) -> CGFloat {
+        max(0, (gridWidth - CGFloat(columnsAcross - 1) * columnGap) / CGFloat(columnsAcross))
+    }
+
     @ViewBuilder let content: () -> Content
     @State private var hidesMore = false
+    @State private var panelWidth: CGFloat = 0
+
+    private var tileSide: CGFloat {
+        panelWidth > 0 ? Self.tileSide(gridWidth: panelWidth - 2 * Self.horizontalPadding) : Self.provisionalTileSide
+    }
+
     var body: some View {
+        let side = tileSide
         ScrollView(.horizontal, showsIndicators: false) {
-            // LazyHGrid places items column by column (`grid-auto-flow: column`). At most nine tiles, all on screen at
-            // phone width, so its laziness never hides one.
-            LazyHGrid(rows: [GridItem(.fixed(Self.tileSide), spacing: Self.rowGap), GridItem(.fixed(Self.tileSide), spacing: Self.rowGap)],
+            // LazyHGrid places items column by column (`grid-auto-flow: column`). At most ten tiles, three columns past
+            // the visible four at most, so its laziness never matters.
+            LazyHGrid(rows: [GridItem(.fixed(side), spacing: Self.rowGap), GridItem(.fixed(side), spacing: Self.rowGap)],
                       spacing: Self.columnGap) { content() }
-                .padding(.vertical, 4).padding(.horizontal, 2)
+                .environment(\.backgroundTileSide, side)
+                .padding(.vertical, 4).padding(.horizontal, Self.horizontalPadding)
                 .reportsTrailingEdge(in: "backgroundgrid")
         }
-        .frame(height: Self.tileSide * 2 + Self.rowGap + 8)
+        .frame(height: side * 2 + Self.rowGap + 8)
+        .background(GeometryReader { geometry in
+            Color.clear
+                .onAppear { panelWidth = geometry.size.width }
+                .onChange(of: geometry.size.width) { _, width in panelWidth = width }
+        })
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .modifier(TrailingOverflowReader(space: "backgroundgrid", hidesMore: $hidesMore))
         .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
@@ -400,15 +425,29 @@ struct BackgroundImageGrid<Content: View>: View {
     }
 }
 
-/// A background choice (Lightly 2): 60 pt, 16 pt corners; when chosen, a 2 pt sheet-coloured gap and a 2 pt accent ring.
+private struct BackgroundTileSideKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 60
+}
+
+extension EnvironmentValues {
+    /// The side of a Change background › Image tile, set by BackgroundImageGrid from the panel's width.
+    var backgroundTileSide: CGFloat {
+        get { self[BackgroundTileSideKey.self] }
+        set { self[BackgroundTileSideKey.self] = newValue }
+    }
+}
+
+/// A background choice (Lightly 2): a square of the grid's tile side, 16 pt corners; when chosen, a 2 pt sheet-coloured
+/// gap and a 2 pt accent ring.
 struct BackgroundThumbnailFrame<Content: View>: View {
     let isOn: Bool
     @ViewBuilder let content: () -> Content
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.backgroundTileSide) private var side
     var body: some View {
         let c = L2(scheme: colorScheme)
         content()
-            .frame(width: 60, height: 60)
+            .frame(width: side, height: side)
             .clipped()   // a filled image overflows its frame; unclipped, it would take a neighbour's taps
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .contentShape(Rectangle())
@@ -444,13 +483,15 @@ struct BackgroundThumbnail: View {
     }
 }
 
-/// The (+) tile: choose a photo from the library as the background. 60 pt, 16 pt corners, 1.5 pt dashed ink3, 22 pt plus.
+/// The (+) tile: choose a photo from the library as the background. The grid's tile side, 16 pt corners, 1.5 pt dashed
+/// ink3, 22 pt plus.
 struct AddBackgroundButton: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.backgroundTileSide) private var side
     var body: some View {
         ApprovedIconView(icon: .plus, size: 22)
             .foregroundStyle(ApprovedColor.inkSecondary.resolved(colorScheme))
-            .frame(width: 60, height: 60)
+            .frame(width: side, height: side)
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(ApprovedColor.inkTertiary.resolved(colorScheme), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
             .accessibilityLabel(Text("Choose a photo"))

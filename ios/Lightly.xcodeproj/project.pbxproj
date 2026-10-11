@@ -12,6 +12,7 @@
 			buildConfigurationList = BBC256936F1E643F4D43EDE5 /* Build configuration list for PBXAggregateTarget "LookPack" */;
 			buildPhases = (
 				B1494605EFDF8208C65F8D88 /* Bundle Look pack */,
+				C248B280AE9325DC3859328A /* Bundle light-leak pack */,
 				EEDA03FC9510D14BEDBECBB2 /* Bundle depth model */,
 				08F9E8E1D898402E2FB2315C /* Bundle Remove model */,
 				A96115CF6F91062597F5F51B /* Write build info */,
@@ -142,6 +143,7 @@
 		6C778A8191F66A8643CED70C /* DevelopPixelOperators.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A0C003F0F7254D4B5DF854 /* DevelopPixelOperators.swift */; };
 		6D26C71C7DA23615F20A3D04 /* ControlContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B701BCDE146455B7448BDFA1 /* ControlContrastTests.swift */; };
 		6FCD5168C2384EFE07CC4731 /* TextLayerMarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CACC0B075F42B2994E5C63B /* TextLayerMarks.swift */; };
+		70217C55ED42EF783CE3F5D4 /* LeakPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9830CAECA7828DD10654F61 /* LeakPack.swift */; };
 		702FA36C289FA2111C749C5D /* DevelopPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD447FCC7DC10B60F153F4A5 /* DevelopPanelView.swift */; };
 		708937C01064262D33953294 /* DevelopFrameRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5DD12C2B7F61F9980536B3B /* DevelopFrameRenderer.swift */; };
 		713EA1515DB18632B61053A9 /* DebugCaptureDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2572A1C2A4459F66DCD434D /* DebugCaptureDriver.swift */; };
@@ -157,6 +159,7 @@
 		79CA298D1E24997F1B842CE4 /* PresetCatalogLoadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E914E9E5E062EE6588DA665 /* PresetCatalogLoadingTests.swift */; };
 		79DFAEFE13F1C28BDEDF1CF4 /* backlit_02.jpg in Resources */ = {isa = PBXBuildFile; fileRef = FDF66869D5782D441ED5CBE1 /* backlit_02.jpg */; };
 		7A3EAA88E65E15F7022BE1B6 /* PortableRandom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F2E65626053875D0712B9B6 /* PortableRandom.swift */; };
+		7B6D0CB749393962B50FFF71 /* LeakGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782C116F827C352BEF4E02A1 /* LeakGallery.swift */; };
 		7C8D59164812604247507053 /* LightlyColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683D9036EE1451AECD4DB7C0 /* LightlyColor.swift */; };
 		7CDB9DBD17368B7CF194B0A2 /* LayeredStages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CE2F7A07A25E24259BAFBFE /* LayeredStages.swift */; };
 		7DA2E8314D2D7431C80F4A5C /* PhotoOrientationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B8C011B45EA042A8B4D617 /* PhotoOrientationTests.swift */; };
@@ -219,6 +222,7 @@
 		AF91A45E5591E868069BA2F5 /* Bonskin-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 132AEF8E45B50323D255C55A /* Bonskin-LICENSE.txt */; };
 		B0CB8BBB3E65ADF2216C556B /* SelectiveColour.swift in Sources */ = {isa = PBXBuildFile; fileRef = 589B20DEDA287BBFDECFC78C /* SelectiveColour.swift */; };
 		B2C3A047FFF2C3E480A0FB22 /* OwnerAmendmentsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71345F8A9DC3A6EC116B9AEA /* OwnerAmendmentsUITests.swift */; };
+		B3ED7A6E0943F6C00AA5D99B /* LightLeakImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34CD077E2A54F4D9D42E349 /* LightLeakImageTests.swift */; };
 		B4EB867E80655134C201B76C /* LookThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0649541002DE319818590B79 /* LookThumbnailRenderer.swift */; };
 		B4F6BC21A03996F93EC1478F /* DeviceDragUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6682272154C3B9D406258B47 /* DeviceDragUITests.swift */; };
 		B5D1293D35952685EF0825A4 /* ForegroundEstimate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74554523BE88DFCC4DFCC811 /* ForegroundEstimate.swift */; };
@@ -467,6 +471,7 @@
 		75AFA2AE4E25D4D088F4D701 /* Entitlements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entitlements.swift; sourceTree = "<group>"; };
 		7690F7A3166CA742EBBD129A /* GlobalTableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalTableTests.swift; sourceTree = "<group>"; };
 		7772E8B98209919C954C1C84 /* ExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTests.swift; sourceTree = "<group>"; };
+		782C116F827C352BEF4E02A1 /* LeakGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeakGallery.swift; sourceTree = "<group>"; };
 		7C3F3D3C685B0B45184C248B /* DebugFixedRecipeDeveloper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFixedRecipeDeveloper.swift; sourceTree = "<group>"; };
 		7CEF0EA614E4A4400CE96091 /* SaveCopyTimingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveCopyTimingTests.swift; sourceTree = "<group>"; };
 		7E4AD9E4B8D3846BD2466071 /* StageMarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageMarks.swift; sourceTree = "<group>"; };
@@ -564,6 +569,7 @@
 		D76A7AAE94D2D487DA845CFD /* EditorFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFlowUITests.swift; sourceTree = "<group>"; };
 		D8DEAFDB710E401BBEBEBFA5 /* LocalHairMattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalHairMattingTests.swift; sourceTree = "<group>"; };
 		D966F6DE946474C26273E04A /* LUTKernelSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTKernelSource.swift; sourceTree = "<group>"; };
+		D9830CAECA7828DD10654F61 /* LeakPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeakPack.swift; sourceTree = "<group>"; };
 		DB6A5ADEBB04E7E46973DA42 /* Lightly.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Lightly.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DC68AAED2E065CDF96DD6BA1 /* PortraitRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortraitRenderingTests.swift; sourceTree = "<group>"; };
 		DC8867C92181E47646B33115 /* WatermarkFonts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatermarkFonts.swift; sourceTree = "<group>"; };
@@ -573,6 +579,7 @@
 		DD7C94EEE92F650E5802946F /* CropGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropGeometry.swift; sourceTree = "<group>"; };
 		E05740F2B38FB331A62DB58A /* Allura-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Allura-OFL.txt"; sourceTree = "<group>"; };
 		E058C31F9580EFE911C7CCE9 /* CanonicalJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalJSON.swift; sourceTree = "<group>"; };
+		E34CD077E2A54F4D9D42E349 /* LightLeakImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightLeakImageTests.swift; sourceTree = "<group>"; };
 		E3ABFE7D7C25DBA97EC09DD5 /* Velomino-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Velomino-Regular.otf"; sourceTree = "<group>"; };
 		E3E273EE4B41C9EA0E91FA3D /* RetroRomance-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "RetroRomance-LICENSE.txt"; sourceTree = "<group>"; };
 		E48B233453406911E7C00651 /* EffectsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectsPanel.swift; sourceTree = "<group>"; };
@@ -950,6 +957,7 @@
 				82AF4858EE522507FE9C79AE /* GPUResourceReleaseTests.swift */,
 				125BF56B9F1392424FD89CCC /* HairMatteTests.swift */,
 				D6E2A8CE87D87EA973EB3F0F /* ImageAnalysisTests.swift */,
+				E34CD077E2A54F4D9D42E349 /* LightLeakImageTests.swift */,
 				D8DEAFDB710E401BBEBEBFA5 /* LocalHairMattingTests.swift */,
 				A13C873B5606C4AD11DB6FA1 /* LockedDecisionsTests.swift */,
 				46A2557F630816ED676CA636 /* LUTGoldenTests.swift */,
@@ -1118,6 +1126,7 @@
 			isa = PBXGroup;
 			children = (
 				1B11367374833BFABD79D7C5 /* EffectsStage.swift */,
+				D9830CAECA7828DD10654F61 /* LeakPack.swift */,
 				589B20DEDA287BBFDECFC78C /* SelectiveColour.swift */,
 			);
 			path = Effects;
@@ -1179,6 +1188,7 @@
 			isa = PBXGroup;
 			children = (
 				E48B233453406911E7C00651 /* EffectsPanel.swift */,
+				782C116F827C352BEF4E02A1 /* LeakGallery.swift */,
 			);
 			path = Effects;
 			sourceTree = "<group>";
@@ -1702,6 +1712,25 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${LIGHTLY_REPO_ROOT}/scripts/bundle_look_pack.sh\"";
 		};
+		C248B280AE9325DC3859328A /* Bundle light-leak pack */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle light-leak pack";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${LIGHTLY_REPO_ROOT}/scripts/bundle_leak_pack.sh\"";
+		};
 		EC88E40E60C9E30B937176BF /* Check app icon */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -1783,6 +1812,7 @@
 				3ECEA2214805D81D95984D0C /* ImageAnalysisTests.swift in Sources */,
 				87752B3B6F236666FE29F54A /* LUTGoldenTests.swift in Sources */,
 				85B97E1A9D88278E0D307BCF /* LayoutProbe.swift in Sources */,
+				B3ED7A6E0943F6C00AA5D99B /* LightLeakImageTests.swift in Sources */,
 				BDA8176BD3CFB75624E898BD /* LocalHairMattingTests.swift in Sources */,
 				45FAD05F4E71AA9577515028 /* LockedDecisionsTests.swift in Sources */,
 				A805C2A832C73ABBC0C10769 /* MetalLUTRendererTests.swift in Sources */,
@@ -1916,6 +1946,8 @@
 				41A0B6869C0268CEB2FA721D /* LUTKernelSource.swift in Sources */,
 				7CDB9DBD17368B7CF194B0A2 /* LayeredStages.swift in Sources */,
 				FCAB59B193880B23145B9027 /* LayoutAnchor.swift in Sources */,
+				7B6D0CB749393962B50FFF71 /* LeakGallery.swift in Sources */,
+				70217C55ED42EF783CE3F5D4 /* LeakPack.swift in Sources */,
 				0D703337A8F6E3DEB620F8A8 /* LightlyApp.swift in Sources */,
 				7C8D59164812604247507053 /* LightlyColor.swift in Sources */,
 				38BF8F0314F53E76CD43CD5C /* LightlyError+Presentation.swift in Sources */,

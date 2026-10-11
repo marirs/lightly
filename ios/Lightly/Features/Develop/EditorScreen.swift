@@ -913,19 +913,20 @@ struct EditorScreen: View {
         if geometry.cropAspect == .original { geometry.cropAspect = .free }
     }
 
-    /// Light Leaks: drag on the photo to move the leak (preview while dragging, one step at the end).
+    /// Light Leaks: drag on the photo to move the chosen leak (preview while dragging, one step at the end); with None
+    /// chosen it does nothing (EditorSession.moveLightLeak).
     private func leakDragArea(size: CGSize) -> some View {
         Color.clear.contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 2)
                 .onChanged { value in
                     let x = min(max(value.location.x / size.width * 100, 0), 100).rounded()
                     let y = min(max(value.location.y / size.height * 100, 0), 100).rounded()
-                    session.previewEffects { $0.lightLeak.x = x; $0.lightLeak.y = y; $0.lightLeak.enabled = true; if $0.lightLeak.intensity == 0 { $0.lightLeak.intensity = 35 } }
+                    session.moveLightLeak(x: x, y: y, final: false)
                 }
                 .onEnded { value in
                     let x = min(max(value.location.x / size.width * 100, 0), 100).rounded()
                     let y = min(max(value.location.y / size.height * 100, 0), 100).rounded()
-                    session.commitEffects { $0.lightLeak.x = x; $0.lightLeak.y = y; $0.lightLeak.enabled = true; if $0.lightLeak.intensity == 0 { $0.lightLeak.intensity = 35 } }
+                    session.moveLightLeak(x: x, y: y, final: true)
                 })
             .accessibilityHidden(true)
     }

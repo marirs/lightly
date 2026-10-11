@@ -8,7 +8,10 @@ import simd
 /// them (the approved "added to it, not replaced" notice). The preset's amounts are scaled by the
 /// Develop Amount; the user's are not.
 struct EffectsStage: Sendable {
+    /// One of the four drawn leaks (earlier edits), or…
     let leak: LightLeakEvaluator?
+    /// …a leak-pack image (rendering-v2 revision 8). At most one of the two is set.
+    let leakImage: LeakImageEvaluator?
     /// After the leak, so a coloured leak does not bring colour back (rendering-v2 revision 4).
     let selectiveColour: SelectiveColourEvaluator?
     let presetVignette: DevelopPixelOperators.VignetteEvaluator?
@@ -16,12 +19,20 @@ struct EffectsStage: Sendable {
     let presetGrain: DevelopPixelOperators.GrainEvaluator?
     let userGrain: DevelopPixelOperators.GrainEvaluator?
 
-    var isEmpty: Bool { leak == nil && selectiveColour == nil && presetVignette == nil && userVignette == nil && presetGrain == nil && userGrain == nil }
+    var isEmpty: Bool { leak == nil && leakImage == nil && selectiveColour == nil && presetVignette == nil && userVignette == nil && presetGrain == nil && userGrain == nil }
 
+    /// - Parameter leakImages: resolves a leak-pack id to its decoded image; the bundled pack's cache unless a test
+    ///   supplies its own. An id this build's pack lacks resolves to nil and adds no light.
     init(effects: EditRecipe.Effects, presetFinishing: PresetRecipe.Finishing, presetStrength: Double,
-         frameWidth: Int, frameHeight: Int, model: DevelopModel) {
+         frameWidth: Int, frameHeight: Int, model: DevelopModel,
+         leakImages: (String) -> LeakImage? = { LeakImageCache.bundled.image(for: $0) }) {
         leak = effects.lightLeak.enabled
             ? LightLeakEvaluator(effects.lightLeak, frameWidth: frameWidth, frameHeight: frameHeight) : nil
+        leakImage = effects.lightLeak.enabled
+            ? effects.lightLeak.style.leakImageID.flatMap(leakImages).flatMap {
+                LeakImageEvaluator(effects.lightLeak, image: $0, frameWidth: frameWidth, frameHeight: frameHeight)
+            }
+            : nil
         selectiveColour = SelectiveColourEvaluator(effects.selectiveColour)
         presetVignette = presetFinishing.vignette.flatMap {
             DevelopPixelOperators.VignetteEvaluator($0, strength: presetStrength, frameWidth: frameWidth, frameHeight: frameHeight, model: model)
@@ -63,6 +74,7 @@ struct EffectsStage: Sendable {
                     let o = (y * width + x) * 4
                     var colour = SIMD3<Float>(Float(base[o]) / 255, Float(base[o + 1]) / 255, Float(base[o + 2]) / 255)
                     if let leak { colour = leak.apply(colour, x: x, y: y) }
+                    if let leakImage { colour = leakImage.apply(colour, x: x, y: y) }
                     if let selectiveColour { colour = selectiveColour.apply(colour) }
                     if let presetVignette { colour = presetVignette.apply(colour, x: x, y: y) }
                     if let userVignette { colour = userVignette.apply(colour, x: x, y: y) }
@@ -94,12 +106,13 @@ struct LightLeakEvaluator: Sendable {
     let farthestCorner: Double
     let cosine: Double, sine: Double
     let coreAlpha: Double, ringAlpha: Double
-    let style: EditRecipe.Effects.LightLeak.Style
+    let style: EditRecipe.Effects.LightLeak.Style.Drawn
 
     static let ringStop = 0.30, endStop = 0.55
 
+    /// Nil for no intensity, and for a leak-pack image (LeakImageEvaluator draws those).
     init?(_ leak: EditRecipe.Effects.LightLeak, frameWidth: Int, frameHeight: Int) {
-        guard leak.intensity > 0 else { return nil }
+        guard leak.intensity > 0, let drawn = leak.style.drawn else { return nil }
         centre = SIMD2(leak.x / 100 * Double(frameWidth), leak.y / 100 * Double(frameHeight))
         frameCentre = SIMD2(Double(frameWidth) / 2, Double(frameHeight) / 2)
         frameSize = SIMD2(Double(frameWidth), Double(frameHeight))
@@ -108,11 +121,11 @@ struct LightLeakEvaluator: Sendable {
         cosine = cos(theta); sine = sin(theta)
         coreAlpha = min(leak.intensity / 130, 1)
         ringAlpha = min(leak.intensity / 400, 1)
-        style = leak.style
+        style = drawn
     }
 
     /// The core and ring colours (0…255) per style; prism sweeps the hue around the centre.
-    static func colours(_ style: EditRecipe.Effects.LightLeak.Style) -> (SIMD3<Double>, SIMD3<Double>) {
+    static func colours(_ style: EditRecipe.Effects.LightLeak.Style.Drawn) -> (SIMD3<Double>, SIMD3<Double>) {
         switch style {
         case .warm: (SIMD3(255, 150, 70), SIMD3(255, 90, 60))
         case .amber: (SIMD3(255, 176, 64), SIMD3(230, 120, 40))

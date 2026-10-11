@@ -38,6 +38,8 @@ final class DevelopLibrary {
     /// Loads the bundled contract and pack in the background.
     func loadBundled(lutApplier: (any DevelopLUTApplying)?) async {
         let outcome = await Task.detached(priority: .userInitiated) { () -> (DevelopModel?, PresetPackLoadResult?, String?) in
+            // The light-leak manifest (small) is read here, at launch and off the main actor, so Effects never waits for it.
+            _ = LeakPack.bundled
             do {
                 let model = try DevelopModel.loadBundled()
                 return (model, PresetPackLoader.loadBundled(model: model), nil)

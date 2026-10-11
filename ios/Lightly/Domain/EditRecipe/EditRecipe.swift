@@ -208,7 +208,40 @@ struct EditRecipe: Equatable, Sendable {
 
     struct Effects: Equatable, Sendable {
         struct LightLeak: Equatable, Sendable {
-            enum Style: String, Sendable, CaseIterable { case warm, amber, rose, prism }
+            /// `effects.lightLeak.style` (edit-recipe-v1, rendering-v2 revision 8): one of the four drawn styles, kept so
+            /// earlier edits still render though the panel no longer offers them, or `leak-<12 hex>`, an image of the
+            /// light-leak pack (owner, 2026-10-11). A struct, not an enum, because leak ids are open-ended: the pack can
+            /// grow without a recipe change, and a recipe naming a leak this build lacks must still decode.
+            struct Style: RawRepresentable, Hashable, Sendable {
+                enum Drawn: String, Sendable, CaseIterable { case warm, amber, rose, prism }
+
+                let rawValue: String
+
+                init?(rawValue: String) {
+                    guard Drawn(rawValue: rawValue) != nil || Self.isLeakImageID(rawValue) else { return nil }
+                    self.rawValue = rawValue
+                }
+
+                init(drawn: Drawn) { rawValue = drawn.rawValue }
+
+                static let warm = Style(drawn: .warm), amber = Style(drawn: .amber)
+                static let rose = Style(drawn: .rose), prism = Style(drawn: .prism)
+
+                /// A leak-pack image, by its id; nil for a malformed id.
+                static func leakImage(_ id: String) -> Style? { isLeakImageID(id) ? Style(rawValue: id) : nil }
+
+                /// The drawn style, or nil when the style names a leak image.
+                var drawn: Drawn? { Drawn(rawValue: rawValue) }
+                /// The leak-pack image id, or nil for a drawn style.
+                var leakImageID: String? { drawn == nil ? rawValue : nil }
+
+                /// The schema's pattern `^leak-[0-9a-f]{12}$`.
+                static func isLeakImageID(_ value: String) -> Bool {
+                    guard value.hasPrefix("leak-") else { return false }
+                    let hex = value.dropFirst(5)
+                    return hex.count == 12 && hex.allSatisfy { "0123456789abcdef".contains($0) }
+                }
+            }
             var enabled: Bool
             var style: Style
             var intensity, x, y, rotation: Double

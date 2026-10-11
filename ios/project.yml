@@ -33,7 +33,7 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     dependencies:
-      # Copies the Look pack into Lightly.app/LookPack before the app is assembled.
+      # Copies the Look pack into Lightly.app/LookPack (and the light-leak pack into LeakPack) before the app is assembled.
       - target: LookPack
     sources:
       - path: Lightly
@@ -273,6 +273,10 @@ aggregateTargets:
       - name: Bundle Look pack
         script: '"${LIGHTLY_REPO_ROOT}/scripts/bundle_look_pack.sh"'
         # Always run: the pack can change without any build input changing.
+        basedOnDependencyAnalysis: false
+      # The git-ignored light-leak pack (shared/leaks/out) as LeakPack/, unsandboxed for the look pack's reason.
+      - name: Bundle light-leak pack
+        script: '"${LIGHTLY_REPO_ROOT}/scripts/bundle_leak_pack.sh"'
         basedOnDependencyAnalysis: false
       - name: Bundle depth model
         script: '"${SRCROOT}/Tools/bundle_depth_model.sh"'

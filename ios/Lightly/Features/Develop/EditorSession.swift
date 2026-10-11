@@ -923,6 +923,53 @@ final class EditorSession {
         commit(next)
     }
 
+    // MARK: - Light Leaks gallery
+
+    /// The Intensity a leak starts at when choosing it turns the effect on (the mockup's slider for `fx-leak`).
+    nonisolated static let leakIntensityWhenChosen: Double = 50
+    /// Where a leak image sits when choosing it turns the effect on: centred, covering the frame (mockup `center/cover`).
+    nonisolated static let leakCentreWhenChosen: Double = 50
+
+    /// Effects › Light Leaks gallery (owner, 2026-10-11): a leak-pack image turns the effect on with that image, or
+    /// None (`nil`) turns it off. One undo step. Switching between leaks keeps Intensity, position and rotation.
+    func chooseLightLeak(_ leakID: String?) {
+        commitEffects { effects in
+            guard let leakID, let style = EditRecipe.Effects.LightLeak.Style.leakImage(leakID) else {
+                effects.lightLeak.enabled = false
+                return
+            }
+            if !effects.lightLeak.enabled {
+                effects.lightLeak.intensity = Self.leakIntensityWhenChosen
+                // rendering-v2 revision 8 (§Light leak, 080003a): a leak chosen while the effect is off starts centred
+                // (x = y = 50), not at the recipe's default (18, 14), the drawn glow's corner.
+                effects.lightLeak.x = Self.leakCentreWhenChosen
+                effects.lightLeak.y = Self.leakCentreWhenChosen
+            }
+            effects.lightLeak.style = style
+            effects.lightLeak.enabled = true
+        }
+    }
+
+    /// Drag on the photo: moves the chosen leak, previewing while dragging and one undo step at the end (`final`).
+    /// With None chosen it does nothing, no effect turned on and no undo step (rendering-v2 revision 8, §Light leak).
+    // v3 differs: the drag used to turn the effect on (with the recipe's drawn style) when it was off.
+    func moveLightLeak(x: Double, y: Double, final: Bool) {
+        guard recipe.tools.effects.lightLeak.enabled else { return }
+        let move: (inout EditRecipe.Effects) -> Void = { $0.lightLeak.x = x; $0.lightLeak.y = y }
+        if final { commitEffects(move) } else { previewEffects(move) }
+    }
+
+    @ObservationIgnored private var leakGalleryBaseCache: (source: CGImage, small: CGImage)?
+
+    /// The photo under every Light Leaks tile, small (the mockup's tiles screen each leak over the photo itself, not
+    /// over the edit). Made once per photo.
+    func leakGalleryBase() -> CGImage? {
+        if let cached = leakGalleryBaseCache, cached.source === originalPreview { return cached.small }
+        guard let small = PhotoColours.small(originalPreview, edge: 200) else { return nil }
+        leakGalleryBaseCache = (originalPreview, small)
+        return small
+    }
+
     // MARK: - Selective Colour
 
     /// Keeps the colour under a tap at (`frameX`, `frameY`), fractions of the displayed frame. The colour is

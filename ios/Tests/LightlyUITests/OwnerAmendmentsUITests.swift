@@ -212,7 +212,8 @@ final class OwnerAmendmentsUITests: XCTestCase {
         XCTAssertGreaterThan(element("text.font.Retro Romance").frame.minX, element("text.font.Space Mono").frame.minX)
     }
 
-    /// Owner amendment 2026-10-11 (second): Change background › Image in two rows, column by column, "+" last.
+    /// Owner amendment 2026-10-11 (second): Change background › Image in two rows, column by column, "+" last; (third)
+    /// the tiles fill the row, four across.
     func testBackgroundImagesInTwoRowsWithChooseAPhotoLast() {
         launch(["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath("portrait_medium_02")]
                + EditorCaptureUITests.matteFixtureArguments("woman"))
@@ -228,10 +229,53 @@ final class OwnerAmendmentsUITests: XCTestCase {
         XCTAssertEqual(second.frame.minX, first.frame.minX, accuracy: 1, "column-major: the second tile under the first")
         XCTAssertEqual(second.frame.minY - first.frame.maxY, 10, accuracy: 1, "10 pt between rows")
         XCTAssertEqual(third.frame.minX - first.frame.maxX, 8, accuracy: 1, "8 pt between columns")
-        XCTAssertEqual(first.frame.width, 60, accuracy: 1)
+        // Owner amendment 2026-10-11 (third): four across fill the row, (grid width − 3 × 8) / 4, the grid 2 pt inside.
+        let grid = element("background.images")
+        XCTAssertEqual(first.frame.width, (grid.frame.width - 4 - 24) / 4, accuracy: 1)
+        XCTAssertEqual(first.frame.height, first.frame.width, accuracy: 1, "square")
+        XCTAssertEqual(add.frame.maxX, grid.frame.maxX - 2, accuracy: 1, "the fourth column ends at the row's end")
         XCTAssertEqual(add.frame.minX, last.frame.minX, accuracy: 1, "+ shares the last column")
         XCTAssertGreaterThan(add.frame.minY, last.frame.minY, "+ is the last tile")
         keep("bg-image-two-rows")
+    }
+
+    /// Owner amendment 2026-10-11 (third): Effects › Light Leaks is a two-row gallery, None first and chosen while the
+    /// effect is off; choosing a leak turns it on (one undo step), None turns it off; a drag with None does nothing.
+    func testLightLeakGallery() {
+        launch(["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath("sunset_02")])
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout))
+        element("tool.effects").tap()
+        let none = element("effects.leak.none")
+        XCTAssertTrue(none.waitForExistence(timeout: timeout))
+        XCTAssertTrue(none.isSelected, "off: None is chosen")
+        XCTAssertFalse(element("effects.leak.warm").exists, "the four style chips are gone")
+        // With None chosen, dragging on the photo does nothing (rendering-v2 revision 8, 080003a).
+        let photo = element("editor.photo")
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.3))
+            .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.6)))
+        XCTAssertTrue(none.isSelected, "a drag with None chosen turns nothing on")
+        XCTAssertNotEqual(element("tool.effects").value as? String, "Edited")
+        let first = element("effects.leak.leak-edf0a0ecd85d"), second = element("effects.leak.leak-fc36430bd1c4")
+        guard first.waitForExistence(timeout: 5) else {
+            XCTFail("no leak tiles: was the app built without shared/leaks/out?"); return
+        }
+        XCTAssertEqual(none.frame.width, 96, accuracy: 1)
+        XCTAssertEqual(first.frame.minX, none.frame.minX, accuracy: 1, "column-major: the first leak under None")
+        XCTAssertGreaterThan(first.frame.minY, none.frame.maxY)
+        XCTAssertEqual(second.frame.minX - none.frame.maxX, 12, accuracy: 1, "12 pt between columns")
+        XCTAssertEqual(first.label, "Gold Fringe")
+        first.tap()
+        XCTAssertTrue(waitFor { first.isSelected })
+        XCTAssertFalse(none.isSelected)
+        XCTAssertEqual(element("tool.effects").value as? String, "Edited")
+        keep("fx-leak-gallery")
+        none.tap()
+        XCTAssertTrue(waitFor { none.isSelected })
+        XCTAssertNotEqual(element("tool.effects").value as? String, "Edited")
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { first.isSelected }, "undo brings the leak back")
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { none.isSelected }, "one undo step per choice")
     }
 
     /// Owner amendment 2026-10-11 (second): Watermark › Text has thirteen fonts, the seven signature scripts after Lora,
