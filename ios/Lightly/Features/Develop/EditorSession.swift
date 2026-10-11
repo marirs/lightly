@@ -1234,29 +1234,32 @@ final class EditorSession {
 
     func undo() {
         guard canUndo else { return }
+        let previousLook = recipe.look
         historyIndex -= 1
-        afterHistoryMove()
+        afterHistoryMove(previousLook: previousLook)
     }
 
     func redo() {
         guard canRedo else { return }
+        let previousLook = recipe.look
         historyIndex += 1
-        afterHistoryMove()
+        afterHistoryMove(previousLook: previousLook)
     }
 
-    private func afterHistoryMove() {
+    private func afterHistoryMove(previousLook: EditRecipe.LookRef?) {
         editEpoch &+= 1   // Undo and Redo make any pick still sampling stale
         // The Auto switch follows the recipe it belongs to.
         if autoState == .applied || autoState == .off { autoState = recipe.auto.strength > 0 ? .applied : .off }
         hasUnsavedEdits = true
         if case .saved = saveState { saveState = .idle }
-        renderCommitted()
+        render(recipe, final: true, colourFirst: recipe.look != previousLook)
         persistSession()
     }
 
     /// Records `next` as one undo step (nothing when it equals the committed recipe).
     private func commit(_ next: EditRecipe) {
         guard next != recipe else { return renderCommitted() }
+        let lookChanged = next.look != recipe.look
         if !committingPick { editEpoch &+= 1 }
         var entry = next
         entry.revision = (history.map(\.revision).max() ?? 0) + 1
@@ -1266,7 +1269,7 @@ final class EditorSession {
         historyIndex = history.count - 1
         hasUnsavedEdits = true
         if case .saved = saveState { saveState = .idle }
-        renderCommitted()
+        render(recipe, final: true, colourFirst: lookChanged)
         persistSession()
     }
 
@@ -1295,12 +1298,23 @@ final class EditorSession {
         var job = RenderJob(look: preset, strength: 1, autoLUT: autoState == .applied ? autoLUT : nil,
                             autoStrength: recipe.auto.strength, includePixelStages: true, generation: 0)
         job.layered = layeredInputs(for: recipe); job.layeredCap = 200
+        // Owner report 2026-10-11 (a tapped preset took seconds to show): each thumbnail baked the contract's 33³ LUT,
+        // and their bakes and pixel work competed with the photo's own render. Thumbnails now bake 17³ (~7x less work,
+        // indistinguishable at 62-142 pt), wait while the photo has a render outstanding, and run at utility priority.
+        job.lutDimension = DevelopLUTCache.dragDimension
         attachEditAndEffects(recipe, to: &job)
         let snapshot = job
-        let result = try? await PresetThumbnailWorker.shared.run {
-            let frame = try Self.renderPixels(snapshot, base: pixels, width: small.width, height: small.height, renderer: renderer, cache: cache)
-            return try MetalLUTRenderer.makeImage(rgba8: frame.pixels, width: frame.width, height: frame.height)
+        var waited = 0
+        while !pendingRequests.isEmpty, waited < 100, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(30)); waited += 1
         }
+        guard !Task.isCancelled else { return nil }
+        let result = try? await Task.detached(priority: .utility) {
+            try await PresetThumbnailWorker.shared.run {
+                let frame = try Self.renderPixels(snapshot, base: pixels, width: small.width, height: small.height, renderer: renderer, cache: cache)
+                return try MetalLUTRenderer.makeImage(rgba8: frame.pixels, width: frame.width, height: frame.height)
+            }
+        }.value
         guard !Task.isCancelled, !isClosed, context == thumbnailKey else { return nil }
         if let result { if thumbnailImages.count >= 48 { thumbnailImages.removeAll() }; thumbnailImages[key] = result }
         return result
@@ -1321,10 +1335,15 @@ final class EditorSession {
         var prefixKey: PreviewPrefixKey?
         var canvasKey: PreviewPrefixKey?
         var followUpWithFullFrame = false
+        /// A colour-first frame keeps the full frame's cache keys here (it must not be cached itself); its follow-up
+        /// restores them, so the full frame is cached and a repeat render of the same recipe is a cache hit.
+        var deferredCanvasKey: PreviewPrefixKey?
+        var deferredPrefixKey: PreviewPrefixKey?
         /// A ruler drag's frame (2026-10-06): the reduced preview base and the coarse drag LUT, so every newly crossed
         /// stop renders while the finger moves. The settled selection renders at normal preview quality.
         var dragFrame = false
-        var lutDimension: Int { LUT3D.contractDimension }
+        /// The Look LUT's size: the contract's 33³, except preset thumbnails (17³, never saved or exported).
+        var lutDimension = LUT3D.contractDimension
         /// Background and Portrait (stages 7–9), when the recipe uses them.
         var layered: LayeredStages.Inputs?
         /// Working-resolution cap for Focus & Blur (LayeredStages).
@@ -1579,7 +1598,7 @@ final class EditorSession {
 
     /// Requests the complete edit at one stable preview resolution and LUT precision.
     /// Interaction changes scheduling priority, never the image-processing recipe.
-    private func render(_ requested: EditRecipe, final: Bool, dragFrame: Bool = false) {
+    private func render(_ requested: EditRecipe, final: Bool, dragFrame: Bool = false, colourFirst: Bool = false) {
         activePreviewRecipe = final ? nil : requested
         let target = isCropEditing ? Self.uncropped(requested) : requested
         // An interactive frame is a control moving (a slider, a drag) before it commits: a pick still sampling
@@ -1622,6 +1641,19 @@ final class EditorSession {
         }
         job.dragFrame = dragFrame && dragBase != nil
         if job.dragFrame { job.canvasKey = nil }
+        // A new preset shows its colours at once (owner report 2026-10-11: a tapped preset took time to show; Lightroom
+        // is instant): first a frame without the pixel stages (the LUT on the GPU, ~20 ms), then the full frame. Only
+        // when nothing else is in use, so the fast frame never shows other edits missing. Neither key is set on the fast
+        // frame, so it can never be cached and reused as the full one.
+        if colourFirst, job.layered == nil, !job.usesEditOrEffects, !job.dragFrame {
+            job.includePixelStages = false
+            job.followUpWithFullFrame = true
+            job.deferredCanvasKey = job.canvasKey; job.deferredPrefixKey = job.prefixKey
+            job.canvasKey = nil
+            job.prefixKey = nil
+            // The coarse 17³ LUT bakes ~7x faster than 33³ for a preset seen for the first time; the full frame uses 33³.
+            job.lutDimension = DevelopLUTCache.dragDimension
+        }
         submit(job)
     }
 
@@ -1642,6 +1674,8 @@ final class EditorSession {
             var full = job
             full.includePixelStages = true
             full.followUpWithFullFrame = false
+            full.lutDimension = LUT3D.contractDimension
+            full.canvasKey = job.deferredCanvasKey; full.prefixKey = job.deferredPrefixKey
             full.layeredCap = LayeredStages.previewCap
             submit(full)
         }

@@ -229,6 +229,19 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(element("edit.crop.apply").exists, "✓ is still offered")
     }
 
+    /// Measurement (owner report 2026-10-11): taps five presets; the app's trace records each render and how long the
+    /// photo took to show it.
+    func testMeasurePresetTaps() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
+        let tiles = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'develop.thumbnail.' AND NOT (identifier ENDSWITH 'original')"))
+        XCTAssertTrue(tiles.element(boundBy: 0).waitForExistence(timeout: 40))
+        sleep(3)
+        for index in 0..<5 {
+            tiles.element(boundBy: index).tap()
+            sleep(3)
+        }
+    }
+
     // MARK: - Welcome
 
     /// Welcome shows the brand and both ways in; no login, no onboarding (approved Welcome).
