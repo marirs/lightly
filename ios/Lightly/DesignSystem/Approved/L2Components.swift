@@ -282,7 +282,8 @@ struct L2Tabs<Value: Hashable>: View {
     struct Item { let value: Value; let title: Text; var icon: ApprovedIcon?; var dot = false; let identifier: String }
     let items: [Item]
     let selection: Value
-    var underline = false
+    /// Owner (2026-10-11): every sub-menu underlines its selected tab, as the presets do.
+    var underline = true
     let onSelect: (Value) -> Void
     @Environment(\.colorScheme) private var scheme
     /// True while some tabs are hidden past the trailing edge: only then does the end fade (owner amendment

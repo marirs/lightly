@@ -446,6 +446,8 @@ object DebugLaunchOptions {
         val light = com.lightlylabs.lightly.editor.AdjustGroup.LIGHT
         when (screen) {
             "ed-crop" -> { api.cropAspect(com.lightlylabs.lightly.session.CropAspect.FOUR_FIVE); edit(com.lightlylabs.lightly.editor.EditSub.CROP, light) }
+            // The crop workspace opens only from "Crop photo" (owner, 2026-10-11); this screen opens it directly.
+            "ed-crop-workspace" -> api.openTool(tool) { it.copy(edit = it.edit.copy(sub = com.lightlylabs.lightly.editor.EditSub.CROP, cropPreview = false)) }
             "ed-rotate" -> { api.edit { it.copy(geometry = it.geometry.copy(flipHorizontal = true)) }; edit(com.lightlylabs.lightly.editor.EditSub.ROTATE, light) }
             "ed-straighten" -> { api.edit { it.copy(geometry = it.geometry.copy(straighten = -3.0)) }; edit(com.lightlylabs.lightly.editor.EditSub.STRAIGHTEN, light) }
             "ed-perspective" -> { api.edit { it.copy(geometry = it.geometry.copy(perspective = it.geometry.perspective.copy(vertical = 18.0))) }; edit(com.lightlylabs.lightly.editor.EditSub.PERSPECTIVE, light) }

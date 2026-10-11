@@ -78,7 +78,8 @@ fun BackgroundPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) {
     val gap = when (state) { BackgroundPanelState.Focus -> 4.dp; BackgroundPanelState.Refine, is BackgroundPanelState.Change -> 8.dp; else -> 12.dp }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(gap)) {
         val segment = if (bg.sub == BackgroundSub.CHANGE) BackgroundSub.CHANGE else BackgroundSub.FOCUS
-        SegmentedControl(listOf(BackgroundSub.FOCUS to "Focus & Blur", BackgroundSub.CHANGE to "Change background"), segment, vm::selectBackgroundSub)
+        // Owner (2026-10-11): the same tab row as every other sub-menu (was a segmented control).
+        OptionTabs(listOf(BackgroundSub.FOCUS to "Focus & Blur", BackgroundSub.CHANGE to "Change background"), segment, vm::selectBackgroundSub, tagPrefix = "background-mode")
         val reset: @Composable () -> Unit = {
             ResetRow(vm, "background", if (bg.sub == BackgroundSub.CHANGE) "Change background" else if (bg.sub == BackgroundSub.REFINE) "Refine edges" else "Focus & Blur", bg.sub.name.lowercase())
         }

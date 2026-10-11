@@ -72,10 +72,10 @@ struct BackgroundPanelView: View {
     /// background and Refine edges in 8 pt, notices in 12 pt.
     var body: some View {
         VStack(alignment: .leading, spacing: columnSpacing) {
-            L2Segmented(options: [(BackgroundPanelModel.Mode.focus, Text("Focus & Blur"), nil, "background.mode.focus"),
-                                  (.change, Text("Change background"), nil, "background.mode.change")],
-                        selection: model.mode == .refine ? .focus : model.mode,
-                        accessibilityLabel: Text("Background")) { model.mode = $0 }
+            // Owner (2026-10-11): the same tab row as every other sub-menu (was a segmented control).
+            L2Tabs(items: [.init(value: BackgroundPanelModel.Mode.focus, title: Text("Focus & Blur"), identifier: "background.mode.focus"),
+                           .init(value: .change, title: Text("Change background"), identifier: "background.mode.change")],
+                   selection: model.mode == .refine ? .focus : model.mode) { model.mode = $0 }
             content
         }
         .task(id: selectedBackground) {

@@ -674,7 +674,7 @@ class EditorViewModel(
 
     fun selectEditSub(sub: EditSub) {
         val was = isCropEditing()
-        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null, cropPreview = if (sub == EditSub.CROP) false else it.edit.cropPreview, cropDraft = null)) }
+        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null, cropPreview = true, cropDraft = null)) }
         refreshAfterCropEditingChange(was)
     }
 

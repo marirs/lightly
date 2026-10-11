@@ -103,7 +103,8 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
         }
         EditSub.ADJUST -> {
             val a = edit.adjust
-            com.lightlylabs.lightly.shell.SegmentedControl(AdjustGroup.entries.map { it to it.label }, ui.edit.group, vm::selectAdjustGroup)
+            // Owner (2026-10-11): the same tab row as every other sub-menu (was a segmented control).
+            OptionTabs(AdjustGroup.entries.map { it to it.label }, ui.edit.group, vm::selectAdjustGroup, tagPrefix = "edit-group")
             when (ui.edit.group) {
                 AdjustGroup.LIGHT -> {
                     EditSlider(vm, ui, "Exposure", "exposure", a.exposure, -100.0, 100.0)

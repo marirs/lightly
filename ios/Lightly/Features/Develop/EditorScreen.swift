@@ -156,6 +156,7 @@ struct EditorScreen: View {
                     backgroundPanel.kind = ui.backgroundKind
                     portraitPanel.tab = ui.portraitTab
                     editPanel.sub = ui.editSub
+                    editPanel.cropPreview = !ui.cropWorkspace
                     editPanel.group = ui.editGroup
                     effectsPanel.sub = ui.effectsSub
                     watermarkPanel.shownType = ui.watermarkType
@@ -547,7 +548,8 @@ struct EditorScreen: View {
             backgroundPanel.kind = nil
             portraitPanel.tab = .skin
             editPanel.sub = .crop
-            editPanel.cropPreview = false
+            // Owner (2026-10-11): opening Edit never opens the crop workspace; only "Crop photo" does.
+            editPanel.cropPreview = true
             editPanel.group = .light
             effectsPanel.sub = .leak
             borderPanel.shownType = nil

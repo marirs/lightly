@@ -10,7 +10,8 @@ final class EditPanelModel {
 
     let session: EditorSession
     var sub: Sub = .crop
-    var cropPreview = false
+    /// True when the crop workspace is closed (the panel shows). Only "Crop photo" opens it (owner, 2026-10-11).
+    var cropPreview = true
     var group: Group = .light
     /// Remove › "Brush size" 0…100 (prototype 35).
     var brushSize: Double = 35
@@ -57,7 +58,7 @@ struct EditPanelView: View {
         VStack(alignment: .leading, spacing: 6) {
             PanelTabs(items: [(EditPanelModel.Sub.crop, "Crop", false), (.rotate, "Rotate", false), (.straighten, "Straighten", false),
                               (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Remove", false)],
-                      selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0; if $0 == .crop { model.cropPreview = false } }
+                      selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0; model.cropPreview = true }
             PanelResetRow(session: model.session, section: "edit", title: model.sub.rawValue.capitalized, adjustment: model.sub.rawValue)
             switch model.sub {
             case .crop: crop
@@ -126,9 +127,11 @@ struct EditPanelView: View {
 
     @ViewBuilder
     private var adjustControls: some View {
-        L2Segmented(options: [(EditPanelModel.Group.light, Text("Light"), nil, "edit.group.Light"),
-                              (.colour, Text("Colour"), nil, "edit.group.Colour"), (.detail, Text("Detail"), nil, "edit.group.Detail")],
-                    selection: model.group) { model.group = $0 }
+        // Owner (2026-10-11): the same tab row as every other sub-menu (was a segmented control).
+        L2Tabs(items: [.init(value: EditPanelModel.Group.light, title: Text("Light"), identifier: "edit.group.Light"),
+                       .init(value: .colour, title: Text("Colour"), identifier: "edit.group.Colour"),
+                       .init(value: .detail, title: Text("Detail"), identifier: "edit.group.Detail")],
+               selection: model.group) { model.group = $0 }
         switch model.group {
         case .light:
             slider("Exposure", \.exposure, -100...100)

@@ -151,7 +151,8 @@ const chips = (all, on) => { const items = scrolled(all, all.findIndex(([k]) => 
 const seg = (items, on) => `<div role="group" style="padding: 4px; border-radius: 22px; background: var(--chip); display: grid; grid-template-columns: repeat(${items.length}, minmax(0, 1fr)); gap: 4px">${items.map(([k, l]) =>
   `<button style="height: 36px; border-radius: 18px; border: none; font-weight: ${k === on ? 700 : 600}; font-size: 14px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 6px; ${k === on ? 'background: var(--on-bg); color: var(--on-ink)' : 'background: transparent; color: var(--ink2)'}">${l}</button>`).join('')}</div>`;
 // Tool tabs: selected bold; a 5 pt orange dot on tabs holding an edit; the orange underline only in Develop (browsed category).
-const tabs = (all, on, { underline = false } = {}) => { const items = scrolled(all, all.findIndex(([k]) => k === on)); return `<div data-tabs style="display: flex; gap: 20px; overflow: hidden; ${fadeRight}">${items.map(([k, l, dot]) =>
+// Owner amendment (2026-10-11): every tool's sub-menu is the same tab row as the presets, the selected tab underlined.
+const tabs = (all, on, { underline = true } = {}) => { const items = scrolled(all, all.findIndex(([k]) => k === on)); return `<div data-tabs style="display: flex; gap: 20px; overflow: hidden; ${fadeRight}">${items.map(([k, l, dot]) =>
   `<button style="border: none; background: transparent; padding: 8px 0 7px; flex-shrink: 0; font-weight: ${k === on ? 700 : 500}; font-size: 14.5px; white-space: nowrap; display: flex; align-items: center; gap: 5px; ${k === on ? `color: var(--ink); ${underline ? 'box-shadow: inset 0 -2px 0 var(--browse)' : ''}` : 'color: var(--ink3)'}">${l}${dot ? '<span style="width: 5px; height: 5px; border-radius: 3px; background: var(--edited)"></span>' : ''}</button>`).join('')}</div>`; };
 function slider(label, v, min = 0, max = 100, { disabled = false } = {}) {
   const f = (v - min) / (max - min) * 100, mid = min < 0;
@@ -240,7 +241,7 @@ function developList(s) {
 /* =============================================================== other tool panels (current app's controls and copy) */
 function backgroundPanel(s) {
   const b = s.bg || {}; const mode = b.mode || 'focus'; const ph = PHOTOS[s.photo];
-  const h = seg([['focus', 'Focus &amp; Blur'], ['change', 'Change background']], mode === 'refine' ? 'focus' : mode);
+  const h = tabs([['focus', 'Focus &amp; Blur'], ['change', 'Change background']], mode === 'refine' ? 'focus' : mode);
   const title = mode === 'refine' ? 'Refine edges' : mode === 'change' ? 'Change background' : 'Focus &amp; Blur';
   const reset = resetRow(title, !!(b.replaced || b.blur));
   if (b.op === 'separating') return col(12, h + notice('info', '<span>Finding the subject…</span>', quietBtn('Cancel')));
@@ -289,7 +290,7 @@ function editPanel(s) {
   if (sub === 'straighten') body = slider('Angle', -3, -45, 45) + note('The photo is zoomed slightly so no empty corners show.');
   if (sub === 'perspective') body = slider('Vertical', 18, -100, 100) + slider('Horizontal', 0, -100, 100);
   if (sub === 'adjust') { const g = e.group || 'light';
-    body = seg([['light', 'Light'], ['colour', 'Colour'], ['detail', 'Detail']], g) + (g === 'light' ? slider('Exposure', 12, -100, 100) + slider('Contrast', 10, -100, 100) + slider('Highlights', -20, -100, 100) + slider('Shadows', 25, -100, 100)
+    body = tabs([['light', 'Light'], ['colour', 'Colour'], ['detail', 'Detail']], g) + (g === 'light' ? slider('Exposure', 12, -100, 100) + slider('Contrast', 10, -100, 100) + slider('Highlights', -20, -100, 100) + slider('Shadows', 25, -100, 100)
       : g === 'colour' ? slider('Temperature', 15, -100, 100) + slider('Tint', -4, -100, 100) + slider('Saturation', 0, -100, 100) + slider('Vibrance', 12, -100, 100)
       : slider('Sharpness', 30) + slider('Clarity', 15, -100, 100) + slider('Noise reduction', 20)); }
   if (sub === 'remove') {
@@ -698,7 +699,7 @@ const J = [
     ['pt-hidden', 'No person · Portrait tool and category hidden', ED('develop', 'field', { dev: { cat: 'landscape', applied: { cat: 'landscape', name: 'Slate Sky' } } })]]],
   ['Edit', [
     ['ed-crop-workspace', 'Crop · its own dark workspace (Cancel, Reset, Done)', ED('edit', 'lake', { crop: true })],
-    ['ed-crop', 'Crop applied · Crop photo reopens the workspace', ED('edit', 'lake', { ed: { sub: 'crop', touched: true } })],
+    ['ed-crop', 'Crop · Crop photo opens the workspace (Edit never opens it by itself)', ED('edit', 'lake', { ed: { sub: 'crop', touched: true } })],
     ['ed-rotate', 'Rotate and flip', ED('edit', 'field', { ed: { sub: 'rotate', flipH: true, touched: true } })],
     ['ed-straighten', 'Straighten', ED('edit', 'field', { ed: { sub: 'straighten', touched: true } })],
     ['ed-perspective', 'Perspective', ED('edit', 'street', { ed: { sub: 'perspective', touched: true } })],

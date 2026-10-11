@@ -89,7 +89,8 @@ import kotlin.math.sin
 @Composable
 fun <T> OptionTabs(
     items: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, dotted: (T) -> Boolean = { false }, tagPrefix: String = "tab",
-    underline: Boolean = false, icon: (T) -> androidx.compose.ui.graphics.vector.ImageVector? = { null },
+    // Owner (2026-10-11): every sub-menu underlines its selected tab, as the presets do.
+    underline: Boolean = true, icon: (T) -> androidx.compose.ui.graphics.vector.ImageVector? = { null },
 ) {
     val colors = lightlyColors
     val scroll = rememberScrollState()

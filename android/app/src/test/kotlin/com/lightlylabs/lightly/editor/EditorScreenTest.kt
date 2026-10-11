@@ -198,7 +198,8 @@ class EditorScreenTest {
     fun `pinch in crop and remove never commits a crop or stroke`() {
         val vm = editor()
         show(vm)
-        compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick() // opens the crop workspace
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
+        compose.onNodeWithTag("edit-crop-open").performClick() // "Crop photo" opens the crop workspace
         val before = vm.uiState.value.session
         fun pinch() = compose.onNodeWithTag("editor-inspection").performTouchInput {
             pinch(center - Offset(30f, 0f), center + Offset(30f, 0f),
@@ -330,8 +331,7 @@ class EditorScreenTest {
         show(vm)
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
         compose.waitForIdle()
-        compose.onNodeWithTag("edit-crop-cancel").performClick() // Edit opens in the crop workspace
-        compose.waitForIdle()
+        compose.onNodeWithTag("edit-crop-cancel").assertDoesNotExist() // Edit opens on its panel, not the crop workspace
         listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Crop photo").forEach {
             assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
         }
