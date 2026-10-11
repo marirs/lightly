@@ -1429,6 +1429,10 @@ final class EditorSession {
         func take() -> [UInt8] { defer { pixels = [] }; return pixels }
     }
 
+    nonisolated private static func milliseconds(_ d: Duration) -> Int {
+        Int(d.components.seconds * 1000 + d.components.attoseconds / 1_000_000_000_000_000)
+    }
+
     nonisolated private static func renderPixels(_ job: RenderJob, base: consuming [UInt8], width: Int, height: Int,
                                                  renderer: DevelopFrameRenderer, cache: DevelopLUTCache, prefixCache: PreviewPrefixCache? = nil) throws -> RenderedFrame {
         var canvas: RenderedFrame
@@ -1437,7 +1441,10 @@ final class EditorSession {
             canvas = cached.0
             imageRect = cached.1
         } else {
+            let started = ContinuousClock.now
             let frame = try renderFrameBeforeBorder(job, base: consume base, width: width, height: height, renderer: renderer, cache: cache, prefixCache: prefixCache)
+            // Owner report 2026-10-11: a tapped preset takes time to show on the iPhone. Measured per render.
+            DiagnosticTrace.note("preview render \(width)x\(height) look \(job.look?.id ?? "none") pixelStages \(job.includePixelStages) layered \(job.layered != nil) drag \(job.dragFrame): \(Self.milliseconds(ContinuousClock.now - started)) ms")
             let bordered = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
             canvas = RenderedFrame(pixels: bordered.pixels, width: bordered.width, height: bordered.height)
             imageRect = job.border.type == .none ? CGRect(x: 0, y: 0, width: frame.width, height: frame.height)
@@ -1662,6 +1669,9 @@ final class EditorSession {
         pendingRequests.removeAll { request in
             guard request.generation <= job.generation else { return false }
             previewStaleness.append(now - request.at)
+            if request.generation == job.generation {
+                DiagnosticTrace.note("preview shown \(Self.milliseconds(now - request.at)) ms after the request (look \(job.look?.id ?? "none"))")
+            }
             return true
         }
     }
