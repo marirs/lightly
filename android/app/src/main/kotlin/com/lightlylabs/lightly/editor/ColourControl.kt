@@ -102,12 +102,14 @@ fun ColourControl(title: String = "Colour", selected: String, photo: Rgba8Image?
  * The colour sheet behind "More colours" (`colourSheet`), the same from every colour control: sheetHead (Cancel · title ·
  * Done), the live preview (170 dp, 18 dp corners, stage fill), "From your photo", "Paper & ink", "Earth" (five 40 dp
  * swatches, 12 dp corners, 9 dp gaps, a lime check on the chosen one), the Custom row (opens the colour
- * panel below it) and "Recent".
+ * panel, [ColourPanel], over the sheet) and "Recent".
  */
 @Composable
 private fun ColourSheet(title: String, selected: String, photo: Rgba8Image?, previewPhoto: Rgba8Image?, preview: ((String) -> Unit)?, choose: (String) -> Unit, onClose: (cancelled: Boolean) -> Unit) {
     var hex by remember { mutableStateOf(selected.uppercase()) }
     var custom by remember { mutableStateOf(false) }
+    // The colour panel's eyedropper: the panel steps aside and the next tap on the preview photo samples it.
+    var picking by remember { mutableStateOf(false) }
     val prefs = LocalContext.current.getSharedPreferences("lightly-colours", 0)
     val recent = remember { prefs.getString("recent", "#FFFFFF,#111111,#F4F1EC")!!.split(',') }
     val valid = Regex("#[0-9A-Fa-f]{6}").matches(hex)
@@ -117,6 +119,7 @@ private fun ColourSheet(title: String, selected: String, photo: Rgba8Image?, pre
     androidx.compose.ui.window.Dialog(onDismissRequest = { onClose(true) },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val big = LocalConfiguration.current.screenWidthDp >= 600
+        Box(Modifier.fillMaxSize()) {
         L2Sheet(big, heightFraction = if (big) 0.92f else 0.9f, onDismiss = { onClose(true) }) {
             L2SheetHead(title,
                 leading = { L2TextButton("Cancel", "colour-cancel") { onClose(true) } },
@@ -126,12 +129,22 @@ private fun ColourSheet(title: String, selected: String, photo: Rgba8Image?, pre
                 } })
             Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Box(Modifier.fillMaxWidth().height(if (big) 200.dp else 170.dp).clip(RoundedCornerShape(18.dp)).background(colors.canvas).padding(8.dp), contentAlignment = Alignment.Center) {
-                    val shown = previewPhoto ?: photo
+                    val shown = if (picking) photo else previewPhoto ?: photo
                     if (shown != null) {
                         val bitmap = remember(shown) { shown.toBitmap().asImageBitmap() }
-                        Image(bitmap, "Preview", Modifier.fillMaxSize())
+                        Image(bitmap, if (picking) "Tap a colour in the photo." else "Preview", Modifier.fillMaxSize().then(if (picking && photo != null) Modifier.pointerInput(photo) {
+                            detectTapGestures { p ->
+                                // The photo is fitted inside the box; map the tap through the fitted rectangle.
+                                val scale = minOf(size.width.toFloat() / photo.width, size.height.toFloat() / photo.height)
+                                val left = (size.width - photo.width * scale) / 2; val top = (size.height - photo.height * scale) / 2
+                                val x = ((p.x - left) / scale).toInt().coerceIn(0, photo.width - 1)
+                                val y = ((p.y - top) / scale).toInt().coerceIn(0, photo.height - 1)
+                                hex = photoHex(photo, x, y); picking = false
+                            }
+                        } else Modifier))
                     }
                 }
+                if (picking) PanelNote("Tap a colour in the photo.")
                 ColourPalette("From your photo", palette, hex) { hex = it }
                 ColourPalette("Paper & ink", listOf("#FFFFFF", "#ECE8DF", "#D4C9B5", "#9C9284", "#242423"), hex) { hex = it }
                 ColourPalette("Earth", listOf("#DFC7AE", "#B98767", "#914E3E", "#66775D", "#334538"), hex) { hex = it }
@@ -143,29 +156,19 @@ private fun ColourSheet(title: String, selected: String, photo: Rgba8Image?, pre
                     Box(Modifier.size(40.dp).clip(CircleShape)
                         .background(Brush.sweepGradient(listOf(Color(0xFFFF4444), Color(0xFFFFDD44), Color(0xFF44FF88), Color(0xFF44DDFF), Color(0xFF8844FF), Color(0xFFFF44CC), Color(0xFFFF4444)))))
                     Text("Custom", style = l2TextStyle(14.sp, androidx.compose.ui.text.font.FontWeight.SemiBold, colors.ink), modifier = Modifier.weight(1f))
+                    LightlyIcon(LightlyIcons.Chevron, size = 16.dp, tint = colors.ink3)
                 }
-                if (custom) HsvPicker(hex) { hex = it }
                 ColourPalette("Recent", recent, hex, fixed = true) { hex = it }
             }
         }
+        if (custom && !picking) {
+            // As the iOS panel: it covers the lower part of the sheet; a tap above it closes it.
+            Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { custom = false } })
+            ColourPanel(hex, onChange = { hex = it }, onPickFromPhoto = { picking = true }, onClose = { custom = false },
+                modifier = Modifier.align(Alignment.BottomCenter))
+        }
+        }
     }
-}
-
-/** The custom picker under the colour wheel: saturation and brightness, then hue. */
-@Composable
-private fun HsvPicker(hex: String, onChange: (String) -> Unit) {
-    val hsv = remember(hex) { FloatArray(3).also { android.graphics.Color.colorToHSV(runCatching { android.graphics.Color.parseColor(hex) }.getOrDefault(android.graphics.Color.BLACK), it) } }
-    fun setHSV(h: Float, s: Float, v: Float) { onChange("#%06X".format(android.graphics.Color.HSVToColor(floatArrayOf(h, s, v)) and 0xffffff)) }
-    val hue by rememberUpdatedState(hsv[0])
-    Box(Modifier.fillMaxWidth().height(100.dp).clip(RoundedCornerShape(12.dp))
-        .background(Brush.horizontalGradient(listOf(Color.White, Color.hsv(hsv[0], 1f, 1f))))
-        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
-        .pointerInput(Unit) { detectTapGestures { p -> setHSV(hue, (p.x / size.width).coerceIn(0f, 1f), (1 - p.y / size.height).coerceIn(0f, 1f)) } }
-        .pointerInput(Unit) {
-            fun pick(p: androidx.compose.ui.geometry.Offset) { setHSV(hue, (p.x / size.width).coerceIn(0f, 1f), (1 - p.y / size.height).coerceIn(0f, 1f)) }
-            detectDragGestures(onDragStart = ::pick) { change, _ -> pick(change.position); change.consume() }
-        }.semantics { contentDescription = "Saturation and brightness" })
-    SliderRow("Hue", hsv[0].toDouble(), 0.0, 359.0, onDrag = { setHSV(it.toFloat(), hsv[1], hsv[2]) }, onRelease = { setHSV(it.toFloat(), hsv[1], hsv[2]) }, tag = "colour-hue")
 }
 
 @Composable private fun ColourPalette(title: String, values: List<String>, selected: String, fixed: Boolean = false, choose: (String) -> Unit) {
@@ -186,6 +189,11 @@ private fun HsvPicker(hex: String, onChange: (String) -> Unit) {
             }
         }
     }
+}
+
+private fun photoHex(p: Rgba8Image, x: Int, y: Int): String {
+    val i = (y * p.width + x) * 4
+    return "#%02X%02X%02X".format(p.pixels[i].toInt() and 255, p.pixels[i + 1].toInt() and 255, p.pixels[i + 2].toInt() and 255)
 }
 
 private fun photoPalette(p: Rgba8Image): List<String> {

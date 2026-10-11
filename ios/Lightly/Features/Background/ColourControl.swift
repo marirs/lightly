@@ -178,7 +178,8 @@ struct ColourSheet: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("colour.custom")
         .sheet(isPresented: $showsPicker) {
-            SystemColourPanel(hex: $hex).presentationDetents([.medium, .large])
+            // Tall enough for the whole panel (grid, swatch and saved colours); .medium cut the swatch row off.
+            SystemColourPanel(hex: $hex).presentationDetents([.height(530), .large])
         }
     }
 

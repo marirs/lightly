@@ -1040,7 +1040,7 @@ final class SliderHitTargetUITests: XCTestCase {
         func shows(_ hex: String) -> Bool {
             app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", hex)).firstMatch.waitForExistence(timeout: 5)
         }
-        app.buttons["Colour #334538"].tap()
+        app.buttons["Colour #334538"].firstMatch.tap()
         app.buttons["Done"].tap()
         XCTAssertTrue(shows("#334538"))
         app.buttons["editor.undo"].tap()
@@ -1051,6 +1051,10 @@ final class SliderHitTargetUITests: XCTestCase {
         // The system colour panel opens over the sheet.
         XCTAssertTrue(app.otherElements["ColorPicker"].waitForExistence(timeout: 5) || app.buttons["Grid"].waitForExistence(timeout: 5)
                       || app.staticTexts["Colours"].waitForExistence(timeout: 2) || app.staticTexts["Colors"].waitForExistence(timeout: 2))
+        for tab in ["Grid", "Spectrum", "Sliders"] {
+            if app.buttons[tab].exists { app.buttons[tab].tap() }
+            let panel = XCTAttachment(screenshot: app.screenshot()); panel.name = "system-colour-panel-\(tab)"; panel.lifetime = .keepAlways; add(panel)
+        }
     }
 
     func testPresetGalleryDarkTheme() {
