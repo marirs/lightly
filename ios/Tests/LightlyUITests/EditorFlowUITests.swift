@@ -321,19 +321,20 @@ final class EditorFlowUITests: XCTestCase {
         start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
     }
 
-    /// iOS 1.0 Auto is Core Image auto enhancement (owner approval 2026-10-06): applied at open as the starting state
-    /// (stop zero reads "Auto"); the Auto switch turns it off as one Undo step.
+    /// iOS 1.0 Auto is Core Image auto enhancement (owner approval 2026-10-06). Owner, 2026-10-11: the photo opens
+    /// untouched (stop zero reads "Original"); tapping Auto applies it as one Undo step.
     func testPickedPhotoDevelopsByItselfWithCoreImageAuto() throws {
         try openFirstLibraryPhoto()
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
+        let auto = element("develop.auto")
+        XCTAssertTrue(auto.waitForExistence(timeout: timeout))
         XCTAssertFalse(element("develop.notice").exists)
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Auto" }, "Auto applied: \(self.label("develop.name"))")
-        XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Auto is the starting state, not an edit")
-        element("develop.auto").tap()
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Original" })
-        XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "switching Auto off is one step")
+        XCTAssertTrue(waitFor { auto.value as? String == "Not applied" }, "opens untouched: \(auto.value ?? "nil")")
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "opening is not an edit")
+        auto.tap()
+        XCTAssertTrue(waitFor { auto.value as? String == "Applied" })
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "switching Auto on is one step")
         app.buttons["editor.undo"].tap()
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Auto" })
+        XCTAssertTrue(waitFor { auto.value as? String == "Not applied" })
         for tool in ["develop", "background", "edit", "effects", "watermark", "border"] {
             XCTAssertTrue(element("tool.\(tool)").exists, "\(tool) is listed")
         }
@@ -1028,20 +1029,28 @@ final class SliderHitTargetUITests: XCTestCase {
         XCTAssertTrue(app.buttons["border.type.Paper"].waitForExistence(timeout: 60))
         app.buttons["border.type.Paper"].tap()
         app.buttons["border.paper.torn"].tap()
-        app.buttons["border.paper.colour.picker"].tap()
+        let more = app.buttons["border.paper.colour.more"]
+        more.tap()
         XCTAssertTrue(app.staticTexts["From your photo"].waitForExistence(timeout: 10))
-        let field = app.textFields["Hex colour"]; XCTAssertTrue(field.exists)
+        // Owner, 2026-10-11: no hex field or eyedropper; the Custom row opens the system colour panel.
+        XCTAssertEqual(app.textFields.count, 0)
+        XCTAssertFalse(app.buttons["colour.pick"].exists)
+        XCTAssertTrue(app.buttons["colour.custom"].exists)
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "shared-colour-sheet"; shot.lifetime = .keepAlways; add(shot)
+        func shows(_ hex: String) -> Bool {
+            app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", hex)).firstMatch.waitForExistence(timeout: 5)
+        }
         app.buttons["Colour #334538"].tap()
         app.buttons["Done"].tap()
-        let picker = app.buttons["border.paper.colour.picker"]
-        XCTAssertEqual(picker.value as? String, "#334538")
+        XCTAssertTrue(shows("#334538"))
         app.buttons["editor.undo"].tap()
-        XCTAssertEqual(picker.value as? String, "#FFFFFF")
-        picker.tap()
-        app.buttons["Colour #D4C9B5"].tap()
-        app.buttons["Cancel"].tap()
-        XCTAssertEqual(picker.value as? String, "#FFFFFF")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "#334538")).firstMatch.exists)
+        more.tap()
+        XCTAssertTrue(app.buttons["colour.custom"].waitForExistence(timeout: 10))
+        app.buttons["colour.custom"].tap()
+        // The system colour panel opens over the sheet.
+        XCTAssertTrue(app.otherElements["ColorPicker"].waitForExistence(timeout: 5) || app.buttons["Grid"].waitForExistence(timeout: 5)
+                      || app.staticTexts["Colours"].waitForExistence(timeout: 2) || app.staticTexts["Colors"].waitForExistence(timeout: 2))
     }
 
     func testPresetGalleryDarkTheme() {

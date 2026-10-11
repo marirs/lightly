@@ -2,7 +2,6 @@ package com.lightlylabs.lightly.editor
 
 import androidx.compose.ui.focus.focusRequester
 
-import androidx.compose.foundation.layout.imePadding
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
@@ -214,7 +213,7 @@ private fun WatermarkTextSheet(initial: String, onDone: (String) -> Unit, onCanc
                 textStyle = TextStyle(fontSize = 19.sp, color = colors.ink), cursorBrush = androidx.compose.ui.graphics.SolidColor(colors.sel),
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp).heightIn(min = 52.dp)
                     .border(2.dp, colors.sel, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 14.dp)
-                    .focusRequester(focus).imePadding().testTagResource("watermark-text-editor"))
+                    .focusRequester(focus).testTagResource("watermark-text-editor"))
         }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }

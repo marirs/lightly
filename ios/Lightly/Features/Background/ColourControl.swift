@@ -105,8 +105,8 @@ struct ColourControl: View {
 
 /// `colourSheet`: the sheet behind "More colours", the same from every colour control. sheetHead (Cancel · title ·
 /// Done), the live preview (170 pt phone / 200 pt tablet, 18 pt corners, stage fill), "From your photo", "Paper & ink",
-/// "Earth" (five 40 pt swatches each, 12 pt corners, 9 pt gaps, lime check on the chosen one), the Custom row (picker,
-/// hex field, Pick from photo) and "Recent".
+/// "Earth" (five 40 pt swatches each, 12 pt corners, 9 pt gaps, lime check on the chosen one), the Custom row (opens the
+/// system colour panel) and "Recent".
 struct ColourSheet: View {
     let title: String
     let photo: CGImage
@@ -116,7 +116,7 @@ struct ColourSheet: View {
     let dismiss: () -> Void
     @AppStorage("lightly.recentColours") private var recent = "#FFFFFF,#111111,#F4F1EC"
     @State private var hex: String
-    @State private var sampling = false
+    @State private var showsPicker = false
     @State private var palette: [String] = []
     @Environment(\.colorScheme) private var scheme
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -141,22 +141,11 @@ struct ColourSheet: View {
                 VStack(alignment: .leading, spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 18, style: .continuous).fill(c(ApprovedColor.canvas))
-                        Image(decorative: sampling ? photo : (previewImage?() ?? photo), scale: 1)
+                        Image(decorative: previewImage?() ?? photo, scale: 1)
                             .resizable().scaledToFit().padding(8)
-                            .overlay {
-                                if sampling {
-                                    GeometryReader { geo in
-                                        Color.clear.contentShape(Rectangle()).gesture(SpatialTapGesture().onEnded { tap in
-                                            hex = PhotoColours.sample(photo, x: tap.location.x / geo.size.width, y: tap.location.y / geo.size.height)
-                                            sampling = false
-                                        })
-                                    }
-                                }
-                            }
-                            .accessibilityLabel(Text(sampling ? "Tap a colour in the photo." : "Preview"))
+                            .accessibilityLabel(Text("Preview"))
                     }
                     .frame(height: isTablet ? 200 : 170)
-                    if sampling { L2Note(text: Text("Tap a colour in the photo.")) }
                     section("From your photo", palette)
                     section("Paper & ink", ["#FFFFFF", "#ECE8DF", "#D4C9B5", "#9C9284", "#242423"])
                     section("Earth", ["#DFC7AE", "#B98767", "#914E3E", "#66775D", "#334538"])
@@ -170,33 +159,26 @@ struct ColourSheet: View {
         .onChange(of: hex) { _, value in if valid { preview?(value.uppercased()) } }
     }
 
+    /// Custom (owner, 2026-10-11): tapping the row opens the system colour panel. No hex field (its keyboard covered
+    /// the sheet) and no eyedropper button.
     private var customRow: some View {
         let c = L2(scheme: scheme)
-        return HStack(spacing: 10) {
-            ColorPicker(selection: Binding(get: { Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0) }, set: { value in
-                var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-                UIColor(value).getRed(&r, green: &g, blue: &b, alpha: &a)
-                hex = String(format: "#%02X%02X%02X", Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
-            }), supportsOpacity: false) { EmptyView() }
-                .labelsHidden()
-                .frame(width: 40, height: 40)
-                // The mockup's swatch: a 40 pt conic-gradient circle; the system well stays underneath to take the tap.
-                .overlay {
-                    Circle().fill(AngularGradient(colors: [0xFF4444, 0xFFDD44, 0x44FF88, 0x44DDFF, 0x8844FF, 0xFF44CC, 0xFF4444].map { Color(hex: $0) },
-                                                  center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)))
-                        .allowsHitTesting(false)
-                }
-                .accessibilityLabel(Text("Custom"))
-            Text("Custom").l2Text(14, weight: .semibold).foregroundStyle(c(ApprovedColor.ink))
-            Spacer(minLength: 0)
-            TextField("#RRGGBB", text: $hex)
-                .textInputAutocapitalization(.characters).autocorrectionDisabled()
-                .font(.system(size: 14, design: .monospaced))
-                .padding(.horizontal, 10)
-                .frame(width: 96, height: 38)
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(c(ApprovedColor.hairline), lineWidth: 1))
-                .accessibilityLabel(Text("Hex colour"))
-            L2IconButton(icon: .dropper, label: Text("Pick from photo"), identifier: "colour.pick") { sampling.toggle() }
+        return Button { showsPicker = true } label: {
+            HStack(spacing: 10) {
+                Circle().fill(AngularGradient(colors: [0xFF4444, 0xFFDD44, 0x44FF88, 0x44DDFF, 0x8844FF, 0xFF44CC, 0xFF4444].map { Color(hex: $0) },
+                                              center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)))
+                    .frame(width: 40, height: 40)
+                Text("Custom").l2Text(14, weight: .semibold).foregroundStyle(c(ApprovedColor.ink))
+                Spacer(minLength: 0)
+                ApprovedIconView(icon: .chevron, size: 16).foregroundStyle(c(ApprovedColor.inkTertiary))
+            }
+            .frame(height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("colour.custom")
+        .sheet(isPresented: $showsPicker) {
+            SystemColourPanel(hex: $hex).presentationDetents([.medium, .large])
         }
     }
 
@@ -266,5 +248,33 @@ enum PhotoColours {
             if colours.count == 5 { break }
         }
         return colours.map { String(format: "#%02X%02X%02X", $0.0, $0.1, $0.2) }
+    }
+}
+
+/// The system colour panel (UIColorPickerViewController), writing the chosen colour back as #RRGGBB.
+private struct SystemColourPanel: UIViewControllerRepresentable {
+    @Binding var hex: String
+
+    func makeUIViewController(context: Context) -> UIColorPickerViewController {
+        let picker = UIColorPickerViewController()
+        picker.supportsAlpha = false
+        picker.selectedColor = UIColor(Color(hex: UInt32(hex.dropFirst(), radix: 16) ?? 0xFFFFFF))
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ picker: UIColorPickerViewController, context: Context) {}
+    func makeCoordinator() -> Coordinator { Coordinator(hex: $hex) }
+
+    final class Coordinator: NSObject, UIColorPickerViewControllerDelegate {
+        let hex: Binding<String>
+        init(hex: Binding<String>) { self.hex = hex }
+
+        func colorPickerViewController(_ picker: UIColorPickerViewController, didSelect color: UIColor, continuously: Bool) {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            color.getRed(&r, green: &g, blue: &b, alpha: &a)
+            let channel = { (v: CGFloat) in Int((min(max(v, 0), 1) * 255).rounded()) }
+            hex.wrappedValue = String(format: "#%02X%02X%02X", channel(r), channel(g), channel(b))
+        }
     }
 }

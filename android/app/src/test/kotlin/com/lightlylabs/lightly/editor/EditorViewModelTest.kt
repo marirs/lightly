@@ -137,20 +137,22 @@ class EditorViewModelTest {
     }
 
     @Test
-    fun `Auto is applied at open as the starting point, renders, and the switch is one undo step`() = runTest {
+    fun `Auto is analysed at open but left off, and switching it on is one undo step`() = runTest {
+        // Owner, 2026-10-11: the photo opens untouched; Auto is only applied when tapped.
         val (vm, _) = ready(Harness(this, auto = analysedAuto))
         val ui = vm.uiState.value
-        assertEquals(AutoState.APPLIED, ui.auto)
+        assertEquals(AutoState.OFF, ui.auto)
         assertEquals(com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_ID, ui.session!!.current.auto.modelId)
-        assertEquals(1f, ui.session!!.current.auto.strength)
-        assertFalse(ui.canUndo, "Auto is the starting point, not an edit")
-        assertFalse(ui.preview!!.pixels.contentEquals(ui.original!!.pixels), "the Auto LUT reaches the preview")
+        assertEquals(0f, ui.session!!.current.auto.strength)
+        assertFalse(ui.canUndo, "the analysed Auto is the starting point, not an edit")
+        assertTrue(ui.preview!!.pixels.contentEquals(ui.original!!.pixels), "the photo opens untouched")
         vm.toggleAuto(); advanceUntilIdle()
-        assertEquals(AutoState.OFF, vm.uiState.value.auto)
-        assertEquals(0f, vm.uiState.value.session!!.current.auto.strength)
-        assertTrue(vm.uiState.value.preview!!.pixels.contentEquals(vm.uiState.value.original!!.pixels), "off shows the original")
-        vm.undo(); advanceUntilIdle()
+        assertEquals(AutoState.APPLIED, vm.uiState.value.auto)
         assertEquals(1f, vm.uiState.value.session!!.current.auto.strength)
+        assertFalse(vm.uiState.value.preview!!.pixels.contentEquals(vm.uiState.value.original!!.pixels), "the Auto LUT reaches the preview")
+        vm.undo(); advanceUntilIdle()
+        assertEquals(0f, vm.uiState.value.session!!.current.auto.strength)
+        assertEquals(AutoState.OFF, vm.uiState.value.auto)
     }
 
     @Test
@@ -158,7 +160,9 @@ class EditorViewModelTest {
         val saved = SavedStateHandle()
         val first = Harness(this, auto = analysedAuto)
         Dispatchers.setMain(first.dispatcher)
-        first.vm(this@EditorViewModelTest, saved).openPhoto("content://photo/1"); advanceUntilIdle()
+        val opened = first.vm(this@EditorViewModelTest, saved)
+        opened.openPhoto("content://photo/1"); advanceUntilIdle()
+        opened.toggleAuto(); advanceUntilIdle()
         var analysed = 0
         val second = Harness(this, auto = AutoDeveloper { a, b, c -> analysed++; analysedAuto.develop(a, b, c) })
         val vm = second.vm(this@EditorViewModelTest, saved)

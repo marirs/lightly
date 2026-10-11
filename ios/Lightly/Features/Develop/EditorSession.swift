@@ -381,13 +381,15 @@ final class EditorSession {
             return
         }
         #endif
-        await develop()
+        await develop(appliesAuto: false)
         DiagnosticTrace.note("open: ready at \(DebugModelLoad.ms(since: openStarted)) ms, phase \(phase)")
     }
 
     /// Runs automatic Develop. With no model in the build this resolves at once to the approved
     /// unavailable state; nothing is ever presented as Auto unless a model produced it.
-    private func develop() async {
+    /// v3 differs (owner, 2026-10-11): at photo open the analysis runs (so tapping Auto is instant) but Auto is left
+    /// off and the photo opens untouched; only a Retry the person asked for (`appliesAuto`) switches it on.
+    private func develop(appliesAuto: Bool) async {
         phase = .developing
         let proxy = try? AnalysisProxy.make(from: photo)
         let result: AutoResult = if let proxy { await autoEnhancer.autoLUT(forAnalysisProxy: proxy) } else { .unavailable(.analysisFailed) }
@@ -405,10 +407,10 @@ final class EditorSession {
                 // DEFERRED(D1): a trained model's id, version and weights belong in `auto` once one ships.
                 autoLUT = lut
             }
-            autoState = .applied
-            start.auto.strength = 1
+            autoState = appliesAuto ? .applied : .off
+            start.auto.strength = appliesAuto ? 1 : 0
             if history.count == 1 {
-                // Auto is the starting point, not an edit: it replaces the untouched initial entry.
+                // The analysed Auto (on or off) is the starting point, not an edit: it replaces the untouched initial entry.
                 history = [start]
                 historyIndex = 0
                 editEpoch &+= 1
@@ -428,7 +430,7 @@ final class EditorSession {
     /// Develop failed › Retry.
     func retryAuto() {
         guard autoState == .failed, phase == .ready else { return }
-        Task { [weak self] in await self?.develop() }
+        Task { [weak self] in await self?.develop(appliesAuto: true) }
     }
 
     /// Develop failed › Continue with original: one step that records Auto off.

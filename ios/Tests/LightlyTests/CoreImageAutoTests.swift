@@ -30,22 +30,25 @@ final class CoreImageAutoTests: XCTestCase {
         XCTAssertNotEqual(correction.lut(), LUT3D.identity(), "the filters change colour")
     }
 
-    func testAutoIsTheStartingPointAndEachToggleIsOneStepAndSaveCopyUsesIt() async throws {
+    /// Owner, 2026-10-11: Auto is analysed at open but left off (the photo opens untouched); switching it on is one step.
+    func testAutoIsAnalysedAtOpenButLeftOffAndEachToggleIsOneStep() async throws {
         let photo = try await EditorTestSupport.photo(width: 1_200, height: 800)
         let session = try await EditorTestSupport.readySession(photo: photo, autoEnhancer: CoreImageAutoEnhancer())
-        XCTAssertEqual(session.autoState, .applied)
+        XCTAssertEqual(session.autoState, .off)
         XCTAssertEqual(session.recipe.auto.modelId, CoreImageAutoCorrection.recipeModelID)
-        XCTAssertEqual(session.history.count, 1, "the approved flow: Auto is the starting state, not an edit")
-        let withAuto = try await session.exportedData()
+        XCTAssertEqual(session.recipe.auto.strength, 0)
+        XCTAssertEqual(session.history.count, 1, "the analysed Auto is the starting state, not an edit")
+        let withoutAuto = try await session.exportedData()
 
         session.toggleAuto()
-        XCTAssertEqual(session.history.count, 2, "switching Auto off is one Undo step")
-        XCTAssertEqual(session.recipe.auto.strength, 0)
-        let withoutAuto = try await session.exportedData()
-        _ = (withAuto, withoutAuto)   // the guards may leave a synthetic photo unchanged; equality is not asserted
-        session.undo()
+        XCTAssertEqual(session.history.count, 2, "switching Auto on is one Undo step")
         XCTAssertEqual(session.autoState, .applied)
         XCTAssertEqual(session.recipe.auto.strength, 1)
+        let withAuto = try await session.exportedData()
+        _ = (withAuto, withoutAuto)   // the guards may leave a synthetic photo unchanged; equality is not asserted
+        session.undo()
+        XCTAssertEqual(session.autoState, .off)
+        XCTAssertEqual(session.recipe.auto.strength, 0)
     }
 
     /// The clipping guard: a tone curve that would push the top of a mid-range photo into white is stepped down until it

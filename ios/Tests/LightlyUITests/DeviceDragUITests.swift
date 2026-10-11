@@ -48,11 +48,12 @@ final class DeviceDragUITests: XCTestCase {
     private func checkAutoAndDrag(context: String) {
         let before = label("develop.name"), beforePosition = label("develop.position")
         report("\(context) start name=\(before) position=\(beforePosition)")
-        // Auto off: one step; Undo restores it.
+        // Auto toggled (it opens off since 2026-10-11): one step; Undo restores the previous state.
+        let autoBefore = element("develop.auto").value as? String
         element("develop.auto").tap()
-        let autoOff = waitFor { self.element("develop.auto").value as? String == "Off" || self.label("develop.name") == "Original" }
+        let autoOff = waitFor { self.element("develop.auto").value as? String != autoBefore }
         app.buttons["editor.undo"].tap()
-        let autoBack = waitFor { self.label("develop.name") == before }
+        let autoBack = waitFor { self.element("develop.auto").value as? String == autoBefore && self.label("develop.name") == before }
         report("\(context) auto off=\(autoOff) undo-restores=\(autoBack) name=\(label("develop.name"))")
         XCTAssertTrue(autoOff && autoBack, "\(context): Auto toggle and one Undo")
 

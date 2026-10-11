@@ -293,7 +293,9 @@ class EditorViewModel(
                 else {
                     installAutoCorrection(correction)
                     runCatching { android.util.Log.i("LightlyAuto", "Auto ${loaded.analysis.width}x${loaded.analysis.height} in $autoMillis ms: ${correction.notes.joinToString("; ")}") }
-                    result.auto to AutoState.APPLIED
+                    // v3 differs (owner, 2026-10-11): at photo open Auto is analysed but left off (the photo opens
+                    // untouched; tapping Auto is instant). Only a Retry the person asked for switches it on.
+                    if (retry) result.auto to AutoState.APPLIED else result.auto.copy(strength = 0f) to AutoState.OFF
                 }
             }
             is DevelopResult.Failed -> autoOff(DEVELOP_FAILED_MODEL_VERSION) to AutoState.FAILED

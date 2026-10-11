@@ -50,7 +50,9 @@ struct ApprovedSheetOverlay<Content: View>: View {
             .frame(width: screen.width, height: screen.height)
             .offset(x: -geometry.safeAreaInsets.leading, y: -geometry.safeAreaInsets.top)
         }
-        .ignoresSafeArea()
+        // The container safe area only: the keyboard stays a safe-area inset, so its height arrives in
+        // `safeAreaInsets.bottom` and the sheet's bottom padding lifts the content (a text field) above it.
+        .ignoresSafeArea(.container)
         .accessibilityAction(.escape, onDismiss)
     }
 }

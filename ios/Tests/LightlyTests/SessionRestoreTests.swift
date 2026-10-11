@@ -247,6 +247,8 @@ final class SessionRestoreTests: XCTestCase {
         let photo = try await EditorTestSupport.photo(width: 1_200, height: 800)
         let before = try await EditorTestSupport.readySession(photo: photo, library: library, autoEnhancer: CoreImageAutoEnhancer(), sessionStore: store)
         before.sceneSessionID = { "scene-A" }
+        XCTAssertEqual(before.autoState, .off, "Auto is left off at open (owner, 2026-10-11)")
+        before.toggleAuto()
         XCTAssertEqual(before.autoState, .applied)
         before.applyLook(library.pack.categories[0].presets[0])
         await before.settleRendering()

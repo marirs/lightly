@@ -17,7 +17,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -107,7 +112,8 @@ fun L2Sheet(big: Boolean, heightFraction: Float? = null, bare: Boolean = false, 
     BackHandler(onBack = onDismiss)
     BoxWithConstraints(
         // Tap-to-dismiss without `clickable`, for the same paneTitle merge reason as L2Dialog's scrim.
-        Modifier.fillMaxSize().background(colors.scrim).pointerInput(onDismiss) { detectTapGestures { onDismiss() } },
+        Modifier.fillMaxSize().background(colors.scrim).pointerInput(onDismiss) { detectTapGestures { onDismiss() } }
+            .then(if (big) Modifier.imePadding() else Modifier),
         contentAlignment = if (big) Alignment.Center else Alignment.BottomCenter,
     ) {
         val shape = if (big) RoundedCornerShape(28.dp) else RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
@@ -122,7 +128,9 @@ fun L2Sheet(big: Boolean, heightFraction: Float? = null, bare: Boolean = false, 
                 .border(1.dp, colors.hair, shape)
                 .pointerInput(Unit) { detectTapGestures {} }
                 .semantics { paneTitle = "Sheet" }
-                .then(if (big) Modifier.padding(bottom = 14.dp) else Modifier.navigationBarsPadding().padding(bottom = 6.dp))
+                .then(if (big) Modifier.padding(bottom = 14.dp) else Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)).padding(bottom = 6.dp))
+                // The keyboard's height pads the sheet from inside, so a text field sits above the keyboard (on big
+                // windows the centred card is lifted by the outer box's IME padding instead).
                 .then(if (scrolls) Modifier.verticalScroll(rememberScrollState()) else Modifier),
         ) {
             if (!big && !bare) SheetGrabber()

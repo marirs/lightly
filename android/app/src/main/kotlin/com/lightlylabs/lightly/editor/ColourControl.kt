@@ -101,13 +101,12 @@ fun ColourControl(title: String = "Colour", selected: String, photo: Rgba8Image?
 /**
  * The colour sheet behind "More colours" (`colourSheet`), the same from every colour control: sheetHead (Cancel · title ·
  * Done), the live preview (170 dp, 18 dp corners, stage fill), "From your photo", "Paper & ink", "Earth" (five 40 dp
- * swatches, 12 dp corners, 9 dp gaps, a lime check on the chosen one), the Custom row (the colour wheel, which opens the
- * picker below it; the hex field; Pick from photo) and "Recent".
+ * swatches, 12 dp corners, 9 dp gaps, a lime check on the chosen one), the Custom row (opens the colour
+ * panel below it) and "Recent".
  */
 @Composable
 private fun ColourSheet(title: String, selected: String, photo: Rgba8Image?, previewPhoto: Rgba8Image?, preview: ((String) -> Unit)?, choose: (String) -> Unit, onClose: (cancelled: Boolean) -> Unit) {
     var hex by remember { mutableStateOf(selected.uppercase()) }
-    var picking by remember { mutableStateOf(false) }
     var custom by remember { mutableStateOf(false) }
     val prefs = LocalContext.current.getSharedPreferences("lightly-colours", 0)
     val recent = remember { prefs.getString("recent", "#FFFFFF,#111111,#F4F1EC")!!.split(',') }
@@ -127,37 +126,23 @@ private fun ColourSheet(title: String, selected: String, photo: Rgba8Image?, pre
                 } })
             Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Box(Modifier.fillMaxWidth().height(if (big) 200.dp else 170.dp).clip(RoundedCornerShape(18.dp)).background(colors.canvas).padding(8.dp), contentAlignment = Alignment.Center) {
-                    val shown = if (picking) photo else previewPhoto ?: photo
+                    val shown = previewPhoto ?: photo
                     if (shown != null) {
                         val bitmap = remember(shown) { shown.toBitmap().asImageBitmap() }
-                        Image(bitmap, if (picking) "Tap a colour in the photo." else "Preview", Modifier.fillMaxSize().then(if (picking && photo != null) Modifier.pointerInput(photo) {
-                            detectTapGestures { p ->
-                                // The photo is fitted inside the box; map the tap through the fitted rectangle.
-                                val scale = minOf(size.width.toFloat() / photo.width, size.height.toFloat() / photo.height)
-                                val left = (size.width - photo.width * scale) / 2; val top = (size.height - photo.height * scale) / 2
-                                val x = ((p.x - left) / scale).toInt().coerceIn(0, photo.width - 1)
-                                val y = ((p.y - top) / scale).toInt().coerceIn(0, photo.height - 1)
-                                hex = photoHex(photo, x, y); picking = false
-                            }
-                        } else Modifier))
+                        Image(bitmap, "Preview", Modifier.fillMaxSize())
                     }
                 }
-                if (picking) PanelNote("Tap a colour in the photo.")
                 ColourPalette("From your photo", palette, hex) { hex = it }
                 ColourPalette("Paper & ink", listOf("#FFFFFF", "#ECE8DF", "#D4C9B5", "#9C9284", "#242423"), hex) { hex = it }
                 ColourPalette("Earth", listOf("#DFC7AE", "#B98767", "#914E3E", "#66775D", "#334538"), hex) { hex = it }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Custom (owner, 2026-10-11): tapping the row opens the colour panel. No hex field (its keyboard covered the
+                // sheet) and no eyedropper button.
+                Row(Modifier.fillMaxWidth().height(44.dp).clickable(role = androidx.compose.ui.semantics.Role.Button) { custom = !custom }
+                    .semantics(mergeDescendants = true) { contentDescription = "Custom" }.testTagResource("colour-custom"),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.size(40.dp).clip(CircleShape)
-                        .background(Brush.sweepGradient(listOf(Color(0xFFFF4444), Color(0xFFFFDD44), Color(0xFF44FF88), Color(0xFF44DDFF), Color(0xFF8844FF), Color(0xFFFF44CC), Color(0xFFFF4444))))
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button) { custom = !custom }
-                        .semantics { contentDescription = "Custom" })
+                        .background(Brush.sweepGradient(listOf(Color(0xFFFF4444), Color(0xFFFFDD44), Color(0xFF44FF88), Color(0xFF44DDFF), Color(0xFF8844FF), Color(0xFFFF44CC), Color(0xFFFF4444)))))
                     Text("Custom", style = l2TextStyle(14.sp, androidx.compose.ui.text.font.FontWeight.SemiBold, colors.ink), modifier = Modifier.weight(1f))
-                    androidx.compose.foundation.text.BasicTextField(hex, { hex = it.take(7) }, singleLine = true,
-                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 14.sp, color = colors.ink),
-                        cursorBrush = SolidColor(colors.sel),
-                        modifier = Modifier.width(96.dp).height(38.dp).border(1.dp, colors.hair, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 9.dp)
-                            .semantics { contentDescription = "Hex colour" })
-                    IconTapTarget(LightlyIcons.Dropper, "Pick from photo", { picking = !picking }, tag = "colour-pick")
                 }
                 if (custom) HsvPicker(hex) { hex = it }
                 ColourPalette("Recent", recent, hex, fixed = true) { hex = it }
@@ -203,9 +188,6 @@ private fun HsvPicker(hex: String, onChange: (String) -> Unit) {
     }
 }
 
-private fun photoHex(p: Rgba8Image, x: Int, y: Int): String {
-    val i=(y*p.width+x)*4; return "#%02X%02X%02X".format(p.pixels[i].toInt() and 255,p.pixels[i+1].toInt() and 255,p.pixels[i+2].toInt() and 255)
-}
 private fun photoPalette(p: Rgba8Image): List<String> {
     val counts = mutableMapOf<Int,IntArray>()
     for(y in 0 until p.height step maxOf(1,p.height/64)) for(x in 0 until p.width step maxOf(1,p.width/64)) {
