@@ -27,6 +27,14 @@ struct EditorScreen: View {
     /// The approved crop flow (owner, 2026-10-11, docs/ui/proposals/crop-flow.html): the frame is on the uncropped photo
     /// while there is no crop yet, or after a tap on the cropped photo; otherwise Crop shows the cropped photo.
     private var isCropping: Bool { isCropTab && (editPanel.cropAdjusting || Self.isFullFrame(session.recipe.tools.edit.geometry.cropRect)) }
+    /// The rectangle the photo zooms to (Lightroom / Photos): the moved frame once the finger lifts, else the applied
+    /// crop. While a finger is down it holds where it was, so the frame follows the finger over a still photo.
+    private var cropFocusRect: EditRecipe.Rect? {
+        guard isCropping, !session.isShowingOriginal else { return nil }
+        if cropGestureStart != nil || cropPinchStart != nil { return heldCropFocus }
+        return cropDraft ?? session.recipe.tools.edit.geometry.cropRect
+    }
+    @State private var heldCropFocus: EditRecipe.Rect?
     /// A frame moved but not applied yet: ✕ Cancel and ✓ Apply crop show under the photo.
     private var hasPendingCrop: Bool { isCropping && cropDraft.map { $0 != session.recipe.tools.edit.geometry.cropRect } == true }
 
@@ -275,6 +283,7 @@ struct EditorScreen: View {
                    outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                    marksCoverCanvas: tool == .watermark,
                    cropWorkspace: false,
+                   cropFocus: cropFocusRect,
                    allowsInspection: !isCropping,
                    allowsDoubleTapZoom: tool != .watermark,
                    onInspectionBegan: {
@@ -759,6 +768,7 @@ struct EditorScreen: View {
                     let rect = cropDraft ?? session.recipe.tools.edit.geometry.cropRect
                     if cropGestureStart == nil {
                         guard let handle = CropGeometry.handle(at: value.startLocation, rect: rect, size: size) else { return }
+                        heldCropFocus = cropFocusRect
                         cropGestureStart = (rect, handle)
                     }
                     guard let start = cropGestureStart else { return }
@@ -771,7 +781,7 @@ struct EditorScreen: View {
                     cropGestureStart = nil
                 })
             .simultaneousGesture(MagnifyGesture().onChanged { value in
-                if cropPinchStart == nil { cropPinchStart = cropDraft ?? session.recipe.tools.edit.geometry.cropRect; cropGestureStart = nil }
+                if cropPinchStart == nil { heldCropFocus = cropFocusRect; cropPinchStart = cropDraft ?? session.recipe.tools.edit.geometry.cropRect; cropGestureStart = nil }
                 if let start = cropPinchStart { cropDraft = CropGeometry.scaled(start, magnification: value.magnification) }
             }.onEnded { _ in cropPinchStart = nil })
             .accessibilityHidden(true)

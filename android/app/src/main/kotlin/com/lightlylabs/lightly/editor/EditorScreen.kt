@@ -183,7 +183,7 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
     val stage: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier) {
             // While cropping, a pinch resizes the crop frame instead of zooming the photo.
-            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = !vm.isCropEditing(ui), onPhotoBox = vm::onStagePhotoMeasured)
+            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), onPhotoBox = vm::onStagePhotoMeasured)
             if (!ui.showsOriginal && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP)) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
             // ✕ Cancel and ✓ Apply crop under the photo while a moved frame waits (owner, 2026-10-11).
             androidx.compose.animation.AnimatedVisibility(vm.hasPendingCrop(ui), Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
@@ -392,7 +392,7 @@ internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, 
  * the "Original" badge at the photo's top-left corner.
  */
 @Composable
-private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
+private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false, cropEditing: Boolean = false, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
     // Lightly 2 `photo()`: the stage is transparent (its container gives --bg on phones, --stage in panes; the crop
@@ -446,9 +446,26 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
             }, contentAlignment = Alignment.Center) {
             // Stage 11: with a border the preview is the canvas. `.pic` then has box-shadow 0 0 0 1px
             // rgba(0,0,0,.12), a ring just outside it (not while comparing: the original has no border).
+            // Crop (Lightroom / Photos, owner 2026-10-11): once a finger lifts, the photo glides and zooms so the moved
+            // frame (or the applied crop) fills the stage, 12 dp more clear of its edges, the cut parts dimmed around it.
+            // While a finger is down the zoom holds still, so the frame follows the finger. Touches map back through the layer.
+            val cropTab = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.showsOriginal && cropEditing
+            var heldFocus by remember { mutableStateOf<com.lightlylabs.lightly.session.NormalisedRect?>(null) }
+            val settled = if (cropTab) ui.edit.cropDraft ?: ui.session?.current?.tools?.edit?.geometry?.crop?.rect else null
+            if (!ui.edit.cropDragging) heldFocus = settled
+            val focus = if (ui.edit.cropDragging) heldFocus else settled
+            val clearPx = with(density) { 24.dp.toPx() }
+            val focusScale = focus?.let { r ->
+                minOf(6f, maxOf(1f, minOf((viewport.x - clearPx) / (r.width.toFloat() * fitted.x).coerceAtLeast(1f), (viewport.y - clearPx) / (r.height.toFloat() * fitted.y).coerceAtLeast(1f))))
+            } ?: 1f
+            val glide = androidx.compose.animation.core.tween<Float>(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+            val cropScale by androidx.compose.animation.core.animateFloatAsState(focusScale, glide, label = "crop-scale")
+            val cropDx by androidx.compose.animation.core.animateFloatAsState(focus?.let { -((it.x + it.width / 2 - 0.5).toFloat() * fitted.x) * focusScale } ?: 0f, glide, label = "crop-dx")
+            val cropDy by androidx.compose.animation.core.animateFloatAsState(focus?.let { -((it.y + it.height / 2 - 0.5).toFloat() * fitted.y) * focusScale } ?: 0f, glide, label = "crop-dy")
             Box(
                 Modifier.size(width.dp, (width / ratio).dp).graphicsLayer {
-                    scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y
+                    scaleX = zoom * cropScale; scaleY = zoom * cropScale
+                    translationX = pan.x + cropDx; translationY = pan.y + cropDy
                 }.then(
                     if (border == null) Modifier else Modifier.drawBehind {
                         val ring = 1.dp.toPx()

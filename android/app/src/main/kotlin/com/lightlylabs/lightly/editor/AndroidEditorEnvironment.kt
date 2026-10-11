@@ -46,10 +46,14 @@ object AndroidEditorEnvironment {
     /** Preview renders run on one thread; their per-pixel work fans out on [workerPool]. */
     private val renderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-render") }.asCoroutineDispatcher()
     private val interactiveRenderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-render-interactive") }.asCoroutineDispatcher()
+    private val thumbnailDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-thumbnails").apply { priority = Thread.NORM_PRIORITY - 1 } }.asCoroutineDispatcher()
     private val prefetchDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-prefetch").apply { priority = Thread.MIN_PRIORITY } }.asCoroutineDispatcher()
 
-    /** Threads for bakes and row-parallel rendering: at most 4, leaving the UI thread a core. */
-    private val parallelism = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+    /**
+     * Threads for bakes and row-parallel rendering: every core but two (the UI thread and the system), at most 6. Was at
+     * most 4; on the 8-core motorola edge 60 a settled preview with spatial stages took ~1.9 s (owner report 2026-10-11).
+     */
+    private val parallelism = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(1, 6)
     private val workerPool = Executors.newFixedThreadPool(parallelism) { runnable -> Thread(runnable, "lightly-develop-worker").apply { isDaemon = true } }
 
     /**
@@ -127,6 +131,7 @@ object AndroidEditorEnvironment {
             renderDispatcher = renderDispatcher,
             prefetchDispatcher = prefetchDispatcher,
             interactiveRenderDispatcher = interactiveRenderDispatcher,
+            thumbnailDispatcher = thumbnailDispatcher,
             exporter = ExportCoordinator(
                 saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder(), metadataStep = metadataStep(app), shareCopy = shareCopies(app)),
                 frameFactory = BitmapExportFrame.factory,

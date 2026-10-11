@@ -22,6 +22,8 @@ data class EditUi(
     val sub: EditSub = EditSub.CROP,
     /** Crop: the frame is back on the photo after a tap on the cropped photo (owner, 2026-10-11). */
     val cropAdjusting: Boolean = false,
+    /** A finger is on the crop frame: the photo's zoom holds still until it lifts. */
+    val cropDragging: Boolean = false,
     val cropDraft: com.lightlylabs.lightly.session.NormalisedRect? = null,
     val group: AdjustGroup = AdjustGroup.LIGHT,
     /** A slider being dragged: field → value (preview only until release). */

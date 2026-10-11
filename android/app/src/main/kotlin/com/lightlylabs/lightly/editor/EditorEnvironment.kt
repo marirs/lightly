@@ -93,6 +93,11 @@ class EditorEnvironment(
      * (RenderScheduler's interactive lane). null: one lane.
      */
     val interactiveRenderDispatcher: CoroutineDispatcher? = null,
+    /**
+     * Where preset thumbnails render (owner report 2026-10-11: presets, Undo and Reset all slow). On the render thread
+     * their LUT bakes (~85 ms each on the motorola edge 60) queued ahead of the photo's own render. null: [renderDispatcher].
+     */
+    val thumbnailDispatcher: CoroutineDispatcher? = null,
     val exporter: ExportCoordinator<String, *>,
     val favourites: FavouritesStore,
     /** Debug builds show stubs for the unimplemented tools and accept the capture launch options. */

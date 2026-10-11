@@ -684,7 +684,7 @@ class EditorViewModel(
     }
 
     fun previewCrop(rect: com.lightlylabs.lightly.session.NormalisedRect) {
-        state.update { it.copy(edit = it.edit.copy(cropDraft = rect)) }
+        state.update { it.copy(edit = it.edit.copy(cropDraft = rect, cropDragging = true)) }
     }
 
     /*
@@ -695,7 +695,7 @@ class EditorViewModel(
 
     /** A drag or pinch ended: the frame stays where it is, as a draft, until ✓ or ✕. */
     fun finishCropDrag(rect: com.lightlylabs.lightly.session.NormalisedRect?) {
-        if (rect != null) previewCrop(rect)
+        state.update { it.copy(edit = it.edit.copy(cropDraft = rect ?: it.edit.cropDraft, cropDragging = false)) }
     }
 
     /** A moved frame waits for ✓ Apply crop or ✕ Cancel. */
@@ -1537,7 +1537,7 @@ class EditorViewModel(
         val library = library ?: return null
         val context = current.copy(look = null, revision = 0)
         val key = preset?.lookVersion ?: "original"
-        return withContext(env.renderDispatcher) {
+        return withContext(env.thumbnailDispatcher ?: env.renderDispatcher) {
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
             if (thumbnailRecipe != context) { thumbnailCache.clear(); thumbnailRecipe = context }
             thumbnailCache[key]?.let { return@withContext it }
