@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Lightly 2 · proposal 11 Oct</title>
+<!-- Lightly 2 concept: every screen and state of the CURRENT iOS app (master, 78abf54) in the new look, light and dark,
+     on iPhone, Android, the Android foldable, iPhone Duo and iPad landscape. Controls, flow and copy follow the shipped
+     SwiftUI code (preset gallery, Auto and Reset all on the photo, scoped Reset rows, crop workspace, free watermark
+     dragging, Paper border, Selective Colour, own camera). Concept rules on top (owner, 2026-10-10):
+       · no jumps: on phones the tool area is ONE fixed height for every tool and state; the photo never moves;
+       · one colour strip everywhere: every colour choice is the same 24-colour strip, plus "More colours" (any colour);
+       · More holds the preferences; About is one page with details and the support email.
+     One file; photos live in assets/. Local only. Not the approved design. -->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #232428; color: #EDEEEA; font-family: system-ui, -apple-system, sans-serif; }
+  .bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 14px 28px; background: rgba(28,29,32,0.94); border-bottom: 1px solid #34363B; backdrop-filter: blur(12px); }
+  .bar h1 { margin: 0 12px 0 0; font-size: 18px; }
+  .bar .grp { display: flex; gap: 4px; padding: 3px; border-radius: 20px; background: #16171A; border: 1px solid #34363B; }
+  .bar .grp button { height: 34px; padding: 0 14px; border-radius: 17px; border: none; background: transparent; color: #B9BDB5; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+  .bar .grp button[aria-pressed="true"] { background: #EDEEEA; color: #121408; }
+  .bar .count { color: #9DA19A; font-size: 13px; }
+  main { padding: 8px 28px 60px; }
+  h2.j { font-size: 17px; margin: 30px 0 4px; color: #E4E6E1; }
+  .row { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; margin-top: 14px; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  figcaption { font-size: 12.5px; color: #A9ADA6; max-width: 420px; line-height: 1.35; }
+  figcaption b { color: #E4E6E1; font-weight: 600; }
+  .frame { position: relative; overflow: hidden; box-shadow: 0 18px 44px rgba(0,0,0,0.45); zoom: var(--z, 0.6); }
+
+  /* ---------- theme tokens ---------- */
+  .t-dark { --bg: #0D0E10; --surface: #131518; --card: #1A1C20; --line: rgba(255,255,255,0.08); --ink: #F2F3F0; --ink2: #A6ABA3; --ink3: #7E837B; --chip: rgba(255,255,255,0.07); --on-bg: #F2F3F0; --on-ink: #121408; --accent: #CFF26B; --accent-ink: #CFF26B; --on-accent: #121408; --accent-edge: #E4FF9A; --accent-halo: none; --browse: #FF9F43; --edited: #FF9F43; --glass: rgba(14,15,17,0.64); --glass-ink: #F2F3F0; --glass-line: rgba(255,255,255,0.10); --stage: #0A0B0C; --scrim: rgba(0,0,0,0.55); --knob: #F2F3F0; --off: rgba(255,255,255,0.18); --danger: #FF8A7A; --sheet: #17191C; --pill: rgba(207,242,107,0.17); --pill-ink: #E2F99F; }
+  .t-light { --bg: #F3F3F0; --surface: #FFFFFF; --card: #F4F4F1; --line: rgba(20,21,19,0.09); --ink: #141513; --ink2: #5A5E57; --ink3: #7D8179; --chip: rgba(20,21,19,0.055); --on-bg: #141513; --on-ink: #FFFFFF; --accent: #CFF26B; --accent-ink: #557311; --on-accent: #121408; --accent-edge: #8FAE2E; --accent-halo: none; --browse: #C25E00; --edited: #C25E00; --glass: rgba(255,255,255,0.78); --glass-ink: #141513; --glass-line: rgba(20,21,19,0.10); --stage: #E6E6E2; --scrim: rgba(10,10,10,0.32); --knob: #FFFFFF; --off: rgba(20,21,19,0.18); --danger: #C7362B; --sheet: #FFFFFF; --pill: rgba(207,242,107,0.45); --pill-ink: #141513; }
+  .scr { position: absolute; inset: 0; background: var(--bg); color: var(--ink); font-family: Manrope, system-ui, -apple-system, sans-serif; font-size: 14px; overflow: hidden; }
+  .scr button { font-family: inherit; color: inherit; cursor: default; }
+  .scr a { color: var(--accent-ink); font-weight: 600; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>Lightly 2 · full mockup</h1>
+  <div class="grp" role="group" aria-label="Device" id="devices"></div>
+  <div class="grp" role="group" aria-label="Appearance" id="themes"></div>
+  <div class="grp" role="group" aria-label="Zoom" id="zooms"></div>
+  <span class="count" id="count"></span>
+</div>
+<main id="out"></main>
+
+<script>
+/* =============================================================== data (from the current app) */
+const A = (n) => `../../directions/lightly-2-concept/assets/${n}`;
+const PHOTOS = {
+  lake:   { src: A('landscape_02.jpg'), r: 1067 / 1600, faces: [] },
+  field:  { src: A('landscape_03.jpg'), r: 1600 / 1067, faces: [] },
+  sunset: { src: A('sunset_02.jpg'), r: 1600 / 1067, faces: [] },
+  man:    { src: A('portrait_deep_03.jpg'), r: 1067 / 1600, faces: [{ x: .37, y: .09, w: .28, h: .30 }], subject: true },
+  smile:  { src: A('portrait_deep_02.jpg'), r: 1600 / 1067, faces: [{ x: .34, y: .10, w: .27, h: .50 }], subject: true },
+  woman:  { src: A('portrait_medium_02.jpg'), r: 1065 / 1600, faces: [{ x: .29, y: .37, w: .22, h: .25 }], subject: true, cutout: A('portrait_medium_02_cutout.png'), target: { x: .40, y: .48 } },
+  bar:    { src: A('night_03.jpg'), r: 1067 / 1600, faces: [], people: true },
+  street: { src: A('wellexposed_03.jpg'), r: 1200 / 1600, faces: [] },
+};
+const PICKER = ['woman', 'lake', 'man', 'field', 'smile', 'sunset', 'bar', 'street', 'lake'];
+// Change background › Image: the bundled list (BackgroundPanel.swift:37, person photo removed).
+const BACKGROUNDS = ['landscape_01', 'sunset_03', 'wellexposed_02', 'landscape_02', 'landscape_03', 'sunset_02', 'wellexposed_03'].map((n) => A(`${n}.jpg`));
+// The ONE colour strip, used for every colour choice in the app: 24 colours edge to edge, plus "More colours".
+const COLOURS = [['White', '#FFFFFF'], ['Warm white', '#F4F1EC'], ['Light stone', '#D9D4CC'], ['Cool grey', '#C4C9CE'], ['Blue grey', '#9AA3A8'], ['Slate', '#3C4A55'], ['Charcoal', '#1F2328'], ['Black', '#0B0B0C'], ['Cream', '#F3E3C3'], ['Mustard', '#D9A82E'], ['Tan', '#C9A27E'], ['Terracotta', '#C2684A'], ['Rust', '#8A5A44'], ['Blush', '#E8B4B0'], ['Rose', '#B5536B'], ['Plum', '#5B3A6B'], ['Lilac', '#B8A9D9'], ['Sky', '#A9D3EE'], ['Ocean', '#2F6F9F'], ['Navy', '#1E2F4D'], ['Mint', '#BFE3D0'], ['Sage', '#A8B89A'], ['Olive', '#6E6B3A'], ['Forest green', '#4E6B5A']];
+const GRADIENTS = [['#F6D5B8', '#9EB7D6'], ['#20242C', '#5B6476'], ['#E9E4DA', '#BFC8C2'], ['#F0B7A4', '#6E5A86']];
+const grad = ([a, b]) => `linear-gradient(160deg, ${a}, ${b})`;
+// The shipped pack (shared/look-pack/out/manifest.json + names/display-names.json): order, names and counts.
+// The curated pack (owner, 2026-10-11): 513 looks in nine collections, first twelve names of each.
+const CATS = [
+  ['essentials', 'Essentials', 58, ["Pure Silk Calm", "Natural Turquoise Glow", "Pure Linen Light", "Honey Glow", "Pure Jade Air", "Still Lagoon Matte", "Lagoon Haze", "Soft Pearl Dawn", "Gentle Azure Air", "Still Brass Mood", "Natural Olive Light", "Gentle Ivory Clarity"]],
+  ['cinema', 'Cinema', 105, ["Natural Moss Contrast", "Still Stone Fade", "Fern Daylight", "Gentle Brass Depth", "Still Quartz Fade", "Natural Turquoise Mood", "Clear Teal Frame", "Pure Lagoon Edge", "Clear Brass Frame", "Natural Amber Dusk", "Pure Ivory Contrast", "Still Saffron Glow"]],
+  ['film', 'Film', 73, ["Still Aqua Glow", "Pure Orchid Wash", "Still Pearl Wash", "Natural Quartz Print", "Quiet Seafoam Veil", "Quiet Crystal Mood", "Gentle Brass Haze", "Gentle Saffron Print", "Quiet Crystal Light", "Soft Quartz Wash", "Still Ivory Shade", "Clear Gold Shade"]],
+  ['daylight', 'Daylight', 56, ["Pure Teal Air", "Gentle Linen Light", "Natural Opal Light", "Gentle Lagoon Sky", "Pure Lagoon Daylight", "Quiet Mauve", "Calm Opal Air", "Bright Linen Air", "Gentle Gold Breeze", "Still Teal Wash", "Honey Daylight", "Pure Marine Sky"]],
+  ['golden-hour', 'Golden Hour', 55, ["Pure Honey Mood", "Pure Ochre Hour", "Calm Ochre Dusk", "Sand Mist", "Quiet Turquoise Breeze", "Natural Sand Hour", "Calm Rose", "Quiet Saffron Veil", "Pure Sand Dawn", "Natural Ochre Mood", "Still Wheat Dawn", "Still Amber Veil"]],
+  ['night', 'Night', 65, ["Pure Linen Night", "Bold Aqua Shade", "Bold Marine Shade", "Gentle Lagoon Shade", "Gentle Jade Neon", "Gentle Wheat Dusk", "Dim Lagoon Neon", "Quiet Amber Edge", "Deep Ochre Glow", "Bold Turquoise Dark", "Quiet Turquoise Dawn", "Bold Turquoise Neon"]],
+  ['moody', 'Moody', 41, ["Quiet Stone Shade", "Still Stone Mist", "Quiet Pearl Fade", "Low Ivory Veil", "Quiet Seafoam Glow", "Clear Teal Veil", "Quartz Mist", "Quiet Silk Daylight", "Gentle Steel Storm", "Gentle Lilac Storm", "Aqua Contrast", "Natural Teal Light"]],
+  ['portrait', 'Portrait', 42, ["Quartz Daylight", "Pure Stone Veil", "Natural Aqua Veil", "Deep Linen Glow", "Pearl Light", "Clear Silk", "Clear Glacier Softness", "Gentle Opal Light", "Still Sage Shade", "Subdued Sand", "Natural Ochre Silk", "Bold Honey Silk"]],
+  ['black-white', 'Black & White', 18, ["Natural Ash Print", "Still Carbon", "Gentle Graphite Tone", "Pure Graphite Tone", "Pure Ink Contrast", "Soft Smoke Print", "Clear Ink Matte", "Natural Opal Shade", "Luminous Silver Fade", "Subdued Silver Contrast", "Bold Ash Matte", "Clear Silver"]],
+];
+const CAT = Object.fromEntries(CATS.map(([id, name, count, list]) => [id, { id, name, count, list }]));
+const FAVS = [['Pure Lagoon Daylight', 'daylight'], ['Pure Stone Veil', 'portrait'], ['Pure Ochre Hour', 'golden-hour'], ['Still Stone Fade', 'cinema'], ['Still Carbon', 'black-white']];
+// A stand-in look per preset for the mock's live thumbnails (deterministic by name).
+const LOOKS = ['saturate(1.15) contrast(1.06)', 'sepia(0.25) saturate(1.2)', 'hue-rotate(-10deg) saturate(1.1) brightness(1.03)', 'saturate(0.8) contrast(1.12) hue-rotate(-8deg)', 'brightness(1.07) saturate(0.9) contrast(0.95)', 'sepia(0.3) contrast(0.95)', 'hue-rotate(8deg) saturate(1.2)', 'brightness(0.94) contrast(1.15) saturate(0.85)', 'saturate(1.3) brightness(1.02)', 'sepia(0.12) brightness(1.06) saturate(0.95)'];
+function lookFor(name, cat) {
+  if (!name || name === 'Original') return 'none';
+  if (cat === 'black-white') return 'grayscale(1) contrast(1.12)';
+  let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return LOOKS[h % LOOKS.length];
+}
+const TOOLS = [['develop', 'Develop'], ['background', 'Background'], ['portrait', 'Portrait'], ['edit', 'Edit'], ['effects', 'Effects'], ['watermark', 'Watermark'], ['text', 'Text'], ['border', 'Border']];
+
+/* =============================================================== icons */
+const IC = {
+  text: 'M5 7V5h14v2M12 5v14M9 19h6',
+  close: 'M6 6l12 12M18 6L6 18', back: 'M15 5l-7 7 7 7', undo: 'M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3', redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3',
+  chevron: 'M9 6l6 6-6 6', check: 'M5 12l5 5 9-10', star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
+  develop: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18',
+  background: 'M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM12 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM7.5 20c.8-3 2.4-4.5 4.5-4.5s3.7 1.5 4.5 4.5',
+  portrait: 'M12 4.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7zM5 20c1-4 3.6-6 7-6s6 2 7 6', edit: 'M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4',
+  effects: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z', watermark: 'M3 17c3 0 4-9 6-9s1 8 3 8 2-5 4-5 2 3 5 3', border: 'M4 4h16v16H4zM8 8h8v8H8z',
+  photo: 'M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM9 8.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6zM21 16l-5-5-9 9',
+  camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 9.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z',
+  brush: 'M14 4l6 6-8 8H6v-6z', erase: 'M7 20h10M4 14l8-8 6 6-6 6H8z', info: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 11v5M12 8h.01', warn: 'M12 3l10 18H2zM12 10v5M12 18h.01',
+  share: 'M12 15V4M7 9l5-5 5 5M5 14v6h14v-6', plus: 'M12 5v14M5 12h14', eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z',
+  rotl: 'M4 8v5h5M5 13a8 8 0 112 5', rotr: 'M20 8v5h-5M19 13a8 8 0 11-2 5', fliph: 'M12 3v18M8 7L4 12l4 5zM16 7l4 5-4 5z', flipv: 'M3 12h18M7 8l5-4 5 4zM7 16l5 4 5-4z',
+  grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01', trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  search: 'M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4', flash: 'M13 2L5 14h6l-1 8 8-12h-6z',
+  circle: 'M12 4a8 8 0 100 16 8 8 0 000-16z', hex: 'M12 3l8 4.5v9L12 21l-8-4.5v-9z', heart: 'M12 20s-8-5-8-11a4.5 4.5 0 018-2.8A4.5 4.5 0 0120 9c0 6-8 11-8 11z', starShape: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
+  reset: 'M4 4v6h6M5.5 15a8 8 0 102-8.5L4 10', wand: 'M4 20L15 9M14 4v3M18.5 5.5l-2 2M20 10h-3M9 4.5l1 1.5M17 14l1 1.5', pencil: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
+  dropper: 'M14 5l5 5M12 7l5 5-8 8H4v-5zM16 3l5 5-2 2-5-5z', flip: 'M4 8h12l-3-3M20 16H8l3 3', ellipsis: 'M5 12h.01M12 12h.01M19 12h.01', mail: 'M3 6h18v12H3zM3 7l9 6 9-6', picker: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 8v8M8 12h8',
+};
+function ic(n, s = 20, extra = '') {
+  if (n === 'more') return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>`;
+  if (n === 'compare') return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16z" fill="currentColor"/></svg>`;
+  const sw = n === 'ellipsis' ? 3.2 : 1.9;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}><path d="${IC[n]}"/></svg>`;
+}
+const SIG = (w, ink = 'currentColor') => `<svg width="${w}" height="${Math.round(w * 0.38)}" viewBox="0 0 58 22" fill="none" stroke="${ink}" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 16c5 0 6-12 9-12s1 12 4 12 3-8 6-8 3 6 7 6 4-10 8-10 2 10 6 10 5-4 14-4"/></svg>`;
+const MARK = (s, stroke, sw = 1.4) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" aria-hidden="true"><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5M5.3 5.3l3 3M15.7 15.7l3 3M18.7 5.3l-3 3M8.3 15.7l-3 3"/></svg>`;
+// The Lightly logo (chosen 2026-10-10, concept C "spectrum rays"): the eight-ray aperture mark, each ray its own
+// colour with a soft glow of that colour. SPARK is the mark alone; appIcon('rays') is the mark on the black app icon.
+let sparkSeq = 0;
+function SPARK(size, { glow = true } = {}) {
+  const id = `sp${sparkSeq++}`; let art = '';
+  for (let i = 0; i < 8; i++) { const [x1, y1, x2, y2] = rayEnds(i, 118, 352);
+    art += `${glow ? `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${SPECTRUM[i]}" stroke-width="64" stroke-linecap="round" opacity="0.75" filter="url(#${id}b)"/>` : ''}<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${SPECTRUM[i]}" stroke-width="38" stroke-linecap="round"/>`; }
+  return `<svg width="${size}" height="${size}" viewBox="120 120 784 784" aria-hidden="true"><defs><filter id="${id}b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter></defs>${art}</svg>`;
+}
+const LOGO_TILE = (size, label = true) => `<span ${label ? 'aria-label="Lightly" role="img"' : ''} style="display: inline-flex; flex-shrink: 0; width: ${size}px; height: ${size}px">${appIcon('rays', size)}</span>`;
+const HEAD = 'font-family: Sora, Manrope, system-ui, sans-serif; font-weight: 600';
+
+/* =============================================================== small components */
+const iconBtn = (n, label, { size = 44, glass = false, disabled = false, on = false } = {}) =>
+  `<button aria-label="${label}" ${disabled ? 'disabled' : ''} style="width: ${size}px; height: ${size}px; flex-shrink: 0; border-radius: ${size / 2}px; border: ${glass ? '1px solid var(--glass-line)' : 'none'}; background: ${on ? 'var(--on-bg)' : glass ? 'var(--glass)' : 'transparent'}; color: ${on ? 'var(--on-ink)' : glass ? 'var(--glass-ink)' : 'var(--ink)'}; opacity: ${disabled ? 0.38 : 1}; padding: 0; display: flex; align-items: center; justify-content: center">${ic(n, 20)}</button>`;
+const primary = (label, iconName = '', { h = 52 } = {}) =>
+  `<button style="height: ${h}px; width: 100%; border-radius: ${h / 2}px; border: 1px solid var(--accent-edge); box-shadow: var(--accent-halo); background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 10px">${iconName ? ic(iconName, 20) : ''}${label}</button>`;
+const lineBtn = (label, iconName = '', { h = 52 } = {}) =>
+  `<button style="height: ${h}px; width: 100%; border-radius: ${h / 2}px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 10px">${iconName ? ic(iconName, 20) : ''}${label}</button>`;
+const quietBtn = (label, { color = 'var(--ink)', h = 38, dim = false } = {}) => `<button style="height: ${h}px; padding: 0 14px; border-radius: ${h / 2}px; border: none; background: var(--chip); color: ${color}; opacity: ${dim ? 0.4 : 1}; font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0">${label}</button>`;
+const linkBtn = (label, iconName = '') => `<button style="border: none; background: transparent; padding: 0 2px; min-height: 34px; color: var(--accent-ink); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0">${iconName ? ic(iconName, 15) : ''}${label}</button>`;
+// More (⋮) in the accent colour, like Save, so the eye finds it (owner, 2026-10-10).
+const moreBtn = (size = 44) => `<button aria-label="More" style="width: ${size}px; height: ${size}px; flex-shrink: 0; border-radius: ${size / 2}px; border: 1px solid var(--accent-edge); box-shadow: var(--accent-halo); background: var(--accent); color: var(--on-accent); padding: 0; display: flex; align-items: center; justify-content: center">${ic('more', 20)}</button>`;
+const saveBtn = (h = 44) => `<button style="height: ${h}px; padding: 0 16px; border-radius: ${h / 2}px; border: 1px solid var(--accent-edge); box-shadow: var(--accent-halo); background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 14px; flex-shrink: 0">Save</button>`;
+// A scrolling row is drawn scrolled so the selected item is in view, as the app scrolls it.
+const scrolled = (all, at) => (at < 2 ? all : all.slice(at - 1));
+const fadeRight = '-webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent)';
+const chips = (all, on) => { const items = scrolled(all, all.findIndex(([k]) => k === on)); return `<div style="display: flex; gap: 6px; min-width: 0; overflow: hidden">${items.map(([k, l, dot]) =>
+  `<button style="height: 38px; padding: 0 13px; border-radius: 19px; flex-shrink: 0; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; white-space: nowrap; ${k === on ? 'border: 1px solid transparent; background: var(--on-bg); color: var(--on-ink)' : 'border: 1px solid var(--line); background: transparent; color: var(--ink2)'}">${l}${dot ? '<span style="width: 5px; height: 5px; border-radius: 3px; background: var(--edited)"></span>' : ''}</button>`).join('')}</div>`; };
+const seg = (items, on) => `<div role="group" style="padding: 4px; border-radius: 22px; background: var(--chip); display: grid; grid-template-columns: repeat(${items.length}, minmax(0, 1fr)); gap: 4px">${items.map(([k, l]) =>
+  `<button style="height: 36px; border-radius: 18px; border: none; font-weight: ${k === on ? 700 : 600}; font-size: 14px; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 6px; ${k === on ? 'background: var(--on-bg); color: var(--on-ink)' : 'background: transparent; color: var(--ink2)'}">${l}</button>`).join('')}</div>`;
+// Tool tabs: selected bold; a 5 pt orange dot on tabs holding an edit; the orange underline only in Develop (browsed category).
+// Owner amendment (2026-10-11): every tool's sub-menu is the same tab row as the presets, the selected tab underlined.
+// PROPOSAL (2026-10-11): the selected tab is a translucent lime pill instead of the underline, on every tab row.
+const tabs = (all, on, { underline = true } = {}) => { const items = scrolled(all, all.findIndex(([k]) => k === on)); return `<div data-tabs style="display: flex; gap: 6px; overflow: hidden; margin-left: -12px; ${fadeRight}">${items.map(([k, l, dot]) =>
+  `<button style="border: none; padding: 7px 12px; border-radius: 16px; flex-shrink: 0; font-weight: ${k === on ? 700 : 500}; font-size: 14.5px; white-space: nowrap; display: flex; align-items: center; gap: 5px; ${k === on ? 'background: var(--pill); color: var(--pill-ink)' : 'background: transparent; color: var(--ink3)'}">${l}${dot ? '<span style="width: 5px; height: 5px; border-radius: 3px; background: var(--edited)"></span>' : ''}</button>`).join('')}</div>`; };
+function slider(label, v, min = 0, max = 100, { disabled = false } = {}) {
+  const f = (v - min) / (max - min) * 100, mid = min < 0;
+  const fill = mid ? `left: ${Math.min(50, f)}%; width: ${Math.abs(f - 50)}%` : `left: 0; width: ${f}%`;
+  return `<div style="display: flex; align-items: center; gap: 12px; min-height: 38px; opacity: ${disabled ? 0.4 : 1}">
+    <span style="width: 92px; flex-shrink: 0; font-weight: 600; font-size: 13px; color: var(--ink2)">${label}</span>
+    <div style="position: relative; flex: 1; height: 22px"><div style="position: absolute; left: 0; right: 0; top: 10px; height: 3px; border-radius: 2px; background: var(--off)"></div>
+      ${mid ? '<div style="position: absolute; left: calc(50% - 1px); top: 5px; width: 2px; height: 12px; border-radius: 1px; background: var(--ink3)"></div>' : ''}
+      <div style="position: absolute; ${fill}; top: 10px; height: 3px; border-radius: 2px; background: var(--accent-ink)"></div>
+      <div style="position: absolute; left: calc(${f}% - 11px); top: 0; width: 22px; height: 22px; border-radius: 11px; background: var(--knob); box-shadow: 0 1px 6px rgba(0,0,0,0.35)"></div></div>
+    <span style="width: 34px; text-align: right; font-weight: 700; font-size: 13px">${v > 0 && mid ? '+' : ''}${Math.round(v)}</span></div>`;
+}
+const note = (t) => `<div style="font-size: 12.5px; line-height: 1.4; color: var(--ink2)">${t}</div>`;
+function notice(kind, html, actions = '') {
+  return `<div style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 18px; background: var(--card); border: 1px solid var(--line)">
+    <span style="color: ${kind === 'warn' ? 'var(--danger)' : 'var(--accent-ink)'}; flex-shrink: 0; margin-top: 1px">${ic(kind, 18)}</span>
+    <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.4">${html}${actions ? `<div style="display: flex; gap: 8px; flex-wrap: wrap">${actions}</div>` : ''}</div></div>`;
+}
+const toggle = (on) => `<span aria-hidden="true" style="position: relative; width: 50px; height: 30px; border-radius: 15px; background: ${on ? 'var(--accent)' : 'var(--off)'}; flex-shrink: 0"><span style="position: absolute; top: 2px; left: ${on ? 22 : 2}px; width: 26px; height: 26px; border-radius: 13px; background: var(--knob); box-shadow: 0 1px 4px rgba(0,0,0,0.3)"></span></span>`;
+const toggleRow = (label, on, sub = '') => `<button role="switch" aria-checked="${on}" style="width: 100%; min-height: 48px; border: none; background: transparent; padding: 4px 0; display: flex; align-items: center; gap: 12px; text-align: left"><span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 14px">${label}</span>${sub ? `<span style="font-size: 12px; color: var(--ink2)">${sub}</span>` : ''}</span>${toggle(on)}</button>`;
+// Scoped reset row (PanelResetRow): section title, and "Reset" when the section has something to reset.
+const resetRow = (title, canReset = true) => `<div style="display: flex; align-items: center; justify-content: space-between; min-height: 34px"><span style="font-weight: 700; font-size: 14px">${title}</span>${canReset ? linkBtn('Reset', 'reset') : ''}</div>`;
+// The ONE colour control, identical wherever a colour is chosen: the 24-colour swipe strip, and "More colours"
+// opening the colour sheet (any colour: from the photo, palettes, custom hex or picker, recent).
+function colourStrip(title, selected) {
+  const i = Math.max(0, COLOURS.findIndex(([n]) => n === selected)); const pct = ((i + 0.5) / COLOURS.length * 100).toFixed(2);
+  return `<div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; justify-content: space-between; align-items: center"><span style="font-weight: 600; font-size: 13px; color: var(--ink2)">${title} · <span style="color: var(--ink)">${selected}</span></span>${linkBtn('More colours', 'chevron')}</div>
+    <div style="position: relative; height: 40px; margin: 0 2px"><div aria-hidden="true" style="position: absolute; inset: 0; border-radius: 20px; overflow: hidden; display: flex; border: 1px solid var(--line)">${COLOURS.map(([, c]) => `<span style="flex: 1; background: ${c}"></span>`).join('')}</div>
+    <div aria-hidden="true" style="position: absolute; top: -5px; bottom: -5px; left: calc(${pct}% - 11px); width: 22px; border-radius: 12px; border: 3px solid var(--accent-ink); box-shadow: 0 0 0 2px var(--sheet), 0 4px 12px rgba(0,0,0,0.35)"></div>
+    <input type="range" min="0" max="${COLOURS.length - 1}" value="${i}" aria-label="${title}" aria-valuetext="${selected}" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0"></div></div>`;
+}
+const listRow = (label, sub = '', end = ic('chevron', 18), { first = false, color = 'var(--ink)' } = {}) =>
+  `<button style="width: 100%; min-height: 54px; ${first ? '' : 'border-top: 1px solid var(--line);'} border-left: none; border-right: none; border-bottom: none; background: transparent; padding: 8px 16px; display: flex; align-items: center; gap: 12px; text-align: left; color: ${color}"><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 15px">${label}</span>${sub ? `<span style="font-size: 12px; color: var(--ink2)">${sub}</span>` : ''}</span><span style="color: var(--ink3); display: flex; align-items: center; gap: 6px; font-size: 14px; flex-shrink: 0">${end}</span></button>`;
+const card = (inner, pad = '0') => `<div style="border-radius: 22px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; padding: ${pad}">${inner}</div>`;
+const groupLabel = (t) => `<div style="font-weight: 700; font-size: 11px; letter-spacing: 0.8px; color: var(--ink2); padding: 0 6px 7px; text-transform: uppercase">${t}</div>`;
+const col = (gap, inner) => `<div style="display: flex; flex-direction: column; gap: ${gap}px">${inner}</div>`;
+const rowOf = (inner, gap = 8) => `<div data-fade-row style="display: flex; align-items: center; gap: ${gap}px; overflow: hidden; ${fadeRight}">${inner}</div>`;
+
+/* =============================================================== Develop (current app: tabs, heading, preset gallery, Amount) */
+function developState(s) {
+  const d = s.dev || {}; const ph = PHOTOS[s.photo];
+  const person = ph.faces.length > 0 || !!ph.people;
+  const cats = [['favourites', `${ic('star', 14)}Favourites`], ...CATS.filter(([id]) => id !== 'portrait' || person).map(([id, name]) => [id, name])];
+  const browsed = d.cat || (s.favCount ? 'favourites' : 'essentials');
+  const applied = d.applied || null;                       // { cat, name }
+  const list = browsed === 'favourites' ? FAVS.slice(0, s.favCount || 0).map(([n]) => n) : CAT[browsed].list;
+  // Heading: the applied preset when it is in the browsed category; after tapping another category, that category's
+  // first preset (browsing start, DevelopPanelModel.swift:107); otherwise Original.
+  const named = applied && (applied.cat === browsed || (browsed === 'favourites' && list.includes(applied.name))) ? applied.name : d.tapped ? list[0] : 'Original';
+  return { d, cats, browsed, applied, list, named };
+}
+function developPanel(s, { expanded = false, withTabs = true } = {}) {
+  const { d, cats, browsed, applied, list, named } = developState(s);
+  const tabItems = cats.map(([k, l]) => [k, l, applied && applied.cat === k]);
+  let n = '';
+  if (d.favFull) n = notice('star', '<span><b>Favourites holds ten presets.</b> Remove one in Preferences, or replace one now.</span>', quietBtn('Replace…') + quietBtn('Not now'));
+  else if (s.auto === 'failed') n = notice('warn', "<span><b>Automatic correction didn't finish.</b> Your photo is unchanged and presets still work.</span>", quietBtn('Retry') + quietBtn('Continue with original'));
+  const starred = !!d.starred || (s.favCount && FAVS.slice(0, s.favCount).some(([nm]) => nm === named));
+  const heading = `<div style="display: flex; align-items: center; gap: 8px; min-height: 36px">
+    <button aria-label="Favourite" style="width: 30px; height: 36px; border: none; background: transparent; padding: 0; flex-shrink: 0; color: ${starred ? 'var(--accent-ink)' : 'var(--ink3)'}; opacity: ${named === 'Original' ? 0.35 : 1}">${ic('star', 20, starred ? 'fill="currentColor"' : '')}</button>
+    <span style="flex: 1; min-width: 0; ${HEAD}; font-size: 17px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${named}</span>
+    ${applied ? linkBtn('Reset', 'reset') : ''}</div>`;
+  const tileH = expanded ? 142 : 62;
+  const tile = (name) => {
+    const sel = applied ? applied.name === name : name === 'Original';
+    const cat = browsed === 'favourites' ? (FAVS.find(([nm]) => nm === name) || [, 'daylight'])[1] : browsed;
+    return `<button aria-label="${name}" style="border: none; background: transparent; padding: 0; display: flex; flex-direction: column; gap: 5px; ${expanded ? '' : 'width: 96px;'} flex-shrink: 0; min-width: 0">
+      <span style="position: relative; display: block; width: 100%; height: ${tileH}px; border-radius: 14px; overflow: hidden; ${sel ? 'box-shadow: inset 0 0 0 2px var(--accent-ink)' : ''}"><img src="${PHOTOS[s.photo].src}" alt="" style="width: 100%; height: 100%; object-fit: cover; filter: ${lookFor(name, cat)}">
+      ${sel ? `<span style="position: absolute; right: 6px; top: 6px; width: 20px; height: 20px; border-radius: 10px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center">${ic('check', 13)}</span>` : ''}</span>
+      <span style="font-size: 11.5px; font-weight: ${sel ? 700 : 500}; color: ${sel ? 'var(--ink)' : 'var(--ink2)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left">${name}</span></button>`;
+  };
+  const names = ['Original', ...list];
+  const gallery = expanded
+    ? `<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; overflow: hidden; flex: 1; min-height: 0; align-content: start">${names.slice(0, 8).map(tile).join('')}</div>`
+    : `<div style="display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, 84px); grid-auto-columns: 96px; gap: 10px 12px; overflow: hidden; ${fadeRight}">${names.slice(0, 10).map(tile).join('')}</div>`;
+  const handle = expanded ? '' : '<div aria-label="Preset browser" style="height: 6px; display: flex; justify-content: center; margin: -6px 0 0"><span style="width: 36px; height: 4px; border-radius: 2px; background: var(--off)"></span></div>';
+  const amount = slider('Amount', applied ? (d.amount ?? 100) : 100, 0, 100, { disabled: !applied });
+  return `<div style="display: flex; flex-direction: column; gap: 6px; ${expanded ? 'height: 100%' : ''}">${handle}${withTabs ? tabs(tabItems, browsed, { underline: true }) : ''}${n}${heading}${gallery}${amount}</div>`;
+}
+// iPad landscape side panel: the categories as a list (DevelopPanelStyle.list).
+function developList(s) {
+  const { cats, browsed, applied } = developState(s);
+  return `<div style="display: flex; flex-direction: column; gap: 2px">${cats.map(([k, l]) => `<button style="min-height: 38px; border: none; border-radius: 12px; padding: 0 12px; display: flex; align-items: center; gap: 6px; text-align: left; font-size: 14.5px; font-weight: ${k === browsed ? 700 : 500}; background: ${k === browsed ? 'var(--chip)' : 'transparent'}; color: ${k === browsed ? 'var(--ink)' : 'var(--ink2)'}"><span style="${k === browsed ? 'box-shadow: inset 0 -2px 0 var(--browse);' : ''} display: flex; gap: 6px; align-items: center">${l}</span>${applied && applied.cat === k ? '<span style="width: 5px; height: 5px; border-radius: 3px; background: var(--edited)"></span>' : ''}</button>`).join('')}</div>`;
+}
+
+/* =============================================================== other tool panels (current app's controls and copy) */
+function backgroundPanel(s) {
+  const b = s.bg || {}; const mode = b.mode || 'focus'; const ph = PHOTOS[s.photo];
+  const h = tabs([['focus', 'Focus &amp; Blur'], ['change', 'Change background']], mode === 'refine' ? 'focus' : mode);
+  const title = mode === 'refine' ? 'Refine edges' : mode === 'change' ? 'Change background' : 'Focus &amp; Blur';
+  const reset = resetRow(title, !!(b.replaced || b.blur));
+  if (b.op === 'separating') return col(12, h + notice('info', '<span>Finding the subject…</span>', quietBtn('Cancel')));
+  if (b.op === 'depth') return col(12, h + notice('info', '<span>Estimating depth…</span>', quietBtn('Cancel')));
+  if (b.op === 'failed') return col(12, h + reset + notice('warn', "<span><b>Couldn't separate the subject.</b> Your other edits are kept.</span>", quietBtn('Try again')));
+  if (b.op === 'depthFailed') return col(12, h + reset + notice('warn', "<span><b>Couldn't measure depth.</b> Blur needs it. Change background still works.</span>", quietBtn('Try again')));
+  if (!ph.subject) return col(12, h + notice('info', '<span><b>No clear subject found.</b> Change background needs a person or object in front. You can still blur by tapping where to focus.</span>') + slider('Blur', b.blur || 0));
+  if (mode === 'refine') return col(8, h + reset + note('Brush over the edge to add to or remove from the subject.') + seg([['add', `${ic('brush', 16)}Add`], ['erase', `${ic('erase', 16)}Remove`]], 'add') + slider('Brush size', 40) + `<div style="display: flex; justify-content: flex-end">${quietBtn('Done')}</div>`);
+  if (mode === 'change') {
+    const kind = b.kind || 'image'; let opts = '';
+    if (kind === 'image') {
+      const thumbs = [...BACKGROUNDS, ...(b.imported ? [PHOTOS.street.src] : [])];
+      const selIndex = b.imported ? thumbs.length - 1 : b.replaced === 'image' ? 0 : -1;
+      opts = `<div style="display: flex; gap: 8px; overflow: hidden; padding: 4px 2px; ${fadeRight}"><button aria-label="Choose a photo" style="width: 60px; height: 60px; flex-shrink: 0; border-radius: 16px; border: 1.5px dashed var(--ink3); background: transparent; color: var(--ink2); display: flex; align-items: center; justify-content: center">${ic('plus', 22)}</button>${scrolled(thumbs.map((src, i) => [i, src]), selIndex).map(([i, src]) => `<button aria-label="Background image" style="width: 60px; height: 60px; flex-shrink: 0; border-radius: 16px; padding: 0; ${i === selIndex ? 'box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent-ink);' : ''} border: none; background: url(${src}) center/cover"></button>`).join('')}</div>`
+        + (b.replaced === 'image' ? slider('Scale', b.scale || 120, 100, 200) + note('Drag the photo to position the background.') : '');
+    }
+    if (kind === 'colour') opts = colourStrip('Background colour', b.colourName || 'Slate');
+    if (kind === 'gradient') opts = `<div style="display: flex; gap: 10px; padding: 4px 2px">${GRADIENTS.map((g, i) => `<button aria-label="Gradient ${i + 1}" style="width: 56px; height: 42px; border-radius: 14px; border: none; background: ${grad(g)}; ${i === 0 && b.replaced ? 'box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent-ink)' : ''}"></button>`).join('')}</div>`
+      + (b.replaced ? colourStrip('Colour 1', 'Blush') + colourStrip('Colour 2', 'Sky') : '');
+    return col(8, h + tabs([['image', 'Image'], ['colour', 'Colour'], ['gradient', 'Gradient']], kind) + reset + opts
+      + (b.replaced ? `<div style="display: flex; align-items: center; gap: 10px">${quietBtn('Remove background change')}</div>${note('Focus &amp; Blur still works on the new background.')}` : ''));
+  }
+  const style = b.style || 'lens';
+  const extra = style === 'lens' ? `<div style="display: flex; align-items: center; gap: 8px"><span style="width: 92px; font-weight: 600; font-size: 13px; color: var(--ink2)">Bokeh</span>${[['round', 'circle'], ['hex', 'hex'], ['heart', 'heart'], ['star', 'starShape']].map(([k, nm]) => `<button aria-label="${k} bokeh" style="width: 44px; height: 36px; border-radius: 14px; padding: 0; display: flex; align-items: center; justify-content: center; ${k === 'round' ? 'border: none; background: var(--on-bg); color: var(--on-ink)' : 'border: 1px solid var(--line); background: transparent; color: var(--ink2)'}">${ic(nm, 18)}</button>`).join('')}</div>`
+    : style === 'soft' ? slider('Glow', 40) : style === 'swirl' ? slider('Swirl', 40) : slider('Direction', -36, -180, 180);
+  return col(4, h + tabs([['lens', 'Lens'], ['soft', 'Soft'], ['swirl', 'Swirl'], ['motion', 'Motion']], style) + reset + extra + slider('Blur', b.blur || 0) + slider('Focus depth', 40)
+    + `<div style="display: flex; align-items: center; gap: 10px">${quietBtn(`${ic('brush', 16)}Refine edges`, { color: 'var(--accent-ink)' })}${note('Tap the photo to set focus.')}</div>`);
+}
+function portraitPanel(s) {
+  const p = s.pt || {}; const ph = PHOTOS[s.photo];
+  if (!ph.faces.length) return notice('info', '<span><b>No face can be edited in this photo.</b> Faces are too small, turned away or too dark. Portrait controls need a clear face.</span>');
+  const sub = p.sub || 'skin'; let body = '';
+  if (sub === 'skin') body = slider('Smoothing', p.smooth ?? 24) + slider('Blemishes', 40) + slider('Even tone', 18) + slider('Keep texture', 85) + note('Blemish reduction is temporary marks only. Pores, freckles, moles and skin tone colour stay.');
+  if (sub === 'under') body = slider('Brighten', 20) + slider('Soften lines', 15);
+  if (sub === 'eyes') body = slider('Brighten', 15) + slider('Clarity', 0) + note('Eye colour and shape are never changed.');
+  if (sub === 'teeth') body = slider('Brighten', 20) + note('Stays within a natural range. There is no automatic whitening.');
+  // PROPOSAL (2026-10-11): Smile, as in portrait editors: one slider, less to more, centred on the photo as taken.
+  if (sub === 'smile') body = slider('Smile', 35, -100, 100) + note('Lifts or relaxes the corners of the mouth. Stays within a natural range; the rest of the face is unchanged.');
+  if (sub === 'hair') body = slider('Definition', 30) + slider('Flyaways', 0) + slider('Shine', 0);
+  const faces = p.multi ? `<div style="display: flex; gap: 10px; align-items: center">${chips([['0', 'Face 1 · 4'], ['1', 'Face 2']], '0')}${note('Each face keeps its own settings.')}</div>` : '';
+  const names = { skin: 'Skin', under: 'Under-eye', eyes: 'Eyes', teeth: 'Teeth', smile: 'Smile', hair: 'Hair &amp; Beard' };
+  return col(4, faces + tabs(Object.entries(names).map(([k, l]) => [k, l, k === 'skin' && !!p.smooth]), sub) + resetRow(names[sub], !!p.smooth) + body);
+}
+function editPanel(s) {
+  const e = s.ed || {}; const sub = e.sub || 'crop'; let body = '';
+  if (sub === 'crop') body = note(e.cropApplied ? 'Tap the photo to adjust the crop.' : 'Drag a corner or an edge.');
+  if (sub === 'rotate') body = `<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">${[['rotl', 'Rotate left'], ['rotr', 'Rotate right'], ['fliph', 'Flip horizontal'], ['flipv', 'Flip vertical']].map(([nm, l]) => `<button style="height: 46px; border-radius: 16px; border: 1px solid ${nm === 'fliph' && e.flipH ? 'var(--accent-ink)' : 'var(--line)'}; background: transparent; color: ${nm === 'fliph' && e.flipH ? 'var(--accent-ink)' : 'var(--ink)'}; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 13px">${ic(nm, 18)}${l}</button>`).join('')}</div>`;
+  if (sub === 'straighten') body = slider('Angle', -3, -45, 45) + note('The photo is zoomed slightly so no empty corners show.');
+  if (sub === 'perspective') body = slider('Vertical', 18, -100, 100) + slider('Horizontal', 0, -100, 100);
+  if (sub === 'adjust') { const g = e.group || 'light';
+    body = tabs([['light', 'Light'], ['colour', 'Colour'], ['detail', 'Detail']], g) + (g === 'light' ? slider('Exposure', 12, -100, 100) + slider('Contrast', 10, -100, 100) + slider('Highlights', -20, -100, 100) + slider('Shadows', 25, -100, 100)
+      : g === 'colour' ? slider('Temperature', 15, -100, 100) + slider('Tint', -4, -100, 100) + slider('Saturation', 0, -100, 100) + slider('Vibrance', 12, -100, 100)
+      : slider('Sharpness', 30) + slider('Clarity', 15, -100, 100) + slider('Noise reduction', 20)); }
+  if (sub === 'remove') {
+    if (e.op === 'removing') body = notice('info', '<span>Removing…</span>', quietBtn('Cancel'));
+    else if (e.op === 'failed') body = notice('warn', "<span><b>Couldn't remove that area.</b> Try a smaller stroke. Your other edits are kept.</span>", quietBtn('Try again'));
+    else body = slider('Brush size', 35) + `<div style="display: flex; align-items: center; gap: 10px">${quietBtn('Undo stroke', { dim: !e.strokes })}${note('Brush over anything you want removed.')}</div>`;
+  }
+  const names = { crop: 'Crop', rotate: 'Rotate', straighten: 'Straighten', perspective: 'Perspective', adjust: 'Adjust', remove: 'Remove' };
+  return col(6, tabs(Object.entries(names).map(([k, l]) => [k, l]), sub) + resetRow(names[sub], !!e.touched) + body);
+}
+function effectsPanel(s) {
+  const f = s.fx || {}; const sub = f.sub || 'leak'; let body = '';
+  const items = [['leak', 'Light Leaks', f.leak], ['grain', 'Grain', f.grain], ['vig', 'Vignette', f.vig], ['sel', 'Selective Colour', f.sel]];
+  // No On/Off switches: choosing a style or moving a slider turns the effect on (735122e).
+  if (sub === 'leak') body = chips([['warm', 'Warm edge'], ['amber', 'Amber flare'], ['rose', 'Rose'], ['prism', 'Prism']], f.leak ? 'warm' : '') + slider('Intensity', f.leak ? 50 : 0) + slider('Rotation', 0, -180, 180) + note('Drag on the photo to move the leak.');
+  if (sub === 'grain') body = chips([['fine', 'Fine'], ['film', 'Film'], ['coarse', 'Coarse']], f.grain ? 'film' : '') + slider('Amount', f.grain ? (f.grainAmt || 30) : 0) + slider('Size', 25) + slider('Roughness', 50);
+  if (sub === 'vig') body = slider('Amount', f.vig ? 35 : 0) + slider('Size', 60) + slider('Softness', 60);
+  if (sub === 'sel') {
+    const kept = f.sel ? ['#C2684A', '#4E6B5A'] : [];
+    body = !kept.length && !f.adding ? `<div style="display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--ink2); font-size: 14px">${ic('picker', 20)}Tap a colour in the photo to keep it.</div>`
+      : `<div style="display: flex; align-items: center; gap: 10px; min-height: 44px">${kept.map((c) => `<span style="position: relative; width: 30px; height: 30px; border-radius: 15px; background: ${c}; box-shadow: 0 0 0 2px var(--sheet), 0 0 0 3px var(--line)">${kept.length > 1 ? `<span style="position: absolute; right: -6px; top: -6px; width: 16px; height: 16px; border-radius: 8px; background: var(--ink); color: var(--bg); display: flex; align-items: center; justify-content: center">${ic('close', 10)}</span>` : ''}</span>`).join('')}<span style="width: 30px; height: 30px; border-radius: 15px; border: 1.5px ${f.adding ? 'solid var(--accent-ink); color: var(--accent-ink)' : 'dashed var(--ink3); color: var(--ink2)'}; display: flex; align-items: center; justify-content: center">${ic('plus', 16)}</span><span style="flex: 1"></span>${linkBtn('Clear')}</div>${f.adding ? note('Tap another colour in the photo.') : ''}`;
+    body += slider('Range', 40) + slider('Strength', 80);
+  }
+  const conflict = f.conflict ? notice('info', '<span>The applied preset already includes its own grain. This one is added to it, not replaced.</span>') : '';
+  const names = { leak: 'Light Leaks', grain: 'Grain', vig: 'Vignette', sel: 'Selective Colour' };
+  return col(5, tabs(items, sub) + resetRow(names[sub], !!f[sub]) + conflict + body);
+}
+function watermarkPanel(s) {
+  const w = s.wm || {}; const type = w.type || 'none'; let body = '';
+  const chip = (inner, on = false, wide = true) => `<button style="height: 50px; ${wide ? 'min-width: 112px;' : 'min-width: 50px;'} padding: 0 12px; flex-shrink: 0; border-radius: 16px; border: ${on ? '2px solid var(--accent-ink)' : '1px solid var(--line)'}; background: transparent; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; font-size: 13px">${inner}</button>`;
+  if (type === 'none') body = note('No watermark. Choose Signature, Text or Logo to add one.');
+  if (type === 'signature') body = rowOf(chip(SIG(64), true) + chip(ic('ellipsis', 18), false, false) + chip(SIG(64, '#3B5BA0')) + quietBtn('Clear', { h: 50 }) + chip(`${ic('plus', 16)}Draw`, false, false) + chip(`${ic('photo', 16)}Import`, false, false))
+    + note('Saved signatures keep their own look. You can change the ink colour of a drawn signature.') + slider('Size', 34, 10, 80) + slider('Opacity', 85) + colourStrip('Colour', 'White');
+  if (type === 'text') body = `<button style="width: 100%; min-height: 46px; border-radius: 16px; border: 1px solid var(--line); background: var(--chip); padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 16px">A. Rivera${ic('pencil', 18)}</button>`
+    + rowOf([['Allura', 'cursive'], ['Cormorant Garamond', 'Georgia, serif'], ['Inter', 'system-ui'], ['Caveat', 'cursive'], ['Dancing Script', 'cursive'], ['Lora', 'Georgia, serif']].map(([nm, css]) => `<button style="min-width: 108px; height: 58px; flex-shrink: 0; border-radius: 16px; border: ${nm === (w.font || 'Cormorant Garamond') ? '2px solid var(--accent-ink)' : '1px solid var(--line)'}; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><span style="font-family: ${css}; font-size: 19px">A. Rivera</span><small style="font-size: 10.5px; color: var(--ink3)">${nm}</small></button>`).join(''))
+    + slider('Size', 34, 10, 80) + slider('Opacity', 85) + colourStrip('Colour', 'White');
+  if (type === 'logo') body = rowOf(`<span style="height: 50px; padding: 0 16px; border-radius: 16px; border: 2px solid var(--accent-ink); display: flex; align-items: center; font-weight: 800; letter-spacing: 1px">AR</span>${quietBtn(`${ic('photo', 16)}Replace logo`, { h: 50 })}`) + slider('Size', 30, 10, 80) + slider('Opacity', 85);
+  const drag = type !== 'none' ? note('Drag the watermark on the photo to place it.') : '';
+  return col(6, tabs([['none', 'None'], ['signature', 'Signature'], ['text', 'Text'], ['logo', 'Logo']], type) + (type !== 'none' ? resetRow('Watermark') : '') + drag + body);
+}
+function borderPanel(s) {
+  const b = s.border || {}; const type = b.type || 'none'; let body = '';
+  if (type === 'solid') body = colourStrip('Border colour', 'White') + slider('Width', 5, 1, 15);
+  if (type === 'frame') body = colourStrip('Frame colour', 'Black') + slider('Frame width', 3, 1, 10) + colourStrip('Mat colour', 'Warm white') + slider('Spacing', 5, 0, 12);
+  if (type === 'polaroid') body = colourStrip('Border colour', 'White') + note('A wider bottom margin, as on an instant print.');
+  if (type === 'paper') body = rowOf(['Clean', 'Deckled', 'Torn'].map((nm, i) => `<button style="border: none; background: transparent; padding: 3px; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 12.5px; font-weight: ${i === 1 ? 700 : 500}; color: ${i === 1 ? 'var(--ink)' : 'var(--ink2)'}; flex-shrink: 0"><span style="width: 86px; height: 56px; border-radius: 14px; background: var(--chip); display: flex; align-items: center; justify-content: center; ${i === 1 ? 'box-shadow: 0 0 0 2px var(--accent-ink)' : ''}"><span style="width: 64px; height: 40px; background: #ECE8DF; ${paperEdge(i)}"></span></span>${nm}</button>`).join(''), 12)
+    + colourStrip('Paper colour', 'Cream') + slider('Width', 6, 1, 15) + slider('Texture', 40);
+  return col(6, tabs([['none', 'None'], ['solid', 'Solid'], ['frame', 'Photo Frame'], ['polaroid', 'Polaroid'], ['paper', 'Paper']], type) + (type !== 'none' ? resetRow('Border') : '') + body);
+}
+const paperEdge = (i) => i === 0 ? 'border-radius: 2px' : i === 1 ? 'clip-path: polygon(0 3%, 6% 0, 14% 2%, 24% 0, 35% 3%, 47% 0, 58% 2%, 70% 0, 82% 3%, 92% 0, 100% 2%, 98% 14%, 100% 30%, 97% 47%, 100% 63%, 98% 80%, 100% 97%, 90% 100%, 78% 97%, 66% 100%, 52% 98%, 40% 100%, 27% 97%, 15% 100%, 4% 98%, 0 100%, 2% 82%, 0 64%, 3% 46%, 0 30%, 2% 14%)' : 'clip-path: polygon(0 0, 18% 4%, 30% 0, 52% 5%, 68% 1%, 86% 6%, 100% 0, 96% 22%, 100% 44%, 95% 70%, 100% 100%, 76% 95%, 58% 100%, 36% 94%, 18% 100%, 0 96%, 4% 74%, 0 50%, 5% 26%)';
+const TEXT_FONTS = [['Inter', 'system-ui'], ['Playfair Display', 'Georgia, serif'], ['Bebas Neue', 'Impact, sans-serif'], ['Caveat', 'cursive'], ['Cormorant Garamond', 'Georgia, serif'], ['Montserrat', 'system-ui'], ['Dancing Script', 'cursive'], ['Space Mono', 'monospace']];
+// PROPOSAL (2026-10-11): Text, a dock tool of its own. Any number of text boxes; the selected one is edited here and
+// moved, resized and turned on the photo. The input box opens the text sheet (keyboard below, never covering it).
+function textPanel(s) {
+  const t = s.tx || {};
+  if (!t.layers) return col(10, `<button style="width: 100%; height: 56px; border-radius: 18px; border: 1.5px dashed var(--line); background: var(--chip); display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--ink)">${ic('plus', 18)}Add text</button>` + note('Add text, then drag it anywhere on the photo. Pinch to resize or turn it.'));
+  const font = t.font || 'Playfair Display';
+  const layers = rowOf([['1', 'Summer in Lisbon'], ['2', '2026']].slice(0, t.layers).map(([k, l]) => `<button style="height: 36px; padding: 0 12px; flex-shrink: 0; border-radius: 18px; font-weight: 600; font-size: 13px; ${k === '1' ? 'background: var(--pill); color: var(--pill-ink); border: none' : 'background: transparent; color: var(--ink2); border: 1px solid var(--line)'}">${l}</button>`).join('') + `<button style="height: 36px; padding: 0 12px; flex-shrink: 0; border-radius: 18px; border: 1px solid var(--line); background: transparent; color: var(--ink2); font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 4px">${ic('plus', 14)}Add</button>`, 8);
+  const input = `<button style="width: 100%; min-height: 50px; border-radius: 16px; border: 1px solid var(--line); background: var(--chip); padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 17px; font-family: ${TEXT_FONTS.find(([n]) => n === font)[1]}">Summer in Lisbon${ic('pencil', 18)}</button>`;
+  const fonts = rowOf(TEXT_FONTS.map(([nm, css]) => `<button style="min-width: 96px; height: 58px; flex-shrink: 0; border-radius: 16px; border: ${nm === font ? '2px solid var(--accent-ink)' : '1px solid var(--line)'}; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><span style="font-family: ${css}; font-size: 20px">Aa</span><small style="font-size: 10.5px; color: var(--ink3); white-space: nowrap">${nm}</small></button>`).join(''));
+  return col(8, layers + input + fonts + slider('Size', 42, 10, 100) + colourStrip('Colour', 'White') + slider('Opacity', 100));
+}
+const PANELS = { text: textPanel, develop: developPanel, background: backgroundPanel, portrait: portraitPanel, edit: editPanel, effects: effectsPanel, watermark: watermarkPanel, border: borderPanel };
+
+/* =============================================================== the photo with its edits and marks */
+function progressCard(label, cancel, pct) {
+  return `<div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: 190px; padding: 16px 18px; border-radius: 20px; background: rgba(14,15,17,0.82); color: #F2F3F0; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; font-size: 14px; font-weight: 600; z-index: 3">
+    <span style="width: 24px; height: 24px; border-radius: 12px; border: 3px solid #CFF26B; border-right-color: transparent"></span><span>${label}</span>
+    ${pct != null ? `<span style="width: 150px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); overflow: hidden"><i style="display: block; width: ${pct}%; height: 100%; background: #CFF26B"></i></span>` : ''}
+    ${cancel ? '<button style="height: 34px; padding: 0 14px; border-radius: 17px; border: none; background: rgba(255,255,255,0.12); color: #F2F3F0; font-weight: 600; font-size: 13px">Cancel</button>' : ''}</div>`;
+}
+// Auto (wand, ✓ badge when applied) and "Reset all" on the photo area's bottom-leading corner (EditorScreen.swift:215-264).
+function autoControls(s) {
+  const applied = !(s.auto === 'off' || s.auto === 'failed' || s.auto === 'unavailable');
+  return `<div style="position: absolute; left: 10px; bottom: 10px; display: flex; gap: 6px; align-items: center; z-index: 2; pointer-events: auto">
+    <button aria-label="Auto enhance" style="position: relative; width: 38px; height: 38px; border-radius: 19px; border: ${applied ? '1.5px solid rgba(255,255,255,0.75)' : '1px solid rgba(255,255,255,0.18)'}; background: rgba(14,15,17,0.66); color: ${applied ? '#CFF26B' : '#F2F3F0'}; padding: 0; display: flex; align-items: center; justify-content: center">${ic('wand', 19)}${applied ? `<span style="position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 8px; background: #CFF26B; color: #121408; display: flex; align-items: center; justify-content: center">${ic('check', 10)}</span>` : ''}</button>
+    ${s.canResetAll ? `<button style="height: 38px; padding: 0 13px; border-radius: 19px; border: 1px solid rgba(255,255,255,0.18); background: rgba(14,15,17,0.66); color: #F2F3F0; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px">${ic('reset', 15)}Reset all</button>` : ''}</div>`;
+}
+function photo(s, W, H) {
+  const ph = PHOTOS[s.photo]; const b = s.border;
+  const bw = !b ? 0 : b.type === 'solid' ? 0.05 : b.type === 'frame' ? 0.09 : 0.06;
+  const extraBottom = b && b.type === 'polaroid' ? 0.22 : 0;
+  const r = ph.r;
+  const outR = (1 + 2 * bw) * r / (1 + (2 * bw + extraBottom) * r);
+  let w, h; if (W / H > outR) { h = H; w = h * outR; } else { w = W; h = w / outR; }
+  const pw = w / (1 + 2 * bw), phh = pw / r, padX = pw * bw, padY = b ? padX : 0;
+  const applied = (s.dev || {}).applied;
+  const neutral = s.auto === 'off' || s.auto === 'failed' || s.auto === 'unavailable';
+  let look = s.compare ? 'none' : applied ? lookFor(applied.name, applied.cat) : neutral ? 'none' : 'saturate(1.06)';
+  if (!s.compare && (s.fx || {}).sel) look += ' saturate(0.22)';
+  const bg = s.bg || {};
+  const tf = `${s.zoom ? `scale(${s.zoom})` : ''} ${s.ed && s.ed.flipH ? 'scaleX(-1)' : ''} ${s.ed && s.ed.sub === 'straighten' ? 'rotate(-3deg) scale(1.1)' : ''}`;
+  let layers = `<img src="${ph.src}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; filter: ${look}; transform: ${tf}; transform-origin: 46% 30%">`;
+  if (!s.compare && ph.cutout && (bg.replaced || bg.blur) && !bg.op) {
+    let back;
+    if (bg.replaced === 'colour') back = `<div style="position: absolute; inset: 0; background: ${COLOURS.find(([nm]) => nm === (bg.colourName || 'Slate'))[1]}"></div>`;
+    else if (bg.replaced === 'gradient') back = `<div style="position: absolute; inset: 0; background: ${grad(GRADIENTS[0])}"></div>`;
+    else if (bg.replaced === 'image') back = `<img src="${bg.imported ? PHOTOS.street.src : BACKGROUNDS[0]}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.2); filter: ${bg.blur ? 'blur(5px)' : 'none'}">`;
+    else back = `<img src="${ph.src}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; filter: ${look} blur(${Math.round((bg.blur || 0) / 10)}px); transform: scale(1.05)">`;
+    layers = back + `<img src="${ph.cutout}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; filter: ${look}">`;
+  }
+  const fx = s.fx || {}; let over = '';
+  if (!s.compare && fx.vig) over += '<div style="position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 48%, rgba(0,0,0,0) 48%, rgba(0,0,0,0.5) 100%)"></div>';
+  if (!s.compare && fx.leak) over += '<div style="position: absolute; inset: 0; background: radial-gradient(circle at 92% 12%, rgba(255,150,60,0.6), rgba(255,120,60,0) 45%); mix-blend-mode: screen"></div>';
+  if (!s.compare && fx.grain) over += `<div style="position: absolute; inset: 0; opacity: ${(fx.grainAmt || 30) / 80}; mix-blend-mode: overlay; background-image: url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>&quot;)"></div>`;
+  const m = []; const tool = s.tool;
+  if (tool === 'portrait' && !s.compare) {
+    ph.faces.forEach((f, i) => m.push(`<div style="position: absolute; left: ${f.x * 100}%; top: ${f.y * 100}%; width: ${f.w * 100}%; height: ${f.h * 100}%; border-radius: 50%; border: 1.5px solid #FFFFFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.25)"></div>${(s.pt || {}).multi ? `<span style="position: absolute; left: ${f.x * 100}%; top: calc(${(f.y + f.h) * 100}% + 4px); padding: 3px 8px; border-radius: 8px; background: rgba(0,0,0,0.55); color: #FFFFFF; font-size: 11px; font-weight: 600">Face ${i + 1}</span>` : ''}`));
+    if ((s.pt || {}).multi) m.push('<div style="position: absolute; left: 70%; top: 14%; width: 16%; height: 18%; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,0.75)"></div><span style="position: absolute; left: 70%; top: 34%; padding: 3px 8px; border-radius: 8px; background: rgba(0,0,0,0.55); color: #FFFFFF; font-size: 11px; font-weight: 600">Face 2</span>');
+  }
+  if (tool === 'background' && (bg.mode || 'focus') === 'focus' && ph.subject && !s.compare && !bg.op) { const t = ph.target || { x: .5, y: .3 }; m.push(`<div style="position: absolute; left: calc(${t.x * 100}% - 26px); top: calc(${t.y * 100}% - 26px); width: 52px; height: 52px; border-radius: 26px; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.3)"><span style="position: absolute; left: 20px; top: 20px; width: 8px; height: 8px; border-radius: 4px; background: #FFFFFF"></span></div>`); }
+  if (tool === 'background' && bg.mode === 'refine' && ph.cutout) m.push(`<div style="position: absolute; inset: 0; background: rgba(47,107,235,0.32); -webkit-mask-image: url(${ph.cutout}); mask-image: url(${ph.cutout}); -webkit-mask-size: 100% 100%; mask-size: 100% 100%"></div>`);
+  // Inline crop (owner, 2026-10-11): Edit › Crop puts the frame on the photo: outside dimmed 50 %, a 1px white border,
+  // 3px white L handles on the corners and bars mid-edge (inside the frame); the thirds grid shows only while dragging.
+  // The approved crop flow (owner, 2026-10-11, docs/ui/proposals/crop-flow.html): the frame at the photo's edges; once
+  // moved, the grid and ✕ Cancel / ✓ Apply crop; applied, the cropped photo without a frame.
+  const cropEd = s.ed || {};
+  if (tool === 'edit' && (cropEd.sub || 'crop') === 'crop' && !s.compare && !cropEd.cropApplied) m.push(`<div style="position: absolute; inset: ${cropEd.cropPending ? '8% 14% 10% 22%' : '0'}; border: 1px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 9999px rgba(0,0,0,0.5)">${cropEd.cropPending ? '<div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px); background-size: 33.33% 33.33%"></div>' : ''}${[['left: 0; top: 0', 20, 3], ['left: 0; top: 0', 3, 20], ['right: 0; top: 0', 20, 3], ['right: 0; top: 0', 3, 20], ['left: 0; bottom: 0', 20, 3], ['left: 0; bottom: 0', 3, 20], ['right: 0; bottom: 0', 20, 3], ['right: 0; bottom: 0', 3, 20], ['left: calc(50% - 12px); top: 0', 24, 3], ['left: calc(50% - 12px); bottom: 0', 24, 3], ['left: 0; top: calc(50% - 12px)', 3, 24], ['right: 0; top: calc(50% - 12px)', 3, 24]].map(([p, w, h]) => `<i style="position: absolute; ${p}; width: ${w}px; height: ${h}px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.35)"></i>`).join('')}</div>`);
+  if (tool === 'edit' && ['straighten', 'perspective'].includes((s.ed || {}).sub)) m.push('<div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px); background-size: 33.33% 33.33%"></div>');
+  if (tool === 'edit' && (s.ed || {}).sub === 'remove' && (s.ed || {}).strokes) m.push('<div style="position: absolute; left: 58%; top: 30%; width: 22%; height: 5%; border-radius: 99px; background: rgba(235,60,60,0.42); transform: rotate(-12deg)"></div>');
+  if (tool === 'effects' && fx.sub === 'sel' && fx.sel) m.push('<span style="position: absolute; left: 40%; top: 58%; width: 26px; height: 26px; border-radius: 13px; border: 2px solid #FFFFFF; background: #C2684A; box-shadow: 0 2px 8px rgba(0,0,0,0.4)"></span>');
+  const op = bg.op === 'separating' ? 'Finding the subject…' : bg.op === 'depth' ? 'Estimating depth…' : (s.ed || {}).op === 'removing' ? 'Removing…' : null;
+  if (op) m.push(progressCard(op, true));
+  if (s.photoProgress) m.push(progressCard(s.photoProgress, false, s.photoProgressPct));
+  let wmark = '';
+  if (s.wm && s.wm.type && s.wm.type !== 'none' && !s.compare) {
+    const ink = s.wm.onBorder ? '#2A2A2A' : '#FFFFFF'; const fs = Math.max(11, pw * 0.05);
+    const inner = s.wm.type === 'signature' ? SIG(Math.max(56, pw * 0.24), ink) : s.wm.type === 'text' ? `<span style="font-family: ${s.wm.font === 'Caveat' ? 'cursive' : 'Georgia, serif'}; font-size: ${fs}px; color: ${ink}">A. Rivera</span>` : `<span style="font-weight: 800; letter-spacing: 1px; color: #FFFFFF; font-size: ${fs}px; padding: 1px 7px; border: 2px solid #FFFFFF">AR</span>`;
+    const pos = s.wm.onBorder ? `left: ${padX + pw * 0.06}px; bottom: ${Math.max(2, (h - padY - phh) / 2 - fs * 0.7)}px` : s.wm.at === 'top' ? `right: ${padX + pw * 0.06}px; top: ${padY + phh * 0.06}px` : `right: ${padX + pw * 0.06}px; top: ${padY + phh * 0.84}px`;
+    wmark = `<div style="position: absolute; ${pos}; ${s.wm.dragging ? 'outline: 1.5px dashed rgba(0,0,0,0.5); outline-offset: 6px;' : ''}">${inner}</div>`;
+  }
+  let tlayer = '';
+  if (s.tx && s.tx.layers && !s.compare) {
+    const font = (TEXT_FONTS.find(([n]) => n === (s.tx.font || 'Playfair Display')) || TEXT_FONTS[1])[1]; const fs = Math.max(16, pw * 0.085);
+    const selected = s.tool === 'text';
+    const handles = selected ? `<span style="position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; border-radius: 11px; background: #FFFFFF; color: #141513; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.4)">${ic('close', 12)}</span><span style="position: absolute; right: -11px; bottom: -11px; width: 22px; height: 22px; border-radius: 11px; background: #FFFFFF; color: #141513; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.4)">${ic('redo', 12)}</span>` : '';
+    tlayer = `<div style="position: absolute; left: ${padX + pw * 0.14}px; top: ${padY + phh * (s.tx.y || 0.18)}px; transform: rotate(${s.tx.turn || -4}deg); padding: 4px 10px; ${selected ? 'outline: 1.5px dashed rgba(255,255,255,0.95); outline-offset: 2px;' : ''}"><span style="font-family: ${font}; font-size: ${fs}px; color: #FFFFFF; text-shadow: 0 1px 8px rgba(0,0,0,0.35); white-space: nowrap">Summer in Lisbon</span>${handles}</div>`
+      + (s.tx.layers > 1 ? `<div style="position: absolute; left: ${padX + pw * 0.62}px; top: ${padY + phh * 0.86}px"><span style="font-family: system-ui; font-weight: 700; letter-spacing: 3px; font-size: ${fs * 0.45}px; color: #FFFFFF">2026</span></div>` : '');
+  }
+  const frameBg = !b ? 'transparent' : b.type === 'frame' ? '#111111' : b.type === 'paper' ? '#F3E3C3' : '#FFFFFF';
+  const mat = b && b.type === 'frame' ? `<div style="position: absolute; left: ${padX * 0.45}px; top: ${padY * 0.45}px; right: ${padX * 0.45}px; bottom: ${padY * 0.45}px; background: #F4F1EC"></div>` : '';
+  const paper = b && b.type === 'paper' ? paperEdge(1) + ';' : '';
+  return `<div style="position: relative; width: ${w}px; height: ${h}px; flex-shrink: 0">
+    <div style="position: absolute; inset: 0; background: ${frameBg}; border-radius: ${b ? 3 : 18}px; overflow: hidden; ${paper}">${mat}
+    <div style="position: absolute; left: ${padX}px; top: ${padY}px; width: ${pw}px; height: ${phh}px; overflow: hidden; border-radius: ${b ? 0 : 18}px">${layers}${over}${m.join('')}</div>${wmark}${tlayer}
+    ${s.compare ? '<span style="position: absolute; left: 12px; top: 12px; padding: 6px 10px; border-radius: 10px; background: rgba(0,0,0,0.55); color: #FFFFFF; font-size: 12px; font-weight: 700">Original</span>' : ''}</div>
+    ${s.toast ? `<span style="position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); padding: 9px 14px; border-radius: 14px; background: rgba(14,15,17,0.88); color: #F2F3F0; font-size: 13px; font-weight: 600; white-space: nowrap; z-index: 3">${s.toast}</span>` : ''}</div>`;
+}
+
+/* =============================================================== devices and layouts */
+const DEVICES = {
+  iphone:  { name: 'iPhone', w: 390, h: 844, os: 'ios', mode: 'phone', radius: 44, top: 54, bottom: 30 },
+  android: { name: 'Android', w: 412, h: 915, os: 'android', mode: 'phone', radius: 36, top: 36, bottom: 24 },
+  afold:   { name: 'Android foldable', w: 1080, h: 844, os: 'android', mode: 'split', radius: 32, top: 16, bottom: 16 },
+  duo:     { name: 'iPhone Duo', w: 890, h: 626, os: 'ios', mode: 'split', radius: 30, top: 12, bottom: 12 },
+  ipad:    { name: 'iPad landscape', w: 1366, h: 1024, os: 'ios', mode: 'tablet', radius: 28, top: 20, bottom: 20 },
+};
+// NO JUMPS: on phones the tool area is the same height for every tool, tab and state, so the photo stage never moves.
+// Longer panels scroll inside it (shown with a fade at the bottom edge).
+const PANEL_HEIGHT = 340;
+// Stages are measured after layout, then the photo is drawn at the exact size.
+let FILLS = [];
+const stageSlot = (s, style = '') => { const k = FILLS.push(s) - 1; return `<div data-stage="${k}" style="position: relative; ${style}"></div>`; };
+const toolName = (k) => TOOLS.find(([t]) => t === k)[1];
+const toolsFor = (s) => TOOLS.filter(([k]) => k !== 'portrait' || PHOTOS[s.photo].faces.length || PHOTOS[s.photo].people);
+// Orange dots: the tools holding an edit (EditorScreen.swift:390-401). Auto alone does not count.
+const used = (s, k) => ({ develop: !!(s.dev || {}).applied, background: !!((s.bg || {}).replaced || (s.bg || {}).blur), portrait: !!(s.pt || {}).smooth, edit: !!(s.ed || {}).touched, effects: !!((s.fx || {}).vig || (s.fx || {}).grain || (s.fx || {}).leak || (s.fx || {}).sel), watermark: !!(s.wm && s.wm.type && s.wm.type !== 'none'), border: !!(s.border && s.border.type), text: !!(s.tx && s.tx.layers) })[k];
+const dockHeight = (d) => 62 + d.bottom;
+function phoneDock(s, d) {
+  const items = toolsFor(s).map(([k, l]) => {
+    const on = k === s.tool, dot = `<span style="width: 4px; height: 4px; border-radius: 2px; background: ${used(s, k) ? 'var(--edited)' : 'transparent'}"></span>`;
+    if (d.os === 'android') return `<button style="flex: 0 0 58px; border: none; background: transparent; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; color: ${on ? 'var(--ink)' : 'var(--ink2)'}; font-weight: 600; font-size: 9.5px"><span style="width: 46px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; ${on ? 'background: var(--accent); color: var(--on-accent)' : ''}">${ic(k, 20)}</span>${l}${dot}</button>`;
+    return `<button style="flex: 0 0 58px; border: none; background: transparent; padding: 2px 0 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font-weight: 600; font-size: 9.5px; color: ${on ? 'var(--ink)' : 'var(--ink3)'}"><span style="color: ${on ? 'var(--accent-ink)' : 'inherit'}">${ic(k, 22)}</span><span>${l}</span>${dot}</button>`;
+  }).join('');
+  // PROPOSAL (2026-10-11): eight tools no longer fit; the dock scrolls sideways. Fixed 58 pt items (six and a half fit), so the next tool
+  // always shows cut off at the edge (with a fade) and reads as "more this way"; scrolled to the end, the fade moves left.
+  const atEnd = !!s.dockAtEnd;
+  const mask = atEnd ? '-webkit-mask-image: linear-gradient(90deg, transparent, #000 12%); mask-image: linear-gradient(90deg, transparent, #000 12%)' : '-webkit-mask-image: linear-gradient(90deg, #000 91%, transparent); mask-image: linear-gradient(90deg, #000 91%, transparent)';
+  return `<nav aria-label="Tools" style="flex: none; height: ${dockHeight(d)}px; box-sizing: border-box; overflow: hidden; padding: 6px 0 ${d.bottom}px; border-top: 1px solid var(--line)"><div style="display: flex; height: 100%; padding: 0 6px; ${mask}; ${atEnd ? 'justify-content: flex-end' : ''}">${items}</div></nav>`;
+}
+function header(s, d) {
+  const tools = toolsFor(s).map(([k, l]) => { const on = k === s.tool, wide = on || d.mode === 'tablet';
+    return `<button aria-label="${l}" style="position: relative; height: 44px; border-radius: 22px; border: none; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; flex-shrink: 0; ${wide ? 'padding: 0 14px;' : 'width: 44px; padding: 0; justify-content: center;'} ${on ? 'background: var(--on-bg); color: var(--on-ink)' : 'background: transparent; color: var(--ink2)'}">${ic(k, 20)}${wide ? `<span>${l}</span>` : ''}${used(s, k) ? '<span style="position: absolute; right: 7px; top: 7px; width: 5px; height: 5px; border-radius: 3px; background: var(--edited)"></span>' : ''}</button>`; }).join('');
+  return `<header style="height: ${d.mode === 'tablet' ? 72 : 60}px; flex: none; border-radius: 24px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; padding: 0 10px; gap: 6px">
+    ${LOGO_TILE(44)}
+    ${iconBtn(d.os === 'android' ? 'back' : 'close', d.os === 'android' ? 'Back' : 'Close')}<nav aria-label="Tools" style="display: flex; gap: 2px; margin-left: 4px; overflow: hidden; min-width: 0">${tools}</nav>
+    <div style="margin-left: auto; display: flex; gap: 4px; align-items: center">${iconBtn('undo', 'Undo', { disabled: !s.canUndo })}${iconBtn('redo', 'Redo', { disabled: true })}${iconBtn('compare', 'Hold to compare with the original', { on: !!s.compare })}${saveBtn()}${moreBtn()}</div></header>`;
+}
+function summaryPanel(s) {   // iPad right column (concept): every tool's state at a glance
+  const rows = toolsFor(s).map(([k, l]) => {
+    const v = { develop: ((s.dev || {}).applied || {}).name || (s.auto === 'off' ? 'Original' : 'Auto'), background: (s.bg || {}).replaced ? 'Changed' : (s.bg || {}).blur ? `Blur ${(s.bg || {}).blur}` : 'Off', portrait: (s.pt || {}).smooth ? 'Skin' : 'Off', edit: (s.ed || {}).touched ? 'Edited' : 'Off', effects: ['leak', 'grain', 'vig', 'sel'].filter((x) => (s.fx || {})[x]).map((x) => ({ leak: 'Light Leaks', grain: 'Grain', vig: 'Vignette', sel: 'Selective Colour' })[x]).join(', ') || 'Off', watermark: s.wm && s.wm.type && s.wm.type !== 'none' ? ({ signature: 'Signature', text: 'Text', logo: 'Logo' })[s.wm.type] : 'Off', border: s.border && s.border.type ? ({ solid: 'Solid', frame: 'Photo Frame', polaroid: 'Polaroid', paper: 'Paper' })[s.border.type] : 'Off' }[k];
+    return `<div style="display: flex; align-items: center; gap: 10px; min-height: 50px; ${k === s.tool ? 'margin: 2px -10px; padding: 0 10px; border-radius: 14px; background: var(--chip)' : 'border-bottom: 1px solid var(--line)'}"><span style="color: var(--ink2)">${ic(k, 18)}</span><span style="flex: 1; font-weight: 600; font-size: 14px">${l}</span><span style="font-size: 12px; color: var(--ink2); max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${v}</span><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 3px; background: ${used(s, k) ? 'var(--edited)' : 'transparent'}"></span></div>`;
+  }).join('');
+  return `<div style="${HEAD}; font-size: 17px; margin-bottom: 8px">Your edit</div>${rows}<div style="margin-top: 14px; font-size: 12px; line-height: 1.4; color: var(--ink3)">Edits stay on this device. Save writes a new photo; the original is unchanged.</div>`;
+}
+const fadeDown = '-webkit-mask-image: linear-gradient(180deg, #000 90%, transparent); mask-image: linear-gradient(180deg, #000 90%, transparent)';
+function editorScreen(s, d) {
+  const expanded = s.tool === 'develop' && (s.dev || {}).expanded;
+  if (d.mode === 'phone') {
+    // Owner amendment (2026-10-11): one editor header on iPhone and Android phones: the glass capsule (Close, Undo,
+    // Redo), then Compare, Save and ⋮ More 6px apart.
+    const topH = d.top + 52;
+    const top = `<div style="position: absolute; left: 12px; right: 12px; top: ${d.top}px; display: flex; justify-content: space-between; align-items: center; z-index: 2"><div style="display: flex; gap: 2px; padding: 3px; border-radius: 26px; background: var(--glass); border: 1px solid var(--glass-line)">${iconBtn('close', 'Close')}${iconBtn('undo', 'Undo', { disabled: !s.canUndo })}${iconBtn('redo', 'Redo', { disabled: true })}</div><div style="display: flex; gap: 6px; align-items: center">${iconBtn('compare', 'Hold to compare with the original', { glass: true, on: !!s.compare })}${saveBtn()}${moreBtn()}</div></div>`;
+    const expandedSheet = expanded ? `<div style="position: absolute; left: 0; right: 0; bottom: ${dockHeight(d)}px; height: ${Math.min(600, d.h - 120)}px; border-radius: 30px 30px 0 0; background: var(--sheet); box-shadow: 0 -6px 24px rgba(0,0,0,0.25); padding: 8px 16px 10px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; z-index: 4"><div style="display: flex; justify-content: center; padding: 2px 0 4px"><span style="width: 36px; height: 4px; border-radius: 2px; background: var(--off)"></span></div><div style="flex: 1; min-height: 0">${developPanel(s, { expanded: true })}</div></div>` : '';
+    return `<div style="position: absolute; inset: 0; display: flex; flex-direction: column"><div style="height: ${topH}px; flex: none"></div>${stageSlot(s, 'flex: 1; min-height: 0')}
+      <div style="flex: none; border-radius: ${d.os === 'android' ? '28px 28px 0 0' : '30px 30px 0 0'}; background: var(--sheet); border-top: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden">
+        <div data-panel style="height: ${PANEL_HEIGHT}px; box-sizing: border-box; overflow: hidden; padding: 14px 16px 6px; ${s.tool === 'develop' && !(s.dev || {}).favFull && s.auto !== 'failed' ? '' : fadeDown}">${PANELS[s.tool](s)}</div>${phoneDock(s, d)}</div></div>${top}${expandedSheet}`;
+  }
+  if (d.mode === 'split') {
+    return `<div style="position: absolute; inset: ${d.top}px; display: flex; flex-direction: column; gap: 12px">${header(s, d)}
+      <div style="flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        ${stageSlot(s, 'border-radius: 26px; background: var(--stage); overflow: hidden')}
+        <div data-panel style="border-radius: 26px; background: var(--surface); border: 1px solid var(--line); padding: 16px 18px; overflow: hidden; display: flex; flex-direction: column; gap: 10px; ${fadeDown}"><div style="${HEAD}; font-size: 17px">${toolName(s.tool)}</div>${PANELS[s.tool](s)}</div></div></div>`;
+  }
+  const side = s.tool === 'develop' ? `${developList(s)}<div style="height: 1px; background: var(--line); margin: 4px 0"></div><div style="flex: 1; min-height: 0">${developPanel(s, { expanded: true, withTabs: false })}</div>` : PANELS[s.tool](s);
+  return `<div style="position: absolute; inset: 20px; display: flex; flex-direction: column; gap: 20px">${header(s, d)}
+    <div style="flex: 1; min-height: 0; display: flex; gap: 20px">
+      <aside data-panel style="width: 360px; flex-shrink: 0; border-radius: 26px; background: var(--surface); border: 1px solid var(--line); padding: 18px 20px; overflow: hidden; display: flex; flex-direction: column; gap: 10px; ${fadeDown}"><div style="${HEAD}; font-size: 19px">${toolName(s.tool)}</div>${side}</aside>
+      ${stageSlot(s, 'flex: 1; min-width: 0; border-radius: 30px; background: var(--stage); overflow: hidden')}
+      <aside style="width: 290px; flex-shrink: 0; border-radius: 26px; background: var(--surface); border: 1px solid var(--line); padding: 18px 20px; overflow: hidden">${summaryPanel(s)}</aside></div></div>`;
+}
+
+/* =============================================================== non-editor screens */
+function welcome(d) {
+  const brand = `<div style="display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center">${SPARK(84)}<div style="${HEAD}; font-size: 44px; letter-spacing: -1px">Lightly</div><div style="font-size: 18px; color: var(--ink2)">See it as you remember it.</div></div>`;
+  const acts = `<div style="width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px">${primary('Choose a photo', 'photo', { h: 56 })}${lineBtn('Camera', 'camera', { h: 56 })}<a href="#privacy" style="align-self: center; padding: 10px; font-size: 14px">Privacy Policy</a></div>`;
+  if (d.mode === 'phone') return `<div style="position: absolute; inset: ${d.top}px 24px ${d.bottom + 10}px; display: flex; flex-direction: column"><div style="display: flex; justify-content: flex-end">${moreBtn()}</div><div style="flex: 1; display: flex; align-items: center; justify-content: center">${brand}</div><div style="display: flex; justify-content: center">${acts}</div></div>`;
+  return `<div style="position: absolute; inset: ${d.top}px; display: flex; flex-direction: column"><div style="display: flex; justify-content: flex-end">${moreBtn()}</div><div style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; gap: 32px; padding: 0 24px">${brand}${acts}</div></div>`;
+}
+const launch = () => `<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center">${SPARK(112)}</div>`;
+function messageScreen(d, title, body, acts) {
+  const head = `<div style="display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; max-width: 340px"><span style="width: 72px; height: 72px; border-radius: 24px; background: var(--card); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--accent-ink)">${ic('photo', 34)}</span><div style="${HEAD}; font-size: 22px">${title}</div><div style="font-size: 14px; line-height: 1.45; color: var(--ink2)">${body}</div></div>`;
+  const a = `<div style="width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 10px">${acts}</div>`;
+  const back = `<div style="position: absolute; left: 12px; top: ${d.top}px">${iconBtn('close', 'Close')}</div>`;
+  if (d.mode === 'phone') return `${back}<div style="position: absolute; inset: ${d.top + 50}px 24px ${d.bottom + 20}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px">${head}${a}</div>`;
+  return `${back}<div style="position: absolute; inset: ${d.top + 50}px ${d.top}px ${d.top}px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; justify-items: center; padding: 0 24px">${head}${a}</div>`;
+}
+function loadingScreen(s, d, phase) {
+  const label = phase === 'loading' ? 'Opening photo…' : 'Developing…<br><span style="font-weight: 500; opacity: .75; font-size: 12px">Applying thoughtful enhancements.</span>';
+  const st = { ...s, auto: 'off', photoProgress: label, photoProgressPct: phase === 'loading' ? 30 : 70 };
+  return `<div style="position: absolute; inset: 0; display: flex; flex-direction: column; padding: ${d.top + 52}px 0 ${d.mode === 'phone' ? 120 : d.top}px">${stageSlot(st, 'flex: 1; min-height: 0')}</div><div style="position: absolute; left: 12px; top: ${d.top}px">${iconBtn('close', 'Close')}</div>`;
+}
+function pickerSheet(d) {
+  const cols = d.mode === 'phone' ? 3 : 5;
+  const grid = `<div style="display: grid; grid-template-columns: repeat(${cols}, minmax(0, 1fr)); gap: 2px">${PICKER.map((k) => `<span style="aspect-ratio: 1; background: url(${PHOTOS[k].src}) center/cover"></span>`).join('')}</div>`;
+  const head = d.os === 'ios'
+    ? `<div style="display: flex; align-items: center; padding: 6px 12px 10px"><button style="border: none; background: transparent; color: var(--accent-ink); font-size: 16px; font-weight: 600; width: 80px; text-align: left">Cancel</button><div style="flex: 1; text-align: center; font-weight: 700; font-size: 16px">Photos</div><span style="width: 80px"></span></div><div style="padding: 0 16px 10px">${seg([['p', 'Photos'], ['c', 'Collections']], 'p')}</div><div style="margin: 0 16px 10px; height: 38px; border-radius: 12px; background: var(--chip); display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--ink3)">${ic('search', 18)}Search</div>`
+    : `<div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px 10px">${iconBtn('close', 'Cancel')}<div style="font-weight: 700; font-size: 18px">Select a photo</div></div><div style="padding: 0 16px 10px">${seg([['p', 'Photos'], ['a', 'Albums']], 'p')}</div>`;
+  return sheetOverlay(d, `<div style="width: 40px; height: 5px; border-radius: 3px; background: var(--off); margin: 8px auto"></div>${head}${grid}`, { h: d.mode === 'phone' ? '92%' : '86%', bare: true });
+}
+// Lightly's own camera (CameraCaptureView.swift): inset rounded preview, flash, cancel, shutter, switch; review.
+function cameraScreen(d, review) {
+  const bottomBar = 132 + d.bottom;
+  if (review) return `<div style="position: absolute; inset: 0; background: #000000; color: #FFFFFF"><div style="position: absolute; left: 0; right: 0; top: ${d.top}px; bottom: ${72 + d.bottom}px; display: flex; align-items: center; justify-content: center"><img src="${PHOTOS.smile.src}" alt="" style="max-width: 100%; max-height: 100%; object-fit: contain"></div><div style="position: absolute; left: 0; right: 0; bottom: ${d.bottom}px; height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; font-size: 18px"><span>Retake</span><span style="font-weight: 600">Use Photo</span></div></div>`;
+  return `<div style="position: absolute; inset: 0; background: #000000; color: #FFFFFF">
+    <div style="position: absolute; left: 0; right: 0; top: ${d.top}px; bottom: ${bottomBar}px; border-radius: 24px; overflow: hidden; background: url(${PHOTOS.smile.src}) center/cover"></div>
+    <button aria-label="Flash Auto" style="position: absolute; left: 14px; top: ${d.top + 12}px; width: 48px; height: 48px; border-radius: 24px; border: none; background: rgba(0,0,0,0.6); color: #FFD60A; display: flex; align-items: center; justify-content: center">${ic('flash', 22)}</button>
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; height: ${bottomBar}px; display: flex; align-items: flex-start; justify-content: space-between; padding: 30px 26px 0">
+      <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center">${ic('close', 26)}</span>
+      <span style="width: 72px; height: 72px; border-radius: 36px; background: #FFFFFF; border: 5px solid #3A3A3C; box-sizing: border-box; margin-top: -8px"></span>
+      <span style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center">${ic('flip', 26)}</span></div></div>`;
+}
+
+/* =============================================================== overlays */
+const scrim = (inner, center = true) => `<div style="position: absolute; inset: 0; background: var(--scrim); display: flex; align-items: ${center ? 'center' : 'flex-end'}; justify-content: center; z-index: 5">${inner}</div>`;
+function dialog(d, title, body, buttons) {
+  if (d.os === 'ios') return scrim(`<div role="alertdialog" style="width: 290px; border-radius: 22px; background: var(--sheet); border: 1px solid var(--line); overflow: hidden; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,0.4)"><div style="padding: 20px 18px 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 700; font-size: 16px">${title}</div>${body ? `<div style="font-size: 13px; line-height: 1.4; color: var(--ink2)">${body}</div>` : ''}</div>${buttons.map(([l, kind]) => `<button style="width: 100%; height: 48px; border: none; border-top: 1px solid var(--line); background: transparent; font-size: 16px; font-weight: ${kind === 'b' ? 700 : 500}; color: ${kind === 'd' ? 'var(--danger)' : kind === 'b' ? 'var(--accent-ink)' : 'var(--ink)'}">${l}</button>`).join('')}</div>`);
+  return scrim(`<div role="alertdialog" style="width: 312px; border-radius: 28px; background: var(--sheet); padding: 22px 22px 14px; box-shadow: 0 24px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 14px"><div style="${HEAD}; font-size: 20px">${title}</div>${body ? `<div style="font-size: 14px; line-height: 1.45; color: var(--ink2)">${body}</div>` : ''}<div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px">${buttons.map(([l, kind]) => `<button style="height: 40px; padding: 0 12px; border: none; border-radius: 20px; background: transparent; font-weight: 700; font-size: 14px; color: ${kind === 'd' ? 'var(--danger)' : 'var(--accent-ink)'}">${l}</button>`).join('')}</div></div>`);
+}
+// The scoped Reset confirmation: this section, the whole tool, Cancel.
+function actionSheet(d, title, options) {
+  if (d.os === 'android') return dialog(d, title, '', [...options.map(([l]) => [l, 'd']), ['Cancel', '']]);
+  const w = d.mode === 'phone' ? 'calc(100% - 16px)' : '320px';
+  return `<div style="position: absolute; inset: 0; background: var(--scrim); display: flex; flex-direction: column; justify-content: ${d.mode === 'phone' ? 'flex-end' : 'center'}; align-items: center; gap: 8px; padding-bottom: ${d.mode === 'phone' ? d.bottom : 0}px; z-index: 5">
+    <div style="width: ${w}; border-radius: 18px; background: var(--sheet); overflow: hidden; text-align: center"><div style="padding: 14px; font-size: 13px; font-weight: 600; color: var(--ink2)">${title}</div>${options.map(([l]) => `<button style="width: 100%; height: 54px; border: none; border-top: 1px solid var(--line); background: transparent; font-size: 17px; color: var(--danger)">${l}</button>`).join('')}</div>
+    <button style="width: ${w}; height: 56px; border-radius: 18px; border: none; background: var(--sheet); font-size: 17px; font-weight: 700; color: var(--accent-ink)">Cancel</button></div>`;
+}
+function sheetOverlay(d, inner, { h = 'auto', bare = false } = {}) {
+  if (d.mode !== 'phone') return scrim(`<div style="position: relative; width: ${Math.min(560, d.w * 0.6)}px; ${h !== 'auto' ? `height: ${h};` : 'max-height: 86%;'} border-radius: 28px; background: var(--sheet); border: 1px solid var(--line); overflow: hidden; padding-bottom: 14px; box-shadow: 0 24px 60px rgba(0,0,0,0.4)">${inner}</div>`);
+  return scrim(`<div style="position: relative; width: 100%; ${h !== 'auto' ? `height: ${h};` : ''} border-radius: 30px 30px 0 0; background: var(--sheet); border-top: 1px solid var(--line); overflow: hidden; padding-bottom: ${d.bottom + 6}px">${bare ? '' : '<div style="width: 40px; height: 5px; border-radius: 3px; background: var(--off); margin: 8px auto 4px"></div>'}${inner}</div>`, false);
+}
+const sheetHead = (left, title, right) => `<div style="display: flex; align-items: center; padding: 6px 12px 10px"><span style="width: 90px">${left}</span><div style="flex: 1; text-align: center; font-weight: 700; font-size: 16px">${title}</div><span style="width: 90px; display: flex; justify-content: flex-end">${right}</span></div>`;
+const textBtn = (l, bold = false) => `<button style="border: none; background: transparent; font-size: 15px; font-weight: ${bold ? 700 : 600}; color: var(--accent-ink); padding: 8px 4px">${l}</button>`;
+// The colour sheet behind "More colours" — the same sheet from every colour control: any colour, from the photo,
+// palettes, custom (picker or hex), recent (ColourControl.swift).
+function colourSheet(s, d, title) {
+  const sw = (list, sel = -1) => `<div style="display: grid; grid-template-columns: repeat(${list.length}, minmax(0, 1fr)); gap: 9px">${list.map((c, i) => `<span style="position: relative; height: 40px; border-radius: 12px; background: ${c}; border: 1px solid var(--line)">${i === sel ? `<span style="position: absolute; right: 4px; top: 4px; width: 16px; height: 16px; border-radius: 8px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center">${ic('check', 10)}</span>` : ''}</span>`).join('')}</div>`;
+  const lab = (t) => `<div style="font-weight: 700; font-size: 12px; color: var(--ink2); margin: 4px 0 -4px">${t}</div>`;
+  const body = `${sheetHead(textBtn('Cancel'), title, textBtn('Done', true))}<div style="padding: 0 18px; display: flex; flex-direction: column; gap: 14px">
+    ${stageSlot({ ...s, tool: null }, `height: ${d.mode === 'phone' ? 170 : 200}px; border-radius: 18px; background: var(--stage)`)}
+    ${lab('From your photo')}${sw(['#3B4A44', '#D7C7B5', '#8E6C52', '#E9E4DA', '#2B2A28'])}
+    ${lab('Paper &amp; ink')}${sw(['#FFFFFF', '#ECE8DF', '#D4C9B5', '#9C9284', '#242423'], 1)}
+    ${lab('Earth')}${sw(['#DFC7AE', '#B98767', '#914E3E', '#66775D', '#334538'])}
+    <div style="display: flex; align-items: center; gap: 10px"><span style="width: 40px; height: 40px; border-radius: 20px; background: conic-gradient(#F44, #FD4, #4F8, #4DF, #84F, #F4C, #F44); flex-shrink: 0"></span><span style="font-weight: 600; font-size: 14px">Custom</span><span style="flex: 1"></span><span style="width: 96px; height: 38px; border-radius: 12px; border: 1px solid var(--line); display: flex; align-items: center; padding: 0 10px; font-family: ui-monospace, monospace; font-size: 14px">#ECE8DF</span>${iconBtn('dropper', 'Pick from photo')}</div>
+    ${lab('Recent')}<div style="display: flex; gap: 9px">${['#FFFFFF', '#111111', '#F4F1EC'].map((c) => `<span style="width: 40px; height: 40px; border-radius: 12px; background: ${c}; border: 1px solid var(--line)"></span>`).join('')}</div></div>`;
+  return sheetOverlay(d, body, { h: d.mode === 'phone' ? '90%' : '92%' });
+}
+function overlay(name, s, d) {
+  switch (name) {
+    case 'leave': return dialog(d, 'Leave without saving?', 'Your original photo is unchanged. Edits that are not saved as a copy will be lost.', [['Save', 'b'], ['Discard edits', 'd'], ['Keep editing', '']]);
+    case 'resetAll': return dialog(d, 'Reset all edits?', 'Return to the original photo. This also turns Auto off. You can undo this.', [['Reset all edits', 'd'], ['Keep editing', '']]);
+    case 'resetScope': return actionSheet(d, 'Reset', [['Reset focus &amp; blur'], ['Reset background']]);
+    case 'savePerm': return dialog(d, '“Lightly” Would Like to Add to your Photos', "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker.", [['Don’t Allow', ''], ['Allow', 'b']]);
+    case 'saveDenied': return dialog(d, 'Can’t save to Photos', 'Allow Lightly to add photos in Settings. Your edits are kept.', [['Open Settings', 'b'], ['Not now', '']]);
+    case 'storage': return dialog(d, 'Not enough storage', 'Free up some space and try again. Your edits are kept.', [['Try again', 'b'], ['OK', '']]);
+    case 'exportFail': return dialog(d, 'Couldn’t save the copy', 'Something went wrong while saving. Your edits are kept and the original is unchanged.', [['Try again', 'b'], ['Keep editing', '']]);
+    case 'noCamera': return dialog(d, 'No camera is available on this device.', '', [['OK', 'b']]);
+    case 'importFail': return dialog(d, 'Couldn’t open that photo', 'Choose another photo for the background.', [['OK', 'b']]);
+    case 'deleteSig': return dialog(d, 'Delete saved signature?', 'This removes the saved drawing and its signature from this photo.', [['Delete signature', 'd'], ['Cancel', '']]);
+    case 'cameraPerm': return d.os === 'ios' ? dialog(d, '“Lightly” Would Like to Access the Camera', 'Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.', [['Don’t Allow', ''], ['Allow', 'b']]) : dialog(d, 'Allow Lightly to take pictures and record video?', '', [['While using the app', ''], ['Only this time', ''], ['Don’t allow', '']]);
+    case 'saving': return scrim(progressCard('Saving a copy…', true, 55));
+    case 'saved': return sheetOverlay(d, `<div style="text-align: center; padding: 10px 20px 0; display: flex; flex-direction: column; align-items: center; gap: 6px"><span style="width: 52px; height: 52px; border-radius: 26px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center">${ic('check', 28)}</span><div style="${HEAD}; font-size: 20px; margin-top: 6px">Saved as a new photo</div><div style="color: var(--ink2); font-size: 14px">The original is unchanged.</div></div><div style="display: flex; flex-direction: column; gap: 10px; padding: 18px 20px 4px">${primary('Share', 'share')}${lineBtn('Keep editing')}<button style="height: 44px; border: none; background: transparent; font-weight: 600; font-size: 15px">Choose another photo</button></div>`);
+    case 'share': return sheetOverlay(d, `<div style="display: flex; align-items: center; gap: 10px; padding: 8px 16px 14px"><span style="width: 44px; height: 44px; border-radius: 10px; background: url(${PHOTOS[s.photo].src}) center/cover"></span><div style="flex: 1"><div style="font-weight: 700; font-size: 15px">Lightly copy.jpg</div><div style="font-size: 12px; color: var(--ink3)">JPEG</div></div>${iconBtn('close', 'Close')}</div><div style="display: flex; justify-content: space-around; padding: 6px 10px 16px; border-bottom: 1px solid var(--line)">${['Messages', 'Mail', 'Files', 'Notes', 'More'].map((nm) => `<div style="display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--ink2)"><span style="width: 56px; height: 56px; border-radius: 16px; background: var(--card); border: 1px solid var(--line)"></span>${nm}</div>`).join('')}</div>${listRow('Copy', '', '', { first: true })}${listRow('Save to Files', '', '')}`);
+    case 'sigDraw': return sheetOverlay(d, `${sheetHead(textBtn('Cancel'), 'Draw signature', textBtn('Save', true))}<div style="position: relative; margin: 4px 16px; height: 180px; border-radius: 18px; background: var(--bg); border: 1.5px dashed var(--ink3)"><div style="position: absolute; left: 20px; right: 20px; bottom: 40px; border-bottom: 1px solid var(--line)"></div><div style="position: absolute; left: 30px; bottom: 34px">${SIG(150)}</div></div><div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 16px">${quietBtn('Clear')}${note('Saved for reuse. It keeps its own look.')}</div>`);
+    case 'sigImport': return sheetOverlay(d, `${sheetHead(textBtn('Cancel'), 'Import signature', textBtn('Use', true))}<div style="position: relative; margin: 4px 16px; height: 170px; border-radius: 18px; background: #F7F4EE; display: flex; align-items: center; justify-content: center">${SIG(150, '#2B4A8A')}<div style="position: absolute; inset: 14px; border: 1.5px dashed var(--accent-ink); border-radius: 12px"></div></div><div style="padding: 8px 16px">${note('The paper is removed. The ink keeps its original colour and texture.')}</div>`);
+    case 'textEdit': return sheetOverlay(d, `${sheetHead(textBtn('Cancel'), s.tool === 'text' ? 'Text' : 'Watermark text', textBtn('Done', true))}<div style="margin: 4px 16px 10px; min-height: 52px; border-radius: 16px; border: 2px solid var(--accent-ink); display: flex; align-items: center; padding: 0 14px; font-size: 19px">${s.tool === 'text' ? 'Summer in Lisbon' : 'A. Rivera'}<span style="width: 2px; height: 22px; background: var(--accent-ink); margin-left: 2px"></span></div><div style="height: 230px; margin-top: 14px; background: var(--card); border-top: 1px solid var(--line)"></div>`);
+    case 'favReplace': return sheetOverlay(d, `${sheetHead(textBtn('Cancel'), 'Replace a favourite', '')}${FAVS.map(([nm, c], i) => listRow(nm, CAT[c].name, '<span style="color: var(--accent-ink); font-weight: 700">Replace</span>', { first: i === 0 })).join('')}`);
+    case 'colourSheet': return colourSheet(s, d, 'Background colour');
+    case 'more': return d.mode === 'phone' ? `<div style="position: absolute; inset: 0; background: var(--bg); z-index: 5">${morePage('more', d)}</div>` : sheetOverlay(d, morePage('more', d, true), { h: '92%', bare: true });
+    default: return '';
+  }
+}
+
+/* =============================================================== More (preferences on the page) and its pages */
+function appearanceTiles(selected) {
+  const lines = (ink) => `<span style="position: absolute; left: 8px; right: 8px; top: 9px; height: 5px; border-radius: 3px; background: ${ink}; opacity: .9"></span><span style="position: absolute; left: 8px; right: 18px; top: 19px; height: 4px; border-radius: 2px; background: ${ink}; opacity: .45"></span><span style="position: absolute; left: 8px; width: 22px; bottom: 8px; height: 10px; border-radius: 5px; background: #CFF26B"></span>`;
+  const pv = { System: '<span style="position: absolute; inset: 0; background: linear-gradient(135deg, #F3F3F0 50%, #0D0E10 50%)"></span>' + lines('#8A8E86'), Light: '<span style="position: absolute; inset: 0; background: #F3F3F0"></span>' + lines('#141513'), Dark: '<span style="position: absolute; inset: 0; background: #0D0E10"></span>' + lines('#F2F3F0') };
+  return card(`<div role="group" aria-label="Appearance" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-items: center">${['System', 'Light', 'Dark'].map((nm) => { const on = nm === selected;
+    return `<button aria-pressed="${on}" style="border: none; background: transparent; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; font-weight: ${on ? 700 : 600}; font-size: 13px"><span style="position: relative; width: 64px; height: 76px; border-radius: 14px; ${on ? 'border: 2px solid var(--accent-ink)' : 'border: 1px solid var(--line)'}; box-sizing: border-box"><span style="position: absolute; inset: 3px; border-radius: 10px; overflow: hidden">${pv[nm]}</span>${on ? `<span style="position: absolute; right: -6px; top: -6px; width: 22px; height: 22px; border-radius: 11px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--surface)">${ic('check', 13)}</span>` : ''}</span>${nm}</button>`; }).join('')}</div>`, '16px 12px 14px');
+}
+const LEGAL = {
+  privacy: ['lightly.pro/privacy', [['Scope', 'This policy covers the Lightly photo editor and lightly.pro. Privacy enquiries can be sent to hello@lightly.pro.'], ['Editing on your device', 'Lightly processes the photographs you choose on your device. The app does not upload them to Lightly, require a Lightly account, or include advertising or analytics. Save copy creates a new image; Share opens the system share sheet so you choose the destination. The receiving app has its own privacy practices.'], ['Photos and permissions', 'You choose photos through the system picker or use the camera. Lightly requests permissions needed for those actions and for saving. You can manage permissions in your device settings.']]],
+  terms: ['lightly.pro/terms', [['About Lightly', 'Lightly is a photo-editing app for iOS and Android. This website describes the product and provides support information. For questions about these terms, contact hello@lightly.pro.'], ['Your photographs', 'Your photos and edits remain yours. Lightly claims no ownership of them. You are responsible for having the permissions needed to edit and share content, including images of other people.'], ['Using the app', 'Use the app in accordance with applicable law and the terms supplied with its release. Do not disrupt the website or attempt to access systems without permission.']]],
+};
+function morePage(page, d, inSheet = false) {
+  const theme = d._theme === 't-light' ? 'Light' : 'Dark';
+  const thumbs = FAVS.slice(0, 3).map(([nm, c]) => `<img src="${PHOTOS.lake.src}" alt="" style="width: 26px; height: 26px; border-radius: 13px; object-fit: cover; filter: ${lookFor(nm, c)}; border: 2px solid var(--surface); margin-left: -8px">`).join('');
+  const chev = ic('chevron', 18);
+  const doc = (key) => { const [url, secs] = LEGAL[key]; return `<a style="display: block; font-size: 14px; margin: 2px 4px 14px">${url}</a>${secs.map(([hd, p]) => `<div style="font-weight: 700; font-size: 15px; margin: 0 4px 6px">${hd}</div><div style="font-size: 14px; line-height: 1.5; color: var(--ink2); margin: 0 4px 16px">${p}</div>`).join('')}`; };
+  const pages = {
+    more: ['More', null, col(12, `${card(`<div style="display: flex; align-items: center; gap: 12px">${LOGO_TILE(44, false)}<span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="${HEAD}; font-size: 16px">Lightly</span><span style="font-size: 12px; color: var(--ink2)">Version 1.0 (1)</span></span></div>`, '12px 14px')}
+      <div>${groupLabel('Appearance')}${appearanceTiles(theme)}</div>
+      <div>${groupLabel('Shortcuts')}${card(listRow('Favourite presets', '3 of 10 · shortcuts, never applied automatically', `${thumbs}${chev}`, { first: true }) + listRow('Saved signature', 'Reused only when you choose it', `${SIG(54, 'var(--ink)')}${chev}`))}</div>
+      <div>${groupLabel('Saving')}${card(listRow('Preferred border', '', `None${chev}`, { first: true }) + `<div style="padding: 0 16px; border-top: 1px solid var(--line)">${toggleRow('Keep photo metadata', true, 'Camera, lens, aperture, shutter speed, ISO and date taken. Location is separate.')}</div><div style="padding: 0 16px; border-top: 1px solid var(--line)">${toggleRow('Include location', false, 'GPS coordinates in saved copies. Off by default.')}</div>`)}</div>
+      <div>${groupLabel('Help')}${card(listRow('About', 'Details and support email', chev, { first: true }) + listRow('Legal', 'Privacy Policy, Terms of Use', chev))}</div>`)],
+    favourites: ['Favourite presets', 'More', `${note('Up to ten. Drag to reorder. Favourites are shortcuts in Develop; they are never applied automatically.')}<div style="height: 10px"></div>${card(FAVS.slice(0, 3).map(([nm, c], i) => `<div style="display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 0 8px 0 14px; ${i ? 'border-top: 1px solid var(--line)' : ''}"><span style="color: var(--ink3)">${ic('grip', 18)}</span><img src="${PHOTOS.lake.src}" alt="" style="width: 36px; height: 36px; border-radius: 18px; object-fit: cover; filter: ${lookFor(nm, c)}"><span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 15px">${nm}</span><span style="font-size: 12px; color: var(--ink2)">${CAT[c].name}</span></span>${iconBtn('trash', 'Remove')}</div>`).join(''))}<div style="height: 10px"></div>${note('2 free. Star a preset in Develop to add it.')}`],
+    signature: ['Saved signature', 'More', `${card(`<div style="display: flex; justify-content: center; padding: 26px 0">${SIG(170, 'var(--ink)')}</div>`)}<div style="height: 12px"></div>${card(listRow('Draw a new signature', '', chev, { first: true }) + listRow('Import from a photo', '', chev) + listRow('Delete saved signature', '', '', { color: 'var(--danger)' }))}<div style="height: 10px"></div>${note('A saved signature is added only when you choose it in Watermark.')}`],
+    prefborder: ['Preferred border', 'More', `${card(['None', 'Solid', 'Photo Frame', 'Polaroid', 'Paper'].map((nm, i) => listRow(nm, '', i === 0 ? `<span style="color: var(--accent-ink)">${ic('check', 20)}</span>` : '', { first: i === 0 })).join(''))}<div style="height: 10px"></div>${note('Opens first in Border. It is never added to a photo automatically.')}`],
+    legal: ['Legal', 'More', card(listRow('Privacy Policy', '', chev, { first: true }) + listRow('Terms of Use', '', chev))],
+    privacy: ['Privacy Policy', 'Legal', doc('privacy')],
+    terms: ['Terms of Use', 'Legal', doc('terms')],
+    // One About page: details, then the support email at the end. No separate Support page (owner, 2026-10-10).
+    about: ['About', 'More', col(12, `<div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 0 6px">${LOGO_TILE(72)}<div style="${HEAD}; font-size: 22px">Lightly</div><div style="font-size: 13px; color: var(--ink2)">Version 1.0 (1)</div></div>
+      <div style="font-size: 14px; line-height: 1.5; color: var(--ink2); text-align: center; padding: 0 10px">A photo editor that develops your photo in one tap, then lets you fine-tune it with presets, background, portrait, effects, watermark and border.</div>
+      ${card([['Editing', 'On your device'], ['Account', 'Not needed'], ['Advertising and analytics', 'None'], ['Presets', '2,591 in 9 categories'], ['Website', 'lightly.pro']].map(([k, v], i) => `<div style="display: flex; justify-content: space-between; gap: 12px; min-height: 46px; align-items: center; padding: 0 16px; ${i ? 'border-top: 1px solid var(--line);' : ''} font-size: 14px"><span style="color: var(--ink2)">${k}</span><span style="font-weight: 600; text-align: right">${v}</span></div>`).join(''))}
+      <div>${groupLabel('Support')}${card(listRow('hello@lightly.pro', 'Questions or a problem with a photo? Include your version number.', `<span style="color: var(--accent-ink)">${ic('mail', 20)}</span>`, { first: true }))}</div>`)],
+  };
+  const [title, back, body] = pages[page];
+  return `<div style="position: absolute; inset: 0; padding: ${inSheet ? 18 : d.top}px 16px ${d.bottom}px; display: flex; flex-direction: column; gap: 12px; overflow: hidden">
+    <div style="flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: ${back ? 0 : 6}px">${back ? `<div style="display: flex; align-items: center; gap: 4px">${iconBtn('back', back)}<span style="${HEAD}; font-size: 22px">${title}</span></div>` : `<span style="${HEAD}; font-size: 30px; letter-spacing: -0.6px">${title}</span><button aria-label="Close" style="width: 44px; height: 44px; border-radius: 22px; border: none; background: var(--chip); padding: 0; display: flex; align-items: center; justify-content: center">${ic('close', 20)}</button>`}</div>
+    <div style="flex: none">${body}</div></div>`;
+}
+const pageScreen = (page, d) => d.mode === 'phone' ? morePage(page, d) : welcome(d) + sheetOverlay(d, morePage(page, d, true), { h: '92%', bare: true });
+
+/* =============================================================== the screen registry: the current iOS app's screens and states */
+// Photos open untouched (owner, 2026-10-11): Auto is off until tapped.
+const ED = (tool, photoKey, o = {}) => ({ kind: 'editor', s: { tool, photo: photoKey, canUndo: true, auto: 'off', ...o } });
+const HONEY = { cat: 'daylight', applied: { cat: 'daylight', name: 'Pure Lagoon Daylight' } };
+const EDITED = { dev: HONEY, fx: { vig: true }, canResetAll: true };
+const J = [
+  ['Start and photo choice', [
+    ['launch', 'Launch', { kind: 'launch' }], ['welcome', 'Welcome', { kind: 'welcome' }], ['welcome-more', 'Welcome · More (⋮)', { kind: 'welcome', overlay: 'more' }],
+    ['picker', 'Choose a photo · system photo picker', { kind: 'picker' }], ['picker-cancelled', 'Picker cancelled · back to Welcome, nothing changed', { kind: 'welcome' }],
+    ['camera-permission', 'Camera · system permission request', { kind: 'welcome', overlay: 'cameraPerm' }],
+    ['camera-denied', 'Camera · permission denied', { kind: 'message', t: 'Camera access is off', b: 'To take a photo in Lightly, allow camera access in Settings. You can still choose a photo from your library.', a: [['Open Settings', 1], ['Choose a photo instead', 0]] }],
+    ['camera-unavailable', 'No camera on this device', { kind: 'welcome', overlay: 'noCamera' }],
+    ['camera', 'Camera · Lightly’s own capture (inset preview, flash, switch)', { kind: 'camera' }], ['camera-review', 'Camera · Retake or Use Photo', { kind: 'cameraReview' }],
+    ['load-failed', 'Photo can’t be opened', { kind: 'message', t: 'This photo can’t be opened', b: 'It may be in a format Lightly doesn’t support, or it couldn’t be downloaded. Your library is unchanged.', a: [['Choose another photo', 1], ['Try again', 0]] }]]],
+  ['Opening, Auto and the photo', [
+    ['loading', 'Opening the photo', { kind: 'loading', s: { photo: 'lake' } }], ['developing', 'Automatic Develop in progress', { kind: 'developing', s: { photo: 'lake' } }],
+    ['developed', 'Developed · Auto applied (wand with ✓ on the photo)', ED('develop', 'lake', { canUndo: false })],
+    ['develop-failed', 'Automatic Develop failed · Retry or continue with original', ED('develop', 'lake', { auto: 'failed', canUndo: false })],
+    ['model-unavailable', 'Auto unavailable · tapping Auto explains it', ED('develop', 'lake', { auto: 'unavailable', canUndo: false, toast: 'Automatic correction isn\'t available. Presets still work.' })],
+    ['auto-off', 'Auto turned off · Reset all appears', ED('develop', 'lake', { auto: 'off', canResetAll: true })],
+    ['reset-all', 'Reset all · confirmation', { ...ED('develop', 'lake', EDITED), overlay: 'resetAll' }],
+    ['inspect', 'Inspection zoom (pinch or double tap, 2.5×)', ED('develop', 'lake', { ...EDITED, zoom: 2.5 })],
+    ['compare', 'Compare · hold to see the original', ED('develop', 'lake', { ...EDITED, compare: true })]]],
+  ['Develop', [
+    ['dev-start', 'Develop · nothing applied (Original selected)', ED('develop', 'lake', { canUndo: false })],
+    ['dev-preset', 'Preset applied · gallery tile, Reset, Amount', ED('develop', 'lake', { dev: HONEY })],
+    ['dev-browse', 'Browsing another category · applied preset stays', ED('develop', 'lake', { dev: { ...HONEY, cat: 'cinema', tapped: true } })],
+    ['dev-expanded', 'Preset gallery swiped up · full grid', ED('develop', 'lake', { dev: { ...HONEY, expanded: true } })],
+    ['dev-amount', 'Amount lowered', ED('develop', 'lake', { dev: { ...HONEY, amount: 70 } })],
+    ['dev-starred', 'Preset starred as a favourite', ED('develop', 'lake', { dev: { ...HONEY, starred: true }, favCount: 1 })],
+    ['dev-favourites', 'Favourites category (up to five)', ED('develop', 'man', { dev: { cat: 'favourites', applied: { cat: 'portrait', name: 'Clear Light' } }, favCount: 5 })],
+    ['dev-fav-full', 'Favourites full · sixth star', ED('develop', 'lake', { dev: { cat: 'travel', applied: { cat: 'travel', name: 'Deep Forest' }, favFull: true }, favCount: 5 })],
+    ['dev-fav-replace', 'Replace a favourite', { ...ED('develop', 'lake', { dev: { cat: 'travel', applied: { cat: 'travel', name: 'Deep Forest' } }, favCount: 5 }), overlay: 'favReplace' }],
+    ['dev-bw', 'Black & White preset', ED('develop', 'man', { dev: { cat: 'black-white', applied: { cat: 'black-white', name: 'Quiet Carbon' } } })],
+    ['dev-long-name', 'Long preset name', ED('develop', 'field', { dev: { cat: 'travel', applied: { cat: 'travel', name: 'Luminous Amber Breeze' } } })],
+    ['dev-landscape-photo', 'Landscape-orientation photograph', ED('develop', 'sunset', { dev: { cat: 'golden-hour', applied: { cat: 'golden-hour', name: 'Honey Light' } } })],
+    ['dev-portrait-photo', 'Person in the photo · Portrait category and tool shown', ED('develop', 'man', { dev: { cat: 'portrait', applied: { cat: 'portrait', name: 'Clear Light' } } })]]],
+  ['Background', [
+    ['bg-focus', 'Focus & Blur · Lens, bokeh, focus target', ED('background', 'woman', { bg: { blur: 55 } })],
+    ['bg-soft', 'Focus & Blur · Soft', ED('background', 'woman', { bg: { blur: 55, style: 'soft' } })],
+    ['bg-swirl', 'Focus & Blur · Swirl', ED('background', 'woman', { bg: { blur: 55, style: 'swirl' } })],
+    ['bg-motion', 'Focus & Blur · Motion', ED('background', 'woman', { bg: { blur: 55, style: 'motion' } })],
+    ['bg-refine', 'Refine edges (brush)', ED('background', 'woman', { bg: { blur: 55, mode: 'refine' } })],
+    ['bg-reset', 'Reset · this section or the whole tool', { ...ED('background', 'woman', { bg: { blur: 55 } }), overlay: 'resetScope' }],
+    ['bg-change-image', 'Change background · image, scale, drag to position', ED('background', 'woman', { bg: { mode: 'change', kind: 'image', replaced: 'image', scale: 120 } })],
+    ['bg-import', 'Change background · your own photo', ED('background', 'woman', { bg: { mode: 'change', kind: 'image', replaced: 'image', imported: true } })],
+    ['bg-import-failed', 'Your photo couldn’t be opened', { ...ED('background', 'woman', { bg: { mode: 'change', kind: 'image' } }), overlay: 'importFail' }],
+    ['bg-change-colour', 'Change background · the colour strip', ED('background', 'woman', { bg: { mode: 'change', kind: 'colour', replaced: 'colour', colourName: 'Slate' } })],
+    ['bg-colour-sheet', 'More colours · any colour (photo, palettes, custom, recent)', { ...ED('background', 'woman', { bg: { mode: 'change', kind: 'colour', replaced: 'colour', colourName: 'Slate' } }), overlay: 'colourSheet' }],
+    ['bg-change-gradient', 'Change background · gradient and its two colours', ED('background', 'woman', { bg: { mode: 'change', kind: 'gradient', replaced: 'gradient' } })],
+    ['bg-replaced-blur', 'After replacement, Focus & Blur still works', ED('background', 'woman', { bg: { replaced: 'image', blur: 60 } })],
+    ['bg-separating', 'Finding the subject · cancellable', ED('background', 'woman', { bg: { mode: 'change', op: 'separating' } })],
+    ['bg-depth', 'Estimating depth · cancellable', ED('background', 'woman', { bg: { op: 'depth' } })],
+    ['bg-failed', 'Subject separation failed · edits kept', ED('background', 'woman', { bg: { mode: 'change', op: 'failed' }, dev: { cat: 'portrait', applied: { cat: 'portrait', name: 'Clear Light' } } })],
+    ['bg-depth-failed', 'Depth failed · Change background still works', ED('background', 'woman', { bg: { op: 'depthFailed' } })],
+    ['bg-no-subject', 'No clear subject', ED('background', 'lake', { bg: {} })]]],
+  ['Portrait', [
+    ['pt-skin', 'Skin', ED('portrait', 'man', { pt: { sub: 'skin', smooth: 24 } })],
+    ['pt-under', 'Under-eye', ED('portrait', 'man', { pt: { sub: 'under', smooth: 1 } })], ['pt-eyes', 'Eyes', ED('portrait', 'man', { pt: { sub: 'eyes', smooth: 1 } })],
+    ['pt-teeth', 'Teeth', ED('portrait', 'smile', { pt: { sub: 'teeth', smooth: 1 } })], ['pt-hair', 'Hair & Beard', ED('portrait', 'man', { pt: { sub: 'hair', smooth: 1 } })],
+    ['pt-landscape-photo', 'Portrait on a landscape-orientation photograph', ED('portrait', 'smile', { pt: { sub: 'skin', smooth: 20 } })],
+    ['pt-multi', 'Several faces · each keeps its own settings', ED('portrait', 'man', { pt: { sub: 'skin', smooth: 20, multi: true } })],
+    ['pt-no-usable-face', 'People found, but no usable face', ED('portrait', 'bar', {})],
+    ['pt-hidden', 'No person · Portrait tool and category hidden', ED('develop', 'field', { dev: { cat: 'landscape', applied: { cat: 'landscape', name: 'Slate Sky' } } })]]],
+  ['Edit', [
+    ['ed-crop', 'Crop · the frame at the photo’s edges', ED('edit', 'field', { ed: { sub: 'crop' } })],
+    ['ed-crop-pending', 'Crop · frame moved: ✕ Cancel and ✓ Apply crop', ED('edit', 'field', { ed: { sub: 'crop', cropPending: true } })],
+    ['ed-crop-applied', 'Crop · applied: the cropped photo; tap it to adjust', ED('edit', 'field', { ed: { sub: 'crop', cropApplied: true, touched: true }, toast: 'Cropped' })],
+    ['ed-rotate', 'Rotate and flip', ED('edit', 'field', { ed: { sub: 'rotate', flipH: true, touched: true } })],
+    ['ed-straighten', 'Straighten', ED('edit', 'field', { ed: { sub: 'straighten', touched: true } })],
+    ['ed-perspective', 'Perspective', ED('edit', 'street', { ed: { sub: 'perspective', touched: true } })],
+    ['ed-adjust-light', 'Adjust · Light', ED('edit', 'lake', { ed: { sub: 'adjust', group: 'light', touched: true } })],
+    ['ed-adjust-colour', 'Adjust · Colour', ED('edit', 'lake', { ed: { sub: 'adjust', group: 'colour', touched: true } })],
+    ['ed-adjust-detail', 'Adjust · Detail', ED('edit', 'lake', { ed: { sub: 'adjust', group: 'detail', touched: true } })],
+    ['ed-remove', 'Remove · brush over unwanted objects', ED('edit', 'field', { ed: { sub: 'remove', touched: true, strokes: true } })],
+    ['ed-removing', 'Removing · cancellable', ED('edit', 'field', { ed: { sub: 'remove', op: 'removing', touched: true } })],
+    ['ed-remove-failed', 'Remove failed · edits kept', ED('edit', 'field', { ed: { sub: 'remove', op: 'failed', touched: true }, dev: HONEY })]]],
+  ['Effects', [
+    ['fx-leak', 'Light Leaks · choosing a style turns it on', ED('effects', 'sunset', { fx: { sub: 'leak', leak: true } })],
+    ['fx-grain', 'Grain', ED('effects', 'lake', { fx: { sub: 'grain', grain: true, grainAmt: 45 } })],
+    ['fx-vignette', 'Vignette', ED('effects', 'lake', { fx: { sub: 'vig', vig: true } })],
+    ['fx-selective-empty', 'Selective Colour · tap a colour to keep', ED('effects', 'woman', { fx: { sub: 'sel' } })],
+    ['fx-selective', 'Selective Colour · kept colours', ED('effects', 'woman', { fx: { sub: 'sel', sel: true } })],
+    ['fx-combined', 'Combined effects · a dot on each tab in use', ED('effects', 'sunset', { fx: { sub: 'vig', vig: true, grain: true, leak: true } })],
+    ['fx-preset-conflict', 'Preset already has grain · added, not replaced', ED('effects', 'lake', { fx: { sub: 'grain', grain: true, conflict: true }, dev: { cat: 'film', applied: { cat: 'film', name: 'Amber Fade' } } })]]],
+  ['Watermark', [
+    ['wm-none', 'Watermark · None', ED('watermark', 'sunset', { wm: { type: 'none' } })],
+    ['wm-signature', 'Signature · saved, drawn and imported', ED('watermark', 'sunset', { wm: { type: 'signature' } })],
+    ['wm-sig-draw', 'Draw a signature', { ...ED('watermark', 'sunset', { wm: { type: 'signature' } }), overlay: 'sigDraw' }],
+    ['wm-sig-import', 'Import a signature', { ...ED('watermark', 'sunset', { wm: { type: 'signature' } }), overlay: 'sigImport' }],
+    ['wm-sig-delete', 'Delete the saved signature', { ...ED('watermark', 'sunset', { wm: { type: 'signature' } }), overlay: 'deleteSig' }],
+    ['wm-text', 'Text · six fonts', ED('watermark', 'sunset', { wm: { type: 'text', font: 'Cormorant Garamond' } })],
+    ['wm-text-edit', 'Edit the watermark text', { ...ED('watermark', 'sunset', { wm: { type: 'text' } }), overlay: 'textEdit' }],
+    ['wm-logo', 'Logo', ED('watermark', 'lake', { wm: { type: 'logo', at: 'top' } })],
+    ['wm-dragging', 'Dragging the watermark anywhere, border included', ED('watermark', 'lake', { wm: { type: 'text', font: 'Caveat', onBorder: true, dragging: true }, border: { type: 'polaroid' } })]]],
+  ['Border', [
+    ['bd-none', 'Border · None', ED('border', 'lake', {})],
+    ['bd-solid', 'Solid', ED('border', 'lake', { border: { type: 'solid' } })],
+    ['bd-frame', 'Photo Frame', ED('border', 'sunset', { border: { type: 'frame' } })],
+    ['bd-polaroid', 'Polaroid', ED('border', 'man', { border: { type: 'polaroid' } })],
+    ['bd-paper', 'Paper · Clean, Deckled, Torn', ED('border', 'lake', { border: { type: 'paper' } })]]],
+  ['Save and leaving', [
+    ['leave-unsaved', 'Leaving with unsaved changes', { ...ED('develop', 'lake', EDITED), overlay: 'leave' }],
+    ['save-permission', 'First save · Photos permission (iOS)', { ...ED('develop', 'lake', EDITED), overlay: 'savePerm', iosOnly: true }],
+    ['save-permission-denied', 'Photos permission denied (iOS)', { ...ED('develop', 'lake', EDITED), overlay: 'saveDenied', iosOnly: true }],
+    ['saving', 'Saving a copy · cancellable', { ...ED('develop', 'lake', EDITED), overlay: 'saving' }],
+    ['save-cancelled', 'Save cancelled', ED('develop', 'lake', { ...EDITED, toast: 'Save cancelled · nothing was written' })],
+    ['saved', 'Saved · Share, Keep editing, another photo', { ...ED('develop', 'lake', EDITED), overlay: 'saved' }],
+    ['share', 'Share (system share)', { ...ED('develop', 'lake', EDITED), overlay: 'share' }],
+    ['another-photo', 'Choose another photo after saving', { kind: 'picker' }],
+    ['storage-full', 'Storage full · edits kept', { ...ED('develop', 'lake', EDITED), overlay: 'storage' }],
+    ['export-failed', 'Save failed · edits kept', { ...ED('develop', 'lake', EDITED), overlay: 'exportFail' }]]],
+  ['More, preferences, legal and about', [
+    ['more', 'More · preferences on this page', { ...ED('develop', 'lake', EDITED), overlay: 'more' }],
+    ['pref-favourites', 'Favourite presets · reorder up to five', { kind: 'page', page: 'favourites' }],
+    ['pref-signature', 'Saved signature', { kind: 'page', page: 'signature' }], ['pref-border', 'Preferred border', { kind: 'page', page: 'prefborder' }],
+    ['legal', 'Legal', { kind: 'page', page: 'legal' }], ['privacy', 'Privacy Policy', { kind: 'page', page: 'privacy' }], ['terms', 'Terms of Use', { kind: 'page', page: 'terms' }],
+    ['about', 'About · details, then the support email (no separate Support page)', { kind: 'page', page: 'about' }]]],
+];
+
+/* =============================================================== render */
+function screen(spec, d) {
+  let html;
+  switch (spec.kind) {
+    case 'launch': html = launch(d); break;
+    case 'welcome': html = welcome(d); break;
+    case 'picker': html = welcome(d) + pickerSheet(d); break;
+    case 'camera': html = cameraScreen(d, false); break;
+    case 'cameraReview': html = cameraScreen(d, true); break;
+    case 'message': html = messageScreen(d, spec.t, spec.b, spec.a.map(([l, p]) => p ? primary(l) : lineBtn(l)).join('')); break;
+    case 'loading': html = loadingScreen(spec.s, d, 'loading'); break;
+    case 'developing': html = loadingScreen(spec.s, d, 'developing'); break;
+    case 'page': html = pageScreen(spec.page, d); break;
+    default: html = editorScreen(spec.s, d);
+  }
+  if (spec.overlay) html += overlay(spec.overlay, spec.s || {}, d);
+  return html;
+}
+// Draw each photo at its stage's measured size.
+function fillStages() {
+  // Owner amendment (2026-10-10): tabs and chip rows fade at the end only while more tabs are hidden there; when they all fit, no fade.
+  document.querySelectorAll('[data-tabs], [data-fade-row]').forEach((el) => { if (el.scrollWidth <= el.clientWidth + 1) { el.style.webkitMaskImage = 'none'; el.style.maskImage = 'none'; } });
+  document.querySelectorAll('[data-stage]').forEach((el) => {
+    const s = FILLS[+el.dataset.stage]; const w = el.clientWidth - 24, h = el.clientHeight - 16;
+    // Owner amendment (2026-10-10): Auto and Reset all sit on the photo area's bottom-left corner for every photo (on or
+    // beside the photo), 10 px inside the stage's 12/8 px inset, not on the photo's own corner.
+    const cropping = s.tool === 'edit' && ((s.ed || {}).sub || 'crop') === 'crop';
+    const autoUI = s.tool && !s.compare && !cropping && !s.photoProgress ? `<div style="position: absolute; left: 12px; right: 12px; top: 8px; bottom: 8px; pointer-events: none">${autoControls(s)}</div>` : '';
+    const cropActs = s.tool === 'edit' && (s.ed || {}).cropPending ? `<div style="position: absolute; left: 0; right: 0; bottom: 18px; display: flex; justify-content: center; gap: 10px; z-index: 3"><span style="height: 38px; padding: 0 16px; border-radius: 19px; background: rgba(14,15,17,0.66); border: 1px solid rgba(255,255,255,0.18); color: #F2F3F0; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px">${ic('close', 14)}Cancel</span><span style="height: 38px; padding: 0 16px; border-radius: 19px; background: var(--accent); border: 1px solid var(--accent-edge); color: var(--on-accent); font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px">${ic('check', 14)}Apply crop</span></div>` : '';
+    if (w > 20 && h > 20) el.innerHTML = `<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center">${photo(s, w, h)}</div>${autoUI}${cropActs}`;
+  });
+}
+const state = { device: 'iphone', themes: ['t-dark', 't-light'], zoom: 0.6 };
+try { Object.assign(state, JSON.parse(localStorage.getItem('lightly2-view') || '{}')); } catch (e) { /* private window: defaults */ }
+
+/* =============================================================== app icon concepts: the eight-ray mark, lit like the inspiration */
+// The existing mark (BrandMark.swift): eight rays, cardinals longer, diagonals at 0.86, an empty centre (aperture).
+// Each concept keeps that geometry and only changes how it is lit.
+const SPECTRUM = ['#6E5BFF', '#2F86FF', '#18C8F0', '#14C99B', '#CFF26B', '#FFC23D', '#FF5A5F', '#E447C8'];
+const LIMES = ['#CFF26B', '#A8E86B', '#6FD8A4', '#CFF26B', '#E9FA9C', '#A8E86B', '#6FD8A4', '#E9FA9C'];
+let iconSeq = 0;
+function rayEnds(i, inner, outer) {
+  const a = (i * 45 - 90) * Math.PI / 180, r2 = i % 2 ? outer * 0.86 : outer;
+  return [512 + Math.cos(a) * inner, 512 + Math.sin(a) * inner, 512 + Math.cos(a) * r2, 512 + Math.sin(a) * r2];
+}
+function appIcon(kind, size) {
+  const id = `ic${iconSeq++}`; let defs = '', art = '';
+  if (kind === 'petals' || kind === 'lime') {   // each ray becomes a translucent petal; overlaps add light, the centre stays open
+    const cols = kind === 'lime' ? LIMES : SPECTRUM;
+    for (let i = 0; i < 8; i++) {
+      const [x1, y1, x2, y2] = rayEnds(i, 150, 336);
+      defs += `<linearGradient id="${id}g${i}" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><stop offset="0" stop-color="${cols[i]}" stop-opacity="0.55"/><stop offset="0.5" stop-color="${cols[i]}"/><stop offset="1" stop-color="${cols[i]}"/></linearGradient>`;
+      art += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="url(#${id}g${i})" stroke-width="170" stroke-linecap="round" opacity="0.8" style="mix-blend-mode: screen"/>`;
+    }
+  }
+  if (kind === 'rays') {   // the same thin rays, each its own colour, with a soft glow of that colour
+    defs += `<filter id="${id}b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>`;
+    for (let i = 0; i < 8; i++) { const [x1, y1, x2, y2] = rayEnds(i, 118, 352);
+      art += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${SPECTRUM[i]}" stroke-width="64" stroke-linecap="round" opacity="0.75" filter="url(#${id}b)"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${SPECTRUM[i]}" stroke-width="38" stroke-linecap="round"/>`; }
+  }
+  if (kind === 'bloom') {   // eight overlapping circles of light; the mark is cut out of them in black
+    for (let i = 0; i < 8; i++) { const a = (i * 45 - 90) * Math.PI / 180;
+      defs += `<radialGradient id="${id}r${i}" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/><stop offset="0.55" stop-color="${SPECTRUM[i]}"/><stop offset="1" stop-color="${SPECTRUM[i]}"/></radialGradient>`;
+      art += `<circle cx="${512 + Math.cos(a) * 168}" cy="${512 + Math.sin(a) * 168}" r="178" fill="url(#${id}r${i})" opacity="0.8" style="mix-blend-mode: screen"/>`; }
+    for (let i = 0; i < 8; i++) { const [x1, y1, x2, y2] = rayEnds(i, 104, 380); art += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000000" stroke-width="30" stroke-linecap="round"/>`; }
+    art += '<circle cx="512" cy="512" r="74" fill="#000000"/>';
+  }
+  if (kind === 'current') for (let i = 0; i < 8; i++) { const [x1, y1, x2, y2] = rayEnds(i, 104, 330); art += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#F7F8F2" stroke-width="36" stroke-linecap="round"/>`; }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 1024 1024" role="img" aria-label="Lightly app icon, ${kind}"><defs><clipPath id="${id}c"><rect width="1024" height="1024" rx="228"/></clipPath>${defs}</defs><g clip-path="url(#${id}c)"><rect width="1024" height="1024" fill="#050506"/><g style="isolation: isolate">${art}</g></g></svg>`;
+}
+const ICON_CONCEPTS = [
+  ['current', 'Today', 'The shipped mark: eight white rays and an open centre.'],
+  ['rays', 'New · chosen', 'The same eight rays, each its own colour with a soft glow of that colour, on black. Used for the app icon and the logo throughout the mock.'],
+];
+function iconSection() {
+  const ladder = (k) => [120, 60, 40, 29].map((sz) => `<div style="display: flex; flex-direction: column; align-items: center; gap: 4px">${appIcon(k, sz)}<span style="font-size: 11px; color: #8E928A">${sz}</span></div>`).join('');
+  return `<h2 class="j">App icon and logo · the eight-ray mark in spectrum colours (chosen)</h2><div class="row">${ICON_CONCEPTS.map(([k, t, d]) => `<figure style="width: 300px"><div style="display: flex; justify-content: center; padding: 18px; border-radius: 28px; background: #2E2F33">${appIcon(k, 220)}</div><div style="display: flex; gap: 12px; align-items: flex-end; justify-content: center; padding: 12px; border-radius: 20px; background: #2E2F33">${ladder(k)}</div><div style="display: flex; gap: 12px; align-items: flex-end; justify-content: center; padding: 12px; border-radius: 20px; background: #E9E9E4">${ladder(k)}</div><figcaption><b>${t}</b><br>${d}</figcaption></figure>`).join('')}</div>`;
+}
+// PROPOSAL (owner requests, 2026-10-11). Only the screens these amendments change; everything else is unchanged.
+const PROPOSAL = [
+  ['1 · Sub-menu tabs: the selected tab is a translucent lime pill (replaces the underline), on every tab row', [
+    ['p-dev', 'Develop · collections', ED('develop', 'lake', { dev: HONEY })],
+    ['p-pt-skin', 'Portrait · Skin', ED('portrait', 'man', { pt: { sub: 'skin', smooth: 24 } })],
+    ['p-adjust', 'Edit › Adjust · Light (two tab rows)', ED('edit', 'lake', { ed: { sub: 'adjust', group: 'light', touched: true } })],
+    ['p-wm', 'Watermark · Text', ED('watermark', 'sunset', { wm: { type: 'text', font: 'Cormorant Garamond' } })]]],
+  ['2 · Dock: eight tools (Text after Watermark). The dock scrolls sideways; the next tool shows cut off under a fade', [
+    ['p-dock-start', 'Dock at rest · Border is cut off at the edge: swipe for more', ED('develop', 'lake', { dev: HONEY })],
+    ['p-dock-end', 'Dock scrolled to the end · Text selected', ED('text', 'sunset', { tx: { layers: 1 }, dockAtEnd: true })]]],
+  ['3 · Text: a dock tool of its own. Free movement, an input box that opens the text sheet, a font chooser', [
+    ['p-tx-empty', 'Text · nothing added yet', ED('text', 'sunset', { dockAtEnd: true, canUndo: false })],
+    ['p-tx-selected', 'Text added · drag to move; corner handle resizes and turns; ✕ deletes', ED('text', 'sunset', { tx: { layers: 1 }, dockAtEnd: true })],
+    ['p-tx-two', 'Two text boxes · each chosen from the row', ED('text', 'sunset', { tx: { layers: 2, font: 'Bebas Neue', turn: 0, y: 0.12 }, dockAtEnd: true })],
+    ['p-tx-edit', 'Typing · the field sits above the keyboard', { ...ED('text', 'sunset', { tx: { layers: 1 }, dockAtEnd: true }), overlay: 'textEdit' }]]],
+  ['4 · Portrait › Smile: a slider from less to more (centre = the photo as taken)', [
+    ['p-smile', 'Portrait · Smile', ED('portrait', 'smile', { pt: { sub: 'smile', smooth: 1 } })]]],
+  ['5 · Theme: double-tap any empty space (not the photo: double-tap there still zooms) cycles System → Light → Dark', [
+    ['p-theme', 'Double-tapped beside the photo · a short note names the theme', { ...ED('develop', 'lake', { dev: HONEY }), themeToast: true }]]],
+];
+function render() {
+  const d0 = DEVICES[state.device]; let n = 0; FILLS = [];
+  let out = `<div style="max-width: 980px; margin: 0 0 18px; padding: 14px 16px; border-radius: 16px; background: #23252A; color: #E6E8E3; font-size: 13.5px; line-height: 1.5"><b>Proposal for approval (11 Oct).</b> A copy of the approved Lightly 2 mockup with five amendments applied: the lime pill tabs, an eight-tool scrolling dock, the Text tool, Smile in Portrait, and double-tap to change the theme. The approved mockup is unchanged until you approve; then these become part of it and both apps.</div>`;
+  for (const [title, list0] of PROPOSAL) {
+    const list = list0;
+    out += `<h2 class="j">${title}</h2><div class="row">`;
+    for (const [id, label, spec] of list) {
+      if (spec.iosOnly && d0.os !== 'ios') continue;
+      for (const th of state.themes) {
+        const d = { ...d0, _theme: th };
+        const shown = spec.themeToast ? { ...spec, s: { ...spec.s, toast: th === 't-dark' ? 'Dark theme' : 'Light theme' } } : spec;
+        let body; try { body = screen(shown, d); } catch (err) { body = `<div style="padding: 20px; color: var(--danger)">Render error: ${err.message}</div>`; }
+        out += `<figure id="${id}-${th}"><div class="frame ${th}" style="width: ${d.w}px; height: ${d.h}px; border-radius: ${d.radius}px"><div class="scr">${body}</div></div><figcaption><b>${label}</b><br>${id} · ${th === 't-dark' ? 'Dark' : 'Light'} · ${d.name} ${d.w}×${d.h}</figcaption></figure>`;
+        n++;
+      }
+    }
+    out += '</div>';
+  }
+  document.getElementById('out').innerHTML = out;
+  document.body.style.setProperty('--z', state.zoom);
+  fillStages();
+  document.getElementById('count').textContent = `${n} screens`;
+  const grp = (id, items, cur, set) => {
+    const el = document.getElementById(id);
+    el.innerHTML = items.map(([k, l], i) => `<button aria-pressed="${JSON.stringify(cur) === JSON.stringify(k)}" data-i="${i}">${l}</button>`).join('');
+    el.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; set(items[+b.dataset.i][0]); try { localStorage.setItem('lightly2-view', JSON.stringify(state)); } catch (er) { /* ignore */ } render(); };
+  };
+  grp('devices', Object.entries(DEVICES).map(([k, v]) => [k, v.name]), state.device, (k) => { state.device = k; });
+  grp('themes', [[['t-dark', 't-light'], 'Both'], [['t-dark'], 'Dark'], [['t-light'], 'Light']], state.themes, (k) => { state.themes = k; });
+  grp('zooms', [[0.4, '40%'], [0.6, '60%'], [1, '100%']], state.zoom, (k) => { state.zoom = k; });
+}
+render();
+</script>
+</body>
+</html>
