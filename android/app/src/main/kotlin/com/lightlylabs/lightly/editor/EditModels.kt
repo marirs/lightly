@@ -20,8 +20,6 @@ data class PendingRemoveStroke(val points: List<Pair<Double, Double>>, val radiu
 /** Transient Edit UI (prototype `ui.sub`, `ui.group`, `ui.op`, `ui.brushSize`). Never in history. */
 data class EditUi(
     val sub: EditSub = EditSub.CROP,
-    // Owner (2026-10-11): opening Edit or its Crop tab never opens the crop workspace; only "Crop photo" does.
-    val cropPreview: Boolean = true,
     val cropDraft: com.lightlylabs.lightly.session.NormalisedRect? = null,
     val group: AdjustGroup = AdjustGroup.LIGHT,
     /** A slider being dragged: field → value (preview only until release). */

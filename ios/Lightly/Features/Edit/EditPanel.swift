@@ -10,8 +10,6 @@ final class EditPanelModel {
 
     let session: EditorSession
     var sub: Sub = .crop
-    /// True when the crop workspace is closed (the panel shows). Only "Crop photo" opens it (owner, 2026-10-11).
-    var cropPreview = true
     var group: Group = .light
     /// Remove › "Brush size" 0…100 (prototype 35).
     var brushSize: Double = 35
@@ -58,7 +56,7 @@ struct EditPanelView: View {
         VStack(alignment: .leading, spacing: 6) {
             PanelTabs(items: [(EditPanelModel.Sub.crop, "Crop", false), (.rotate, "Rotate", false), (.straighten, "Straighten", false),
                               (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Remove", false)],
-                      selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0; model.cropPreview = true }
+                      selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0 }
             PanelResetRow(session: model.session, section: "edit", title: model.sub.rawValue.capitalized, adjustment: model.sub.rawValue)
             switch model.sub {
             case .crop: crop
@@ -73,11 +71,26 @@ struct EditPanelView: View {
 
     // MARK: Crop, Rotate, Straighten, Perspective
 
-    /// "Crop photo": a 44 pt quiet button in the accent colour with the Edit icon; it reopens the crop workspace.
+    /// Inline crop (owner, 2026-10-11): the frame is on the photo; the panel holds the aspect (chips, the selected one
+    /// ink-filled) and how to use the frame. Choosing an aspect is one undo step; Free and Original never lock a ratio.
     private var crop: some View {
-        Button { model.cropPreview = false } label: { L2Label(title: Text("Crop photo"), icon: .edit, iconSize: 16) }
-            .buttonStyle(L2QuietButtonStyle(height: 44, accent: true))
-            .accessibilityIdentifier("edit.crop.open")
+        VStack(alignment: .leading, spacing: 10) {
+            ChipRow {
+                ForEach(EditRecipe.Geometry.Aspect.allCases, id: \.self) { aspect in
+                    OptionChip(isOn: geometry.cropAspect == aspect, identifier: "edit.aspect.\(aspect.rawValue)",
+                               action: { session.setCropAspect(aspect) }) { Text(Self.aspectLabel(aspect)) }
+                }
+            }
+            L2Note(text: Text("Drag the corners or edges. Drag inside to move. Pinch to resize."))
+        }
+    }
+
+    private static func aspectLabel(_ aspect: EditRecipe.Geometry.Aspect) -> String {
+        switch aspect {
+        case .original: "Original"
+        case .free: "Free"
+        default: aspect.rawValue
+        }
     }
 
     /// Rotate: a 2×2 grid, 8 pt gaps, of 46 pt outlined buttons (16 pt corners) with an 18 pt icon and a 13 pt

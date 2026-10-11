@@ -41,8 +41,6 @@ struct DebugScenario {
         var backgroundKind: BackgroundPanelModel.Kind?
         var portraitTab: PortraitPanelModel.Tab = .skin
         var editSub: EditPanelModel.Sub = .crop
-        /// The crop workspace open (it opens only from "Crop photo", so screens ask for it).
-        var cropWorkspace = false
         var editGroup: EditPanelModel.Group = .light
         var effectsSub: EffectsPanelModel.Sub = .leak
         /// Watermark's tab (`ui.sub`); nil follows the recipe.
@@ -64,7 +62,7 @@ struct DebugScenario {
         case "pt-teeth": return EditorUI(tool: .portrait, portraitTab: .teeth)
         case "pt-hair": return EditorUI(tool: .portrait, portraitTab: .hair)
         case "ed-crop": return EditorUI(tool: .edit, editSub: .crop)
-        case "ed-crop-workspace": return EditorUI(tool: .edit, editSub: .crop, cropWorkspace: true)
+        case "ed-crop-workspace": return EditorUI(tool: .edit, editSub: .crop) // inline crop: the same screen as ed-crop
         case "ed-rotate": return EditorUI(tool: .edit, editSub: .rotate)
         case "ed-straighten": return EditorUI(tool: .edit, editSub: .straighten)
         case "ed-perspective": return EditorUI(tool: .edit, editSub: .perspective)

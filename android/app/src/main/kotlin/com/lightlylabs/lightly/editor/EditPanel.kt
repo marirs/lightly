@@ -65,8 +65,27 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
     OptionTabs(EditSub.entries.map { it to it.label }, ui.edit.sub, vm::selectEditSub, tagPrefix = "edit-tab")
     ResetRow(vm, "edit", ui.edit.sub.label, ui.edit.sub.name.lowercase())
     when (ui.edit.sub) {
-        // "Crop photo": a 44 dp quiet button in the accent colour with the Edit icon; it reopens the crop workspace.
-        EditSub.CROP -> QuietSmallButton("Crop photo", vm::toggleCropPreview, Modifier.testTagResource("edit-crop-open"), icon = LightlyIcons.Edit, accent = true, height = 44.dp)
+        // Inline crop (owner, 2026-10-11): the frame is on the photo; the panel holds the aspect chips (the selected one
+        // ink-filled; choosing one is one undo step) and how to use the frame.
+        EditSub.CROP -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ChipRow {
+                com.lightlylabs.lightly.session.CropAspect.entries.forEach { aspect ->
+                    val label = when (aspect) {
+                        com.lightlylabs.lightly.session.CropAspect.ORIGINAL -> "Original"
+                        com.lightlylabs.lightly.session.CropAspect.FREE -> "Free"
+                        com.lightlylabs.lightly.session.CropAspect.SQUARE -> "1:1"
+                        com.lightlylabs.lightly.session.CropAspect.FOUR_FIVE -> "4:5"
+                        com.lightlylabs.lightly.session.CropAspect.THREE_TWO -> "3:2"
+                        com.lightlylabs.lightly.session.CropAspect.SIXTEEN_NINE -> "16:9"
+                        com.lightlylabs.lightly.session.CropAspect.NINE_SIXTEEN -> "9:16"
+                    }
+                    OptChip(edit.geometry.crop.aspect == aspect, label, { vm.setCropAspect(aspect) }, "edit-aspect-$label") {
+                        Text(label, maxLines = 1)
+                    }
+                }
+            }
+            PanelNote("Drag the corners or edges. Drag inside to move. Pinch to resize.")
+        }
         // Rotate: a 2×2 grid, 8 dp gaps, of 46 dp outlined buttons (16 dp corners), an 18 dp icon and a 13 sp semibold
         // label; a flip that is on shows in the accent colour.
         EditSub.ROTATE -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

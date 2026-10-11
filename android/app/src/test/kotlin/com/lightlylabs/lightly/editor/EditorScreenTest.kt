@@ -195,24 +195,25 @@ class EditorScreenTest {
     }
 
     @Test
-    fun `pinch in crop and remove never commits a crop or stroke`() {
+    fun `pinch in crop resizes and applies the crop, pinch in remove never commits a stroke`() {
         val vm = editor()
         show(vm)
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
-        compose.onNodeWithTag("edit-crop-open").performClick() // "Crop photo" opens the crop workspace
-        val before = vm.uiState.value.session
+        // Edit opens on Crop: the inline crop frame is on the photo (owner, 2026-10-11).
+        val before = vm.uiState.value.session!!.current.tools.edit.geometry.crop.rect
         fun pinch() = compose.onNodeWithTag("editor-inspection").performTouchInput {
             pinch(center - Offset(30f, 0f), center + Offset(30f, 0f),
                 center - Offset(80f, 0f), center + Offset(80f, 0f), durationMillis = 400)
         }
         pinch()
         compose.waitForIdle()
-        assertEquals(before, vm.uiState.value.session)
-        compose.onNodeWithTag("edit-crop-cancel").performClick()
+        val cropped = vm.uiState.value.session!!.current.tools.edit.geometry.crop.rect
+        assertTrue(cropped.width < before.width, "a pinch resizes the crop and lifting applies it: $before -> $cropped")
+        val afterCrop = vm.uiState.value.session
         compose.onNodeWithTag("edit-tab-remove").performClick()
         pinch()
         compose.waitForIdle()
-        assertEquals(before, vm.uiState.value.session)
+        assertEquals(afterCrop, vm.uiState.value.session)
         assertTrue(vm.uiState.value.edit.pendingStroke == null)
     }
 
@@ -331,8 +332,8 @@ class EditorScreenTest {
         show(vm)
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
         compose.waitForIdle()
-        compose.onNodeWithTag("edit-crop-cancel").assertDoesNotExist() // Edit opens on its panel, not the crop workspace
-        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Crop photo").forEach {
+        compose.onNodeWithTag("edit-crop-cancel").assertDoesNotExist() // inline crop: no separate workspace
+        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Original", "Free", "4:5").forEach {
             assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
         }
         compose.onNodeWithTag("edit-tab-remove").performClick()

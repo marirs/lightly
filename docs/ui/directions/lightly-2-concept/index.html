@@ -285,7 +285,8 @@ function portraitPanel(s) {
 }
 function editPanel(s) {
   const e = s.ed || {}; const sub = e.sub || 'crop'; let body = '';
-  if (sub === 'crop') body = `<div>${quietBtn(`${ic('edit', 16)}Crop photo`, { color: 'var(--accent-ink)', h: 44 })}</div>`;
+  // Inline crop (owner, 2026-10-11): the aspect in the panel, the frame on the photo; lifting the finger applies it.
+  if (sub === 'crop') body = rowOf(chips([['original', 'Original'], ['free', 'Free'], ['1:1', '1:1'], ['4:5', '4:5'], ['3:2', '3:2'], ['16:9', '16:9'], ['9:16', '9:16']], e.aspect || 'original')) + note('Drag the corners or edges. Drag inside to move. Pinch to resize.');
   if (sub === 'rotate') body = `<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">${[['rotl', 'Rotate left'], ['rotr', 'Rotate right'], ['fliph', 'Flip horizontal'], ['flipv', 'Flip vertical']].map(([nm, l]) => `<button style="height: 46px; border-radius: 16px; border: 1px solid ${nm === 'fliph' && e.flipH ? 'var(--accent-ink)' : 'var(--line)'}; background: transparent; color: ${nm === 'fliph' && e.flipH ? 'var(--accent-ink)' : 'var(--ink)'}; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 13px">${ic(nm, 18)}${l}</button>`).join('')}</div>`;
   if (sub === 'straighten') body = slider('Angle', -3, -45, 45) + note('The photo is zoomed slightly so no empty corners show.');
   if (sub === 'perspective') body = slider('Vertical', 18, -100, 100) + slider('Horizontal', 0, -100, 100);
@@ -391,7 +392,9 @@ function photo(s, W, H) {
   }
   if (tool === 'background' && (bg.mode || 'focus') === 'focus' && ph.subject && !s.compare && !bg.op) { const t = ph.target || { x: .5, y: .3 }; m.push(`<div style="position: absolute; left: calc(${t.x * 100}% - 26px); top: calc(${t.y * 100}% - 26px); width: 52px; height: 52px; border-radius: 26px; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.3)"><span style="position: absolute; left: 20px; top: 20px; width: 8px; height: 8px; border-radius: 4px; background: #FFFFFF"></span></div>`); }
   if (tool === 'background' && bg.mode === 'refine' && ph.cutout) m.push(`<div style="position: absolute; inset: 0; background: rgba(47,107,235,0.32); -webkit-mask-image: url(${ph.cutout}); mask-image: url(${ph.cutout}); -webkit-mask-size: 100% 100%; mask-size: 100% 100%"></div>`);
-  if (s.crop) m.push(`<div style="position: absolute; inset: 6% 4%; border: 1px solid #FFFFFF; box-shadow: 0 0 0 9999px rgba(0,0,0,0.42)"><div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.45) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.45) 1px, transparent 1px); background-size: 33.33% 33.33%"></div>${['left: -4px; top: -4px; border-right: 0; border-bottom: 0', 'right: -4px; top: -4px; border-left: 0; border-bottom: 0', 'left: -4px; bottom: -4px; border-right: 0; border-top: 0', 'right: -4px; bottom: -4px; border-left: 0; border-top: 0'].map((p) => `<i style="position: absolute; ${p}; width: 22px; height: 22px; border: 4px solid #FFFFFF; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5))"></i>`).join('')}</div>`);
+  // Inline crop (owner, 2026-10-11): Edit › Crop puts the frame on the photo: outside dimmed 50 %, a 1px white border,
+  // 3px white L handles on the corners and bars mid-edge (inside the frame); the thirds grid shows only while dragging.
+  if (tool === 'edit' && ((s.ed || {}).sub || 'crop') === 'crop' && !s.compare) m.push(`<div style="position: absolute; inset: 6% 4%; border: 1px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 9999px rgba(0,0,0,0.5)">${[['left: 0; top: 0', 20, 3], ['left: 0; top: 0', 3, 20], ['right: 0; top: 0', 20, 3], ['right: 0; top: 0', 3, 20], ['left: 0; bottom: 0', 20, 3], ['left: 0; bottom: 0', 3, 20], ['right: 0; bottom: 0', 20, 3], ['right: 0; bottom: 0', 3, 20], ['left: calc(50% - 12px); top: 0', 24, 3], ['left: calc(50% - 12px); bottom: 0', 24, 3], ['left: 0; top: calc(50% - 12px)', 3, 24], ['right: 0; top: calc(50% - 12px)', 3, 24]].map(([p, w, h]) => `<i style="position: absolute; ${p}; width: ${w}px; height: ${h}px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.35)"></i>`).join('')}</div>`);
   if (tool === 'edit' && ['straighten', 'perspective'].includes((s.ed || {}).sub)) m.push('<div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px); background-size: 33.33% 33.33%"></div>');
   if (tool === 'edit' && (s.ed || {}).sub === 'remove' && (s.ed || {}).strokes) m.push('<div style="position: absolute; left: 58%; top: 30%; width: 22%; height: 5%; border-radius: 99px; background: rgba(235,60,60,0.42); transform: rotate(-12deg)"></div>');
   if (tool === 'effects' && fx.sub === 'sel' && fx.sel) m.push('<span style="position: absolute; left: 40%; top: 58%; width: 26px; height: 26px; border-radius: 13px; border: 2px solid #FFFFFF; background: #C2684A; box-shadow: 0 2px 8px rgba(0,0,0,0.4)"></span>');
@@ -459,7 +462,6 @@ function summaryPanel(s) {   // iPad right column (concept): every tool's state 
 }
 const fadeDown = '-webkit-mask-image: linear-gradient(180deg, #000 90%, transparent); mask-image: linear-gradient(180deg, #000 90%, transparent)';
 function editorScreen(s, d) {
-  if (s.crop) return cropWorkspace(s, d);
   const expanded = s.tool === 'develop' && (s.dev || {}).expanded;
   if (d.mode === 'phone') {
     const topH = d.os === 'android' ? d.top + 56 : d.top + 52;
@@ -483,13 +485,6 @@ function editorScreen(s, d) {
       <aside data-panel style="width: 360px; flex-shrink: 0; border-radius: 26px; background: var(--surface); border: 1px solid var(--line); padding: 18px 20px; overflow: hidden; display: flex; flex-direction: column; gap: 10px; ${fadeDown}"><div style="${HEAD}; font-size: 19px">${toolName(s.tool)}</div>${side}</aside>
       ${stageSlot(s, 'flex: 1; min-width: 0; border-radius: 30px; background: var(--stage); overflow: hidden')}
       <aside style="width: 290px; flex-shrink: 0; border-radius: 26px; background: var(--surface); border: 1px solid var(--line); padding: 18px 20px; overflow: hidden">${summaryPanel(s)}</aside></div></div>`;
-}
-// Crop: its own dark workspace in both themes, no bar, panel or dock (8622d04, 78abf54).
-function cropWorkspace(s, d) {
-  return `<div style="position: absolute; inset: 0; background: #141414; color: #FFFFFF; display: flex; flex-direction: column; padding-top: ${d.top}px; padding-bottom: ${d.bottom}px">
-    <div style="height: 52px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 17px"><span>Cancel</span><span>Reset</span><span style="font-weight: 700; color: #CFF26B">Done</span></div>
-    ${stageSlot({ ...s, tool: null, crop: true }, 'flex: 1; min-height: 0; margin: 12px 24px')}
-    <div style="flex: none; text-align: center; font-size: 14px; color: rgba(255,255,255,0.8); padding: 14px 20px 20px">Drag the edges to crop. Pinch to resize.</div></div>`;
 }
 
 /* =============================================================== non-editor screens */
@@ -698,8 +693,7 @@ const J = [
     ['pt-no-usable-face', 'People found, but no usable face', ED('portrait', 'bar', {})],
     ['pt-hidden', 'No person · Portrait tool and category hidden', ED('develop', 'field', { dev: { cat: 'landscape', applied: { cat: 'landscape', name: 'Slate Sky' } } })]]],
   ['Edit', [
-    ['ed-crop-workspace', 'Crop · its own dark workspace (Cancel, Reset, Done)', ED('edit', 'lake', { crop: true })],
-    ['ed-crop', 'Crop · Crop photo opens the workspace (Edit never opens it by itself)', ED('edit', 'lake', { ed: { sub: 'crop', touched: true } })],
+    ['ed-crop', 'Crop · inline frame on the photo, aspect in the panel', ED('edit', 'lake', { ed: { sub: 'crop', touched: true, aspect: '4:5' } })],
     ['ed-rotate', 'Rotate and flip', ED('edit', 'field', { ed: { sub: 'rotate', flipH: true, touched: true } })],
     ['ed-straighten', 'Straighten', ED('edit', 'field', { ed: { sub: 'straighten', touched: true } })],
     ['ed-perspective', 'Perspective', ED('edit', 'street', { ed: { sub: 'perspective', touched: true } })],
@@ -778,7 +772,8 @@ function fillStages() {
     const s = FILLS[+el.dataset.stage]; const w = el.clientWidth - 24, h = el.clientHeight - 16;
     // Owner amendment (2026-10-10): Auto and Reset all sit on the photo area's bottom-left corner for every photo (on or
     // beside the photo), 10 px inside the stage's 12/8 px inset, not on the photo's own corner.
-    const autoUI = s.tool && !s.compare && !s.crop && !s.photoProgress ? `<div style="position: absolute; left: 12px; right: 12px; top: 8px; bottom: 8px; pointer-events: none">${autoControls(s)}</div>` : '';
+    const cropping = s.tool === 'edit' && ((s.ed || {}).sub || 'crop') === 'crop';
+    const autoUI = s.tool && !s.compare && !cropping && !s.photoProgress ? `<div style="position: absolute; left: 12px; right: 12px; top: 8px; bottom: 8px; pointer-events: none">${autoControls(s)}</div>` : '';
     if (w > 20 && h > 20) el.innerHTML = `<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center">${photo(s, w, h)}</div>${autoUI}`;
   });
 }

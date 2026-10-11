@@ -48,25 +48,22 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(edit.exists)
     }
 
-    func testCropAppliesOnceAndCancelKeepsPreviousCrop() {
+    /// Inline crop (owner, 2026-10-11): Edit opens on Crop with the frame on the photo; a drag applies when the finger
+    /// lifts (one undo step); leaving the Crop tab shows the cropped photo.
+    func testInlineCropAppliesOnReleaseAndUndoes() {
         relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
         XCTAssertTrue(element("tool.edit").waitForExistence(timeout: 30))
         element("tool.edit").tap()
-        let done = app.buttons["edit.crop.done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 30))
         let photo = element("editor.photo")
+        XCTAssertTrue(photo.waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["edit.crop.done"].exists, "no separate crop workspace")
         let originalRatio = photo.frame.width / photo.frame.height
         photo.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5))
             .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.5)))
-        capture(named: "crop-visible-handles")
-        done.tap()
-        XCTAssertTrue(app.buttons["edit.crop.open"].waitForExistence(timeout: 5))
+        capture(named: "crop-inline-handles")
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "the drag applied when the finger lifted")
+        element("edit.sub.Rotate").tap()
         XCTAssertTrue(waitFor { photo.frame.width / photo.frame.height < originalRatio * 0.8 })
-        let croppedRatio = photo.frame.width / photo.frame.height
-        app.buttons["edit.crop.open"].tap()
-        app.buttons["edit.crop.reset"].tap()
-        app.buttons["edit.crop.cancel"].tap()
-        XCTAssertTrue(waitFor { abs(photo.frame.width / photo.frame.height - croppedRatio) < 0.02 })
         app.buttons["editor.undo"].tap()
         XCTAssertTrue(waitFor { abs(photo.frame.width / photo.frame.height - originalRatio) < 0.02 })
     }

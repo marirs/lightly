@@ -356,9 +356,7 @@ class EditorViewModelTest {
         assertEquals(full.first / 2, vm.uiState.value.preview!!.width, "outside Crop the preview is cropped")
 
         vm.selectTool(EditorTool.EDIT); vm.selectEditSub(EditSub.CROP); advanceUntilIdle()
-        assertTrue(!vm.isCropEditing(), "opening Edit or its Crop tab never opens the crop workspace (owner, 2026-10-11)")
-        vm.toggleCropPreview(); advanceUntilIdle() // "Crop photo"
-        assertTrue(vm.isCropEditing())
+        assertTrue(vm.isCropEditing(), "Edit › Crop is the inline crop (owner, 2026-10-11)")
         assertEquals(full, vm.uiState.value.preview!!.let { it.width to it.height }, "the crop editor shows the whole frame")
 
         vm.saveCopy(); advanceUntilIdle()

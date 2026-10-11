@@ -23,54 +23,59 @@ struct ThirdsGridMark: View {
     }
 }
 
-/// `.cropframe`: inset 6 %, a 1 pt white border (1.5px in the CSS, floored by the approved render), the area outside darkened (42 % black, clipped
-/// to the photo), four 18 pt corner handles of 3 pt white strokes 3 pt outside the frame, and the
-/// thirds grid inside.
+/// The inline crop frame (owner, 2026-10-11): on the photo itself, the area outside dimmed (50 % black, lighter while
+/// adjusting so the surroundings stay readable), a 1 pt white border, 3 pt white L handles on the four corners and bars
+/// on the middle of each edge (drawn inside the frame, with a soft shadow on light photos), and the thirds grid only
+/// while a drag or pinch is under way.
 struct CropFrameMark: View {
-    /// The crop rectangle in fractions of the shown (uncropped) frame (owner amendment 2026-10-05: the real crop,
-    /// not the prototype's illustrative 6 % inset).
+    /// The crop rectangle in fractions of the shown (uncropped) frame.
     let rect: EditRecipe.Rect
+    var isAdjusting = false
 
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
             let frame = CGRect(x: size.width * rect.x, y: size.height * rect.y, width: size.width * rect.width, height: size.height * rect.height)
             ZStack(alignment: .topLeading) {
-                // `box-shadow: 0 0 0 2000px rgba(0,0,0,.42)` outside the border box.
                 Path { path in
                     path.addRect(CGRect(origin: .zero, size: size))
                     path.addRect(frame)
                 }
-                .fill(Color.black.opacity(0.42), style: FillStyle(eoFill: true))
-                // The border is 1 pt as rendered (the approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px)); the grid fills the padding box inside it.
-                ThirdsGridMark()
-                    .frame(width: frame.width - 2, height: frame.height - 2)
-                    .offset(x: frame.minX + 1, y: frame.minY + 1)
-                Rectangle().strokeBorder(.white, lineWidth: 1)
+                .fill(Color.black.opacity(isAdjusting ? 0.35 : 0.5), style: FillStyle(eoFill: true))
+                if isAdjusting {
+                    ThirdsGridMark()
+                        .frame(width: frame.width, height: frame.height)
+                        .offset(x: frame.minX, y: frame.minY)
+                }
+                Rectangle().strokeBorder(.white.opacity(0.9), lineWidth: 1)
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY)
-                ForEach(0..<4, id: \.self) { corner in
-                    cornerHandle(corner)
-                        .frame(width: 26, height: 26)
-                        // `left/top: −3px` from the padding box, inside the 1 pt border.
-                        .offset(x: corner % 2 == 0 ? frame.minX + 1 : frame.maxX - 27,
-                                y: corner < 2 ? frame.minY + 1 : frame.maxY - 27)
-                }
+                handles(in: frame)
+                    .fill(.white)
+                    .shadow(color: .black.opacity(0.35), radius: 2)
             }
+            .animation(.easeOut(duration: 0.15), value: isAdjusting)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    /// An L of two 3 pt strokes on the corner's outer sides (`border … ; border-right:0; …`).
-    private func cornerHandle(_ corner: Int) -> some View {
-        Path { path in
-            let left = corner % 2 == 0, top = corner < 2
-            let x: CGFloat = left ? 0 : 22, y: CGFloat = top ? 0 : 22
-            path.addRect(CGRect(x: x, y: 0, width: 4, height: 26))
-            path.addRect(CGRect(x: 0, y: y, width: 26, height: 4))
+    /// Corner Ls (20 pt arms) and edge bars (24 pt), 3 pt thick, inside the border.
+    private func handles(in frame: CGRect) -> Path {
+        let thickness: CGFloat = 3
+        let arm = min(20, frame.width / 3, frame.height / 3)
+        let bar = min(24, frame.width / 3, frame.height / 3)
+        return Path { path in
+            for (x, y, dx, dy) in [(frame.minX, frame.minY, 1.0, 1.0), (frame.maxX, frame.minY, -1.0, 1.0),
+                                   (frame.minX, frame.maxY, 1.0, -1.0), (frame.maxX, frame.maxY, -1.0, -1.0)] {
+                path.addRect(CGRect(x: dx > 0 ? x : x - arm, y: dy > 0 ? y : y - thickness, width: arm, height: thickness))
+                path.addRect(CGRect(x: dx > 0 ? x : x - thickness, y: dy > 0 ? y : y - arm, width: thickness, height: arm))
+            }
+            path.addRect(CGRect(x: frame.midX - bar / 2, y: frame.minY, width: bar, height: thickness))
+            path.addRect(CGRect(x: frame.midX - bar / 2, y: frame.maxY - thickness, width: bar, height: thickness))
+            path.addRect(CGRect(x: frame.minX, y: frame.midY - bar / 2, width: thickness, height: bar))
+            path.addRect(CGRect(x: frame.maxX - thickness, y: frame.midY - bar / 2, width: thickness, height: bar))
         }
-        .fill(.white).shadow(color: .black, radius: 1)
     }
 }
 

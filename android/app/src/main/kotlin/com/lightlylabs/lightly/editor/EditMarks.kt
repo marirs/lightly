@@ -45,7 +45,7 @@ fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
     if (ui.showsOriginal) return
     when (ui.tool) {
         EditorTool.EDIT -> when (ui.edit.sub) {
-            EditSub.CROP -> if (!ui.edit.cropPreview) CropFrame(vm, ui)
+            EditSub.CROP -> CropFrame(vm, ui)
             EditSub.STRAIGHTEN, EditSub.PERSPECTIVE -> Canvas(Modifier.fillMaxSize()) { thirdsGrid(Offset.Zero, size) }
             EditSub.REMOVE -> RemoveMarks(vm, ui)
             else -> Unit
@@ -76,45 +76,52 @@ private fun DrawScope.thirdsGrid(origin: Offset, box: Size) {
 }
 
 /**
- * Free crop (owner amendment 2026-10-05, as iOS): the stage shows the straightened frame uncropped
- * ([EditorViewModel.isCropEditing]); the approved `.cropframe` (border, thirds grid, corner handles, the rest darkened) is
- * drawn at the real crop rectangle. Drag a corner or an edge to resize, inside to move; an aspect preset locks the ratio.
- * The drag shows the rectangle; its end is one undo step.
+ * Inline crop (owner, 2026-10-11, as iOS): the stage shows the straightened frame uncropped
+ * ([EditorViewModel.isCropEditing]) with the crop frame on it: the outside dimmed (50 % black, 35 % while adjusting), a
+ * 1 dp white border, 3 dp white L handles on the corners and bars on the middle of each edge (inside the frame, with a
+ * soft shadow), and the thirds grid only while a drag or pinch is under way. Drag a corner or an edge to resize, inside
+ * to move, pinch to resize; a fixed aspect keeps its shape. Lifting the finger applies it (one undo step).
  */
 @Composable
 private fun CropFrame(vm: EditorViewModel, ui: EditorUiState) {
     val committed = vm.cropState()?.first ?: return
+    val adjusting = ui.edit.cropDraft != null
     val rect = ui.edit.cropDraft ?: committed
     Canvas(
         Modifier
             .fillMaxSize()
             .cropHandleGestureExclusion(rect)
-            .pointerInput(Unit) { cropGestures(vm) { if (it != null) vm.previewCrop(it) } }
+            .pointerInput(Unit) { cropGestures(vm, onDraft = { if (it != null) vm.previewCrop(it) }, onEnd = vm::finishCropDrag) }
             .semantics { contentDescription = "Drag a corner or an edge to crop. Drag inside to move." },
     ) {
         val inset = Offset(size.width * rect.x.toFloat(), size.height * rect.y.toFloat())
         val frame = Size(size.width * rect.width.toFloat(), size.height * rect.height.toFloat())
+        val shade = Color.Black.copy(alpha = if (adjusting) 0.35f else 0.5f)
+        drawRect(shade, Offset.Zero, Size(size.width, inset.y))
+        drawRect(shade, Offset(0f, inset.y + frame.height), Size(size.width, size.height - inset.y - frame.height))
+        drawRect(shade, Offset(0f, inset.y), Size(inset.x, frame.height))
+        drawRect(shade, Offset(inset.x + frame.width, inset.y), Size(size.width - inset.x - frame.width, frame.height))
+        if (adjusting) thirdsGrid(inset, frame)
         val border = 1.dp.toPx()
-        // `box-shadow: 0 0 0 2000px`: everything outside the frame, clipped by the photo.
-        drawRect(CROP_SHADE, Offset.Zero, Size(size.width, inset.y))
-        drawRect(CROP_SHADE, Offset(0f, inset.y + frame.height), Size(size.width, size.height - inset.y - frame.height))
-        drawRect(CROP_SHADE, Offset(0f, inset.y), Size(inset.x, frame.height))
-        drawRect(CROP_SHADE, Offset(inset.x + frame.width, inset.y), Size(size.width - inset.x - frame.width, frame.height))
-        drawRect(Color.White, inset + Offset(border / 2, border / 2), Size(frame.width - border, frame.height - border), style = Stroke(border))
-        thirdsGrid(inset + Offset(border, border), Size(frame.width - 2 * border, frame.height - 2 * border))
-        // Handles: 18 px squares at the frame's corners, a 3 px border on the two outer sides.
-        val handle = 26.dp.toPx()
-        val thick = 4.dp.toPx()
-        val left = inset.x + border
-        val top = inset.y + border
-        val right = inset.x + frame.width - border - handle
-        val bottom = inset.y + frame.height - border - handle
-        for ((x, y) in listOf(left to top, right to top, left to bottom, right to bottom)) {
-            val atLeft = x == left
-            val atTop = y == top
-            drawRect(Color.White, Offset(x, if (atTop) y else y + handle - thick), Size(handle, thick))
-            drawRect(Color.White, Offset(if (atLeft) x else x + handle - thick, y), Size(thick, handle))
+        drawRect(Color.White.copy(alpha = 0.9f), inset + Offset(border / 2, border / 2), Size(frame.width - border, frame.height - border), style = Stroke(border))
+        val thick = 3.dp.toPx()
+        val arm = minOf(20.dp.toPx(), frame.width / 3, frame.height / 3)
+        val bar = minOf(24.dp.toPx(), frame.width / 3, frame.height / 3)
+        val shadow = Color.Black.copy(alpha = 0.25f)
+        fun handle(topLeft: Offset, s: Size) {
+            drawRect(shadow, topLeft + Offset(0f, 1.dp.toPx()), s)
+            drawRect(Color.White, topLeft, s)
         }
+        val l = inset.x; val t = inset.y; val r = inset.x + frame.width; val b = inset.y + frame.height
+        for ((x, y) in listOf(l to t, r to t, l to b, r to b)) {
+            val atLeft = x == l; val atTop = y == t
+            handle(Offset(if (atLeft) x else x - arm, if (atTop) y else y - thick), Size(arm, thick))
+            handle(Offset(if (atLeft) x else x - thick, if (atTop) y else y - arm), Size(thick, arm))
+        }
+        handle(Offset(inset.x + frame.width / 2 - bar / 2, t), Size(bar, thick))
+        handle(Offset(inset.x + frame.width / 2 - bar / 2, b - thick), Size(bar, thick))
+        handle(Offset(l, inset.y + frame.height / 2 - bar / 2), Size(thick, bar))
+        handle(Offset(r - thick, inset.y + frame.height / 2 - bar / 2), Size(thick, bar))
     }
 }
 
@@ -144,7 +151,11 @@ private fun handleZone(size: androidx.compose.ui.unit.IntSize, fx: Double, fy: D
 }
 
 /** One finger: a corner, an edge or the inside of the crop rectangle (CropGeometry), previewed as [onDraft], committed at the end. */
-private suspend fun PointerInputScope.cropGestures(vm: EditorViewModel, onDraft: (com.lightlylabs.lightly.session.NormalisedRect?) -> Unit) = awaitEachGesture {
+private suspend fun PointerInputScope.cropGestures(
+    vm: EditorViewModel,
+    onDraft: (com.lightlylabs.lightly.session.NormalisedRect?) -> Unit,
+    onEnd: (com.lightlylabs.lightly.session.NormalisedRect?) -> Unit,
+) = awaitEachGesture {
     val down = awaitFirstDown()
     val (start, ratio, frameAspect) = vm.cropState() ?: return@awaitEachGesture
     val w = size.width.toFloat()
@@ -168,16 +179,16 @@ private suspend fun PointerInputScope.cropGestures(vm: EditorViewModel, onDraft:
             continue
         }
         val pressed = event.changes.firstOrNull { it.id == down.id } ?: break
-        if (pressed.isConsumed) { onDraft(null); return@awaitEachGesture }
+        if (pressed.isConsumed) { onEnd(null); return@awaitEachGesture }
         if (!pressed.pressed) break
         last = pressed.position
         onDraft(CropGeometry.dragged(start, handle, ((last.x - down.position.x) / w).toDouble(), ((last.y - down.position.y) / h).toDouble(), ratio, frameAspect))
         event.changes.forEach { it.consume() }
     }
-    if (pinching) { onDraft(pinched) }
-    else if (last != down.position) {
-        onDraft(CropGeometry.dragged(start, handle, ((last.x - down.position.x) / w).toDouble(), ((last.y - down.position.y) / h).toDouble(), ratio, frameAspect))
-    }
+    // Lifting the finger applies the crop (one undo step); a tap without movement changes nothing.
+    if (pinching) onEnd(pinched)
+    else if (last != down.position) onEnd(CropGeometry.dragged(start, handle, ((last.x - down.position.x) / w).toDouble(), ((last.y - down.position.y) / h).toDouble(), ratio, frameAspect))
+    else onEnd(null)
 }
 
 @Composable

@@ -679,7 +679,7 @@ class EditorViewModel(
 
     fun selectEditSub(sub: EditSub) {
         val was = isCropEditing()
-        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null, cropPreview = true, cropDraft = null)) }
+        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null, cropDraft = null)) }
         refreshAfterCropEditingChange(was)
     }
 
@@ -687,20 +687,14 @@ class EditorViewModel(
         state.update { it.copy(edit = it.edit.copy(cropDraft = rect)) }
     }
 
-    fun resetCropDraft() = previewCrop(FULL_RECT)
-
-    fun finishCrop(apply: Boolean) {
-        val was = isCropEditing()
-        val draft = state.value.edit.cropDraft
-        state.update { it.copy(edit = it.edit.copy(cropPreview = true, cropDraft = null)) }
-        if (apply && draft != null && draft != state.value.session?.current?.tools?.edit?.geometry?.crop?.rect) commitCrop(draft)
-        else refreshAfterCropEditingChange(was)
-    }
-
-    fun toggleCropPreview() {
-        val was = isCropEditing()
-        state.update { it.copy(edit = it.edit.copy(cropPreview = !it.edit.cropPreview, cropDraft = null)) }
-        refreshAfterCropEditingChange(was)
+    /**
+     * Inline crop (owner, 2026-10-11): a drag or pinch on the frame is applied when the finger lifts (one undo step);
+     * there is no workspace and no Done.
+     */
+    fun finishCropDrag(rect: com.lightlylabs.lightly.session.NormalisedRect?) {
+        val committed = state.value.session?.current?.tools?.edit?.geometry?.crop?.rect
+        if (rect != null && rect != committed) commitCrop(rect)
+        state.update { it.copy(edit = it.edit.copy(cropDraft = null)) }
     }
 
     fun selectAdjustGroup(group: AdjustGroup) = state.update { it.copy(edit = it.edit.copy(group = group)) }
@@ -787,7 +781,8 @@ class EditorViewModel(
     /** Crop: the rectangle a finished drag left (CropGeometry), one undo step. Cropping an uncropped photo makes it Free. */
     fun commitCrop(rect: com.lightlylabs.lightly.session.NormalisedRect) = commitEdit { e ->
         val g = e.geometry
-        val aspect = com.lightlylabs.lightly.session.CropAspect.FREE
+        // Cropping from Original makes the aspect Free; a fixed aspect keeps its shape while dragging.
+        val aspect = if (g.crop.aspect == com.lightlylabs.lightly.session.CropAspect.ORIGINAL) com.lightlylabs.lightly.session.CropAspect.FREE else g.crop.aspect
         e.copy(geometry = g.copy(crop = com.lightlylabs.lightly.session.Crop(aspect, rectOf(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height))))
     }
 
@@ -795,7 +790,7 @@ class EditorViewModel(
     fun cropState(): Triple<com.lightlylabs.lightly.session.NormalisedRect, Double?, Double>? {
         val g = state.value.session?.current?.tools?.edit?.geometry ?: return null
         val (w, h) = turnedDisplaySize(g.quarterTurns)
-        return Triple(state.value.edit.cropDraft ?: g.crop.rect, null, w.toDouble() / h.coerceAtLeast(1))
+        return Triple(state.value.edit.cropDraft ?: g.crop.rect, EditOptions.ratio(g.crop.aspect), w.toDouble() / h.coerceAtLeast(1))
     }
 
     private fun rectOf(left: Double, top: Double, right: Double, bottom: Double): com.lightlylabs.lightly.session.NormalisedRect {
@@ -817,7 +812,7 @@ class EditorViewModel(
      * with the crop rectangle drawn over it in that frame's fractions; Border and Watermark are left out of those previews.
      * Save copy and every other tool use the committed, cropped recipe.
      */
-    fun isCropEditing(ui: EditorUiState = state.value): Boolean = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.edit.cropPreview
+    fun isCropEditing(ui: EditorUiState = state.value): Boolean = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP
 
     private fun uncroppedForCropEditor(edit: EditState): EditState {
         val tools = edit.tools

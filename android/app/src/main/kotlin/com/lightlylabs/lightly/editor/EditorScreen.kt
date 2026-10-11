@@ -178,28 +178,13 @@ internal val PHONE_PANEL_HEIGHT = 340.dp
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
     val colors = lightlyColors
-    if (vm.isCropEditing(ui)) {
-        androidx.activity.compose.BackHandler { vm.finishCrop(false) }
-        // `cropWorkspace`: #141414 in both themes; Cancel, Reset, Done (17 sp white, Done bold lime) in a 52 dp row with
-        // 20 dp sides; the photo 12/24 dp in; the 14 sp hint at 80 %.
-        Column(Modifier.fillMaxSize().background(Color(0xFF141414)).padding(top = frame.top, bottom = frame.bottom)) {
-            Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                CropWorkspaceButton("Cancel", "edit-crop-cancel") { vm.finishCrop(false) }
-                CropWorkspaceButton("Reset", "edit-crop-reset", onClick = vm::resetCropDraft)
-                CropWorkspaceButton("Done", "edit-crop-done", done = true) { vm.finishCrop(true) }
-            }
-            Stage(ui, Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp), overlay = { EditMarks(vm, ui) }, inspection = false, onPhotoBox = vm::onStagePhotoMeasured)
-            Text("Drag the edges to crop. Pinch to resize.", style = l2TextStyle(14.sp, color = Color.White.copy(alpha = 0.8f)),
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 20.dp))
-        }
-        return
-    }
     // Owner amendment (2026-10-10): Auto and Reset all sit on the photo area's bottom-start corner for every photo (on or
     // beside the photo), 10 dp inside the stage's 12/8 dp inset, instead of following the photo's own corner.
     val stage: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier) {
-            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = true, onPhotoBox = vm::onStagePhotoMeasured)
-            if (!ui.showsOriginal) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
+            // While cropping, a pinch resizes the crop frame instead of zooming the photo.
+            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = !vm.isCropEditing(ui), onPhotoBox = vm::onStagePhotoMeasured)
+            if (!ui.showsOriginal && !vm.isCropEditing(ui)) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
         }
     }
     Box(Modifier.fillMaxSize()) {
@@ -261,12 +246,6 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
             }
         }
     }
-}
-
-@Composable
-private fun CropWorkspaceButton(label: String, tag: String, done: Boolean = false, onClick: () -> Unit) {
-    Text(label, style = l2TextStyle(17.sp, if (done) FontWeight.Bold else FontWeight.Normal, if (done) Color(0xFFCFF26B) else Color.White),
-        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onClick).testTagResource(tag).padding(8.dp))
 }
 
 // --- top bars ---------------------------------------------------------------------------------------
@@ -376,7 +355,7 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
     // Lightly 2 `photo()`: the stage is transparent (its container gives --bg on phones, --stage in panes; the crop
     // workspace #141414); the photo is contain-fitted 12 dp in from the sides and 8 dp from top and bottom, with 18 dp
     // corners (3 dp with a border).
-    BoxWithConstraints(modifier.background(if (ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.edit.cropPreview) Color(0xFF141414) else Color.Transparent).clipToBounds().testTagResource(EditorTags.STAGE).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.clipToBounds().testTagResource(EditorTags.STAGE).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         if (image != null) {
             val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
             val ratio = image.width.toFloat() / image.height
@@ -418,7 +397,7 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                         else { zoom = 2.5f; pan = clamp((viewport / 2f - point) * (zoom - 1f), zoom) }
                     })
                 }
-            val border = ui.session?.current?.let { EditMapping.border(it) }?.takeIf { !it.isNone && !ui.showsOriginal && ui.preview != null && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.edit.cropPreview) }
+            val border = ui.session?.current?.let { EditMapping.border(it) }?.takeIf { !it.isNone && !ui.showsOriginal && ui.preview != null && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP) }
             Box(Modifier.fillMaxSize().then(gestures).testTagResource("editor-inspection").semantics {
                 stateDescription = "${(zoom * 100).toInt()} percent zoom"
             }, contentAlignment = Alignment.Center) {
