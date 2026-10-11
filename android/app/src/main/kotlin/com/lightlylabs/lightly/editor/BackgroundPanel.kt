@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -77,9 +78,13 @@ fun BackgroundPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) {
     val state = BackgroundPanelState.of(bg, ui.separation, tool.replacement)
     val gap = when (state) { BackgroundPanelState.Focus -> 4.dp; BackgroundPanelState.Refine, is BackgroundPanelState.Change -> 8.dp; else -> 12.dp }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(gap)) {
-        val segment = if (bg.sub == BackgroundSub.CHANGE) BackgroundSub.CHANGE else BackgroundSub.FOCUS
+        // Owner (2026-10-11, second; mockup `backgroundPanel`, screen bg-no-subject): with no subject, Change background
+        // is greyed out and not selectable, and Focus & Blur is the selected tab (its body is the no-subject notice and Blur).
+        val noSubject = BackgroundPanelState.hasNoSubject(ui.separation)
+        val segment = if (bg.sub == BackgroundSub.CHANGE && !noSubject) BackgroundSub.CHANGE else BackgroundSub.FOCUS
         // Owner (2026-10-11): the same tab row as every other sub-menu (was a segmented control).
-        OptionTabs(listOf(BackgroundSub.FOCUS to "Focus & Blur", BackgroundSub.CHANGE to "Change background"), segment, vm::selectBackgroundSub, tagPrefix = "background-mode")
+        OptionTabs(listOf(BackgroundSub.FOCUS to "Focus & Blur", BackgroundSub.CHANGE to "Change background"), segment, vm::selectBackgroundSub, tagPrefix = "background-mode",
+            disabled = { it == BackgroundSub.CHANGE && noSubject })
         val reset: @Composable () -> Unit = {
             ResetRow(vm, "background", if (bg.sub == BackgroundSub.CHANGE) "Change background" else if (bg.sub == BackgroundSub.REFINE) "Refine edges" else "Focus & Blur", bg.sub.name.lowercase())
         }
@@ -173,12 +178,23 @@ private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundT
     OptionTabs(ReplacementKind.entries.map { it to it.label }, kind, vm::selectReplacementKind, tagPrefix = "replacement-kind")
     reset()
     when (kind) {
-        // The (+) tile first, then the bundled backgrounds: 60 dp, 16 dp corners.
-        ReplacementKind.IMAGE -> ChipRow {
-            AddTile("Choose a photo", vm::chooseBackgroundPhoto, tag = "background-add-photo") { LightlyIcon(LightlyIcons.Plus, tint = lightlyColors.ink2) }
-            BackgroundOptions.IMAGES.forEach { (id, file) ->
-                val on = (replaced as? Replacement.Image)?.image == AssetRef.Bundled(id)
-                BackgroundThumb(file, on) { vm.chooseBackgroundImage(id) }
+        ReplacementKind.IMAGE -> BackgroundImageGrid(BackgroundImageTile.all(hasImportedPhoto = ui.importedBackground != null)) { tile ->
+            when (tile) {
+                is BackgroundImageTile.Bundled -> {
+                    val on = (replaced as? Replacement.Image)?.image == AssetRef.Bundled(tile.id)
+                    val context = LocalContext.current
+                    val thumbnail = remember(tile.file) { bundledThumbnail(context, tile.file) }
+                    BackgroundThumb(thumbnail, on, "background-image-${tile.file}") { vm.chooseBackgroundImage(tile.id) }
+                }
+                BackgroundImageTile.Imported -> ui.importedBackground?.let { imported ->
+                    val on = (replaced as? Replacement.Image)?.image == imported.asset
+                    val thumbnail = remember(imported) { imported.thumbnail.asImageBitmap() }
+                    BackgroundThumb(thumbnail, on, "background-image-imported", description = "Selected background photo") {
+                        vm.useImportedBackground(imported)
+                    }
+                }
+                BackgroundImageTile.ChoosePhoto ->
+                    AddTile("Choose a photo", vm::chooseBackgroundPhoto, tag = "background-add-photo") { LightlyIcon(LightlyIcons.Plus, tint = lightlyColors.ink2) }
             }
         }
         ReplacementKind.COLOUR -> ColourControl("Background colour", (replaced as? Replacement.Colour)?.colour ?: "#F4F1EC", ui.original, "background-colour", vm::chooseBackgroundColour, previewPhoto = ui.preview, preview = { vm.previewColour("background-colour", it) }, cancel = vm::cancelPhotoGesturePreview)
@@ -205,14 +221,33 @@ private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundT
     }
 }
 
+/**
+ * Change background › Image (owner amendment 2026-10-11, second; mockup `grid-auto-flow: column; grid-template-rows:
+ * repeat(2, 60px); gap: 10px 8px; padding: 4px 2px`): two rows of 60 dp tiles like the preset gallery, filled column by
+ * column, 10 dp between the rows and 8 dp between the columns, scrolling sideways with the right edge fading (88 %) while
+ * tiles are hidden past it, as [ChipRow]. At most nine tiles, so a plain scrolling row of columns is enough (no laziness).
+ */
+@Composable
+private fun BackgroundImageGrid(tiles: List<BackgroundImageTile>, tile: @Composable (BackgroundImageTile) -> Unit) {
+    val rowScroll = androidx.compose.foundation.rememberScrollState()
+    Row(
+        Modifier.fillMaxWidth().fadeEnd(rowScroll.canScrollForward).horizontalScroll(rowScroll).padding(vertical = 4.dp, horizontal = 2.dp)
+            .testTagResource("background-images"),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        tiles.chunked(2).forEach { column ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { column.forEach { tile(it) } }
+        }
+    }
+}
+
+private fun bundledThumbnail(context: android.content.Context, file: String): ImageBitmap? =
+    runCatching { context.assets.open("backgrounds/${file}_thumb.jpg").use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
+
 /** A background choice: 60 dp, 16 dp corners; when chosen, a 2 dp sheet-coloured gap and a 2 dp accent ring outside it. */
 @Composable
-private fun BackgroundThumb(file: String, selected: Boolean, onClick: () -> Unit) {
-    val context = LocalContext.current
+private fun BackgroundThumb(bitmap: ImageBitmap?, selected: Boolean, tag: String, description: String = "Background image", onClick: () -> Unit) {
     val colors = lightlyColors
-    val bitmap: ImageBitmap? = remember(file) {
-        runCatching { context.assets.open("backgrounds/${file}_thumb.jpg").use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
-    }
     val shape = RoundedCornerShape(16.dp)
     Box(
         Modifier
@@ -227,8 +262,8 @@ private fun BackgroundThumb(file: String, selected: Boolean, onClick: () -> Unit
             }
             .clip(shape)
             .clickable(role = Role.RadioButton, onClick = onClick)
-            .semantics { contentDescription = "Background image"; this.selected = selected }
-            .testTagResource("background-image-$file"),
+            .semantics { contentDescription = description; this.selected = selected }
+            .testTagResource(tag),
     ) {
         if (bitmap != null) Image(bitmap, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }

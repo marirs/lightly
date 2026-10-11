@@ -363,7 +363,16 @@ data class UserVignette(val enabled: Boolean, val amount: Double, val size: Doub
 @Serializable enum class WatermarkType { @SerialName("none") NONE, @SerialName("signature") SIGNATURE, @SerialName("text") TEXT, @SerialName("logo") LOGO }
 @Serializable enum class WatermarkPlacement { @SerialName("photo") PHOTO, @SerialName("border") BORDER, @SerialName("canvas") CANVAS }
 @Serializable enum class SignatureKind { @SerialName("drawn") DRAWN, @SerialName("imported") IMPORTED }
-@Serializable enum class WatermarkFont { @SerialName("Allura") ALLURA, @SerialName("Cormorant Garamond") CORMORANT_GARAMOND, @SerialName("Inter") INTER, @SerialName("Caveat") CAVEAT, @SerialName("Dancing Script") DANCING_SCRIPT, @SerialName("Lora") LORA }
+/**
+ * Watermark › Text fonts, in the mockup's `WM_FONTS` order: the six approved, then the seven signature scripts the owner
+ * added on 2026-10-11 (second amendment; shared/fonts, each with its licence file).
+ */
+@Serializable enum class WatermarkFont {
+    @SerialName("Allura") ALLURA, @SerialName("Cormorant Garamond") CORMORANT_GARAMOND, @SerialName("Inter") INTER, @SerialName("Caveat") CAVEAT,
+    @SerialName("Dancing Script") DANCING_SCRIPT, @SerialName("Lora") LORA,
+    @SerialName("Carpenters") CARPENTERS, @SerialName("Sourdough Script") SOURDOUGH_SCRIPT, @SerialName("Jaybird") JAYBIRD,
+    @SerialName("Astoria") ASTORIA, @SerialName("Bonskin") BONSKIN, @SerialName("Shareit") SHAREIT, @SerialName("Monttee") MONTTEE,
+}
 
 @Serializable
 data class SignatureRef(val signatureId: String, val signatureVersion: String, val kind: SignatureKind) {
@@ -418,17 +427,35 @@ data class TextTool(val layers: List<TextLayer>) {
     }
 }
 
-/** The eight Text fonts (shared/fonts), by the family names the recipe stores. */
+/**
+ * The eleven Text fonts (shared/fonts), by the family names the recipe stores. Retro Romance, Velomino and Vectipede Thin
+ * were added by the owner on 2026-10-11 (second amendment), after Space Mono. [hasSingleWeight] fonts are drawn in their
+ * one weight only, so `textLayer.weight` only takes regular for them (the panel greys Thin and Bold).
+ */
 @Serializable
-enum class TextFont(val family: String) {
+enum class TextFont(val family: String, val hasSingleWeight: Boolean = false) {
     @SerialName("Inter") INTER("Inter"),
     @SerialName("Playfair Display") PLAYFAIR_DISPLAY("Playfair Display"),
-    @SerialName("Bebas Neue") BEBAS_NEUE("Bebas Neue"),
+    @SerialName("Bebas Neue") BEBAS_NEUE("Bebas Neue", hasSingleWeight = true),
     @SerialName("Caveat") CAVEAT("Caveat"),
     @SerialName("Cormorant Garamond") CORMORANT_GARAMOND("Cormorant Garamond"),
     @SerialName("Montserrat") MONTSERRAT("Montserrat"),
     @SerialName("Dancing Script") DANCING_SCRIPT("Dancing Script"),
-    @SerialName("Space Mono") SPACE_MONO("Space Mono"),
+    @SerialName("Space Mono") SPACE_MONO("Space Mono", hasSingleWeight = true),
+    @SerialName("Retro Romance") RETRO_ROMANCE("Retro Romance", hasSingleWeight = true),
+    @SerialName("Velomino") VELOMINO("Velomino", hasSingleWeight = true),
+    @SerialName("Vectipede Thin") VECTIPEDE_THIN("Vectipede Thin", hasSingleWeight = true),
+}
+
+/**
+ * `textLayer.weight` (owner amendment 2026-10-11, second): Thin 200, Regular 400, Bold 700 on the font's `wght` axis
+ * (rendering-v2 §7.4). Optional on read (a recipe written before it reads as regular) and always written.
+ */
+@Serializable
+enum class TextWeight(val axisValue: Int) {
+    @SerialName("thin") THIN(200),
+    @SerialName("regular") REGULAR(400),
+    @SerialName("bold") BOLD(700),
 }
 
 /**
@@ -441,6 +468,9 @@ data class TextLayer(
     val id: String,
     val text: String,
     val font: TextFont,
+    // Declared after `font` so it is written there, as iOS writes it; the default makes it optional on read, and
+    // SessionJson's encodeDefaults always writes it.
+    val weight: TextWeight = TextWeight.REGULAR,
     val size: Int,
     val colour: String,
     val opacity: Double,

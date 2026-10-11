@@ -15,6 +15,7 @@ import com.lightlylabs.lightly.session.SourceFingerprint
 import com.lightlylabs.lightly.session.SourceRef
 import com.lightlylabs.lightly.session.TextFont
 import com.lightlylabs.lightly.session.TextLayer
+import com.lightlylabs.lightly.session.TextWeight
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +54,7 @@ class TextToolTest {
     private val stage = TextStage(WatermarkFonts(null))
 
     private fun layer(text: String = "Summer in Lisbon", size: Int = 42, centre: NormalisedPoint = NormalisedPoint(0.5, 0.5), rotation: Double = 0.0) =
-        TextLayer("0a1b2c3d", text, TextFont.PLAYFAIR_DISPLAY, size, "#FFFFFF", 100.0, centre, rotation)
+        TextLayer("0a1b2c3d", text, TextFont.PLAYFAIR_DISPLAY, TextWeight.REGULAR, size, "#FFFFFF", 100.0, centre, rotation)
 
     private fun grey(width: Int, height: Int) = Rgba8Image(width, height, ByteArray(width * height * 4) { if (it % 4 == 3) -1 else 60 })
 
@@ -115,7 +116,7 @@ class TextToolTest {
     @Test
     fun `a new layer has the approved defaults`() {
         val new = TextEdits.newLayer("12345678", "Hello")
-        assertEquals(TextLayer("12345678", "Hello", TextFont.PLAYFAIR_DISPLAY, 42, "#FFFFFF", 100.0, NormalisedPoint(0.5, 0.5), 0.0), new)
+        assertEquals(TextLayer("12345678", "Hello", TextFont.PLAYFAIR_DISPLAY, TextWeight.REGULAR, 42, "#FFFFFF", 100.0, NormalisedPoint(0.5, 0.5), 0.0), new)
         val ids = (1..200).map { TextEdits.newId(emptyList(), Random(it)) }
         assertTrue(ids.all { Regex("^[0-9a-f]{8}$").matches(it) })
         assertNotEquals(ids[0], TextEdits.newId(listOf(ids[0]), Random(1)))

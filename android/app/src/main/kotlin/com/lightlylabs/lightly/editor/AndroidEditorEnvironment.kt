@@ -204,8 +204,8 @@ object AndroidEditorEnvironment {
     }
 
     /**
-     * The approved bundled background photos (docs/ui/app/data.js `BACKGROUNDS`), packaged in DEBUG builds
-     * only: their redistribution licence for release is unconfirmed (docs/v1/slice3-android.md › Blockers).
+     * The approved bundled background photos (Lightly 2 `BACKGROUNDS`), packaged into every build type (app/build.gradle.kts,
+     * BundleBackgroundPhotosTask).
      */
     private fun loadBundledBackground(context: Context, id: String): com.lightlylabs.lightly.render.image.Rgba8Image? {
         val name = BackgroundOptions.RENDERABLE_IMAGES.firstOrNull { it.first == id }?.second ?: return null

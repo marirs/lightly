@@ -197,15 +197,15 @@ class SessionSerializationTest {
     fun `text layers and a smile round-trip in canonical order`() {
         val base = SavedEdits.decodeEditState(readRecipe("portrait-two-faces.json"))
         val layers = listOf(
-            TextLayer("0a1b2c3d", "Summer in Lisbon", TextFont.PLAYFAIR_DISPLAY, 42, "#FFFFFF", 100.0, NormalisedPoint(0.5, 0.5), 0.0),
-            TextLayer("ffffff01", "2026\nLine two", TextFont.SPACE_MONO, 18, "#1F2328", 62.5, NormalisedPoint(0.62, 0.86), -4.5),
+            TextLayer("0a1b2c3d", "Summer in Lisbon", TextFont.PLAYFAIR_DISPLAY, TextWeight.BOLD, 42, "#FFFFFF", 100.0, NormalisedPoint(0.5, 0.5), 0.0),
+            TextLayer("ffffff01", "2026\nLine two", TextFont.SPACE_MONO, TextWeight.REGULAR, 18, "#1F2328", 62.5, NormalisedPoint(0.62, 0.86), -4.5),
         )
         val faces = base.tools.portrait.faces.mapIndexed { i, f -> if (i == 0) f.copy(smile = Smile(35.0)) else f }
         val edited = base.copy(tools = base.tools.copy(text = TextTool(layers), portrait = PortraitTool(faces)))
         val encoded = SavedEdits.encodeEditState(edited)
         assertEquals(edited, SavedEdits.decodeEditState(encoded))
         assertEquals(encoded, SavedEdits.encodeEditState(SavedEdits.decodeEditState(encoded)))
-        assertTrue(""""text":{"layers":[{"id":"0a1b2c3d","text":"Summer in Lisbon","font":"Playfair Display","size":42,"colour":"#FFFFFF","opacity":100,"centre":[0.5,0.5],"rotation":0},""" in encoded, encoded)
+        assertTrue(""""text":{"layers":[{"id":"0a1b2c3d","text":"Summer in Lisbon","font":"Playfair Display","weight":"bold","size":42,"colour":"#FFFFFF","opacity":100,"centre":[0.5,0.5],"rotation":0},""" in encoded, encoded)
         assertTrue(""""smile":{"amount":35}""" in encoded, encoded)
     }
 
@@ -218,9 +218,46 @@ class SessionSerializationTest {
         assertRejected(withLayer(good.replace("\"0a1b2c3d\"", "\"0A1B2C3D\"")))
         assertRejected(withLayer(good.replace("\"size\":42", "\"size\":9")))
         assertRejected(withLayer(good.replace("\"Inter\"", "\"Lora\"")))
+        assertRejected(withLayer(good.replace("\"font\":\"Inter\"", "\"font\":\"Inter\",\"weight\":\"heavy\"")))
         assertRejected(withLayer(good.replace("\"text\":\"Hi\"", "\"text\":\"\"")))
         assertRejected(withLayer(good.replace("\"rotation\":0", "\"rotation\":181")))
         assertRejected(base.replace(""""text":{"layers":[]}""", """"text":{"layers":[$good,$good]}"""))
+    }
+
+    @Test
+    fun `a text layer without weight reads as regular and is written with it`() {
+        val base = SavedEdits.encodeEditState(SavedEdits.decodeEditState(readRecipe("neutral.json")))
+        val withoutWeight = """{"id":"0a1b2c3d","text":"Hi","font":"Inter","size":42,"colour":"#FFFFFF","opacity":100,"centre":[0.5,0.5],"rotation":0}"""
+        val decoded = SavedEdits.decodeEditState(base.replace(""""text":{"layers":[]}""", """"text":{"layers":[$withoutWeight]}"""))
+        assertEquals(TextWeight.REGULAR, decoded.tools.text.layers.single().weight)
+        val encoded = SavedEdits.encodeEditState(decoded)
+        assertTrue(""""font":"Inter","weight":"regular","size":42""" in encoded, encoded)
+    }
+
+    @Test
+    fun `every weight and the owner's new Text and Watermark fonts round-trip by their recipe names`() {
+        val base = SavedEdits.decodeEditState(readRecipe("neutral.json"))
+        val newTextFonts = mapOf(TextFont.RETRO_ROMANCE to "Retro Romance", TextFont.VELOMINO to "Velomino", TextFont.VECTIPEDE_THIN to "Vectipede Thin")
+        TextWeight.entries.forEach { weight ->
+            newTextFonts.forEach { (font, name) ->
+                val layer = TextLayer("0a1b2c3d", "Hi", font, weight, 42, "#FFFFFF", 100.0, NormalisedPoint(0.5, 0.5), 0.0)
+                val edited = base.copy(tools = base.tools.copy(text = TextTool(listOf(layer))))
+                val encoded = SavedEdits.encodeEditState(edited)
+                assertTrue(""""font":"$name","weight":"${weight.name.lowercase()}"""" in encoded, encoded)
+                assertEquals(edited, SavedEdits.decodeEditState(encoded))
+            }
+        }
+        val signatureFonts = mapOf(WatermarkFont.CARPENTERS to "Carpenters", WatermarkFont.SOURDOUGH_SCRIPT to "Sourdough Script", WatermarkFont.JAYBIRD to "Jaybird",
+            WatermarkFont.ASTORIA to "Astoria", WatermarkFont.BONSKIN to "Bonskin", WatermarkFont.SHAREIT to "Shareit", WatermarkFont.MONTTEE to "Monttee")
+        assertEquals(13, WatermarkFont.entries.size)
+        assertEquals(11, TextFont.entries.size)
+        signatureFonts.forEach { (font, name) ->
+            val watermark = base.tools.watermark.copy(type = WatermarkType.TEXT, text = WatermarkText("A. Rivera", font))
+            val edited = base.copy(tools = base.tools.copy(watermark = watermark))
+            val encoded = SavedEdits.encodeEditState(edited)
+            assertTrue(""""text":{"text":"A. Rivera","font":"$name"}""" in encoded, encoded)
+            assertEquals(edited, SavedEdits.decodeEditState(encoded))
+        }
     }
 
     private fun assertRejected(json: String) {

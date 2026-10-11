@@ -12,6 +12,7 @@ import com.lightlylabs.lightly.develop.PixelRect
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import com.lightlylabs.lightly.session.BorderType
 import com.lightlylabs.lightly.session.TextFont
+import com.lightlylabs.lightly.session.TextWeight
 import com.lightlylabs.lightly.session.WatermarkFont
 import com.lightlylabs.lightly.session.WatermarkPlacement
 import com.lightlylabs.lightly.session.WatermarkTool
@@ -295,10 +296,16 @@ class WatermarkStage(private val sizes: WatermarkSizes, private val fonts: Water
 }
 
 /**
- * The four approved watermark fonts (shared/fonts, SIL OFL 1.1), bundled into assets/fonts by the build, by
- * exact family and weight as the prototype loads them: Allura, Cormorant Garamond 500, Inter 400 (text) and
- * 700 (the logo's initials), Caveat 500. Variable fonts get their weight through `wght`; Inter's `opsz`
- * follows the CSS px size (Chromium sets it automatically), clamped to its 14…32 axis.
+ * The approved watermark fonts (shared/fonts), bundled into assets/fonts by the build, by exact family and weight as the
+ * prototype loads them: Allura, Cormorant Garamond 500, Inter 400 (text) and 700 (the logo's initials), Caveat 500,
+ * Dancing Script and Lora 400, then the seven single-weight signature scripts the owner added on 2026-10-11 (Carpenters,
+ * Sourdough Script, Jaybird, Astoria, Bonskin, Shareit, Monttee). Variable fonts get their weight through `wght`; Inter's
+ * `opsz` follows the CSS px size (Chromium sets it automatically), clamped to its 14…32 axis.
+ *
+ * Missing glyphs: several signature scripts have no "·" (Astoria, Monttee, Shareit) and Carpenters has no "." or ",".
+ * Typeface.Builder builds through Typeface.CustomFallbackBuilder, which always appends the system fallback chain, so
+ * Minikin draws such a character in a system font (as a browser falls back for the mockup's @font-face) rather than tofu
+ * or nothing. Paint, Compose Text (whose asset fonts are also built with Typeface.Builder) and Save copy agree.
  */
 // v3 differs (owner deviation W4): the prototype's Cormorant Garamond quoting falls back to the system
 // font; native renders the real Cormorant Garamond 500.
@@ -306,19 +313,16 @@ class WatermarkFonts(val assets: AssetManager?) {
     private val cache = java.util.concurrent.ConcurrentHashMap<String, Typeface>()
 
     fun typeface(font: WatermarkFont, opticalSize: Double = 18.0): Typeface = when (font) {
-        WatermarkFont.ALLURA -> load("Allura-Regular.ttf", null)
-        WatermarkFont.CORMORANT_GARAMOND -> load("CormorantGaramond-Variable.ttf", "'wght' 500")
         WatermarkFont.INTER -> load("Inter-Variable.ttf", "'wght' 400, 'opsz' ${opticalSize.coerceIn(14.0, 32.0).roundToInt()}")
-        WatermarkFont.DANCING_SCRIPT -> load("DancingScript-Variable.ttf", "'wght' 400")
-        WatermarkFont.LORA -> load("Lora-Variable.ttf", "'wght' 400")
-        WatermarkFont.CAVEAT -> load("Caveat-Variable.ttf", "'wght' 500")
+        else -> load(watermarkFontFile(font), watermarkFontWeight(font)?.let { "'wght' $it" })
     }
 
     /**
-     * The Text tool's eight fonts (rendering-v2 §7.4: the named family at regular weight). The variable fonts are set to
-     * `wght` 400; Inter keeps its default optical size.
+     * The Text tool's fonts at the layer's weight (rendering-v2 §7.4): the variable fonts are set to `wght` 200/400/700
+     * (Android clamps a value outside a font's axis range to its nearest end, as browsers do); a single-weight font always
+     * draws its one weight. Inter keeps its default optical size.
      */
-    fun textTypeface(font: TextFont): Typeface = load(textFontFile(font), textFontVariation(font))
+    fun textTypeface(font: TextFont, weight: TextWeight = TextWeight.REGULAR): Typeface = load(textFontFile(font), textFontVariation(font, weight))
 
     fun logoInitials(cssPixels: Double): Typeface = load("Inter-Variable.ttf", "'wght' 700, 'opsz' ${cssPixels.coerceIn(14.0, 32.0).roundToInt()}")
 
@@ -342,12 +346,37 @@ class WatermarkFonts(val assets: AssetManager?) {
             TextFont.MONTSERRAT -> "Montserrat-Variable.ttf"
             TextFont.DANCING_SCRIPT -> "DancingScript-Variable.ttf"
             TextFont.SPACE_MONO -> "SpaceMono-Regular.ttf"
+            TextFont.RETRO_ROMANCE -> "RetroRomance-Regular.otf"
+            TextFont.VELOMINO -> "Velomino-Regular.otf"
+            TextFont.VECTIPEDE_THIN -> "Vectipede-Thin.otf"
         }
 
-        /** Regular weight on the variable files; the static files (Bebas Neue, Space Mono) have none to set. */
-        fun textFontVariation(font: TextFont): String? = when (font) {
-            TextFont.BEBAS_NEUE, TextFont.SPACE_MONO -> null
-            else -> "'wght' 400"
+        /** The layer's weight on the variable files' `wght` axis; the single-weight files have none to set. */
+        fun textFontVariation(font: TextFont, weight: TextWeight = TextWeight.REGULAR): String? =
+            if (font.hasSingleWeight) null else "'wght' ${weight.axisValue}"
+
+        /** The shared/fonts file of each watermark font. */
+        fun watermarkFontFile(font: WatermarkFont): String = when (font) {
+            WatermarkFont.ALLURA -> "Allura-Regular.ttf"
+            WatermarkFont.CORMORANT_GARAMOND -> "CormorantGaramond-Variable.ttf"
+            WatermarkFont.INTER -> "Inter-Variable.ttf"
+            WatermarkFont.CAVEAT -> "Caveat-Variable.ttf"
+            WatermarkFont.DANCING_SCRIPT -> "DancingScript-Variable.ttf"
+            WatermarkFont.LORA -> "Lora-Variable.ttf"
+            WatermarkFont.CARPENTERS -> "Carpenters-Regular.ttf"
+            WatermarkFont.SOURDOUGH_SCRIPT -> "SourdoughScript-Regular.otf"
+            WatermarkFont.JAYBIRD -> "Jaybird-Regular.otf"
+            WatermarkFont.ASTORIA -> "Astoria-Regular.otf"
+            WatermarkFont.BONSKIN -> "Bonskin-Regular.otf"
+            WatermarkFont.SHAREIT -> "Shareit-Regular.otf"
+            WatermarkFont.MONTTEE -> "Monttee-Regular.otf"
+        }
+
+        /** The prototype's `wght` for each variable watermark font; null for the single-weight files. */
+        fun watermarkFontWeight(font: WatermarkFont): Int? = when (font) {
+            WatermarkFont.CORMORANT_GARAMOND, WatermarkFont.CAVEAT -> 500
+            WatermarkFont.INTER, WatermarkFont.DANCING_SCRIPT, WatermarkFont.LORA -> 400
+            else -> null
         }
     }
 }

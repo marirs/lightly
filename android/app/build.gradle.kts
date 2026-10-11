@@ -441,10 +441,10 @@ abstract class BundlePresetCatalogueTask : DefaultTask() {
 
 // --- Bundled background photos (Background › Change background › Image) -------------------------
 //
-// The approved design offers seven bundled background photos (Lightly 2 `BACKGROUNDS`, as iOS) from
-// the licensed sample set. Their licence for redistribution in a released app is not confirmed, so they
-// are packaged into DEBUG builds only (release builds show the same row without them, reported as a
-// blocker in docs/v1/slice3-android.md). Read in place from docs/ui/assets/photos; never copied into git.
+// The approved design offers seven bundled background photos (Lightly 2 `BACKGROUNDS`, as iOS). They
+// are part of the approved feature, so every build type packages them, release included (until
+// 2026-10-11 only debug and benchmark did, and release showed empty tiles). Read in place from
+// docs/ui/assets/photos, the same files iOS packages; never copied under android/.
 abstract class BundleBackgroundPhotosTask : DefaultTask() {
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.NAME_ONLY)
@@ -553,10 +553,11 @@ abstract class VerifyManifestPrivacyTask : DefaultTask() {
 }
 
 /**
- * Every font in shared/fonts and its OFL licence (the OFL requires the licence to ship with the font): the watermark
- * fonts and the Text tool's eight (owner amendment 2026-10-11 added Playfair Display, Bebas Neue, Montserrat and Space
- * Mono), copied into assets/fonts at build time after checking shared/fonts/SHA256SUMS.
- * No private copies live under android/.
+ * Every font in shared/fonts (.ttf and .otf) and its licence file, which ships beside the font as each licence requires
+ * (`<Name>-OFL.txt` for the SIL OFL fonts, `<Name>-LICENSE.*` for the owner-supplied ones of 2026-10-11): the watermark
+ * fonts with the seven signature scripts, and the Text tool's eleven. Copied into assets/fonts at build time after
+ * checking each font against shared/fonts/SHA256SUMS; a font missing from it fails the build. No private copies live
+ * under android/.
  */
 abstract class BundleWatermarkFontsTask : DefaultTask() {
     @get:InputDirectory
@@ -575,8 +576,10 @@ abstract class BundleWatermarkFontsTask : DefaultTask() {
         }
         val root = assetsDirectory.get().asFile
         root.deleteRecursively()
-        source.listFiles { f -> f.name.endsWith(".ttf") || f.name.endsWith("-OFL.txt") }!!.forEach { file ->
-            if (file.name.endsWith(".ttf")) {
+        fun isFont(name: String) = name.endsWith(".ttf") || name.endsWith(".otf")
+        fun isLicence(name: String) = name.endsWith("-OFL.txt") || name.substringBeforeLast('.').endsWith("-LICENSE")
+        source.listFiles { f -> isFont(f.name) || isLicence(f.name) }!!.forEach { file ->
+            if (isFont(file.name)) {
                 val expected = sums[file.name] ?: throw GradleException("${file.name} is not in shared/fonts/SHA256SUMS")
                 val actual = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
                 if (actual != expected) throw GradleException("${file.name} has SHA-256 $actual, expected $expected")
@@ -708,13 +711,11 @@ androidComponents {
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleCatalogue, BundlePresetCatalogueTask::assetsDirectory)
 
-        if (isInternalBuild(variant.buildType ?: "")) {
-            val bundleBackgrounds = tasks.register<BundleBackgroundPhotosTask>("bundle${variantName}BackgroundPhotos") {
-                val folder = rootDir.parentFile.resolve("docs/ui/assets/photos")
-                photos.from(backgroundPhotoNames.flatMap { listOf(folder.resolve("$it.jpg"), folder.resolve("${it}_thumb.jpg")) })
-            }
-            variant.sources.assets?.addGeneratedSourceDirectory(bundleBackgrounds, BundleBackgroundPhotosTask::assetsDirectory)
+        val bundleBackgrounds = tasks.register<BundleBackgroundPhotosTask>("bundle${variantName}BackgroundPhotos") {
+            val folder = rootDir.parentFile.resolve("docs/ui/assets/photos")
+            photos.from(backgroundPhotoNames.flatMap { listOf(folder.resolve("$it.jpg"), folder.resolve("${it}_thumb.jpg")) })
         }
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleBackgrounds, BundleBackgroundPhotosTask::assetsDirectory)
 
         if (depthModelEnabled(variant.buildType ?: "")) {
             val bundleDepthModel = tasks.register<BundleDepthModelTask>("bundle${variantName}DepthModel") {

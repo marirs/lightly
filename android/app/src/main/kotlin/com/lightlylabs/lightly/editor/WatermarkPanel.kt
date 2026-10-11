@@ -36,6 +36,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import kotlin.math.roundToInt
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -107,12 +110,12 @@ fun WatermarkPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Col
             PanelNote("Saved signatures keep their own look. " + if (drawnKind) "You can change the ink colour of a drawn signature." else "An imported signature keeps its own ink.")
             CommonControls(vm, ui, hasBorder, colours = drawnKind)
         }
-        // The text field (46 dp, 16 dp corners, chip fill, hairline, 16 sp text and the pencil), the six fonts, Size,
-        // Opacity and the colour strip.
+        // The text field (46 dp, 16 dp corners, chip fill, hairline, 16 sp text and the pencil), the thirteen fonts
+        // (scrolled to the selected one), Size, Opacity and the colour strip.
         WatermarkType.TEXT -> {
             val current = w.text ?: com.lightlylabs.lightly.session.WatermarkText(WatermarkOptions.DEFAULT_TEXT, WatermarkFont.ALLURA)
             TextRow(current.text, vm::setWatermarkText)
-            ChipRow { WatermarkOptions.FONTS.forEach { (font, name) -> FontOption(current.text, font, name, current.font == font, vm) { vm.chooseFont(font) } } }
+            WatermarkFontRow(current, vm)
             CommonControls(vm, ui, hasBorder, colours = true)
         }
         // The current logo (50 dp, 16 dp padding and corners, 2 dp accent border; not a button) and Replace logo.
@@ -229,6 +232,31 @@ internal fun TextEntrySheet(title: String, initial: String, maxLength: Int, tagP
 }
 
 /**
+ * The watermark fonts row (owner amendment 2026-10-11, second: thirteen fonts, so the row scrolls): the font before the
+ * selected one starts the row (mockup `scrolled(WM_FONTS, …)`), so the selected font is in view when the tab opens. The
+ * scroll is measured from the first option, so the row's start padding stays before the starting option.
+ */
+@Composable
+private fun WatermarkFontRow(current: com.lightlylabs.lightly.session.WatermarkText, vm: EditorViewModel) {
+    val rowScroll = androidx.compose.foundation.rememberScrollState()
+    val offsets = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
+    val selectedIndex = WatermarkOptions.FONTS.indexOfFirst { it.first == current.font }
+    val startIndex = WatermarkOptions.scrolledStartIndex(selectedIndex)
+    LaunchedEffect(startIndex, offsets[startIndex], offsets[0]) {
+        val target = offsets[startIndex] ?: return@LaunchedEffect
+        val first = offsets[0] ?: return@LaunchedEffect
+        rowScroll.scrollTo((target - first).coerceIn(0, rowScroll.maxValue))
+    }
+    ChipRow(rowScroll = rowScroll) {
+        WatermarkOptions.FONTS.forEachIndexed { index, (font, name) ->
+            Box(Modifier.onGloballyPositioned { offsets[index] = it.positionInParent().x.roundToInt() }) {
+                FontOption(current.text, font, name, current.font == font, vm) { vm.chooseFont(font) }
+            }
+        }
+    }
+}
+
+/**
  * A font option: at least 108×58 dp, 16 dp corners, the text at 19 sp in the font over the font's name (10.5 sp ink3);
  * selected with a 2 dp accent border, otherwise a hairline.
  */
@@ -267,15 +295,25 @@ private fun WatermarkSlider(vm: EditorViewModel, ui: EditorUiState, label: Strin
     SliderRow(label, drag ?: committed, min, max, onDrag = { vm.onWatermarkSlider(field, it) }, onRelease = { vm.onWatermarkSliderRelease(field, it) }, tag = "watermark-slider-$field")
 }
 
-/** The Text tool's font as a Compose family, from the same bundled file and weight stage 11 draws with. */
-internal fun textFontFamily(assets: android.content.res.AssetManager, font: com.lightlylabs.lightly.session.TextFont): FontFamily {
+/**
+ * The Text tool's font as a Compose family, from the same bundled file and `wght` stage 11 draws with (the layer's weight;
+ * a single-weight font has no axis to set).
+ */
+internal fun textFontFamily(
+    assets: android.content.res.AssetManager,
+    font: com.lightlylabs.lightly.session.TextFont,
+    weight: com.lightlylabs.lightly.session.TextWeight = com.lightlylabs.lightly.session.TextWeight.REGULAR,
+): FontFamily {
+    val axisWeight = if (WatermarkFonts.textFontVariation(font, weight) != null) weight.axisValue else null
     @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
-    val settings = if (WatermarkFonts.textFontVariation(font) != null) FontVariation.Settings(FontVariation.weight(400)) else FontVariation.Settings()
+    val settings = if (axisWeight != null) FontVariation.Settings(FontVariation.weight(axisWeight)) else FontVariation.Settings()
+    // The family holds one font, so Compose always picks it; FontWeight only labels it (no synthetic bold is added
+    // because the requested and the declared weight are the same: text styles here never set a fontWeight).
     @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
     return FontFamily(Font("${WatermarkFonts.ASSET_DIR}/${WatermarkFonts.textFontFile(font)}", assets, weight = FontWeight.Normal, variationSettings = settings))
 }
 
-/** Compose font families for the four approved fonts, from the bundled assets (same files the stage draws with). */
+/** Compose font families for the watermark fonts, from the bundled assets (same files and weights the stage draws with). */
 internal fun watermarkFontFamily(assets: android.content.res.AssetManager, font: WatermarkFont, weight: Int? = null): FontFamily {
     @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
     fun family(file: String, w: Int?) = FontFamily(
@@ -283,15 +321,10 @@ internal fun watermarkFontFamily(assets: android.content.res.AssetManager, font:
             variationSettings = if (w != null) FontVariation.Settings(FontVariation.weight(w)) else FontVariation.Settings()),
     )
     return when (font) {
-        WatermarkFont.ALLURA -> family("Allura-Regular.ttf", null)
-        WatermarkFont.CORMORANT_GARAMOND -> family("CormorantGaramond-Variable.ttf", 500)
-        WatermarkFont.INTER -> family("Inter-Variable.ttf", weight ?: 400)
-        WatermarkFont.DANCING_SCRIPT -> family("DancingScript-Variable.ttf", 400)
-        WatermarkFont.LORA -> family("Lora-Variable.ttf", 400)
-        WatermarkFont.CAVEAT -> family("Caveat-Variable.ttf", 500)
+        WatermarkFont.INTER -> family(WatermarkFonts.watermarkFontFile(font), weight ?: 400)
+        else -> family(WatermarkFonts.watermarkFontFile(font), WatermarkFonts.watermarkFontWeight(font))
     }
 }
-
 
 @Composable
 private fun SavedDrawingMenu(vm: EditorViewModel) {

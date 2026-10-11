@@ -98,6 +98,11 @@ data class EditorUiState(
     /** Background tool UI and the photo's subject separation / depth (slice 3). */
     val background: BackgroundUi = BackgroundUi(),
     val separation: SeparationState = SeparationState.NotStarted,
+    /**
+     * The photo picked with Change background › "+" for this photo, shown as a tile after the bundled backgrounds even
+     * after another background is chosen (mockup `backgroundPanel`: `b.imported`). Never in history; a new photo clears it.
+     */
+    val importedBackground: ImportedBackground? = null,
     /** Edit and Effects tool UI (slice 4). */
     val edit: EditUi = EditUi(),
     val effects: EffectsUi = EffectsUi(),
@@ -493,6 +498,8 @@ class EditorViewModel(
     fun retrySeparation() = startSeparation()
 
     fun selectBackgroundSub(sub: BackgroundSub) {
+        // Without a subject, Change background is greyed out and cannot be chosen (owner amendment 2026-10-11, second).
+        if (sub == BackgroundSub.CHANGE && BackgroundPanelState.hasNoSubject(state.value.separation)) return
         state.update { it.copy(background = it.background.copy(sub = sub, sliderDrag = null)) }
         if (state.value.separation == SeparationState.NotStarted) startSeparation()
         else if (sub == BackgroundSub.FOCUS) ensureDepth()
@@ -595,8 +602,16 @@ class EditorViewModel(
             val asset = com.lightlylabs.lightly.session.AssetRef.Photo(assetId, picked.source.fingerprint)
             backgroundSession.rememberReplacementPhoto(asset, picked.display)
             env.photoAccess.retain(assetId)
+            val thumbnail = com.lightlylabs.lightly.signatures.SignatureImages.downscaled(picked.display, ImportedBackground.THUMBNAIL_LONG_EDGE).toBitmap()
+            state.update { it.copy(importedBackground = ImportedBackground(asset, thumbnail)) }
             commitBackground { it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Image(asset, 50.0, 50.0, 100.0)) }
         }
+    }
+
+    /** The imported photo's tile: that photo again as the background (its decoded pixels are still remembered or reloaded). */
+    fun useImportedBackground(imported: ImportedBackground) = commitBackground {
+        val previous = it.replacement as? com.lightlylabs.lightly.session.Replacement.Image
+        it.copy(replacement = com.lightlylabs.lightly.session.Replacement.Image(imported.asset, previous?.x ?: 50.0, previous?.y ?: 50.0, previous?.scale ?: 100.0))
     }
 
     fun removeBackgroundChange() = commitBackground { it.copy(replacement = null) }
@@ -1401,7 +1416,11 @@ class EditorViewModel(
         commitText { TextEdits.removed(it, id) }
     }
 
-    fun chooseTextFont(font: com.lightlylabs.lightly.session.TextFont) = changeSelectedText { it.copy(font = font) }
+    /** A font, one undo step. A single-weight font only takes regular (`textLayer.weight`), so it resets the weight too. */
+    fun chooseTextFont(font: com.lightlylabs.lightly.session.TextFont) = changeSelectedText { TextEdits.withFont(it, font) }
+
+    /** Thin · Regular · Bold (owner amendment 2026-10-11, second): one undo step; a single-weight font's greyed weights do nothing. */
+    fun chooseTextWeight(weight: com.lightlylabs.lightly.session.TextWeight) = changeSelectedText { TextEdits.withWeight(it, weight) }
 
     fun setTextColour(hex: String) = changeSelectedText { it.copy(colour = hex) }
 
@@ -1482,10 +1501,16 @@ class EditorViewModel(
         commit(session.commit { s -> s.copy(tools = s.tools.copy(text = change(s.tools.text))) }, state.value.auto)
     }
 
-    /** The bundled Text font as a Compose family (font tiles, the input box), or the default without assets (JVM tests). */
-    fun composeTextFont(font: com.lightlylabs.lightly.session.TextFont): androidx.compose.ui.text.font.FontFamily {
+    /**
+     * The bundled Text font as a Compose family at [weight] (font tiles at regular; the input box at the layer's weight, as
+     * the photo draws it), or the default without assets (JVM tests).
+     */
+    fun composeTextFont(
+        font: com.lightlylabs.lightly.session.TextFont,
+        weight: com.lightlylabs.lightly.session.TextWeight = com.lightlylabs.lightly.session.TextWeight.REGULAR,
+    ): androidx.compose.ui.text.font.FontFamily {
         val assets = env.watermarkFonts.assets ?: return androidx.compose.ui.text.font.FontFamily.Default
-        return composeFonts.getOrPut("text|$font") { textFontFamily(assets, font) }
+        return composeFonts.getOrPut("text|$font|$weight") { textFontFamily(assets, font, weight) }
     }
 
     /** Stage 11's layout for the photo's marks (the same code the preview and Save copy draw with). */

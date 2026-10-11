@@ -39,6 +39,8 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -63,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lightlylabs.lightly.session.TextFont
 import com.lightlylabs.lightly.session.TextLayer
+import com.lightlylabs.lightly.session.TextWeight
 import com.lightlylabs.lightly.shell.LightlyIcon
 import com.lightlylabs.lightly.shell.LightlyIcons
 import com.lightlylabs.lightly.shell.l2TextStyle
@@ -85,12 +88,14 @@ object TextTags {
     fun layer(index: Int) = "text-layer-${index + 1}"
     fun font(font: TextFont) = "text-font-${font.family.lowercase().replace(' ', '-')}"
     fun slider(field: String) = "text-slider-$field"
+    fun weight(weight: TextWeight) = "text-weight-${weight.name.lowercase()}"
 }
 
 /**
- * Lightly 2 `textPanel` (owner amendment 2026-10-11). Without layers, a 10 dp column: the dashed "Add text" button and the
- * note. With layers, an 8 dp column: the layer chips and "+ Add", the input box (the selected layer's text in its font;
- * it opens the text sheet), the fonts, Size, the colour strip and Opacity. The text sheet adds or edits a layer.
+ * Lightly 2 `textPanel` (owner amendments 2026-10-11). Without layers, a 10 dp column: the lime "Add text" pill and the
+ * note. With layers, an 8 dp column: the layer chips and "+ Add", the input box (the selected layer's text in its font and
+ * weight; it opens the text sheet), the fonts, the weights (Thin · Regular · Bold), Size, the colour strip and Opacity.
+ * The text sheet adds or edits a layer.
  */
 @Composable
 fun TextPanel(vm: EditorViewModel, ui: EditorUiState) {
@@ -119,8 +124,9 @@ fun TextPanel(vm: EditorViewModel, ui: EditorUiState) {
 
 @Composable
 private fun SelectedLayerControls(vm: EditorViewModel, ui: EditorUiState, layer: TextLayer) {
-    InputBox(layer.text, vm.composeTextFont(layer.font), vm::openEditText)
+    InputBox(layer.text, vm.composeTextFont(layer.font, layer.weight), vm::openEditText)
     ChipRow { TextOptions.FONTS.forEach { font -> FontTile(font, vm.composeTextFont(font), on = font == layer.font) { vm.chooseTextFont(font) } } }
+    WeightRow(layer, vm::chooseTextWeight)
     TextSlider(ui, "Size", "size", layer.size.toDouble(), TextLayer.MIN_SIZE.toDouble(), TextLayer.MAX_SIZE.toDouble(), vm)
     ColourControl("Colour", layer.colour, ui.original, "text-colour", vm::setTextColour, previewPhoto = ui.preview,
         preview = { vm.previewColour("text-colour", it) }, cancel = vm::cancelPhotoGesturePreview)
@@ -142,24 +148,59 @@ private fun TextSheetHost(vm: EditorViewModel, ui: EditorUiState) {
         onDone = vm::finishTextSheet, onCancel = vm::closeTextSheet)
 }
 
-/** "Add text": 56 dp, 18 dp corners, a 1.5 dp dashed hairline, chip fill, the plus (18 dp) and 15 sp bold ink, 8 dp apart. */
+/**
+ * "Add text" (owner amendment 2026-10-11, second; mockup `textPanel` without layers): a lime pill at the start of the row,
+ * not full width: 40 dp high, 20 dp corners, 16 dp sides, the pill colours (`--pill`, `--pill-ink`), a 16 dp plus 6 dp
+ * before the 14 sp bold label.
+ */
 @Composable
 private fun AddTextButton(onClick: () -> Unit) {
     val colors = lightlyColors
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(20.dp)
     Row(
-        Modifier.fillMaxWidth().height(56.dp).clip(shape).background(colors.chip, shape)
-            .drawBehind {
-                drawRoundRect(colors.hair, cornerRadius = CornerRadius(18.dp.toPx()),
-                    style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
-            }
+        Modifier.height(40.dp).clip(shape).background(colors.pill, shape)
             .clickable(role = Role.Button, onClick = onClick)
-            .testTagResource(TextTags.ADD_TEXT),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            .testTagResource(TextTags.ADD_TEXT)
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LightlyIcon(LightlyIcons.Plus, size = 18.dp, tint = colors.ink)
-        Text(TextOptions.ADD_TEXT, style = l2TextStyle(15.sp, FontWeight.Bold, colors.ink), maxLines = 1)
+        LightlyIcon(LightlyIcons.Plus, size = 16.dp, tint = colors.pillInk)
+        Text(TextOptions.ADD_TEXT, style = l2TextStyle(14.sp, FontWeight.Bold, colors.pillInk), maxLines = 1)
+    }
+}
+
+/**
+ * The weight row (owner amendment 2026-10-11, second; mockup `weights`, screens tx-thin, tx-bold, tx-single), in the `seg`
+ * style: 4 dp padding on a chip-filled 22 dp capsule, three equal 36 dp segments 4 dp apart, 18 dp corners; the selected
+ * one on `--on-bg` with on-ink text, the others ink2. Each label is 14 sp at its own weight (200, 400, 700) and keeps it
+ * when selected (unlike [com.lightlylabs.lightly.shell.SegmentedControl], which bolds the selection). A single-weight
+ * font's Thin and Bold are at 40 % and disabled.
+ */
+@Composable
+private fun WeightRow(layer: TextLayer, onSelect: (TextWeight) -> Unit) {
+    val colors = lightlyColors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(colors.chip).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        TextOptions.WEIGHTS.forEach { (weight, label) ->
+            val on = weight == layer.weight
+            val available = TextEdits.isWeightAvailable(weight, layer.font)
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .alpha(if (available) 1f else 0.4f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(if (on) colors.segmentOn else Color.Transparent)
+                    .selectable(selected = on, enabled = available, role = Role.RadioButton, onClick = { onSelect(weight) })
+                    .testTagResource(TextTags.weight(weight)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, style = l2TextStyle(14.sp, FontWeight(weight.axisValue), if (on) colors.onInk else colors.ink2), maxLines = 1)
+            }
+        }
     }
 }
 

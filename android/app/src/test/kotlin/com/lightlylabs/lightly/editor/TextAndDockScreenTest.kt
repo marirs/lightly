@@ -4,6 +4,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.unit.dp
+import com.lightlylabs.lightly.session.TextFont
+import com.lightlylabs.lightly.session.TextWeight
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -42,6 +48,7 @@ import java.io.OutputStream
 import java.util.concurrent.Executors
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Owner amendments 2026-10-11 on the phone editor (Robolectric): the eight-tool dock in its order, the Text tool's
@@ -144,6 +151,51 @@ class TextAndDockScreenTest {
         compose.waitForIdle()
         assertEquals(0, vm.uiState.value.session!!.current.tools.text.layers.size)
         assertEquals(3, vm.uiState.value.session!!.history.entries.size)
+    }
+
+    @Test
+    fun `Text - Add text is a 40 dp lime pill at the start of the row, not full width`() {
+        val vm = editor(); show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.TEXT)).performScrollTo().performClick()
+        compose.waitForIdle()
+        val button = compose.onNodeWithTag(TextTags.ADD_TEXT).assertHeightIsEqualTo(40.dp).getBoundsInRoot()
+        val note = compose.onNodeWithText(TextOptions.EMPTY_NOTE).getBoundsInRoot()
+        assertTrue(kotlin.math.abs((note.left - button.left).value) < 0.5f, "left-aligned with the note: ${button.left} vs ${note.left}")
+        assertTrue(button.right - button.left < (note.right - note.left) / 2, "a pill, not the panel's width")
+    }
+
+    @Test
+    fun `Text - the weight row, one undo step each, single-weight fonts grey Thin and Bold`() {
+        val vm = editor(); show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.TEXT)).performScrollTo().performClick()
+        compose.onNodeWithTag(TextTags.ADD_TEXT).performClick()
+        compose.onNodeWithTag("${TextTags.SHEET}-editor").performTextInput("Summer")
+        compose.onNodeWithTag("${TextTags.SHEET}-done").performClick()
+        compose.waitForIdle()
+        fun layer() = vm.uiState.value.session!!.current.tools.text.layers.single()
+        fun steps() = vm.uiState.value.session!!.history.entries.size
+        assertEquals(TextWeight.REGULAR, layer().weight)
+        compose.onNodeWithTag(TextTags.weight(TextWeight.REGULAR)).assertIsSelected()
+        val before = steps()
+        compose.onNodeWithTag(TextTags.weight(TextWeight.BOLD)).performScrollTo().assertIsEnabled().performClick()
+        compose.waitForIdle()
+        assertEquals(TextWeight.BOLD, layer().weight)
+        assertEquals(before + 1, steps())
+        compose.onNodeWithTag(TextTags.weight(TextWeight.BOLD)).assertIsSelected()
+        // Bebas Neue has one weight: choosing it resets the weight in the same step, and Thin and Bold are disabled.
+        vm.chooseTextFont(TextFont.BEBAS_NEUE)
+        compose.waitForIdle()
+        assertEquals(TextWeight.REGULAR, layer().weight)
+        assertEquals(before + 2, steps())
+        compose.onNodeWithTag(TextTags.weight(TextWeight.THIN)).assertIsNotEnabled()
+        compose.onNodeWithTag(TextTags.weight(TextWeight.BOLD)).assertIsNotEnabled()
+        compose.onNodeWithTag(TextTags.weight(TextWeight.REGULAR)).assertIsEnabled()
+        vm.chooseTextWeight(TextWeight.BOLD)
+        assertEquals(TextWeight.REGULAR, layer().weight)
+        assertEquals(before + 2, steps(), "a greyed weight does nothing")
+        vm.undo(); vm.undo()
+        assertEquals(TextWeight.REGULAR, layer().weight)
+        assertEquals(TextFont.PLAYFAIR_DISPLAY, layer().font)
     }
 
     @Test

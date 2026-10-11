@@ -16,7 +16,8 @@ import kotlin.math.sin
 /**
  * Rendering-v2 revision 7 stage 11, `text` (§7.4, owner amendment 2026-10-11): in the frame, after crop and effects and
  * before the border, so a border never covers text and the text is part of the photo. Each layer, in order:
- * - font size = size / 100 × 0.25 × the frame's short edge, the named family at regular weight (shared/fonts);
+ * - font size = size / 100 × 0.25 × the frame's short edge, the named family (shared/fonts) at the layer's weight (thin
+ *   200, regular 400, bold 700 on its `wght` axis; a single-weight font draws its one weight; owner amendment 2026-10-11);
  * - lines centred on one another, the font's own line height (descent − ascent + leading);
  * - the block (the lines' advance widths × their line heights) centred on centre × frame size, then turned
  *   `rotation` degrees clockwise about that centre;
@@ -36,7 +37,7 @@ class TextStage(private val fonts: WatermarkFonts) {
     )
 
     fun paint(layer: TextLayer, fontSize: Double): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = fonts.textTypeface(layer.font)
+        typeface = fonts.textTypeface(layer.font, layer.weight)
         textSize = fontSize.toFloat()
         // Unhinted metrics scale linearly with the size, so the block covers the same part of the photo at any resolution.
         isLinearText = true

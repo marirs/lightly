@@ -4,6 +4,7 @@ import com.lightlylabs.lightly.session.NormalisedPoint
 import com.lightlylabs.lightly.session.TextFont
 import com.lightlylabs.lightly.session.TextLayer
 import com.lightlylabs.lightly.session.TextTool
+import com.lightlylabs.lightly.session.TextWeight
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -49,8 +50,11 @@ object TextOptions {
     const val EMPTY_NOTE = "Add text, then drag it anywhere on the photo. Pinch to resize or turn it."
     const val SHEET_TITLE = "Text"
 
-    /** The fonts row, in the mockup's `TEXT_FONTS` order (the enum's order). */
+    /** The fonts row, in the mockup's `TEXT_FONTS` order (the enum's order): eleven since 2026-10-11 (second amendment). */
     val FONTS: List<TextFont> = TextFont.entries
+
+    /** The weight row (mockup `weights`): each label is drawn at its own weight. */
+    val WEIGHTS: List<Pair<TextWeight, String>> = listOf(TextWeight.THIN to "Thin", TextWeight.REGULAR to "Regular", TextWeight.BOLD to "Bold")
 
     val DEFAULT_FONT = TextFont.PLAYFAIR_DISPLAY
     const val DEFAULT_SIZE = 42
@@ -84,6 +88,17 @@ object TextEdits {
 
     /** The sheet's text as stored: at most 120 characters; null when blank (Done is disabled then). */
     fun acceptedText(typed: String): String? = typed.take(TextLayer.MAX_TEXT_LENGTH).takeIf { it.isNotBlank() }
+
+    /** Whether [font] has [weight]: every font has regular; a single-weight font has nothing else (the row greys it). */
+    fun isWeightAvailable(weight: TextWeight, font: TextFont): Boolean = weight == TextWeight.REGULAR || !font.hasSingleWeight
+
+    /** The layer in [font]; a single-weight font only takes regular, so a thin or bold layer becomes regular with it. */
+    fun withFont(layer: TextLayer, font: TextFont): TextLayer =
+        layer.copy(font = font, weight = if (isWeightAvailable(layer.weight, font)) layer.weight else TextWeight.REGULAR)
+
+    /** The layer at [weight]; unchanged when its font does not have that weight (a greyed, disabled segment). */
+    fun withWeight(layer: TextLayer, weight: TextWeight): TextLayer =
+        if (isWeightAvailable(weight, layer.font)) layer.copy(weight = weight) else layer
 
     /** Size (10…100, whole numbers) and Opacity (0…100) from their sliders. */
     fun withSlider(layer: TextLayer, field: String, value: Double): TextLayer = when (field) {

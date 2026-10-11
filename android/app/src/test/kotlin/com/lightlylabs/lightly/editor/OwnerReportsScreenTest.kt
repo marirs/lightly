@@ -7,12 +7,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import com.lightlylabs.lightly.background.DepthEstimator
 import com.lightlylabs.lightly.background.FloatPlane
@@ -287,23 +292,53 @@ class OwnerReportsScreenTest {
     // --- 4. Background without a clear subject ---------------------------------------------------------
 
     @Test
-    fun `no clear subject - the notice and Blur in both tabs, never Change background's options`() {
+    fun `no clear subject - Change background is greyed and not selectable, Focus and Blur shows the notice and Blur`() {
         val depth = DepthEstimator { FloatPlane(64, 48, FloatArray(64 * 48) { 0.5f }) }
         val vm = editor(segmenter = SubjectSegmenter { _, _, _ -> null }, depth = depth); show(vm)
         vm.selectTool(EditorTool.BACKGROUND)
         compose.waitUntil(10_000) { vm.uiState.value.separation is SeparationState.Finished }
         compose.waitForIdle()
-        for (tab in listOf("background-mode-focus-&-blur", "background-mode-change-background")) {
-            compose.onNodeWithTag(tab).performClick()
-            compose.waitForIdle()
-            compose.onNodeWithText("No clear subject found.", substring = true).assertIsDisplayed()
-            compose.onNodeWithText("Change background needs a person or object in front. You can still blur by tapping where to focus.", substring = true).assertExists()
-            compose.onNodeWithTag(BackgroundTags.slider("blur")).assertExists()
-            compose.onNodeWithTag("replacement-kind-image").assertDoesNotExist()
-            compose.onNodeWithTag(BackgroundTags.slider("depthOfField")).assertDoesNotExist()
-        }
-        assertEquals(BackgroundSub.CHANGE, vm.uiState.value.background.sub)
+        // Owner amendment 2026-10-11 (second; mockup bg-no-subject): the tab is disabled (40 %, semantics disabled) and a
+        // tap on it changes nothing; Focus & Blur stays the selected tab.
+        compose.onNodeWithTag("background-mode-change-background").assertIsNotEnabled().assertIsNotSelected()
+        compose.onNodeWithTag("background-mode-focus-&-blur").assertIsSelected()
+        vm.selectBackgroundSub(BackgroundSub.CHANGE)
+        compose.waitForIdle()
+        assertEquals(BackgroundSub.FOCUS, vm.uiState.value.background.sub)
+        compose.onNodeWithText("No clear subject found.", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Change background needs a person or object in front. You can still blur by tapping where to focus.", substring = true).assertExists()
+        compose.onNodeWithTag(BackgroundTags.slider("blur")).assertExists()
+        compose.onNodeWithTag("replacement-kind-image").assertDoesNotExist()
+        compose.onNodeWithTag(BackgroundTags.slider("depthOfField")).assertDoesNotExist()
     }
+
+    @Test
+    fun `with a subject, Change background › Image is two rows filled column by column, the dashed + tile last`() {
+        assertEquals(BackgroundOptions.IMAGES.map { BackgroundImageTile.Bundled(it.first, it.second) } + BackgroundImageTile.ChoosePhoto, BackgroundImageTile.all(hasImportedPhoto = false))
+        assertEquals(listOf(BackgroundImageTile.Imported, BackgroundImageTile.ChoosePhoto), BackgroundImageTile.all(hasImportedPhoto = true).takeLast(2))
+        val depth = DepthEstimator { FloatPlane(64, 48, FloatArray(64 * 48) { 0.5f }) }
+        val subject = SubjectSegmenter { _, w, h -> FloatPlane(w, h, FloatArray(w * h) { i -> if (i % w in w / 4 until 3 * w / 4) 1f else 0f }) }
+        val vm = editor(segmenter = subject, depth = depth); show(vm)
+        vm.selectTool(EditorTool.BACKGROUND)
+        compose.waitUntil(10_000) { vm.uiState.value.separation is SeparationState.Finished }
+        vm.selectBackgroundSub(BackgroundSub.CHANGE)
+        compose.waitForIdle()
+        compose.onNodeWithTag("background-mode-change-background").assertIsEnabled().assertIsSelected()
+        val first = compose.onNodeWithTag("background-image-landscape_01").getBoundsInRoot()
+        val second = compose.onNodeWithTag("background-image-sunset_03").getBoundsInRoot()
+        val third = compose.onNodeWithTag("background-image-wellexposed_02").getBoundsInRoot()
+        val plus = compose.onNodeWithTag("background-add-photo").getBoundsInRoot()
+        val last = compose.onNodeWithTag("background-image-wellexposed_03").getBoundsInRoot()
+        // Column-major: the second photo under the first (10 dp row gap), the third starts the next column (8 dp gap).
+        assertNear(first.left, second.left); assertNear(first.bottom + 10.dp, second.top)
+        assertNear(first.top, third.top); assertNear(first.right + 8.dp, third.left)
+        assertNear(60.dp, first.right - first.left); assertNear(60.dp, first.bottom - first.top)
+        // Seven photos then +: + is under the seventh, in the fourth column.
+        assertNear(last.left, plus.left); assertNear(last.bottom + 10.dp, plus.top)
+    }
+
+    private fun assertNear(expected: androidx.compose.ui.unit.Dp, actual: androidx.compose.ui.unit.Dp) =
+        assertTrue(kotlin.math.abs((expected - actual).value) < 0.5f, "expected $expected, was $actual")
 
     // --- 5. Bundled backgrounds -------------------------------------------------------------------------
 

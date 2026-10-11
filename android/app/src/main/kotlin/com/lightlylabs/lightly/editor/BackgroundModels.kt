@@ -49,6 +49,29 @@ data class BackgroundUi(
     val sliderDrag: Pair<String, Double>? = null,
 )
 
+/** The photo picked for Change background › "+" and its tile's thumbnail (decoded once, at most 180 px: 60 dp at 3×). */
+data class ImportedBackground(val asset: com.lightlylabs.lightly.session.AssetRef.Photo, val thumbnail: android.graphics.Bitmap) {
+    companion object {
+        const val THUMBNAIL_LONG_EDGE = 180
+    }
+}
+
+/** One tile of Change background › Image, in grid order. */
+sealed interface BackgroundImageTile {
+    data class Bundled(val id: String, val file: String) : BackgroundImageTile
+    data object Imported : BackgroundImageTile
+    data object ChoosePhoto : BackgroundImageTile
+
+    companion object {
+        /**
+         * Owner amendment 2026-10-11 (second; mockup `backgroundPanel` kind 'image'): the bundled backgrounds, the imported
+         * photo when there is one, and the dashed "+ Choose a photo" tile last (it used to come first).
+         */
+        fun all(hasImportedPhoto: Boolean): List<BackgroundImageTile> =
+            BackgroundOptions.IMAGES.map { (id, file) -> Bundled(id, file) } + (if (hasImportedPhoto) listOf(Imported) else emptyList()) + ChoosePhoto
+    }
+}
+
 /** What the Background panel shows (prototype `backgroundPanel`). */
 sealed interface BackgroundPanelState {
     /** Photo without a clear subject: notice + Blur only (depth-only refocus still works). */
@@ -74,6 +97,9 @@ sealed interface BackgroundPanelState {
     data object Focus : BackgroundPanelState
 
     companion object {
+        /** Separation finished and found no clear subject: Change background has nothing to put a background behind. */
+        fun hasNoSubject(separation: SeparationState): Boolean = (separation as? SeparationState.Finished)?.noClearSubject == true
+
         /**
          * The approved states, never a substitute: Focus & Blur needs depth, Change background and
          * Refine edges need the subject matte; whatever this build or photo cannot provide shows the

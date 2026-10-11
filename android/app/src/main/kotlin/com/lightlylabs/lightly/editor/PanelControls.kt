@@ -95,6 +95,7 @@ import kotlin.math.sin
 fun <T> OptionTabs(
     items: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, dotted: (T) -> Boolean = { false }, tagPrefix: String = "tab",
     icon: (T) -> androidx.compose.ui.graphics.vector.ImageVector? = { null },
+    disabled: (T) -> Boolean = { false },
 ) {
     val colors = lightlyColors
     val scroll = rememberScrollState()
@@ -112,15 +113,19 @@ fun <T> OptionTabs(
     ) {
         items.forEachIndexed { index, (value, label) ->
             val on = value == selected
+            // A disabled tab (Lightly 2 `tabs` `off`, e.g. Change background without a subject) is at 40 %, cannot be
+            // selected and reads as disabled.
+            val off = disabled(value)
             val pillShape = RoundedCornerShape(16.dp)
             Box(
                 // The pill is drawn inside a 44 dp touch target, as the earlier underlined tabs were.
                 Modifier
                     .heightIn(min = 44.dp)
                     .onGloballyPositioned { offsets[index] = it.positionInParent().x.roundToInt() }
+                    .then(if (off) Modifier.graphicsLayer { alpha = 0.4f } else Modifier)
                     // No ripple: the platform indication drew a grey 44 dp box under the finger before the lime pill
                     // appeared on release (owner report 2026-10-11). The pill itself is the selection feedback.
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab) { onSelect(value) }
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = !off, role = Role.Tab) { onSelect(value) }
                     .semantics { this.selected = on; if (dotted(value)) stateDescription = "Edited" }
                     .testTagResource("$tagPrefix-${label.lowercase().replace(' ', '-')}"),
                 contentAlignment = Alignment.Center,
@@ -224,10 +229,12 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
     }
 }
 
-/** A sideways-scrolling row (`rowOf`/`chips`): [spacing] dp gaps, the end fading (88 %). */
+/**
+ * A sideways-scrolling row (`rowOf`/`chips`): [spacing] dp gaps, the end fading (88 %). Pass [rowScroll] to scroll it
+ * from outside (the watermark fonts start at the one before the selected font, as the mockup's `scrolled()`).
+ */
 @Composable
-fun ChipRow(spacing: Dp = 8.dp, content: @Composable RowScope.() -> Unit) {
-    val rowScroll = rememberScrollState()
+fun ChipRow(spacing: Dp = 8.dp, rowScroll: androidx.compose.foundation.ScrollState = rememberScrollState(), content: @Composable RowScope.() -> Unit) {
     Row(
         // The end fades only while chips are hidden past it (owner amendment 2026-10-10).
         Modifier.fillMaxWidth().fadeEnd(rowScroll.canScrollForward).horizontalScroll(rowScroll).padding(vertical = 4.dp, horizontal = 2.dp),

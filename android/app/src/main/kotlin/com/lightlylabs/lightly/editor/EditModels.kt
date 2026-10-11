@@ -64,7 +64,15 @@ object WatermarkOptions {
     val COLOURS = listOf("#FFFFFF", "#111111", "#C9A27E", "#8A8A8F")
     val POSITIONS = listOf("Top left", "Top", "Top right", "Left", "Centre", "Right", "Bottom left", "Bottom", "Bottom right")
     val FONTS = listOf(com.lightlylabs.lightly.session.WatermarkFont.ALLURA to "Allura", com.lightlylabs.lightly.session.WatermarkFont.CORMORANT_GARAMOND to "Cormorant Garamond",
-        com.lightlylabs.lightly.session.WatermarkFont.INTER to "Inter", com.lightlylabs.lightly.session.WatermarkFont.CAVEAT to "Caveat", com.lightlylabs.lightly.session.WatermarkFont.DANCING_SCRIPT to "Dancing Script", com.lightlylabs.lightly.session.WatermarkFont.LORA to "Lora")
+        com.lightlylabs.lightly.session.WatermarkFont.INTER to "Inter", com.lightlylabs.lightly.session.WatermarkFont.CAVEAT to "Caveat", com.lightlylabs.lightly.session.WatermarkFont.DANCING_SCRIPT to "Dancing Script", com.lightlylabs.lightly.session.WatermarkFont.LORA to "Lora",
+        // The seven signature scripts the owner added on 2026-10-11 (second amendment), after Lora (mockup `WM_FONTS`).
+        com.lightlylabs.lightly.session.WatermarkFont.CARPENTERS to "Carpenters", com.lightlylabs.lightly.session.WatermarkFont.SOURDOUGH_SCRIPT to "Sourdough Script",
+        com.lightlylabs.lightly.session.WatermarkFont.JAYBIRD to "Jaybird", com.lightlylabs.lightly.session.WatermarkFont.ASTORIA to "Astoria",
+        com.lightlylabs.lightly.session.WatermarkFont.BONSKIN to "Bonskin", com.lightlylabs.lightly.session.WatermarkFont.SHAREIT to "Shareit",
+        com.lightlylabs.lightly.session.WatermarkFont.MONTTEE to "Monttee")
+
+    /** The mockup's `scrolled(all, at)`: the row starts at the item before the selected one (from the third on). */
+    fun scrolledStartIndex(selectedIndex: Int): Int = if (selectedIndex < 2) 0 else selectedIndex - 1
 
     /** The prototype's sample text (`newSession`: `text:'A. Rivera'`; owner question W5, as iOS). */
     const val DEFAULT_TEXT = "A. Rivera"
