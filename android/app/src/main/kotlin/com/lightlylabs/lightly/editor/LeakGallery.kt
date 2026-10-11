@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -57,7 +58,7 @@ object LeakGalleryTags {
 /**
  * Effects › Light Leaks (mockup `leakGallery`, owner 2026-10-11; screens fx-leak, fx-leak-none): "None", then every leak of the
  * pack in pack order, on two rows filled column by column like the compact preset gallery (96 dp columns, 12 dp column and 10 dp
- * row gaps, the end fading). With no pack in the build only None is offered.
+ * row gaps, the end fading while leaks lie past it). With no pack in the build only None is offered.
  */
 @Composable
 fun LeakGallery(vm: EditorViewModel, ui: EditorUiState, leak: com.lightlylabs.lightly.session.LightLeak) {
@@ -68,9 +69,11 @@ fun LeakGallery(vm: EditorViewModel, ui: EditorUiState, leak: com.lightlylabs.li
     // The photo under every tile, once per open photo (not per tile).
     var photo by remember { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(ui.original) { photo = vm.leakTilePhoto()?.toBitmap()?.asImageBitmap() }
+    val grid = rememberLazyGridState()
     LazyHorizontalGrid(
         GridCells.Fixed(2),
-        modifier = Modifier.fillMaxWidth().height(LEAK_ROW_HEIGHT * 2 + 10.dp).fadeEnd().testTagResource(LeakGalleryTags.GALLERY),
+        state = grid,
+        modifier = Modifier.fillMaxWidth().height(LEAK_ROW_HEIGHT * 2 + 10.dp).fadeEnd(grid.canScrollForward).testTagResource(LeakGalleryTags.GALLERY),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {

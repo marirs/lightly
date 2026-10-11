@@ -60,10 +60,10 @@ fun PresetGallery(vm: EditorViewModel, model: DevelopPanelModel, expanded: Boole
         item(key = "original") { PresetTile(vm, null, expanded, ui.session?.current?.look == null, context) }
         items(model.presets, key = { it.id }) { preset -> PresetTile(vm,preset,expanded,ui.session?.current?.look?.lookId == preset.id,context) }
     }
-    // Lightly 2: compact = two 84 dp rows, 96 dp columns, 10 dp row and 12 dp column gaps, the end fading; expanded = two
+    // Lightly 2: compact = two 84 dp rows, 96 dp columns, 10 dp row and 12 dp column gaps, the end fading while presets lie past it; expanded = two
     // equal columns, 14 dp row and 12 dp column gaps, 142 dp thumbnails.
     if (expanded) LazyVerticalGrid(GridCells.Fixed(2), state = grid, modifier = Modifier.fillMaxWidth().height(390.dp).nestedScroll(collapseScroll).then(accessibility).testTagResource("develop-gallery-expanded"), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = tiles)
-    else LazyHorizontalGrid(GridCells.Fixed(2), state = grid, modifier = Modifier.fillMaxWidth().height(84.dp * 2 + 10.dp).fadeEnd().then(expandGesture).then(accessibility).testTagResource("develop-gallery-compact"), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = tiles)
+    else LazyHorizontalGrid(GridCells.Fixed(2), state = grid, modifier = Modifier.fillMaxWidth().height(84.dp * 2 + 10.dp).fadeEnd(grid.canScrollForward).then(expandGesture).then(accessibility).testTagResource("develop-gallery-compact"), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = tiles)
 }
 
 /**

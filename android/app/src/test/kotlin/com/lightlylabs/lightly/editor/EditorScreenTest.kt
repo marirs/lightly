@@ -21,6 +21,7 @@ import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.lifecycle.SavedStateHandle
 import com.lightlylabs.lightly.develop.DevelopRenderer
@@ -386,6 +387,44 @@ class EditorScreenTest {
         compose.waitForIdle()
         assertTrue(!vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
     }
+    private fun endFade(shown: Boolean) = SemanticsMatcher.expectValue(EndFadeShown, shown)
+
+    /** Lets the fade's ease in or out finish and the scroll state settle. */
+    private fun settle() { compose.mainClock.advanceTimeBy(1_000); compose.waitForIdle() }
+
+    /** Owner report 2026-10-11: the "more this way" fade must not stay once the row is scrolled to its end. */
+    @Test
+    fun `the preset gallery's end fades while presets lie past it and not once scrolled to the end`() {
+        val vm = editor(); show(vm); settle()
+        val gallery = compose.onNodeWithTag("develop-gallery-compact")
+        gallery.assert(endFade(true))
+        val last = compose.runOnIdle { vm.panelModel()!!.presets.size } // the Original tile is index 0
+        gallery.performScrollToIndex(last)
+        settle()
+        gallery.assert(endFade(false))
+    }
+
+    @Test
+    fun `the light leak gallery's end fades while leaks lie past it and not once scrolled to the end`() {
+        val leaks = TestLeaks.libraryOf(16)
+        val vm = editor(leaks); show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
+        settle()
+        val gallery = compose.onNodeWithTag(LeakGalleryTags.GALLERY)
+        gallery.assert(endFade(true))
+        gallery.performScrollToIndex(leaks.leaks.size) // None is index 0
+        settle()
+        gallery.assert(endFade(false))
+    }
+
+    @Test
+    fun `a gallery whose tiles all fit shows no end fade`() {
+        val vm = editor(TestLeaks.library); show(vm) // None and three leaks: two columns, well within the width
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
+        settle()
+        compose.onNodeWithTag(LeakGalleryTags.GALLERY).assert(endFade(false))
+    }
+
     /** Owner report 2026-10-11: after the crop zoom, handles could not be dragged. All eight must move their own sides. */
     @Test
     fun `all eight crop handles work after the zoom`() {

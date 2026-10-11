@@ -1,6 +1,11 @@
 package com.lightlylabs.lightly.editor
 
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
+import androidx.compose.runtime.derivedStateOf
 
 import androidx.compose.ui.semantics.heading
 
@@ -795,10 +800,30 @@ internal fun Modifier.hairlineTop(color: Color) = drawBehind { drawLine(color, O
 
 internal fun Modifier.hairlineStart(color: Color) = drawBehind { drawLine(color, Offset(0.5f, 0f), Offset(0.5f, size.height), strokeWidth = 1.dp.toPx()) }
 
-/** A row's end fading (88 %), as the mockup's scrolling rows. */
-internal fun Modifier.fadeEnd(enabled: Boolean = true) = if (!enabled) this else graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
-    drawContent()
-    drawRect(Brush.horizontalGradient(0.88f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+/** Whether a scrolling row's end fade is showing (read by tests; not an accessibility property). */
+internal val EndFadeShown = SemanticsPropertyKey<Boolean>("EndFadeShown")
+private var SemanticsPropertyReceiver.endFadeShown by EndFadeShown
+
+/** The end fade eases in and out rather than snapping when the row reaches (or leaves) its end. */
+private const val END_FADE_MILLIS = 180
+
+/**
+ * A row's end fading (88 %), as the mockup's scrolling rows, shown only while [moreBeyondEnd]: the fade says "more this way",
+ * so at the end of the row, or when everything fits, it must not show (owner report 2026-10-11). Every horizontally scrolling
+ * row passes its scroll state's `canScrollForward` (ScrollState, LazyListState or LazyGridState alike).
+ */
+@Composable
+internal fun Modifier.fadeEnd(moreBeyondEnd: Boolean): Modifier {
+    val strength = animateFloatAsState(if (moreBeyondEnd) 1f else 0f, tween(END_FADE_MILLIS), label = "fadeEnd")
+    // Read as a derived boolean so the animation's frames redraw the mask without recomposing the row.
+    val visible by remember { derivedStateOf { strength.value > 0f } }
+    val tagged = semantics { endFadeShown = moreBeyondEnd }
+    if (!visible) return tagged
+    return tagged.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+        drawContent()
+        // At strength 0 the trailing stop is opaque black, i.e. no fade; at 1 it is the mockup's transparent end.
+        drawRect(Brush.horizontalGradient(0.88f to Color.Black, 1f to Color.Black.copy(alpha = 1f - strength.value)), blendMode = BlendMode.DstIn)
+    }
 }
 
 /** The panel's title is drawn by its container in Lightly 2 (the two-pane card), never inside the panel. */

@@ -18,4 +18,11 @@ object TestLeaks {
         // The "file" is the leak's index; decoding makes its solid colour.
         LeakLibrary(pack, readFile = { path -> byteArrayOf(ids.indexOfFirst { path.contains(it) }.toByte()) }, decode = { bytes -> solid(32, 18, colours[bytes[0].toInt()]) })
     }
+
+    /** A pack of [count] solid gold leaks: more than a phone-width gallery shows, for the end-fade tests. */
+    fun libraryOf(count: Int): LeakLibrary {
+        val many = (1..count).map { "leak-%012d".format(it) }
+        val pack = LeakPack(many.map { id -> LeakPackEntry(id, "Leak $id", "img/$id.jpg", "thumb/$id.jpg", "0".repeat(64), 32, 18) })
+        return LeakLibrary(pack, readFile = { byteArrayOf(0) }, decode = { solid(32, 18, colours[0]) })
+    }
 }
