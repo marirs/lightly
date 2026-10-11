@@ -355,4 +355,48 @@ class EditorScreenTest {
         compose.waitForIdle()
         assertTrue(vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
     }
+    /** Owner report 2026-10-11: after the crop zoom, handles could not be dragged. All eight must move their own sides. */
+    @Test
+    fun `all eight crop handles work after the zoom`() {
+        val vm = editor()
+        show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
+        compose.waitForIdle()
+        val stage = compose.onNodeWithTag("editor-inspection")
+        fun crop() = vm.uiState.value.edit.cropDraft ?: vm.uiState.value.session!!.current.tools.edit.geometry.crop.rect
+        fun photo() = compose.onNode(androidx.compose.ui.test.hasContentDescription("Your photo with the edit")).fetchSemanticsNode().boundsInRoot
+        fun drag(fx: Double, fy: Double, dx: Float, dy: Float) {
+            val p = photo(); val origin = stage.fetchSemanticsNode().boundsInRoot
+            val start = Offset(p.left + p.width * fx.toFloat() - origin.left, p.top + p.height * fy.toFloat() - origin.top)
+            stage.performTouchInput { swipe(start, start + Offset(dx, dy), 300) }
+            compose.mainClock.advanceTimeBy(600); compose.waitForIdle()
+        }
+        drag(0.01, 0.5, 60f, 0f) // the first drag zooms the photo in
+        assertTrue(crop().x > 0.05, "the left edge moved: ${crop()}")
+        val handles = listOf(
+            Triple("top-left", 0.0 to 0.0, Offset(16f, 16f)) to listOf(true, true, false, false),
+            Triple("top", 0.5 to 0.0, Offset(0f, 16f)) to listOf(false, true, false, false),
+            Triple("top-right", 1.0 to 0.0, Offset(-16f, 16f)) to listOf(false, true, true, false),
+            Triple("right", 1.0 to 0.5, Offset(-16f, 0f)) to listOf(false, false, true, false),
+            Triple("bottom-right", 1.0 to 1.0, Offset(-16f, -16f)) to listOf(false, false, true, true),
+            Triple("bottom", 0.5 to 1.0, Offset(0f, -16f)) to listOf(false, false, false, true),
+            Triple("bottom-left", 0.0 to 1.0, Offset(16f, -16f)) to listOf(true, false, false, true),
+            Triple("left", 0.0 to 0.5, Offset(16f, 0f)) to listOf(true, false, false, false),
+        )
+        for ((handle, moves) in handles) {
+            val (name, at, by) = handle
+            val r = crop()
+            val inset = 0.004
+            val fx = r.x + r.width * at.first + (if (at.first == 0.0) inset else if (at.first == 1.0) -inset else 0.0)
+            val fy = r.y + r.height * at.second + (if (at.second == 0.0) inset else if (at.second == 1.0) -inset else 0.0)
+            drag(fx, fy, by.x, by.y)
+            val n = crop()
+            val sides = listOf(kotlin.math.abs(n.x - r.x), kotlin.math.abs(n.y - r.y), kotlin.math.abs((n.x + n.width) - (r.x + r.width)), kotlin.math.abs((n.y + n.height) - (r.y + r.height)))
+            listOf("left", "top", "right", "bottom").forEachIndexed { i, side ->
+                if (moves[i]) assertTrue(sides[i] > 0.002, "$name: the $side side should move ($r -> $n)")
+                else assertTrue(sides[i] < 0.001, "$name: the $side side should stay ($r -> $n)")
+            }
+        }
+        compose.onNodeWithTag("edit-crop-apply").assertExists()
+    }
 }

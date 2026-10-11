@@ -223,6 +223,12 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     /// glides and zooms so this area fills the stage (24 pt clear of its edges), the dimmed rest around it; nil leaves
     /// the photo fitted as usual. The caller holds it still while a finger is down.
     var cropFocus: EditRecipe.Rect?
+    /// Room kept clear under the zoomed crop (✕ Cancel / ✓ Apply crop sit there).
+    var cropBottomReserve: CGFloat = 0
+    /// Crop touches, laid over the whole stage (not inside the zoomed photo, whose hit area stays the unzoomed photo's:
+    /// owner report 2026-10-11, the right-hand handles could not be dragged after the zoom). Given the photo's rect on
+    /// the stage as shown, zoom included.
+    var cropTouches: ((CGRect) -> AnyView)?
     var allowsInspection = false
     var allowsDoubleTapZoom = true
     var onInspectionBegan: () -> Void = {}
@@ -273,12 +279,19 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                                 .offset(x: canvas.size.width * box.minX, y: canvas.size.height * box.minY)
                         }
                     }
-                    .modifier(CropFocusTransform(focus: cropFocus, fitted: fitted, viewport: geometry.size))
+                    .modifier(CropFocusTransform(focus: cropFocus, fitted: fitted, viewport: geometry.size, bottomReserve: cropBottomReserve))
                 }
                 photoChrome
                     .frame(width: fitted.width * imageBox.width, height: fitted.height * imageBox.height)
                     .offset(x: fitted.width * (imageBox.midX - 0.5), y: fitted.height * (imageBox.midY - 0.5))
                 overlay()
+                if let cropTouches {
+                    let (scale, offset) = CropFocusTransform.placement(focus: cropFocus, fitted: fitted, viewport: geometry.size, bottomReserve: cropBottomReserve)
+                    cropTouches(CGRect(x: geometry.size.width / 2 + offset.width - fitted.width * scale / 2,
+                                       y: geometry.size.height / 2 + offset.height - fitted.height * scale / 2,
+                                       width: fitted.width * scale, height: fitted.height * scale))
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .onChange(of: CGSize(width: fitted.width * imageBox.width, height: fitted.height * imageBox.height), initial: true) { _, size in
@@ -306,22 +319,28 @@ private struct CropFocusTransform: ViewModifier {
     let focus: EditRecipe.Rect?
     let fitted: CGSize
     let viewport: CGSize
+    var bottomReserve: CGFloat = 0
 
     func body(content: Content) -> some View {
-        let (scale, offset) = placement()
+        let (scale, offset) = Self.placement(focus: focus, fitted: fitted, viewport: viewport, bottomReserve: bottomReserve)
         content
             .scaleEffect(scale)
             .offset(offset)
             .animation(.smooth(duration: 0.35), value: focus)
+            .animation(.smooth(duration: 0.35), value: bottomReserve)
     }
 
-    private func placement() -> (CGFloat, CGSize) {
+    /// The zoom and offset (from the stage's centre) that fit the crop in the stage, 24 pt clear of its edges and
+    /// [bottomReserve] more at the bottom. No crop tab (nil) leaves the photo fitted.
+    static func placement(focus: EditRecipe.Rect?, fitted: CGSize, viewport: CGSize, bottomReserve: CGFloat) -> (CGFloat, CGSize) {
         guard let focus, fitted.width > 0, fitted.height > 0 else { return (1, .zero) }
         let cropWidth = max(1, focus.width * fitted.width), cropHeight = max(1, focus.height * fitted.height)
-        let scale = min(6, max(1, min((viewport.width - 48) / cropWidth, (viewport.height - 48) / cropHeight)))
+        // May go below 1: the whole frame, handles included, always fits the stage with a margin (Lightroom), even on a
+        // tall photo that already filled the stage's height before ✕ / ✓ needed room under it.
+        let scale = min(6, min((viewport.width - 48) / cropWidth, (viewport.height - 48 - bottomReserve) / cropHeight))
         let centreX = (focus.x + focus.width / 2 - 0.5) * fitted.width
         let centreY = (focus.y + focus.height / 2 - 0.5) * fitted.height
-        return (scale, CGSize(width: -centreX * scale, height: -centreY * scale))
+        return (scale, CGSize(width: -centreX * scale, height: -centreY * scale - bottomReserve / 2))
     }
 }
 

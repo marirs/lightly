@@ -35,6 +35,12 @@ struct EditorScreen: View {
         return cropDraft ?? session.recipe.tools.edit.geometry.cropRect
     }
     @State private var heldCropFocus: EditRecipe.Rect?
+    @State private var heldCropReserve: CGFloat = 0
+    /// Room under the zoomed crop for ✕ / ✓, held still while a finger is down so the photo never moves under it.
+    private var cropReserve: CGFloat {
+        if cropGestureStart != nil || cropPinchStart != nil { return heldCropReserve }
+        return hasPendingCrop ? 56 : 0
+    }
     /// A frame moved but not applied yet: ✕ Cancel and ✓ Apply crop show under the photo.
     private var hasPendingCrop: Bool { isCropping && cropDraft.map { $0 != session.recipe.tools.edit.geometry.cropRect } == true }
 
@@ -285,6 +291,8 @@ struct EditorScreen: View {
                    marksCoverCanvas: tool == .watermark,
                    cropWorkspace: false,
                    cropFocus: cropFocusRect,
+                   cropBottomReserve: cropReserve,
+                   cropTouches: isCropping ? { rect in AnyView(cropGestureArea(photo: rect)) } : nil,
                    allowsInspection: !isCropping,
                    allowsDoubleTapZoom: tool != .watermark,
                    onInspectionBegan: {
@@ -701,7 +709,6 @@ struct EditorScreen: View {
             if isCropping {
                 CropFrameMark(rect: cropDraft ?? session.recipe.tools.edit.geometry.cropRect,
                               isAdjusting: cropGestureStart != nil || cropPinchStart != nil)
-                cropGestureArea(size: size)
             } else {
                 // The cropped photo: a tap brings the frame back to adjust it.
                 Color.clear.contentShape(Rectangle())
@@ -718,8 +725,9 @@ struct EditorScreen: View {
                 Color.clear.frame(width: 1, height: 1)
                     .accessibilityElement()
                     .accessibilityIdentifier("edit.cropRect")
-                    .accessibilityValue(String(format: "%@ %.4f %.4f %.4f %.4f", g.cropAspect.rawValue, g.cropRect.x, g.cropRect.y,
-                                               g.cropRect.width, g.cropRect.height))
+                    // The frame as shown: the unapplied draft while one waits for ✓, else the applied crop.
+                    .accessibilityValue(String(format: "%@ %.4f %.4f %.4f %.4f", g.cropAspect.rawValue, (cropDraft ?? g.cropRect).x, (cropDraft ?? g.cropRect).y,
+                                               (cropDraft ?? g.cropRect).width, (cropDraft ?? g.cropRect).height))
                     .allowsHitTesting(false)
             }
             #endif
@@ -767,15 +775,18 @@ struct EditorScreen: View {
     /// Free crop (owner amendment 2026-10-05): the stage shows the straightened frame uncropped
     /// (`EditorSession.isCropEditing`); drag a corner or an edge to resize, inside to move. An aspect preset locks the
     /// ratio on every handle; Free leaves it unconstrained. The drag shows the rectangle; its end is one undo step.
-    private func cropGestureArea(size: CGSize) -> some View {
-        Color.clear.contentShape(Rectangle())
+    /// Over the whole stage; [photo] is the photo's rect as shown (zoom included), so touches map to crop fractions.
+    private func cropGestureArea(photo: CGRect) -> some View {
+        let size = photo.size
+        return Color.clear.contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 2)
                 .onChanged { value in
                     guard cropPinchStart == nil else { return }
                     let rect = cropDraft ?? session.recipe.tools.edit.geometry.cropRect
                     if cropGestureStart == nil {
-                        guard let handle = CropGeometry.handle(at: value.startLocation, rect: rect, size: size) else { return }
-                        heldCropFocus = cropFocusRect
+                        let start = CGPoint(x: value.startLocation.x - photo.minX, y: value.startLocation.y - photo.minY)
+                        guard let handle = CropGeometry.handle(at: start, rect: rect, size: size) else { return }
+                        heldCropFocus = cropFocusRect; heldCropReserve = cropReserve
                         cropGestureStart = (rect, handle)
                     }
                     guard let start = cropGestureStart else { return }
@@ -788,7 +799,7 @@ struct EditorScreen: View {
                     cropGestureStart = nil
                 })
             .simultaneousGesture(MagnifyGesture().onChanged { value in
-                if cropPinchStart == nil { heldCropFocus = cropFocusRect; cropPinchStart = cropDraft ?? session.recipe.tools.edit.geometry.cropRect; cropGestureStart = nil }
+                if cropPinchStart == nil { heldCropFocus = cropFocusRect; heldCropReserve = cropReserve; cropPinchStart = cropDraft ?? session.recipe.tools.edit.geometry.cropRect; cropGestureStart = nil }
                 if let start = cropPinchStart { cropDraft = CropGeometry.scaled(start, magnification: value.magnification) }
             }.onEnded { _ in cropPinchStart = nil })
             .accessibilityHidden(true)

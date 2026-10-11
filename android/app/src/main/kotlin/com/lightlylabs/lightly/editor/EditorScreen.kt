@@ -183,7 +183,8 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
     val stage: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier) {
             // While cropping, a pinch resizes the crop frame instead of zooming the photo.
-            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), onPhotoBox = vm::onStagePhotoMeasured)
+            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), cropPending = vm.hasPendingCrop(ui),
+                cropTouches = if (vm.isCropEditing(ui) && !ui.showsOriginal) { photo -> CropTouches(vm, photo) } else null, onPhotoBox = vm::onStagePhotoMeasured)
             if (!ui.showsOriginal && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP)) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
             // ✕ Cancel and ✓ Apply crop under the photo while a moved frame waits (owner, 2026-10-11).
             androidx.compose.animation.AnimatedVisibility(vm.hasPendingCrop(ui), Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
@@ -392,7 +393,7 @@ internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, 
  * the "Original" badge at the photo's top-left corner.
  */
 @Composable
-private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false, cropEditing: Boolean = false, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
+private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false, cropEditing: Boolean = false, cropPending: Boolean = false, cropTouches: (@Composable (photo: androidx.compose.ui.geometry.Rect) -> Unit)? = null, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
     // Lightly 2 `photo()`: the stage is transparent (its container gives --bg on phones, --stage in panes; the crop
@@ -452,16 +453,23 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
             val cropTab = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.showsOriginal && cropEditing
             var heldFocus by remember { mutableStateOf<com.lightlylabs.lightly.session.NormalisedRect?>(null) }
             val settled = if (cropTab) ui.edit.cropDraft ?: ui.session?.current?.tools?.edit?.geometry?.crop?.rect else null
-            if (!ui.edit.cropDragging) heldFocus = settled
+            // Room under the frame for ✕ / ✓ (56 dp), held still while a finger is down so the photo never moves under it.
+            var heldReserve by remember { mutableStateOf(0f) }
+            val settledReserve = if (cropPending) with(density) { 56.dp.toPx() } else 0f
+            if (!ui.edit.cropDragging) { heldFocus = settled; heldReserve = settledReserve }
             val focus = if (ui.edit.cropDragging) heldFocus else settled
+            val reservePx = if (ui.edit.cropDragging) heldReserve else settledReserve
             val clearPx = with(density) { 24.dp.toPx() }
+            // May go below 1: the whole frame, handles included, always fits with a margin (as iOS).
             val focusScale = focus?.let { r ->
-                minOf(6f, maxOf(1f, minOf((viewport.x - clearPx) / (r.width.toFloat() * fitted.x).coerceAtLeast(1f), (viewport.y - clearPx) / (r.height.toFloat() * fitted.y).coerceAtLeast(1f))))
+                minOf(6f, minOf((viewport.x - clearPx) / (r.width.toFloat() * fitted.x).coerceAtLeast(1f), (viewport.y - clearPx - reservePx) / (r.height.toFloat() * fitted.y).coerceAtLeast(1f)))
             } ?: 1f
+            val targetDx = focus?.let { -((it.x + it.width / 2 - 0.5).toFloat() * fitted.x) * focusScale } ?: 0f
+            val targetDy = focus?.let { -((it.y + it.height / 2 - 0.5).toFloat() * fitted.y) * focusScale - reservePx / 2 } ?: 0f
             val glide = androidx.compose.animation.core.tween<Float>(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
             val cropScale by androidx.compose.animation.core.animateFloatAsState(focusScale, glide, label = "crop-scale")
-            val cropDx by androidx.compose.animation.core.animateFloatAsState(focus?.let { -((it.x + it.width / 2 - 0.5).toFloat() * fitted.x) * focusScale } ?: 0f, glide, label = "crop-dx")
-            val cropDy by androidx.compose.animation.core.animateFloatAsState(focus?.let { -((it.y + it.height / 2 - 0.5).toFloat() * fitted.y) * focusScale } ?: 0f, glide, label = "crop-dy")
+            val cropDx by androidx.compose.animation.core.animateFloatAsState(targetDx, glide, label = "crop-dx")
+            val cropDy by androidx.compose.animation.core.animateFloatAsState(targetDy, glide, label = "crop-dy")
             Box(
                 Modifier.size(width.dp, (width / ratio).dp).graphicsLayer {
                     scaleX = zoom * cropScale; scaleY = zoom * cropScale
@@ -494,6 +502,14 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                 if (box == null || ui.tool == EditorTool.WATERMARK) overlay() else BoxWithConstraints(Modifier.fillMaxSize()) {
                     Box(Modifier.offset(x = maxWidth * box[0].toFloat(), y = maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { overlay() }
                 }
+            }
+            // Crop touches over the whole stage (owner report 2026-10-11): inside the zoomed layer, touches only reached
+            // the photo's unzoomed bounds, so handles moved outside them could not be dragged. The photo's rect as
+            // shown (target zoom included) maps them to crop fractions.
+            if (cropTouches != null) Box(Modifier.fillMaxSize()) {
+                cropTouches(androidx.compose.ui.geometry.Rect(
+                    viewport.x / 2 + targetDx - fitted.x * focusScale / 2, viewport.y / 2 + targetDy - fitted.y * focusScale / 2,
+                    viewport.x / 2 + targetDx + fitted.x * focusScale / 2, viewport.y / 2 + targetDy + fitted.y * focusScale / 2))
             }
             }
             // Keep the Auto control at its approved size and position while inspecting the image.

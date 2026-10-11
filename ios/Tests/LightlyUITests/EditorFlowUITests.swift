@@ -178,6 +178,57 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertNotEqual(beforeAll, app.screenshot().pngRepresentation, "the zoomed picture changed after Reset all")
     }
 
+    /// Owner report 2026-10-11 (tall photo): after the first drag zooms in, handles could not be dragged. All eight
+    /// (four corners, four edges) must move exactly their own sides, on a frame that has already zoomed.
+    func testAllEightCropHandlesWorkAfterTheZoom() {
+        relaunch(arguments: ["--reset-preferences", "--expose-crop", "--open-photo", photoPath("portrait_medium_02")])
+        XCTAssertTrue(element("tool.edit").waitForExistence(timeout: 40))
+        element("tool.edit").tap()
+        let photo = element("editor.photo")
+        XCTAssertTrue(photo.waitForExistence(timeout: 30))
+        func crop() -> [Double] {
+            let parts = (element("edit.cropRect").value as? String ?? "").split(separator: " ").compactMap { Double($0) }
+            return parts.count == 4 ? parts : [0, 0, 1, 1]
+        }
+        func drag(_ fx: Double, _ fy: Double, by d: CGVector) {
+            let f = photo.frame
+            let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: f.minX + f.width * fx, dy: f.minY + f.height * fy))
+            start.press(forDuration: 0.15, thenDragTo: start.withOffset(d), withVelocity: .slow, thenHoldForDuration: 0.1)
+            sleep(2) // the glide
+        }
+        // The first drag zooms the photo in: the left edge in.
+        drag(0.01, 0.5, by: CGVector(dx: 50, dy: 0))
+        XCTAssertGreaterThan(crop()[0], 0.05, "the left edge moved")
+        capture(named: "crop-zoomed")
+        // (name, start point in the frame (0…1 of the frame), drag, sides that must move: left, top, right, bottom)
+        let handles: [(String, Double, Double, CGVector, [Bool])] = [
+            ("top-left", 0, 0, CGVector(dx: 12, dy: 12), [true, true, false, false]),
+            ("top", 0.5, 0, CGVector(dx: 0, dy: 12), [false, true, false, false]),
+            ("top-right", 1, 0, CGVector(dx: -12, dy: 12), [false, true, true, false]),
+            ("right", 1, 0.5, CGVector(dx: -12, dy: 0), [false, false, true, false]),
+            ("bottom-right", 1, 1, CGVector(dx: -12, dy: -12), [false, false, true, true]),
+            ("bottom", 0.5, 1, CGVector(dx: 0, dy: -12), [false, false, false, true]),
+            ("bottom-left", 0, 1, CGVector(dx: 12, dy: -12), [true, false, false, true]),
+            ("left", 0, 0.5, CGVector(dx: 12, dy: 0), [true, false, false, false]),
+        ]
+        for (name, hx, hy, d, moves) in handles {
+            let r = crop()
+            // Just inside the frame's corner or edge.
+            let inset = 0.004
+            let fx = r[0] + r[2] * hx + (hx == 0 ? inset : hx == 1 ? -inset : 0)
+            let fy = r[1] + r[3] * hy + (hy == 0 ? inset : hy == 1 ? -inset : 0)
+            drag(fx, fy, by: d)
+            let n = crop()
+            let sides = [abs(n[0] - r[0]), abs(n[1] - r[1]), abs((n[0] + n[2]) - (r[0] + r[2])), abs((n[1] + n[3]) - (r[1] + r[3]))]
+            for (side, moved) in zip(["left", "top", "right", "bottom"], zip(sides, moves)) {
+                if moved.1 { XCTAssertGreaterThan(moved.0, 0.005, "\(name): the \(side) side should move") }
+                else { XCTAssertLessThan(moved.0, 0.002, "\(name): the \(side) side should stay") }
+            }
+        }
+        capture(named: "crop-after-all-handles")
+        XCTAssertTrue(element("edit.crop.apply").exists, "✓ is still offered")
+    }
+
     // MARK: - Welcome
 
     /// Welcome shows the brand and both ways in; no login, no onboarding (approved Welcome).

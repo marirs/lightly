@@ -99,7 +99,6 @@ private fun CropFrame(vm: EditorViewModel, ui: EditorUiState) {
         Modifier
             .fillMaxSize()
             .cropHandleGestureExclusion(rect)
-            .pointerInput(Unit) { cropGestures(vm, onDraft = { if (it != null) vm.previewCrop(it) }, onEnd = vm::finishCropDrag) }
             .semantics { contentDescription = "Drag a corner or an edge to crop. Drag inside to move." },
     ) {
         val inset = Offset(size.width * rect.x.toFloat(), size.height * rect.y.toFloat())
@@ -159,16 +158,27 @@ private fun handleZone(size: androidx.compose.ui.unit.IntSize, fx: Double, fy: D
 }
 
 /** One finger: a corner, an edge or the inside of the crop rectangle (CropGeometry), previewed as [onDraft], committed at the end. */
+/** Crop touches over the whole stage; [photo] is the photo's rect as shown (zoom included), in this box's pixels. */
+@Composable
+fun CropTouches(vm: EditorViewModel, photo: androidx.compose.ui.geometry.Rect) {
+    val current by androidx.compose.runtime.rememberUpdatedState(photo)
+    Box(Modifier.fillMaxSize().pointerInput(Unit) {
+        cropGestures(vm, { current }, onDraft = { if (it != null) vm.previewCrop(it) }, onEnd = vm::finishCropDrag)
+    })
+}
+
 private suspend fun PointerInputScope.cropGestures(
     vm: EditorViewModel,
+    photoRect: () -> androidx.compose.ui.geometry.Rect,
     onDraft: (com.lightlylabs.lightly.session.NormalisedRect?) -> Unit,
     onEnd: (com.lightlylabs.lightly.session.NormalisedRect?) -> Unit,
 ) = awaitEachGesture {
     val down = awaitFirstDown()
     val (start, ratio, frameAspect) = vm.cropState() ?: return@awaitEachGesture
-    val w = size.width.toFloat()
-    val h = size.height.toFloat()
-    val handle = CropGeometry.handle(down.position.x, down.position.y, start, w, h, reach = 22.dp.toPx()) ?: return@awaitEachGesture
+    val photo = photoRect()
+    val w = photo.width.coerceAtLeast(1f)
+    val h = photo.height.coerceAtLeast(1f)
+    val handle = CropGeometry.handle(down.position.x - photo.left, down.position.y - photo.top, start, w, h, reach = 22.dp.toPx()) ?: return@awaitEachGesture
     var last = down.position
     var pinching = false
     var pinched = start
