@@ -445,19 +445,21 @@ struct RingSpinner: View {
 /// tools no longer fit, so each item is a fixed 58 pt (6 pt row padding) and the row scrolls sideways; the next tool shows
 /// cut off at the trailing edge under a fade (mask opaque to 91 %, then clear) while there is more that way, and once
 /// scrolled to the end the fade moves to the leading edge (clear → opaque over the first 12 %). Selecting a tool scrolls
-/// it into view. iOS: 22 pt icon (accent when selected), 9.5 pt semibold label (ink when selected, ink3 otherwise), then
-/// a 4 pt dot slot, orange on tools holding edits.
+/// it into view. Owner amendment 2026-10-11: iOS uses the Android dock item — a 46 × 30 pt capsule (15 pt corners) holding
+/// the 20 pt icon, the selected tool's capsule filled with the lime accent (icon on-accent); then the 9.5 pt semibold
+/// label (ink when selected, ink2 otherwise; unselected icons ink2 too), then a 4 pt dot slot, orange on tools holding edits.
 struct ToolNavigation: View {
     let tools: [EditorTool]
     let selected: EditorTool
     let used: Set<EditorTool>
-    var androidStyle = false
     let onSelect: (EditorTool) -> Void
 
     /// `flex: 0 0 58px`.
     static let itemWidth: CGFloat = 58
     /// The row's own side padding (`padding: 0 6px`).
     static let rowPadding: CGFloat = 6
+    /// The icon capsule (`width: 46px; height: 30px; border-radius: 15px`), lime on the selected tool.
+    static let capsuleSize = CGSize(width: 46, height: 30)
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var overflow = DockOverflow()
@@ -504,13 +506,14 @@ struct ToolNavigation: View {
         let isOn = tool == selected
         return Button { onSelect(tool) } label: {
             VStack(spacing: 3) {
-                ApprovedIconView(icon: tool.icon, size: 22)
-                    .foregroundStyle(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary))
+                ApprovedIconView(icon: tool.icon, size: 20)
+                    .foregroundStyle(isOn ? c(ApprovedColor.onAccent) : c(ApprovedColor.inkSecondary))
+                    .frame(width: Self.capsuleSize.width, height: Self.capsuleSize.height)
+                    .background(Capsule().fill(isOn ? c(ApprovedColor.accent) : .clear))
                 Text(tool.title).l2Text(9.5, weight: .semibold).lineLimit(1).minimumScaleFactor(0.8)
-                    .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkTertiary))
+                    .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkSecondary))
                 Circle().fill(used.contains(tool) ? c(ApprovedColor.edited) : .clear).frame(width: 4, height: 4)
             }
-            .padding(.top, 2)
             .frame(width: Self.itemWidth, alignment: .top)
             .frame(minHeight: 44, alignment: .top)
             .contentShape(Rectangle())

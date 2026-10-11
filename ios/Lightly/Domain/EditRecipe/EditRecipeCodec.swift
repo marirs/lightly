@@ -230,7 +230,7 @@ enum EditRecipeCodec {
             switch try rr.string("kind") {
             case "image":
                 try rr.requireExactly(["kind", "image", "x", "y", "scale"])
-                replacement = .image(try readAsset(rr.object("image")), x: try rr.number("x", 0...100),
+                replacement = .image(backgroundImageFromRecipe(try readAsset(rr.object("image"))), x: try rr.number("x", 0...100),
                                      y: try rr.number("y", 0...100), scale: try rr.number("scale", 100...200))
             case "colour":
                 try rr.requireExactly(["kind", "colour"])
@@ -469,6 +469,25 @@ enum EditRecipeCodec {
                         ("width", .number(String(d.width))), ("height", .number(String(d.height)))])
     }
 
+    /// The recipe's namespace for a bundled background image: the shared fixtures and Android write `background.<name>`
+    /// (e.g. `background.landscape_01`), while in memory iOS keys the image by its bare bundled name (the panel's tiles and
+    /// the scene cache use it). The prefix is added on write and removed on read, so edits carry across platforms.
+    static let bundledBackgroundIDPrefix = "background."
+
+    /// Reads either form: `background.<name>` (fixtures, Android, this build) or the bare `<name>` that earlier iOS builds
+    /// wrote, so recipes saved before this change keep their background.
+    static func backgroundImageFromRecipe(_ image: EditRecipe.AssetRef) -> EditRecipe.AssetRef {
+        guard case .bundled(let id) = image, id.hasPrefix(bundledBackgroundIDPrefix),
+              id.count > bundledBackgroundIDPrefix.count else { return image }
+        return .bundled(id: String(id.dropFirst(bundledBackgroundIDPrefix.count)))
+    }
+
+    // v3 differs: earlier iOS builds wrote the bare bundled name; the written form now matches the shared fixtures.
+    static func backgroundImageForRecipe(_ image: EditRecipe.AssetRef) -> EditRecipe.AssetRef {
+        guard case .bundled(let id) = image, !id.hasPrefix(bundledBackgroundIDPrefix) else { return image }
+        return .bundled(id: bundledBackgroundIDPrefix + id)
+    }
+
     private static func asset(_ a: EditRecipe.AssetRef) -> CanonicalJSON {
         switch a {
         case .bundled(let id): return .object([("kind", .string("bundled")), ("id", .string(id))])
@@ -504,7 +523,7 @@ enum EditRecipeCodec {
         switch bg.replacement {
         case nil: replacement = .null
         case .image(let image, let x, let y, let scale)?:
-            replacement = .object([("kind", .string("image")), ("image", asset(image)), ("x", number(x)), ("y", number(y)),
+            replacement = .object([("kind", .string("image")), ("image", asset(backgroundImageForRecipe(image))), ("x", number(x)), ("y", number(y)),
                                    ("scale", number(scale))])
         case .colour(let colour)?: replacement = .object([("kind", .string("colour")), ("colour", .string(colour))])
         case .gradient(let angle, let stops)?:

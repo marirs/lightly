@@ -48,6 +48,38 @@ final class EditRecipeCodecTests: XCTestCase {
         }
     }
 
+    /// Shared fixtures and Android write a bundled background as `background.<name>`; in memory it is the bare bundled
+    /// name the panel and the scene cache use, and writing restores the fixture form.
+    func testBundledBackgroundReadsTheFixtureFormAsTheBundledName() throws {
+        let bytes = try Data(contentsOf: Self.url("shared/fixtures/edit-recipe/background-replace-image.json"))
+        let recipe = try EditRecipeCodec.decode(bytes)
+        guard case .image(let image, _, _, _)? = recipe.tools.background.replacement else { return XCTFail("image replacement") }
+        XCTAssertEqual(image, .bundled(id: "landscape_01"))
+        let written = String(decoding: EditRecipeCodec.encode(recipe), as: UTF8.self)
+        XCTAssertTrue(written.contains("\"image\":{\"kind\":\"bundled\",\"id\":\"background.landscape_01\"}"), written)
+    }
+
+    /// Recipes saved by earlier iOS builds hold the bare name; they still read, and are rewritten in the fixture form.
+    func testBundledBackgroundStillReadsTheBareNameFromEarlierIOSBuilds() throws {
+        let fixture = String(decoding: try Data(contentsOf: Self.url("shared/fixtures/edit-recipe/background-replace-image.json")),
+                             as: UTF8.self)
+        let legacy = fixture.replacingOccurrences(of: "\"id\":\"background.landscape_01\"", with: "\"id\":\"landscape_01\"")
+        XCTAssertNotEqual(legacy, fixture)
+        let recipe = try EditRecipeCodec.decode(Data(legacy.utf8))
+        XCTAssertEqual(recipe, try EditRecipeCodec.decode(Data(fixture.utf8)))
+        XCTAssertEqual(String(decoding: EditRecipeCodec.encode(recipe), as: UTF8.self), Self.withAlwaysWrittenKeys(fixture))
+    }
+
+    /// The prefix is added once, never doubled, and only to bundled images; other asset kinds pass through unchanged.
+    func testTheBackgroundPrefixIsAddedOnceAndOnlyToBundledImages() {
+        XCTAssertEqual(EditRecipeCodec.backgroundImageForRecipe(.bundled(id: "sunset_03")), .bundled(id: "background.sunset_03"))
+        XCTAssertEqual(EditRecipeCodec.backgroundImageForRecipe(.bundled(id: "background.sunset_03")), .bundled(id: "background.sunset_03"))
+        XCTAssertEqual(EditRecipeCodec.backgroundImageFromRecipe(.bundled(id: "background.")), .bundled(id: "background."))
+        let file = EditRecipe.AssetRef.file(sha256: String(repeating: "a", count: 64))
+        XCTAssertEqual(EditRecipeCodec.backgroundImageForRecipe(file), file)
+        XCTAssertEqual(EditRecipeCodec.backgroundImageFromRecipe(file), file)
+    }
+
     func testEveryInvalidFixtureIsRejected() throws {
         let invalid = try Self.recipeFixtures().filter { $0.lastPathComponent.hasPrefix("invalid-") }
         XCTAssertEqual(invalid.count, 8)  // revision 1 added invalid-blur-without-depth.json
