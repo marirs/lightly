@@ -16,9 +16,6 @@ class PresetCatalogue private constructor(private val presetsById: Map<String, C
 
     val size: Int get() = presetsById.size
 
-    /** How many categories the presets come in (About: "2,591 in 9 categories"). */
-    val categoryCount: Int get() = presetsById.values.map { it.categoryName }.distinct().size
-
     companion object {
         const val ASSET_PATH = "catalogue/develop-design-ui.json"
 

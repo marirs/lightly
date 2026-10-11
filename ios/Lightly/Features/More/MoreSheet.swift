@@ -122,7 +122,7 @@ struct MoreSheet: View {
         case .termsOfUse:
             ReleaseDocumentPage(document: appState.releaseContent.availableTermsOfUse, onlineURL: URL(string: "https://lightly.pro/terms")!)
         case .about:
-            AboutPage(version: appState.appVersion, catalogue: appState.presetCatalogue)
+            AboutPage(version: appState.appVersion, library: appState.developLibrary)
         }
     }
 
@@ -154,7 +154,7 @@ private struct MoreMenuPage: View {
                     BrandMark(size: 44, style: .tile)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("brand.wordmark", bundle: .main).l2Heading(16).foregroundStyle(c(ApprovedColor.ink))
-                        (Text("about.version \(appState.appVersion.version) \(appState.appVersion.build)", bundle: .main) + Text(" · edits stay on this device"))
+                        Text("about.version \(appState.appVersion.version) \(appState.appVersion.build)", bundle: .main)
                             .l2Text(12).foregroundStyle(c(ApprovedColor.inkSecondary))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -581,14 +581,15 @@ struct ReleaseDocumentPage: View {
 /// details card (46 pt rows: label ink2, value semibold); "Support" and the email row (opens Mail).
 struct AboutPage: View {
     let version: AppVersion
-    let catalogue: DevelopPresetCatalogue
+    /// The preset pack the editor ships: the count follows it, so adding or removing presets updates About by itself.
+    let library: DevelopLibrary
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openURL) private var openURL
     static let supportEmail = "hello@lightly.pro"
 
     var body: some View {
         let c = L2(scheme: colorScheme)
-        let presetCount = catalogue.categories.reduce(0) { $0 + $1.presets.count }
+        let pack = library.pack
         VStack(spacing: 12) {
             VStack(spacing: 8) {
                 BrandMark(size: 72, style: .tile)
@@ -606,7 +607,7 @@ struct AboutPage: View {
                 detail("Editing", "On your device", isFirst: true)
                 detail("Account", "Not needed")
                 detail("Advertising and analytics", "None")
-                detail("Presets", "\(presetCount.formatted()) in \(catalogue.categories.count) categories")
+                detail("Presets", pack.isEmpty ? "…" : "\(pack.presetCount.formatted()) in \(pack.categories.count) categories")
                 detail("Website", "lightly.pro")
             }
             VStack(spacing: 0) {

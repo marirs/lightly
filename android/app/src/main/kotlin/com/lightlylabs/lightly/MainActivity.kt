@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
             val editor = viewModels.editor
             val preferences by graph.preferences.preferences.collectAsStateWithLifecycle()
             val catalogue by graph.catalogue.collectAsStateWithLifecycle()
+            val packSize by graph.packSize.collectAsStateWithLifecycle()
             val nav by shell.nav.collectAsStateWithLifecycle()
             val currentFolds by folds.collectAsStateWithLifecycle(initialValue = emptyList())
             val editorUi by editor.uiState.collectAsStateWithLifecycle()
@@ -189,7 +190,7 @@ class MainActivity : ComponentActivity() {
                     LightlyAppContent(
                         state = nav,
                         layout = layout,
-                        content = MoreContent(preferences, catalogue, graph.releaseText, versionLabel(), nav.privacyFromWelcome, savedSignatures.shown),
+                        content = MoreContent(preferences, catalogue, graph.releaseText, versionLabel(), nav.privacyFromWelcome, savedSignatures.shown, packSize),
                         actions = ShellActions(
                             choosePhoto = choosePhoto,
                             camera = {
@@ -367,6 +368,11 @@ internal class AppGraph private constructor(context: Context) {
     /** Parsed off the main thread (340 KB of JSON); the favourites page shows ids until it is ready. */
     val catalogue: StateFlow<PresetCatalogue> = catalogueState
 
+    private val packSizeState = MutableStateFlow<com.lightlylabs.lightly.prefs.PresetPackSize?>(null)
+
+    /** About › Presets: counted from the look pack the editor ships (null until counted). */
+    val packSize: StateFlow<com.lightlylabs.lightly.prefs.PresetPackSize?> = packSizeState
+
     /** Favourites are the slice-1 preference: Develop's star and Preferences › Favourite presets share them. */
     private val favouritesStore = object : FavouritesStore {
         private val state = MutableStateFlow(preferences.preferences.value.favouritePresetIds)
@@ -399,6 +405,9 @@ internal class AppGraph private constructor(context: Context) {
             readAsset(context, PresetCatalogue.ASSET_PATH)?.let { json ->
                 catalogueState.value = PresetCatalogue.parse(json, com.lightlylabs.lightly.develop.PresetDisplayNames.parse(readAsset(context, com.lightlylabs.lightly.develop.PresetDisplayNames.ASSET_PATH)))
             }
+            packSizeState.value = runCatching {
+                context.assets.open(com.lightlylabs.lightly.editor.DevelopLibrary.ASSET_MANIFEST).reader().use(com.lightlylabs.lightly.prefs.PresetPackSize::count)
+            }.getOrNull()
         }
     }
 

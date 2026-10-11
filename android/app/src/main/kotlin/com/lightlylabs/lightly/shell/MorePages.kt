@@ -102,6 +102,8 @@ class MoreContent(
     val privacyFromWelcome: Boolean,
     /** The saved signature Preferences › Saved signature shows (the one saved last), or null. */
     val signature: com.lightlylabs.lightly.signatures.SavedSignature? = null,
+    /** About › Presets, counted from the shipped look pack; null while it is being counted. */
+    val packSize: com.lightlylabs.lightly.prefs.PresetPackSize? = null,
 )
 
 /**
@@ -150,7 +152,7 @@ private fun MoreBody(content: MoreContent, actions: MoreActions) {
             LightlyMark(44.dp, tile = true)
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(StartCopy.WORDMARK, style = l2TextStyle(16.sp, FontWeight.SemiBold, colors.ink))
-                Text("${MoreCopy.VERSION} ${content.versionLabel} · edits stay on this device", style = l2TextStyle(12.sp, color = colors.ink2),
+                Text("${MoreCopy.VERSION} ${content.versionLabel}", style = l2TextStyle(12.sp, color = colors.ink2),
                     modifier = Modifier.testTagResource("about-version"))
             }
         }
@@ -416,10 +418,9 @@ private fun AboutBody(content: MoreContent, actions: MoreActions) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
     )
     L2Card {
-        val presets = content.catalogue.size
         listOf(
             "Editing" to "On your device", "Account" to "Not needed", "Advertising and analytics" to "None",
-            "Presets" to "${String.format(java.util.Locale.getDefault(), "%,d", presets)} in ${content.catalogue.categoryCount} categories",
+            "Presets" to (content.packSize?.let { "${String.format(java.util.Locale.getDefault(), "%,d", it.presets)} in ${it.categories} categories" } ?: "…"),
             "Website" to "lightly.pro",
         ).forEachIndexed { index, (label, value) ->
             Row(
