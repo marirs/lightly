@@ -321,8 +321,8 @@ class EditorViewModel(
     }
 
     /** The edit's Develop plan with this photo's Auto LUT at the recipe's Auto strength (every preview and Save copy). */
-    private fun planOf(library: DevelopLibrary, edit: EditState, globalOnly: Boolean = false): com.lightlylabs.lightly.develop.DevelopRenderPlan =
-        library.planFor(edit, globalOnly, autoLut.takeIf { edit.auto.modelId == com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_ID })
+    private fun planOf(library: DevelopLibrary, edit: EditState, globalOnly: Boolean = false, lutDimension: Int? = null): com.lightlylabs.lightly.develop.DevelopRenderPlan =
+        library.planFor(edit, globalOnly, autoLut.takeIf { edit.auto.modelId == com.lightlylabs.lightly.develop.auto.AutoCorrection.RECIPE_MODEL_ID }, lutDimension)
 
     private fun noModelAuto() = autoOff(NO_MODEL_IN_BUILD_MODEL_VERSION)
 
@@ -1545,7 +1545,7 @@ class EditorViewModel(
             val small = BackgroundSession.resize(source, maxOf(1,(source.width*ratio).toInt()), maxOf(1,(source.height*ratio).toInt()))
             val edit = current.copy(look = preset?.let { LookRef(it.id,it.lookVersion,1f) })
             val patched = RemoveEngine.composite(EditMapping.patchDigests(edit).mapNotNull { removePatches[it] }, small)
-            val plan = planOf(library, edit)
+            val plan = planOf(library, edit, lutDimension = DevelopLibrary.THUMBNAIL_DIMENSION)
             val result = EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library))
                 .renderPreview(patched, edit, plan, sourceStages(edit,library,200))
             if (thumbnailCache.size >= 48) thumbnailCache.clear()
@@ -2015,6 +2015,28 @@ class EditorViewModel(
         scheduler?.submit(PreviewRequest(edit, globalOnly = true, colourOnly = true))
     }
 
+    /**
+     * The last developed proxy (the Look and Auto on the display proxy, before Background and Portrait). A Portrait or
+     * Background slider frame changes neither, so it reuses this instead of re-running the develop stages: with
+     * clarity, sharpening or noise reduction they took 0.7-1.9 s per frame on the motorola edge 60 (owner report
+     * 2026-10-11: Portrait edits slow to show). The key is the source image's identity, the Look, Auto and the
+     * colour-only flag, so any change to what develop reads renders again. One entry; both render lanes share it.
+     */
+    private class DevelopedCache {
+        private var key: Any? = null
+        private var image: Rgba8Image? = null
+
+        fun getOrRender(source: Rgba8Image, edit: EditState, colourOnly: Boolean, autoLut: Any?, render: () -> Rgba8Image): Rgba8Image {
+            val wanted = listOf(System.identityHashCode(source), source.width, source.height, edit.look, edit.auto, colourOnly, System.identityHashCode(autoLut))
+            synchronized(this) { if (key == wanted) image?.let { return it } }
+            val rendered = render()
+            synchronized(this) { key = wanted; image = rendered }
+            return rendered
+        }
+    }
+
+    private val developedCache = DevelopedCache()
+
     private fun startPreviewScheduler(loaded: LoadedPhoto, generation: Long) {
         val display = loaded.display
         // The drag preview renders a half-size copy (a quarter of the pixels); committed previews use the full proxy.
@@ -2048,7 +2070,7 @@ class EditorViewModel(
                     // already, so the Look runs on a quarter of the pixels and no resize follows.
                     val source = display
                         val tDevelop = System.nanoTime()
-                    val developed = if (plan.isIdentity) source else renderer.render(source, plan)
+                    val developed = if (plan.isIdentity) source else developedCache.getOrRender(source, edit, request.payload.colourOnly, autoLut) { renderer.render(source, plan) }
                     backgroundSession.stageTiming?.invoke("develop ${source.width}x${source.height}=${"%.0f".format((System.nanoTime() - tDevelop) / 1e6)}ms globalOnly=${request.payload.globalOnly}")
                     checkpoint()
                     // A moving control's Background frame (2026-10-06): the Look on the half-size proxy, then Background
@@ -2060,7 +2082,12 @@ class EditorViewModel(
                     // coordinates, so a Portrait-active frame stays full size.)
                     val backgroundFrame = developed
                     val composed = if (backgroundPlan == null) developed else backgroundSession.render(backgroundFrame, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap, checkpoint)
-                    if (portraitActive) portraitSession.render(composed, edit.tools.portrait) else composed
+                    if (portraitActive) {
+                        val tPortrait = System.nanoTime()
+                        portraitSession.render(composed, edit.tools.portrait).also {
+                            backgroundSession.stageTiming?.invoke("portrait ${composed.width}x${composed.height}=${"%.0f".format((System.nanoTime() - tPortrait) / 1e6)}ms globalOnly=${request.payload.globalOnly}")
+                        }
+                    } else composed
                 }
                 val millis = (System.nanoTime() - start) / 1e6
                 renderMillis += millis

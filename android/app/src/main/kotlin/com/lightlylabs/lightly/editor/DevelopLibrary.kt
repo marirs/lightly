@@ -62,9 +62,10 @@ class DevelopLibrary(
      * when the photo has none. A Look whose id is not in this pack, or whose version differs, is left out and never
      * substituted (edit-recipe README › resolution rules).
      */
-    fun planFor(state: EditState, globalOnly: Boolean = false, autoLut: Lut3D? = null): DevelopRenderPlan {
+    /** [lutDimension] overrides the Look LUT's size (preset thumbnails use [THUMBNAIL_DIMENSION]). */
+    fun planFor(state: EditState, globalOnly: Boolean = false, autoLut: Lut3D? = null, lutDimension: Int? = null): DevelopRenderPlan {
         val preset = preset(state.look)
-        val dimension = if (globalOnly) DRAG_DIMENSION else Lut3D.CONTRACT_DIMENSION
+        val dimension = lutDimension ?: if (globalOnly) DRAG_DIMENSION else Lut3D.CONTRACT_DIMENSION
         val plan = DevelopRenderPlan.of(model, autoLut = autoLut, autoStrength = if (autoLut != null) state.auto.strength else 0f, lookLut = preset?.let { lutFor(it, dimension) }, recipe = preset?.recipe, strength = state.look?.strength ?: 0f)
         return if (globalOnly) plan.globalOnly() else plan
     }
@@ -72,6 +73,12 @@ class DevelopLibrary(
     companion object {
         /** Transient drag previews only; never committed, saved or exported (docs/v1/slice2-android.md › Rendering). */
         const val DRAG_DIMENSION = 17
+
+        /**
+         * Preset thumbnails (62 dp compact, 142 dp expanded, rendered at 200 px): a 17³ bake is ~8x cheaper than the
+         * contract's 33³ (~85 ms each on the motorola edge 60) and indistinguishable at that size. Never saved or exported.
+         */
+        const val THUMBNAIL_DIMENSION = 17
 
         const val ASSET_MANIFEST = "lookpack/manifest.json"
         const val ASSET_CONTRACT = "lookpack/rendering-v2.json"
