@@ -22,7 +22,25 @@ data class TextUi(
     val sheet: TextSheet? = null,
     /** The slider being dragged and its value (preview only until release). */
     val sliderDrag: Pair<String, Double>? = null,
+    /**
+     * A gesture on the photo (move, corner handle, pinch) and its commit until the preview shows it: the photo is rendered
+     * without this layer and the Text marks draw it live over the photo instead (owner report 2026-10-11: resizing with the
+     * handle was not smooth while every move event re-rendered the photo).
+     */
+    val liveLayerId: String? = null,
+    /** After the gesture: the committed layer, drawn by the marks until the preview that contains it is shown. */
+    val settlingLayer: TextLayer? = null,
 )
+
+/**
+ * A text under a finger: [layer] is what the gesture commits (the recipe stores whole-number sizes), [exactSize] the size
+ * following the finger without those steps, which the live drawing, outline and handles use while the finger is down.
+ */
+data class TextDraft(val layer: TextLayer, val exactSize: Double) {
+    companion object {
+        fun of(layer: TextLayer) = TextDraft(layer, layer.size.toDouble())
+    }
+}
 
 /** The approved Text panel copy and the new layer's defaults (Lightly 2 `textPanel`, `tx-*` screens). */
 object TextOptions {
@@ -83,6 +101,19 @@ object TextEdits {
         size = (layer.size * scale).roundToInt().coerceIn(TextLayer.MIN_SIZE, TextLayer.MAX_SIZE),
         rotation = normalisedDegrees(layer.rotation + degrees),
     )
+
+    /**
+     * [start] moved by a fraction of the frame, resized by [scale] and turned by [degrees] clockwise about its centre, as
+     * one draft: the exact size is kept in range but not rounded, so the text grows smoothly under the finger.
+     */
+    fun drafted(start: TextLayer, dx: Double, dy: Double, scale: Double, degrees: Double): TextDraft {
+        val exactSize = (start.size * scale).coerceIn(TextLayer.MIN_SIZE.toDouble(), TextLayer.MAX_SIZE.toDouble())
+        val layer = moved(start, dx, dy).copy(
+            size = exactSize.roundToInt().coerceIn(TextLayer.MIN_SIZE, TextLayer.MAX_SIZE),
+            rotation = normalisedDegrees(start.rotation + degrees),
+        )
+        return TextDraft(layer, exactSize)
+    }
 
     /** An angle in (−180, 180], the recipe's range. */
     fun normalisedDegrees(degrees: Double): Double {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
@@ -117,7 +118,9 @@ fun <T> OptionTabs(
                 Modifier
                     .heightIn(min = 44.dp)
                     .onGloballyPositioned { offsets[index] = it.positionInParent().x.roundToInt() }
-                    .clickable(role = Role.Tab) { onSelect(value) }
+                    // No ripple: the platform indication drew a grey 44 dp box under the finger before the lime pill
+                    // appeared on release (owner report 2026-10-11). The pill itself is the selection feedback.
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab) { onSelect(value) }
                     .semantics { this.selected = on; if (dotted(value)) stateDescription = "Edited" }
                     .testTagResource("$tagPrefix-${label.lowercase().replace(' ', '-')}"),
                 contentAlignment = Alignment.Center,

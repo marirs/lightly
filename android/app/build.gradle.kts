@@ -441,7 +441,7 @@ abstract class BundlePresetCatalogueTask : DefaultTask() {
 
 // --- Bundled background photos (Background › Change background › Image) -------------------------
 //
-// The approved prototype offers four bundled background photos (docs/ui/app/data.js BACKGROUNDS) from
+// The approved design offers seven bundled background photos (Lightly 2 `BACKGROUNDS`, as iOS) from
 // the licensed sample set. Their licence for redistribution in a released app is not confirmed, so they
 // are packaged into DEBUG builds only (release builds show the same row without them, reported as a
 // blocker in docs/v1/slice3-android.md). Read in place from docs/ui/assets/photos; never copied into git.
@@ -586,7 +586,9 @@ abstract class BundleWatermarkFontsTask : DefaultTask() {
     }
 }
 
-val backgroundPhotoNames = listOf("landscape_01", "sunset_03", "wellexposed_02", "backlit_02")
+// The seven approved Change background › Image photos (Lightly 2 `BACKGROUNDS`, in its order; BackgroundOptions.IMAGES) and
+// the retired backlit_02 that older edits may name: the same files iOS packages (ios/project.yml), read from the same folder.
+val backgroundPhotoNames = listOf("landscape_01", "sunset_03", "wellexposed_02", "landscape_02", "landscape_03", "sunset_02", "wellexposed_03", "backlit_02")
 
 // --- Launcher icon packaging check ----------------------------------------------------------------
 //

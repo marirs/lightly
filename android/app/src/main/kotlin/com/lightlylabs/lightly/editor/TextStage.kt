@@ -45,9 +45,12 @@ class TextStage(private val fonts: WatermarkFonts) {
         alpha = (layer.opacity / 100 * 255).roundToInt().coerceIn(0, 255)
     }
 
-    /** The layer's block in a frame of [frameWidth] × [frameHeight] pixels. */
-    fun block(layer: TextLayer, frameWidth: Double, frameHeight: Double): Block {
-        val fontSize = fontSize(layer.size, frameWidth, frameHeight)
+    /**
+     * The layer's block in a frame of [frameWidth] × [frameHeight] pixels. [size] is the layer's own size except for the
+     * live drawing of a gesture, which passes the finger's exact (unrounded) size.
+     */
+    fun block(layer: TextLayer, frameWidth: Double, frameHeight: Double, size: Double = layer.size.toDouble()): Block {
+        val fontSize = fontSize(size, frameWidth, frameHeight)
         val paint = paint(layer, fontSize)
         val metrics = paint.fontMetrics
         val lineHeight = (metrics.descent - metrics.ascent + metrics.leading).toDouble()
@@ -61,8 +64,8 @@ class TextStage(private val fonts: WatermarkFonts) {
     }
 
     /** Draws [layer] on [canvas], whose coordinates are frame pixels. */
-    fun draw(canvas: Canvas, layer: TextLayer, frameWidth: Double, frameHeight: Double) {
-        val block = block(layer, frameWidth, frameHeight)
+    fun draw(canvas: Canvas, layer: TextLayer, frameWidth: Double, frameHeight: Double, size: Double = layer.size.toDouble()) {
+        val block = block(layer, frameWidth, frameHeight, size)
         val paint = paint(layer, block.fontSize)
         canvas.save()
         canvas.translate(block.centreX.toFloat(), block.centreY.toFloat())
@@ -121,7 +124,9 @@ class TextStage(private val fonts: WatermarkFonts) {
         /** Glyphs may ink past their advance box (Caveat, Dancing Script); the tile test allows this much of the font size. */
         private const val OVERHANG = 0.6
 
-        fun fontSize(size: Int, frameWidth: Double, frameHeight: Double): Double = size / 100.0 * FONT_SIZE_FRACTION * min(frameWidth, frameHeight)
+        fun fontSize(size: Int, frameWidth: Double, frameHeight: Double): Double = fontSize(size.toDouble(), frameWidth, frameHeight)
+
+        fun fontSize(size: Double, frameWidth: Double, frameHeight: Double): Double = size / 100.0 * FONT_SIZE_FRACTION * min(frameWidth, frameHeight)
 
         /** [left, top, right, bottom] of the block turned about its centre, grown by [overhang] on every side. */
         fun rotatedBounds(block: Block, overhang: Double = 0.0): DoubleArray {

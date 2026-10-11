@@ -208,7 +208,7 @@ object AndroidEditorEnvironment {
      * only: their redistribution licence for release is unconfirmed (docs/v1/slice3-android.md › Blockers).
      */
     private fun loadBundledBackground(context: Context, id: String): com.lightlylabs.lightly.render.image.Rgba8Image? {
-        val name = BackgroundOptions.IMAGES.firstOrNull { it.first == id }?.second ?: return null
+        val name = BackgroundOptions.RENDERABLE_IMAGES.firstOrNull { it.first == id }?.second ?: return null
         val bitmap = runCatching { context.assets.open("backgrounds/$name.jpg").use { android.graphics.BitmapFactory.decodeStream(it) } }.getOrNull() ?: return null
         val scale = minOf(1f, PREVIEW_LONG_EDGE_PX.toFloat() / maxOf(bitmap.width, bitmap.height))
         val scaled = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true) else bitmap

@@ -419,6 +419,8 @@ private fun Stage(
     var photoBoundsInWindow by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     var stageOrigin by remember { mutableStateOf(Offset.Zero) }
     var viewportOrigin by remember { mutableStateOf(Offset.Zero) }
+    // The stage as clipped on screen: the Text marks keep their handles inside it (LocalStageWindowBounds).
+    var stageBoundsInWindow by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     val outsidePhoto = { windowPoint: Offset -> photoBoundsInWindow?.contains(windowPoint) != true }
     // Covers the 12/8 dp inset too; inside the viewport the inspection handler below decides (it consumes the taps).
     val emptyDoubleTap = if (onEmptyDoubleTap == null) Modifier else Modifier
@@ -427,7 +429,7 @@ private fun Stage(
     // Lightly 2 `photo()`: the stage is transparent (its container gives --bg on phones, --stage in panes; the crop
     // workspace #141414); the photo is contain-fitted 12 dp in from the sides and 8 dp from top and bottom, with 18 dp
     // corners (3 dp with a border).
-    BoxWithConstraints(modifier.clipToBounds().testTagResource(EditorTags.STAGE).then(emptyDoubleTap).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.clipToBounds().onGloballyPositioned { stageBoundsInWindow = it.boundsInWindow() }.testTagResource(EditorTags.STAGE).then(emptyDoubleTap).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         if (image != null) {
             val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
             val ratio = image.width.toFloat() / image.height
@@ -530,8 +532,10 @@ private fun Stage(
                     val photoH = (width / ratio) * (box?.get(3)?.toFloat() ?: 1f)
                     androidx.compose.runtime.SideEffect { onPhotoBox(minOf(photoW, photoH), maxOf(photoW, photoH)) }
                 }
-                if (box == null || ui.tool == EditorTool.WATERMARK) overlay() else BoxWithConstraints(Modifier.fillMaxSize()) {
-                    Box(Modifier.offset(x = maxWidth * box[0].toFloat(), y = maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { overlay() }
+                androidx.compose.runtime.CompositionLocalProvider(LocalStageWindowBounds provides stageBoundsInWindow) {
+                    if (box == null || ui.tool == EditorTool.WATERMARK) overlay() else BoxWithConstraints(Modifier.fillMaxSize()) {
+                        Box(Modifier.offset(x = maxWidth * box[0].toFloat(), y = maxHeight * box[1].toFloat()).size(maxWidth * box[2].toFloat(), maxHeight * box[3].toFloat())) { overlay() }
+                    }
                 }
             }
             // Crop touches over the whole stage (owner report 2026-10-11): inside the zoomed layer, touches only reached

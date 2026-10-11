@@ -52,6 +52,10 @@ object EditTags {
     const val UNDO_STROKE = "edit-undo-stroke"
     const val TRY_AGAIN = "edit-try-again"
     const val CANCEL = "edit-cancel"
+    /** The photo's Remove layer (brush touches, the stroke under the finger, "Removing…"). */
+    const val REMOVE_MARKS = "edit-remove-marks"
+    /** The stroke under the finger while brushing (the only Remove mark drawn on the photo). */
+    const val REMOVE_STROKE = "edit-remove-stroke"
     fun slider(field: String) = "edit-slider-$field"
     fun aspect(label: String) = "edit-aspect-$label"
     fun geometry(action: String) = "edit-geometry-$action"

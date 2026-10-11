@@ -38,7 +38,7 @@ import kotlin.math.max
  * - Crop: `.cropframe` at the real crop rectangle over the uncropped frame (owner amendment 2026-10-05): border, thirds
  *   grid, four corner handles, the rest darkened; corners, edges and the inside drag (free crop).
  * - Straighten, Perspective: `.grid3` over the photo.
- * - Remove: each stroke as `.stroke` (rgba(235,60,60,.42), round ends); brushing removes; "Removing…"
+ * - Remove: the stroke under the finger as `.stroke` (rgba(235,60,60,.42), round ends) while brushing; release removes; "Removing…"
  *   centred over the photo with Cancel.
  * - Light Leaks: dragging on the photo moves the leak.
  */
@@ -209,49 +209,62 @@ private suspend fun PointerInputScope.cropGestures(
     else onEnd(null)
 }
 
+/**
+ * Remove's mark is the stroke being brushed, and only while the finger is down (mockup `ed-remove` shows the stroke under
+ * the brush; `ed-removing` and `ed-remove-failed` show none). Owner report 2026-10-11: the applied strokes stayed drawn in
+ * red on top of the photo after their objects were removed ("the brush is still present on the top"), and the stroke being
+ * removed stayed drawn under "Removing…". The recipe's strokes are pixels of the preview now, never marks.
+ */
 @Composable
 private fun RemoveMarks(vm: EditorViewModel, ui: EditorUiState) {
     val geometry = vm.displayGeometry(ui)
-    val recipe = ui.session?.current
-    val strokes = buildList {
-        recipe?.tools?.edit?.remove?.strokes?.forEach { s -> add(s.points.map { it.x to it.y } to s.radius) }
-        ui.edit.pendingStroke?.let { add(it.points to it.radius) }
-    }
-    Box(Modifier.fillMaxSize().pointerInput(ui.edit.removeOp) { if (ui.edit.removeOp != RemoveOp.REMOVING) brushGestures(vm) }.semantics { contentDescription = "Brush over anything you want removed" }) {
-        if (geometry != null) Canvas(Modifier.fillMaxSize()) {
-            // A source radius (fraction of the source long edge) in this box's pixels.
+    // The finger's path in this box's pixels while brushing; empty otherwise.
+    val brushing = remember { androidx.compose.runtime.mutableStateListOf<Offset>() }
+    val removing = ui.edit.removeOp == RemoveOp.REMOVING
+    Box(Modifier.fillMaxSize().testTagResource(EditTags.REMOVE_MARKS).pointerInput(removing) {
+        if (!removing) brushGestures(onPath = { path -> brushing.clear(); brushing.addAll(path) }, onEnd = { path ->
+            brushing.clear()
+            vm.removeStroke(path.map { (it.x / size.width).toDouble().coerceIn(0.0, 1.0) to (it.y / size.height).toDouble().coerceIn(0.0, 1.0) })
+        })
+    }.semantics { contentDescription = "Brush over anything you want removed" }) {
+        if (geometry != null && brushing.isNotEmpty()) Canvas(Modifier.fillMaxSize().testTagResource(EditTags.REMOVE_STROKE)) {
+            // The brush radius (a fraction of the source long edge) in this box's pixels: the width the stroke will remove.
             val sourceLong = max(geometry.sourceWidth, geometry.sourceHeight).toFloat()
             val pxPerSource = size.width / geometry.frameWidth
-            strokes.forEach { (points, radius) ->
-                val frame = points.map { (x, y) -> geometry.frameFromSource(x, y).let { (fx, fy) -> Offset(fx.toFloat() * size.width, fy.toFloat() * size.height) } }
-                val width = (2 * radius * sourceLong * pxPerSource).toFloat()
-                if (frame.size == 1) {
-                    drawCircle(STROKE_FILL, width / 2, frame[0])
-                } else {
-                    val path = Path().apply { moveTo(frame[0].x, frame[0].y); frame.drop(1).forEach { lineTo(it.x, it.y) } }
-                    drawPath(path, STROKE_FILL, style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                }
+            val width = (2 * EditOptions.brushRadius(ui.edit.brushSize) * sourceLong * pxPerSource).toFloat()
+            if (brushing.size == 1) {
+                drawCircle(STROKE_FILL, width / 2, brushing[0])
+            } else {
+                val path = Path().apply { moveTo(brushing[0].x, brushing[0].y); brushing.drop(1).forEach { lineTo(it.x, it.y) } }
+                drawPath(path, STROKE_FILL, style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
         }
-        if (ui.edit.removeOp == RemoveOp.REMOVING) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (removing) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             ProgressBox("Removing…", null, null, cancel = vm::cancelRemove)
         }
     }
 }
 
-/** A drag (or a tap: one dab) on the photo, in normalised frame coordinates. */
-private suspend fun PointerInputScope.brushGestures(vm: EditorViewModel) = awaitEachGesture {
+/**
+ * A drag (or a tap: one dab) on the photo in this box's pixels: [onPath] with the path so far as the finger moves, [onEnd]
+ * with the whole path on release. A gesture taken over by another handler (the inspection pinch) ends with an empty path.
+ */
+private suspend fun PointerInputScope.brushGestures(onPath: (List<Offset>) -> Unit, onEnd: (List<Offset>) -> Unit) = awaitEachGesture {
     val down = awaitFirstDown()
     val points = arrayListOf(down.position)
+    onPath(points.toList())
     while (true) {
         val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
-        if (change.isConsumed) return@awaitEachGesture
+        if (change.isConsumed) { onPath(emptyList()); return@awaitEachGesture }
         if (!change.pressed) break
         // Keep the stroke light: a new point every 4 px of travel.
-        if (hypot(change.position.x - points.last().x, change.position.y - points.last().y) >= 4.dp.toPx()) points += change.position
+        if (hypot(change.position.x - points.last().x, change.position.y - points.last().y) >= 4.dp.toPx()) {
+            points += change.position
+            onPath(points.toList())
+        }
         change.consume()
     }
-    vm.removeStroke(points.map { (it.x / size.width).toDouble().coerceIn(0.0, 1.0) to (it.y / size.height).toDouble().coerceIn(0.0, 1.0) })
+    onEnd(points)
 }
 
 /** The watermark's anchor follows the finger from where it was (photo fractions); one step on release. */

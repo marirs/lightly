@@ -121,8 +121,16 @@ object BackgroundOptions {
     /** CSS `linear-gradient(angle, a, b)` as stored in the recipe: angle, two stops at 0 and 1. */
     val GRADIENTS = listOf(160.0 to listOf("#F6D5B8", "#9EB7D6"), 180.0 to listOf("#20242C", "#5B6476"), 140.0 to listOf("#E9E4DA", "#BFC8C2"), 170.0 to listOf("#F0B7A4", "#6E5A86"))
 
-    /** Bundled background photos: recipe AssetRef ids and asset file names. */
-    val IMAGES = listOf("background.landscape_01" to "landscape_01", "background.sunset_03" to "sunset_03", "background.wellexposed_02" to "wellexposed_02")
+    /**
+     * Change background › Image's bundled photos, in the approved order (Lightly 2 `BACKGROUNDS`, the same seven iOS
+     * offers): recipe AssetRef ids and the file names in docs/ui/assets/photos, which both apps package from.
+     * Owner report 2026-10-11: Android offered only the first three.
+     */
+    val IMAGES = listOf("landscape_01", "sunset_03", "wellexposed_02", "landscape_02", "landscape_03", "sunset_02", "wellexposed_03")
+        .map { name -> "background.$name" to name }
+
+    /** Every bundled photo a recipe may name: the offered ones and the retired `backlit_02` (as iOS, edits that use it still render). */
+    val RENDERABLE_IMAGES = IMAGES + ("background.backlit_02" to "backlit_02")
 
     val STYLES = listOf(FocusStyle.LENS to "Lens", FocusStyle.SOFT to "Soft", FocusStyle.SWIRL to "Swirl", FocusStyle.MOTION to "Motion")
     val BOKEH = listOf(Bokeh.ROUND to "round", Bokeh.HEX to "hex", Bokeh.HEART to "heart", Bokeh.STAR to "star")

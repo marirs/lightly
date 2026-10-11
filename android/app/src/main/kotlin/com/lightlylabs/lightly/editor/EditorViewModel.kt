@@ -1431,6 +1431,44 @@ class EditorViewModel(
         else requestPreview(current, globalOnly = false)
     }
 
+    /**
+     * The first preview revision that contains the settling text layer ([TextUi.settlingLayer]); the marks stop drawing it
+     * once that revision is on screen. [Long.MAX_VALUE] while a gesture runs (nothing has been committed yet).
+     */
+    private var textSettlesAtRevision = Long.MAX_VALUE
+
+    /**
+     * A finger took a text (move, corner handle, pinch). The photo is rendered once without that layer (only stage 11
+     * runs again: the frame before text is reused) and the marks draw it live over the photo while the finger moves, so
+     * no move event waits for a render.
+     */
+    fun beginTextGesture(layerId: String) {
+        val current = state.value.session?.current ?: return
+        textSettlesAtRevision = Long.MAX_VALUE
+        state.update { it.copy(text = it.text.copy(liveLayerId = layerId, settlingLayer = null)) }
+        val withoutLayer = com.lightlylabs.lightly.session.TextTool(current.tools.text.layers.filterNot { it.id == layerId })
+        requestPreview(current.copy(tools = current.tools.copy(text = withoutLayer)), globalOnly = false, textOnly = true)
+    }
+
+    /**
+     * The finger lifted: one undo step when [layer] differs from the recipe ([layer] null: nothing changed). The marks keep
+     * drawing the result until the preview that contains it is shown, so the text never jumps back or blinks out.
+     */
+    fun endTextGesture(layer: com.lightlylabs.lightly.session.TextLayer?) {
+        val current = state.value.session?.current ?: return
+        val liveId = state.value.text.liveLayerId
+        if (layer != null && current.tools.text.layers.none { it == layer }) commitText { TextEdits.replaced(it, layer) }
+        else requestPreview(current, globalOnly = false)
+        val settled = state.value.session?.current?.tools?.text?.layers?.firstOrNull { it.id == (layer?.id ?: liveId) }
+        textSettlesAtRevision = requestedRevision
+        val alreadyShown = publishedRevision >= requestedRevision || settled == null
+        state.update { it.copy(text = it.text.copy(liveLayerId = if (alreadyShown) null else liveId, settlingLayer = if (alreadyShown) null else settled)) }
+    }
+
+    /** A published preview at or past [textSettlesAtRevision] contains the settled text: the marks stop drawing it. */
+    private fun textAfterPublishing(text: TextUi, revision: Long): TextUi =
+        if (text.liveLayerId != null && text.settlingLayer != null && revision >= textSettlesAtRevision) text.copy(liveLayerId = null, settlingLayer = null) else text
+
     private fun changeSelectedText(change: (com.lightlylabs.lightly.session.TextLayer) -> com.lightlylabs.lightly.session.TextLayer) {
         val layer = selectedTextLayer() ?: return
         val changed = change(layer)
@@ -2264,7 +2302,7 @@ class EditorViewModel(
                 val rendered = (result?.outcome as? RenderOutcome.Rendered)?.value ?: return@collect
                 if (result.sessionId == "photo-$photoGeneration") {
                     retriedPreview = null
-                    state.update { it.copy(preview = rendered, previewFailed = false) }
+                    state.update { it.copy(preview = rendered, previewFailed = false, text = textAfterPublishing(it.text, result.revision)) }
                     prepareDragReplacement()
                     publishedRevision = result.revision
                     // Time from the first movement of a ruler drag to the first frame of that drag on screen.
