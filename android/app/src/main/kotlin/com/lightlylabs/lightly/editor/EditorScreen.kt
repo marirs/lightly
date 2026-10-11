@@ -250,18 +250,29 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
 
 // --- top bars ---------------------------------------------------------------------------------------
 
-/** Android phone app bar (56 dp, 4 dp sides): Back, the tool's name (18 sp heading), Undo, Redo, Compare, Save (40 dp), ⋮. */
+/**
+ * The phone editor header, the same on Android and iPhone (owner amendment 2026-10-11; was an Android app bar with Back
+ * and the tool's name): a 52 dp row with 12 dp sides; the glass capsule (3 dp padding, 2 dp gaps: Close, Undo, Redo),
+ * then Compare (glass), Save and ⋮ More, 6 dp apart.
+ */
 @Composable
 private fun EditorAppBar(vm: EditorViewModel, ui: EditorUiState, actions: EditorActions) {
-    Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconTapTarget(LightlyIcons.BackChevron, "Back", vm::close, tag = EditorTags.CLOSE)
-        Text(ui.tool.label, style = l2TextStyle(18.sp, FontWeight.SemiBold, lightlyColors.ink), maxLines = 1,
-            modifier = Modifier.weight(1f).padding(start = 2.dp).semantics { heading() })
-        IconTapTarget(LightlyIcons.Undo, "Undo", vm::undo, enabled = ui.canUndo, tag = EditorTags.UNDO)
-        IconTapTarget(LightlyIcons.Redo, "Redo", vm::redo, enabled = ui.canRedo, tag = EditorTags.REDO)
-        CompareButton(vm, ui, glass = false)
-        SaveButton(vm::saveCopy, height = 40.dp)
-        MoreButton(actions.more, tag = EditorTags.MORE)
+    val colors = lightlyColors
+    Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.Top) {
+        Row(
+            Modifier.clip(CircleShape).background(colors.glass, CircleShape).border(1.dp, colors.glassLine, CircleShape).padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            IconTapTarget(LightlyIcons.Close, "Close", vm::close, tag = EditorTags.CLOSE)
+            IconTapTarget(LightlyIcons.Undo, "Undo", vm::undo, enabled = ui.canUndo, tag = EditorTags.UNDO)
+            IconTapTarget(LightlyIcons.Redo, "Redo", vm::redo, enabled = ui.canRedo, tag = EditorTags.REDO)
+        }
+        Spacer(Modifier.weight(1f).widthIn(min = 6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
+            CompareButton(vm, ui, glass = true)
+            SaveButton(vm::saveCopy)
+            MoreButton(actions.more, tag = EditorTags.MORE)
+        }
     }
 }
 
