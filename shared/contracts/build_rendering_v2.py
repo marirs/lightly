@@ -150,7 +150,9 @@ def light_leak_constants() -> dict:
     return {
         "leakImage": "revision 8: a style leak-<12 hex> names a leak-pack image (shared/leaks/out/leaks.json): aspect-fill "
                      "the frame, centred at (x, y) % and turned by rotation about it; L = bilinear sample × intensity/100; "
-                     "out = 1 − (1 − in)(1 − L) on sRGB-encoded values. The drawn styles below are unchanged.",
+                     "out = 1 − (1 − in)(1 − L) on sRGB-encoded values; the light fades over the last 8 % of each image side "
+                     "(smoothstep), so a moved leak shows no edge. A leak chosen while off starts centred at intensity 50. "
+                     "The drawn styles below are unchanged.",
         "shape": "circle at (x, y) % of the frame, size farthest-corner (CSS default for a circle)",
         "gradientRay": {"definition": "R = max distance in frame pixels from the centre (x·W/100, y·H/100) to the four frame corners",
                         "note": "stop positions are fractions of R, not of the long edge"},

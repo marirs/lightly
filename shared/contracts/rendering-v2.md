@@ -310,10 +310,11 @@ s  = max(W / iw, H / ih)                                   # the image covers th
 o  = (x·W/100, y·H/100);   θ = rad(rotation)               # the image's centre and its turn, clockwise positive
 q  = o + R(−θ)·(p − o)                                       # undo the turn about the image's centre
 u  = (q − o) / s + (iw/2, ih/2)                              # image pixel; outside the image: no light
-L  = bilinear(image, u) · intensity/100                      # sRGB-encoded, per channel
+f  = smoothstep(0, 0.08, min(u.x/iw, 1 − u.x/iw)) · smoothstep(0, 0.08, min(u.y/ih, 1 − u.y/ih))   # soft edges
+L  = bilinear(image, u) · f · intensity/100                  # sRGB-encoded, per channel
 out = 1 − (1 − in)·(1 − L)                                   # screen, on sRGB-encoded values
 ```
-x = y = 50 centres the image on the frame. Preview and export sample the same image at their resolutions. The four drawn styles below are unchanged and still render; the panel offers only leak images.
+x = y = 50 centres the image on the frame. The image's light fades out over the last 8 % of each side (`f`), so moving or turning a leak never shows the image's edge as a line. Choosing a leak while the effect is off starts it centred (x = y = 50) at intensity 50; dragging on the photo moves only a chosen leak (with None chosen it does nothing). Preview and export sample the same image at their resolutions. The four drawn styles below are unchanged and still render; the panel offers only leak images.
 
 Colours and opacities are *provisional* design values from the approved prototype. The geometry (revision 2, C4) is the prototype's CSS, exactly: a frame-sized overlay with
 `background: radial-gradient(circle at x% y%, core α, ring β 30%, transparent 55%)`, `mix-blend-mode: screen` and `transform: rotate(rotation deg)`, where α = intensity/130 and β = intensity/400.
