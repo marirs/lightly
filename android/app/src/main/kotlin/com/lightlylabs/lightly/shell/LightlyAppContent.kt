@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
@@ -40,6 +41,8 @@ class ShellActions(
     val retryLoad: () -> Unit,
     val navigate: (AppNavState) -> Unit,
     val more: MoreActions,
+    /** A double tap on Welcome's empty space: the next theme (owner amendment 2026-10-11, [ThemeCycle]). */
+    val cycleTheme: (() -> Unit)? = null,
 )
 
 /**
@@ -55,6 +58,8 @@ fun LightlyAppContent(
     content: MoreContent,
     actions: ShellActions,
     editor: @Composable () -> Unit,
+    /** The shell's toast (Welcome and More; the editor draws its own on the photo stage). */
+    toast: String? = null,
 ) {
     val colors = lightlyColors
     CompositionLocalProvider(LocalContentColor provides colors.ink) {
@@ -74,6 +79,9 @@ fun LightlyAppContent(
                 BaseScreenView(state, layout, actions, editor)
                 if (page != null) MoreSheet(page, layout, content, actions.more)
             }
+            // Top centre under the status bar: Welcome's and More's controls sit at the bottom and in the top corners, so it
+            // never covers one (at the bottom it hid Welcome's Camera button on the motorola).
+            if (toast != null) ShellToast(toast, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 14.dp))
         }
     }
 }
@@ -87,6 +95,7 @@ private fun BaseScreenView(state: AppNavState, layout: ShellLayout, actions: She
             onCamera = actions.camera,
             onPrivacyPolicy = { actions.navigate(AppNavigator.openPrivacyFromWelcome(state)) },
             onMore = { actions.navigate(AppNavigator.openMore(state)) },
+            onEmptyDoubleTap = actions.cycleTheme,
         )
         BaseScreen.CAMERA_DENIED -> MessageScreen(
             layout, StartCopy.CAMERA_DENIED_TITLE, StartCopy.CAMERA_DENIED_BODY,
@@ -120,8 +129,9 @@ private fun MoreSheet(page: MorePage, layout: ShellLayout, content: MoreContent,
                 .semantics { contentDescription = "Close More" }
                 .testTagResource(ShellTags.SHEET_SCRIM),
         )
-        // Swallows taps inside the sheet so they never reach the scrim (a pointer handler keeps the page's own nodes).
-        val sheetSurface = Modifier.pointerInput(Unit) { detectTapGestures {} }
+        // Swallows taps inside the sheet so they never reach the scrim (a pointer handler keeps the page's own nodes); a
+        // double tap on the page's empty space cycles the theme.
+        val sheetSurface = Modifier.pointerInput(actions.cycleTheme) { detectTapGestures(onDoubleTap = { actions.cycleTheme?.invoke() }) {} }
         val shape = RoundedCornerShape(28.dp)
         Column(
             Modifier

@@ -11,6 +11,7 @@ import android.graphics.Typeface
 import com.lightlylabs.lightly.develop.PixelRect
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import com.lightlylabs.lightly.session.BorderType
+import com.lightlylabs.lightly.session.TextFont
 import com.lightlylabs.lightly.session.WatermarkFont
 import com.lightlylabs.lightly.session.WatermarkPlacement
 import com.lightlylabs.lightly.session.WatermarkTool
@@ -313,6 +314,12 @@ class WatermarkFonts(val assets: AssetManager?) {
         WatermarkFont.CAVEAT -> load("Caveat-Variable.ttf", "'wght' 500")
     }
 
+    /**
+     * The Text tool's eight fonts (rendering-v2 §7.4: the named family at regular weight). The variable fonts are set to
+     * `wght` 400; Inter keeps its default optical size.
+     */
+    fun textTypeface(font: TextFont): Typeface = load(textFontFile(font), textFontVariation(font))
+
     fun logoInitials(cssPixels: Double): Typeface = load("Inter-Variable.ttf", "'wght' 700, 'opsz' ${cssPixels.coerceIn(14.0, 32.0).roundToInt()}")
 
     private fun load(file: String, variation: String?): Typeface = cache.getOrPut("$file|$variation") {
@@ -324,5 +331,23 @@ class WatermarkFonts(val assets: AssetManager?) {
 
     companion object {
         const val ASSET_DIR = "fonts"
+
+        /** The shared/fonts file of each Text font (bundled into assets/fonts by BundleWatermarkFontsTask). */
+        fun textFontFile(font: TextFont): String = when (font) {
+            TextFont.INTER -> "Inter-Variable.ttf"
+            TextFont.PLAYFAIR_DISPLAY -> "PlayfairDisplay-Variable.ttf"
+            TextFont.BEBAS_NEUE -> "BebasNeue-Regular.ttf"
+            TextFont.CAVEAT -> "Caveat-Variable.ttf"
+            TextFont.CORMORANT_GARAMOND -> "CormorantGaramond-Variable.ttf"
+            TextFont.MONTSERRAT -> "Montserrat-Variable.ttf"
+            TextFont.DANCING_SCRIPT -> "DancingScript-Variable.ttf"
+            TextFont.SPACE_MONO -> "SpaceMono-Regular.ttf"
+        }
+
+        /** Regular weight on the variable files; the static files (Bebas Neue, Space Mono) have none to set. */
+        fun textFontVariation(font: TextFont): String? = when (font) {
+            TextFont.BEBAS_NEUE, TextFont.SPACE_MONO -> null
+            else -> "'wght' 400"
+        }
     }
 }

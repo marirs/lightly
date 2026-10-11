@@ -90,6 +90,8 @@ class MoreActions(
     val drawSignature: () -> Unit = {},
     val importSignature: () -> Unit = {},
     val deleteSignature: () -> Unit = {},
+    /** A double tap on the page's empty background: the next theme (owner amendment 2026-10-11, [ThemeCycle]). */
+    val cycleTheme: (() -> Unit)? = null,
 )
 
 /** Data the pages show. [versionLabel] is "<versionName> (<versionCode>)" from BuildConfig. */
@@ -449,6 +451,6 @@ const val SUPPORT_EMAIL = "hello@lightly.pro"
 /** Fills the remaining space of a full-screen page. */
 @Composable
 fun FullScreenMorePage(page: MorePage, content: MoreContent, actions: MoreActions) {
-    MorePageView(page, content, actions, Modifier.fillMaxSize())
+    MorePageView(page, content, actions, Modifier.fillMaxSize().doubleTapEmptySpace(actions.cycleTheme).testTagResource("more-background"))
 }
 

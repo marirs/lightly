@@ -35,6 +35,19 @@ data class DetectedFace(
     val outerLips get() = region(FaceMeshRegions.OUTER_LIPS)
     val innerLips get() = region(FaceMeshRegions.INNER_LIPS)
 
+    /**
+     * The mouth's corners for `portrait.smile` (rendering-v2 §7.3): the outer lip contour's extreme points, Face Mesh
+     * landmarks 61 (the image's left corner) and 291 (the right). Null without landmarks, or when the two coincide (no
+     * visible mouth): Smile then leaves the face unchanged.
+     */
+    val mouthCorners: Pair<Point, Point>?
+        get() {
+            if (landmarks.size < FaceMeshRegions.LANDMARK_COUNT) return null
+            val left = landmarks[FaceMeshRegions.MOUTH_LEFT_CORNER]
+            val right = landmarks[FaceMeshRegions.MOUTH_RIGHT_CORNER]
+            return if (left == right) null else left to right
+        }
+
     private fun region(indices: IntArray): List<Point> = if (landmarks.size < FaceMeshRegions.LANDMARK_COUNT) emptyList() else indices.map { landmarks[it] }
 
     /**
@@ -116,6 +129,9 @@ object FaceMeshRegions {
     val IMAGE_LEFT_EYEBROW = intArrayOf(46, 53, 52, 65, 55, 107, 66, 105, 63, 70)
     val IMAGE_RIGHT_EYEBROW = intArrayOf(276, 283, 282, 295, 285, 336, 296, 334, 293, 300)
     val OUTER_LIPS = intArrayOf(61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185)
+    /** The outer lip contour's extreme points: the mouth corners on the image's left and right. */
+    const val MOUTH_LEFT_CORNER = 61
+    const val MOUTH_RIGHT_CORNER = 291
     val INNER_LIPS = intArrayOf(78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191)
 }
 

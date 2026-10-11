@@ -7,12 +7,13 @@ import com.lightlylabs.lightly.session.Hair
 import com.lightlylabs.lightly.session.NormalisedRect
 import com.lightlylabs.lightly.session.PortraitTool
 import com.lightlylabs.lightly.session.Skin
+import com.lightlylabs.lightly.session.Smile
 import com.lightlylabs.lightly.session.Teeth
 import com.lightlylabs.lightly.session.UnderEye
 import com.lightlylabs.lightly.vision.DetectedFace
 
-/** Prototype `portraitPanel` tabs, in order, with their approved labels. */
-enum class PortraitTab(val label: String) { SKIN("Skin"), UNDER("Under-eye"), EYES("Eyes"), TEETH("Teeth"), HAIR("Hair & Beard") }
+/** Lightly 2 `portraitPanel` tabs, in order, with their approved labels (Smile: owner amendment 2026-10-11). */
+enum class PortraitTab(val label: String) { SKIN("Skin"), UNDER("Under-eye"), EYES("Eyes"), TEETH("Teeth"), SMILE("Smile"), HAIR("Hair & Beard") }
 
 /**
  * Portrait UI state: the tab (prototype `ui.sub`, reset when the tool changes) and the chosen face
@@ -25,8 +26,8 @@ data class PortraitUi(
     val sliderDrag: Pair<String, Double>? = null,
 )
 
-/** One Portrait slider: its approved label, recipe field and the note that follows the tab's sliders. */
-data class PortraitSlider(val label: String, val field: String)
+/** One Portrait slider: its approved label, recipe field and range (Smile is centred, −100…100; the rest 0…100). */
+data class PortraitSlider(val label: String, val field: String, val min: Double = 0.0, val max: Double = 100.0)
 
 object PortraitOptions {
     /** Prototype `portraitPanel` bodies, verbatim. */
@@ -36,15 +37,21 @@ object PortraitOptions {
         PortraitTab.UNDER -> listOf(PortraitSlider("Brighten", "underEye.brighten"), PortraitSlider("Soften lines", "underEye.softenLines"))
         PortraitTab.EYES -> listOf(PortraitSlider("Brighten", "eyes.brighten"), PortraitSlider("Clarity", "eyes.clarity"))
         PortraitTab.TEETH -> listOf(PortraitSlider("Brighten", "teeth.brighten"))
+        PortraitTab.SMILE -> listOf(PortraitSlider("Smile", "smile.amount", min = -100.0, max = 100.0))
         PortraitTab.HAIR -> listOf(PortraitSlider("Definition", "hair.definition"), PortraitSlider("Flyaways", "hair.flyaways"), PortraitSlider("Shine", "hair.shine"))
     }
 
-    fun note(tab: PortraitTab): String? = when (tab) {
+    /** [hasMouth]: the chosen face has both mouth corners (rendering-v2 §7.3); without them Smile says so instead. */
+    fun note(tab: PortraitTab, hasMouth: Boolean = true): String? = when (tab) {
         PortraitTab.SKIN -> "Blemish reduction is temporary marks only. Pores, freckles, moles and skin tone colour stay."
         PortraitTab.EYES -> "Eye colour and shape are never changed."
         PortraitTab.TEETH -> "Stays within a natural range. There is no automatic whitening."
+        PortraitTab.SMILE -> if (hasMouth) SMILE_NOTE else SMILE_NEEDS_MOUTH
         else -> null
     }
+
+    const val SMILE_NOTE = "Lifts or relaxes the corners of the mouth. Stays within a natural range; the rest of the face is unchanged."
+    const val SMILE_NEEDS_MOUTH = "Smile needs a visible mouth."
 
     const val KEEP_TEXTURE_DEFAULT = 85.0
 }
@@ -55,7 +62,8 @@ object PortraitEdits {
     fun matches(edit: FaceEdit, face: DetectedFace) = edit.face.box == face.box && edit.face.detector == DetectedFace.DETECTOR
 
     fun neutral(box: NormalisedRect) = FaceEdit(
-        FaceIdentity(box, DetectedFace.DETECTOR), Skin(0.0, 0.0, 0.0, PortraitOptions.KEEP_TEXTURE_DEFAULT), UnderEye(0.0, 0.0), Eyes(0.0, 0.0), Teeth(0.0), Hair(0.0, 0.0, 0.0),
+        FaceIdentity(box, DetectedFace.DETECTOR), Skin(0.0, 0.0, 0.0, PortraitOptions.KEEP_TEXTURE_DEFAULT), UnderEye(0.0, 0.0), Eyes(0.0, 0.0), Teeth(0.0),
+        smile = Smile(0.0), hair = Hair(0.0, 0.0, 0.0),
     )
 
     fun editFor(tool: PortraitTool, face: DetectedFace): FaceEdit = tool.faces.firstOrNull { matches(it, face) } ?: neutral(face.box)
@@ -63,7 +71,7 @@ object PortraitEdits {
     /** Prototype `countChanges`: settings away from their defaults (Keep texture's default is 85). */
     fun changeCount(e: FaceEdit): Int {
         val values = listOf(e.skin.smoothing, e.skin.blemishes, e.skin.evenTone, e.underEye.brighten, e.underEye.softenLines, e.eyes.brighten,
-            e.eyes.clarity, e.teeth.brighten, e.hair.definition, e.hair.flyaways, e.hair.shine)
+            e.eyes.clarity, e.teeth.brighten, e.smile.amount, e.hair.definition, e.hair.flyaways, e.hair.shine)
         return values.count { it != 0.0 } + if (e.skin.keepTexture != PortraitOptions.KEEP_TEXTURE_DEFAULT) 1 else 0
     }
 
@@ -77,6 +85,7 @@ object PortraitEdits {
         "eyes.brighten" -> e.eyes.brighten
         "eyes.clarity" -> e.eyes.clarity
         "teeth.brighten" -> e.teeth.brighten
+        "smile.amount" -> e.smile.amount
         "hair.definition" -> e.hair.definition
         "hair.flyaways" -> e.hair.flyaways
         "hair.shine" -> e.hair.shine
@@ -86,6 +95,7 @@ object PortraitEdits {
     fun with(e: FaceEdit, field: String, raw: Double): FaceEdit {
         val v = raw.coerceIn(0.0, 100.0)
         return when (field) {
+            "smile.amount" -> e.copy(smile = Smile(raw.coerceIn(-100.0, 100.0)))
             "skin.smoothing" -> e.copy(skin = e.skin.copy(smoothing = v))
             "skin.blemishes" -> e.copy(skin = e.skin.copy(blemishes = v))
             "skin.evenTone" -> e.copy(skin = e.skin.copy(evenTone = v))

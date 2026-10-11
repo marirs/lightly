@@ -173,6 +173,7 @@ object DebugLaunchOptions {
             applySlice4(api, screen)
             applyBorder(api, screen)
             applyWatermark(api, screen)
+            applyText(api, screen)
             // ed-remove rebases once the real removal has finished (see applySlice4).
             if (screen == "ed-remove" || screen == "s4-export") return@applyDebugState
             // History starts at the configured recipe (Undo disabled, as on the prototype's screens);
@@ -419,6 +420,8 @@ object DebugLaunchOptions {
             "pt-under" -> face(com.lightlylabs.lightly.editor.PortraitTab.UNDER, listOf("underEye.brighten" to 20.0, "underEye.softenLines" to 15.0))
             "pt-eyes" -> face(com.lightlylabs.lightly.editor.PortraitTab.EYES, listOf("eyes.brighten" to 15.0))
             "pt-teeth" -> face(com.lightlylabs.lightly.editor.PortraitTab.TEETH, listOf("teeth.brighten" to 20.0))
+            // Owner amendment 2026-10-11 (mockup `pt-smile`): Skin edited (its dot) and Smile at +35.
+            "pt-smile" -> face(com.lightlylabs.lightly.editor.PortraitTab.SMILE, listOf("skin.smoothing" to 24.0, "smile.amount" to 35.0))
             "pt-hair" -> face(com.lightlylabs.lightly.editor.PortraitTab.HAIR, listOf("hair.definition" to 30.0))
             "pt-landscape-photo", "pt-multi" -> face(com.lightlylabs.lightly.editor.PortraitTab.SKIN, listOf("skin.smoothing" to 20.0))
             "pt-no-usable-face" -> api.openPortrait(com.lightlylabs.lightly.editor.PortraitTab.SKIN)
@@ -496,6 +499,28 @@ object DebugLaunchOptions {
                 fx(com.lightlylabs.lightly.editor.EffectsSub.GRAIN)
             }
         }
+    }
+
+    /**
+     * Lightly 2 `tx-*` and `dock-end` (owner amendments 2026-10-11): the Text tool on the sunset photo, with no layer, one
+     * selected layer ("Summer in Lisbon", turned −4°), two layers in Bebas Neue, or the text sheet open over one layer.
+     * The mockup positions its sample by the box's left edge; here the same box is placed by its centre.
+     */
+    private fun applyText(api: EditorViewModel.DebugEditorApi, screen: String) {
+        if (!screen.startsWith("tx-") && screen != "dock-end") return
+        val summer = com.lightlylabs.lightly.editor.TextEdits.newLayer("5a11b0a1", "Summer in Lisbon")
+        val layers = when (screen) {
+            "tx-empty" -> emptyList()
+            "tx-two" -> listOf(
+                summer.copy(font = com.lightlylabs.lightly.session.TextFont.BEBAS_NEUE, centre = com.lightlylabs.lightly.session.NormalisedPoint(0.5, 0.2)),
+                com.lightlylabs.lightly.editor.TextEdits.newLayer("20260001", "2026").copy(font = com.lightlylabs.lightly.session.TextFont.INTER, size = 16,
+                    centre = com.lightlylabs.lightly.session.NormalisedPoint(0.68, 0.89)),
+            )
+            else -> listOf(summer.copy(centre = com.lightlylabs.lightly.session.NormalisedPoint(0.5, 0.26), rotation = -4.0))
+        }
+        if (layers.isNotEmpty()) api.text { com.lightlylabs.lightly.session.TextTool(layers) }
+        api.openTool(com.lightlylabs.lightly.editor.EditorTool.TEXT)
+        if (screen == "tx-edit") api.setUi { it.copy(text = it.text.copy(sheet = com.lightlylabs.lightly.editor.TextSheet.Editing(summer.id))) }
     }
 
     /** docs/ui/app/screens.js, the `bd-*` setups (Border, slice 5). */

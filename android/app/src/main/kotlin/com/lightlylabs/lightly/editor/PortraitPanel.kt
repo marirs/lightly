@@ -51,7 +51,7 @@ object PortraitTags {
 
 /**
  * Prototype `portraitPanel`: "No face can be edited" when no face is usable; otherwise the face strip
- * (only with more than one face), the five tabs and the tab's sliders and note, all copy verbatim.
+ * (only with more than one face), the six tabs and the tab's sliders and note, all copy verbatim.
  */
 @Composable
 fun PortraitPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean, wrapped: Boolean) = Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -85,9 +85,9 @@ fun PortraitPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean, wrappe
     val edit = PortraitEdits.editFor(tool, faces[selected])
     for (slider in PortraitOptions.sliders(ui.portrait.tab)) {
         val value = vm.portraitDragValue(slider.field) ?: PortraitEdits.value(edit, slider.field)
-        SliderRow(slider.label, value, 0.0, 100.0, { vm.onPortraitSlider(slider.field, it) }, { vm.onPortraitSliderRelease(slider.field, it) }, PortraitTags.slider(slider.field))
+        SliderRow(slider.label, value, slider.min, slider.max, { vm.onPortraitSlider(slider.field, it) }, { vm.onPortraitSliderRelease(slider.field, it) }, PortraitTags.slider(slider.field))
     }
-    PortraitOptions.note(ui.portrait.tab)?.let { PanelNote(it) }
+    PortraitOptions.note(ui.portrait.tab, hasMouth = faces[selected].mouthCorners != null)?.let { PanelNote(it) }
 }
 
 /** `.wrapped .tabs` (the wide tablet layout): the tabs wrap onto more rows (row-gap 0), with no fade. */

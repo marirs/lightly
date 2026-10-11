@@ -67,13 +67,13 @@ object EditMapping {
      */
     fun usesEditOrEffects(state: EditState): Boolean =
         !geometry(state).isIdentity || !adjust(state).isNeutral || patchDigests(state).isNotEmpty() || effects(state).anyEnabled || !border(state).isNone ||
-            state.tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE
+            state.tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE || state.tools.text.layers.isNotEmpty()
 }
 
 /**
  * Every stage of a recipe that uses Edit or Effects, in this order:
  * Remove patches → Auto (1) → Look (2, 3) → Adjust (5) → Background (7, 8) → geometry (4) → Effects with
- * the preset's finishing (10) → Border (11, frame → canvas) → Watermark (12, canvas).
+ * the preset's finishing (10) → Text (11, frame) → Border (12, frame → canvas) → Watermark (13, canvas).
  */
 // CONTRACT GAP (reported, as iOS C1/C2): rendering-v2 §1 orders geometry (4) before Adjust (5), Remove
 // (6) and Background (7–8). This port, like iOS:
@@ -84,7 +84,7 @@ object EditMapping {
 //   in source coordinates. Colour is per pixel, so only resolution-relative radii differ: Detail's and
 //   Focus & Blur's radii follow the uncropped long edge instead of the cropped frame's.
 /**
- * Stage 12: the watermark for a canvas of this size with the photo at [imageRect] (canvas pixels), or null
+ * Stage 13 (12 before revision 7): the watermark for a canvas of this size with the photo at [imageRect] (canvas pixels), or null
  * when there is none (or its saved signature is missing or changed: never substituted).
  */
 fun interface WatermarkPainter {
@@ -97,19 +97,30 @@ class EditPipeline(
     private val executor: ExecutorService? = null,
     private val parallelism: Int = 1,
     private val watermark: WatermarkPainter? = null,
+    /** Stage 11. Without bundled fonts (JVM tests) the layers draw in the default typeface. */
+    private val text: TextStage = TextStage(WatermarkFonts(null)),
 ) {
     /**
      * The whole frame from a preview-size [source] (patches already composited). [developPlan] is the
      * Develop plan of the recipe (finishing included; it is moved to the effects stage here).
      * [background] composes Background on the developed, adjusted source-coordinate image, if active.
      */
-    fun renderPreview(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
-        var image = frameBeforeEffects(source, state, developPlan, background)
-        image = EffectsStage(EditMapping.effects(state), developPlan.finishing, model, image.width, image.height).apply(image)
+    fun renderPreview(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image =
+        finishPreview(renderFrameBeforeText(source, state, developPlan, background), state)
+
+    /** Stages 1–10 of the preview: the frame the text stage draws on. Kept by the editor while text moves. */
+    fun renderFrameBeforeText(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
+        val image = frameBeforeEffects(source, state, developPlan, background)
+        return EffectsStage(EditMapping.effects(state), developPlan.finishing, model, image.width, image.height).apply(image)
+    }
+
+    /** Stages 11–13 of the preview on a frame from [renderFrameBeforeText]: text, border, watermark. */
+    fun finishPreview(frame: Rgba8Image, state: EditState): Rgba8Image {
+        val image = text.apply(frame, state.tools.text.layers, frame.width, frame.height)
         val border = EditMapping.border(state)
         val placement = BorderStage.placement(border, image.width, image.height)
         val canvas = BorderStage.apply(border, image)
-        // Stage 12, on the canvas after the border.
+        // Stage 13, on the canvas after the border.
         return watermark?.layer(canvas.width, canvas.height, PixelRect(placement.side, placement.top, image.width, image.height))?.compositeOnto(canvas) ?: canvas
     }
 
@@ -157,19 +168,22 @@ class EditPipeline(
         val border = EditMapping.border(state)
         val placement = BorderStage.placement(border, geometry.frameWidth, geometry.frameHeight)
 
-        /** One tile of the frame (stages 1–10), in frame coordinates. */
+        val textLayers = state.tools.text.layers
+
+        /** One tile of the frame (stages 1–11), in frame coordinates. */
         fun frameTile(source: FrameSource, out: PixelRect): Rgba8Image {
             val region = geometry.sourceBounds(out)
             var pixels = renderRegion(source, region, plan, base, adjustPlan, adjustBase, adjustApron)
             compose?.let { pixels = Rgba8Image(region.width, region.height, it(pixels.pixels, region, source.width, source.height)) }
             val framed = if (geometry.isIdentity) pixels else geometry.renderTile(pixels, region.x, region.y, out)
-            return effects.apply(framed, out.x, out.y)
+            // Stage 11 in the frame, per tile: the same layout as the preview, every quantity a fraction of the frame.
+            return text.apply(effects.apply(framed, out.x, out.y), textLayers, geometry.frameWidth, geometry.frameHeight, out.x, out.y)
         }
         object : ExportTileRenderer {
-            // Stage 11 makes the canvas: the frame plus the border.
+            // Stage 12 makes the canvas: the frame plus the border.
             override fun outputSize(source: FrameSource) = placement.canvasWidth to placement.canvasHeight
 
-            // Stage 12: rendered once for the whole canvas (it is only the watermark's box), composited per tile.
+            // Stage 13: rendered once for the whole canvas (it is only the watermark's box), composited per tile.
             private val layer = watermark?.layer(placement.canvasWidth, placement.canvasHeight, PixelRect(placement.side, placement.top, placement.frameWidth, placement.frameHeight))
 
             override fun renderTile(source: FrameSource, tile: Tile): Rgba8Image {

@@ -92,7 +92,7 @@ class DevelopPanelModelTest {
 
     @Test
     fun `browsing another category keeps naming the applied preset, never Original`() {
-        // Owner amendment 2026-10-05: the underline moves (categoryId), the dot stays, the name row names the applied preset.
+        // Owner amendment 2026-10-05: the browsed tab's pill moves (categoryId; it was an underline until 2026-10-11), the dot stays, the name row names the applied preset.
         val model = derive(look(hiking), ui = DevelopUi(category = "cinema"))
         assertEquals("cinema", model.categoryId)
         assertEquals(0, model.stop)
@@ -147,7 +147,11 @@ class DevelopPanelModelTest {
         assertFalse(EditorTool.PORTRAIT in EditorTools.visible(PersonPresence.ABSENT, debugBuild = true))
         assertTrue(EditorTool.PORTRAIT in EditorTools.visible(PersonPresence.PENDING, debugBuild = true))
         assertFalse(EditorTool.PORTRAIT in EditorTools.visible(PersonPresence.PENDING, debugBuild = false))
-        assertEquals(6, EditorTools.visible(PersonPresence.ABSENT, debugBuild = false).size)
+        // Eight tools since Text (owner amendment 2026-10-11); without a person, seven, in the dock's order.
+        assertEquals(
+            listOf(EditorTool.DEVELOP, EditorTool.BACKGROUND, EditorTool.EDIT, EditorTool.EFFECTS, EditorTool.WATERMARK, EditorTool.TEXT, EditorTool.BORDER),
+            EditorTools.visible(PersonPresence.ABSENT, debugBuild = false),
+        )
     }
 
     @Test

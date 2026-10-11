@@ -192,4 +192,45 @@ class PortraitTest {
         // The dock marks Portrait as used.
         compose.onNodeWithTag(EditorTags.tool(EditorTool.PORTRAIT)).assertExists()
     }
+    /** A usable face whose mouth corners (Face Mesh 61 and 291) are apart: Smile can work on it. */
+    private fun faceWithMouth(x: Double): DetectedFace {
+        val points = MutableList(FaceMeshRegions.LANDMARK_COUNT) { Point(x + 0.1, 0.35) }
+        points[FaceMeshRegions.MOUTH_LEFT_CORNER] = Point(x + 0.07, 0.42)
+        points[FaceMeshRegions.MOUTH_RIGHT_CORNER] = Point(x + 0.13, 0.42)
+        return DetectedFace(NormalisedRect(x, 0.2, 0.2, 0.3), 0.9f, 1f, points)
+    }
+
+    @Test
+    fun `Smile is the fifth tab - one centred slider, the approved note, an edit dot and one undo step`() {
+        val vm = editor(PeopleAnalysis(listOf(faceWithMouth(0.4)), emptyList()))
+        show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.PORTRAIT)).performClick()
+        compose.waitForIdle()
+        assertEquals(listOf("Skin", "Under-eye", "Eyes", "Teeth", "Smile", "Hair & Beard"), PortraitTab.entries.map { it.label })
+        compose.onNodeWithTag("portrait-tab-smile").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Lifts or relaxes the corners of the mouth. Stays within a natural range; the rest of the face is unchanged.").assertIsDisplayed()
+        compose.onNodeWithTag(PortraitTags.slider("smile.amount")).assert(
+            androidx.compose.ui.test.SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.ProgressBarRangeInfo,
+                androidx.compose.ui.semantics.ProgressBarRangeInfo(0f, -100f..100f, steps = 199)))
+        compose.onNodeWithTag(PortraitTags.slider("smile.amount")).performSemanticsAction(SemanticsActions.SetProgress) { it(-35f) }
+        compose.waitForIdle()
+        assertEquals(-35.0, vm.uiState.value.session!!.current.tools.portrait.faces.single().smile.amount)
+        assertEquals(2, vm.uiState.value.session!!.history.entries.size, "one undo step per release")
+        compose.onNodeWithTag("portrait-tab-smile").assert(androidx.compose.ui.test.SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "Edited"))
+        compose.onNodeWithText("-35").assertExists()
+        vm.undo()
+        compose.waitForIdle()
+        assertTrue(vm.uiState.value.session!!.current.tools.portrait.faces.all { it.smile.amount == 0.0 })
+    }
+
+    @Test
+    fun `a face without both mouth corners says Smile needs a visible mouth`() {
+        val vm = editor(PeopleAnalysis(listOf(face(0.4)), emptyList()))
+        show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.PORTRAIT)).performClick()
+        compose.onNodeWithTag("portrait-tab-smile").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Smile needs a visible mouth.").assertIsDisplayed()
+    }
 }

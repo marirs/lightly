@@ -9,6 +9,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Shell state that must survive rotation, fold changes and process death: where the user is, and
@@ -32,6 +36,24 @@ class AppViewModel(private val savedState: SavedStateHandle) : ViewModel() {
         return true
     }
 
+    private val toastState = MutableStateFlow<String?>(null)
+    private var toastJob: Job? = null
+
+    /**
+     * The toast on screens without a photo stage (Welcome, More): the theme cycle's "System theme" and the like. Kept here,
+     * not in composition, because an Appearance change recreates the Activity on API 31+ and the toast must outlive it.
+     */
+    val toast: StateFlow<String?> = toastState.asStateFlow()
+
+    fun showToast(text: String) {
+        toastJob?.cancel()
+        toastState.value = text
+        toastJob = viewModelScope.launch {
+            delay(TOAST_MILLIS)
+            if (toastState.value == text) toastState.value = null
+        }
+    }
+
     var pendingCaptureUri: String?
         get() = savedState.get<String>(KEY_CAPTURE)
         set(value) {
@@ -41,6 +63,9 @@ class AppViewModel(private val savedState: SavedStateHandle) : ViewModel() {
     companion object {
         private const val KEY_NAV = "shell.nav"
         private const val KEY_CAPTURE = "shell.pendingCapture"
+
+        /** As long as the editor's toast shows (EditorViewModel.TOAST_MILLIS). */
+        const val TOAST_MILLIS = 1400L
 
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer { AppViewModel(createSavedStateHandle()) }

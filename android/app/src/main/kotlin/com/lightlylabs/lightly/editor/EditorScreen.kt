@@ -74,6 +74,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -109,9 +112,13 @@ import com.lightlylabs.lightly.shell.lightlyColors
 import com.lightlylabs.lightly.shell.lightlyTextStyle
 import com.lightlylabs.lightly.shell.testTagResource
 import java.nio.ByteBuffer
+import kotlin.math.roundToInt
 
-/** What the editor asks of the shell: ⋮ More, the system share sheet, the photo picker. */
-class EditorActions(val more: () -> Unit, val share: (String) -> Unit, val chooseAnother: () -> Unit)
+/**
+ * What the editor asks of the shell: ⋮ More, the system share sheet, the photo picker, and the next theme for a double tap
+ * on the stage outside the photo (owner amendment 2026-10-11, [com.lightlylabs.lightly.shell.ThemeCycle]).
+ */
+class EditorActions(val more: () -> Unit, val share: (String) -> Unit, val chooseAnother: () -> Unit, val cycleTheme: (() -> Unit)? = null)
 
 /** Stable tags for tests and the scripted emulator comparison. */
 object EditorTags {
@@ -178,13 +185,17 @@ internal val PHONE_PANEL_HEIGHT = 340.dp
 private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelModel?, frame: EditorFrame, actions: EditorActions) {
     val layout = frame.layout
     val colors = lightlyColors
+    // A gesture that started on the selected text owns its pointers: the stage's pinch-zoom then leaves the second finger
+    // to the text (pinch to resize or turn it).
+    val textGesture = remember { TextGestureClaim() }
     // Owner amendment (2026-10-10): Auto and Reset all sit on the photo area's bottom-start corner for every photo (on or
     // beside the photo), 10 dp inside the stage's 12/8 dp inset, instead of following the photo's own corner.
     val stage: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier) {
             // While cropping, a pinch resizes the crop frame instead of zooming the photo.
-            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), cropPending = vm.hasPendingCrop(ui),
-                cropTouches = if (vm.isCropEditing(ui) && !ui.showsOriginal) { photo -> CropTouches(vm, photo) } else null, onPhotoBox = vm::onStagePhotoMeasured)
+            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui); TextMarks(vm, ui, textGesture) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), cropPending = vm.hasPendingCrop(ui),
+                cropTouches = if (vm.isCropEditing(ui) && !ui.showsOriginal) { photo -> CropTouches(vm, photo) } else null, onPhotoBox = vm::onStagePhotoMeasured,
+                inspectionYields = textGesture::ownsPointers, onEmptyDoubleTap = actions.cycleTheme)
             if (!ui.showsOriginal && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP)) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
             // ✕ Cancel and ✓ Apply crop under the photo while a moved frame waits (owner, 2026-10-11).
             androidx.compose.animation.AnimatedVisibility(vm.hasPendingCrop(ui), Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
@@ -393,13 +404,30 @@ internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, 
  * the "Original" badge at the photo's top-left corner.
  */
 @Composable
-private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false, cropEditing: Boolean = false, cropPending: Boolean = false, cropTouches: (@Composable (photo: androidx.compose.ui.geometry.Rect) -> Unit)? = null, onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> }) {
+private fun Stage(
+    ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false,
+    cropEditing: Boolean = false, cropPending: Boolean = false, cropTouches: (@Composable (photo: androidx.compose.ui.geometry.Rect) -> Unit)? = null,
+    onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> },
+    /** True while another gesture (Text's pinch on the selected text) owns the pointers: inspection zoom stays out. */
+    inspectionYields: () -> Boolean = { false },
+    /** A double tap on the stage outside the photo (the theme cycle); never on the photo, which keeps inspection zoom. */
+    onEmptyDoubleTap: (() -> Unit)? = null,
+) {
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
+    // The photo as shown (zoom, pan and the crop glide included) and the stage's own origin, both in window pixels.
+    var photoBoundsInWindow by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    var stageOrigin by remember { mutableStateOf(Offset.Zero) }
+    var viewportOrigin by remember { mutableStateOf(Offset.Zero) }
+    val outsidePhoto = { windowPoint: Offset -> photoBoundsInWindow?.contains(windowPoint) != true }
+    // Covers the 12/8 dp inset too; inside the viewport the inspection handler below decides (it consumes the taps).
+    val emptyDoubleTap = if (onEmptyDoubleTap == null) Modifier else Modifier
+        .onGloballyPositioned { stageOrigin = it.positionInWindow() }
+        .pointerInput(onEmptyDoubleTap) { detectTapGestures(onDoubleTap = { point -> if (outsidePhoto(stageOrigin + point)) onEmptyDoubleTap() }) }
     // Lightly 2 `photo()`: the stage is transparent (its container gives --bg on phones, --stage in panes; the crop
     // workspace #141414); the photo is contain-fitted 12 dp in from the sides and 8 dp from top and bottom, with 18 dp
     // corners (3 dp with a border).
-    BoxWithConstraints(modifier.clipToBounds().testTagResource(EditorTags.STAGE).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.clipToBounds().testTagResource(EditorTags.STAGE).then(emptyDoubleTap).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         if (image != null) {
             val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
             val ratio = image.width.toFloat() / image.height
@@ -422,7 +450,7 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                         var navigating = false
                         do {
                             val event = awaitPointerEvent(PointerEventPass.Initial)
-                            if (event.changes.count { it.pressed } >= 2) {
+                            if (event.changes.count { it.pressed } >= 2 && !inspectionYields()) {
                                 navigating = true
                                 val next = (zoom * event.calculateZoom()).coerceIn(1f, 6f)
                                 val anchor = event.calculateCentroid(useCurrent = false) - viewport / 2f
@@ -435,9 +463,12 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                         } while (event.changes.any { it.pressed })
                     }
                 }
-                .pointerInput(ui.original, viewport, fitted) {
+                .onGloballyPositioned { viewportOrigin = it.positionInWindow() }
+                .pointerInput(ui.original, viewport, fitted, onEmptyDoubleTap) {
                     detectTapGestures(onDoubleTap = { point ->
-                        if (zoom > 1.01f) { zoom = 1f; pan = Offset.Zero }
+                        // Outside the photo a double tap is empty space: the theme cycle, not zoom (owner amendment 2026-10-11).
+                        if (onEmptyDoubleTap != null && outsidePhoto(viewportOrigin + point)) onEmptyDoubleTap()
+                        else if (zoom > 1.01f) { zoom = 1f; pan = Offset.Zero }
                         else { zoom = 2.5f; pan = clamp((viewport / 2f - point) * (zoom - 1f), zoom) }
                     })
                 }
@@ -474,7 +505,7 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
                 Modifier.size(width.dp, (width / ratio).dp).graphicsLayer {
                     scaleX = zoom * cropScale; scaleY = zoom * cropScale
                     translationX = pan.x + cropDx; translationY = pan.y + cropDy
-                }.then(
+                }.onGloballyPositioned { photoBoundsInWindow = it.boundsInWindow() }.then(
                     if (border == null) Modifier else Modifier.drawBehind {
                         val ring = 1.dp.toPx()
                         drawRect(Color(0x1F000000), topLeft = Offset(-ring / 2, -ring / 2), size = androidx.compose.ui.geometry.Size(size.width + ring, size.height + ring), style = androidx.compose.ui.graphics.drawscope.Stroke(ring))
@@ -625,7 +656,7 @@ private fun ToolPanel(vm: EditorViewModel, ui: EditorUiState, model: DevelopPane
         EditorTool.EFFECTS -> EffectsPanel(vm, ui, roomy)
         EditorTool.BORDER -> BorderPanel(vm, ui, roomy)
         EditorTool.WATERMARK -> WatermarkPanel(vm, ui, roomy)
-        else -> ToolStub(ui.tool, roomy)
+        EditorTool.TEXT -> TextPanel(vm, ui)
     }
 }
 
@@ -645,6 +676,7 @@ internal fun toolUsed(ui: EditorUiState, tool: EditorTool): Boolean {
         EditorTool.EFFECTS -> recipe != null && ToolUsed.effects(recipe)
         EditorTool.BORDER -> recipe?.tools?.border?.type?.let { it != com.lightlylabs.lightly.session.BorderType.NONE } == true
         EditorTool.WATERMARK -> recipe?.tools?.watermark?.type?.let { it != com.lightlylabs.lightly.session.WatermarkType.NONE } == true
+        EditorTool.TEXT -> recipe?.tools?.text?.layers?.isNotEmpty() == true
     }
 }
 
@@ -655,25 +687,44 @@ internal fun toolIcon(tool: EditorTool): ImageVector = when (tool) {
     EditorTool.EDIT -> LightlyIcons.Edit
     EditorTool.EFFECTS -> LightlyIcons.Effects
     EditorTool.WATERMARK -> LightlyIcons.Watermark
+    EditorTool.TEXT -> LightlyIcons.Text
     EditorTool.BORDER -> LightlyIcons.Border
 }
 
 /**
- * The Android phone dock (`phoneDock`): 62 dp, a hairline above, the tools in equal slots (6 dp top, 4 dp sides); each a
- * 46×30 dp pill (lime with the on-accent icon when selected), the 9.5 sp semibold label (ink when selected, ink2) and a
- * 4 dp dot slot, orange on tools holding edits.
+ * The Android phone dock (`phoneDock`, owner amendment 2026-10-11): 62 dp, a hairline above, eight tools no longer fit,
+ * so the row scrolls sideways with fixed 58 dp items (6 dp top, 6 dp sides); the next tool always shows cut off at the
+ * edge. Each item is a 46×30 dp pill (lime with the on-accent icon when selected), the 9.5 sp semibold label (ink when
+ * selected, ink2) and a 4 dp dot slot, orange on tools holding edits. While more is to the right the end fades (opaque to
+ * 91 %); scrolled to the end, the start fades instead (transparent to opaque over the first 12 %). Selecting a tool
+ * scrolls it fully into view.
  */
 @Composable
 private fun ToolNav(vm: EditorViewModel, ui: EditorUiState) {
     val colors = lightlyColors
+    val scroll = rememberScrollState()
+    val density = LocalDensity.current
+    val selectedIndex = ui.tools.indexOf(ui.tool)
+    LaunchedEffect(selectedIndex, scroll.viewportSize, scroll.maxValue) {
+        if (selectedIndex < 0 || scroll.viewportSize == 0) return@LaunchedEffect
+        val target = with(density) {
+            DockScroll.targetFor(selectedIndex, DOCK_ITEM_WIDTH.toPx(), DOCK_SIDE_PADDING.toPx(), scroll.value.toFloat(), scroll.viewportSize.toFloat())
+        }
+        if (target != null) scroll.animateScrollTo(target.roundToInt().coerceIn(0, scroll.maxValue))
+    }
     Row(
-        Modifier.fillMaxWidth().height(DOCK_HEIGHT).hairlineTop(colors.hair).padding(start = 4.dp, end = 4.dp, top = 6.dp).semantics { contentDescription = "Tools" },
+        Modifier.fillMaxWidth().height(DOCK_HEIGHT).hairlineTop(colors.hair)
+            .dockEdgeFade(moreToTheEnd = scroll.canScrollForward, scrolledToEnd = !scroll.canScrollForward && scroll.canScrollBackward)
+            .horizontalScroll(scroll)
+            .padding(start = DOCK_SIDE_PADDING, end = DOCK_SIDE_PADDING, top = 6.dp)
+            .semantics { contentDescription = "Tools" }
+            .testTagResource("editor-dock"),
     ) {
         ui.tools.forEach { tool ->
             val on = tool == ui.tool
             val used = toolUsed(ui, tool)
             Column(
-                Modifier.weight(1f).clickable(role = Role.Tab) { vm.selectTool(tool) }
+                Modifier.width(DOCK_ITEM_WIDTH).clickable(role = Role.Tab) { vm.selectTool(tool) }
                     .semantics { this.selected = on; if (used) stateDescription = "Edited" }
                     .testTagResource(EditorTags.tool(tool)),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -687,6 +738,45 @@ private fun ToolNav(vm: EditorViewModel, ui: EditorUiState) {
             }
         }
     }
+}
+
+/** `flex: 0 0 58px`: every dock item is this wide, so six and a half to seven fit on a phone and the next shows cut off. */
+internal val DOCK_ITEM_WIDTH = 58.dp
+
+/** The dock row's `padding: 0 6px`. */
+internal val DOCK_SIDE_PADDING = 6.dp
+
+/** Where the dock scrolls so a selected tool is fully visible (pure, for tests). */
+internal object DockScroll {
+    /**
+     * The scroll offset that brings item [index] fully into the viewport, or null when it is already fully visible.
+     * Items start after [sidePadding] and are [itemWidth] wide; the side padding is kept visible at either end.
+     */
+    fun targetFor(index: Int, itemWidth: Float, sidePadding: Float, current: Float, viewport: Float): Float? {
+        val itemStart = sidePadding + index * itemWidth
+        val itemEnd = itemStart + itemWidth
+        return when {
+            itemStart < current -> (itemStart - sidePadding).coerceAtLeast(0f)
+            itemEnd > current + viewport -> itemEnd + sidePadding - viewport
+            else -> null
+        }
+    }
+}
+
+/**
+ * The dock's edge masks (`phoneDock`): `linear-gradient(90deg, #000 91%, transparent)` while more tools are to the end,
+ * `linear-gradient(90deg, transparent, #000 12%)` once scrolled to the end; none when every tool fits.
+ */
+private fun Modifier.dockEdgeFade(moreToTheEnd: Boolean, scrolledToEnd: Boolean): Modifier = when {
+    moreToTheEnd -> graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+        drawContent()
+        drawRect(Brush.horizontalGradient(0.91f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+    }
+    scrolledToEnd -> graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+        drawContent()
+        drawRect(Brush.horizontalGradient(0f to Color.Transparent, 0.12f to Color.Black), blendMode = BlendMode.DstIn)
+    }
+    else -> this
 }
 
 /** The panel's lower edge fades (#000 90 % → transparent) where its contents scroll (`fadeDown`). */

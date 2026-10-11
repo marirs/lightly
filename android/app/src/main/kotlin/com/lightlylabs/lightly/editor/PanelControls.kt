@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
@@ -82,15 +83,17 @@ import kotlin.math.sin
  */
 
 /**
- * Tool tabs (Lightly 2 `tabs`): a scrolling row, 20 dp gaps, 14.5 sp; selected bold ink (with the 2 dp orange underline
- * when [underline], Develop's browsed category), others medium ink3; a 5 dp orange dot on tabs holding an edit; the end
- * fades (88 %). The tab before the selected one is scrolled to the start (`scrolled()`).
+ * Tool tabs (Lightly 2 `tabs`, owner amendment 2026-10-11): a scrolling row, 6 dp gaps, pulled 12 dp to the start so the
+ * first label lines up with the panel's content edge. Each tab is 7/12 dp padded, 16 dp corners, 14.5 sp; the selected one
+ * bold on the translucent lime pill (`--pill`, `--pill-ink`), the others medium ink3 without a background. A 5 dp orange
+ * dot follows the label on tabs holding an edit. The end fades (88 %) while tabs are hidden past it. The tab before the
+ * selected one is scrolled to the start (`scrolled()`). Every tab row uses this, Develop's categories included: the
+ * orange underline is gone everywhere.
  */
 @Composable
 fun <T> OptionTabs(
     items: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, dotted: (T) -> Boolean = { false }, tagPrefix: String = "tab",
-    // Owner (2026-10-11): every sub-menu underlines its selected tab, as the presets do.
-    underline: Boolean = true, icon: (T) -> androidx.compose.ui.graphics.vector.ImageVector? = { null },
+    icon: (T) -> androidx.compose.ui.graphics.vector.ImageVector? = { null },
 ) {
     val colors = lightlyColors
     val scroll = rememberScrollState()
@@ -102,13 +105,15 @@ fun <T> OptionTabs(
     }
     Row(
         // The end fades only while tabs are hidden past it (owner amendment 2026-10-10).
-        Modifier.fillMaxWidth().fadeEnd(scroll.canScrollForward).horizontalScroll(scroll),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        Modifier.fillMaxWidth().bleedStart(TAB_ROW_BLEED).fadeEnd(scroll.canScrollForward).horizontalScroll(scroll),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         items.forEachIndexed { index, (value, label) ->
             val on = value == selected
+            val pillShape = RoundedCornerShape(16.dp)
             Box(
+                // The pill is drawn inside a 44 dp touch target, as the earlier underlined tabs were.
                 Modifier
                     .heightIn(min = 44.dp)
                     .onGloballyPositioned { offsets[index] = it.positionInParent().x.roundToInt() }
@@ -118,19 +123,31 @@ fun <T> OptionTabs(
                 contentAlignment = Alignment.Center,
             ) {
                 Row(
-                    // `padding: 8px 0 7px`, the underline an inset 2 dp at the bottom of that box.
-                    Modifier.drawBehind { if (on && underline) drawRect(colors.browse, Offset(0f, size.height - 2.dp.toPx()), Size(size.width, 2.dp.toPx())) }
-                        .padding(top = 8.dp, bottom = 7.dp),
+                    Modifier.clip(pillShape).background(if (on) colors.pill else Color.Transparent, pillShape)
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    icon(value)?.let { com.lightlylabs.lightly.shell.LightlyIcon(it, size = 14.dp, tint = if (on) colors.ink else colors.ink3) }
-                    Text(label, style = l2TextStyle(14.5.sp, if (on) FontWeight.Bold else FontWeight.Medium, if (on) colors.ink else colors.ink3), maxLines = 1)
+                    val ink = if (on) colors.pillInk else colors.ink3
+                    icon(value)?.let { com.lightlylabs.lightly.shell.LightlyIcon(it, size = 14.dp, tint = ink) }
+                    Text(label, style = l2TextStyle(14.5.sp, if (on) FontWeight.Bold else FontWeight.Medium, ink), maxLines = 1)
                     if (dotted(value)) Box(Modifier.size(5.dp).background(colors.edited, CircleShape))
                 }
             }
         }
     }
+}
+
+/** `margin-left: -12px` on the tab row: the row is [bleed] wider and starts [bleed] before its parent's content edge. */
+private val TAB_ROW_BLEED = 12.dp
+
+internal fun Modifier.bleedStart(bleed: Dp) = layout { measurable, constraints ->
+    val extra = bleed.roundToPx()
+    val widened = if (constraints.hasBoundedWidth) constraints.copy(maxWidth = constraints.maxWidth + extra, minWidth = constraints.minWidth + extra) else constraints
+    val placeable = measurable.measure(widened)
+    // Reports the parent's width so the bleed takes no room in the column; the row is placed `bleed` to the start.
+    val reportedWidth = (placeable.width - extra).coerceAtLeast(0)
+    layout(reportedWidth, placeable.height) { placeable.placeRelative(-extra, 0) }
 }
 
 /**

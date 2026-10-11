@@ -64,6 +64,11 @@ private data class PreviewRequest(
     val globalOnly: Boolean,
     /** A preset tap's first frame: the plan's colour (global) stages only, shown at once while the full render runs. */
     val colourOnly: Boolean = false,
+    /**
+     * A Text gesture or control in motion: only the text layers differ from the last full render, so the frame before
+     * stage 11 is reused when it matches (the same stage-11 code then draws the text). Commits always render in full.
+     */
+    val textOnly: Boolean = false,
 )
 
 data class EditorUiState(
@@ -99,6 +104,8 @@ data class EditorUiState(
     /** Border tool UI (slice 5). */
     val border: BorderUi = BorderUi(),
     val watermark: WatermarkUi = WatermarkUi(),
+    /** Text tool UI (owner amendment 2026-10-11): the selected layer and the text sheet. */
+    val text: TextUi = TextUi(),
     /** Portrait (slice 3): the people analysis of this photo (null until it ran, or no detector) and the panel state. */
     val people: com.lightlylabs.lightly.vision.PeopleAnalysis? = null,
     val portrait: PortraitUi = PortraitUi(),
@@ -196,6 +203,7 @@ class EditorViewModel(
     fun openPhoto(assetId: String) {
         val previousAsset = savedState.get<String>(KEY_ASSET)
         synchronized(thumbnailCache) { thumbnailCache.clear() }   // another photo's thumbnails are never shown again
+        frameBeforeText = null   // another photo's frame is never reused for Text's moving frames
         env.photoAccess.retain(assetId)
         if (previousAsset != null && previousAsset != assetId) env.photoAccess.release(previousAsset)
         savedState[KEY_ASSET] = assetId
@@ -380,7 +388,9 @@ class EditorViewModel(
         if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
         // Prototype `tool`: sub, op and group reset; a removal already running keeps running.
         val wasCropEditing = isCropEditing()
-        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi(), portrait = PortraitUi(selectedFace = it.portrait.selectedFace)) }
+        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi(), portrait = PortraitUi(selectedFace = it.portrait.selectedFace),
+            // Opening Text selects the first layer (mockup `tx-selected`, `tx-two`), so its handles show at once.
+            text = TextUi(selectedId = if (tool == EditorTool.TEXT) it.session?.current?.tools?.text?.layers?.firstOrNull()?.id else null)) }
         refreshAfterCropEditingChange(wasCropEditing)
         if (tool == EditorTool.BORDER) openBorderOnPreferredType()
         if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
@@ -985,6 +995,11 @@ class EditorViewModel(
         val tools = current.tools
         val next = when {
             target.startsWith("watermark") -> tools.copy(watermark = tools.watermark.copy(colour = hex))
+            target.startsWith("text") -> {
+                val layer = selectedTextLayer() ?: return
+                requestPreview(current.copy(tools = tools.copy(text = TextEdits.replaced(tools.text, layer.copy(colour = hex)))), globalOnly = false, textOnly = true)
+                return
+            }
             target.startsWith("background") -> tools.copy(background = tools.background.copy(replacement = com.lightlylabs.lightly.session.Replacement.Colour(hex)))
             target == "border-mat" -> tools.copy(border = withType(tools.border, borderTab()).copy(mat = hex))
             else -> tools.copy(border = withType(tools.border, borderTab()).copy(colour = hex))
@@ -1336,6 +1351,108 @@ class EditorViewModel(
         else requestPreview(session.current.copy(tools = session.current.tools.copy(watermark = session.current.tools.watermark.copy(placement = com.lightlylabs.lightly.session.WatermarkPlacement.CANVAS, offset = point))), globalOnly = false)
     }
 
+    // --- Text (owner amendment 2026-10-11) -------------------------------------------------------
+
+    /** The layer the panel and the photo's handles act on, if it still exists. */
+    fun selectedTextLayer(ui: EditorUiState = state.value): com.lightlylabs.lightly.session.TextLayer? =
+        ui.session?.current?.tools?.text?.layers?.firstOrNull { it.id == ui.text.selectedId }
+
+    fun selectTextLayer(id: String?) = state.update { it.copy(text = it.text.copy(selectedId = id, sliderDrag = null)) }
+
+    /** "Add text" / "+ Add": the text sheet for a new layer. */
+    fun openAddText() {
+        val tool = state.value.session?.current?.tools?.text ?: return
+        if (!TextEdits.canAdd(tool)) return
+        state.update { it.copy(text = it.text.copy(sheet = TextSheet.Adding)) }
+    }
+
+    /** The input box: the text sheet for the selected layer. */
+    fun openEditText() {
+        val layer = selectedTextLayer() ?: return
+        state.update { it.copy(text = it.text.copy(sheet = TextSheet.Editing(layer.id))) }
+    }
+
+    /** Cancel: nothing changes. */
+    fun closeTextSheet() = state.update { it.copy(text = it.text.copy(sheet = null)) }
+
+    /** Done: adds the layer (selected) or changes the edited layer's text, one undo step; blank text does nothing. */
+    fun finishTextSheet(typed: String) {
+        val sheet = state.value.text.sheet ?: return
+        val accepted = TextEdits.acceptedText(typed) ?: return
+        val session = state.value.session ?: return
+        val tool = session.current.tools.text
+        when (sheet) {
+            TextSheet.Adding -> {
+                val layer = TextEdits.newLayer(TextEdits.newId(tool.layers.map { it.id }), accepted)
+                state.update { it.copy(text = it.text.copy(sheet = null, selectedId = layer.id)) }
+                commitText { TextEdits.added(it, layer) }
+            }
+            is TextSheet.Editing -> {
+                state.update { it.copy(text = it.text.copy(sheet = null)) }
+                val layer = tool.layers.firstOrNull { it.id == sheet.layerId } ?: return
+                if (layer.text != accepted) commitText { TextEdits.replaced(it, layer.copy(text = accepted)) }
+            }
+        }
+    }
+
+    /** ✕ on the photo: the layer is deleted (one undo step). */
+    fun deleteTextLayer(id: String) {
+        state.update { it.copy(text = it.text.copy(selectedId = it.text.selectedId?.takeIf { selected -> selected != id })) }
+        commitText { TextEdits.removed(it, id) }
+    }
+
+    fun chooseTextFont(font: com.lightlylabs.lightly.session.TextFont) = changeSelectedText { it.copy(font = font) }
+
+    fun setTextColour(hex: String) = changeSelectedText { it.copy(colour = hex) }
+
+    /** Size or Opacity moving: preview only. */
+    fun onTextSlider(field: String, value: Double) {
+        val layer = selectedTextLayer() ?: return
+        state.update { it.copy(text = it.text.copy(sliderDrag = field to value)) }
+        previewTextLayer(TextEdits.withSlider(layer, field, value))
+    }
+
+    /** Slider release: one undo step. */
+    fun onTextSliderRelease(field: String, value: Double) {
+        state.update { it.copy(text = it.text.copy(sliderDrag = null)) }
+        changeSelectedText { TextEdits.withSlider(it, field, value) }
+    }
+
+    /** A gesture on the photo in motion (move, corner handle, pinch): the photo follows; nothing is recorded yet. */
+    fun previewTextLayer(layer: com.lightlylabs.lightly.session.TextLayer) {
+        val current = state.value.session?.current ?: return
+        requestPreview(current.copy(tools = current.tools.copy(text = TextEdits.replaced(current.tools.text, layer))), globalOnly = false, textOnly = true)
+    }
+
+    /** The gesture finished: one undo step when the layer changed, otherwise the preview returns to the recipe. */
+    fun commitTextLayer(layer: com.lightlylabs.lightly.session.TextLayer) {
+        val current = state.value.session?.current ?: return
+        if (current.tools.text.layers.none { it == layer }) commitText { TextEdits.replaced(it, layer) }
+        else requestPreview(current, globalOnly = false)
+    }
+
+    private fun changeSelectedText(change: (com.lightlylabs.lightly.session.TextLayer) -> com.lightlylabs.lightly.session.TextLayer) {
+        val layer = selectedTextLayer() ?: return
+        val changed = change(layer)
+        if (changed != layer) commitText { TextEdits.replaced(it, changed) }
+    }
+
+    private fun commitText(change: (com.lightlylabs.lightly.session.TextTool) -> com.lightlylabs.lightly.session.TextTool) {
+        val session = state.value.session ?: return
+        val next = change(session.current.tools.text)
+        if (next == session.current.tools.text) return
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(text = change(s.tools.text))) }, state.value.auto)
+    }
+
+    /** The bundled Text font as a Compose family (font tiles, the input box), or the default without assets (JVM tests). */
+    fun composeTextFont(font: com.lightlylabs.lightly.session.TextFont): androidx.compose.ui.text.font.FontFamily {
+        val assets = env.watermarkFonts.assets ?: return androidx.compose.ui.text.font.FontFamily.Default
+        return composeFonts.getOrPut("text|$font") { textFontFamily(assets, font) }
+    }
+
+    /** Stage 11's layout for the photo's marks (the same code the preview and Save copy draw with). */
+    val textStage: TextStage by lazy { TextStage(env.watermarkFonts) }
+
     // --- Effects (slice 4) ------------------------------------------------------------------------
 
     fun selectEffectsSub(sub: EffectsSub) = state.update { it.copy(effects = it.effects.copy(sub = sub, sliderDrag = null)) }
@@ -1675,7 +1792,7 @@ class EditorViewModel(
     /** Undo and Redo restore the whole recipe (every tool, and Auto), and drop any transient Develop UI. */
     fun undo() {
         val session = state.value.session?.takeIf { it.canUndo }?.undo() ?: return
-        // Browsing returns to the applied preset's category (owner amendment 2026-10-05: underline, dot and photo agree).
+        // Browsing returns to the applied preset's category (owner amendment 2026-10-05: browsed tab, dot and photo agree).
         // An unapplied crop frame is dropped: the applied crop it was drawn against has changed.
         state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null), edit = it.edit.copy(cropDraft = null)) }
         commit(session, autoStateOf(session.current.auto), fastFirst = true)
@@ -1806,7 +1923,7 @@ class EditorViewModel(
     ): ExportRenderPlan {
         val library = library ?: error("no library")
         val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
-        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library))
+        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library), TextStage(env.watermarkFonts))
         val patches = EditMapping.patchDigests(committed).mapNotNull { removePatches[it] }
         val background = if (pendingBackgroundPlan.get() == null) null else {
             { frame: com.lightlylabs.lightly.render.image.FrameSource ->
@@ -1918,7 +2035,8 @@ class EditorViewModel(
         onLeave()
     }
 
-    private fun showToast(text: String) {
+    /** A short message in the editor's toast (also the theme cycle's "System theme" / "Light theme" / "Dark theme"). */
+    fun showToast(text: String) {
         toastJob?.cancel()
         state.update { it.copy(toast = text) }
         toastJob = scope.launch {
@@ -1941,7 +2059,8 @@ class EditorViewModel(
         if (section == "all") return state.value.auto == AutoState.APPLIED || current.look != null ||
             canReset("background") || canReset("portrait") || canReset("edit") || ToolUsed.effects(current) ||
             current.tools.border.type != com.lightlylabs.lightly.session.BorderType.NONE ||
-            current.tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE
+            current.tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE ||
+            current.tools.text.layers.isNotEmpty()
         if (section == "background" && adjustment == null) return current.tools.background.let {
             it.replacement != null || it.focus.blur > 0 || it.subject.refinements.isNotEmpty()
         }
@@ -1985,6 +2104,7 @@ class EditorViewModel(
                     "under" -> f.copy(underEye = neutral.underEye)
                     "eyes" -> f.copy(eyes = neutral.eyes)
                     "teeth" -> f.copy(teeth = neutral.teeth)
+                    "smile" -> f.copy(smile = neutral.smile)
                     "hair" -> f.copy(hair = neutral.hair)
                     else -> f
                 }
@@ -2042,6 +2162,17 @@ class EditorViewModel(
 
     private val developedCache = DevelopedCache()
 
+    /**
+     * The last full render's frame before stage 11, keyed by its recipe without text layers (one entry). Only Text's
+     * moving frames read it; a commit always renders every stage again, so an analysis that arrived meanwhile is never
+     * missed in a settled frame.
+     */
+    @Volatile private var frameBeforeText: Pair<EditState, Rgba8Image>? = null
+
+    private object FrameBeforeText {
+        fun keyOf(edit: EditState): EditState = edit.copy(revision = 0, tools = edit.tools.copy(text = com.lightlylabs.lightly.session.TextTool(emptyList())))
+    }
+
     private fun startPreviewScheduler(loaded: LoadedPhoto, generation: Long) {
         val display = loaded.display
         // The drag preview renders a half-size copy (a quarter of the pixels); committed previews use the full proxy.
@@ -2065,8 +2196,12 @@ class EditorViewModel(
                     maxBlurFraction(edit), backgroundCap)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
-                    val compose = sourceStages(edit, library, backgroundCap)
-                    EditPipeline(library.model, renderer, watermark = watermarkPainter(edit, library)).renderPreview(patched(display, edit), edit, plan, compose)
+                    val pipeline = EditPipeline(library.model, renderer, watermark = watermarkPainter(edit, library), text = TextStage(env.watermarkFonts))
+                    val textlessKey = FrameBeforeText.keyOf(edit)
+                    val reusable = frameBeforeText?.takeIf { request.payload.textOnly && it.first == textlessKey }?.second
+                    val frame = reusable ?: pipeline.renderFrameBeforeText(patched(display, edit), edit, plan, sourceStages(edit, library, backgroundCap))
+                        .also { if (!request.payload.colourOnly) frameBeforeText = textlessKey to it }
+                    pipeline.finishPreview(frame, edit)
                 } else {
                     // With Background active the drag preview keeps the full proxy: the stage works at the analysis size.
                     // Portrait works on the full proxy too: its regions come from landmarks at that size.
@@ -2143,7 +2278,7 @@ class EditorViewModel(
     }
 
     /** Latest-wins: every call replaces the pending request; at most one render is in flight. */
-    private fun requestPreview(edit: EditState, globalOnly: Boolean) {
+    private fun requestPreview(edit: EditState, globalOnly: Boolean, textOnly: Boolean = false) {
         // A preview of an uncommitted edit is a control moving (a slider, a drag) before it commits: a pick still
         // sampling is stale from this moment, or it would land mid-drag and replace the preview with committed values.
         if (edit != state.value.session?.current) editEpoch++
@@ -2158,7 +2293,7 @@ class EditorViewModel(
         }
         // Free crop (owner amendment 2026-10-05): while Edit › Crop is open the preview is the straightened frame uncropped.
         val shown = if (isCropEditing()) uncroppedForCropEditor(edit) else edit
-        requestedRevision = scheduler?.submit(PreviewRequest(shown, globalOnly)) ?: requestedRevision
+        requestedRevision = scheduler?.submit(PreviewRequest(shown, globalOnly, textOnly = textOnly)) ?: requestedRevision
     }
 
     private var lastPreviewRequest: Pair<EditState, Boolean>? = null
@@ -2383,6 +2518,9 @@ class EditorViewModel(
         fun effects(change: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool) = commitEffects(change)
 
         fun border(change: (com.lightlylabs.lightly.session.BorderTool) -> com.lightlylabs.lightly.session.BorderTool) = commitBorder(change)
+
+        /** The Text tool's layers, committed as the user would (one step). */
+        fun text(change: (com.lightlylabs.lightly.session.TextTool) -> com.lightlylabs.lightly.session.TextTool) = commitText(change)
 
         fun watermark(change: (com.lightlylabs.lightly.session.WatermarkTool) -> com.lightlylabs.lightly.session.WatermarkTool) = commitWatermark(change)
 

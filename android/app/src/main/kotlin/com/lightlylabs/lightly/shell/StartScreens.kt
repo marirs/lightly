@@ -121,8 +121,9 @@ private fun WelcomeActions(onChoosePhoto: () -> Unit, onCamera: () -> Unit, onPr
  * 10 dp above the bottom); on unfolded foldables the brand and the actions side by side, centred in two equal columns.
  */
 @Composable
-fun WelcomeScreen(layout: ShellLayout, onChoosePhoto: () -> Unit, onCamera: () -> Unit, onPrivacyPolicy: () -> Unit, onMore: () -> Unit) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = if (layout.isSplit) 16.dp else 24.dp)
+fun WelcomeScreen(layout: ShellLayout, onChoosePhoto: () -> Unit, onCamera: () -> Unit, onPrivacyPolicy: () -> Unit, onMore: () -> Unit, onEmptyDoubleTap: (() -> Unit)? = null) {
+    // A double tap on the background (not on More, the buttons or the link) cycles the theme (owner amendment 2026-10-11).
+    Column(Modifier.fillMaxSize().doubleTapEmptySpace(onEmptyDoubleTap).testTagResource("welcome-background").safeDrawingPadding().padding(horizontal = if (layout.isSplit) 16.dp else 24.dp)
         .padding(top = if (layout.isSplit) 16.dp else 0.dp, bottom = if (layout.isSplit) 16.dp else 10.dp)) {
         Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.weight(1f))

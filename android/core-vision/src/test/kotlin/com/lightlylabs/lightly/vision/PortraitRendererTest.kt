@@ -54,7 +54,8 @@ class PortraitRendererTest {
     }
 
     private fun edit(smoothing: Double = 0.0, blemishes: Double = 0.0, teeth: Double = 0.0) = FaceEdit(
-        FaceIdentity(box, DetectedFace.DETECTOR), Skin(smoothing, blemishes, 0.0, 85.0), UnderEye(0.0, 0.0), Eyes(0.0, 0.0), Teeth(teeth), Hair(0.0, 0.0, 0.0),
+        FaceIdentity(box, DetectedFace.DETECTOR), Skin(smoothing, blemishes, 0.0, 85.0), UnderEye(0.0, 0.0), Eyes(0.0, 0.0), Teeth(teeth),
+        hair = Hair(0.0, 0.0, 0.0),
     )
 
     @Test

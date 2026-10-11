@@ -5,7 +5,7 @@ import com.lightlylabs.lightly.develop.LookPreset
 import com.lightlylabs.lightly.session.LookRef
 import kotlin.math.roundToInt
 
-/** The seven tools of the approved editor, in dock order (prototype `TOOL_NAMES`). */
+/** The eight tools of the approved editor, in dock order (Lightly 2 `TOOLS`; Text added by the owner, 2026-10-11). */
 enum class EditorTool(val label: String) {
     DEVELOP("Develop"),
     BACKGROUND("Background"),
@@ -13,6 +13,7 @@ enum class EditorTool(val label: String) {
     EDIT("Edit"),
     EFFECTS("Effects"),
     WATERMARK("Watermark"),
+    TEXT("Text"),
     BORDER("Border"),
 }
 
@@ -125,7 +126,7 @@ data class DevelopUi(
 
 /**
  * One entry of the category tabs or list. No preset count (owner amendment 2026-10-05). [selected]: the browsed category
- * (orange underline); [dotted]: it contains the applied preset (blue dot), Favourites included.
+ * (the lime pill); [dotted]: it contains the applied preset (blue dot), Favourites included.
  */
 data class CategoryEntry(val id: String, val label: String, val selected: Boolean, val dotted: Boolean, val isFavourites: Boolean)
 

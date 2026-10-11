@@ -250,7 +250,7 @@ class EditorViewModelTest {
 
     /** Owner feedback 2026-10-05: apply Landscape -> browse Portrait -> apply Portrait -> Undo -> Redo, all consistent. */
     @Test
-    fun `browsing and applying across categories with undo and redo keep photo, underline, dot and name in agreement`() = runTest {
+    fun `browsing and applying across categories with undo and redo keep photo, browsed tab, dot and name in agreement`() = runTest {
         val (vm, _) = ready()
         fun model() = vm.panelModel()!!
         fun dotted() = model().categories.filter { it.dotted && !it.isFavourites }.map { it.id }
@@ -287,7 +287,7 @@ class EditorViewModelTest {
 
         vm.undo(); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("daylight", model().categoryId, "after Undo the underline returns to the applied category")
+        assertEquals("daylight", model().categoryId, "after Undo the browsed tab returns to the applied category")
         assertEquals(listOf("daylight"), dotted()); assertEquals(landscape.displayName, model().name); assertEquals(3, model().stop)
 
         vm.redo(); advanceUntilIdle()

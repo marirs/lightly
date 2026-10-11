@@ -27,7 +27,8 @@ object PortraitRenderer {
 
     fun hasChanges(e: FaceEdit): Boolean =
         e.skin.smoothing > 0 || e.skin.blemishes > 0 || e.skin.evenTone > 0 || e.underEye.brighten > 0 || e.underEye.softenLines > 0 ||
-            e.eyes.brighten > 0 || e.eyes.clarity > 0 || e.teeth.brighten > 0 || e.hair.definition > 0 || e.hair.flyaways > 0 || e.hair.shine > 0
+            e.eyes.brighten > 0 || e.eyes.clarity > 0 || e.teeth.brighten > 0 || e.hair.definition > 0 || e.hair.flyaways > 0 || e.hair.shine > 0 ||
+            e.smile.amount != 0.0
 
     /**
      * Applies every face's edits to a copy of [image]. [personMatte] (optional, the image's size)
@@ -37,7 +38,11 @@ object PortraitRenderer {
         val active = faces.filter { hasChanges(it.edit) && it.detected.landmarks.isNotEmpty() }
         if (active.isEmpty()) return image
         val out = image.pixels.copyOf()
-        for (face in active) apply(face, image.width, image.height, out, personMatte)
+        for (face in active) {
+            apply(face, image.width, image.height, out, personMatte)
+            // revision 7: Smile runs per face after its other portrait operators.
+            face.detected.mouthCorners?.let { corners -> SmileWarp.apply(out, image.width, image.height, corners, face.edit.smile.amount) }
+        }
         return RgbaImage(image.width, image.height, out)
     }
 
@@ -51,7 +56,12 @@ object PortraitRenderer {
         return intArrayOf(x0, y0, x1, y1)
     }
 
+    /** True when one of the colour and tone operators (everything but Smile's warp) has work for this face. */
+    private fun hasToneChanges(e: FaceEdit): Boolean = hasChanges(e.copy(smile = e.smile.copy(amount = 0.0)))
+
     private fun apply(face: Face, width: Int, height: Int, pixels: ByteArray, personMatte: FloatPlane?) {
+        // A Smile-only face skips the OKLab round trip entirely (its masks cost a full face crop of float planes).
+        if (!hasToneChanges(face.edit)) return
         val W = width.toFloat()
         val H = height.toFloat()
         val d = face.detected

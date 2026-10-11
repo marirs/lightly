@@ -197,23 +197,32 @@ private fun TextRow(value: String, onCommit: (String) -> Unit) {
     if (editing) WatermarkTextSheet(value, onDone = { onCommit(it); editing = false }, onCancel = { editing = false })
 }
 
-/** "Watermark text" (`textEdit`): sheetHead (Cancel · Watermark text · Done) and the field (52 dp, 16 dp corners, 2 dp accent border, 19 sp), up to 80 characters. */
+/** "Watermark text" (`textEdit`): Cancel · Watermark text · Done, up to 80 characters. */
 @Composable
-private fun WatermarkTextSheet(initial: String, onDone: (String) -> Unit, onCancel: () -> Unit) {
+private fun WatermarkTextSheet(initial: String, onDone: (String) -> Unit, onCancel: () -> Unit) =
+    TextEntrySheet("Watermark text", initial, maxLength = 80, tagPrefix = "watermark-text", onDone = onDone, onCancel = onCancel)
+
+/**
+ * The text sheet (`textEdit`), shared by Watermark › Text and the Text tool: sheetHead (Cancel · [title] · Done, Done
+ * enabled while the text is not blank) and the field (52 dp, 16 dp corners, 2 dp accent border, 19 sp), focused at once.
+ * L2Sheet pads by the IME, so the field always sits above the keyboard.
+ */
+@Composable
+internal fun TextEntrySheet(title: String, initial: String, maxLength: Int, tagPrefix: String, onDone: (String) -> Unit, onCancel: () -> Unit) {
     var edited by remember { mutableStateOf(initial) }
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     val colors = lightlyColors
     androidx.compose.ui.window.Dialog(onDismissRequest = onCancel,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         L2Sheet(big = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600, onDismiss = onCancel) {
-            L2SheetHead("Watermark text",
-                leading = { L2TextButton("Cancel", "watermark-text-cancel", onClick = onCancel) },
-                trailing = { L2TextButton("Done", "watermark-text-done", bold = true, enabled = edited.isNotBlank()) { onDone(edited) } })
-            androidx.compose.foundation.text.BasicTextField(edited, { edited = it.take(80) },
+            L2SheetHead(title,
+                leading = { L2TextButton("Cancel", "$tagPrefix-cancel", onClick = onCancel) },
+                trailing = { L2TextButton("Done", "$tagPrefix-done", bold = true, enabled = edited.isNotBlank()) { onDone(edited) } })
+            androidx.compose.foundation.text.BasicTextField(edited, { edited = it.take(maxLength) },
                 textStyle = TextStyle(fontSize = 19.sp, color = colors.ink), cursorBrush = androidx.compose.ui.graphics.SolidColor(colors.sel),
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp).heightIn(min = 52.dp)
                     .border(2.dp, colors.sel, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 14.dp)
-                    .focusRequester(focus).testTagResource("watermark-text-editor"))
+                    .focusRequester(focus).testTagResource("$tagPrefix-editor"))
         }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -256,6 +265,14 @@ private fun CommonControls(vm: EditorViewModel, ui: EditorUiState, hasBorder: Bo
 private fun WatermarkSlider(vm: EditorViewModel, ui: EditorUiState, label: String, field: String, committed: Double, min: Double, max: Double) {
     val drag = ui.watermark.sliderDrag?.takeIf { it.first == field }?.second
     SliderRow(label, drag ?: committed, min, max, onDrag = { vm.onWatermarkSlider(field, it) }, onRelease = { vm.onWatermarkSliderRelease(field, it) }, tag = "watermark-slider-$field")
+}
+
+/** The Text tool's font as a Compose family, from the same bundled file and weight stage 11 draws with. */
+internal fun textFontFamily(assets: android.content.res.AssetManager, font: com.lightlylabs.lightly.session.TextFont): FontFamily {
+    @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+    val settings = if (WatermarkFonts.textFontVariation(font) != null) FontVariation.Settings(FontVariation.weight(400)) else FontVariation.Settings()
+    @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+    return FontFamily(Font("${WatermarkFonts.ASSET_DIR}/${WatermarkFonts.textFontFile(font)}", assets, weight = FontWeight.Normal, variationSettings = settings))
 }
 
 /** Compose font families for the four approved fonts, from the bundled assets (same files the stage draws with). */

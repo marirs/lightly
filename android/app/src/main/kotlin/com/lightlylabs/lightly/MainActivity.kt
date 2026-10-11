@@ -23,6 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.initializer
@@ -126,6 +127,21 @@ class MainActivity : ComponentActivity() {
 
             val dark = isDarkAppearance(preferences.appearance)
             LaunchedEffect(dark) { applySystemBars(dark) }
+            val shellToast by shell.toast.collectAsStateWithLifecycle()
+            // Owner amendment 2026-10-11: a double tap on empty space cycles System → Light → Dark (the Appearance
+            // preference itself); the editor names the new theme in its own toast, other screens in the shell's.
+            // Remembered, so the callbacks are the same objects on every recomposition: the double-tap detectors are keyed
+            // on them, and a new lambda restarted them between the two taps (seen on the motorola: double taps lost).
+            val cycleTheme = remember(graph, editor, shell) {
+                { inEditor: Boolean ->
+                    val next = com.lightlylabs.lightly.shell.ThemeCycle.next(graph.preferences.preferences.value.appearance)
+                    updatePreferences(graph.preferences) { it.copy(appearance = next) }
+                    val toast = com.lightlylabs.lightly.shell.ThemeCycle.toast(next)
+                    if (inEditor) editor.showToast(toast) else shell.showToast(toast)
+                }
+            }
+            val cycleThemeInShell = remember(cycleTheme) { { cycleTheme(false) } }
+            val cycleThemeInEditor = remember(cycleTheme) { { cycleTheme(true) } }
 
             // A photo the editor cannot open (or can no longer read) moves to the approved "can't be opened" screen.
             LaunchedEffect(editorUi.phase, nav.base) {
@@ -202,6 +218,7 @@ class MainActivity : ComponentActivity() {
                                 editor.currentAssetId?.let { asset -> openInEditor(asset, editor, shell) } ?: shell.navigate(AppNavigator.toWelcome())
                             },
                             navigate = shell::navigate,
+                            cycleTheme = cycleThemeInShell,
                             more = MoreActions(
                                 openPage = { page -> shell.navigate(AppNavigator.openPage(nav, page)) },
                                 back = { shell.back() },
@@ -220,6 +237,7 @@ class MainActivity : ComponentActivity() {
                                     editor.preferencesImportSignature()
                                 },
                                 deleteSignature = editor::deleteShownSignature,
+                                cycleTheme = cycleThemeInShell,
                             ),
                         ),
                         editor = {
@@ -229,9 +247,11 @@ class MainActivity : ComponentActivity() {
                                     more = { shell.navigate(AppNavigator.openMore(nav)) },
                                     share = ::shareSavedCopy,
                                     chooseAnother = choosePhoto,
+                                    cycleTheme = cycleThemeInEditor,
                                 ),
                             )
                         },
+                        toast = shellToast,
                     )
                     // Preferences › Saved signature › Draw / Import: over the More page and whatever is under it.
                     com.lightlylabs.lightly.editor.PreferencesSignatureSheet(editor)

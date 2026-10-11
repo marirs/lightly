@@ -101,8 +101,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.graphics.StrokeCap
 
 /**
- * The Lightly 2 Develop panel (`developPanel`), 6 dp between rows: the grab handle (compact), the category tabs (orange
- * underline on the browsed one, orange dot on the one holding the applied preset, Favourites with its star), a notice
+ * The Lightly 2 Develop panel (`developPanel`), 6 dp between rows: the grab handle (compact), the category tabs (the lime
+ * pill on the browsed one, orange dot on the one holding the applied preset, Favourites with its star), a notice
  * when one applies, the heading (star, the preset's name, Reset), the preset gallery and Amount.
  */
 @Composable
@@ -121,7 +121,7 @@ fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, 
     OptionTabs(
         model.categories.map { it.id to it.label }, model.categoryId, vm::selectCategory,
         dotted = { id -> model.categories.firstOrNull { it.id == id }?.dotted == true },
-        tagPrefix = "develop-category", underline = true,
+        tagPrefix = "develop-category",
         icon = { id -> if (model.categories.firstOrNull { it.id == id }?.isFavourites == true) LightlyIcons.Star else null },
     )
     model.notice?.let { DevelopNoticeView(it, vm) }
@@ -144,124 +144,6 @@ fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, 
     PresetGallery(vm, model, expanded || roomy)
     SliderRow("Amount", model.amount.toDouble(), 0.0, 100.0, onDrag = { vm.onAmountDrag(it.toInt()) }, onRelease = { vm.onAmountRelease(it.toInt()) },
         tag = "develop-amount-slider", enabled = applied)
-}
-
-@Composable
-private fun TabLabel(entry: CategoryEntry) {
-    val colors = lightlyColors
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (entry.isFavourites) LightlyIcon(LightlyIcons.Star, size = 15.dp, tint = if (entry.selected) colors.ink else colors.ink2)
-        BrowsedLabel(entry)
-        if (entry.dotted) Box(Modifier.padding(start = 3.dp).size(5.dp).background(colors.browse, CircleShape))
-    }
-}
-
-/**
- * The category name with the browsed category's 2 dp orange underline, 6 dp below the text and as wide as it (owner
- * amendment 2026-10-05). A shape, not only a colour: browsing and the applied dot differ without relying on colour.
- */
-@Composable
-private fun BrowsedLabel(entry: CategoryEntry, modifier: Modifier = Modifier) {
-    val colors = lightlyColors
-    Text(
-        entry.label,
-        style = lightlyTextStyle(15.sp, if (entry.selected) FontWeight.SemiBold else FontWeight.Normal, if (entry.selected) colors.ink else colors.ink2),
-        maxLines = 1,
-        modifier = modifier.drawBehind {
-            if (entry.selected) {
-                val y = size.height + 6.dp.toPx() - 1.dp.toPx()
-                drawLine(colors.browse, Offset(0f, y), Offset(size.width, y), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
-            }
-        },
-    )
-}
-
-private fun Modifier.tab(entry: CategoryEntry, onSelect: (String) -> Unit) = this
-    .heightIn(min = 44.dp)
-    .clickable(role = Role.Tab) { onSelect(entry.id) }
-    .semantics {
-        selected = entry.selected
-        if (entry.dotted) stateDescription = "Contains the applied preset"
-    }
-    .testTagResource(EditorTags.category(entry.id))
-
-/** `.tabs` on phones: one scrolling row, faded at both ends; the selected tab is scrolled to 120 dp in. */
-@Composable
-private fun ScrollingTabs(model: DevelopPanelModel, onSelect: (String) -> Unit, modifier: Modifier) {
-    val scroll = rememberScrollState()
-    // Each tab's left edge within the scrolling row (px, padding included).
-    val tabStarts = remember { mutableStateMapOf<String, Float>() }
-    // Owner amendment 2026-10-05 (as iOS): the tab before the selected one starts 18 dp in, fully visible past the 16 dp
-    // fade; replaces the prototype's "selected tab 120 dp in", which left the previous tab half hidden beside Auto.
-    LaunchedEffect(model.categoryId, tabStarts.size, scroll.maxValue) {
-        val ids = model.categories.map { it.id }
-        val index = ids.indexOf(model.categoryId).takeIf { it >= 0 } ?: return@LaunchedEffect
-        val previous = tabStarts[ids[maxOf(index - 1, 0)]] ?: return@LaunchedEffect
-        // positionInParent is measured inside the row's 18 dp start padding, so scrolling to it puts the previous tab's
-        // leading edge at that padding, past the 16 dp fade (checked on the emulator, 2026-10-05).
-        val target = previous.roundToInt().coerceIn(0, scroll.maxValue)
-        if (abs(target - scroll.value) > 1) scroll.scrollTo(target)
-    }
-    Row(
-        modifier
-            .heightIn(min = 44.dp)
-            .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-            .drawWithContent {
-                drawContent()
-                val w = size.width
-                val start = 16.dp.toPx() / w
-                val end = 1f - 24.dp.toPx() / w
-                drawRect(Brush.horizontalGradient(0f to Color.Transparent, start to Color.Black, end to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
-            }
-            .horizontalScroll(scroll)
-            // 18 dp: the first tab starts past the 16 dp edge fade, so Favourites is not half hidden beside Auto
-            // (owner feedback 2026-10-05); the fade still hints that the row scrolls.
-            .padding(start = 18.dp, end = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        model.categories.forEach { entry ->
-            Box(
-                Modifier.tab(entry, onSelect).onGloballyPositioned { tabStarts[entry.id] = it.positionInParent().x },
-                contentAlignment = Alignment.Center,
-            ) { TabLabel(entry) }
-        }
-    }
-}
-
-/** `.wrapped .tabs` (tablet portrait): the same tabs wrapping onto more rows, no fade. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun WrappedTabs(model: DevelopPanelModel, onSelect: (String) -> Unit, modifier: Modifier) {
-    FlowRow(modifier.padding(start = 14.dp, end = 18.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        model.categories.forEach { entry -> Box(Modifier.tab(entry, onSelect), contentAlignment = Alignment.Center) { TabLabel(entry) } }
-    }
-}
-
-/** `.catlist` (side panels and the unfolded foldable): one row per category with its count. */
-@Composable
-private fun CategoryList(model: DevelopPanelModel, onSelect: (String) -> Unit) {
-    val colors = lightlyColors
-    Column(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 2.dp, bottom = 4.dp)) {
-        model.categories.forEach { entry ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 44.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .then(if (entry.selected) Modifier.background(colors.bg2) else Modifier)
-                    .tab(entry, onSelect)
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                if (entry.isFavourites) LightlyIcon(LightlyIcons.Star, size = 15.dp, tint = if (entry.selected) colors.ink else colors.ink2)
-                BrowsedLabel(entry)
-                if (entry.dotted) Box(Modifier.padding(start = 6.dp).size(5.dp).background(colors.browse, CircleShape))
-                Spacer(Modifier.weight(1f))
-            }
-        }
-    }
 }
 
 /** `.notice`, with the approved copy for each Develop notice. */

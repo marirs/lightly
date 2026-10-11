@@ -54,6 +54,7 @@ object LightlyIcons {
     val Effects = lineIcon("effects", "M12 3 l1.8 5.2 L19 10 l-5.2 1.8 L12 17 l-1.8 -5.2 L5 10 l5.2 -1.8 z")
     val Watermark = lineIcon("watermark", "M3 17 c3 0 4 -9 6 -9 s1 8 3 8 2 -5 4 -5 2 3 5 3")
     val Border = lineIcon("border", "M4 4 h16 v16 H4 z M8 8 h8 v8 H8 z")
+    val Text = lineIcon("text", "M5 7 V5 h14 v2 M12 5 v14 M9 19 h6")
     val Photo = lineIcon("photo", "M5 4 h14 a2 2 0 0 1 2 2 v12 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 z M9 8.2 a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0 -3.6 z M21 16 l-5 -5 -9 9")
     val Camera = lineIcon("camera", "M4 8 h3 l2 -3 h6 l2 3 h3 v11 H4 z M12 9.5 a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0 -7 z")
     val Brush = lineIcon("brush", "M14 4 l6 6 -8 8 H6 v-6 z")

@@ -14,6 +14,14 @@ import com.lightlylabs.lightly.session.SharedEditStateFixtures.V2_WITH_LOOK
 import com.lightlylabs.lightly.session.SharedEditStateFixtures.read
 import com.lightlylabs.lightly.session.SharedEditStateFixtures.readRecipe
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -35,13 +43,39 @@ class SessionSerializationTest {
         assertEquals(8, invalidRecipeFixtures.size, "invalid edit-recipe fixtures: $invalidRecipeFixtures")
     }
 
+    /**
+     * rendering-v2 revision 7 (owner amendments 2026-10-11): `tools.text` and `faceEdit.smile` are optional on read and
+     * always written. A fixture saved before them re-encodes to its own bytes with exactly those defaults added, where
+     * edit-recipe-v1.json places them (text after border; smile between teeth and hair).
+     */
+    private fun withRevision7Defaults(fixture: String): String {
+        val root = Json.parseToJsonElement(fixture).jsonObject
+        val tools = root.getValue("tools").jsonObject
+        val portrait = tools.getValue("portrait").jsonObject
+        val faces = JsonArray(portrait.getValue("faces").jsonArray.map { face ->
+            val entries = face.jsonObject
+            if ("smile" in entries) entries else JsonObject(buildMap {
+                entries.forEach { (key, value) ->
+                    if (key == "hair") put("smile", buildJsonObject { put("amount", JsonPrimitive(0)) })
+                    put(key, value)
+                }
+            })
+        })
+        val newTools = JsonObject(buildMap {
+            tools.forEach { (key, value) -> put(key, if (key == "portrait") JsonObject(portrait + ("faces" to faces)) else value) }
+            if ("text" !in tools) put("text", buildJsonObject { put("layers", JsonArray(emptyList())) })
+        })
+        return Json.encodeToString(JsonElement.serializer(), JsonObject(root + ("tools" to newTools)))
+    }
+
     @Test
     fun `every valid schema 3 fixture decodes and re-encodes to identical bytes`() {
         val failures = validRecipeFixtures.mapNotNull { name ->
             val text = readRecipe(name)
             try {
                 val encoded = SavedEdits.encodeEditState(SavedEdits.decodeEditState(text))
-                if (encoded == text) null else "$name re-encodes differently:\n  expected $text\n  actual   $encoded"
+                val expected = withRevision7Defaults(text)
+                if (encoded == expected) null else "$name re-encodes differently:\n  expected $expected\n  actual   $encoded"
             } catch (failure: Exception) {
                 "$name does not decode: $failure"
             }
@@ -66,13 +100,13 @@ class SessionSerializationTest {
     @Test
     fun `the neutral fixture is exactly a new edit with no Auto model`() {
         val noModel = AutoResult(AutoResult.MODEL_ID_IA3DLUT, "no-model-in-build", listOf(0f, 0f, 0f), null, 0f)
-        assertEquals(readRecipe("neutral.json"), SavedEdits.encodeEditState(EditState.initial(source, noModel)))
+        assertEquals(withRevision7Defaults(readRecipe("neutral.json")), SavedEdits.encodeEditState(EditState.initial(source, noModel)))
     }
 
     @Test
     fun `a schema 2 edit migrates to exactly the shared migrated-from-v2 fixture`() {
         val migrated = SavedEdits.decodeEditState(read(V2_WITH_LOOK))
-        assertEquals(readRecipe("migrated-from-v2-with-look.json"), SavedEdits.encodeEditState(migrated))
+        assertEquals(withRevision7Defaults(readRecipe("migrated-from-v2-with-look.json")), SavedEdits.encodeEditState(migrated))
         assertEquals(2880154539L, migrated.tools.effects.grain.seed) // first 32 bits of headSha256 "abab…"
     }
 
@@ -146,6 +180,47 @@ class SessionSerializationTest {
         assertEquals("1e-05", CanonicalNumber.format(0.00001))
         assertEquals("0.0001", CanonicalNumber.format(0.0001))
         assertEquals("1.5e-07", CanonicalNumber.format(1.5e-7))
+    }
+
+    @Test
+    fun `a recipe without text or smile reads them as no layers and amount 0, and writes them`() {
+        val decoded = SavedEdits.decodeEditState(readRecipe("portrait-two-faces.json"))
+        assertEquals(TextTool(emptyList()), decoded.tools.text)
+        assertTrue(decoded.tools.portrait.faces.isNotEmpty())
+        assertTrue(decoded.tools.portrait.faces.all { it.smile == Smile(0.0) })
+        val encoded = SavedEdits.encodeEditState(decoded)
+        assertTrue(encoded.endsWith(""","text":{"layers":[]}}}"""), encoded)
+        assertTrue(""""teeth":{"brighten":""" in encoded && ""","smile":{"amount":0},"hair":""" in encoded, encoded)
+    }
+
+    @Test
+    fun `text layers and a smile round-trip in canonical order`() {
+        val base = SavedEdits.decodeEditState(readRecipe("portrait-two-faces.json"))
+        val layers = listOf(
+            TextLayer("0a1b2c3d", "Summer in Lisbon", TextFont.PLAYFAIR_DISPLAY, 42, "#FFFFFF", 100.0, NormalisedPoint(0.5, 0.5), 0.0),
+            TextLayer("ffffff01", "2026\nLine two", TextFont.SPACE_MONO, 18, "#1F2328", 62.5, NormalisedPoint(0.62, 0.86), -4.5),
+        )
+        val faces = base.tools.portrait.faces.mapIndexed { i, f -> if (i == 0) f.copy(smile = Smile(35.0)) else f }
+        val edited = base.copy(tools = base.tools.copy(text = TextTool(layers), portrait = PortraitTool(faces)))
+        val encoded = SavedEdits.encodeEditState(edited)
+        assertEquals(edited, SavedEdits.decodeEditState(encoded))
+        assertEquals(encoded, SavedEdits.encodeEditState(SavedEdits.decodeEditState(encoded)))
+        assertTrue(""""text":{"layers":[{"id":"0a1b2c3d","text":"Summer in Lisbon","font":"Playfair Display","size":42,"colour":"#FFFFFF","opacity":100,"centre":[0.5,0.5],"rotation":0},""" in encoded, encoded)
+        assertTrue(""""smile":{"amount":35}""" in encoded, encoded)
+    }
+
+    @Test
+    fun `text layers outside the schema are rejected`() {
+        val base = SavedEdits.encodeEditState(SavedEdits.decodeEditState(readRecipe("neutral.json")))
+        fun withLayer(layer: String) = base.replace(""""text":{"layers":[]}""", """"text":{"layers":[$layer]}""")
+        val good = """{"id":"0a1b2c3d","text":"Hi","font":"Inter","size":42,"colour":"#FFFFFF","opacity":100,"centre":[0.5,0.5],"rotation":0}"""
+        SavedEdits.decodeEditState(withLayer(good))
+        assertRejected(withLayer(good.replace("\"0a1b2c3d\"", "\"0A1B2C3D\"")))
+        assertRejected(withLayer(good.replace("\"size\":42", "\"size\":9")))
+        assertRejected(withLayer(good.replace("\"Inter\"", "\"Lora\"")))
+        assertRejected(withLayer(good.replace("\"text\":\"Hi\"", "\"text\":\"\"")))
+        assertRejected(withLayer(good.replace("\"rotation\":0", "\"rotation\":181")))
+        assertRejected(base.replace(""""text":{"layers":[]}""", """"text":{"layers":[$good,$good]}"""))
     }
 
     private fun assertRejected(json: String) {

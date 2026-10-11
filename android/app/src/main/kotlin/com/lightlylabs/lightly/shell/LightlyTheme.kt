@@ -48,6 +48,9 @@ data class LightlyColors(
     val sheet: Color,
     val danger: Color,
     val segmentOn: Color,
+    /** `--pill` / `--pill-ink`: the selected tab's translucent lime pill and its label (owner amendment 2026-10-11). */
+    val pill: Color,
+    val pillInk: Color,
     val isDark: Boolean,
 ) {
     companion object {
@@ -60,7 +63,9 @@ data class LightlyColors(
             tick = Color(0x2E141513), tickMajor = Color(0xFF7D8179), sel = Color(0xFF557311), selSoft = Color(0x14557311),
             browse = Color(0xFFC25E00), edited = Color(0xFFC25E00),
             scrim = Color(0x520A0A0A), sheet = Color(0xFFFFFFFF), danger = Color(0xFFC7362B),
-            segmentOn = Color(0xFF141513), isDark = false,
+            segmentOn = Color(0xFF141513),
+            // rgba(207,242,107,0.45): 0.45 × 255 = 114.75 → 0x73.
+            pill = Color(0x73CFF26B), pillInk = Color(0xFF141513), isDark = false,
         )
         val Dark = LightlyColors(
             bg = Color(0xFF0D0E10), surface = Color(0xFF131518), bg2 = Color(0xFF1A1C20), canvas = Color(0xFF0A0B0C),
@@ -71,7 +76,9 @@ data class LightlyColors(
             tick = Color(0x2EFFFFFF), tickMajor = Color(0xFF7E837B), sel = Color(0xFFCFF26B), selSoft = Color(0x24CFF26B),
             browse = Color(0xFFFF9F43), edited = Color(0xFFFF9F43),
             scrim = Color(0x8C000000), sheet = Color(0xFF17191C), danger = Color(0xFFFF8A7A),
-            segmentOn = Color(0xFFF2F3F0), isDark = true,
+            segmentOn = Color(0xFFF2F3F0),
+            // rgba(207,242,107,0.17): 0.17 × 255 = 43.35 → 0x2B.
+            pill = Color(0x2BCFF26B), pillInk = Color(0xFFE2F99F), isDark = true,
         )
     }
 }

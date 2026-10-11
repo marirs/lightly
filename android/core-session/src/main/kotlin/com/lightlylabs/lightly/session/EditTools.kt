@@ -35,6 +35,12 @@ data class EditTools(
     val effects: EffectsTool,
     val watermark: WatermarkTool,
     val border: BorderTool,
+    /**
+     * The Text tool (owner amendment 2026-10-11; rendering-v2 revision 7 stage 11). The one optional key in `tools`: a
+     * recipe saved before it reads as no layers (the default), and it is always written (encodeDefaults), after border
+     * as edit-recipe-v1.json lists it.
+     */
+    val text: TextTool = TextTool(emptyList()),
 ) {
     companion object {
         /** The prototype's `newSession` defaults; [grainSeed] is fixed when the edit is created. */
@@ -59,6 +65,7 @@ data class EditTools(
             ),
             watermark = WatermarkTool(WatermarkType.NONE, null, null, null, WatermarkPlacement.PHOTO, position = 8, offset = null, size = 34.0, opacity = 85.0, colour = "#FFFFFF"),
             border = BorderTool(BorderType.NONE, colour = "#FFFFFF", width = 4.0, spacing = 3.0, mat = "#F4F1EC"),
+            text = TextTool(emptyList()),
         )
 
         /** Migration rule: the first 32 bits of the source's headSha256. */
@@ -211,13 +218,29 @@ data class Eyes(val brighten: Double, val clarity: Double) { init { requirePerce
 @Serializable
 data class Teeth(val brighten: Double) { init { requirePercent(brighten, "teeth") } }
 
+/** Portrait › Smile (owner amendment 2026-10-11): −100 lowers the mouth corners, +100 lifts them, 0 is the photo as taken. */
+@Serializable
+data class Smile(val amount: Double) { init { requireSlider(amount, "smile") } }
+
 @Serializable
 data class Hair(val definition: Double, val flyaways: Double, val shine: Double) {
     init { listOf(definition, flyaways, shine).forEach { requirePercent(it, "hair") } }
 }
 
 @Serializable
-data class FaceEdit(val face: FaceIdentity, val skin: Skin, val underEye: UnderEye, val eyes: Eyes, val teeth: Teeth, val hair: Hair)
+data class FaceEdit(
+    val face: FaceIdentity,
+    val skin: Skin,
+    val underEye: UnderEye,
+    val eyes: Eyes,
+    val teeth: Teeth,
+    /**
+     * The one optional key in faceEdit (rendering-v2 revision 7 `portrait.smile`): a face saved before it reads as amount 0,
+     * and it is always written, between teeth and hair as edit-recipe-v1.json lists it.
+     */
+    val smile: Smile = Smile(0.0),
+    val hair: Hair,
+)
 
 // --- edit -------------------------------------------------------------------------------------------
 
@@ -377,6 +400,66 @@ data class WatermarkTool(
         require(size in 10.0..80.0) { "watermark size must be in 10..80" }
         requirePercent(opacity, "opacity")
         requireColour(colour)
+    }
+}
+
+// --- text -------------------------------------------------------------------------------------------
+
+/** The Text tool's layers, drawn in order (the last on top); at most [MAX_LAYERS]. */
+@Serializable
+data class TextTool(val layers: List<TextLayer>) {
+    init {
+        require(layers.size <= MAX_LAYERS) { "at most $MAX_LAYERS text layers" }
+        require(layers.map { it.id }.toSet().size == layers.size) { "text layer ids must be unique" }
+    }
+
+    companion object {
+        const val MAX_LAYERS = 20
+    }
+}
+
+/** The eight Text fonts (shared/fonts), by the family names the recipe stores. */
+@Serializable
+enum class TextFont(val family: String) {
+    @SerialName("Inter") INTER("Inter"),
+    @SerialName("Playfair Display") PLAYFAIR_DISPLAY("Playfair Display"),
+    @SerialName("Bebas Neue") BEBAS_NEUE("Bebas Neue"),
+    @SerialName("Caveat") CAVEAT("Caveat"),
+    @SerialName("Cormorant Garamond") CORMORANT_GARAMOND("Cormorant Garamond"),
+    @SerialName("Montserrat") MONTSERRAT("Montserrat"),
+    @SerialName("Dancing Script") DANCING_SCRIPT("Dancing Script"),
+    @SerialName("Space Mono") SPACE_MONO("Space Mono"),
+}
+
+/**
+ * One text box (edit-recipe-v1 `textLayer`): [centre] of the text block as fractions of the photo frame (after crop,
+ * before border), font size = [size] / 100 × 0.25 × the frame's short edge, [rotation] degrees clockwise about the centre.
+ * [id] is stable (8 lowercase hex digits), so the selection survives Undo.
+ */
+@Serializable
+data class TextLayer(
+    val id: String,
+    val text: String,
+    val font: TextFont,
+    val size: Int,
+    val colour: String,
+    val opacity: Double,
+    val centre: NormalisedPoint,
+    val rotation: Double,
+) {
+    init {
+        require(Regex("^[0-9a-f]{8}$").matches(id)) { "text layer id must be 8 lowercase hex digits, was $id" }
+        require(text.length in 1..MAX_TEXT_LENGTH) { "text must be 1..$MAX_TEXT_LENGTH characters" }
+        require(size in MIN_SIZE..MAX_SIZE) { "text size must be in $MIN_SIZE..$MAX_SIZE" }
+        requireColour(colour)
+        requirePercent(opacity, "text opacity")
+        require(rotation in -180.0..180.0) { "text rotation must be in -180..180" }
+    }
+
+    companion object {
+        const val MAX_TEXT_LENGTH = 120
+        const val MIN_SIZE = 10
+        const val MAX_SIZE = 100
     }
 }
 

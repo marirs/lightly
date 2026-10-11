@@ -294,12 +294,12 @@ object LookPackFacts {
 }
 
 /**
- * rendering-v2 revision this app implements (contract fixes 2: stage order C1/C2, perspective C3, light leak C4;
- * fixes 1 unchanged): revision 1 moved background.focus
+ * rendering-v2 revision this app implements (revision 7, owner amendments 2026-10-11: stage 11 `text`, `portrait.smile`;
+ * contract fixes 2: stage order C1/C2, perspective C3, light leak C4; fixes 1 unchanged): revision 1 moved background.focus
  * `maxBlurRadius` from `params` to `constants` (0.06). Bundling or shipping any other revision fails.
  */
 object RenderingContractFacts {
-    const val SUPPORTED_REVISION = 6
+    const val SUPPORTED_REVISION = 7
 
     @Suppress("UNCHECKED_CAST")
     fun problems(contractText: String): List<String> {
@@ -553,8 +553,9 @@ abstract class VerifyManifestPrivacyTask : DefaultTask() {
 }
 
 /**
- * The four approved watermark fonts and their OFL licences (shared/fonts; the OFL requires the licence to
- * ship with the fonts), copied into assets/fonts at build time after checking shared/fonts/SHA256SUMS.
+ * Every font in shared/fonts and its OFL licence (the OFL requires the licence to ship with the font): the watermark
+ * fonts and the Text tool's eight (owner amendment 2026-10-11 added Playfair Display, Bebas Neue, Montserrat and Space
+ * Mono), copied into assets/fonts at build time after checking shared/fonts/SHA256SUMS.
  * No private copies live under android/.
  */
 abstract class BundleWatermarkFontsTask : DefaultTask() {
