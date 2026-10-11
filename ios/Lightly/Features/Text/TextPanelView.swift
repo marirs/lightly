@@ -39,7 +39,7 @@ struct TextPanelView: View {
     /// (18 pt) and the label (15 pt bold ink), 8 pt apart.
     private var addTextButton: some View {
         let c = L2(scheme: colorScheme)
-        return Button(action: model.openAdd) {
+        return Button(action: { presentWithoutCoverSlide(model.openAdd) }) {
             HStack(spacing: 8) {
                 ApprovedIconView(icon: .plus, size: 18)
                 Text("Add text").l2Text(15, weight: .bold)
@@ -78,7 +78,7 @@ struct TextPanelView: View {
                 .accessibilityIdentifier("text.layer.\(index + 1)")
             }
             if model.canAddLayer {
-                Button(action: model.openAdd) {
+                Button(action: { presentWithoutCoverSlide(model.openAdd) }) {
                     HStack(spacing: 4) {
                         ApprovedIconView(icon: .plus, size: 14)
                         Text("Add").l2Text(13, weight: .semibold)
@@ -99,7 +99,7 @@ struct TextPanelView: View {
     /// 17 pt in its own font, the pencil (18 pt) trailing. Opens the text sheet.
     private func inputBox(_ layer: EditRecipe.TextLayer) -> some View {
         let c = L2(scheme: colorScheme)
-        return Button(action: model.openEditSelected) {
+        return Button(action: { presentWithoutCoverSlide(model.openEditSelected) }) {
             HStack {
                 Text(verbatim: layer.text.replacingOccurrences(of: "\n", with: " "))
                     .font(Font(TextFonts.font(layer.font, size: 17))).lineLimit(1)
@@ -160,7 +160,7 @@ struct TextLayerEditor: View {
 
     var body: some View {
         let c = L2(scheme: colorScheme)
-        ApprovedSheetOverlay(isTablet: sizeClass == .regular, onDismiss: dismiss) {
+        ApprovedSheetOverlay(isTablet: sizeClass == .regular, risesWithKeyboard: true, onDismiss: dismiss) {
             L2SheetHeader(title: Text("Text"),
                           leading: { L2TextButton(title: "Cancel", identifier: "text.sheet.cancel", action: dismiss) },
                           trailing: { L2TextButton(title: "Done", isBold: true,

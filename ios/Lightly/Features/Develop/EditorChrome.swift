@@ -221,6 +221,9 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     /// canvas so a white border stays visible on the stage.
     var outlinesCanvas = false
     var marksCoverCanvas = false
+    /// `.imgbox` is `overflow:hidden`, so marks are clipped to the photo; the Text tool's ✕ and corner handle are not
+    /// (the mockup draws the selected text and its handles outside `.imgbox`), so they never get cut by the photo's edge.
+    var clipsMarks = true
     var cropWorkspace = false
     /// Inline crop (owner, 2026-10-11): the crop rectangle to show (fractions of the shown, uncropped frame). The photo
     /// glides and zooms so this area fills the stage (24 pt clear of its edges), the dimmed rest around it; nil leaves
@@ -285,7 +288,7 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                             let box = marksCoverCanvas ? CGRect(x: 0, y: 0, width: 1, height: 1) : imageBox
                             marks()
                                 .frame(width: canvas.size.width * box.width, height: canvas.size.height * box.height)
-                                .clipped()
+                                .clipped(when: clipsMarks)
                                 .offset(x: canvas.size.width * box.minX, y: canvas.size.height * box.minY)
                         }
                     }
@@ -319,6 +322,13 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
         let ratio = image.width / image.height
         let width = min(box.width, box.height * ratio)
         return CGSize(width: width, height: width / ratio)
+    }
+}
+
+private extension View {
+    /// `.clipped()` when `isClipped`, else the view as it is.
+    @ViewBuilder func clipped(when isClipped: Bool) -> some View {
+        if isClipped { clipped() } else { self }
     }
 }
 

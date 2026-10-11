@@ -123,10 +123,44 @@ final class OwnerAmendmentsUITests: XCTestCase {
                       "Undo returns the text in one step")
         XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "the add is still there to undo")
 
+        // The corner handle (owner report 2026-10-11): visible and hittable, and dragging it away from the centre
+        // enlarges the text as one undo step, the handle following the finger.
+        // (`isHittable` is not used: XCUITest reports it false for elements hosted inside the photo's zoom view.)
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(handle.frame), "the whole handle is on screen: \(handle.frame)")
+        let handleBefore = handle.frame
+        let grip = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        grip.press(forDuration: 0.1, thenDragTo: grip.withOffset(CGVector(dx: 40, dy: 20)))
+        XCTAssertTrue(waitFor { handle.frame.midX > handleBefore.midX + 20 }, "resized: \(handleBefore) → \(handle.frame)")
+        keep("tx-resized")
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { abs(handle.frame.midX - handleBefore.midX) < 3 && abs(handle.frame.midY - handleBefore.midY) < 3 },
+                      "Undo returns the size in one step")
+
         // ✕ deletes the layer: the panel goes back to Add text.
         element("text.delete").tap()
         XCTAssertTrue(element("text.add").waitForExistence(timeout: 5))
         XCTAssertFalse(element("text.handle").exists)
+    }
+
+    /// Owner report 2026-10-11: on a photo with no clear subject, both Background tabs show the approved
+    /// `bg-no-subject` state: the notice and the Blur slider, never Change background's options.
+    func testNoSubjectShowsTheNoticeAndBlurInBothTabs() {
+        launch(["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath("landscape_02")]
+               + EditorCaptureUITests.matteFixtureArguments("lake"))
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout))
+        element("tool.background").tap()
+        let notice = element("panel.notice")
+        XCTAssertTrue(notice.waitForExistence(timeout: 60), "the no-subject notice shows")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'No clear subject found.'")).firstMatch.exists,
+                      "the approved copy")
+        XCTAssertTrue(element("slider.blur").exists)
+        keep("bg-no-subject-focus")
+        element("background.mode.change").tap()
+        XCTAssertTrue(notice.waitForExistence(timeout: 5), "Change background shows the same notice")
+        XCTAssertTrue(element("slider.blur").exists, "and the Blur slider")
+        XCTAssertFalse(element("background.kind.image").exists, "Change background's options are not offered")
+        XCTAssertFalse(element("background.image.add").exists)
+        keep("bg-no-subject-change")
     }
 
     /// Screenshots of the amended screens for side-by-side review with the mockup (pt-smile, tx-*, dock-*, pill tabs),

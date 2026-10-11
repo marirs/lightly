@@ -277,6 +277,68 @@ final class TextPanelModelTests: XCTestCase {
         session.close()
     }
 
+    /// Owner report 2026-10-11 (resizing "wasn't smooth"): a gesture renders the photo once at touch-down (without the
+    /// layer) and once at the end, never per finger update; the stage draws the layer meanwhile and until the
+    /// committed render is on screen. The size follows the finger unrounded and is a whole number once committed.
+    func testAGestureRendersTwiceAndTheStageDrawsTheLayerUntilTheCommitIsShown() async throws {
+        let session = try await EditorTestSupport.readySession(library: library)
+        let model = TextPanelModel(session: session)
+        model.addLayer(text: "Summer")
+        let layer = try XCTUnwrap(model.layers.first)
+        await session.settleRendering()
+        XCTAssertNil(model.liveLayer, "no gesture: the rendered photo shows the text")
+
+        let beforeGesture = session.latestRenderGeneration
+        model.beginGesture(on: layer.id)
+        XCTAssertEqual(session.latestRenderGeneration, beforeGesture + 1, "one render without the layer at touch-down")
+        for step in 1...30 {
+            model.transformDraft(handleFrom: CGPoint(x: 110, y: 110), to: CGPoint(x: 110 + Double(step), y: 110 + Double(step)),
+                                 centre: CGPoint(x: 100, y: 100))
+        }
+        XCTAssertEqual(session.latestRenderGeneration, beforeGesture + 1, "finger updates never re-render the photo")
+        let live = try XCTUnwrap(model.liveLayer, "the stage draws the layer under the finger")
+        XCTAssertEqual(live.size, 100, "the distance ratio (40 / 10 × 42) clamped to the largest size")
+        model.endTransform(); model.endGesture()
+        XCTAssertEqual(session.latestRenderGeneration, beforeGesture + 2, "one render of the committed edit")
+        XCTAssertEqual(model.layers.first?.size, 100)
+        await session.settleRendering()
+        XCTAssertNil(model.liveLayer, "the committed render is on screen: the stage stops drawing the layer")
+        session.close()
+    }
+
+    func testTheResizeTracksTheFingerUnroundedAndCommitsAWholeSize() async throws {
+        let session = try await EditorTestSupport.readySession(library: library)
+        let model = TextPanelModel(session: session)
+        model.addLayer(text: "Summer")
+        let layer = try XCTUnwrap(model.layers.first)
+        model.beginGesture(on: layer.id)
+        model.transformDraft(scale: 1.01, degrees: 0)
+        XCTAssertEqual(try XCTUnwrap(model.liveLayer).size, 42.42, accuracy: 1e-9, "no whole-number steps while resizing")
+        model.endTransform(); model.endGesture()
+        XCTAssertEqual(model.layers.first?.size, 42, "the recipe keeps whole sizes")
+        session.close()
+    }
+
+    /// A touch the system cancels never reports its end: the marks finish the open gesture, committing it once.
+    func testCancelledTouchesStillCommitTheGestureOnce() async throws {
+        let session = try await EditorTestSupport.readySession(library: library)
+        let model = TextPanelModel(session: session)
+        model.addLayer(text: "Summer")
+        let layer = try XCTUnwrap(model.layers.first)
+        model.beginGesture(on: layer.id)
+        model.beginGesture(on: layer.id)
+        model.moveDraft(byFraction: CGSize(width: 0.1, height: 0))
+        XCTAssertTrue(model.isGestureActive)
+        model.endAllGestures()
+        XCTAssertFalse(model.isGestureActive)
+        XCTAssertEqual(try XCTUnwrap(model.layers.first?.centre.x), 0.6, accuracy: 1e-9)
+        session.undo()
+        XCTAssertEqual(model.layers.first?.centre, .init(x: 0.5, y: 0.5), "one undo step")
+        model.endGesture()
+        XCTAssertEqual(model.layers.first?.centre, .init(x: 0.5, y: 0.5), "a late end changes nothing")
+        session.close()
+    }
+
     func testResetAllClearsTheTexts() async throws {
         let session = try await EditorTestSupport.readySession(library: library)
         let model = TextPanelModel(session: session)
@@ -298,5 +360,42 @@ final class TextPanelModelTests: XCTestCase {
         let after = try await session.exportedData()
         XCTAssertNotEqual(before, after, "stage 11 draws into the export")
         session.close()
+    }
+}
+
+/// The ✕ and corner handle of the selected text (owner report 2026-10-11, "did not see the handle properly").
+@MainActor
+final class TextHandlePlacementTests: XCTestCase {
+    private let canvas = CGSize(width: 300, height: 400)
+
+    func testKnobsSitOnTheTurnedOutlinesCorners() {
+        let upright = TextLayerMarks.knobCentre(corner: CGPoint(x: 50, y: 20), centre: CGPoint(x: 150, y: 200), rotation: 0, canvas: canvas)
+        XCTAssertEqual(upright.x, 200, accuracy: 1e-9); XCTAssertEqual(upright.y, 220, accuracy: 1e-9)
+        // A quarter turn clockwise (y down): the bottom-trailing corner goes to the bottom-leading side.
+        let turned = TextLayerMarks.knobCentre(corner: CGPoint(x: 50, y: 20), centre: CGPoint(x: 150, y: 200), rotation: .pi / 2, canvas: canvas)
+        XCTAssertEqual(turned.x, 130, accuracy: 1e-9); XCTAssertEqual(turned.y, 250, accuracy: 1e-9)
+    }
+
+    func testKnobsPastTheStageStayWhollyVisible() {
+        // A text at the top-leading corner: its ✕ would sit outside the stage; it is kept 3 pt inside the canvas
+        // (the stage reaches 8 pt past it, the knob's radius is 11 pt).
+        let delete = TextLayerMarks.knobCentre(corner: CGPoint(x: -80, y: -30), centre: CGPoint(x: 10, y: 5), rotation: 0, canvas: canvas)
+        XCTAssertEqual(delete, CGPoint(x: 3, y: 3))
+        let handle = TextLayerMarks.knobCentre(corner: CGPoint(x: 80, y: 30), centre: CGPoint(x: 290, y: 395), rotation: 0, canvas: canvas)
+        XCTAssertEqual(handle, CGPoint(x: 297, y: 397))
+    }
+}
+
+/// Edit › Remove (owner report 2026-10-11, "the brush is still present on the top").
+@MainActor
+final class RemoveStrokeMarkTests: XCTestCase {
+    func testOnlyTheStrokeUnderTheFingerIsDrawn() {
+        XCTAssertTrue(RemoveStrokesMark.strokesShown(brushing: [], brushRadius: 0.03).isEmpty,
+                      "no finger down: nothing over the photo, whatever has been removed")
+        let brushing: [EditRecipe.Point] = [.init(x: 0.2, y: 0.3), .init(x: 0.4, y: 0.3)]
+        let shown = RemoveStrokesMark.strokesShown(brushing: brushing, brushRadius: 0.03)
+        XCTAssertEqual(shown.count, 1)
+        XCTAssertEqual(shown.first?.points, brushing)
+        XCTAssertEqual(shown.first?.radius, 0.03)
     }
 }

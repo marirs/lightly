@@ -7,6 +7,13 @@ import SwiftUI
 /// text selects it, tapping elsewhere on the photo deselects; dragging inside a text moves it; two fingers on the
 /// selected text pinch and turn it. Each finished gesture is one undo step (`TextPanelModel`).
 ///
+/// While a finger moves a text, this view also draws that text itself (`TextPanelModel.liveLayer`, with the stage's
+/// own `TextStage.draw`) over a photo rendered without it, so the text follows the finger on every frame.
+///
+/// The ✕ and the handle sit on the outline's corners; when a corner falls outside the stage (a text near or past the
+/// photo's edge) the knob is kept just inside the stage instead of being cut off (owner report 2026-10-11, "did not see
+/// the handle properly"). The marks are not clipped to the photo for this tool (`PhotoStage.clipsMarks`).
+///
 /// Laid over the canvas; `frameRect` is the photo frame inside it (a border's margin around), in this view's points.
 struct TextLayerMarks: View {
     @Bindable var model: TextPanelModel
@@ -20,25 +27,66 @@ struct TextLayerMarks: View {
     /// The ✕ and the corner handle.
     private static let knobSize: CGFloat = 22
 
+    /// How far the stage reaches past the canvas on every side, at least (`PhotoStage`'s 8 pt top and bottom inset):
+    /// a knob's centre may sit this far out, less its radius, and still show whole.
+    private static let stageMargin: CGFloat = 8
+
     @State private var dragTargetID: String?
     @State private var isPinching = false
     @State private var handleStart: CGPoint?
+    /// Each gesture's own touch state. These reset when the system cancels a touch, which `onEnded` never reports;
+    /// once all three are idle, a gesture still open in the model is finished there (`endAllGestures`).
+    @GestureState private var isMoveTouching = false
+    @GestureState private var isPinchTouching = false
+    @GestureState private var isHandleTouching = false
+    private var isTouching: Bool { isMoveTouching || isPinchTouching || isHandleTouching }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color.clear.contentShape(Rectangle())
-                .gesture(SpatialTapGesture().onEnded { value in
-                    model.select(model.layer(at: framePoint(value.location), frameSize: frameRect.size)?.id)
-                })
-                .simultaneousGesture(moveGesture)
-                .simultaneousGesture(pinchGesture)
-                .accessibilityHidden(true)
-            if let layer = model.shownSelectedLayer {
-                selectionFrame(layer)
+        GeometryReader { geometry in
+            ZStack(alignment: .topLeading) {
+                Color.clear.contentShape(Rectangle())
+                    .gesture(SpatialTapGesture().onEnded { value in
+                        model.select(model.layer(at: framePoint(value.location), frameSize: frameRect.size)?.id)
+                    })
+                    .simultaneousGesture(moveGesture)
+                    .simultaneousGesture(pinchGesture)
+                    .accessibilityHidden(true)
+                if let live = model.liveLayer {
+                    liveText(live)
+                }
+                if let layer = model.shownSelectedLayer {
+                    selectionFrame(layer, canvas: geometry.size)
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+        }
+        .coordinateSpace(name: Self.space)
+        .onChange(of: isTouching) { _, touching in
+            guard !touching else { return }
+            // A gesture that ended normally has already been finished by its `onEnded` in this update; one still open
+            // on the next turn of the run loop was cancelled by the system and is committed as it stands.
+            DispatchQueue.main.async {
+                guard !isTouching, model.isGestureActive else { return }
+                dragTargetID = nil; isPinching = false; handleStart = nil
+                model.endAllGestures()
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .coordinateSpace(name: Self.space)
+    }
+
+    /// The text under the finger, drawn by the stage's own text code at display resolution, clipped to the photo frame
+    /// as the rendered stage clips it.
+    private func liveText(_ layer: EditRecipe.TextLayer) -> some View {
+        Canvas { context, _ in
+            guard layer.opacity > 0 else { return }
+            context.withCGContext { cg in
+                TextStage.draw(layer, frameSize: frameRect.size, in: cg)
+            }
+        }
+        .frame(width: frameRect.width, height: frameRect.height)
+        .clipped()
+        .offset(x: frameRect.minX, y: frameRect.minY)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     // MARK: Geometry
@@ -52,6 +100,7 @@ struct TextLayerMarks: View {
     /// Dragging inside a text moves it (and selects it); a drag that starts elsewhere does nothing.
     private var moveGesture: some Gesture {
         DragGesture(minimumDistance: 2)
+            .updating($isMoveTouching) { _, touching, _ in touching = true }
             .onChanged { value in
                 if dragTargetID == nil {
                     guard let hit = model.layer(at: framePoint(value.startLocation), frameSize: frameRect.size) else { return }
@@ -72,6 +121,7 @@ struct TextLayerMarks: View {
     /// Two fingers on the photo while a text is selected: pinch resizes, turning rotates the selected text.
     private var pinchGesture: some Gesture {
         MagnifyGesture().simultaneously(with: RotateGesture())
+            .updating($isPinchTouching) { _, touching, _ in touching = true }
             .onChanged { value in
                 guard let selected = model.selectedLayer else { return }
                 if !isPinching {
@@ -91,25 +141,41 @@ struct TextLayerMarks: View {
 
     // MARK: Selection frame
 
-    /// The outline, ✕ and handle around the (turned) text block, placed on the block's centre and turned with it.
-    private func selectionFrame(_ layer: EditRecipe.TextLayer) -> some View {
+    /// The outline around the (turned) text block, placed on the block's centre and turned with it; the ✕ on its
+    /// top-leading corner and the handle on its bottom-trailing corner, each turned with the block and kept inside the
+    /// stage (`knobCentre`).
+    @ViewBuilder
+    private func selectionFrame(_ layer: EditRecipe.TextLayer, canvas: CGSize) -> some View {
         let layout = TextStage.layout(layer, frameSize: frameRect.size)
         let outlined = CGSize(width: layout.blockSize.width + 2 * (Self.boxPadding.width + Self.outlineOffset) + Self.outlineWidth,
                               height: layout.blockSize.height + 2 * (Self.boxPadding.height + Self.outlineOffset) + Self.outlineWidth)
         let centre = CGPoint(x: frameRect.minX + layout.centre.x, y: frameRect.minY + layout.centre.y)
-        return ZStack {
-            Rectangle()
-                .strokeBorder(.white.opacity(0.95), style: StrokeStyle(lineWidth: Self.outlineWidth, dash: [4, 3]))
-                .frame(width: outlined.width, height: outlined.height)
-                .allowsHitTesting(false)
-            deleteKnob(layer)
-                .offset(x: -outlined.width / 2, y: -outlined.height / 2)
-            resizeHandle(layer, centre: centre, outlined: outlined)
-                .offset(x: outlined.width / 2, y: outlined.height / 2)
-        }
-        .frame(width: outlined.width, height: outlined.height)
-        .rotationEffect(.radians(layout.rotation))
-        .position(centre)
+        Rectangle()
+            .strokeBorder(.white.opacity(0.95), style: StrokeStyle(lineWidth: Self.outlineWidth, dash: [4, 3]))
+            .frame(width: outlined.width, height: outlined.height)
+            .rotationEffect(.radians(layout.rotation))
+            .position(centre)
+            .allowsHitTesting(false)
+        deleteKnob(layer)
+            .rotationEffect(.radians(layout.rotation))
+            .position(Self.knobCentre(corner: CGPoint(x: -outlined.width / 2, y: -outlined.height / 2), centre: centre,
+                                      rotation: layout.rotation, canvas: canvas))
+        resizeHandle(layer, centre: centre)
+            .rotationEffect(.radians(layout.rotation))
+            .position(Self.knobCentre(corner: CGPoint(x: outlined.width / 2, y: outlined.height / 2), centre: centre,
+                                      rotation: layout.rotation, canvas: canvas))
+    }
+
+    /// Where a knob's centre goes: the outline's corner (`corner`, from the block's centre before turning) turned
+    /// clockwise by `rotation` about `centre`, then kept far enough inside the canvas grown by the stage margin that the
+    /// whole 22 pt circle shows.
+    static func knobCentre(corner: CGPoint, centre: CGPoint, rotation: Double, canvas: CGSize) -> CGPoint {
+        let c = CGFloat(cos(rotation)), s = CGFloat(sin(rotation))
+        // y grows downwards, so a clockwise turn maps (x, y) to (x cos θ − y sin θ, x sin θ + y cos θ).
+        let turned = CGPoint(x: centre.x + corner.x * c - corner.y * s, y: centre.y + corner.x * s + corner.y * c)
+        let inset = knobSize / 2 - stageMargin
+        return CGPoint(x: min(max(turned.x, inset), max(inset, canvas.width - inset)),
+                       y: min(max(turned.y, inset), max(inset, canvas.height - inset)))
     }
 
     private func knob(_ icon: ApprovedIcon) -> some View {
@@ -132,9 +198,10 @@ struct TextLayerMarks: View {
 
     /// Drag the handle: the text scales by the finger's distance from the centre and turns with its angle. Touches are
     /// read in the stage's own (unturned) space so the turn being applied does not feed back into the drag.
-    private func resizeHandle(_ layer: EditRecipe.TextLayer, centre: CGPoint, outlined: CGSize) -> some View {
+    private func resizeHandle(_ layer: EditRecipe.TextLayer, centre: CGPoint) -> some View {
         knob(.redo)
             .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .named(Self.space))
+                .updating($isHandleTouching) { _, touching, _ in touching = true }
                 .onChanged { value in
                     if handleStart == nil {
                         handleStart = value.startLocation

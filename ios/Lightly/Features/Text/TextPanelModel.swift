@@ -6,7 +6,12 @@ import Observation
 ///
 /// Every finished change is one undo step: adding, editing the words, a font, a slider's release, a colour, deleting,
 /// and each gesture on the photo (a move, a pinch or turn, a corner-handle drag) from touch-down to the last finger up.
-/// While a slider or finger moves the change is only previewed.
+/// While a slider moves the change is only previewed.
+///
+/// While a finger moves a text on the photo, the photo is not re-rendered on every frame (owner report 2026-10-11:
+/// resizing "wasn't smooth"). At touch-down the photo is rendered once without that layer, and the stage draws the
+/// layer itself (`liveLayer`, `TextLayerMarks`) exactly where the finger puts it; the end of the gesture commits one
+/// undo step, and the stage keeps drawing the layer until the photo rendered with it is on screen, so it never blinks.
 @MainActor
 @Observable
 final class TextPanelModel {
@@ -30,6 +35,9 @@ final class TextPanelModel {
     @ObservationIgnored private var activeGestures = 0
     /// The draft when a pinch or turn began (a drag may already have moved it).
     @ObservationIgnored private var transformStart: EditRecipe.TextLayer?
+    /// After a gesture: the committed layer the stage keeps drawing until the render that includes it (this render
+    /// request or a later one) is on screen.
+    private var settlingLayer: (layer: EditRecipe.TextLayer, renderGeneration: UInt64)?
 
     /// New layers (mockup and owner spec): centred, size 42, Playfair Display, white, fully opaque, upright.
     static let newLayerSize = 42.0
@@ -145,6 +153,19 @@ final class TextPanelModel {
 
     // MARK: - Gestures on the photo
 
+    /// The layer the stage draws itself, over a photo rendered without it: the one under the fingers, then the one
+    /// just committed until its render is shown. nil when the rendered photo shows every layer.
+    var liveLayer: EditRecipe.TextLayer? {
+        if let gestureDraft { return gestureDraft }
+        guard let settlingLayer else { return nil }
+        // Reading the displayed image registers the observation that redraws the stage when a render lands.
+        _ = session.displayedImage
+        return session.hasShownRender(settlingLayer.renderGeneration) ? nil : settlingLayer.layer
+    }
+
+    /// True while a finger or pinch is on a text (from touch-down to the last finger up).
+    var isGestureActive: Bool { activeGestures > 0 }
+
     /// A finger (or pinch) begins on a layer: it becomes selected; the gesture works on it until every finger lifts.
     func beginGesture(on id: String) {
         if activeGestures == 0 {
@@ -152,6 +173,9 @@ final class TextPanelModel {
             selectedLayerID = id
             gestureStart = layer
             gestureDraft = layer
+            settlingLayer = nil
+            // One render of the photo without this layer; the stage draws the layer while the finger moves.
+            session.previewText { tool in tool.layers.removeAll { $0.id == id } }
         }
         activeGestures += 1
     }
@@ -171,7 +195,9 @@ final class TextPanelModel {
         if transformStart == nil { transformStart = draft }
         guard let start = transformStart else { return }
         var next = draft
-        next.size = Self.clampedSize(start.size * scale)
+        // Not rounded while the finger moves: whole sizes step 2–10 % at a time and made the resize jump. The recipe's
+        // whole number is taken when the gesture commits.
+        next.size = Self.clampedLiveSize(start.size * scale)
         next.rotation = Self.normalisedDegrees(start.rotation + degrees)
         preview(next)
     }
@@ -188,32 +214,48 @@ final class TextPanelModel {
     /// A pinch or handle drag ended (the drag may continue).
     func endTransform() { transformStart = nil }
 
-    /// One gesture ended; the last one commits the draft as one undo step (nothing if it did not change).
+    /// One gesture ended; the last one commits the draft as one undo step (nothing if it did not change, but the
+    /// photo is still rendered with the layer again).
     func endGesture() {
         guard activeGestures > 0 else { return }
         activeGestures -= 1
         guard activeGestures == 0 else { return }
-        let draft = gestureDraft, start = gestureStart
+        finishGesture()
+    }
+
+    /// Every finger lifted, or the system cancelled the touches (`TextLayerMarks` calls this when its gesture state
+    /// resets without an end): commits whatever the draft is, once.
+    func endAllGestures() {
+        guard activeGestures > 0 else { return }
+        activeGestures = 0
+        finishGesture()
+    }
+
+    private func finishGesture() {
+        guard var draft = gestureDraft else { return }
         gestureStart = nil; gestureDraft = nil; transformStart = nil
-        guard let draft, draft != start else { return }
+        draft.size = Self.clampedSize(draft.size)
+        // A commit equal to the recipe records no undo step and renders the committed recipe (the layer back in place).
         session.commitText { tool in
             guard let index = tool.layers.firstIndex(where: { $0.id == draft.id }) else { return }
             tool.layers[index] = draft
         }
+        settlingLayer = (draft, session.latestRenderGeneration)
     }
 
     private func preview(_ layer: EditRecipe.TextLayer) {
         gestureDraft = layer
-        session.previewText { tool in
-            guard let index = tool.layers.firstIndex(where: { $0.id == layer.id }) else { return }
-            tool.layers[index] = layer
-        }
     }
 
     // MARK: - Values
 
     static func clampedSize(_ value: Double) -> Double {
         min(max(value.rounded(), EditRecipe.TextLayer.sizeRange.lowerBound), EditRecipe.TextLayer.sizeRange.upperBound)
+    }
+
+    /// The size while a finger resizes: inside the range, not yet rounded.
+    static func clampedLiveSize(_ value: Double) -> Double {
+        min(max(value, EditRecipe.TextLayer.sizeRange.lowerBound), EditRecipe.TextLayer.sizeRange.upperBound)
     }
 
     /// −180…180, as the recipe stores rotation.

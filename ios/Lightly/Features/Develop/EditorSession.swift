@@ -1028,6 +1028,14 @@ final class EditorSession {
         commit(next)
     }
 
+    /// The newest render request (commits and previews alike); with `hasShownRender`, lets a view keep drawing
+    /// something itself until the photo that includes it is on screen (the Text tool's live layer).
+    var latestRenderGeneration: UInt64 { generation }
+
+    /// True once the render `requested` (or a newer one) is the displayed image. Read alongside `displayedImage`,
+    /// which is observed and changes whenever this can.
+    func hasShownRender(_ requested: UInt64) -> Bool { publishedGeneration >= requested }
+
     /// Text (owner amendment 2026-10-11): a change shown while a finger or slider moves; nothing is committed.
     func previewText(_ change: (inout EditRecipe.TextTool) -> Void) {
         var next = recipe

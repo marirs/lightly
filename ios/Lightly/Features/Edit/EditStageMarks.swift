@@ -82,6 +82,13 @@ struct CropFrameMark: View {
 /// `.stroke`: Remove strokes in translucent red (235, 60, 60 at 42 %), round-capped, the width
 /// of the brush. One layer, so overlapping parts do not darken.
 struct RemoveStrokesMark: View {
+    /// The strokes the mark draws (source points, radius as a fraction of the long edge): only the one being brushed.
+    /// Applied, removing and failed strokes are never drawn, so nothing stays over the photo once the finger lifts
+    /// (owner report 2026-10-11) or after leaving Remove.
+    static func strokesShown(brushing: [EditRecipe.Point], brushRadius: Double) -> [(points: [EditRecipe.Point], radius: Double)] {
+        brushing.isEmpty ? [] : [(brushing, brushRadius)]
+    }
+
     /// Each stroke's points on the frame (normalised) and its radius in frame points.
     let strokes: [(points: [CGPoint], radius: CGFloat)]
 

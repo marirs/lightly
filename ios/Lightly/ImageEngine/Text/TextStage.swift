@@ -86,7 +86,10 @@ enum TextStage {
         }
     }
 
-    private static func draw(_ layer: EditRecipe.TextLayer, frameSize: CGSize, in context: CGContext) {
+    /// One layer into a y-down context whose origin is the frame's top-left corner, `frameSize` in that context's
+    /// units. Shared by the stage (frame pixels) and the editor's live drawing of a text under the finger (points), so
+    /// both place and shape the glyphs identically.
+    static func draw(_ layer: EditRecipe.TextLayer, frameSize: CGSize, in context: CGContext) {
         let layout = layout(layer, frameSize: frameSize)
         let ink = WatermarkStage.cgColour(layer.colour)
         context.saveGState()

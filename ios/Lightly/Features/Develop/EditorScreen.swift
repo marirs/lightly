@@ -52,6 +52,9 @@ struct EditorScreen: View {
     @State private var replacementDragStart: (x: Double, y: Double)?
     /// Refine edges: the stroke being drawn (source coordinates).
     @State private var refinePoints: [EditRecipe.Point] = []
+    /// A Remove or Refine edges brush is down. Unlike `onEnded`, a gesture state also resets when the system cancels
+    /// the touch (an edge swipe, an alert, a tool change), so a cancelled stroke never stays drawn on the photo.
+    @GestureState private var isBrushing = false
     @State private var tool: EditorTool = .develop
 
     #if DEBUG
@@ -288,6 +291,15 @@ struct EditorScreen: View {
             .overlay(alignment: .bottomLeading) { photoActions.padding(.leading, 12).padding(.bottom, 8) }
             .overlay(alignment: .bottom) { if hasPendingCrop { cropActions.padding(.bottom, 8) } }
             .animation(.easeOut(duration: 0.2), value: hasPendingCrop)
+            .onChange(of: isBrushing) { _, brushing in
+                guard !brushing else { return }
+                // A finished stroke is handed over and cleared by `onEnded` in this same update; whatever is still
+                // left on the next turn of the run loop belonged to a cancelled touch, and is dropped (not applied).
+                DispatchQueue.main.async {
+                    guard !isBrushing else { return }
+                    removePoints = []; refinePoints = []
+                }
+            }
     }
 
     private func stageOnly() -> PhotoStage<EmptyView, AnyView> {
@@ -298,6 +310,7 @@ struct EditorScreen: View {
                    outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                    // The watermark and the Text tool's handles may reach into a border's margin.
                    marksCoverCanvas: tool == .watermark || tool == .text,
+                   clipsMarks: tool != .text,
                    cropWorkspace: false,
                    cropFocus: cropFocusRect,
                    cropBottomReserve: cropReserve,
@@ -643,6 +656,7 @@ struct EditorScreen: View {
             MatteTintMark(matte: session.displayMatteImage)
             Color.clear.contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0)
+                    .updating($isBrushing) { _, brushing, _ in brushing = true }
                     .onChanged { value in
                         let p = toSource(CGPoint(x: value.location.x / size.width, y: value.location.y / size.height))
                         refinePoints.append(.init(x: min(max(p.x, 0), 1), y: min(max(p.y, 0), 1)))
@@ -774,6 +788,7 @@ struct EditorScreen: View {
             } else {
                 Color.clear.contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 0)
+                        .updating($isBrushing) { _, brushing, _ in brushing = true }
                         .onChanged { value in
                             let p = toSource(CGPoint(x: value.location.x / size.width, y: value.location.y / size.height))
                             removePoints.append(.init(x: min(max(p.x, 0), 1), y: min(max(p.y, 0), 1)))
@@ -790,16 +805,17 @@ struct EditorScreen: View {
         }
     }
 
-    /// The applied strokes, the stroke being removed (or failed) and the one being brushed, on
-    /// the frame, with the brush radius in frame points.
+    /// The stroke being brushed, on the frame, with the brush radius in frame points.
+    // v3 differs (owner report 2026-10-11, build 261011027: "the brush is still present on the top"): the applied
+    // strokes and the one being removed used to stay drawn in red over the photo, hiding the very area that was
+    // cleaned. The mark is now only the stroke under the finger, as the mockup draws it (`ed-remove` while brushing;
+    // `ed-removing` and `ed-remove-failed` show no stroke mark).
     private func removeStrokesOnFrame(size: CGSize) -> [(points: [CGPoint], radius: CGFloat)] {
         let transform = session.geometryTransform
         let sourceLongEdge = Double(max(transform.sourceWidth, transform.sourceHeight))
         // Frame points per source pixel (the frame is displayed at `size`).
         let pointsPerPixel = Double(size.width) / Double(transform.frameWidth)
-        var strokes = session.recipe.tools.edit.remove.strokes.map { ($0.points, $0.radius) }
-        if let pending = session.pendingRemoveStroke { strokes.append((pending.points, pending.radius)) }
-        if !removePoints.isEmpty { strokes.append((removePoints, editPanel.brushRadius)) }
+        let strokes = RemoveStrokesMark.strokesShown(brushing: removePoints, brushRadius: editPanel.brushRadius)
         return strokes.map { points, radius in
             (points.map { toFrame(CGPoint(x: $0.x, y: $0.y)) }, CGFloat(radius * sourceLongEdge * pointsPerPixel))
         }

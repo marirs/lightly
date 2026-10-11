@@ -8,10 +8,22 @@ struct ApprovedSheetOverlay<Content: View>: View {
     let isTablet: Bool
     var heightFraction: CGFloat?
     var bare = false
+    /// A sheet whose text field takes focus as it opens (the Text and Watermark text sheets): presented without the
+    /// full-screen cover's own slide (`presentWithoutCoverSlide`), it rises from the bottom edge with the keyboard's
+    /// curve while the keyboard comes up, and the scrim fades in, so sheet and keyboard arrive together instead of the
+    /// sheet sliding up first and then jumping above the keyboard (owner report 2026-10-11).
+    var risesWithKeyboard = false
     let onDismiss: () -> Void
     @ViewBuilder let content: () -> Content
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var hasRisen = false
+
+    /// The iOS keyboard's own presentation curve (a critically damped spring of about this length), which SwiftUI
+    /// also uses for the keyboard's safe-area inset that lifts the sheet.
+    static var keyboardCurve: Animation { .spring(response: 0.38, dampingFraction: 1) }
+
+    private var isLowered: Bool { risesWithKeyboard && !hasRisen }
 
     var body: some View {
         GeometryReader { geometry in
@@ -22,6 +34,7 @@ struct ApprovedSheetOverlay<Content: View>: View {
                                                bottomTrailingRadius: isTablet ? 28 : 0, topTrailingRadius: isTablet ? 28 : 30, style: .continuous)
             ZStack(alignment: isTablet ? .center : .bottom) {
                 ApprovedColor.scrim(colorScheme)
+                    .opacity(isLowered ? 0 : 1)
                     .onTapGesture(perform: onDismiss)
                     .accessibilityHidden(true)
                 VStack(spacing: 0) {
@@ -45,6 +58,9 @@ struct ApprovedSheetOverlay<Content: View>: View {
                 }
                 .clipShape(shape)
                 .shadow(color: isTablet ? .black.opacity(0.4) : .clear, radius: 30, y: 24)
+                // Below the screen's bottom edge until it rises (a tablet card, centred, fades in instead).
+                .offset(y: isLowered && !isTablet ? screen.height : 0)
+                .opacity(isLowered && isTablet ? 0 : 1)
                 .accessibilityAddTraits(.isModal)
             }
             .frame(width: screen.width, height: screen.height)
@@ -54,7 +70,20 @@ struct ApprovedSheetOverlay<Content: View>: View {
         // `safeAreaInsets.bottom` and the sheet's bottom padding lifts the content (a text field) above it.
         .ignoresSafeArea(.container)
         .accessibilityAction(.escape, onDismiss)
+        .onAppear {
+            guard risesWithKeyboard, !hasRisen else { return }
+            withAnimation(Self.keyboardCurve) { hasRisen = true }
+        }
     }
+}
+
+/// Runs `change` (the state that presents a full-screen cover) without the cover's slide-up: for sheets that rise with
+/// the keyboard themselves (`ApprovedSheetOverlay.risesWithKeyboard`). Dismissal keeps the cover's own animation.
+@MainActor
+func presentWithoutCoverSlide(_ change: () -> Void) {
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction, change)
 }
 
 /// `sheetHead`: a 90 pt leading slot, the centred 16 pt bold title, a 90 pt trailing slot; 6/12/10 padding.

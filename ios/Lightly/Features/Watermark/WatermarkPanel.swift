@@ -349,7 +349,7 @@ struct WatermarkPanelView: View {
         let c = L2(scheme: colorScheme)
         Button {
             editedText = current.text
-            isEditingText = true
+            presentWithoutCoverSlide { isEditingText = true }
         } label: {
             HStack {
                 Text(current.text).l2Text(16).foregroundStyle(c(ApprovedColor.ink))
@@ -486,7 +486,7 @@ private struct WatermarkTextEditor: View {
 
     var body: some View {
         let c = L2(scheme: colorScheme)
-        ApprovedSheetOverlay(isTablet: sizeClass == .regular, onDismiss: dismiss) {
+        ApprovedSheetOverlay(isTablet: sizeClass == .regular, risesWithKeyboard: true, onDismiss: dismiss) {
             L2SheetHeader(title: Text("Watermark text"),
                           leading: { L2TextButton(title: "Cancel", identifier: "watermark.text.cancel", action: dismiss) },
                           trailing: { L2TextButton(title: "Done", isBold: true,
