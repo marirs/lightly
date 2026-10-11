@@ -271,9 +271,10 @@ function backgroundPanel(s) {
       const thumbs = [...BACKGROUNDS, ...(b.imported ? [PHOTOS.street.src] : [])];
       const selIndex = b.imported ? thumbs.length - 1 : b.replaced === 'image' ? 0 : -1;
       // Owner amendment (2026-10-11, second): two rows, as the presets; "+ Choose a photo" is the last tile.
-      const tile = (i, src) => `<button aria-label="Background image" style="width: 60px; height: 60px; border-radius: 16px; padding: 0; ${i === selIndex ? 'box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent-ink);' : ''} border: none; background: url(${src}) center/cover"></button>`;
-      const plus = `<button aria-label="Choose a photo" style="width: 60px; height: 60px; border-radius: 16px; border: 1.5px dashed var(--ink3); background: transparent; color: var(--ink2); display: flex; align-items: center; justify-content: center">${ic('plus', 22)}</button>`;
-      opts = `<div style="display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, 60px); grid-auto-columns: 60px; gap: 10px 8px; overflow: hidden; padding: 4px 2px; ${fadeRight}">${thumbs.map((src, i) => tile(i, src)).join('')}${plus}</div>`
+      // Owner amendment (2026-10-11): tiles fill the row, four across, as the preset gallery fills its width.
+      const tile = (i, src) => `<button aria-label="Background image" style="width: 100%; aspect-ratio: 1; border-radius: 16px; padding: 0; ${i === selIndex ? 'box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent-ink);' : ''} border: none; background: url(${src}) center/cover"></button>`;
+      const plus = `<button aria-label="Choose a photo" style="width: 100%; aspect-ratio: 1; border-radius: 16px; border: 1.5px dashed var(--ink3); background: transparent; color: var(--ink2); display: flex; align-items: center; justify-content: center">${ic('plus', 22)}</button>`;
+      opts = `<div style="display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: calc((100% - 24px) / 4); gap: 10px 8px; overflow: hidden; padding: 4px 2px; ${fadeRight}">${thumbs.map((src, i) => tile(i, src)).join('')}${plus}</div>`
         + (b.replaced === 'image' ? slider('Scale', b.scale || 120, 100, 200) + note('Drag the photo to position the background.') : '');
     }
     if (kind === 'colour') opts = colourStrip('Background colour', b.colourName || 'Slate');
@@ -321,11 +322,21 @@ function editPanel(s) {
   const names = { crop: 'Crop', rotate: 'Rotate', straighten: 'Straighten', perspective: 'Perspective', adjust: 'Adjust', remove: 'Remove' };
   return col(6, tabs(Object.entries(names).map(([k, l]) => [k, l]), sub) + resetRow(names[sub], !!e.touched) + body);
 }
+// Owner amendment (2026-10-11): real light leaks from the owner's film-burn clips (leak pack, shared/leaks/out, local only).
+const LEAKS = [["leak-edf0a0ecd85d", "Gold Fringe"], ["leak-fc36430bd1c4", "Gold Edge"], ["leak-972907fc15c7", "Honey Beam"], ["leak-efa9e8c211ee", "Amber Border"], ["leak-6088a418cde2", "Amber Edge"], ["leak-42da5097a4f2", "Saffron Edge"], ["leak-da6688b7c54b", "Amber Fringe"], ["leak-39416c4d630b", "Honey Fringe"], ["leak-32544197e693", "Tangerine Fringe"], ["leak-0c9dff4a1873", "Honey Edge"], ["leak-7847ab9f6837", "Saffron Fringe"], ["leak-d164ec7a0302", "Copper Fringe"], ["leak-5069e1b0b479", "Copper Edge"], ["leak-6b3eaf9abc02", "Gold Border"], ["leak-0d68bf9d4088", "Copper Border"], ["leak-b643626da293", "Tangerine Edge"]];
+const LEAK_IMG = (id, thumb = true) => `../../../../shared/leaks/out/${thumb ? 'thumb' : 'img'}/${id}.jpg`;
+function leakGallery(s, chosen) {
+  const photo = PHOTOS[s.photo].src;
+  const tile = (id, name) => { const on = id === chosen;
+    return `<button style="width: 96px; border: none; background: transparent; padding: 0; display: flex; flex-direction: column; gap: 5px; text-align: left"><span style="position: relative; display: block; width: 96px; height: 62px; border-radius: 14px; overflow: hidden; background: url(${photo}) center/cover; ${on ? 'box-shadow: inset 0 0 0 2px var(--accent-ink)' : ''}">${id ? `<span style="position: absolute; inset: 0; background: url(${LEAK_IMG(id)}) center/cover; mix-blend-mode: screen; opacity: 0.85"></span>` : ''}${on ? `<span style="position: absolute; right: 6px; top: 6px; width: 20px; height: 20px; border-radius: 10px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center">${ic('check', 13)}</span>` : ''}</span><span style="font-size: 11.5px; font-weight: ${on ? 700 : 500}; color: ${on ? 'var(--ink)' : 'var(--ink2)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${name}</span></button>`; };
+  return `<div style="display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 96px; gap: 10px 12px; overflow: hidden; ${fadeRight}">${tile(null, 'None')}${LEAKS.map(([id, nm]) => tile(id, nm)).join('')}</div>`;
+}
 function effectsPanel(s) {
   const f = s.fx || {}; const sub = f.sub || 'leak'; let body = '';
   const items = [['leak', 'Light Leaks', f.leak], ['grain', 'Grain', f.grain], ['vig', 'Vignette', f.vig], ['sel', 'Selective Colour', f.sel]];
   // No On/Off switches: choosing a style or moving a slider turns the effect on (735122e).
-  if (sub === 'leak') body = chips([['warm', 'Warm edge'], ['amber', 'Amber flare'], ['rose', 'Rose'], ['prism', 'Prism']], f.leak ? 'warm' : '') + slider('Intensity', f.leak ? 50 : 0) + slider('Rotation', 0, -180, 180) + note('Drag on the photo to move the leak.');
+  // Owner amendment (2026-10-11): the leak gallery (None, then the leaks on this photo, two rows) replaces the four style chips.
+  if (sub === 'leak') body = leakGallery(s, f.leak ? (f.leakId || LEAKS[0][0]) : null) + slider('Intensity', f.leak ? 50 : 0) + slider('Rotation', 0, -180, 180) + note('Drag on the photo to move the leak.');
   if (sub === 'grain') body = chips([['fine', 'Fine'], ['film', 'Film'], ['coarse', 'Coarse']], f.grain ? 'film' : '') + slider('Amount', f.grain ? (f.grainAmt || 30) : 0) + slider('Size', 25) + slider('Roughness', 50);
   if (sub === 'vig') body = slider('Amount', f.vig ? 35 : 0) + slider('Size', 60) + slider('Softness', 60);
   if (sub === 'sel') {
@@ -422,7 +433,7 @@ function photo(s, W, H) {
   }
   const fx = s.fx || {}; let over = '';
   if (!s.compare && fx.vig) over += '<div style="position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 48%, rgba(0,0,0,0) 48%, rgba(0,0,0,0.5) 100%)"></div>';
-  if (!s.compare && fx.leak) over += '<div style="position: absolute; inset: 0; background: radial-gradient(circle at 92% 12%, rgba(255,150,60,0.6), rgba(255,120,60,0) 45%); mix-blend-mode: screen"></div>';
+  if (!s.compare && fx.leak) over += `<div style="position: absolute; inset: 0; background: url(${LEAK_IMG(fx.leakId || LEAKS[0][0], false)}) center/cover; mix-blend-mode: screen; opacity: 0.5"></div>`;
   if (!s.compare && fx.grain) over += `<div style="position: absolute; inset: 0; opacity: ${(fx.grainAmt || 30) / 80}; mix-blend-mode: overlay; background-image: url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>&quot;)"></div>`;
   const m = []; const tool = s.tool;
   if (tool === 'portrait' && !s.compare) {
@@ -772,7 +783,8 @@ const J = [
     ['ed-removing', 'Removing · cancellable', ED('edit', 'field', { ed: { sub: 'remove', op: 'removing', touched: true } })],
     ['ed-remove-failed', 'Remove failed · edits kept', ED('edit', 'field', { ed: { sub: 'remove', op: 'failed', touched: true }, dev: HONEY })]]],
   ['Effects', [
-    ['fx-leak', 'Light Leaks · choosing a style turns it on', ED('effects', 'sunset', { fx: { sub: 'leak', leak: true } })],
+    ['fx-leak', 'Light Leaks · choosing a leak turns it on', ED('effects', 'sunset', { fx: { sub: 'leak', leak: true } })],
+    ['fx-leak-none', 'Light Leaks · none chosen', ED('effects', 'sunset', { fx: { sub: 'leak' } })],
     ['fx-grain', 'Grain', ED('effects', 'lake', { fx: { sub: 'grain', grain: true, grainAmt: 45 } })],
     ['fx-vignette', 'Vignette', ED('effects', 'lake', { fx: { sub: 'vig', vig: true } })],
     ['fx-selective-empty', 'Selective Colour · tap a colour to keep', ED('effects', 'woman', { fx: { sub: 'sel' } })],

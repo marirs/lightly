@@ -25,7 +25,7 @@ PRESETS = REPO / "experiments/presets"
 # 3 = background.focus subject colour from the de-contaminated estimate wherever the matte is above 0.02.
 # 4 = effects.selectiveColour (owner request 2026-10-04), after the light leak, before vignette and grain.
 # 5 = background.replace composites the estimated foreground colour (Germer multilevel), not the observed pixel.
-CONTRACT_REVISION = 7
+CONTRACT_REVISION = 8
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -148,6 +148,9 @@ def light_leak_constants() -> dict:
     """Light-leak geometry (rendering-v2.md §6, revision 2): the approved prototype's
     `radial-gradient(circle at x% y%, core, ring 30%, transparent 55%)`, rotated with the overlay."""
     return {
+        "leakImage": "revision 8: a style leak-<12 hex> names a leak-pack image (shared/leaks/out/leaks.json): aspect-fill "
+                     "the frame, centred at (x, y) % and turned by rotation about it; L = bilinear sample × intensity/100; "
+                     "out = 1 − (1 − in)(1 − L) on sRGB-encoded values. The drawn styles below are unchanged.",
         "shape": "circle at (x, y) % of the frame, size farthest-corner (CSS default for a circle)",
         "gradientRay": {"definition": "R = max distance in frame pixels from the centre (x·W/100, y·H/100) to the four frame corners",
                         "note": "stop positions are fractions of R, not of the long edge"},

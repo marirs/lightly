@@ -304,6 +304,17 @@ out = clamp(enc(OKLab⁻¹(L', a·L'/L, b·L'/L)), 0, 1)      # L ≥ ~0.0046 be
 - **User grain styles:** `fine`, `film` and `coarse` scale size by 0.7, 1.0 and 1.5 respectively, capped at 100.
 
 ### Light leak
+**Leak images (revision 8, owner 2026-10-11).** A `style` of the form `leak-<12 hex>` names an image in the leak pack (`shared/leaks/out/leaks.json`, bundled by both apps). On a W × H frame:
+```
+s  = max(W / iw, H / ih)                                   # the image covers the frame (aspect fill)
+o  = (x·W/100, y·H/100);   θ = rad(rotation)               # the image's centre and its turn, clockwise positive
+q  = o + R(−θ)·(p − o)                                       # undo the turn about the image's centre
+u  = (q − o) / s + (iw/2, ih/2)                              # image pixel; outside the image: no light
+L  = bilinear(image, u) · intensity/100                      # sRGB-encoded, per channel
+out = 1 − (1 − in)·(1 − L)                                   # screen, on sRGB-encoded values
+```
+x = y = 50 centres the image on the frame. Preview and export sample the same image at their resolutions. The four drawn styles below are unchanged and still render; the panel offers only leak images.
+
 Colours and opacities are *provisional* design values from the approved prototype. The geometry (revision 2, C4) is the prototype's CSS, exactly: a frame-sized overlay with
 `background: radial-gradient(circle at x% y%, core α, ring β 30%, transparent 55%)`, `mix-blend-mode: screen` and `transform: rotate(rotation deg)`, where α = intensity/130 and β = intensity/400.
 
@@ -438,5 +449,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 4 | 2026-10-05 | **effects.selectiveColour** (§6 Selective colour): a new operator after the light leak, before the vignettes and grain; does nothing without kept colours, so every existing edit renders unchanged. Goldens `selectiveColour`. | No: `developModel.constantsSha256` is unchanged |
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
 | 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
+| 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

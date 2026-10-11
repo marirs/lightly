@@ -1,7 +1,7 @@
 {
  "contract": "lightly-rendering",
  "version": 2,
- "revision": 7,
+ "revision": 8,
  "changeLog": "shared/contracts/rendering-v2.md#change-log",
  "prose": "shared/contracts/rendering-v2.md",
  "generatedBy": "shared/contracts/build_rendering_v2.py",
@@ -1199,6 +1199,7 @@
       }
      },
      "constants": {
+      "leakImage": "revision 8: a style leak-<12 hex> names a leak-pack image (shared/leaks/out/leaks.json): aspect-fill the frame, centred at (x, y) % and turned by rotation about it; L = bilinear sample × intensity/100; out = 1 − (1 − in)(1 − L) on sRGB-encoded values. The drawn styles below are unchanged.",
       "shape": "circle at (x, y) % of the frame, size farthest-corner (CSS default for a circle)",
       "gradientRay": {
        "definition": "R = max distance in frame pixels from the centre (x·W/100, y·H/100) to the four frame corners",

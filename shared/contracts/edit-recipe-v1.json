@@ -184,7 +184,7 @@
               "description": "Added on top of the preset's own grain/vignette (recipe.finishing), never replacing them.",
               "properties": {
                "lightLeak": {"type": "object", "additionalProperties": false, "required": ["enabled", "style", "intensity", "x", "y", "rotation"],
-                             "properties": {"enabled": {"type": "boolean"}, "style": {"enum": ["warm", "amber", "rose", "prism"]},
+                             "properties": {"enabled": {"type": "boolean"}, "style": {"anyOf": [{"enum": ["warm", "amber", "rose", "prism"]}, {"type": "string", "pattern": "^leak-[0-9a-f]{12}$"}], "description": "A leak image from the leak pack (shared/leaks, owner 2026-10-11), or one of the four drawn styles (kept so earlier edits still render; no longer offered)."},
                                             "intensity": {"$ref": "#/$defs/percent"}, "x": {"$ref": "#/$defs/percent"}, "y": {"$ref": "#/$defs/percent"},
                                             "rotation": {"type": "number", "minimum": -180, "maximum": 180}}},
                "grain": {"type": "object", "additionalProperties": false, "required": ["enabled", "style", "amount", "size", "roughness", "seed"],
