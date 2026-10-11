@@ -71,18 +71,27 @@ struct PanelSlider: View {
 /// A sideways-scrolling row (`rowOf`): 8 pt gaps, the right edge fading (88 %).
 struct ChipRow<Content: View>: View {
     var spacing: CGFloat = 8
+    /// The selected chip's index, for rows that follow the mockup's `scrolled()` (the chip before it sits at the leading
+    /// edge). The chips must carry `.id(index)`. nil leaves the row where the finger put it.
+    var scrolledToIndex: Int? = nil
     @ViewBuilder let content: () -> Content
     /// The end fades only while chips are hidden past it (owner amendment 2026-10-10, as `L2Tabs`).
     @State private var hidesMore = false
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: spacing) { content() }.padding(.vertical, 4).padding(.horizontal, 2)
-                .reportsTrailingEdge(in: "chiprow")
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: spacing) { content() }.padding(.vertical, 4).padding(.horizontal, 2)
+                    .reportsTrailingEdge(in: "chiprow")
+            }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .modifier(TrailingOverflowReader(space: "chiprow", hidesMore: $hidesMore))
+            .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
+                                 startPoint: .leading, endPoint: .trailing))
+            .onChange(of: scrolledToIndex, initial: true) { _, index in
+                guard let index else { return }
+                proxy.scrollTo(max(0, index - 1), anchor: .leading)
+            }
         }
-        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        .modifier(TrailingOverflowReader(space: "chiprow", hidesMore: $hidesMore))
-        .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
-                             startPoint: .leading, endPoint: .trailing))
     }
 }
 

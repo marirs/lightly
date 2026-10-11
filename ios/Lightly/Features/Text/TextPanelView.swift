@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The Text panel (owner amendment 2026-10-11; mockup `textPanel`). With no layers, a 10 pt column: the dashed "Add text"
-/// button and its note. With layers, an 8 pt column: the layer chips and "+ Add", the input box (opens the text sheet),
-/// the eight fonts, Size, the shared colour control and Opacity, all for the selected layer.
+/// The Text panel (owner amendment 2026-10-11; mockup `textPanel`). With no layers, a 10 pt column: the lime "Add text"
+/// pill and its note. With layers, an 8 pt column: the layer chips and "+ Add", the input box (opens the text sheet),
+/// the eleven fonts, the Thin · Regular · Bold row, Size, the shared colour control and Opacity, all for the selected
+/// layer.
 struct TextPanelView: View {
     @Bindable var model: TextPanelModel
     @Environment(\.colorScheme) private var colorScheme
@@ -14,6 +15,7 @@ struct TextPanelView: View {
                     layerChips(selected: layer)
                     inputBox(layer)
                     fonts(layer)
+                    weights(layer)
                     PanelSlider(label: "Size", value: layer.size, range: EditRecipe.TextLayer.sizeRange, identifier: "slider.size",
                                 onChange: model.previewSize, onEnd: model.commitSize)
                     ColourControl(title: "Colour", selected: layer.colour, photo: model.session.originalImage, identifier: "text.colour",
@@ -35,21 +37,19 @@ struct TextPanelView: View {
         }
     }
 
-    /// The dashed "Add text": full width, 56 pt, 18 pt corners, a 1.5 pt dashed hairline on the chip fill, the plus
-    /// (18 pt) and the label (15 pt bold ink), 8 pt apart.
+    /// "Add text" (owner amendment 2026-10-11, second: smaller): a lime pill at the leading edge, not full width; 40 pt
+    /// high, 20 pt corners, 16 pt side padding, the plus (16 pt) and the label (14 pt bold), 6 pt apart, in pill ink.
     private var addTextButton: some View {
         let c = L2(scheme: colorScheme)
         return Button(action: { presentWithoutCoverSlide(model.openAdd) }) {
-            HStack(spacing: 8) {
-                ApprovedIconView(icon: .plus, size: 18)
-                Text("Add text").l2Text(15, weight: .bold)
+            HStack(spacing: 6) {
+                ApprovedIconView(icon: .plus, size: 16)
+                Text("Add text").l2Text(14, weight: .bold)
             }
-            .foregroundStyle(c(ApprovedColor.ink))
-            .frame(maxWidth: .infinity).frame(height: 56)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(c(ApprovedColor.chip)))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(c(ApprovedColor.hairline), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
-            .contentShape(Rectangle())
+            .foregroundStyle(c(ApprovedColor.pillInk))
+            .padding(.horizontal, 16).frame(height: 40)
+            .background(Capsule().fill(c(ApprovedColor.pill)))
+            .contentShape(Capsule())
         }
         .buttonStyle(UndimmedButtonStyle())
         .accessibilityIdentifier("text.add")
@@ -96,13 +96,13 @@ struct TextPanelView: View {
     }
 
     /// The input box: at least 50 pt, 16 pt corners, chip fill, hairline, 14 pt padding; the selected layer's words at
-    /// 17 pt in its own font, the pencil (18 pt) trailing. Opens the text sheet.
+    /// 17 pt in its own font and weight, the pencil (18 pt) trailing. Opens the text sheet.
     private func inputBox(_ layer: EditRecipe.TextLayer) -> some View {
         let c = L2(scheme: colorScheme)
         return Button(action: { presentWithoutCoverSlide(model.openEditSelected) }) {
             HStack {
                 Text(verbatim: layer.text.replacingOccurrences(of: "\n", with: " "))
-                    .font(Font(TextFonts.font(layer.font, size: 17))).lineLimit(1)
+                    .font(Font(TextFonts.font(layer.font, weight: layer.weight, size: 17))).lineLimit(1)
                 Spacer(minLength: 8)
                 ApprovedIconView(icon: .pencil, size: 18)
             }
@@ -119,7 +119,7 @@ struct TextPanelView: View {
         .accessibilityIdentifier("text.value")
     }
 
-    /// The eight fonts (`rowOf`, 8 pt gaps): at least 96×58, 16 pt corners, "Aa" at 20 pt in the font over its name
+    /// The eleven fonts (`rowOf`, 8 pt gaps): at least 96×58, 16 pt corners, "Aa" at 20 pt in the font over its name
     /// (10.5 pt ink3, one line); the selected one with a 2 pt accent border, the others a hairline.
     private func fonts(_ layer: EditRecipe.TextLayer) -> some View {
         let c = L2(scheme: colorScheme)
@@ -144,6 +144,40 @@ struct TextPanelView: View {
                 .accessibilityIdentifier("text.font.\(font.rawValue)")
             }
         }
+    }
+
+    /// Thin · Regular · Bold (owner amendment 2026-10-11, second; mockup `textPanel` `weights`): the `seg` look (4 pt
+    /// padding, 22 pt corners, chip fill, three equal 36 pt segments 4 pt apart with 18 pt corners; the selected one on
+    /// on-bg with on-ink text, the others ink2), each label at 14 pt in its own weight (200 / 400 / 700: system thin, regular, bold) whether selected
+    /// or not. A single-weight font greys Thin and Bold (40 %) and they cannot be chosen.
+    private func weights(_ layer: EditRecipe.TextLayer) -> some View {
+        let c = L2(scheme: colorScheme)
+        return HStack(spacing: 4) {
+            ForEach(Self.weightOptions, id: \.weight) { option in
+                let isOn = option.weight == layer.weight
+                let isAvailable = TextPanelModel.isWeightAvailable(option.weight, for: layer.font)
+                Button { model.chooseWeight(option.weight) } label: {
+                    Text(option.title).l2Text(14, weight: option.fontWeight).lineLimit(1)
+                        .foregroundStyle(isOn ? c(ApprovedColor.onInk) : c(ApprovedColor.inkSecondary))
+                        .frame(maxWidth: .infinity).frame(height: 36)
+                        .background(Capsule().fill(isOn ? c(ApprovedColor.segmentSelected) : .clear))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(UndimmedButtonStyle())
+                .disabled(!isAvailable)
+                .opacity(isAvailable ? 1 : 0.4)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+                .accessibilityIdentifier("text.weight.\(option.weight.rawValue)")
+            }
+        }
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(c(ApprovedColor.chip)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Weight"))
+    }
+
+    private static var weightOptions: [(weight: EditRecipe.TextLayer.Weight, title: LocalizedStringKey, fontWeight: Font.Weight)] {
+        [(.thin, "Thin", .thin), (.regular, "Regular", .regular), (.bold, "Bold", .bold)]
     }
 }
 

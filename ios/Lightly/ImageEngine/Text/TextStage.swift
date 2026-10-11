@@ -52,7 +52,8 @@ enum TextStage {
 
     static func layout(_ layer: EditRecipe.TextLayer, frameSize: CGSize) -> Layout {
         let size = max(fontSize(layer, frameSize: frameSize), 0.01)
-        let font = TextFonts.font(layer.font, size: CGFloat(size))
+        // The layer's weight on the font's weight axis (§7.4, owner amendment 2026-10-11, second).
+        let font = TextFonts.font(layer.font, weight: layer.weight, size: CGFloat(size))
         let ascent = Double(CTFontGetAscent(font)), descent = Double(CTFontGetDescent(font)), leading = Double(CTFontGetLeading(font))
         let lineHeight = ascent + descent + leading
         let attributes: [NSAttributedString.Key: Any] = [NSAttributedString.Key(kCTFontAttributeName as String): font]

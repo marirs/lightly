@@ -248,6 +248,9 @@ struct EditRecipe: Equatable, Sendable {
         enum Placement: String, Sendable, CaseIterable { case photo, border, canvas }
         enum Font: String, Sendable, CaseIterable {
             case allura = "Allura", cormorantGaramond = "Cormorant Garamond", inter = "Inter", caveat = "Caveat", dancingScript = "Dancing Script", lora = "Lora"
+            // Owner amendment 2026-10-11 (second): seven signature scripts after Lora, in the mockup's `WM_FONTS` order.
+            case carpenters = "Carpenters", sourdoughScript = "Sourdough Script", jaybird = "Jaybird", astoria = "Astoria"
+            case bonskin = "Bonskin", shareit = "Shareit", monttee = "Monttee"
         }
         struct SignatureRef: Equatable, Sendable {
             enum Kind: String, Sendable, CaseIterable { case drawn, imported }
@@ -278,11 +281,33 @@ struct EditRecipe: Equatable, Sendable {
 
     /// One text layer (`textLayer`): every quantity is a fraction of the photo frame, so preview and export agree.
     struct TextLayer: Equatable, Sendable, Identifiable {
-        /// The eight approved fonts (shared/fonts), by the family name the recipe stores.
+        /// The eleven approved fonts (shared/fonts), by the family name the recipe stores. The last three were added by the
+        /// owner on 2026-10-11 (second amendment), after Space Mono.
         enum Font: String, Sendable, CaseIterable {
             case inter = "Inter", playfairDisplay = "Playfair Display", bebasNeue = "Bebas Neue", caveat = "Caveat"
             case cormorantGaramond = "Cormorant Garamond", montserrat = "Montserrat", dancingScript = "Dancing Script"
             case spaceMono = "Space Mono"
+            case retroRomance = "Retro Romance", velomino = "Velomino", vectipedeThin = "Vectipede Thin"
+
+            /// Fonts drawn in one weight only (`textLayer.weight`: they only take regular); the panel greys Thin and Bold.
+            var hasSingleWeight: Bool {
+                switch self {
+                case .bebasNeue, .spaceMono, .retroRomance, .velomino, .vectipedeThin: true
+                case .inter, .playfairDisplay, .caveat, .cormorantGaramond, .montserrat, .dancingScript: false
+                }
+            }
+        }
+        /// `textLayer.weight` (owner amendment 2026-10-11, second): Thin 200, Regular 400, Bold 700 on the font's weight axis.
+        enum Weight: String, Sendable, CaseIterable {
+            case thin, regular, bold
+            /// The OpenType `wght` value (rendering-v2 §7.4).
+            var axisValue: Double {
+                switch self {
+                case .thin: 200
+                case .regular: 400
+                case .bold: 700
+                }
+            }
         }
         static let sizeRange: ClosedRange<Double> = 10...100
         static let maximumTextLength = 120
@@ -291,6 +316,8 @@ struct EditRecipe: Equatable, Sendable {
         /// One or more lines separated by "\n"; never blank.
         var text: String
         var font: Font
+        /// Optional in the recipe (missing reads as regular); always written.
+        var weight: Weight = .regular
         /// 10…100: font size = size / 100 × 0.25 × the frame's short edge.
         var size: Double
         var colour: String

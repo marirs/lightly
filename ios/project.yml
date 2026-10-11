@@ -134,6 +134,50 @@ targets:
         buildPhase: resources
       - path: ../shared/fonts/SpaceMono-OFL.txt
         buildPhase: resources
+      # Owner amendment 2026-10-11 (second): three more Text fonts the owner supplied, after Space Mono, each with its
+      # licence file shipped beside it as the OFL fonts' are. Read by URL in TextFonts.
+      - path: ../shared/fonts/RetroRomance-Regular.otf
+        buildPhase: resources
+      - path: ../shared/fonts/RetroRomance-LICENSE.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Velomino-Regular.otf
+        buildPhase: resources
+      - path: ../shared/fonts/Velomino-LICENSE.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Vectipede-Thin.otf
+        buildPhase: resources
+      - path: ../shared/fonts/Vectipede-LICENSE.pdf
+        buildPhase: resources
+      # Owner amendment 2026-10-11 (second): Watermark › Text's seven signature scripts the owner supplied, after Lora,
+      # each with its licence file. Read by URL in WatermarkFonts.
+      - path: ../shared/fonts/Carpenters-Regular.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/Carpenters-LICENSE.txt
+        buildPhase: resources
+      - path: ../shared/fonts/SourdoughScript-Regular.otf
+        buildPhase: resources
+      - path: ../shared/fonts/SourdoughScript-LICENSE.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Jaybird-Regular.otf
+        buildPhase: resources
+      - path: ../shared/fonts/Jaybird-LICENSE.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Astoria-Regular.otf
+        buildPhase: resources
+      - path: ../shared/fonts/Astoria-LICENSE.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Bonskin-Regular.otf
+        buildPhase: resources
+      - path: ../shared/fonts/Bonskin-LICENSE.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Shareit-Regular.otf
+        buildPhase: resources
+      - path: ../shared/fonts/Shareit-LICENSE.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Monttee-Regular.otf
+        buildPhase: resources
+      - path: ../shared/fonts/Monttee-LICENSE.txt
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly

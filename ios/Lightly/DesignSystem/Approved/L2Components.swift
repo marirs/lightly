@@ -279,10 +279,15 @@ struct L2Segmented<Value: Hashable>: View {
 /// `tabs` (owner amendment 2026-10-11, on every tab row): a scrolling row, 6 pt gaps, pulled 12 pt to the leading side
 /// (`margin-left: -12px`) so the first label lines up with the content edge. Each tab is 7/12 pt padded, 14.5 pt; the
 /// selected one bold on the translucent lime pill (16 pt corners, `--pill` / `--pill-ink`), the others medium ink3 with no
-/// fill. A 5 pt orange dot on tabs holding an edit. The right edge fades (88 %) while tabs are hidden past it.
-/// The orange underline of the earlier design is gone everywhere.
+/// fill. A 5 pt orange dot on tabs holding an edit. A disabled tab is drawn at 40 % and ignores taps. The right edge fades
+/// (88 %) while tabs are hidden past it. The orange underline of the earlier design is gone everywhere.
 struct L2Tabs<Value: Hashable>: View {
-    struct Item { let value: Value; let title: Text; var icon: ApprovedIcon?; var dot = false; let identifier: String }
+    struct Item {
+        let value: Value; let title: Text; var icon: ApprovedIcon?; var dot = false; let identifier: String
+        /// Greyed (40 %), not selectable and announced as dimmed (owner amendment 2026-10-11, second: mockup `tabs`
+        /// fourth field, `aria-disabled`), e.g. Change background when no subject was found.
+        var isDisabled = false
+    }
     let items: [Item]
     let selection: Value
     let onSelect: (Value) -> Void
@@ -316,6 +321,8 @@ struct L2Tabs<Value: Hashable>: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(UndimmedButtonStyle())
+                        .disabled(item.isDisabled)
+                        .opacity(item.isDisabled ? 0.4 : 1)
                         .id(index)
                         .accessibilityAddTraits(isOn ? .isSelected : [])
                         .accessibilityValue(Text(item.dot ? "Edited" : ""))

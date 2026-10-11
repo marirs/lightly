@@ -1,6 +1,6 @@
 import XCTest
 
-/// The owner amendments of 2026-10-11 in the running app: double tap on empty space cycles the theme (Welcome, More,
+/// The owner amendments of 2026-10-11 (both) in the running app: double tap on empty space cycles the theme (Welcome, More,
 /// the editor stage outside the photo, never the photo), and the Text tool's add → type → Done → drag flow.
 final class OwnerAmendmentsUITests: XCTestCase {
 
@@ -142,9 +142,10 @@ final class OwnerAmendmentsUITests: XCTestCase {
         XCTAssertFalse(element("text.handle").exists)
     }
 
-    /// Owner report 2026-10-11: on a photo with no clear subject, both Background tabs show the approved
-    /// `bg-no-subject` state: the notice and the Blur slider, never Change background's options.
-    func testNoSubjectShowsTheNoticeAndBlurInBothTabs() {
+    /// Owner report 2026-10-11: on a photo with no clear subject, the panel shows the approved `bg-no-subject` state:
+    /// the notice and the Blur slider. Owner amendment 2026-10-11 (second): Focus & Blur is the tab shown, and Change
+    /// background is greyed out and cannot be chosen.
+    func testNoSubjectGreysChangeBackgroundAndShowsTheNoticeAndBlur() {
         launch(["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath("landscape_02")]
                + EditorCaptureUITests.matteFixtureArguments("lake"))
         XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout))
@@ -154,13 +155,107 @@ final class OwnerAmendmentsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'No clear subject found.'")).firstMatch.exists,
                       "the approved copy")
         XCTAssertTrue(element("slider.blur").exists)
-        keep("bg-no-subject-focus")
-        element("background.mode.change").tap()
-        XCTAssertTrue(notice.waitForExistence(timeout: 5), "Change background shows the same notice")
-        XCTAssertTrue(element("slider.blur").exists, "and the Blur slider")
-        XCTAssertFalse(element("background.kind.image").exists, "Change background's options are not offered")
+        let focus = element("background.mode.focus"), change = element("background.mode.change")
+        XCTAssertTrue(focus.isSelected, "Focus & Blur is the tab shown")
+        XCTAssertFalse(change.isEnabled, "Change background is greyed out")
+        keep("bg-no-subject")
+        change.tap()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(focus.isSelected, "tapping the greyed tab changes nothing")
+        XCTAssertFalse(change.isSelected)
+        XCTAssertTrue(notice.exists)
+        XCTAssertTrue(element("slider.blur").exists, "Blur still works")
+        XCTAssertFalse(element("background.kind.Image").exists, "Change background's options are not offered")
         XCTAssertFalse(element("background.image.add").exists)
-        keep("bg-no-subject-change")
+    }
+
+    /// Owner amendment 2026-10-11 (second) in the Text panel: the smaller lime "Add text" pill at the leading edge, and
+    /// the Thin · Regular · Bold row (one undo step; a single-weight font greys Thin and Bold).
+    func testAddTextPillAndWeightRow() {
+        launch(["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath("sunset_02")])
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout))
+        element("tool.text").tap()
+        let add = element("text.add")
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        XCTAssertEqual(add.frame.height, 40, accuracy: 1, "40 pt pill")
+        XCTAssertLessThan(add.frame.width, app.windows.firstMatch.frame.width / 2, "not full width")
+        XCTAssertLessThan(add.frame.minX, 40, "at the leading edge")
+        keep("tx-empty")
+        add.tap()
+        let field = element("text.sheet.field")
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText("Summer in Lisbon")
+        element("text.sheet.done").tap()
+
+        let thin = element("text.weight.thin"), regular = element("text.weight.regular"), bold = element("text.weight.bold")
+        XCTAssertTrue(regular.waitForExistence(timeout: 5))
+        XCTAssertTrue(regular.isSelected, "new text is regular")
+        XCTAssertEqual(regular.frame.height, 36, accuracy: 1)
+        XCTAssertGreaterThan(thin.frame.minY, element("text.font.Inter").frame.maxY, "below the fonts row")
+        bold.tap()
+        XCTAssertTrue(waitFor { bold.isSelected })
+        keep("tx-bold")
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { regular.isSelected }, "one undo step")
+
+        // A single-weight font: Thin and Bold greyed and not selectable.
+        let bebas = element("text.font.Bebas Neue")
+        bebas.tap()
+        XCTAssertTrue(waitFor { !thin.isEnabled && !bold.isEnabled })
+        XCTAssertTrue(regular.isEnabled && regular.isSelected)
+        keep("tx-single")
+
+        // The three new fonts follow Space Mono.
+        for name in ["Retro Romance", "Velomino", "Vectipede Thin"] {
+            XCTAssertTrue(element("text.font.\(name)").exists, name)
+        }
+        XCTAssertGreaterThan(element("text.font.Retro Romance").frame.minX, element("text.font.Space Mono").frame.minX)
+    }
+
+    /// Owner amendment 2026-10-11 (second): Change background › Image in two rows, column by column, "+" last.
+    func testBackgroundImagesInTwoRowsWithChooseAPhotoLast() {
+        launch(["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath("portrait_medium_02")]
+               + EditorCaptureUITests.matteFixtureArguments("woman"))
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout))
+        element("tool.background").tap()
+        let change = element("background.mode.change")
+        XCTAssertTrue(change.waitForExistence(timeout: timeout))
+        change.tap()
+        let add = element("background.image.add")
+        XCTAssertTrue(add.waitForExistence(timeout: 60))
+        let first = element("background.image.landscape_01"), second = element("background.image.sunset_03")
+        let third = element("background.image.wellexposed_02"), last = element("background.image.wellexposed_03")
+        XCTAssertEqual(second.frame.minX, first.frame.minX, accuracy: 1, "column-major: the second tile under the first")
+        XCTAssertEqual(second.frame.minY - first.frame.maxY, 10, accuracy: 1, "10 pt between rows")
+        XCTAssertEqual(third.frame.minX - first.frame.maxX, 8, accuracy: 1, "8 pt between columns")
+        XCTAssertEqual(first.frame.width, 60, accuracy: 1)
+        XCTAssertEqual(add.frame.minX, last.frame.minX, accuracy: 1, "+ shares the last column")
+        XCTAssertGreaterThan(add.frame.minY, last.frame.minY, "+ is the last tile")
+        keep("bg-image-two-rows")
+    }
+
+    /// Owner amendment 2026-10-11 (second): Watermark › Text has thirteen fonts, the seven signature scripts after Lora,
+    /// and the row scrolls to the chosen one.
+    func testWatermarkSignatureFonts() {
+        launch(["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath("sunset_02")])
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout))
+        element("tool.watermark").tap()
+        XCTAssertTrue(element("watermark.type.Text").waitForExistence(timeout: timeout))
+        element("watermark.type.Text").tap()
+        XCTAssertTrue(element("watermark.font.Lora").waitForExistence(timeout: timeout))
+        let names = ["Carpenters", "Sourdough Script", "Jaybird", "Astoria", "Bonskin", "Shareit", "Monttee"]
+        for name in names { XCTAssertTrue(element("watermark.font.\(name)").exists, name) }
+        XCTAssertGreaterThan(element("watermark.font.Carpenters").frame.minX, element("watermark.font.Lora").frame.minX)
+        // Choose Carpenters by scrolling the row to it: it then stays in view with Lora at the leading edge.
+        let row = element("watermark.font.Lora")
+        for _ in 0..<4 where !app.windows.firstMatch.frame.contains(element("watermark.font.Carpenters").frame) {
+            let grip = row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            grip.press(forDuration: 0.05, thenDragTo: grip.withOffset(CGVector(dx: -160, dy: 0)))
+        }
+        element("watermark.font.Carpenters").tap()
+        XCTAssertTrue(waitFor { self.element("watermark.font.Carpenters").isSelected })
+        Thread.sleep(forTimeInterval: 1)
+        keep("wm-text-carpenters")
     }
 
     /// Screenshots of the amended screens for side-by-side review with the mockup (pt-smile, tx-*, dock-*, pill tabs),

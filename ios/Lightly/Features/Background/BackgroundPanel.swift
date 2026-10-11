@@ -35,6 +35,19 @@ final class BackgroundPanelModel {
 
     /// The approved bundled backgrounds (prototype `BACKGROUNDS`).
     static let bundledImages = ["landscape_01", "sunset_03", "wellexposed_02", "landscape_02", "landscape_03", "sunset_02", "wellexposed_03"]
+    /// One tile of Change background › Image.
+    enum ImageTile: Hashable {
+        case bundled(String)
+        case imported
+        case choosePhoto
+    }
+
+    /// The tiles in grid order (owner amendment 2026-10-11, second): the bundled backgrounds, the imported photo when
+    /// there is one, and "+ Choose a photo" last (it used to come first).
+    static func imageTiles(hasImportedPhoto: Bool) -> [ImageTile] {
+        bundledImages.map(ImageTile.bundled) + (hasImportedPhoto ? [.imported] : []) + [.choosePhoto]
+    }
+
     /// Keep retired assets available to edits that already reference them.
     static let renderableImages = bundledImages + ["backlit_02"]
     /// Prototype `SWATCHES`.
@@ -66,6 +79,8 @@ struct BackgroundPanelView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private var session: EditorSession { model.session }
+    /// Subject separation finished and found no subject: Change background has nothing to put a new background behind.
+    private var hasNoSubject: Bool { session.subjectState == .noSubject }
     private var focus: EditRecipe.Focus { model.background.focus }
 
     /// Lightly 2 `backgroundPanel`: the mode switch, then the state's content; Focus & Blur in a 4 pt column, Change
@@ -73,10 +88,18 @@ struct BackgroundPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: columnSpacing) {
             // Owner (2026-10-11): the same tab row as every other sub-menu (was a segmented control).
+            // Owner (2026-10-11, second): with no subject, Change background is greyed out and Focus & Blur is shown
+            // (mockup `backgroundPanel`, screen bg-no-subject); Blur still works by depth.
             L2Tabs(items: [.init(value: BackgroundPanelModel.Mode.focus, title: Text("Focus & Blur"), identifier: "background.mode.focus"),
-                           .init(value: .change, title: Text("Change background"), identifier: "background.mode.change")],
-                   selection: model.mode == .refine ? .focus : model.mode) { model.mode = $0 }
+                           .init(value: .change, title: Text("Change background"), identifier: "background.mode.change",
+                                 isDisabled: hasNoSubject)],
+                   selection: model.mode == .refine || hasNoSubject ? .focus : model.mode) { model.mode = $0 }
             content
+        }
+        // A photo found to have no subject while Change background (or Refine edges) was open falls back to Focus &
+        // Blur, so the mode, the tab and the content agree.
+        .onChange(of: hasNoSubject, initial: true) { _, noSubject in
+            if noSubject, model.mode != .focus { model.mode = .focus }
         }
         .task(id: selectedBackground) {
             guard let item = selectedBackground else { return }
@@ -236,27 +259,7 @@ struct BackgroundPanelView: View {
         resetRow
         switch model.currentKind {
         case .image:
-            // The (+) tile first, then the bundled backgrounds and the imported photo: 60 pt, 16 pt corners.
-            ChipRow {
-                PhotosPicker(selection: $selectedBackground, matching: .images) { AddBackgroundButton() }
-                    .buttonStyle(.plain)
-                    .disabled(importingBackground)
-                    .accessibilityLabel("Choose a background photo")
-                    .accessibilityIdentifier("background.image.add")
-                ForEach(BackgroundPanelModel.bundledImages, id: \.self) { name in
-                    BackgroundThumbnail(name: name, isOn: isBundled(name)) {
-                        session.commitBackground {
-                            $0.replacement = .image(.bundled(id: name), x: 50, y: 50, scale: Self.currentScale(model.background))
-                        }
-                    }
-                }
-                if let image = session.importedBackgroundImage {
-                    BackgroundThumbnailFrame(isOn: isImported) {
-                        Image(image, scale: 1, label: Text("Selected background photo")).resizable().scaledToFill()
-                    }
-                    .accessibilityIdentifier("background.image.imported")
-                }
-            }
+            imageGrid
             if case .image(_, _, _, let scale)? = model.background.replacement {
                 PanelSlider(label: "Scale", value: scale, range: 100...200, identifier: "slider.scale",
                             onChange: { v in session.previewBackground { Self.setScale(&$0, v.rounded()) } },
@@ -304,6 +307,42 @@ struct BackgroundPanelView: View {
         }
     }
 
+    /// Owner amendment 2026-10-11 (second; mockup `backgroundPanel` kind 'image'): two rows like the preset gallery, of
+    /// 60 pt tiles 10 pt apart vertically and 8 pt horizontally, filled column by column and scrolling sideways with the
+    /// right edge fading; the bundled backgrounds, then the imported photo, then the dashed (+) tile last.
+    private var imageGrid: some View {
+        BackgroundImageGrid {
+            ForEach(BackgroundPanelModel.imageTiles(hasImportedPhoto: session.importedBackgroundImage != nil), id: \.self) { tile in
+                imageTile(tile)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func imageTile(_ tile: BackgroundPanelModel.ImageTile) -> some View {
+        switch tile {
+        case .bundled(let name):
+            BackgroundThumbnail(name: name, isOn: isBundled(name)) {
+                session.commitBackground {
+                    $0.replacement = .image(.bundled(id: name), x: 50, y: 50, scale: Self.currentScale(model.background))
+                }
+            }
+        case .imported:
+            if let image = session.importedBackgroundImage {
+                BackgroundThumbnailFrame(isOn: isImported) {
+                    Image(image, scale: 1, label: Text("Selected background photo")).resizable().scaledToFill()
+                }
+                .accessibilityIdentifier("background.image.imported")
+            }
+        case .choosePhoto:
+            PhotosPicker(selection: $selectedBackground, matching: .images) { AddBackgroundButton() }
+                .buttonStyle(.plain)
+                .disabled(importingBackground)
+                .accessibilityLabel("Choose a background photo")
+                .accessibilityIdentifier("background.image.add")
+        }
+    }
+
     private var isImported: Bool {
         // The imported photo is the one replacement image that is not a bundled background.
         if case .image(let asset, _, _, _)? = model.background.replacement, case .bundled = asset { return false }
@@ -331,6 +370,33 @@ struct BackgroundPanelView: View {
         let dx = sin(radians) / 2, dy = -cos(radians) / 2
         return LinearGradient(stops: stops.map { .init(color: Color(hex: UInt32($0.colour.dropFirst(), radix: 16) ?? 0), location: $0.position) },
                               startPoint: UnitPoint(x: 0.5 - dx, y: 0.5 - dy), endPoint: UnitPoint(x: 0.5 + dx, y: 0.5 + dy))
+    }
+}
+
+/// The two-row background grid (mockup: `grid-auto-flow: column; grid-template-rows: repeat(2, 60px); gap: 10px 8px;
+/// padding: 4px 2px`), scrolling sideways; as `ChipRow`, the right edge fades (88 %) only while tiles are hidden past it.
+struct BackgroundImageGrid<Content: View>: View {
+    static var tileSide: CGFloat { 60 }
+    static var rowGap: CGFloat { 10 }
+    static var columnGap: CGFloat { 8 }
+    @ViewBuilder let content: () -> Content
+    @State private var hidesMore = false
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            // LazyHGrid places items column by column (`grid-auto-flow: column`). At most nine tiles, all on screen at
+            // phone width, so its laziness never hides one.
+            LazyHGrid(rows: [GridItem(.fixed(Self.tileSide), spacing: Self.rowGap), GridItem(.fixed(Self.tileSide), spacing: Self.rowGap)],
+                      spacing: Self.columnGap) { content() }
+                .padding(.vertical, 4).padding(.horizontal, 2)
+                .reportsTrailingEdge(in: "backgroundgrid")
+        }
+        .frame(height: Self.tileSide * 2 + Self.rowGap + 8)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .modifier(TrailingOverflowReader(space: "backgroundgrid", hidesMore: $hidesMore))
+        .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
+                             startPoint: .leading, endPoint: .trailing))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("background.images")
     }
 }
 

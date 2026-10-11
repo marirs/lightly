@@ -39,7 +39,7 @@ final class OwnerAmendmentsTests: XCTestCase {
         let bytes = EditRecipeCodec.encode(recipe)
         let json = String(decoding: bytes, as: UTF8.self)
         XCTAssertTrue(json.contains("\"teeth\":{\"brighten\":0},\"smile\":{\"amount\":-35},\"hair\":"), "smile in schema order")
-        XCTAssertTrue(json.contains("{\"id\":\"0a1b2c3d\",\"text\":\"Summer in Lisbon\",\"font\":\"Playfair Display\",\"size\":42,\"colour\":\"#FFFFFF\",\"opacity\":100,\"centre\":[0.5,0.5],\"rotation\":0}"))
+        XCTAssertTrue(json.contains("{\"id\":\"0a1b2c3d\",\"text\":\"Summer in Lisbon\",\"font\":\"Playfair Display\",\"weight\":\"regular\",\"size\":42,\"colour\":\"#FFFFFF\",\"opacity\":100,\"centre\":[0.5,0.5],\"rotation\":0}"))
         XCTAssertEqual(try EditRecipeCodec.decode(bytes), recipe)
     }
 
@@ -48,7 +48,8 @@ final class OwnerAmendmentsTests: XCTestCase {
         recipe.tools.text.layers = [layer()]
         let good = String(decoding: EditRecipeCodec.encode(recipe), as: UTF8.self)
         for (bad, why) in [("\"id\":\"0A1B2C3D\"", "upper-case id"), ("\"size\":9", "size below 10"), ("\"size\":42.5", "size not an integer"),
-                           ("\"text\":\"\"", "empty text"), ("\"font\":\"Lora\"", "not a Text font"), ("\"rotation\":181", "rotation past 180")] {
+                           ("\"text\":\"\"", "empty text"), ("\"font\":\"Lora\"", "not a Text font"), ("\"rotation\":181", "rotation past 180"),
+                           ("\"weight\":\"heavy\"", "not a weight")] {
             let key = String(bad.prefix { $0 != ":" })
             // Only inside the text layers (the watermark and the light leak have keys of the same names).
             let layers = try XCTUnwrap(good.range(of: "\"layers\":["))

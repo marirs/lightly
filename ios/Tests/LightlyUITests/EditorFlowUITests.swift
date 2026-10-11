@@ -663,7 +663,7 @@ final class EditorFlowUITests: XCTestCase {
         element("background.mode.change").tap()
         let add = element("background.image.add")
         XCTAssertTrue(add.waitForExistence(timeout: 60))
-        // The background thumbnails form one horizontal strip.
+        // The background thumbnails scroll sideways in two rows, "+" last (owner amendment 2026-10-11, second).
         let first = element("background.image.landscape_01")
         let stripY = first.frame.midY / app.frame.height
         for _ in 0..<3 where add.frame.maxX > app.frame.width {

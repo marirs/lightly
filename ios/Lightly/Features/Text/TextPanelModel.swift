@@ -4,7 +4,7 @@ import Observation
 
 /// UI state and edits of the Text tool (owner amendment 2026-10-11; mockup `textPanel`, tx-* screens).
 ///
-/// Every finished change is one undo step: adding, editing the words, a font, a slider's release, a colour, deleting,
+/// Every finished change is one undo step: adding, editing the words, a font, a weight, a slider's release, a colour, deleting,
 /// and each gesture on the photo (a move, a pinch or turn, a corner-handle drag) from touch-down to the last finger up.
 /// While a slider moves the change is only previewed.
 ///
@@ -120,7 +120,25 @@ final class TextPanelModel {
 
     func select(_ id: String?) { selectedLayerID = id }
 
-    func chooseFont(_ font: EditRecipe.TextLayer.Font) { updateSelected { $0.font = font } }
+    /// A font with one weight only takes regular (`textLayer.weight`), so choosing one also resets the weight, in the
+    /// same undo step.
+    func chooseFont(_ font: EditRecipe.TextLayer.Font) {
+        updateSelected { layer in
+            layer.font = font
+            if font.hasSingleWeight { layer.weight = .regular }
+        }
+    }
+
+    /// Thin · Regular · Bold (owner amendment 2026-10-11, second): one undo step. A single-weight font's greyed Thin and
+    /// Bold do nothing.
+    func chooseWeight(_ weight: EditRecipe.TextLayer.Weight) {
+        guard let layer = selectedLayer, Self.isWeightAvailable(weight, for: layer.font) else { return }
+        updateSelected { $0.weight = weight }
+    }
+
+    static func isWeightAvailable(_ weight: EditRecipe.TextLayer.Weight, for font: EditRecipe.TextLayer.Font) -> Bool {
+        weight == .regular || !font.hasSingleWeight
+    }
 
     func setColour(_ hex: String) { updateSelected { $0.colour = hex } }
 

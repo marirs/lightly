@@ -341,7 +341,7 @@ struct WatermarkPanelView: View {
 
     // MARK: Text
 
-    /// The text field (46 pt, 16 pt corners, chip fill, hairline, 16 pt text and the pencil), the six fonts (108×58
+    /// The text field (46 pt, 16 pt corners, chip fill, hairline, 16 pt text and the pencil), the thirteen fonts (108×58
     /// cards, the text at 19 pt over the font's name), then Size, Opacity and the colour strip.
     @ViewBuilder
     private var text: some View {
@@ -365,9 +365,12 @@ struct WatermarkPanelView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Edit watermark text")
         .accessibilityIdentifier("watermark.text.value")
-        ChipRow {
-            ForEach(EditRecipe.Watermark.Font.allCases, id: \.self) { font in
+        // Thirteen fonts since 2026-10-11 (second): the row scrolls to the selected one (mockup `scrolled`).
+        let fonts = EditRecipe.Watermark.Font.allCases
+        ChipRow(scrolledToIndex: fonts.firstIndex(of: current.font)) {
+            ForEach(Array(fonts.enumerated()), id: \.element) { index, font in
                 FontOption(text: current.text, font: font, isOn: current.font == font) { model.chooseFont(font) }
+                    .id(index)
             }
         }
         commonControls(colours: true)

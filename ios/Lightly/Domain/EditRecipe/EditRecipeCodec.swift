@@ -198,7 +198,8 @@ enum EditRecipeCodec {
     }
 
     private static func readTextLayer(_ t: Reader) throws -> EditRecipe.TextLayer {
-        try t.requireExactly(["id", "text", "font", "size", "colour", "opacity", "centre", "rotation"])
+        // `weight` (owner amendment 2026-10-11, second) is optional so recipes written before it still read; missing = regular.
+        try t.requireExactly(["id", "text", "font", "size", "colour", "opacity", "centre", "rotation"], optional: ["weight"])
         let id = try t.string("id")
         guard id.count == 8, id.allSatisfy({ "0123456789abcdef".contains($0) }) else { throw t.error("id", "must be 8 lowercase hex digits") }
         let text = try t.string("text", nonEmpty: true)
@@ -207,7 +208,8 @@ enum EditRecipeCodec {
         }
         let size = try t.integer("size", minimum: Int64(EditRecipe.TextLayer.sizeRange.lowerBound))
         guard Double(size) <= EditRecipe.TextLayer.sizeRange.upperBound else { throw t.error("size", "must be 10…100") }
-        return EditRecipe.TextLayer(id: id, text: text, font: try t.enumeration("font"), size: Double(size),
+        let weight: EditRecipe.TextLayer.Weight = t.raw("weight") == nil ? .regular : try t.enumeration("weight")
+        return EditRecipe.TextLayer(id: id, text: text, font: try t.enumeration("font"), weight: weight, size: Double(size),
                                     colour: try t.colour("colour"), opacity: try t.percent("opacity"),
                                     centre: try readPoint(t.value("centre"), t.path + ".centre"),
                                     rotation: try t.number("rotation", -180...180))
@@ -594,7 +596,7 @@ enum EditRecipeCodec {
     private static func text(_ tool: EditRecipe.TextTool) -> CanonicalJSON {
         .object([("layers", .array(tool.layers.map { layer in
             .object([("id", .string(layer.id)), ("text", .string(layer.text)), ("font", .string(layer.font.rawValue)),
-                     ("size", .number(String(Int64(layer.size.rounded())))), ("colour", .string(layer.colour)),
+                     ("weight", .string(layer.weight.rawValue)), ("size", .number(String(Int64(layer.size.rounded())))), ("colour", .string(layer.colour)),
                      ("opacity", number(layer.opacity)), ("centre", point(layer.centre)), ("rotation", number(layer.rotation))])
         }))])
     }
@@ -619,10 +621,10 @@ private struct Reader {
 
     func raw(_ key: String) -> CanonicalJSON? { members.first { $0.key == key }?.value }
 
-    /// Every listed key present, no other key.
-    func requireExactly(_ keys: [String]) throws {
+    /// Every listed key present, no other key except the `optional` ones (which may be missing).
+    func requireExactly(_ keys: [String], optional: [String] = []) throws {
         let present = Set(members.map(\.key))
-        if let unknown = present.subtracting(keys).sorted().first { throw error(unknown, "unknown key") }
+        if let unknown = present.subtracting(keys).subtracting(optional).sorted().first { throw error(unknown, "unknown key") }
         if let missing = keys.first(where: { !present.contains($0) }) { throw error(missing, "missing key") }
     }
 
