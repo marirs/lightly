@@ -96,6 +96,88 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(waitFor { abs(photo.frame.width / photo.frame.height - croppedRatio) < 0.02 }, "the applied crop is unchanged")
     }
 
+    /// Portrait › Reset (owner report 2026-10-11: "the reset button isn't working"): Reset offers the tab's reset and
+    /// the whole tool's; choosing the tab's returns its sliders to neutral.
+    func testPortraitResetReturnsTheTabToNeutral() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02"), "--scenario", "pt-skin"])
+        let smoothing = element("slider.smoothing")
+        XCTAssertTrue(smoothing.waitForExistence(timeout: 40))
+        sleep(2)
+        let before = smoothing.value as? String ?? ""
+        XCTAssertNotEqual(before, "0", "the scenario starts with skin edits")
+        element("reset.portrait").tap()
+        let option = element("reset.portrait.skin")
+        XCTAssertTrue(option.waitForExistence(timeout: 5), "Reset shows its choices")
+        capture(named: "portrait-reset-sheet")
+        option.tap()
+        XCTAssertTrue(waitFor { (smoothing.value as? String ?? "") == "0" }, "smoothing back to 0, was \(before), now \(smoothing.value as? String ?? "?")")
+        capture(named: "portrait-reset-done")
+    }
+
+    /// Reset all must change the picture (owner report 2026-10-11): with a preset and Portrait edits applied, the photo
+    /// after Reset all differs from before, and a second edit-free screenshot matches it.
+    func testResetAllChangesThePicture() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02"), "--scenario", "pt-skin"])
+        let photo = element("editor.photo")
+        XCTAssertTrue(element("slider.smoothing").waitForExistence(timeout: 40))
+        // Add a preset on top: Develop, a thumbnail.
+        element("tool.develop").tap()
+        let thumb = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'develop.thumbnail.' AND NOT (identifier ENDSWITH 'original')")).element(boundBy: 1)
+        XCTAssertTrue(thumb.waitForExistence(timeout: 20))
+        thumb.tap()
+        sleep(4)
+        let before = photo.screenshot().pngRepresentation
+        let reset = element("editor.resetAll")
+        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        reset.tap()
+        let confirm = element("resetAll.confirm")
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Reset all asks first")
+        confirm.tap()
+        sleep(4)
+        let after = photo.screenshot().pngRepresentation
+        capture(named: "reset-all-after")
+        XCTAssertNotEqual(before, after, "Reset all changed the picture")
+        XCTAssertFalse(reset.exists && reset.isHittable, "nothing left to reset")
+    }
+
+    /// Reset and Reset all while the photo is zoomed in (owner, 2026-10-11): both must still change the picture.
+    func testResetsWorkWhileZoomed() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02"), "--scenario", "pt-skin"])
+        let photo = element("editor.photo")
+        let smoothing = element("slider.smoothing")
+        XCTAssertTrue(smoothing.waitForExistence(timeout: 40))
+        sleep(2)
+        let zoomView = element("editor.inspection")
+        photo.pinch(withScale: 2.5, velocity: 2)
+        XCTAssertTrue(waitFor { (Double((zoomView.value as? String ?? "1").split(separator: " ").first ?? "1") ?? 1) > 1.5 }, "zoomed in: \(zoomView.value as? String ?? "?")")
+        capture(named: "zoomed-before-reset")
+        // Portrait › Reset, zoomed.
+        let shotBefore = app.screenshot().pngRepresentation
+        element("reset.portrait").tap()
+        let option = element("reset.portrait.skin")
+        XCTAssertTrue(option.waitForExistence(timeout: 5), "Reset shows its choices while zoomed")
+        option.tap()
+        XCTAssertTrue(waitFor { (smoothing.value as? String ?? "") == "0" }, "smoothing back to 0 while zoomed")
+        sleep(3)
+        capture(named: "zoomed-after-portrait-reset")
+        XCTAssertNotEqual(shotBefore, app.screenshot().pngRepresentation, "the zoomed picture changed after Reset")
+        // Undo, then Reset all, zoomed.
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { (smoothing.value as? String ?? "") != "0" })
+        sleep(3)
+        let beforeAll = app.screenshot().pngRepresentation
+        let resetAll = element("editor.resetAll")
+        XCTAssertTrue(resetAll.waitForExistence(timeout: 5), "Reset all is on screen while zoomed")
+        resetAll.tap()
+        let confirm = element("resetAll.confirm")
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Reset all asks first while zoomed")
+        confirm.tap()
+        XCTAssertTrue(waitFor { (smoothing.value as? String ?? "") == "0" }, "Reset all cleared the portrait edit")
+        sleep(3)
+        capture(named: "zoomed-after-reset-all")
+        XCTAssertNotEqual(beforeAll, app.screenshot().pngRepresentation, "the zoomed picture changed after Reset all")
+    }
+
     // MARK: - Welcome
 
     /// Welcome shows the brand and both ways in; no login, no onboarding (approved Welcome).

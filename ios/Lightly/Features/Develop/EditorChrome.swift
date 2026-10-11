@@ -554,6 +554,19 @@ private struct ShrinkToFitLayout: Layout {
 
 /// Inspection is view state only. Two fingers navigate so one-finger editing gestures keep their
 /// original coordinate system. Updating the rendered image never resets the viewport.
+/// The photo's inspection zoom (1 = fitted), for marks that must keep their on-screen size while the photo is zoomed
+/// (the Face tags: owner report 2026-10-11, they grew with the zoom).
+@Observable final class InspectionZoom {
+    var scale: CGFloat = 1
+}
+
+/// The hosted photo content with the live zoom in its environment.
+private struct ZoomHosted<Content: View>: View {
+    let zoom: InspectionZoom
+    let content: Content
+    var body: some View { content.environment(zoom) }
+}
+
 private struct InspectionViewport<Content: View>: UIViewRepresentable {
     let enabled: Bool
     let doubleTapEnabled: Bool
@@ -592,7 +605,7 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
 
     func updateUIView(_ scroll: UIScrollView, context: Context) {
         let c = context.coordinator
-        c.host.rootView = content()
+        c.host.rootView = ZoomHosted(zoom: c.zoom, content: content())
         c.onInspectionBegan = onInspectionBegan
         scroll.maximumZoomScale = enabled ? 6 : 1
         scroll.panGestureRecognizer.isEnabled = enabled
@@ -620,12 +633,17 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
-        let host: UIHostingController<Content>
+        let host: UIHostingController<ZoomHosted<Content>>
+        let zoom: InspectionZoom
         var contentSize = CGSize.zero
         var viewportSize = CGSize.zero
         var onInspectionBegan: () -> Void = {}
         weak var doubleTapRecognizer: UITapGestureRecognizer?
-        init(_ content: Content) { host = UIHostingController(rootView: content) }
+        init(_ content: Content) {
+            let zoom = InspectionZoom()
+            self.zoom = zoom
+            host = UIHostingController(rootView: ZoomHosted(zoom: zoom, content: content))
+        }
         func viewForZooming(in scrollView: UIScrollView) -> UIView? { host.view }
         func centre(_ scroll: UIScrollView) {
             let x = max(0, (viewportSize.width - contentSize.width * scroll.zoomScale) / 2)
@@ -633,7 +651,10 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
             scroll.contentInset = UIEdgeInsets(top: y, left: x, bottom: y, right: x)
             scroll.accessibilityValue = String(format: "%.1f times", scroll.zoomScale)
         }
-        func scrollViewDidZoom(_ scrollView: UIScrollView) { centre(scrollView) }
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            centre(scrollView)
+            if abs(zoom.scale - scrollView.zoomScale) > 0.001 { zoom.scale = scrollView.zoomScale }
+        }
         @objc func navigationBegan(_ recognizer: UIGestureRecognizer) {
             if recognizer.state == .began { onInspectionBegan() }
         }

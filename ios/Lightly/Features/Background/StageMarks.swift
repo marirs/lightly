@@ -41,10 +41,13 @@ struct FaceRingsMark: View {
     let selected: Int
     let people: [EditRecipe.Rect]
     let onSelect: (Int) -> Void
+    /// The photo's zoom: the tags keep their on-screen size while the photo is zoomed.
+    @Environment(InspectionZoom.self) private var zoom: InspectionZoom?
 
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
+            let tagScale = 1 / max(zoom?.scale ?? 1, 1)
             ForEach(faces.indices, id: \.self) { index in
                 let rect = frame(faces[index], in: size)
                 Button { onSelect(index) } label: {
@@ -54,12 +57,15 @@ struct FaceRingsMark: View {
                 .frame(width: rect.width, height: rect.height)
                 .overlay(alignment: .bottom) {
                     if faces.count > 1 {
+                        // The mockup's tag: 11 pt semibold, 3/8 pt padding, 8 pt corners, 55 % black; a constant size
+                        // on screen whatever the zoom.
                         Text("Face \(index + 1)")
-                            .font(.system(size: 12)).foregroundStyle(.white)
-                            .padding(.horizontal, 8).padding(.vertical, 2)
+                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
                             .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55)))
                             .fixedSize()
-                            .offset(y: 6)
+                            .scaleEffect(tagScale, anchor: .top)
+                            .offset(y: 4 * tagScale)
                             .alignmentGuide(.bottom) { $0[.top] }
                     }
                 }

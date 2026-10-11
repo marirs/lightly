@@ -122,6 +122,7 @@ struct EditorScreen: View {
                     .accessibilityIdentifier("develop.expanded")
                 }
                 overlays(layout)
+                dialogs
             }
         }
         .background(ApprovedColor.background.resolved(colorScheme).ignoresSafeArea())
@@ -427,7 +428,38 @@ struct EditorScreen: View {
         case "share":
             // Saved › Share: the system share sheet with the saved copy (approved `share`).
             await session.debugWait { if case .saved = session.saveState { true } else { false } }
-            // The mockup's drawn dialogs (`dialog`), over everything.
+            if case .saved(let data) = session.saveState { shareItem = ShareItem(data: data) }
+            // The system share sheet loads its share services the first time it opens (seconds in the Simulator).
+            try? await Task.sleep(for: .seconds(5))
+        case "saving": await session.debugWait { session.saveState == .saving }
+        default: break
+        }
+        await session.debugAwaitPendingAnalysis()
+        await session.settleRendering()
+        DebugCaptureTiming.mark("rendered")
+        guard DebugCaptureDriver.isActive, let sequence = DebugCaptureDriver.sequence else {
+            await DebugCaptureDriver.awaitScreenCommit()
+            DebugCaptureTiming.mark("committed")
+            return
+        }
+        // The marker view appears in the same render pass as every state change made before it
+        // (tool, panel, marks, photo); its onAppear then waits for display refreshes and only then
+        // reports ready (captureMarkerAppeared).
+        captureReadySequence = sequence
+    }
+
+    private func captureMarkerAppeared(_ sequence: String) async {
+        await DebugCaptureDriver.awaitScreenCommit()
+        DebugCaptureTiming.mark("committed")
+        DebugCaptureDriver.reportReady(sequence)
+    }
+    #endif
+
+    /// The mockup's drawn dialogs (`dialog`), over everything: Reset all, Leave, and the save failures.
+    /// (They had been spliced into the DEBUG capture helper by an edit in a2c7f44 and never showed: owner report
+    /// 2026-10-11, "Reset all isn't working".)
+    @ViewBuilder
+    private var dialogs: some View {
         if isResetAlertShown {
             L2Alert(title: "Reset all edits?", message: "Return to the original photo. This also turns Auto off. You can undo this.",
                     buttons: [("Reset all edits", .destructive, "resetAll.confirm", {
@@ -462,32 +494,7 @@ struct EditorScreen: View {
         default:
             EmptyView()
         }
-        if case .saved(let data) = session.saveState { shareItem = ShareItem(data: data) }
-            // The system share sheet loads its share services the first time it opens (seconds in the Simulator).
-            try? await Task.sleep(for: .seconds(5))
-        case "saving": await session.debugWait { session.saveState == .saving }
-        default: break
-        }
-        await session.debugAwaitPendingAnalysis()
-        await session.settleRendering()
-        DebugCaptureTiming.mark("rendered")
-        guard DebugCaptureDriver.isActive, let sequence = DebugCaptureDriver.sequence else {
-            await DebugCaptureDriver.awaitScreenCommit()
-            DebugCaptureTiming.mark("committed")
-            return
-        }
-        // The marker view appears in the same render pass as every state change made before it
-        // (tool, panel, marks, photo); its onAppear then waits for display refreshes and only then
-        // reports ready (captureMarkerAppeared).
-        captureReadySequence = sequence
     }
-
-    private func captureMarkerAppeared(_ sequence: String) async {
-        await DebugCaptureDriver.awaitScreenCommit()
-        DebugCaptureTiming.mark("committed")
-        DebugCaptureDriver.reportReady(sequence)
-    }
-    #endif
 
     /// Prototype `toolUsed`: a dot on tools that hold edits.
     private var usedTools: Set<EditorTool> {

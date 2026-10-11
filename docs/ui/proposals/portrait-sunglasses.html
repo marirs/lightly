@@ -1,0 +1,124 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sunglasses proposal</title>
+<style>
+  :root { --bg:#F3F3F0; --sheet:#FFFFFF; --ink:#141513; --ink2:#5A5E57; --ink3:#7D8179; --line:rgba(20,21,19,.09); --accent:#CFF26B; --on-accent:#121408; --edge:#8FAE2E; --browse:#C25E00; --sel:#557311; --glass:rgba(255,255,255,.78); --card:#F4F4F1; --off:rgba(20,21,19,.18); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #2A2C30; font-family: -apple-system, system-ui, sans-serif; color: #F2F3F0; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; } p.sub { margin: 0 0 20px; color: #A6ABA3; font-size: 13px; max-width: 1000px; line-height: 1.45; }
+  .row { display: flex; gap: 28px; flex-wrap: wrap; }
+  .step { width: 330px; } .step h2 { font-size: 14px; margin: 10px 0 4px; } .step p { font-size: 12px; color: #A6ABA3; margin: 0; line-height: 1.45; }
+  .phone { width: 330px; height: 715px; border-radius: 38px; background: var(--bg); position: relative; overflow: hidden; color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+  .top { position: absolute; top: 34px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .cap { display: flex; gap: 2px; padding: 3px; border-radius: 22px; background: var(--glass); border: 1px solid var(--line); }
+  .ib { width: 34px; height: 34px; display: grid; place-items: center; font-size: 16px; }
+  .right { display: flex; gap: 5px; align-items: center; }
+  .save { height: 34px; padding: 0 14px; border-radius: 17px; background: var(--accent); border: 1px solid var(--edge); font-weight: 700; font-size: 13px; display: grid; place-items: center; }
+  .more { width: 34px; height: 34px; border-radius: 17px; background: var(--accent); border: 1px solid var(--edge); display: grid; place-items: center; font-weight: 800; }
+  .cmp { width: 34px; height: 34px; border-radius: 17px; background: var(--glass); border: 1px solid var(--line); display: grid; place-items: center; }
+  .stage { position: absolute; top: 78px; left: 0; right: 0; height: 300px; display: grid; place-items: center; }
+  .photo { position: relative; width: 200px; height: 300px; border-radius: 16px; background: url(../directions/lightly-2-concept/assets/portrait_deep_03.jpg) center/cover; overflow: hidden; }
+  .shades { position: absolute; left: 50%; top: 45px; width: 74px; transform: translateX(-46%); filter: drop-shadow(0 2px 2px rgba(0,0,0,.45)); }
+  .sheet { position: absolute; top: 384px; left: 0; right: 0; bottom: 58px; background: var(--sheet); border-radius: 26px 26px 0 0; border-top: 1px solid var(--line); padding: 12px 14px; overflow: hidden; }
+  .tabs { display: flex; gap: 16px; font-size: 12.5px; color: var(--ink3); font-weight: 500; white-space: nowrap; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .tabs b { color: var(--ink); box-shadow: inset 0 -2px 0 var(--browse); padding-bottom: 5px; }
+  .head { display: flex; justify-content: space-between; margin-top: 12px; font-weight: 600; font-size: 14px; }
+  .head span { color: var(--sel); font-size: 13px; font-weight: 700; }
+  .styles { display: flex; gap: 8px; margin-top: 10px; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .st { flex: none; width: 66px; height: 54px; border-radius: 14px; border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10.5px; font-weight: 600; color: var(--ink2); }
+  .st.on { border: 2px solid var(--sel); color: var(--ink); }
+  .st svg { width: 40px; height: 16px; }
+  .lbl { font-size: 11.5px; font-weight: 600; color: var(--ink2); margin-top: 10px; }
+  .chips { display: flex; gap: 6px; margin-top: 6px; overflow: hidden; }
+  .chip { flex: none; height: 30px; padding: 0 11px; border-radius: 15px; border: 1px solid var(--line); font-size: 11.5px; font-weight: 600; color: var(--ink2); display: flex; align-items: center; gap: 6px; }
+  .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .dot { width: 12px; height: 12px; border-radius: 6px; }
+  .sl { display: flex; align-items: center; gap: 10px; margin-top: 9px; font-size: 11.5px; font-weight: 600; color: var(--ink2); }
+  .sl .t { flex: 1; height: 3px; background: var(--off); border-radius: 2px; position: relative; }
+  .sl .f { position: absolute; left: 0; top: 0; bottom: 0; background: var(--sel); border-radius: 2px; }
+  .sl .k { position: absolute; top: -8px; width: 18px; height: 18px; border-radius: 9px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+  .sl b { width: 26px; text-align: right; color: var(--ink); }
+  .sl .n { width: 74px; }
+  .notice { margin-top: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 11.5px; line-height: 1.45; color: var(--ink2); }
+  .notice b { color: var(--ink); }
+  .dock { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; border-top: 1px solid var(--line); display: flex; justify-content: space-around; align-items: center; font-size: 10px; color: var(--ink3); background: var(--sheet); }
+  .dock b { color: var(--ink); }
+  .dim { opacity: .4; }
+  .ring { position: absolute; border: 1.5px solid #fff; border-radius: 50%; left: 57px; top: 26px; width: 80px; height: 96px; }
+</style></head>
+<body>
+<h1>Portrait › Sunglasses · proposal (not built)</h1>
+<p class="sub">A sixth Portrait tab after Hair &amp; Beard. Each face keeps its own pair. The glasses follow the eyes (position, size, tilt) and are drawn behind hair that falls over the temples. Lifting a slider applies it, like every other Portrait control.</p>
+<div class="row">
+
+  <div class="step">
+    <div class="phone">
+      <div class="top"><div class="cap"><div class="ib">✕</div><div class="ib">↶</div><div class="ib" style="opacity:.4">↷</div></div><div class="right"><div class="cmp">◐</div><div class="save">Save</div><div class="more">⋮</div></div></div>
+      <div class="stage"><div class="photo">
+        <svg class="shades" viewBox="0 0 120 44"><defs><linearGradient id="lens" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#121417" stop-opacity="1"/><stop offset="1" stop-color="#2c3136" stop-opacity=".97"/></linearGradient></defs>
+          <path d="M6 8 C 18 4, 44 4, 52 9 C 54 22, 46 38, 30 38 C 12 38, 4 24, 6 8 Z" fill="url(#lens)" stroke="#C9A65A" stroke-width="2"/>
+          <path d="M114 8 C 102 4, 76 4, 68 9 C 66 22, 74 38, 90 38 C 108 38, 116 24, 114 8 Z" fill="url(#lens)" stroke="#C9A65A" stroke-width="2"/>
+          <path d="M52 10 Q 60 6 68 10" fill="none" stroke="#C9A65A" stroke-width="2"/><path d="M50 6 Q 60 3 70 6" fill="none" stroke="#C9A65A" stroke-width="1.6"/>
+          <path d="M12 12 L 20 10" stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-linecap="round"/><path d="M74 12 L 82 10" stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-linecap="round"/></svg>
+      </div></div>
+      <div class="sheet">
+        <div class="tabs"><span>Eyes</span><span>Teeth</span><span>Hair &amp; Beard</span><b>Sunglasses</b></div>
+        <div class="head">Sunglasses <span>↺ Reset</span></div>
+        <div class="styles">
+          <div class="st"><svg viewBox="0 0 40 16"><path d="M4 8 H36" stroke="#7D8179" stroke-width="1.5"/></svg>None</div>
+          <div class="st on"><svg viewBox="0 0 40 16"><path d="M2 3 C8 1,16 1,18 3 C18 10,14 14,9 14 C4 14,1 9,2 3Z M38 3 C32 1,24 1,22 3 C22 10,26 14,31 14 C36 14,39 9,38 3Z" fill="#2a2e33"/></svg>Aviator</div>
+          <div class="st"><svg viewBox="0 0 40 16"><path d="M1 3 H18 L16 13 H4 Z M39 3 H22 L24 13 H36 Z" fill="#2a2e33"/></svg>Wayfarer</div>
+          <div class="st"><svg viewBox="0 0 40 16"><circle cx="10" cy="8" r="6.5" fill="#2a2e33"/><circle cx="30" cy="8" r="6.5" fill="#2a2e33"/></svg>Round</div>
+          <div class="st"><svg viewBox="0 0 40 16"><path d="M1 2 L18 5 C17 11,13 14,8 13 C4 12,1 8,1 2Z M39 2 L22 5 C23 11,27 14,32 13 C36 12,39 8,39 2Z" fill="#2a2e33"/></svg>Cat-eye</div>
+          <div class="st"><svg viewBox="0 0 40 16"><path d="M1 4 C10 1,30 1,39 4 C38 11,30 13,20 11 C10 13,2 11,1 4Z" fill="#2a2e33"/></svg>Shield</div>
+        </div>
+        <div class="lbl">Lenses</div>
+        <div class="chips"><span class="chip on"><i class="dot" style="background:#2a2e33"></i>Dark</span><span class="chip"><i class="dot" style="background:#6b4a2f"></i>Brown</span><span class="chip"><i class="dot" style="background:#3f5440"></i>Green</span><span class="chip"><i class="dot" style="background:linear-gradient(#2a2e33,#c9c4bb)"></i>Gradient</span><span class="chip"><i class="dot" style="background:linear-gradient(135deg,#7fb7ff,#2b5ea8)"></i>Mirror</span></div>
+        <div class="sl"><span class="n">Darkness</span><span class="t"><span class="f" style="width:75%"></span><span class="k" style="left:calc(75% - 9px)"></span></span><b>75</b></div>
+        <div class="sl"><span class="n">Size</span><span class="t"><span class="f" style="left:50%;width:0"></span><span class="k" style="left:calc(50% - 9px)"></span></span><b>0</b></div>
+      </div>
+      <div class="dock"><span>Develop</span><span>Background</span><b>Portrait</b><span>Edit</span><span>Effects</span><span>Border</span></div>
+    </div>
+    <h2>1 · Add a pair</h2><p>Choose a style; it lands on the eyes, sized and tilted to the face. Lenses: Dark, Brown, Green, Gradient, Mirror. Darkness 0–100. Size fine-tunes the automatic fit (−50 to +50). None removes them.</p>
+  </div>
+
+  <div class="step">
+    <div class="phone">
+      <div class="top"><div class="cap"><div class="ib">✕</div><div class="ib">↶</div><div class="ib" style="opacity:.4">↷</div></div><div class="right"><div class="cmp">◐</div><div class="save">Save</div><div class="more">⋮</div></div></div>
+      <div class="stage"><div class="photo">
+        <svg class="shades" viewBox="0 0 120 44"><rect x="6" y="8" width="46" height="30" rx="12" fill="rgba(70,52,35,.55)" stroke="#1d1d1d" stroke-width="3"/><rect x="68" y="8" width="46" height="30" rx="12" fill="rgba(70,52,35,.55)" stroke="#1d1d1d" stroke-width="3"/><path d="M52 16 Q 60 11 68 16" fill="none" stroke="#1d1d1d" stroke-width="3"/></svg>
+      </div></div>
+      <div class="sheet">
+        <div class="tabs"><span>Eyes</span><span>Teeth</span><span>Hair &amp; Beard</span><b>Sunglasses</b></div>
+        <div class="head">Sunglasses <span>↺ Reset</span></div>
+        <div class="notice"><b>Glasses found.</b> Their lenses can be tinted into sunglasses; the frame stays as it is.</div>
+        <div class="lbl">Lenses</div>
+        <div class="chips"><span class="chip"><i class="dot" style="background:#2a2e33"></i>Dark</span><span class="chip on"><i class="dot" style="background:#6b4a2f"></i>Brown</span><span class="chip"><i class="dot" style="background:#3f5440"></i>Green</span><span class="chip"><i class="dot" style="background:linear-gradient(#2a2e33,#c9c4bb)"></i>Gradient</span><span class="chip"><i class="dot" style="background:linear-gradient(135deg,#7fb7ff,#2b5ea8)"></i>Mirror</span></div>
+        <div class="sl"><span class="n">Darkness</span><span class="t"><span class="f" style="width:55%"></span><span class="k" style="left:calc(55% - 9px)"></span></span><b>55</b></div>
+      </div>
+      <div class="dock"><span>Develop</span><span>Background</span><b>Portrait</b><span>Edit</span><span>Effects</span><span>Border</span></div>
+    </div>
+    <h2>2 · Already wearing glasses</h2><p>No second pair on top. The styles row is hidden; the lenses of their own glasses are tinted (colour and darkness). Already-dark sunglasses: the same controls change their tint.</p>
+  </div>
+
+  <div class="step">
+    <div class="phone">
+      <div class="top"><div class="cap"><div class="ib">✕</div><div class="ib">↶</div><div class="ib" style="opacity:.4">↷</div></div><div class="right"><div class="cmp">◐</div><div class="save">Save</div><div class="more">⋮</div></div></div>
+      <div class="stage"><div class="photo" style="filter: none"><div class="ring" style="border-style: dashed; opacity:.8"></div></div></div>
+      <div class="sheet">
+        <div class="tabs"><span>Eyes</span><span>Teeth</span><span>Hair &amp; Beard</span><b>Sunglasses</b></div>
+        <div class="head">Sunglasses</div>
+        <div class="notice"><b>Both eyes need to be visible.</b> This face is turned too far or the eyes are hidden. Other faces in the photo can still have sunglasses.</div>
+        <div class="styles dim">
+          <div class="st on"><svg viewBox="0 0 40 16"><path d="M4 8 H36" stroke="#7D8179" stroke-width="1.5"/></svg>None</div>
+          <div class="st"><svg viewBox="0 0 40 16"><path d="M2 3 C8 1,16 1,18 3 C18 10,14 14,9 14 C4 14,1 9,2 3Z M38 3 C32 1,24 1,22 3 C22 10,26 14,31 14 C36 14,39 9,38 3Z" fill="#2a2e33"/></svg>Aviator</div>
+          <div class="st"><svg viewBox="0 0 40 16"><path d="M1 3 H18 L16 13 H4 Z M39 3 H22 L24 13 H36 Z" fill="#2a2e33"/></svg>Wayfarer</div>
+          <div class="st"><svg viewBox="0 0 40 16"><circle cx="10" cy="8" r="6.5" fill="#2a2e33"/><circle cx="30" cy="8" r="6.5" fill="#2a2e33"/></svg>Round</div>
+        </div>
+      </div>
+      <div class="dock"><span>Develop</span><span>Background</span><b>Portrait</b><span>Edit</span><span>Effects</span><span>Border</span></div>
+    </div>
+    <h2>3 · Eyes not visible</h2><p>Profile shots, eyes covered by hair or hands, or a face too small: the controls are dimmed and the notice says why. The tab stays, so it never jumps.</p>
+  </div>
+
+</div>
+</body></html>
