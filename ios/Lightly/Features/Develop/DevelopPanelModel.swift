@@ -39,7 +39,7 @@ final class DevelopPanelModel {
     private(set) var isAmountOpen = false
     /// The Amount while its slider is being dragged.
     private(set) var draggingAmount: Double?
-    /// "Favourites holds five presets." (`ui.favFull`).
+    /// "Favourites holds ten presets." (`ui.favFull`).
     private(set) var isFavouritesFullNoticeShown = false
     /// The Replace a favourite sheet.
     var isReplaceSheetShown = false
@@ -237,7 +237,7 @@ final class DevelopPanelModel {
 
     var isPresetAtStopFavourite: Bool { namedPreset.map { favourites.contains($0.id) } ?? false }
 
-    /// The star: add, remove, or (with five already) the full notice.
+    /// The star: add, remove, or (with ten already) the full notice.
     func toggleStar() {
         guard let preset = namedPreset else { return }
         if favourites.contains(preset.id) {

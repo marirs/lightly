@@ -65,7 +65,7 @@ object MoreCopy {
     const val KEEP_METADATA_SUB = "Camera, lens, aperture, shutter speed, ISO and date taken. Location is separate."
     const val INCLUDE_LOCATION = "Include location"
     const val INCLUDE_LOCATION_SUB = "GPS coordinates in saved copies. Off by default."
-    const val FAVOURITES_NOTE = "Up to five. Drag to reorder. Favourites are shortcuts in Develop; they are never applied automatically."
+    const val FAVOURITES_NOTE = "Up to ten. Drag to reorder. Favourites are shortcuts in Develop; they are never applied automatically."
     const val DRAW_SIGNATURE = "Draw a new signature"
     const val IMPORT_SIGNATURE = "Import from a photo"
     const val DELETE_SIGNATURE = "Delete saved signature"

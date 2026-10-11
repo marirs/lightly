@@ -318,7 +318,7 @@ final class EditorSessionTests: XCTestCase {
 
     // MARK: - Favourites
 
-    func testStarAddsAndRemovesAFavouriteAndASixthShowsTheFullNotice() async throws {
+    func testStarAddsAndRemovesAFavouriteAndAnEleventhShowsTheFullNotice() async throws {
         let session = try await EditorTestSupport.readySession(library: library, personDetector: FixedPersonDetector(result: true))
         let model = panel(session)
         let presets = pack.categories.flatMap(\.presets)
@@ -330,10 +330,11 @@ final class EditorSessionTests: XCTestCase {
         model.toggleStar()
         XCTAssertFalse(model.isPresetAtStopFavourite)
 
-        model.favourites.replaceAll(with: Array(presets.dropFirst().prefix(5).map(\.id)))
+        // Ten (owner, 2026-10-11; was five).
+        model.favourites.replaceAll(with: Array(presets.dropFirst().prefix(FavouritePresetsStore.capacity).map(\.id)))
         model.toggleStar()
-        XCTAssertTrue(model.isFavouritesFullNoticeShown, "Five already: the approved full notice")
-        XCTAssertEqual(model.favourites.presetIDs.count, 5)
+        XCTAssertTrue(model.isFavouritesFullNoticeShown, "Ten already: the approved full notice")
+        XCTAssertEqual(model.favourites.presetIDs.count, FavouritePresetsStore.capacity)
 
         let replaced = model.favourites.presetIDs[2]
         model.isReplaceSheetShown = true

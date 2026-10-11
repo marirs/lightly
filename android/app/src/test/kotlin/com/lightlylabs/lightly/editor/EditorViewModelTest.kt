@@ -303,9 +303,9 @@ class EditorViewModelTest {
     }
 
     @Test
-    fun `favourites hold five, a sixth star shows the full notice, and Replace swaps one`() = runTest {
+    fun `favourites hold ten, an eleventh star shows the full notice, and Replace swaps one`() = runTest {
         val (vm, harness) = ready()
-        val five = (1..5).map { BundledPack.preset("film", it).id }
+        val five = (1..10).map { BundledPack.preset("film", it).id }   // ten: the limit (owner, 2026-10-11)
         harness.favourites.update { five }
         vm.selectCategory("landscape")
         vm.onRulerDrag(37); vm.onRulerRelease(37); advanceUntilIdle()

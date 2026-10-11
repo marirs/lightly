@@ -275,7 +275,7 @@ private fun DevelopNoticeView(notice: DevelopNotice, vm: EditorViewModel) {
         )
         DevelopNotice.FavouritesFull -> Notice(
             LightlyIcons.Star,
-            bold("Favourites holds five presets.", " Remove one in Preferences, or replace one now."),
+            bold("Favourites holds ten presets.", " Remove one in Preferences, or replace one now."),
             listOf("Replace…" to vm::openFavouriteReplace, "Not now" to vm::dismiss),
         )
     }

@@ -152,10 +152,10 @@ class LightlyAppContentTest {
         show(start = AppNavigator.openPage(AppNavState(), MorePage.FAVOURITES))
 
         compose.onNodeWithText("01 Fitness 01").assertIsDisplayed()
-        compose.onNodeWithText("3 free. Star a preset in Develop to add it.").assertIsDisplayed()
+        compose.onNodeWithText("8 free. Star a preset in Develop to add it.").assertIsDisplayed()
         compose.onNodeWithTag("favourite-remove-0").performClick()
         assertEquals(listOf("look-2"), preferences.favouritePresetIds)
-        compose.onNodeWithText("4 free. Star a preset in Develop to add it.").assertIsDisplayed()
+        compose.onNodeWithText("9 free. Star a preset in Develop to add it.").assertIsDisplayed()
     }
 
     @Test

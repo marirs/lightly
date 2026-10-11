@@ -65,11 +65,15 @@ class PreferencesTest {
     }
 
     @Test
-    fun `favourites hold at most five, never duplicate, and reorder`() {
-        var preferences = UserPreferences()
-        listOf("a", "b", "c", "d", "e", "f", "a").forEach { preferences = preferences.withFavouriteAdded(it) }
+    fun `favourites hold at most ten, never duplicate, and reorder`() {
+        val ten = ('a'..'j').map { it.toString() }
+        var full = UserPreferences()
+        (ten + "k" + "a").forEach { full = full.withFavouriteAdded(it) }
+        assertEquals(ten, full.favouritePresetIds, "an eleventh star needs an explicit replace (owner, 2026-10-11: ten)")
 
-        assertEquals(listOf("a", "b", "c", "d", "e"), preferences.favouritePresetIds, "a sixth star needs an explicit replace (slice 2)")
+        var preferences = UserPreferences()
+        listOf("a", "b", "c", "d", "e", "a").forEach { preferences = preferences.withFavouriteAdded(it) }
+        assertEquals(listOf("a", "b", "c", "d", "e"), preferences.favouritePresetIds)
         assertEquals(listOf("b", "c", "a", "d", "e"), preferences.withFavouriteMoved(0, 2).favouritePresetIds)
         assertEquals(listOf("e", "a", "b", "c", "d"), preferences.withFavouriteMoved(4, -3).favouritePresetIds)
         assertEquals(listOf("a", "b", "d", "e"), preferences.withFavouriteRemoved("c").favouritePresetIds)

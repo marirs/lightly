@@ -123,7 +123,7 @@ struct DevelopPanelView: View {
     @ViewBuilder
     private var notice: some View {
         if model.isFavouritesFullNoticeShown {
-            L2Notice(icon: .star, bold: "Favourites holds five presets.", text: " Remove one in Preferences, or replace one now.",
+            L2Notice(icon: .star, bold: "Favourites holds ten presets.", text: " Remove one in Preferences, or replace one now.",
                      actions: [("Replace…", "develop.favourites.replace", { model.isReplaceSheetShown = true }),
                                ("Not now", "develop.favourites.notNow", { model.dismissFavouritesFullNotice() })])
         } else if model.session.autoState == .failed {

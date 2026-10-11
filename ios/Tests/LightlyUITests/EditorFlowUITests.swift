@@ -298,7 +298,7 @@ final class EditorFlowUITests: XCTestCase {
     /// Opens a prototype photograph straight into the editor (DEBUG `--open-photo`).
     private func openEditor(_ photo: String = "landscape_02", extra: [String] = []) {
         relaunch(arguments: ["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath(photo)] + extra)
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
     }
 
     private func element(_ identifier: String) -> XCUIElement {
@@ -423,12 +423,13 @@ final class EditorFlowUITests: XCTestCase {
     func testFavouritesStarFullNoticeAndReplace() {
         openEditor(extra: ["--scenario", "dev-fav-full"])
         XCTAssertTrue(element("develop.favourites.replace").waitForExistence(timeout: timeout))
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Favourites holds five presets.'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Favourites holds ten presets.'")).firstMatch.exists)
         element("develop.favourites.replace").tap()
         XCTAssertTrue(element("replace.cancel").waitForExistence(timeout: timeout))
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'replace.row.'")).element(boundBy: 0).tap()
         XCTAssertFalse(element("replace.cancel").exists)
-        XCTAssertTrue(element("develop.category.favourites").label.contains("5 of 5"))
+        XCTAssertTrue(element("develop.category.favourites").exists)
+        XCTAssertFalse(element("develop.favourites.replace").exists, "replacing one clears the full notice")
     }
 
     func testSaveCopyShowsSavingThenSavedAndKeepEditing() {
@@ -449,7 +450,7 @@ final class EditorFlowUITests: XCTestCase {
     /// add-only permission beforehand and checks the new file, its size and the unchanged original afterwards.
     func testSaveCopyWritesANewPhotoThroughPhotos() {
         relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         app.buttons["editor.saveCopy"].tap()
         XCTAssertTrue(app.staticTexts["Saved as a new photo"].waitForExistence(timeout: 90), "no Saved sheet")
         XCTAssertTrue(app.staticTexts["The original is unchanged."].exists)
@@ -462,7 +463,7 @@ final class EditorFlowUITests: XCTestCase {
     func testOwnerFeedbackInteractionPass() {
         let mattes = "\(EditorCaptureUITests.repositoryRoot)/ios/Tests/Fixtures/SubjectMattes/portrait_medium_02.png"
         relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02"), "--subject-matte-fixture", mattes])
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         saveScreenshot("pass-1-opened")
         element("develop.category.landscape").tap()
         dragRuler(by: 5)
@@ -499,7 +500,7 @@ final class EditorFlowUITests: XCTestCase {
     /// Screenshots to LIGHTLY_VERIFY_DIR.
     func testRulerHeaderStaysCoherentWhileBrowsing() {
         relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         // An empty Text is not in the accessibility tree: absent reads as "".
         func text(_ id: String) -> String { element(id).exists ? label(id) : "" }
         element("develop.category.landscape").tap()
@@ -553,7 +554,7 @@ final class EditorFlowUITests: XCTestCase {
     /// straightening; each step checked against the committed rectangle. Screenshots to LIGHTLY_VERIFY_DIR.
     func testCropHandlesMoveOnlyTheirOwnSides() {
         relaunch(arguments: ["--reset-preferences", "--expose-crop", "--open-photo", photoPath("landscape_02")])
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         element("tool.edit").tap()
         let photo = element("editor.photo")
         XCTAssertTrue(photo.waitForExistence(timeout: timeout))
@@ -676,7 +677,7 @@ final class EditorFlowUITests: XCTestCase {
         let mattes = "\(EditorCaptureUITests.repositoryRoot)/ios/Tests/Fixtures/SubjectMattes/portrait_medium_02.png"
         relaunch(arguments: ["--reset-preferences", "--slow-subject-matte", "--open-photo", photoPath("portrait_medium_02"),
                              "--subject-matte-fixture", mattes])
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         element("tool.background").tap()
         XCTAssertTrue(element("background.cancel").waitForExistence(timeout: timeout), "Finding the subject… with Cancel")
         saveScreenshot("cancel-1-finding")
@@ -711,7 +712,7 @@ final class EditorFlowUITests: XCTestCase {
     func testStraightenThenFreeCropThenSave() throws {
         relaunch(arguments: ["--reset-preferences", "--expose-crop", "--save-to-documents", "straighten-crop.jpg",
                              "--open-photo", photoPath("landscape_02")])
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "editor did not open")
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         element("tool.edit").tap()
         element("edit.sub.Straighten").tap()
         let angle = element("slider.angle")

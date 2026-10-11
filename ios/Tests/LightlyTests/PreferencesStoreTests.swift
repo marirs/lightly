@@ -104,14 +104,16 @@ final class FavouritePresetsStoreTests: XCTestCase {
         UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
     }
 
-    func testAddsUpToFiveInOrderThenReportsFull() {
+    /// Owner, 2026-10-11: ten favourites (was five).
+    func testAddsUpToTenInOrderThenReportsFull() {
         let store = FavouritePresetsStore(defaults: defaults)
-        for id in ["a", "b", "c", "d", "e"] {
+        let ten = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
+        for id in ten {
             XCTAssertEqual(store.add(id), .added)
         }
-        XCTAssertEqual(store.add("f"), .full)
+        XCTAssertEqual(store.add("k"), .full)
         XCTAssertEqual(store.add("c"), .alreadyFavourite)
-        XCTAssertEqual(store.presetIDs, ["a", "b", "c", "d", "e"])
+        XCTAssertEqual(store.presetIDs, ten)
         XCTAssertEqual(store.freeSlots, 0)
     }
 

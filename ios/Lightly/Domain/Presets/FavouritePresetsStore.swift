@@ -1,25 +1,25 @@
 import Foundation
 import Observation
 
-/// Favourite Develop presets: up to five ordered shortcuts (approved Preferences › Favourite
+/// Favourite Develop presets: up to ten ordered shortcuts (approved Preferences › Favourite
 /// presets, and Develop's Favourites category in slice 2).
 ///
 /// Favourites are shortcuts only; nothing here applies a preset. Order is the person's own and
 /// is kept exactly as they arrange it.
 // v3 differs: the legacy `UserDefaultsFavouritesManager` keeps an unordered, unbounded set of
-// Look-pack ids for the legacy Looks screen. The approved model is ordered, capped at five and
+// Look-pack ids for the legacy Looks screen. The approved model is ordered, capped at ten and
 // keyed by `presets/develop-design-ui.json` ids, so it lives under its own key; the two never mix.
 @MainActor
 @Observable
 final class FavouritePresetsStore {
 
-    static let capacity = 5
+    static let capacity = 10   // owner, 2026-10-11 (was 5)
     static let storageKey = "lightly.favouritePresets.v1"
 
     enum AddOutcome: Equatable {
         case added
         case alreadyFavourite
-        /// Five already: the caller offers to replace one (approved "Favourites full").
+        /// Ten already: the caller offers to replace one (approved "Favourites full").
         case full
     }
 

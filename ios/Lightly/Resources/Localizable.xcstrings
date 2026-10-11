@@ -1222,7 +1222,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Up to five. Drag to reorder. Favourites are shortcuts in Develop; they are never applied automatically."
+            "value": "Up to ten. Drag to reorder. Favourites are shortcuts in Develop; they are never applied automatically."
           }
         }
       }
@@ -1636,7 +1636,7 @@
       }
     },
     "preferences.favourites.detail %lld %lld": {
-      "comment": "Sub-line of Favourite presets: how many of the five slots are used.",
+      "comment": "Sub-line of Favourite presets: how many of the ten slots are used.",
       "extractionState": "manual",
       "localizations": {
         "en": {

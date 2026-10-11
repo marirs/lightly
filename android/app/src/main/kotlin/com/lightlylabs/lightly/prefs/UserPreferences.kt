@@ -55,7 +55,7 @@ data class UserPreferences(
     }
 
     companion object {
-        const val MAX_FAVOURITES = 5
+        const val MAX_FAVOURITES = 10   // owner, 2026-10-11 (was 5)
     }
 }
 

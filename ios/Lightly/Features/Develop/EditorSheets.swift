@@ -152,19 +152,24 @@ struct ReplaceFavouriteSheetContent: View {
             L2SheetHeader(title: Text("Replace a favourite"),
                           leading: { L2TextButton(title: "Cancel", identifier: "replace.cancel") { model.isReplaceSheetShown = false } },
                           trailing: { EmptyView() })
-            let ids = model.favourites.presetIDs
-            ForEach(ids.indices, id: \.self) { index in
-                let id = ids[index]
-                if let preset = model.session.library.pack.preset(id: id) {
-                    Button { model.replaceFavourite(id) } label: {
-                        L2ListRow(title: Text(preset.displayName),
-                                  subtitle: Text(model.session.library.pack.category(id: preset.categoryID)?.name ?? ""),
-                                  isFirst: index == 0) {
-                            Text("Replace").l2Text(14, weight: .bold).foregroundStyle(c(ApprovedColor.selection))
+            // Ten favourites (owner, 2026-10-11) outgrow a small phone: the rows scroll inside the fitted sheet.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    let ids = model.favourites.presetIDs
+                    ForEach(ids.indices, id: \.self) { index in
+                        let id = ids[index]
+                        if let preset = model.session.library.pack.preset(id: id) {
+                            Button { model.replaceFavourite(id) } label: {
+                                L2ListRow(title: Text(preset.displayName),
+                                          subtitle: Text(model.session.library.pack.category(id: preset.categoryID)?.name ?? ""),
+                                          isFirst: index == 0) {
+                                    Text("Replace").l2Text(14, weight: .bold).foregroundStyle(c(ApprovedColor.selection))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("replace.row.\(id)")
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("replace.row.\(id)")
                 }
             }
         }
