@@ -25,11 +25,22 @@ final class DevelopPanelModel {
     /// The category the person chose to browse; nil follows the applied preset.
     private(set) var browsedCategoryID: String?
     private var startsAtFirst = false
-    var isBrowsingStart: Bool { startsAtFirst && browsedAtHistoryRevision == session.historyRevision }
+    var isBrowsingStart: Bool { startsAtFirst && isStillBrowsing }
     /// The session's history revision when browsing began (or the panel last committed). Undo, Redo or a step made
     /// elsewhere moves it, and browsing then returns to the applied preset's category (owner amendment 2026-10-05:
     /// underline, dot and photo agree).
-    private var browsedAtHistoryRevision: Int?
+    private var browsedAtHistoryRevision: Int? {
+        didSet { browsedWithAppliedPresetID = session.appliedPreset?.id }
+    }
+    /// The applied preset when browsing began. v3 differs (owner, 2026-10-11): a step that leaves the Look alone (the
+    /// Auto wand, any other tool) keeps the browsed category; only a change of the applied Look (apply, Undo, Redo)
+    /// returns to its category.
+    private var browsedWithAppliedPresetID: String?
+    /// Browsing still holds: nothing moved the history, or what moved it left the applied Look as it was.
+    private var isStillBrowsing: Bool {
+        browsedAtHistoryRevision != nil && (browsedAtHistoryRevision == session.historyRevision
+            || browsedWithAppliedPresetID == session.appliedPreset?.id)
+    }
     /// The stop under the needle while dragging (`ui.stop`); nil when settled.
     private(set) var draggingStop: Int?
     /// The stop a drag started from; releasing there changes nothing.
@@ -74,7 +85,7 @@ final class DevelopPanelModel {
     /// The browsed category (the orange underline): the one chosen, until the history moves; then the applied
     /// preset's category.
     var currentCategoryID: String {
-        let browsing = browsedAtHistoryRevision == session.historyRevision ? browsedCategoryID : nil
+        let browsing = isStillBrowsing ? browsedCategoryID : nil
         let available = Set(categoryItems.map(\.id))
         if let browsing, available.contains(browsing) { return browsing }
         if let applied = session.appliedPreset?.categoryID, available.contains(applied) { return applied }
@@ -183,7 +194,7 @@ final class DevelopPanelModel {
         let target = clamped == 0 ? nil : currentPresets[clamped - 1]
         // Prototype `wireRuler`: commit only when the stop names another Look than the applied one
         // (stop zero means no Look). Releasing where it started changes nothing.
-        let stillBrowsing = browsedAtHistoryRevision == session.historyRevision
+        let stillBrowsing = isStillBrowsing
         startsAtFirst = false
         session.applyLook(target)
         // Applying from the browsed category (Favourites included) keeps it browsed.

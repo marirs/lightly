@@ -228,6 +228,27 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(session.history.count, 1, "Nothing changes")
     }
 
+    /// Owner report 2026-10-11: tapping the Auto wand jumped the gallery to Favourites. A step that leaves the Look
+    /// alone keeps the browsed category; Undo of a Look change still returns to that Look's category.
+    func testTheAutoWandKeepsTheBrowsedCategory() async throws {
+        let photo = try await EditorTestSupport.photo(width: 1_200, height: 800)
+        let session = try await EditorTestSupport.readySession(photo: photo, library: library, autoEnhancer: CoreImageAutoEnhancer())
+        let favouritesStore = FavouritePresetsStore(defaults: defaults)
+        favouritesStore.replaceAll(with: [pack.categories[0].presets[0].id])
+        let model = DevelopPanelModel(session: session, favourites: favouritesStore)
+        let browsed = try XCTUnwrap(pack.categories.last { $0.id != "portrait" }).id
+        model.selectCategory(browsed)
+        XCTAssertEqual(model.currentCategoryID, browsed)
+        session.toggleAuto()
+        XCTAssertEqual(session.autoState, .applied)
+        XCTAssertEqual(model.currentCategoryID, browsed, "the wand never moves the gallery")
+        session.toggleAuto()
+        XCTAssertEqual(model.currentCategoryID, browsed)
+        model.dragEnded(at: 2)
+        session.toggleAuto()
+        XCTAssertEqual(model.currentCategoryID, browsed, "with a Look applied too")
+    }
+
     func testDefaultCategoryIsLandscapeAndFavouritesComeFirst() async throws {
         let session = try await EditorTestSupport.readySession(library: library)
         let model = panel(session)
