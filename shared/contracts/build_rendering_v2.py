@@ -25,7 +25,7 @@ PRESETS = REPO / "experiments/presets"
 # 3 = background.focus subject colour from the de-contaminated estimate wherever the matte is above 0.02.
 # 4 = effects.selectiveColour (owner request 2026-10-04), after the light leak, before vignette and grain.
 # 5 = background.replace composites the estimated foreground colour (Germer multilevel), not the observed pixel.
-CONTRACT_REVISION = 6
+CONTRACT_REVISION = 7
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -253,7 +253,11 @@ def stages():
              "eyes.brighten": num(0, 100, 0, PERCENT), "eyes.clarity": num(0, 100, 0, PERCENT), "teeth.brighten": num(0, 100, 0, PERCENT),
              "hair.definition": num(0, 100, 0, PERCENT), "hair.flyaways": num(0, 100, 0, PERCENT), "hair.shine": num(0, 100, 0, PERCENT)},
              "note": "per face, in face-region masks from landmarks; eye colour/shape and skin tone colour are never changed",
-             "status": "provisional"}]},
+             "status": "provisional"},
+                       {"id": "smile", "params": {"smile.amount": num(-100, 100, 0, "slider (optional key; missing = 0)")},
+                        "constants": {"lift": 0.10, "outward": 0.04, "radius": 0.45, "falloff": "w = max(0, 1 − d²/r²)²"},
+                        "note": "revision 7: per face, after its other portrait operators; inverse warp of the two mouth corners "
+                                "(rendering-v2.md §7.3); amount 0 leaves the pixels unchanged"}]},
         {"order": 9, "id": "edit.geometry", "frame": "source → frame", "recipe": "editState.tools.edit.geometry",
          "note": "revision 2: runs after the layered stages (Adjust, Background, Portrait), which work in source "
                   "coordinates; effects, border and watermark follow in the frame",
@@ -299,12 +303,18 @@ def stages():
               "maps": "amount, size, roughness from effects.grain; style fine: size × 0.7, film: size × 1.0, coarse: size × 1.5 (capped at 100); "
                       "seed from effects.grain.seed"}],
          "note": "user effects are added on top of the preset's own vignette/grain, never replace them (approved notice)"},
-        {"order": 11, "id": "border", "frame": "frame → canvas", "recipe": "editState.tools.border",
+        {"order": 11, "id": "text", "frame": "frame", "recipe": "editState.tools.text (optional key; missing = no layers)",
+         "operators": [{"id": "textLayer", "params": {"size": num(10, 100, 42, "font size = size/100 × 0.25 × frame short edge", integer=True),
+                                                      "opacity": num(0, 100, 100, PERCENT), "rotation": num(-180, 180, 0, "degrees clockwise")},
+                        "note": "revision 7: each layer in order, its text block centred on centre × frame size, rotated about it; "
+                                "colour at opacity, source-over (rendering-v2.md §7.4). Layout agrees within 0.5 % of the short edge; "
+                                "glyph pixels are the platform text engine's"}]},
+        {"order": 12, "id": "border", "frame": "frame → canvas", "recipe": "editState.tools.border",
          "operators": [{"id": "border", "params": {"type": enum(["none", "solid", "frame", "polaroid"], "none"),
                                                    "width": num(1, 15, 4, "percent-of-image-width"), "spacing": num(0, 12, 3, "percent-of-image-width")},
                         "note": "insets as fractions of the image width: solid [w, w, w]; frame [(w+s), (w+s), (w+s)] with a mat band s inside "
                                 "a frame band w; polaroid [0.055, 0.055, 0.24] (side, top, bottom)"}]},
-        {"order": 12, "id": "watermark", "frame": "canvas", "recipe": "editState.tools.watermark",
+        {"order": 13, "id": "watermark", "frame": "canvas", "recipe": "editState.tools.watermark",
          "operators": [{"id": "watermark", "params": {"size": num(10, 80, 34, "size-units"), "opacity": num(0, 100, 85, PERCENT),
                                                       "position": num(0, 8, 8, "anchor index (row-major 3×3)", integer=True)},
                         "constants": watermark_constants(),

@@ -1,7 +1,7 @@
 {
  "contract": "lightly-rendering",
  "version": 2,
- "revision": 6,
+ "revision": 7,
  "changeLog": "shared/contracts/rendering-v2.md#change-log",
  "prose": "shared/contracts/rendering-v2.md",
  "generatedBy": "shared/contracts/build_rendering_v2.py",
@@ -1028,6 +1028,25 @@
      },
      "note": "per face, in face-region masks from landmarks; eye colour/shape and skin tone colour are never changed",
      "status": "provisional"
+    },
+    {
+     "id": "smile",
+     "params": {
+      "smile.amount": {
+       "type": "number",
+       "min": -100,
+       "max": 100,
+       "default": 0,
+       "unit": "slider (optional key; missing = 0)"
+      }
+     },
+     "constants": {
+      "lift": 0.1,
+      "outward": 0.04,
+      "radius": 0.45,
+      "falloff": "w = max(0, 1 − d²/r²)²"
+     },
+     "note": "revision 7: per face, after its other portrait operators; inverse warp of the two mouth corners (rendering-v2.md §7.3); amount 0 leaves the pixels unchanged"
     }
    ]
   },
@@ -1310,6 +1329,41 @@
   },
   {
    "order": 11,
+   "id": "text",
+   "frame": "frame",
+   "recipe": "editState.tools.text (optional key; missing = no layers)",
+   "operators": [
+    {
+     "id": "textLayer",
+     "params": {
+      "size": {
+       "type": "integer",
+       "min": 10,
+       "max": 100,
+       "default": 42,
+       "unit": "font size = size/100 × 0.25 × frame short edge"
+      },
+      "opacity": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 100,
+       "unit": "percent"
+      },
+      "rotation": {
+       "type": "number",
+       "min": -180,
+       "max": 180,
+       "default": 0,
+       "unit": "degrees clockwise"
+      }
+     },
+     "note": "revision 7: each layer in order, its text block centred on centre × frame size, rotated about it; colour at opacity, source-over (rendering-v2.md §7.4). Layout agrees within 0.5 % of the short edge; glyph pixels are the platform text engine's"
+    }
+   ]
+  },
+  {
+   "order": 12,
    "id": "border",
    "frame": "frame → canvas",
    "recipe": "editState.tools.border",
@@ -1347,7 +1401,7 @@
    ]
   },
   {
-   "order": 12,
+   "order": 13,
    "id": "watermark",
    "frame": "canvas",
    "recipe": "editState.tools.watermark",

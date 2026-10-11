@@ -23,8 +23,9 @@ This contract defines the ordered pipeline that renders a whole Lightly edit. It
 | 8 | `portrait` | source | `tools.portrait.faces` |
 | 9 | `edit.geometry` | source → frame | `tools.edit.geometry` |
 | 10 | `effects` | frame | `tools.effects` + preset `recipe.finishing` |
-| 11 | `border` | frame → canvas | `tools.border` |
-| 12 | `watermark` | canvas | `tools.watermark` |
+| 11 | `text` | frame | `tools.text` (revision 7) |
+| 12 | `border` | frame → canvas | `tools.border` |
+| 13 | `watermark` | canvas | `tools.watermark` |
 
 Preview and export run the same stages on the same committed recipe. Only the resolution differs, and every spatial quantity is resolution independent (§2).
 
@@ -382,6 +383,25 @@ The farthest content from the focal plane gets R_max, which is what the prototyp
 
 **Replaced background.** Placed by §R2.4 "plane": `D_B = min(median of the original background disparity, max(0, median_subject − 0.10))`. It is recomputed from the stored depth map and matte; `depth.replacementDepth` is not read.
 
+### 7.3 `portrait.smile` (revision 7, owner amendment 2026-10-11)
+
+Part of stage 8, per face, after the face's other portrait operations. `a = smile.amount / 100` in [−1, 1]; `a = 0` leaves the pixels exactly unchanged.
+
+- **Landmarks:** the mouth's left and right corners `L`, `R` in source pixels (the outer lip contour's extreme points from the platform face-landmark detector, the same detection the other portrait regions use). `m = |R − L|` is the mouth width; `û = (R − L) / m` points from the left corner to the right; `n̂` is `û` turned 90° anticlockwise in image coordinates (y down), so it points up the face, and the corners lift along the face's own axis when the head is tilted.
+- **Corner displacements:** `d_L = a·m·(0.10·n̂ − 0.04·û)` and `d_R = a·m·(0.10·n̂ + 0.04·û)`: up and slightly outward for a positive amount, down and slightly inward for a negative one.
+- **Falloff:** `r = 0.45·m`; for a pixel `p`, `w_C(p) = max(0, 1 − |p − C|² / r²)²`.
+- **Warp (inverse mapping):** `D(p) = w_L(p)·d_L + w_R(p)·d_R`; the output pixel `p` samples the stage input at `p − D(p)` by bilinear interpolation (clamped to the image). Pixels outside both discs are copied unchanged.
+- **No mouth:** a face without both corner landmarks is left unchanged; the Smile tab says so ("Smile needs a visible mouth.").
+
+### 7.4 `text` (revision 7, owner amendment 2026-10-11)
+
+Stage 11, in the frame (after crop and effects, before border, so a border never covers text and the text is part of the photo). Each layer of `tools.text.layers`, in order:
+
+- **Font size** `= size / 100 × 0.25 × min(frame width, frame height)`; the font is the named family at regular weight (shared/fonts). Lines are centred horizontally on one another; line height is the font's own (ascent + descent + leading).
+- **Placement:** the text block's bounding box (the lines' advance widths and line heights) is centred on `centre × (frame width, frame height)`, then rotated by `rotation` degrees clockwise about that centre.
+- **Paint:** `colour` at `opacity / 100`, anti-aliased, composited over the frame (sRGB, source-over). No shadow or outline (the on-screen selection frame and handles are never rendered).
+- Preview and export run the same layout at their resolutions; every quantity is a fraction of the frame, so the text covers the same part of the photo at any size. Text rasterises through each platform's text engine, so it is outside the §8 pixel tolerances; layout (box size and position) must agree within 0.5 % of the frame's short edge.
+
 ### 7.2 Perspective (revision 2)
 
 Perspective runs in the frame produced by quarter turns and flips, W × H pixels, centre c = (W/2, H/2). With k = 0.3, v = vertical and h = horizontal:
@@ -417,5 +437,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 3 | 2026-10-04 | **background.focus, subject colour:** the de-contaminated subject colour F = (I − (1 − M)·B)/M is used, clipped to [0, 1], wherever the matte M > 0.02; the interior fill only below that. Revisions 1–2 used the interior fill below M = 0.3, which painted the subject's colour into a soft matte tail that extends past the subject (measured on a 12 MP portrait: a red glow 10–20 px wide beside a red shirt over a dark wall; red excess 18.8 → 0.1 levels; hair edge closer to the original). |
 | 4 | 2026-10-05 | **effects.selectiveColour** (§6 Selective colour): a new operator after the light leak, before the vignettes and grain; does nothing without kept colours, so every existing edit renders unchanged. Goldens `selectiveColour`. | No: `developModel.constantsSha256` is unchanged |
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
+| 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.
