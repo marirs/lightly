@@ -333,7 +333,7 @@ class EditorScreenTest {
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("edit-crop-cancel").assertDoesNotExist() // inline crop: no separate workspace
-        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Original", "Free", "4:5").forEach {
+        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Drag the corners or edges. Drag inside to move. Pinch to resize.").forEach {
             assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
         }
         compose.onNodeWithTag("edit-tab-remove").performClick()

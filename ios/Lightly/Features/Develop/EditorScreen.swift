@@ -261,6 +261,8 @@ struct EditorScreen: View {
                    outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                    marksCoverCanvas: tool == .watermark,
                    cropWorkspace: false,
+                   // The applied crop, not the draft: the photo holds still under the finger and glides on release.
+                   cropFocus: isCropping && !session.isShowingOriginal ? session.recipe.tools.edit.geometry.cropRect : nil,
                    allowsInspection: !isCropping,
                    allowsDoubleTapZoom: tool != .watermark,
                    onInspectionBegan: {

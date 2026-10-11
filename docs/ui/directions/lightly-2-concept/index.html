@@ -285,8 +285,8 @@ function portraitPanel(s) {
 }
 function editPanel(s) {
   const e = s.ed || {}; const sub = e.sub || 'crop'; let body = '';
-  // Inline crop (owner, 2026-10-11): the aspect in the panel, the frame on the photo; lifting the finger applies it.
-  if (sub === 'crop') body = rowOf(chips([['original', 'Original'], ['free', 'Free'], ['1:1', '1:1'], ['4:5', '4:5'], ['3:2', '3:2'], ['16:9', '16:9'], ['9:16', '9:16']], e.aspect || 'original')) + note('Drag the corners or edges. Drag inside to move. Pinch to resize.');
+  // Inline free crop (owner, 2026-10-11): the frame on the photo, lifting the finger applies it; no aspect presets.
+  if (sub === 'crop') body = note('Drag the corners or edges. Drag inside to move. Pinch to resize.');
   if (sub === 'rotate') body = `<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">${[['rotl', 'Rotate left'], ['rotr', 'Rotate right'], ['fliph', 'Flip horizontal'], ['flipv', 'Flip vertical']].map(([nm, l]) => `<button style="height: 46px; border-radius: 16px; border: 1px solid ${nm === 'fliph' && e.flipH ? 'var(--accent-ink)' : 'var(--line)'}; background: transparent; color: ${nm === 'fliph' && e.flipH ? 'var(--accent-ink)' : 'var(--ink)'}; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 13px">${ic(nm, 18)}${l}</button>`).join('')}</div>`;
   if (sub === 'straighten') body = slider('Angle', -3, -45, 45) + note('The photo is zoomed slightly so no empty corners show.');
   if (sub === 'perspective') body = slider('Vertical', 18, -100, 100) + slider('Horizontal', 0, -100, 100);
@@ -693,7 +693,7 @@ const J = [
     ['pt-no-usable-face', 'People found, but no usable face', ED('portrait', 'bar', {})],
     ['pt-hidden', 'No person · Portrait tool and category hidden', ED('develop', 'field', { dev: { cat: 'landscape', applied: { cat: 'landscape', name: 'Slate Sky' } } })]]],
   ['Edit', [
-    ['ed-crop', 'Crop · inline frame on the photo, aspect in the panel', ED('edit', 'lake', { ed: { sub: 'crop', touched: true, aspect: '4:5' } })],
+    ['ed-crop', 'Crop · free crop: drag the frame; on release the photo zooms to the crop', ED('edit', 'lake', { ed: { sub: 'crop', touched: true } })],
     ['ed-rotate', 'Rotate and flip', ED('edit', 'field', { ed: { sub: 'rotate', flipH: true, touched: true } })],
     ['ed-straighten', 'Straighten', ED('edit', 'field', { ed: { sub: 'straighten', touched: true } })],
     ['ed-perspective', 'Perspective', ED('edit', 'street', { ed: { sub: 'perspective', touched: true } })],

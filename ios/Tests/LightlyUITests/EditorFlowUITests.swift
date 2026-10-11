@@ -68,6 +68,36 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(waitFor { abs(photo.frame.width / photo.frame.height - originalRatio) < 0.02 })
     }
 
+    /// After a crop zooms in, the frame's handles still follow the finger: dragging the right edge of the zoomed frame
+    /// inwards narrows the crop further from that edge only.
+    func testZoomedCropHandleFollowsTheFinger() {
+        relaunch(arguments: ["--reset-preferences", "--expose-crop", "--open-photo", photoPath("landscape_02")])
+        XCTAssertTrue(element("tool.edit").waitForExistence(timeout: 30))
+        element("tool.edit").tap()
+        let photo = element("editor.photo")
+        XCTAssertTrue(photo.waitForExistence(timeout: 30))
+        func crop() -> [Double] {
+            let parts = (element("edit.cropRect").value as? String ?? "").split(separator: " ").compactMap { Double($0) }
+            return parts.count == 4 ? parts : [0, 0, 1, 1]
+        }
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5))
+            .press(forDuration: 0.15, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        sleep(2) // the glide
+        let first = crop()
+        XCTAssertLessThan(first[2], 0.7, "the first drag cropped")
+        capture(named: "crop-zoomed")
+        // The right edge of the crop on screen, from the (zoomed) photo's frame.
+        let f = photo.frame
+        let edgeX = f.minX + f.width * (first[0] + first[2]), midY = f.minY + f.height * (first[1] + first[3] / 2)
+        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: edgeX - 4, dy: midY))
+        start.press(forDuration: 0.15, thenDragTo: start.withOffset(CGVector(dx: -60, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        sleep(2)
+        let second = crop()
+        XCTAssertEqual(second[0], first[0], accuracy: 0.005, "the left edge stays")
+        XCTAssertLessThan(second[2], first[2] - 0.02, "the right edge moved in under the finger")
+        capture(named: "crop-zoomed-second")
+    }
+
     // MARK: - Welcome
 
     /// Welcome shows the brand and both ways in; no login, no onboarding (approved Welcome).
@@ -438,24 +468,7 @@ final class EditorFlowUITests: XCTestCase {
         before = after
         saveScreenshot("crop-moved")
 
-        // 1:1 locks the ratio, also while a corner is dragged; Free releases it.
-        element("edit.aspect.1:1").tap()
-        sleep(1)
-        let frame = photo.frame
-        func pixelRatio() -> Double { let c = crop(); return c.w * frame.width / (c.h * frame.height) }
-        XCTAssertEqual(crop().aspect, "1:1"); XCTAssertEqual(pixelRatio(), 1, accuracy: 0.02)
-        before = sides(crop())
-        drag(CGVector(dx: before[2], dy: before[3]), CGVector(dx: before[2] - 0.08, dy: before[3] - 0.02))
-        XCTAssertEqual(pixelRatio(), 1, accuracy: 0.02, "the corner keeps 1:1")
-        saveScreenshot("crop-ratio-locked")
-        element("edit.aspect.free").tap()
-        sleep(1)
-        XCTAssertEqual(crop().aspect, "free")
-        before = sides(crop())
-        drag(CGVector(dx: before[2], dy: mid(before).y), CGVector(dx: before[2] - 0.1, dy: mid(before).y))
-        after = sides(crop())
-        XCTAssertEqual(changed(before, after), [false, false, true, false], "Free: the right edge alone")
-        saveScreenshot("crop-free-again")
+        // No aspect presets (owner, 2026-10-11): free crop only.
 
         // Rotate and straighten, then crop.
         element("edit.sub.Rotate").tap()

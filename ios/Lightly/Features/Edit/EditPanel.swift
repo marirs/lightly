@@ -71,26 +71,10 @@ struct EditPanelView: View {
 
     // MARK: Crop, Rotate, Straighten, Perspective
 
-    /// Inline crop (owner, 2026-10-11): the frame is on the photo; the panel holds the aspect (chips, the selected one
-    /// ink-filled) and how to use the frame. Choosing an aspect is one undo step; Free and Original never lock a ratio.
+    /// Inline free crop (owner, 2026-10-11): the frame is on the photo; the panel only says how to use it. No aspect
+    /// presets (owner: not asked for).
     private var crop: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ChipRow {
-                ForEach(EditRecipe.Geometry.Aspect.allCases, id: \.self) { aspect in
-                    OptionChip(isOn: geometry.cropAspect == aspect, identifier: "edit.aspect.\(aspect.rawValue)",
-                               action: { session.setCropAspect(aspect) }) { Text(Self.aspectLabel(aspect)) }
-                }
-            }
-            L2Note(text: Text("Drag the corners or edges. Drag inside to move. Pinch to resize."))
-        }
-    }
-
-    private static func aspectLabel(_ aspect: EditRecipe.Geometry.Aspect) -> String {
-        switch aspect {
-        case .original: "Original"
-        case .free: "Free"
-        default: aspect.rawValue
-        }
+        L2Note(text: Text("Drag the corners or edges. Drag inside to move. Pinch to resize."))
     }
 
     /// Rotate: a 2×2 grid, 8 pt gaps, of 46 pt outlined buttons (16 pt corners) with an 18 pt icon and a 13 pt

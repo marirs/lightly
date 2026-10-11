@@ -219,6 +219,10 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     var outlinesCanvas = false
     var marksCoverCanvas = false
     var cropWorkspace = false
+    /// Inline crop (owner, 2026-10-11): the applied crop rectangle (fractions of the shown, uncropped frame). The photo
+    /// glides and zooms so this area fills the stage (24 pt clear of its edges), the dimmed rest around it; nil leaves
+    /// the photo fitted as usual. A drag in progress keeps the zoom of the applied crop until the finger lifts.
+    var cropFocus: EditRecipe.Rect?
     var allowsInspection = false
     var allowsDoubleTapZoom = true
     var onInspectionBegan: () -> Void = {}
@@ -269,6 +273,7 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                                 .offset(x: canvas.size.width * box.minX, y: canvas.size.height * box.minY)
                         }
                     }
+                    .modifier(CropFocusTransform(focus: cropFocus, fitted: fitted, viewport: geometry.size))
                 }
                 photoChrome
                     .frame(width: fitted.width * imageBox.width, height: fitted.height * imageBox.height)
@@ -291,6 +296,32 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
         let ratio = image.width / image.height
         let width = min(box.width, box.height * ratio)
         return CGSize(width: width, height: width / ratio)
+    }
+}
+
+/// Inline crop: scales and moves the fitted photo (and its marks, so gestures stay in photo coordinates) so the applied
+/// crop fills the stage 24 pt clear of its edges, with a smooth glide whenever the applied crop changes. A full-frame
+/// crop, or none, leaves the photo as fitted.
+private struct CropFocusTransform: ViewModifier {
+    let focus: EditRecipe.Rect?
+    let fitted: CGSize
+    let viewport: CGSize
+
+    func body(content: Content) -> some View {
+        let (scale, offset) = placement()
+        content
+            .scaleEffect(scale)
+            .offset(offset)
+            .animation(.smooth(duration: 0.35), value: focus)
+    }
+
+    private func placement() -> (CGFloat, CGSize) {
+        guard let focus, fitted.width > 0, fitted.height > 0 else { return (1, .zero) }
+        let cropWidth = max(1, focus.width * fitted.width), cropHeight = max(1, focus.height * fitted.height)
+        let scale = min(6, max(1, min((viewport.width - 48) / cropWidth, (viewport.height - 48) / cropHeight)))
+        let centreX = (focus.x + focus.width / 2 - 0.5) * fitted.width
+        let centreY = (focus.y + focus.height / 2 - 0.5) * fitted.height
+        return (scale, CGSize(width: -centreX * scale, height: -centreY * scale))
     }
 }
 

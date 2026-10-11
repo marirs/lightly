@@ -70,7 +70,7 @@ final class EditorCaptureUITests: XCTestCase {
         ("pt-no-usable-face", "bar", [], "tool.portrait"),
         ("pt-hidden", "field", [], "develop.ruler"),
         // Slice 4.
-        ("ed-crop-workspace", "lake", [], "edit.aspect.4:5"),
+        ("ed-crop-workspace", "lake", [], "editor.photo"),
         ("ed-rotate", "field", [], "edit.flipHorizontal"),
         ("ed-straighten", "field", [], "slider.angle"),
         ("ed-perspective", "street", [], "slider.vertical"),
