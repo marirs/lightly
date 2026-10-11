@@ -116,6 +116,24 @@ targets:
         buildPhase: resources
       - path: ../shared/fonts/Caveat-OFL.txt
         buildPhase: resources
+      # Owner amendment 2026-10-11: the Text tool's four further fonts and their licences (shared/fonts, SIL OFL 1.1).
+      # With Inter, Caveat, Cormorant Garamond and Dancing Script above they make its eight. Read by URL in TextFonts.
+      - path: ../shared/fonts/PlayfairDisplay-Variable.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/PlayfairDisplay-OFL.txt
+        buildPhase: resources
+      - path: ../shared/fonts/BebasNeue-Regular.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/BebasNeue-OFL.txt
+        buildPhase: resources
+      - path: ../shared/fonts/Montserrat-Variable.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/Montserrat-OFL.txt
+        buildPhase: resources
+      - path: ../shared/fonts/SpaceMono-Regular.ttf
+        buildPhase: resources
+      - path: ../shared/fonts/SpaceMono-OFL.txt
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly

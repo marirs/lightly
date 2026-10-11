@@ -19,6 +19,24 @@ enum AppearancePreference: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Owner amendment 2026-10-11: a double tap on empty space cycles System → Light → Dark → System.
+    var next: AppearancePreference {
+        switch self {
+        case .system: .light
+        case .light: .dark
+        case .dark: .system
+        }
+    }
+
+    /// The toast after the cycle lands on this choice.
+    var cycleToast: String {
+        switch self {
+        case .system: "System theme"
+        case .light: "Light theme"
+        case .dark: "Dark theme"
+        }
+    }
+
     /// The window override that applies the choice app-wide, sheets included.
     var interfaceStyle: UIUserInterfaceStyle {
         switch self {

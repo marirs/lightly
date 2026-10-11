@@ -53,6 +53,23 @@ struct DetectedFace: Sendable, Equatable {
         return EditRecipe.Rect(x: centreX - width / 2, y: centreY - height / 2, width: width, height: height)
     }
 
+    /// The mouth's corners for Portrait › Smile (rendering-v2 §7.3): the outer lip contour's two extreme points, the
+    /// pair farthest apart (so a tilted head still gives its own corners), left one first. nil without a usable
+    /// contour: Smile then leaves the face unchanged and says "Smile needs a visible mouth."
+    var mouthCorners: (left: CGPoint, right: CGPoint)? {
+        guard outerLips.count >= 2 else { return nil }
+        var best: (CGPoint, CGPoint)?
+        var bestDistance: CGFloat = 0
+        for (index, a) in outerLips.enumerated() {
+            for b in outerLips[(index + 1)...] {
+                let distance = hypot(b.x - a.x, b.y - a.y)
+                if distance > bestDistance { bestDistance = distance; best = (a, b) }
+            }
+        }
+        guard let (a, b) = best, bestDistance > 0 else { return nil }
+        return a.x <= b.x ? (a, b) : (b, a)
+    }
+
     /// Usable for Portrait: big enough, with landmarks, facing the camera well enough. The
     /// approved "No face can be edited" covers faces too small, turned away or too dark.
     var isUsable: Bool {

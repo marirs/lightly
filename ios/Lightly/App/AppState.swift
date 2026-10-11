@@ -381,6 +381,15 @@ final class AppState {
     private(set) var toast: String?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
 
+    /// Owner amendment 2026-10-11: double tap on empty space (Welcome, More, the editor stage outside the photo) moves
+    /// Appearance to the next of System → Light → Dark → System, the same persisted preference as More › Appearance.
+    /// Returns the toast text; the caller shows it where its screen shows toasts.
+    @discardableResult
+    func cycleAppearance() -> String {
+        preferences.appearance = preferences.appearance.next
+        return preferences.appearance.cycleToast
+    }
+
     func showToast(_ text: String) {
         toast = text
         toastTask?.cancel()

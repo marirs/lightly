@@ -276,25 +276,29 @@ struct L2Segmented<Value: Hashable>: View {
     }
 }
 
-/// `tabs`: a scrolling row, 20 pt gaps, 14.5 pt; selected bold ink (with the 2 pt orange underline in Develop),
-/// others medium ink3; a 5 pt orange dot on tabs holding an edit; the right edge fades (88 %).
+/// `tabs` (owner amendment 2026-10-11, on every tab row): a scrolling row, 6 pt gaps, pulled 12 pt to the leading side
+/// (`margin-left: -12px`) so the first label lines up with the content edge. Each tab is 7/12 pt padded, 14.5 pt; the
+/// selected one bold on the translucent lime pill (16 pt corners, `--pill` / `--pill-ink`), the others medium ink3 with no
+/// fill. A 5 pt orange dot on tabs holding an edit. The right edge fades (88 %) while tabs are hidden past it.
+/// The orange underline of the earlier design is gone everywhere.
 struct L2Tabs<Value: Hashable>: View {
     struct Item { let value: Value; let title: Text; var icon: ApprovedIcon?; var dot = false; let identifier: String }
     let items: [Item]
     let selection: Value
-    /// Owner (2026-10-11): every sub-menu underlines its selected tab, as the presets do.
-    var underline = true
     let onSelect: (Value) -> Void
     @Environment(\.colorScheme) private var scheme
     /// True while some tabs are hidden past the trailing edge: only then does the end fade (owner amendment
     /// 2026-10-10: a fade on tabs that all fit read as "there is more to scroll").
     @State private var hidesMore = false
 
+    /// `margin-left: -12px` on the row: the pill's own 12 pt padding then starts at the content edge.
+    static var leadingPull: CGFloat { 12 }
+
     var body: some View {
         let c = L2(scheme: scheme)
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 20) {
+                HStack(spacing: 6) {
                     ForEach(items.indices, id: \.self) { index in
                         let item = items[index]
                         let isOn = item.value == selection
@@ -304,11 +308,10 @@ struct L2Tabs<Value: Hashable>: View {
                                 item.title.l2Text(14.5, weight: isOn ? .bold : .medium).lineLimit(1).fixedSize()
                                 if item.dot { Circle().fill(c(ApprovedColor.edited)).frame(width: 5, height: 5) }
                             }
-                            .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkTertiary))
-                            .padding(.top, 8).padding(.bottom, 7)
-                            .overlay(alignment: .bottom) {
-                                if isOn && underline { Rectangle().fill(c(ApprovedColor.browse)).frame(height: 2) }
-                            }
+                            .foregroundStyle(isOn ? c(ApprovedColor.pillInk) : c(ApprovedColor.inkTertiary))
+                            .padding(.vertical, 7).padding(.horizontal, 12)
+                            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(isOn ? c(ApprovedColor.pill) : .clear))
+                            // The 44 pt touch target grows around the pill without changing how it is drawn.
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
                         }
@@ -331,6 +334,8 @@ struct L2Tabs<Value: Hashable>: View {
                 proxy.scrollTo(max(0, at - 1), anchor: .leading)
             }
         }
+        // The row is 12 pt wider on the leading side than the column it sits in (CSS negative margin).
+        .padding(.leading, -Self.leadingPull)
     }
 }
 
@@ -722,5 +727,17 @@ struct L2Alert: View {
             .accessibilityAddTraits(.isModal)
             .accessibilityElement(children: .contain)
         }
+    }
+}
+
+// MARK: - Theme cycle
+
+extension View {
+    /// Owner amendment 2026-10-11: a double tap on this view's empty space (where no control takes the touch) cycles
+    /// the theme. Put on a background layer, so controls in front keep their own taps.
+    func cyclesThemeOnDoubleTap(_ action: @escaping () -> Void) -> some View {
+        contentShape(Rectangle())
+            .onTapGesture(count: 2, perform: action)
+            .accessibilityHidden(true)
     }
 }

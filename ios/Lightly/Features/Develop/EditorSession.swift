@@ -1028,6 +1028,20 @@ final class EditorSession {
         commit(next)
     }
 
+    /// Text (owner amendment 2026-10-11): a change shown while a finger or slider moves; nothing is committed.
+    func previewText(_ change: (inout EditRecipe.TextTool) -> Void) {
+        var next = recipe
+        change(&next.tools.text)
+        render(next, final: false)
+    }
+
+    /// One undo step.
+    func commitText(_ change: (inout EditRecipe.TextTool) -> Void) {
+        var next = recipe
+        change(&next.tools.text)
+        commit(next)
+    }
+
     /// Crop › an aspect: a fixed aspect takes the largest centred rect of that shape; Original
     /// resets the rect; Free keeps the current one (prototype `set:edit.aspect`).
     func setCropAspect(_ aspect: EditRecipe.Geometry.Aspect) {
@@ -1169,7 +1183,7 @@ final class EditorSession {
     func canReset(section: String, adjustment: String? = nil) -> Bool {
         if section == "all" {
             return autoState == .applied || recipe.look != nil ||
-                ["effects", "edit", "background", "portrait", "watermark", "border"].contains { canReset(section: $0) }
+                ["effects", "edit", "background", "portrait", "watermark", "border", "text"].contains { canReset(section: $0) }
         }
         if section == "background", adjustment == nil {
             return recipe.tools.background.replacement != nil || recipe.tools.background.focus.blur > 0 || !recipe.tools.background.subject.refinements.isEmpty
@@ -1179,6 +1193,7 @@ final class EditorSession {
         }
         if section == "watermark" { return recipe.tools.watermark.type != .none }
         if section == "border" { return recipe.tools.border.type != .none }
+        if section == "text" { return !recipe.tools.text.layers.isEmpty }
         return recipeAfterReset(section: section, adjustment: adjustment) != recipe
     }
 
@@ -1223,6 +1238,7 @@ final class EditorSession {
                     case "under": next.tools.portrait.faces[i].underEye = face.underEye
                     case "eyes": next.tools.portrait.faces[i].eyes = face.eyes
                     case "teeth": next.tools.portrait.faces[i].teeth = face.teeth
+                    case "smile": next.tools.portrait.faces[i].smile = face.smile
                     case "hair": next.tools.portrait.faces[i].hair = face.hair
                     default: break
                     }
@@ -1230,6 +1246,7 @@ final class EditorSession {
             } else { next.tools.portrait = neutral.portrait }
         case "watermark": next.tools.watermark = neutral.watermark
         case "border": next.tools.border = neutral.border
+        case "text": next.tools.text = neutral.text
         default: return recipe
         }
         return next
@@ -1362,6 +1379,12 @@ final class EditorSession {
         /// Border (stage 11) and watermark (stage 12), applied to every frame, preview and export alike.
         var border: EditRecipe.Border = EditRecipe.Tools.neutral(grainSeed: 0).border
         var watermark: EditRecipe.Watermark = EditRecipe.Tools.neutral(grainSeed: 0).watermark
+        /// Text (stage 11, rendering-v2 §7.4), drawn into the frame after Effects and before the border.
+        var text: EditRecipe.TextTool = .none
+        /// The frame after Effects, before text and border: cached apart from the canvas so moving or editing a text
+        /// redraws only text and border (owner amendment 2026-10-11).
+        var frameKey: PreviewPrefixKey?
+        var deferredFrameKey: PreviewPrefixKey?
         /// The watermark's resolved content; nil draws nothing (no watermark, or a saved signature
         /// that is missing or changed: rendered without it, never substituted).
         var watermarkContent: WatermarkStage.Content?
@@ -1402,6 +1425,14 @@ final class EditorSession {
         private let lock = NSLock()
         private var entry: (PreviewPrefixKey, RenderedFrame)?
         private var canvasEntry: (PreviewPrefixKey, RenderedFrame, CGRect)?
+        private var frameEntry: (PreviewPrefixKey, RenderedFrame)?
+        /// The frame after Effects (before text and border).
+        func frame(_ key: PreviewPrefixKey?) -> RenderedFrame? {
+            lock.withLock { guard let key, let frameEntry, frameEntry.0 == key else { return nil }; return frameEntry.1 }
+        }
+        func putFrame(_ frame: RenderedFrame, key: PreviewPrefixKey?) {
+            lock.withLock { if let key { frameEntry = (key, frame) } }
+        }
         func canvas(_ key: PreviewPrefixKey?) -> (RenderedFrame, CGRect)? {
             lock.withLock { guard let key, let canvasEntry, canvasEntry.0 == key else { return nil }; return (canvasEntry.1, canvasEntry.2) }
         }
@@ -1464,9 +1495,17 @@ final class EditorSession {
             imageRect = cached.1
         } else {
             let started = ContinuousClock.now
-            let frame = try renderFrameBeforeBorder(job, base: consume base, width: width, height: height, renderer: renderer, cache: cache, prefixCache: prefixCache)
+            var frame: RenderedFrame
+            if let cached = prefixCache?.frame(job.frameKey) {
+                frame = cached
+            } else {
+                frame = try renderFrameBeforeBorder(job, base: consume base, width: width, height: height, renderer: renderer, cache: cache, prefixCache: prefixCache)
+                prefixCache?.putFrame(frame, key: job.frameKey)
+            }
             // Owner report 2026-10-11: a tapped preset takes time to show on the iPhone. Measured per render.
             DiagnosticTrace.note("preview render \(width)x\(height) look \(job.look?.id ?? "none") pixelStages \(job.includePixelStages) layered \(job.layered != nil) drag \(job.dragFrame): \(Self.milliseconds(ContinuousClock.now - started)) ms")
+            // Stage 11, text, in the frame: before the border, so a border never covers it (rendering-v2 §7.4).
+            TextStage.apply(job.text, pixels: &frame.pixels, width: frame.width, height: frame.height)
             let bordered = BorderStage.apply(job.border, pixels: frame.pixels, width: frame.width, height: frame.height)
             canvas = RenderedFrame(pixels: bordered.pixels, width: bordered.width, height: bordered.height)
             imageRect = job.border.type == .none ? CGRect(x: 0, y: 0, width: frame.width, height: frame.height)
@@ -1628,6 +1667,11 @@ final class EditorSession {
         upstream.tools.watermark = neutral.watermark
         job.canvasKey = PreviewPrefixKey(recipe: upstream, sceneGeneration: sceneGeneration,
                                         autoLUT: auto, displaySize: renderReferencePhotoSize ?? displayedPhotoSize)
+        // Text and border come after the cached frame.
+        upstream.tools.text = neutral.text
+        upstream.tools.border = neutral.border
+        job.frameKey = PreviewPrefixKey(recipe: upstream, sceneGeneration: sceneGeneration,
+                                       autoLUT: auto, displaySize: renderReferencePhotoSize ?? displayedPhotoSize)
         upstream.tools.effects = neutral.effects
         upstream.tools.border = neutral.border
         upstream.tools.watermark = neutral.watermark
@@ -1643,7 +1687,7 @@ final class EditorSession {
             job.layeredCap = LayeredStages.previewCap
         }
         job.dragFrame = dragFrame && dragBase != nil
-        if job.dragFrame { job.canvasKey = nil }
+        if job.dragFrame { job.canvasKey = nil; job.frameKey = nil }
         // A new preset shows its colours at once (owner report 2026-10-11: a tapped preset took time to show; Lightroom
         // is instant): first a frame without the pixel stages (the LUT on the GPU, ~20 ms), then the full frame. Only
         // when nothing else is in use, so the fast frame never shows other edits missing. Neither key is set on the fast
@@ -1651,9 +1695,10 @@ final class EditorSession {
         if colourFirst, job.layered == nil, !job.usesEditOrEffects, !job.dragFrame {
             job.includePixelStages = false
             job.followUpWithFullFrame = true
-            job.deferredCanvasKey = job.canvasKey; job.deferredPrefixKey = job.prefixKey
+            job.deferredCanvasKey = job.canvasKey; job.deferredPrefixKey = job.prefixKey; job.deferredFrameKey = job.frameKey
             job.canvasKey = nil
             job.prefixKey = nil
+            job.frameKey = nil
             // The coarse 17³ LUT bakes ~7x faster than 33³ for a preset seen for the first time; the full frame uses 33³.
             job.lutDimension = DevelopLUTCache.dragDimension
         }
@@ -1678,7 +1723,7 @@ final class EditorSession {
             full.includePixelStages = true
             full.followUpWithFullFrame = false
             full.lutDimension = LUT3D.contractDimension
-            full.canvasKey = job.deferredCanvasKey; full.prefixKey = job.deferredPrefixKey
+            full.canvasKey = job.deferredCanvasKey; full.prefixKey = job.deferredPrefixKey; full.frameKey = job.deferredFrameKey
             full.layeredCap = LayeredStages.previewCap
             submit(full)
         }
@@ -1833,6 +1878,7 @@ final class EditorSession {
         job.effects = target.tools.effects
         job.border = target.tools.border
         job.watermark = target.tools.watermark
+        job.text = target.tools.text
         job.watermarkContent = watermarkContent(for: target.tools.watermark)
         job.displayPhotoSize = renderReferencePhotoSize ?? displayedPhotoSize
         job.removePatches = removePatches.patches(for: target.tools.edit.remove.strokes)

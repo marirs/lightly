@@ -12,6 +12,7 @@ struct EditorScreen: View {
     @State private var effectsPanel: EffectsPanelModel
     @State private var borderPanel: BorderPanelModel
     @State private var watermarkPanel: WatermarkPanelModel
+    @State private var textPanel: TextPanelModel
     /// Watermark: the anchor when a drag on the photo began.
     @State private var watermarkDragStart: (x: Double, y: Double)?
     /// Edit › Remove: the stroke being brushed (source coordinates).
@@ -64,6 +65,8 @@ struct EditorScreen: View {
     let onClose: () -> Void
     let onMore: () -> Void
     let onChooseAnotherPhoto: () -> Void
+    /// Owner amendment 2026-10-11: double tap on the stage outside the photo cycles the theme; returns the toast text.
+    let onCycleTheme: () -> String
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -71,7 +74,8 @@ struct EditorScreen: View {
 
     init(session: EditorSession, favourites: FavouritePresetsStore,
          preferredBorder: @escaping @MainActor () -> PreferredBorder = { .none }, onClose: @escaping () -> Void,
-         onMore: @escaping () -> Void, onChooseAnotherPhoto: @escaping () -> Void) {
+         onMore: @escaping () -> Void, onChooseAnotherPhoto: @escaping () -> Void,
+         onCycleTheme: @escaping () -> String = { "" }) {
         self.session = session
         _panel = State(initialValue: DevelopPanelModel(session: session, favourites: favourites))
         _backgroundPanel = State(initialValue: BackgroundPanelModel(session: session))
@@ -81,9 +85,11 @@ struct EditorScreen: View {
         let watermarkPanel = WatermarkPanelModel(session: session, signatures: session.signatures)
         _watermarkPanel = State(initialValue: watermarkPanel)
         _borderPanel = State(initialValue: BorderPanelModel(session: session, watermarkPanel: watermarkPanel, preferredBorder: preferredBorder))
+        _textPanel = State(initialValue: TextPanelModel(session: session))
         self.onClose = onClose
         self.onMore = onMore
         self.onChooseAnotherPhoto = onChooseAnotherPhoto
+        self.onCycleTheme = onCycleTheme
     }
 
     var body: some View {
@@ -285,16 +291,21 @@ struct EditorScreen: View {
     }
 
     private func stageOnly() -> PhotoStage<EmptyView, AnyView> {
-        PhotoStage(image: session.isShowingOriginal ? session.originalImage : session.displayedImage,
+        let cycleTheme: () -> Void = { session.showStageToast(onCycleTheme()) }
+        let keepsTwoFingerTouch: ((CGPoint) -> Bool)? = tool == .text ? { selectedTextContains($0) } : nil
+        return PhotoStage(image: session.isShowingOriginal ? session.originalImage : session.displayedImage,
                    showsOriginalBadge: session.isShowingOriginal,
                    outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
-                   marksCoverCanvas: tool == .watermark,
+                   // The watermark and the Text tool's handles may reach into a border's margin.
+                   marksCoverCanvas: tool == .watermark || tool == .text,
                    cropWorkspace: false,
                    cropFocus: cropFocusRect,
                    cropBottomReserve: cropReserve,
                    cropTouches: isCropping ? { rect in AnyView(cropGestureArea(photo: rect)) } : nil,
                    allowsInspection: !isCropping,
                    allowsDoubleTapZoom: tool != .watermark,
+                   onEmptyStageDoubleTap: cycleTheme,
+                   keepsTwoFingerTouch: keepsTwoFingerTouch,
                    onInspectionBegan: {
                        let hadPreview = watermarkDragStart != nil || replacementDragStart != nil
                        watermarkDragStart = nil; replacementDragStart = nil
@@ -417,6 +428,7 @@ struct EditorScreen: View {
             case .edit: value = used.contains(.edit) ? "Edited" : "Off"
             case .effects: value = used.contains(.effects) ? effectsPanel.onSummary : "Off"
             case .watermark: value = used.contains(.watermark) ? watermarkPanel.typeTitle : "Off"
+            case .text: value = used.contains(.text) ? textPanel.summary : "Off"
             case .border: value = used.contains(.border) ? borderPanel.typeTitle : "Off"
             }
             return (tool, value, used.contains(tool))
@@ -515,6 +527,7 @@ struct EditorScreen: View {
         if effectsPanel.isUsed { used.insert(.effects) }
         if watermarkPanel.isUsed { used.insert(.watermark) }
         if borderPanel.isUsed { used.insert(.border) }
+        if textPanel.hasLayers { used.insert(.text) }
         return used
     }
 
@@ -575,6 +588,7 @@ struct EditorScreen: View {
         case .edit: EditPanelView(model: editPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         case .effects: EffectsPanelView(model: effectsPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         case .watermark: WatermarkPanelView(model: watermarkPanel, roomy: style == .list, wraps: style == .wrappedTabs)
+        case .text: TextPanelView(model: textPanel)
         case .border: BorderPanelView(model: borderPanel, roomy: style == .list, wraps: style == .wrappedTabs)
         }
     }
@@ -602,6 +616,8 @@ struct EditorScreen: View {
                     if effectsPanel.picksOnTap { selectiveColourTapArea(size: size) }
                 case .watermark:
                     if watermarkPanel.isUsed { watermarkDragArea(size: size) }
+                case .text:
+                    TextLayerMarks(model: textPanel, frameRect: textFrameRect(canvas: size))
                 default:
                     EmptyView()
                 }
@@ -670,6 +686,23 @@ struct EditorScreen: View {
         default:
             EmptyView()
         }
+    }
+
+    // MARK: - Text on the photo
+
+    /// The photo frame inside the canvas the marks cover (a border's margin around it), in the marks' points.
+    private func textFrameRect(canvas: CGSize) -> CGRect {
+        let box = session.displayedImageBox
+        return CGRect(x: box.minX * canvas.width, y: box.minY * canvas.height, width: box.width * canvas.width, height: box.height * canvas.height)
+    }
+
+    /// Two fingers whose centre is on the selected text (fractions of the canvas) pinch and turn it, not the photo.
+    private func selectedTextContains(_ point: CGPoint) -> Bool {
+        guard let layer = textPanel.selectedLayer, let frame = session.displayedPhotoSize else { return false }
+        let box = session.displayedImageBox
+        guard box.width > 0, box.height > 0 else { return false }
+        let inFrame = CGPoint(x: (point.x - box.minX) / box.width * frame.width, y: (point.y - box.minY) / box.height * frame.height)
+        return TextStage.layout(layer, frameSize: frame).contains(inFrame, slop: 16)
     }
 
     // MARK: - Geometry mapping for marks and touches
@@ -1054,6 +1087,7 @@ extension PortraitPanelModel {
         if edits.contains(where: { $0.underEye.brighten != 0 || $0.underEye.softenLines != 0 }) { names.append("Under-eye") }
         if edits.contains(where: { $0.eyes.brighten != 0 || $0.eyes.clarity != 0 }) { names.append("Eyes") }
         if edits.contains(where: { $0.teeth.brighten != 0 }) { names.append("Teeth") }
+        if edits.contains(where: { $0.smile.amount != 0 }) { names.append("Smile") }
         if edits.contains(where: { $0.hair.definition != 0 || $0.hair.flyaways != 0 || $0.hair.shine != 0 }) { names.append("Hair & Beard") }
         return names.isEmpty ? "Off" : names.joined(separator: ", ")
     }
@@ -1091,5 +1125,12 @@ extension BorderPanelModel {
         case .polaroid: "Polaroid"
         case .paper: "Paper"
         }
+    }
+}
+
+extension TextPanelModel {
+    /// "Your edit" (landscape iPad): the texts' words, in layer order, as other tools list what they hold.
+    var summary: String {
+        layers.isEmpty ? "Off" : layers.map { $0.text.replacingOccurrences(of: "\n", with: " ") }.joined(separator: ", ")
     }
 }

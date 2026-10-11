@@ -179,11 +179,38 @@ enum EditRecipeCodec {
     // MARK: Tools
 
     private static func readTools(_ r: Reader) throws -> EditRecipe.Tools {
-        try r.requireExactly(["background", "portrait", "edit", "effects", "watermark", "border"])
+        // `text` is the one optional key (owner amendment 2026-10-11): recipes saved before it read as no layers.
+        let hasText = r.raw("text") != nil
+        try r.requireExactly(["background", "portrait", "edit", "effects", "watermark", "border"] + (hasText ? ["text"] : []))
         return EditRecipe.Tools(
             background: try readBackground(r.object("background")), portrait: try readPortrait(r.object("portrait")),
             edit: try readEdit(r.object("edit")), effects: try readEffects(r.object("effects")),
-            watermark: try readWatermark(r.object("watermark")), border: try readBorder(r.object("border")))
+            watermark: try readWatermark(r.object("watermark")), border: try readBorder(r.object("border")),
+            text: hasText ? try readText(r.object("text")) : .none)
+    }
+
+    private static func readText(_ r: Reader) throws -> EditRecipe.TextTool {
+        try r.requireExactly(["layers"])
+        let items = try r.array("layers")
+        guard items.count <= EditRecipe.TextTool.maximumLayers else { throw r.error("layers", "at most \(EditRecipe.TextTool.maximumLayers) layers") }
+        let layers = try items.enumerated().map { index, item in try readTextLayer(Reader(item, path: "\(r.path).layers[\(index)]")) }
+        return EditRecipe.TextTool(layers: layers)
+    }
+
+    private static func readTextLayer(_ t: Reader) throws -> EditRecipe.TextLayer {
+        try t.requireExactly(["id", "text", "font", "size", "colour", "opacity", "centre", "rotation"])
+        let id = try t.string("id")
+        guard id.count == 8, id.allSatisfy({ "0123456789abcdef".contains($0) }) else { throw t.error("id", "must be 8 lowercase hex digits") }
+        let text = try t.string("text", nonEmpty: true)
+        guard text.count <= EditRecipe.TextLayer.maximumTextLength else {
+            throw t.error("text", "at most \(EditRecipe.TextLayer.maximumTextLength) characters")
+        }
+        let size = try t.integer("size", minimum: Int64(EditRecipe.TextLayer.sizeRange.lowerBound))
+        guard Double(size) <= EditRecipe.TextLayer.sizeRange.upperBound else { throw t.error("size", "must be 10…100") }
+        return EditRecipe.TextLayer(id: id, text: text, font: try t.enumeration("font"), size: Double(size),
+                                    colour: try t.colour("colour"), opacity: try t.percent("opacity"),
+                                    centre: try readPoint(t.value("centre"), t.path + ".centre"),
+                                    rotation: try t.number("rotation", -180...180))
     }
 
     private static func readBackground(_ r: Reader) throws -> EditRecipe.Background {
@@ -250,7 +277,9 @@ enum EditRecipeCodec {
         try r.requireExactly(["faces"])
         let faces = try r.array("faces").enumerated().map { index, item -> EditRecipe.FaceEdit in
             let f = try Reader(item, path: r.path + ".faces[\(index)]")
-            try f.requireExactly(["face", "skin", "underEye", "eyes", "teeth", "hair"])
+            // `smile` is the one optional key (owner amendment 2026-10-11): faces saved before it read as amount 0.
+            let hasSmile = f.raw("smile") != nil
+            try f.requireExactly(["face", "skin", "underEye", "eyes", "teeth", "hair"] + (hasSmile ? ["smile"] : []))
             let identity = try f.object("face")
             try identity.requireExactly(["box", "detector"])
             let skin = try f.object("skin"); try skin.requireExactly(["smoothing", "blemishes", "evenTone", "keepTexture"])
@@ -266,10 +295,16 @@ enum EditRecipeCodec {
                 underEye: .init(brighten: try under.percent("brighten"), softenLines: try under.percent("softenLines")),
                 eyes: .init(brighten: try eyes.percent("brighten"), clarity: try eyes.percent("clarity")),
                 teeth: .init(brighten: try teeth.percent("brighten")),
-                hair: .init(definition: try hair.percent("definition"), flyaways: try hair.percent("flyaways"), shine: try hair.percent("shine")))
+                hair: .init(definition: try hair.percent("definition"), flyaways: try hair.percent("flyaways"), shine: try hair.percent("shine")),
+                smile: hasSmile ? try readSmile(f.object("smile")) : .neutral)
         }
         guard faces.count <= 16 else { throw r.error("faces", "at most 16") }
         return EditRecipe.Portrait(faces: faces)
+    }
+
+    private static func readSmile(_ r: Reader) throws -> EditRecipe.FaceEdit.Smile {
+        try r.requireExactly(["amount"])
+        return .init(amount: try r.slider("amount"))
     }
 
     private static func readEdit(_ r: Reader) throws -> EditRecipe.Edit {
@@ -498,6 +533,8 @@ enum EditRecipeCodec {
                 ("underEye", .object([("brighten", number(f.underEye.brighten)), ("softenLines", number(f.underEye.softenLines))])),
                 ("eyes", .object([("brighten", number(f.eyes.brighten)), ("clarity", number(f.eyes.clarity))])),
                 ("teeth", .object([("brighten", number(f.teeth.brighten))])),
+                // Schema order puts smile between teeth and hair; always written (owner amendment 2026-10-11).
+                ("smile", .object([("amount", number(f.smile.amount))])),
                 ("hair", .object([("definition", number(f.hair.definition)), ("flyaways", number(f.hair.flyaways)),
                                   ("shine", number(f.hair.shine))]))
             ])
@@ -550,7 +587,16 @@ enum EditRecipeCodec {
             + (b.paperFinish != .deckled ? [("paperFinish", .string(b.paperFinish.rawValue))] : [])
             + (b.texture != 25 ? [("texture", number(b.texture))] : []))
         return .object([("background", background), ("portrait", portrait), ("edit", edit), ("effects", effects),
-                        ("watermark", watermark), ("border", border)])
+                        ("watermark", watermark), ("border", border), ("text", text(t.text))])
+    }
+
+    /// Always written, even with no layers (owner amendment 2026-10-11: "writers always write it").
+    private static func text(_ tool: EditRecipe.TextTool) -> CanonicalJSON {
+        .object([("layers", .array(tool.layers.map { layer in
+            .object([("id", .string(layer.id)), ("text", .string(layer.text)), ("font", .string(layer.font.rawValue)),
+                     ("size", .number(String(Int64(layer.size.rounded())))), ("colour", .string(layer.colour)),
+                     ("opacity", number(layer.opacity)), ("centre", point(layer.centre)), ("rotation", number(layer.rotation))])
+        }))])
     }
 }
 

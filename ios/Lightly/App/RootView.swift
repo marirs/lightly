@@ -196,7 +196,8 @@ struct RootView: View {
                     preferredBorder: { appState.preferences.preferredBorder },
                     onClose: { appState.returnToWelcome() },
                     onMore: { appState.openMore() },
-                    onChooseAnotherPhoto: { appState.chooseFromLibrary() }
+                    onChooseAnotherPhoto: { appState.chooseFromLibrary() },
+                    onCycleTheme: { appState.cycleAppearance() }
                 )
                 .id(photo.id)
             }

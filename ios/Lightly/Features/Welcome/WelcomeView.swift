@@ -29,6 +29,8 @@ struct WelcomeView: View {
                             Spacer(minLength: 32)
                             actions.layoutAnchor("welcome.actions")
                         }
+                        // Inside the scroll view, whose content would otherwise take the touches on empty space.
+                        .background(emptySpace)
                     }
                 }
             }
@@ -37,8 +39,14 @@ struct WelcomeView: View {
             .padding(.vertical, wide ? 16 : 0)
             .padding(.bottom, wide ? 0 : 10)
         }
-        .background(ApprovedColor.background.resolved(colorScheme).ignoresSafeArea())
+        // The page colour itself takes the double tap where nothing in front does.
+        .background(ApprovedColor.background.resolved(colorScheme).cyclesThemeOnDoubleTap(cycleTheme).ignoresSafeArea())
     }
+
+    /// Double tap on empty space cycles the theme (owner amendment 2026-10-11), with its toast.
+    private var emptySpace: some View { Color.clear.cyclesThemeOnDoubleTap(cycleTheme) }
+
+    private func cycleTheme() { appState.showToast(appState.cycleAppearance()) }
 
     private var brand: some View {
         let c = L2(scheme: colorScheme)

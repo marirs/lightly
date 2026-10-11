@@ -11,7 +11,7 @@ import SwiftUI
 /// Drawn natively from the same path data rather than substituted with SF Symbols, whose shapes
 /// and weights differ visibly at these sizes.
 enum ApprovedIcon: String, CaseIterable, Sendable {
-    case close, back, undo, redo, chevron, check, star, develop, background, portrait, edit, effects, watermark, border, photo, camera, brush, erase, info, warn, share, plus, eye, rotl, rotr, fliph, flipv, grip, trash, search, flash, circle, hex, heart, starShape, reset, wand, pencil, dropper, flip, ellipsis, mail, picker, more, compare
+    case text, close, back, undo, redo, chevron, check, star, develop, background, portrait, edit, effects, watermark, border, photo, camera, brush, erase, info, warn, share, plus, eye, rotl, rotr, fliph, flipv, grip, trash, search, flash, circle, hex, heart, starShape, reset, wand, pencil, dropper, flip, ellipsis, mail, picker, more, compare
 
     /// One drawing primitive in the 24×24 view box.
     enum Element: Sendable {
@@ -37,6 +37,9 @@ enum ApprovedIcon: String, CaseIterable, Sendable {
         // `ic('ellipsis')` draws its dots with a 3.2-unit stroke.
         case .ellipsis:
             [.path("M5 12h.01M12 12h.01M19 12h.01", strokeWidth: 3.2)]
+        // Owner amendment 2026-10-11: the Text tool's dock icon (`IC.text`).
+        case .text:
+            [.path("M5 7V5h14v2M12 5v14M9 19h6")]
         case .close:
             [.path("M6 6l12 12M18 6L6 18")]
         case .back:

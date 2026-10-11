@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import simd
 
 /// Stage `portrait` (rendering-v2 stage 9): per-face retouching inside landmark-derived regions.
 ///
@@ -26,12 +27,21 @@ enum PortraitRenderer {
     static func render(_ image: FloatImage, faces: [Face], personMatte: FloatImage?) -> FloatImage {
         var out = image
         for face in faces where hasChanges(face.edit) {
-            apply(face, to: &out, personMatte: personMatte)
+            if hasRetouch(face.edit) { apply(face, to: &out, personMatte: personMatte) }
+            // §7.3: the smile warp runs after the face's other portrait operations.
+            if let corners = face.detected.mouthCorners {
+                warpSmile(&out, amount: face.edit.smile.amount, leftCorner: corners.left, rightCorner: corners.right)
+            }
         }
         return out
     }
 
     static func hasChanges(_ e: EditRecipe.FaceEdit) -> Bool {
+        hasRetouch(e) || e.smile.amount != 0
+    }
+
+    /// The tonal operators (everything but Smile's geometry).
+    static func hasRetouch(_ e: EditRecipe.FaceEdit) -> Bool {
         e.skin.smoothing > 0 || e.skin.blemishes > 0 || e.skin.evenTone > 0 || e.underEye.brighten > 0 || e.underEye.softenLines > 0
             || e.eyes.brighten > 0 || e.eyes.clarity > 0 || e.teeth.brighten > 0 || e.hair.definition > 0 || e.hair.flyaways > 0
             || e.hair.shine > 0
@@ -195,6 +205,65 @@ enum PortraitRenderer {
             let o = ((y + cy0) * image.width + x + cx0) * 3
             image.data[o] = linear.x; image.data[o + 1] = linear.y; image.data[o + 2] = linear.z
         }
+    }
+
+    // MARK: - Smile (rendering-v2 §7.3, owner amendment 2026-10-11)
+
+    /// Lifts (positive) or lowers (negative) the mouth corners by an inverse warp: each output pixel inside a corner's
+    /// disc samples the input at p − D(p), bilinear and clamped to the image; every other pixel is copied unchanged,
+    /// and amount 0 returns the image untouched. Corners are normalised (origin top-left); the warp works in this
+    /// image's pixels, so preview and export move the same part of the face.
+    static func warpSmile(_ image: inout FloatImage, amount: Double, leftCorner: CGPoint, rightCorner: CGPoint) {
+        let a = Float(min(max(amount, -100), 100) / 100)
+        guard a != 0, image.width > 1, image.height > 1 else { return }
+        let width = Float(image.width), height = Float(image.height)
+        let left = SIMD2<Float>(Float(leftCorner.x) * width, Float(leftCorner.y) * height)
+        let right = SIMD2<Float>(Float(rightCorner.x) * width, Float(rightCorner.y) * height)
+        let mouthWidth = simd_length(right - left)
+        guard mouthWidth > 0.5 else { return }
+        let along = (right - left) / mouthWidth
+        // û turned 90° anticlockwise on screen (y down): points up the face, following a tilted head.
+        let up = SIMD2<Float>(along.y, -along.x)
+        let leftShift = a * mouthWidth * (0.10 * up - 0.04 * along)
+        let rightShift = a * mouthWidth * (0.10 * up + 0.04 * along)
+        let radius = 0.45 * mouthWidth
+        let input = image
+        let channels = image.channels
+        for corner in [left, right] {
+            let x0 = max(0, Int((corner.x - radius).rounded(.down))), x1 = min(image.width - 1, Int((corner.x + radius).rounded(.up)))
+            let y0 = max(0, Int((corner.y - radius).rounded(.down))), y1 = min(image.height - 1, Int((corner.y + radius).rounded(.up)))
+            guard x0 <= x1, y0 <= y1 else { continue }
+            for y in y0...y1 { for x in x0...x1 {
+                // Pixel centres, as the contract's continuous coordinates.
+                let p = SIMD2<Float>(Float(x) + 0.5, Float(y) + 0.5)
+                let shift = smileFalloff(p, corner: left, radius: radius) * leftShift
+                    + smileFalloff(p, corner: right, radius: radius) * rightShift
+                guard shift != .zero else { continue }
+                let source = p - shift
+                for c in 0..<channels {
+                    image.data[(y * image.width + x) * channels + c] = bilinear(input, x: source.x - 0.5, y: source.y - 0.5, channel: c)
+                }
+            } }
+        }
+    }
+
+    /// `w_C(p) = max(0, 1 − |p − C|² / r²)²`.
+    static func smileFalloff(_ p: SIMD2<Float>, corner: SIMD2<Float>, radius: Float) -> Float {
+        let d = p - corner
+        let t = max(0, 1 - simd_dot(d, d) / (radius * radius))
+        return t * t
+    }
+
+    /// Bilinear sample at pixel-index coordinates (pixel centres at integers), clamped to the image.
+    private static func bilinear(_ image: FloatImage, x: Float, y: Float, channel: Int) -> Float {
+        let cx = min(max(x, 0), Float(image.width - 1)), cy = min(max(y, 0), Float(image.height - 1))
+        let x0 = Int(cx), y0 = Int(cy)
+        let x1 = min(x0 + 1, image.width - 1), y1 = min(y0 + 1, image.height - 1)
+        let fx = cx - Float(x0), fy = cy - Float(y0)
+        func at(_ px: Int, _ py: Int) -> Float { image.data[(py * image.width + px) * image.channels + channel] }
+        let top = at(x0, y0) + (at(x1, y0) - at(x0, y0)) * fx
+        let bottom = at(x0, y1) + (at(x1, y1) - at(x0, y1)) * fx
+        return top + (bottom - top) * fy
     }
 
     // MARK: - Masks

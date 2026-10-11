@@ -38,9 +38,15 @@ struct MoreSheet: View {
             .id(currentPage)
             .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing), removal: .opacity))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background { if !inSheet { ApprovedColor.background.resolved(colorScheme).ignoresSafeArea() } }
+            // Double tap on the page's empty space cycles the theme (owner amendment 2026-10-11).
+            .background {
+                if inSheet { Color.clear.cyclesThemeOnDoubleTap(cycleTheme) }
+                else { ApprovedColor.background.resolved(colorScheme).cyclesThemeOnDoubleTap(cycleTheme).ignoresSafeArea() }
+            }
             .overlay(alignment: .bottom) { if let toast = appState.toast { StageToast(text: toast).padding(.bottom, 40) } }
     }
+
+    private func cycleTheme() { appState.showToast(appState.cycleAppearance()) }
 
     private func open(_ page: MorePage) {
         withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .snappy(duration: 0.25)) { path.append(page) }
@@ -80,6 +86,8 @@ struct MoreSheet: View {
             }
             ScrollView(.vertical, showsIndicators: false) {
                 content(of: page).frame(maxWidth: .infinity, alignment: .top).padding(.bottom, 16)
+                    // The scroll view's content would otherwise take the touches between the cards.
+                    .background(Color.clear.cyclesThemeOnDoubleTap(cycleTheme))
             }
             .scrollBounceBehavior(.basedOnSize)
         }

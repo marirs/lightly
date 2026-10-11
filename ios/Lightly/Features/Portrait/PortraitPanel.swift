@@ -4,7 +4,8 @@ import SwiftUI
 @MainActor
 @Observable
 final class PortraitPanelModel {
-    enum Tab: String, CaseIterable { case skin, under, eyes, teeth, hair }
+    /// Owner amendment 2026-10-11: Smile sits between Teeth and Hair & Beard (mockup `portraitPanel`).
+    enum Tab: String, CaseIterable { case skin, under, eyes, teeth, smile, hair }
 
     let session: EditorSession
     var tab: Tab = .skin
@@ -28,8 +29,14 @@ final class PortraitPanelModel {
 
     func changeCount(for e: EditRecipe.FaceEdit) -> Int {
         let values = [e.skin.smoothing, e.skin.blemishes, e.skin.evenTone, e.underEye.brighten, e.underEye.softenLines, e.eyes.brighten,
-                      e.eyes.clarity, e.teeth.brighten, e.hair.definition, e.hair.flyaways, e.hair.shine]
+                      e.eyes.clarity, e.teeth.brighten, e.hair.definition, e.hair.flyaways, e.hair.shine, e.smile.amount]
         return values.filter { $0 != 0 }.count + (e.skin.keepTexture != 85 ? 1 : 0)
+    }
+
+    /// Smile needs both mouth corners of the selected face (rendering-v2 §7.3); without them the warp leaves the face
+    /// unchanged and the tab says so.
+    var selectedFaceHasMouth: Bool {
+        faces.indices.contains(selectedFace) && faces[selectedFace].mouthCorners != nil
     }
 
     nonisolated static func neutral(for face: DetectedFace?) -> EditRecipe.FaceEdit {
@@ -76,9 +83,10 @@ struct PortraitPanelView: View {
                                   (.under, "Under-eye", e.underEye.brighten != 0 || e.underEye.softenLines != 0),
                                   (.eyes, "Eyes", e.eyes.brighten != 0 || e.eyes.clarity != 0),
                                   (.teeth, "Teeth", e.teeth.brighten != 0),
+                                  (.smile, "Smile", e.smile.amount != 0),
                                   (.hair, "Hair & Beard", e.hair.definition != 0 || e.hair.flyaways != 0 || e.hair.shine != 0)],
                           selected: model.tab, wraps: wraps, identifierPrefix: "portrait.tab") { model.tab = $0 }
-                PanelResetRow(session: model.session, section: "portrait", title: ["skin": "Skin", "under": "Under-eye", "eyes": "Eyes", "teeth": "Teeth", "hair": "Hair & Beard"][model.tab.rawValue]!, adjustment: model.tab.rawValue, resetAdjustment: {
+                PanelResetRow(session: model.session, section: "portrait", title: ["skin": "Skin", "under": "Under-eye", "eyes": "Eyes", "teeth": "Teeth", "smile": "Smile", "hair": "Hair & Beard"][model.tab.rawValue]!, adjustment: model.tab.rawValue, resetAdjustment: {
                     model.update({ edit in
                         let neutral = PortraitPanelModel.neutral(for: nil)
                         switch model.tab {
@@ -86,6 +94,7 @@ struct PortraitPanelView: View {
                         case .under: edit.underEye = neutral.underEye
                         case .eyes: edit.eyes = neutral.eyes
                         case .teeth: edit.teeth = neutral.teeth
+                        case .smile: edit.smile = neutral.smile
                         case .hair: edit.hair = neutral.hair
                         }
                     }, commit: true)
@@ -132,6 +141,14 @@ struct PortraitPanelView: View {
         case .teeth:
             slider("Brighten", e.teeth.brighten) { $0.teeth.brighten = $1 }
             ApprovedNote("Stays within a natural range. There is no automatic whitening.")
+        case .smile:
+            // A centred ±100 slider like the other bipolar sliders; 0 is the photo as taken.
+            slider("Smile", e.smile.amount, range: -100...100) { $0.smile.amount = $1 }
+            if model.selectedFaceHasMouth {
+                ApprovedNote("Lifts or relaxes the corners of the mouth. Stays within a natural range; the rest of the face is unchanged.")
+            } else {
+                ApprovedNote("Smile needs a visible mouth.")
+            }
         case .hair:
             slider("Definition", e.hair.definition) { $0.hair.definition = $1 }
             slider("Flyaways", e.hair.flyaways) { $0.hair.flyaways = $1 }
@@ -139,8 +156,9 @@ struct PortraitPanelView: View {
         }
     }
 
-    private func slider(_ label: String, _ value: Double, _ set: @escaping (inout EditRecipe.FaceEdit, Double) -> Void) -> some View {
-        PanelSlider(label: label, value: value, range: 0...100,
+    private func slider(_ label: String, _ value: Double, range: ClosedRange<Double> = 0...100,
+                        _ set: @escaping (inout EditRecipe.FaceEdit, Double) -> Void) -> some View {
+        PanelSlider(label: label, value: value, range: range,
                     identifier: "slider.\(label.lowercased().replacingOccurrences(of: " ", with: ""))",
                     onChange: { v in model.update({ set(&$0, v.rounded()) }, commit: false) },
                     onEnd: { v in model.update({ set(&$0, v.rounded()) }, commit: true) })

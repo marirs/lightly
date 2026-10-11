@@ -11,7 +11,7 @@ enum DevelopPanelStyle: Equatable {
 }
 
 /// The Lightly 2 Develop panel (`developPanel` in docs/ui/directions/lightly-2-concept/index.html), 6 pt between rows:
-/// the grab handle (phones, compact), the category tabs (orange underline on the browsed one, orange dot on the one
+/// the grab handle (phones, compact), the category tabs (the lime pill on the browsed one, orange dot on the one
 /// holding the applied preset, Favourites with its star), a notice when one applies, the heading (star, the preset's
 /// name, Reset), the preset gallery and Amount. On landscape iPad (`.list`) the categories are a list above the rest.
 struct DevelopPanelView: View {
@@ -46,7 +46,7 @@ struct DevelopPanelView: View {
                 L2Tabs(items: model.categoryItems.map { item in
                     .init(value: item.id, title: Text(item.name), icon: item.isFavourites ? .star : nil,
                           dot: item.holdsAppliedPreset, identifier: "develop.category.\(item.id)")
-                }, selection: model.currentCategoryID, underline: true, onSelect: model.selectCategory)
+                }, selection: model.currentCategoryID, onSelect: model.selectCategory)
             }
             notice
             heading

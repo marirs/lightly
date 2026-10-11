@@ -71,7 +71,12 @@ enum ApprovedColor {
     /// Accent for text, lines, rings and selection (`--accent-ink`).
     static let selection = Token(light: 0x557311, dark: 0xCFF26B)                 // --accent-ink
 
-    /// The browsed Develop category's underline (`--browse`).
+    /// The selected tab's translucent lime pill (`--pill`, owner amendment 2026-10-11): lime at 45 % (light) / 17 % (dark).
+    static let pill = Token(light: 0xCFF26B, dark: 0xCFF26B, lightAlpha: 0.45, darkAlpha: 0.17)
+    /// The selected tab's text on the pill (`--pill-ink`).
+    static let pillInk = Token(light: 0x141513, dark: 0xE2F99F)
+
+    /// The browsed category on the landscape iPad Develop list (`--browse`; the mockup's `developList` keeps it).
     static let browse = Token(light: 0xC25E00, dark: 0xFF9F43)
     /// Edited-tool dots (`--edited`).
     static let edited = Token(light: 0xC25E00, dark: 0xFF9F43)

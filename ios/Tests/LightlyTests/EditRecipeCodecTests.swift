@@ -24,14 +24,27 @@ final class EditRecipeCodecTests: XCTestCase {
         XCTAssertEqual(try EditRecipeCodec.decode(EditRecipeCodec.encode(recipe)), recipe)
     }
 
+    /// The fixtures predate the owner amendment of 2026-10-11, whose two keys are optional on read and always written
+    /// (`tools.text`, `faceEdit.smile`). The writer's bytes are the fixture's with exactly those keys added where the
+    /// schema orders them: `smile` before each face's `hair`, `text` after `border`, the last key of `tools` (and
+    /// `tools` is the document's last key). Everything else must still match byte for byte.
+    static func withAlwaysWrittenKeys(_ fixture: String) -> String {
+        var json = fixture.replacingOccurrences(of: "\"hair\":{\"definition\"", with: "\"smile\":{\"amount\":0},\"hair\":{\"definition\"")
+        precondition(json.hasSuffix("}}"), "tools is the last key")
+        json.removeLast(2)
+        return json + ",\"text\":{\"layers\":[]}}}"
+    }
+
     func testEveryValidFixtureRoundTripsByteForByte() throws {
         let valid = try Self.recipeFixtures().filter { !$0.lastPathComponent.hasPrefix("invalid-") }
         XCTAssertEqual(valid.count, 25)   // 25th: effects-selective-colour (rendering-v2 revision 4)
         for file in valid {
             let bytes = try Data(contentsOf: file)
             let recipe = try EditRecipeCodec.decode(bytes)
-            XCTAssertEqual(String(decoding: EditRecipeCodec.encode(recipe), as: UTF8.self), String(decoding: bytes, as: UTF8.self),
-                           file.lastPathComponent)
+            XCTAssertEqual(String(decoding: EditRecipeCodec.encode(recipe), as: UTF8.self),
+                           Self.withAlwaysWrittenKeys(String(decoding: bytes, as: UTF8.self)), file.lastPathComponent)
+            // The written form (with the new keys) reads back to the same recipe.
+            XCTAssertEqual(try EditRecipeCodec.decode(EditRecipeCodec.encode(recipe)), recipe, file.lastPathComponent)
         }
     }
 
@@ -46,7 +59,8 @@ final class EditRecipeCodecTests: XCTestCase {
     func testSchema2MigratesToTheExpectedSchema3Bytes() throws {
         let migrated = try EditRecipeCodec.decode(Data(contentsOf: Self.url("shared/fixtures/edit-state/v2-with-look.json")))
         let expected = try Data(contentsOf: Self.url("shared/fixtures/edit-recipe/migrated-from-v2-with-look.json"))
-        XCTAssertEqual(EditRecipeCodec.encode(migrated), expected)
+        XCTAssertEqual(String(decoding: EditRecipeCodec.encode(migrated), as: UTF8.self),
+                       Self.withAlwaysWrittenKeys(String(decoding: expected, as: UTF8.self)))
     }
 
     func testSchema1MigratesThroughSchema2WithALegacyLookVersion() throws {

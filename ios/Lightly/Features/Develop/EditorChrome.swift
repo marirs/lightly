@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The seven tools of the approved editor (`TOOL_NAMES`), in dock order.
+/// The eight tools of the approved editor (mockup `TOOLS`), in dock order. Owner amendment 2026-10-11 added Text
+/// between Watermark and Border.
 enum EditorTool: String, CaseIterable, Identifiable, Sendable {
-    case develop, background, portrait, edit, effects, watermark, border
+    case develop, background, portrait, edit, effects, watermark, text, border
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum EditorTool: String, CaseIterable, Identifiable, Sendable {
         case .edit: "Edit"
         case .effects: "Effects"
         case .watermark: "Watermark"
+        case .text: "Text"
         case .border: "Border"
         }
     }
@@ -26,6 +28,7 @@ enum EditorTool: String, CaseIterable, Identifiable, Sendable {
         case .edit: .edit
         case .effects: .effects
         case .watermark: .watermark
+        case .text: .text
         case .border: .border
         }
     }
@@ -231,6 +234,11 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     var cropTouches: ((CGRect) -> AnyView)?
     var allowsInspection = false
     var allowsDoubleTapZoom = true
+    /// Owner amendment 2026-10-11: a double tap on the stage outside the photo (never on the photo) cycles the theme.
+    var onEmptyStageDoubleTap: (() -> Void)?
+    /// Two-finger touches whose centre (fractions of the shown canvas) this returns true for are left to the marks
+    /// (the Text tool's pinch and turn on the selected text) instead of zooming or panning the photo.
+    var keepsTwoFingerTouch: ((CGPoint) -> Bool)?
     var onInspectionBegan: () -> Void = {}
     var photoChrome = AnyView(EmptyView())
     /// The photo inside the canvas, as fractions (prototype `.imgbox` inside `.frame`): marks are
@@ -249,7 +257,9 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
             let fitted = Self.fittedSize(image: CGSize(width: image.width, height: image.height),
                                          in: CGSize(width: max(1, geometry.size.width - 24), height: max(1, geometry.size.height - 16)))
             ZStack {
-                InspectionViewport(enabled: allowsInspection, doubleTapEnabled: allowsDoubleTapZoom, contentSize: fitted, viewportSize: geometry.size, onInspectionBegan: onInspectionBegan) {
+                InspectionViewport(enabled: allowsInspection, doubleTapEnabled: allowsDoubleTapZoom, contentSize: fitted, viewportSize: geometry.size,
+                                   onEmptyDoubleTap: onEmptyStageDoubleTap, keepsTwoFingerTouch: keepsTwoFingerTouch,
+                                   onInspectionBegan: onInspectionBegan) {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.high)
@@ -421,10 +431,12 @@ struct RingSpinner: View {
 
 // MARK: - Tool navigation
 
-/// The phone tool dock (`phoneDock`): 62 pt plus the bottom inset, a hairline above, the tools in equal slots
-/// (6 pt top, 4 pt side padding). iOS: 22 pt icon (accent when selected), 9.5 pt semibold label (ink when selected,
-/// ink3 otherwise), then a 4 pt dot slot, orange on tools holding edits. Android: the selected icon sits on a 46×30
-/// lime pill (`android` style).
+/// The phone tool dock (`phoneDock`): 62 pt plus the bottom inset, a hairline above. Owner amendment 2026-10-11: eight
+/// tools no longer fit, so each item is a fixed 58 pt (6 pt row padding) and the row scrolls sideways; the next tool shows
+/// cut off at the trailing edge under a fade (mask opaque to 91 %, then clear) while there is more that way, and once
+/// scrolled to the end the fade moves to the leading edge (clear → opaque over the first 12 %). Selecting a tool scrolls
+/// it into view. iOS: 22 pt icon (accent when selected), 9.5 pt semibold label (ink when selected, ink3 otherwise), then
+/// a 4 pt dot slot, orange on tools holding edits.
 struct ToolNavigation: View {
     let tools: [EditorTool]
     let selected: EditorTool
@@ -432,38 +444,97 @@ struct ToolNavigation: View {
     var androidStyle = false
     let onSelect: (EditorTool) -> Void
 
+    /// `flex: 0 0 58px`.
+    static let itemWidth: CGFloat = 58
+    /// The row's own side padding (`padding: 0 6px`).
+    static let rowPadding: CGFloat = 6
+
     @Environment(\.colorScheme) private var colorScheme
+    @State private var overflow = DockOverflow()
 
     var body: some View {
         let c = L2(scheme: colorScheme)
-        HStack(spacing: 0) {
-            ForEach(tools) { tool in
-                let isOn = tool == selected
-                Button { onSelect(tool) } label: {
-                    VStack(spacing: 3) {
-                        ApprovedIconView(icon: tool.icon, size: 22)
-                            .foregroundStyle(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary))
-                        Text(tool.title).l2Text(9.5, weight: .semibold).lineLimit(1).minimumScaleFactor(0.8)
-                            .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkTertiary))
-                        Circle().fill(used.contains(tool) ? c(ApprovedColor.edited) : .clear).frame(width: 4, height: 4)
-                    }
-                    .padding(.top, 2)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .top)
-                    .contentShape(Rectangle())
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    ForEach(tools) { tool in item(tool, c: c).id(tool) }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(tool.title))
-                .accessibilityValue(Text(used.contains(tool) ? "Edited" : ""))
-                .accessibilityAddTraits(isOn ? .isSelected : [])
-                .accessibilityIdentifier("tool.\(tool.rawValue)")
+                .padding(.horizontal, Self.rowPadding)
+                .background(GeometryReader { content in
+                    Color.clear.preference(key: DockContentEdges.self, value: content.frame(in: .named(Self.space)))
+                })
+            }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .coordinateSpace(name: Self.space)
+            .background(GeometryReader { viewport in
+                Color.clear
+                    .onAppear { overflow.viewportWidth = viewport.size.width }
+                    .onChange(of: viewport.size.width) { _, width in overflow.viewportWidth = width }
+            })
+            .onPreferenceChange(DockContentEdges.self) { overflow.content = $0 }
+            .mask(LinearGradient(stops: overflow.maskStops, startPoint: .leading, endPoint: .trailing))
+            .onChange(of: selected, initial: true) { _, tool in
+                // The tool after the selected one is brought in too (when there is one), so the selected tool never
+                // sits under the trailing fade; the minimal scroll that shows it (no anchor) moves the row no further.
+                let index = tools.firstIndex(of: tool) ?? 0
+                let target = tools.indices.contains(index + 1) ? tools[index + 1] : tool
+                withAnimation(.snappy(duration: 0.25)) { proxy.scrollTo(target) }
             }
         }
-        .padding(.horizontal, 4).padding(.top, 6)
+        .padding(.top, 6)
         .frame(height: 62, alignment: .top)
         .overlay(alignment: .top) { Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Tools"))
     }
+
+    private static let space = "tooldock"
+
+    private func item(_ tool: EditorTool, c: L2) -> some View {
+        let isOn = tool == selected
+        return Button { onSelect(tool) } label: {
+            VStack(spacing: 3) {
+                ApprovedIconView(icon: tool.icon, size: 22)
+                    .foregroundStyle(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.inkTertiary))
+                Text(tool.title).l2Text(9.5, weight: .semibold).lineLimit(1).minimumScaleFactor(0.8)
+                    .foregroundStyle(isOn ? c(ApprovedColor.ink) : c(ApprovedColor.inkTertiary))
+                Circle().fill(used.contains(tool) ? c(ApprovedColor.edited) : .clear).frame(width: 4, height: 4)
+            }
+            .padding(.top, 2)
+            .frame(width: Self.itemWidth, alignment: .top)
+            .frame(minHeight: 44, alignment: .top)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(tool.title))
+        .accessibilityValue(Text(used.contains(tool) ? "Edited" : ""))
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier("tool.\(tool.rawValue)")
+    }
+}
+
+/// Where the dock's content sits in its viewport, and the fade that follows from it.
+struct DockOverflow: Equatable {
+    var content: CGRect = .zero
+    var viewportWidth: CGFloat = 0
+
+    /// Tools hidden past the trailing edge.
+    var hidesTrailing: Bool { content.maxX > viewportWidth + 1 }
+    /// Tools hidden past the leading edge.
+    var hidesLeading: Bool { content.minX < -1 }
+
+    /// Trailing fade (opaque to 91 %) while more is to the right; scrolled to the end, the leading fade (clear → opaque
+    /// over 12 %); all tools in view: no fade.
+    var maskStops: [Gradient.Stop] {
+        if hidesTrailing { return [.init(color: .black, location: 0.91), .init(color: .clear, location: 1)] }
+        if hidesLeading { return [.init(color: .clear, location: 0), .init(color: .black, location: 0.12)] }
+        return [.init(color: .black, location: 0), .init(color: .black, location: 1)]
+    }
+}
+
+private struct DockContentEdges: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }
 
 /// "Your edit" (landscape iPad, right column): every tool with its state and an orange dot when it holds an edit; the
@@ -591,13 +662,15 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
     let doubleTapEnabled: Bool
     let contentSize: CGSize
     let viewportSize: CGSize
+    var onEmptyDoubleTap: (() -> Void)?
+    var keepsTwoFingerTouch: ((CGPoint) -> Bool)?
     var onInspectionBegan: () -> Void
     @ViewBuilder var content: () -> Content
 
     func makeCoordinator() -> Coordinator { Coordinator(content()) }
 
     func makeUIView(context: Context) -> UIScrollView {
-        let scroll = UIScrollView()
+        let scroll = TwoFingerGuardedScrollView()
         scroll.backgroundColor = .clear
         scroll.delaysContentTouches = false
         scroll.delegate = context.coordinator
@@ -616,10 +689,27 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
         scroll.addSubview(host.view)
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.doubleTap(_:)))
         tap.numberOfTapsRequired = 2
-        tap.isEnabled = enabled && doubleTapEnabled
+        // Only touches this double tap acts on reach it (Coordinator.gestureRecognizer(_:shouldReceive:)), so a tool
+        // without the photo's double-tap zoom (Watermark) keeps every touch on the photo to itself.
+        tap.delegate = context.coordinator
         scroll.addGestureRecognizer(tap)
         context.coordinator.doubleTapRecognizer = tap
+        scroll.content = host.view
+        apply(to: scroll, coordinator: context.coordinator)
         return scroll
+    }
+
+    /// The settings that follow the SwiftUI state on every update.
+    private func apply(to scroll: UIScrollView, coordinator: Coordinator) {
+        coordinator.doubleTapZooms = doubleTapEnabled
+        coordinator.onEmptyDoubleTap = onEmptyDoubleTap
+        coordinator.doubleTapRecognizer?.isEnabled = enabled && (doubleTapEnabled || onEmptyDoubleTap != nil)
+        (scroll as? TwoFingerGuardedScrollView)?.keepsTouch = keepsTwoFingerTouch.map { keeps in
+            { [weak coordinator] point in
+                guard let size = coordinator?.contentSize, size.width > 0, size.height > 0 else { return false }
+                return keeps(CGPoint(x: point.x / size.width, y: point.y / size.height))
+            }
+        }
     }
 
     func updateUIView(_ scroll: UIScrollView, context: Context) {
@@ -628,7 +718,7 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
         c.onInspectionBegan = onInspectionBegan
         scroll.maximumZoomScale = enabled ? 6 : 1
         scroll.panGestureRecognizer.isEnabled = enabled
-        c.doubleTapRecognizer?.isEnabled = enabled && doubleTapEnabled
+        apply(to: scroll, coordinator: c)
         // Resizing the panel must not reset zoom. Geometry remains the unzoomed fitted photo.
         if c.contentSize != contentSize || c.viewportSize != viewportSize {
             let scale = scroll.zoomScale
@@ -651,13 +741,23 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, UIScrollViewDelegate {
+    final class Coordinator: NSObject, UIScrollViewDelegate, UIGestureRecognizerDelegate {
         let host: UIHostingController<ZoomHosted<Content>>
         let zoom: InspectionZoom
         var contentSize = CGSize.zero
         var viewportSize = CGSize.zero
         var onInspectionBegan: () -> Void = {}
+        var doubleTapZooms = true
+        var onEmptyDoubleTap: (() -> Void)?
         weak var doubleTapRecognizer: UITapGestureRecognizer?
+
+        /// Whether a touch lands on the photo (the hosted content, zoom included) rather than the stage around it.
+        private func isOnPhoto(_ location: CGPoint) -> Bool { host.view.bounds.contains(location) }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard gestureRecognizer === doubleTapRecognizer else { return true }
+            return isOnPhoto(touch.location(in: host.view)) ? doubleTapZooms : onEmptyDoubleTap != nil
+        }
         init(_ content: Content) {
             let zoom = InspectionZoom()
             self.zoom = zoom
@@ -679,6 +779,9 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
         }
         @objc func doubleTap(_ recognizer: UITapGestureRecognizer) {
             guard let scroll = recognizer.view as? UIScrollView else { return }
+            // Outside the photo: the theme cycle; the photo itself keeps the inspection zoom.
+            guard isOnPhoto(recognizer.location(in: host.view)) else { onEmptyDoubleTap?(); return }
+            guard doubleTapZooms else { return }
             if scroll.zoomScale > 1.01 { scroll.setZoomScale(1, animated: true) }
             else {
                 let point = recognizer.location(in: host.view)
@@ -686,5 +789,21 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
                 scroll.zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2, width: size.width, height: size.height), animated: true)
             }
         }
+    }
+}
+
+/// The inspection scroll view, which lets the marks keep a two-finger touch (the Text tool's pinch and turn on the
+/// selected text) instead of zooming or panning the photo with it.
+private final class TwoFingerGuardedScrollView: UIScrollView {
+    /// The touch's centre in the content's own points; true keeps it from the scroll view.
+    var keepsTouch: ((CGPoint) -> Bool)?
+    weak var content: UIView?
+
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === pinchGestureRecognizer || gestureRecognizer === panGestureRecognizer,
+           let content, let keepsTouch, keepsTouch(gestureRecognizer.location(in: content)) {
+            return false
+        }
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
 }

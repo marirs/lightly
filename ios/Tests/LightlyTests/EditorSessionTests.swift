@@ -77,7 +77,9 @@ final class EditorSessionTests: XCTestCase {
         XCTAssertEqual(withPerson.hasPerson, true)
         XCTAssertEqual(EditorTool.available(hasPerson: true), EditorTool.allCases)
         XCTAssertFalse(EditorTool.available(hasPerson: false).contains(.portrait))
-        XCTAssertEqual(EditorTool.available(hasPerson: false).count, 6, "Every other tool stays listed")
+        XCTAssertEqual(EditorTool.available(hasPerson: false).count, 7, "Every other tool stays listed")
+        // Owner amendment 2026-10-11: eight tools, Text between Watermark and Border.
+        XCTAssertEqual(EditorTool.allCases, [.develop, .background, .portrait, .edit, .effects, .watermark, .text, .border])
     }
 
     /// The app's library loads in the background from launch: a photo opened before it finishes

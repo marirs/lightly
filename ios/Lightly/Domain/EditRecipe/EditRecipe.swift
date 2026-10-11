@@ -91,6 +91,9 @@ struct EditRecipe: Equatable, Sendable {
         var effects: Effects
         var watermark: Watermark
         var border: Border
+        /// Owner amendment 2026-10-11: the Text tool (rendering-v2 §7.4, stage 11). Optional on read (missing = no
+        /// layers), always written.
+        var text: TextTool = .none
     }
 
     struct Background: Equatable, Sendable {
@@ -151,12 +154,20 @@ struct EditRecipe: Equatable, Sendable {
         struct Eyes: Equatable, Sendable { var brighten, clarity: Double }
         struct Teeth: Equatable, Sendable { var brighten: Double }
         struct Hair: Equatable, Sendable { var definition, flyaways, shine: Double }
+        /// Owner amendment 2026-10-11 (rendering-v2 §7.3 `portrait.smile`): −100…100, 0 = the photo as taken.
+        struct Smile: Equatable, Sendable {
+            var amount: Double
+            static let neutral = Smile(amount: 0)
+        }
         var face: Identity
         var skin: Skin
         var underEye: UnderEye
         var eyes: Eyes
         var teeth: Teeth
         var hair: Hair
+        /// Optional on read (missing = amount 0), always written; declared last so existing call sites that build a
+        /// face edit without it keep compiling and mean "no smile change".
+        var smile: Smile = .neutral
     }
 
     struct Edit: Equatable, Sendable {
@@ -255,6 +266,39 @@ struct EditRecipe: Equatable, Sendable {
         var size: Double
         var opacity: Double
         var colour: String
+    }
+
+    /// The Text tool (owner amendment 2026-10-11): any number of text layers drawn in order, the last on top.
+    struct TextTool: Equatable, Sendable {
+        /// `edit-recipe-v1.json` `text.layers.maxItems`.
+        static let maximumLayers = 20
+        var layers: [TextLayer]
+        static let none = TextTool(layers: [])
+    }
+
+    /// One text layer (`textLayer`): every quantity is a fraction of the photo frame, so preview and export agree.
+    struct TextLayer: Equatable, Sendable, Identifiable {
+        /// The eight approved fonts (shared/fonts), by the family name the recipe stores.
+        enum Font: String, Sendable, CaseIterable {
+            case inter = "Inter", playfairDisplay = "Playfair Display", bebasNeue = "Bebas Neue", caveat = "Caveat"
+            case cormorantGaramond = "Cormorant Garamond", montserrat = "Montserrat", dancingScript = "Dancing Script"
+            case spaceMono = "Space Mono"
+        }
+        static let sizeRange: ClosedRange<Double> = 10...100
+        static let maximumTextLength = 120
+        /// Eight lowercase hex digits, stable for the layer's life, so its selection survives Undo.
+        var id: String
+        /// One or more lines separated by "\n"; never blank.
+        var text: String
+        var font: Font
+        /// 10…100: font size = size / 100 × 0.25 × the frame's short edge.
+        var size: Double
+        var colour: String
+        var opacity: Double
+        /// Centre of the text block, as fractions of the frame (after crop, before border).
+        var centre: Point
+        /// Degrees clockwise about the centre, −180…180.
+        var rotation: Double
     }
 
     struct Border: Equatable, Sendable {
