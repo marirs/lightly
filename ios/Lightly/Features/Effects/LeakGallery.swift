@@ -4,7 +4,7 @@ import SwiftUI
 /// replaces the four style chips. "None" first (the photo without a leak), then every leak of the pack in its order,
 /// each the photo with that leak screened over it at 85 %. Two 84 pt rows, 96 pt columns, 10 pt between rows and 12 pt
 /// between columns, filled column by column and scrolling sideways, the right edge fading (88 %, the mockup's
-/// `fadeRight`). Without a bundled pack only None is offered.
+/// `fadeRight`) while there are more leaks that way. Without a bundled pack only None is offered.
 struct LeakGallery: View {
     let session: EditorSession
     var pack: LeakPack = .bundled
@@ -13,6 +13,9 @@ struct LeakGallery: View {
     static let columnWidth: CGFloat = 96
     static let rowGap: CGFloat = 10
     static let columnGap: CGFloat = 12
+
+    /// True while leaks are hidden past the trailing edge: only then does the end fade (owner report 2026-10-11).
+    @State private var hidesMore = false
 
     /// The tiles in order: nil is None.
     static func tileIDs(_ pack: LeakPack) -> [String?] { [nil] + pack.leaks.map(\.id) }
@@ -36,12 +39,13 @@ struct LeakGallery: View {
                     }
                 }
             }
+            .reportsTrailingEdge(in: "leakgallery")
         }
         .frame(height: Self.rowHeight * 2 + Self.rowGap)
-        .mask(LinearGradient(stops: [.init(color: .black, location: 0.88), .init(color: .clear, location: 1)],
-                             startPoint: .leading, endPoint: .trailing))
+        .trailingOverflowFade(in: "leakgallery", hidesMore: $hidesMore)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("effects.leak.gallery")
+        .trailingFadeAccessibilityValue(hidesMore)
     }
 }
 

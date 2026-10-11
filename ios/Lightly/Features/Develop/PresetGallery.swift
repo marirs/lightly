@@ -3,7 +3,7 @@ import SwiftUI
 /// The preset gallery (Lightly 2 `developPanel` gallery): "Original" first, then the browsed category's presets as
 /// live thumbnails of this photo.
 /// - Compact (phone panel): two 84 pt rows, 96 pt columns, 10 pt between rows and 12 pt between columns, scrolling
-///   sideways, the right edge fading (90 %). Swiping up expands it.
+///   sideways, the right edge fading (90 %) while there are more presets that way. Swiping up expands it.
 /// - Expanded (the overlay, and landscape iPad): two equal columns, 14 pt rows, 12 pt columns, 142 pt thumbnails,
 ///   scrolling down; pulling down from the top collapses it.
 struct PresetGallery: View {
@@ -12,6 +12,9 @@ struct PresetGallery: View {
     @State private var scrollSpace = UUID()
     @State private var atTop = true
     @State private var dragStartedAtTop: Bool?
+    /// Compact only: true while presets are hidden past the trailing edge, the one time the end fades (owner report
+    /// 2026-10-11: the fade stayed on at the end of the row).
+    @State private var hidesMore = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -40,10 +43,10 @@ struct PresetGallery: View {
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHGrid(rows: [GridItem(.fixed(84), spacing: 10), GridItem(.fixed(84), spacing: 10)], spacing: 12) { tiles }
+                            .reportsTrailingEdge(in: "presetgallery")
                     }
                     .frame(height: 84 * 2 + 10)
-                    .mask(LinearGradient(stops: [.init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
-                                         startPoint: .leading, endPoint: .trailing))
+                    .trailingOverflowFade(in: "presetgallery", opaqueTo: 0.9, hidesMore: $hidesMore)
                     .simultaneousGesture(DragGesture(minimumDistance: 16).onChanged { value in
                         if value.translation.height < -32 && abs(value.translation.height) > abs(value.translation.width) * 1.3 {
                             withAnimation(.snappy(duration: 0.25)) { model.isExpanded = true }
@@ -53,6 +56,7 @@ struct PresetGallery: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(expanded ? "develop.gallery.expanded" : "develop.gallery.compact")
+            .trailingFadeAccessibilityValue(!expanded && hidesMore)
             .accessibilityAction(named: expanded ? "Collapse presets" : "Expand presets") { model.isExpanded.toggle() }
             .onChange(of: model.currentCategoryID) { _, _ in proxy.scrollTo("original", anchor: .topLeading) }
         }

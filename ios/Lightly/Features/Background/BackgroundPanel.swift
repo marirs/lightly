@@ -417,11 +417,10 @@ struct BackgroundImageGrid<Content: View>: View {
                 .onChange(of: geometry.size.width) { _, width in panelWidth = width }
         })
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        .modifier(TrailingOverflowReader(space: "backgroundgrid", hidesMore: $hidesMore))
-        .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
-                             startPoint: .leading, endPoint: .trailing))
+        .trailingOverflowFade(in: "backgroundgrid", hidesMore: $hidesMore)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("background.images")
+        .trailingFadeAccessibilityValue(hidesMore)
     }
 }
 

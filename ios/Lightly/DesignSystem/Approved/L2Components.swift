@@ -332,9 +332,7 @@ struct L2Tabs<Value: Hashable>: View {
                 .reportsTrailingEdge(in: "l2tabs")
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            .modifier(TrailingOverflowReader(space: "l2tabs", hidesMore: $hidesMore))
-            .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
-                                 startPoint: .leading, endPoint: .trailing))
+            .trailingOverflowFade(in: "l2tabs", hidesMore: $hidesMore)
             // `scrolled()`: the item before the selected one sits at the leading edge.
             .onChange(of: selection, initial: true) { _, value in
                 guard let at = items.firstIndex(where: { $0.value == value }) else { return }
@@ -376,8 +374,49 @@ struct TrailingOverflowReader: ViewModifier {
                     .onChange(of: proxy.size.width) { _, width in viewportWidth = width }
             })
             .onPreferenceChange(TrailingContentEdge.self) { edge in contentEdge = edge }
-            .onChange(of: contentEdge > viewportWidth + 1, initial: true) { _, more in hidesMore = more }
-            .onChange(of: viewportWidth) { _, width in hidesMore = contentEdge > width + 1 }
+            .onChange(of: contentEdge > viewportWidth + 1, initial: true) { _, more in show(more) }
+            .onChange(of: viewportWidth) { _, width in show(contentEdge > width + 1) }
+    }
+
+    /// The fade comes and goes briefly rather than snapping as the row reaches (or leaves) its end.
+    private func show(_ more: Bool) {
+        guard more != hidesMore else { return }
+        withAnimation(.easeOut(duration: 0.18)) { hidesMore = more }
+    }
+}
+
+/// The trailing "more this way" fade of a sideways-scrolling row (owner report 2026-10-11: the fade stayed on once a
+/// row was scrolled to its end). The row's content carries `.reportsTrailingEdge(in: space)`; the end fades (opaque to
+/// `opaqueTo`, then clear) only while content is hidden past the trailing edge, so a row that fits, or one scrolled to
+/// its end, shows no fade. `hidesMore` mirrors the state for the row's container (its accessibility value).
+struct TrailingOverflowFade: ViewModifier {
+    let space: String
+    let opaqueTo: CGFloat
+    @Binding var hidesMore: Bool
+    func body(content: Content) -> some View {
+        content
+            .modifier(TrailingOverflowReader(space: space, hidesMore: $hidesMore))
+            // An opaque layer cross-fades over the gradient: opacity animates reliably where gradient stops may not.
+            .mask {
+                ZStack {
+                    LinearGradient(stops: [.init(color: .black, location: opaqueTo), .init(color: .clear, location: 1)],
+                                   startPoint: .leading, endPoint: .trailing)
+                    Rectangle().fill(.black).opacity(hidesMore ? 0 : 1)
+                }
+            }
+    }
+}
+
+extension View {
+    /// On a horizontal scroll view: the trailing fade, shown only while there is more content past the trailing edge.
+    func trailingOverflowFade(in space: String, opaqueTo: CGFloat = 0.88, hidesMore: Binding<Bool>) -> some View {
+        modifier(TrailingOverflowFade(space: space, opaqueTo: opaqueTo, hidesMore: hidesMore))
+    }
+
+    /// The accessibility value a row's container carries for its trailing fade ("More" while shown, "End" otherwise),
+    /// so UI tests can check the fade follows the scroll position.
+    func trailingFadeAccessibilityValue(_ hidesMore: Bool) -> some View {
+        accessibilityValue(Text(hidesMore ? "More" : "End"))
     }
 }
 

@@ -75,7 +75,8 @@ struct ChipRow<Content: View>: View {
     /// edge). The chips must carry `.id(index)`. nil leaves the row where the finger put it.
     var scrolledToIndex: Int? = nil
     @ViewBuilder let content: () -> Content
-    /// The end fades only while chips are hidden past it (owner amendment 2026-10-10, as `L2Tabs`).
+    /// The end fades only while chips are hidden past it (owner amendment 2026-10-10, as `L2Tabs`), so not once scrolled
+    /// to the end (owner report 2026-10-11).
     @State private var hidesMore = false
     var body: some View {
         ScrollViewReader { proxy in
@@ -84,9 +85,7 @@ struct ChipRow<Content: View>: View {
                     .reportsTrailingEdge(in: "chiprow")
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            .modifier(TrailingOverflowReader(space: "chiprow", hidesMore: $hidesMore))
-            .mask(LinearGradient(stops: [.init(color: .black, location: hidesMore ? 0.88 : 1), .init(color: hidesMore ? .clear : .black, location: 1)],
-                                 startPoint: .leading, endPoint: .trailing))
+            .trailingOverflowFade(in: "chiprow", hidesMore: $hidesMore)
             .onChange(of: scrolledToIndex, initial: true) { _, index in
                 guard let index else { return }
                 proxy.scrollTo(max(0, index - 1), anchor: .leading)
