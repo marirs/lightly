@@ -59,7 +59,12 @@ sealed interface EditorPhase {
 enum class EditorOverlay { FAVOURITE_REPLACE, SAVING, SAVED, LEAVE, EXPORT_FAILED, STORAGE_FULL, SIGNATURE_DRAW, SIGNATURE_IMPORT }
 
 /** What the preview shows: an exact render of a recipe, the transient drag render, or the original. */
-private data class PreviewRequest(val state: EditState?, val globalOnly: Boolean)
+private data class PreviewRequest(
+    val state: EditState?,
+    val globalOnly: Boolean,
+    /** A preset tap's first frame: the plan's colour (global) stages only, shown at once while the full render runs. */
+    val colourOnly: Boolean = false,
+)
 
 data class EditorUiState(
     val phase: EditorPhase = EditorPhase.Empty,
@@ -1495,7 +1500,7 @@ class EditorViewModel(
         val session = state.value.session ?: return
         val look = preset?.let { LookRef(it.id, it.lookVersion, (state.value.rememberedAmounts[it.id] ?: 100) / 100f) }
         state.update { it.copy(develop = it.develop.copy(startsAtFirst = false, dragStop = null)) }
-        commit(session.selectLook(look), state.value.auto)
+        commit(session.selectLook(look), state.value.auto, fastFirst = true)
     }
 
     private val thumbnailCache = linkedMapOf<String, Rgba8Image>()
@@ -1967,7 +1972,20 @@ class EditorViewModel(
         if (!committingPick) editEpoch++
         savedState[KEY_SESSION] = SavedEdits.encodeEditSession(session)
         state.update { it.copy(session = session, auto = auto) }
+        if (fastFirst) requestColourOnlyFrame(session.current)
         requestPreview(session.current, globalOnly = false)
+    }
+
+    /**
+     * A preset tap shows its colours at once (owner report 2026-10-11: about a second before the photo changed on a
+     * landscape photo). The full render runs the spatial stages (clarity, sharpening, noise reduction) on the CPU,
+     * 1.2-1.8 s at 1600x1067 on the motorola edge 60; the colour stages alone take ~70 ms. This frame runs on the
+     * interactive lane and the full render, submitted right after, replaces it. Skipped when Background, Portrait,
+     * Edit or Effects are in use: their stages are not part of a colour-only frame, so it would show them missing.
+     */
+    private fun requestColourOnlyFrame(edit: EditState) {
+        if (exportRunning || isCropEditing() || usesHeavyStages(edit) || EditMapping.usesEditOrEffects(edit)) return
+        scheduler?.submit(PreviewRequest(edit, globalOnly = true, colourOnly = true))
     }
 
     private fun startPreviewScheduler(loaded: LoadedPhoto, generation: Long) {
@@ -1985,7 +2003,7 @@ class EditorViewModel(
                 val library = env.library.await()
                 val edit = request.payload.state ?: return@PreviewRenderer display
                 val start = System.nanoTime()
-                val plan = planOf(library, edit, globalOnly = false)
+                val plan = planOf(library, edit, globalOnly = request.payload.colourOnly)
                 // Interaction priority must not change pixels: use the same plan, source and Background cap
                 // during the drag and after release. Otherwise grain, sharpness and subject edges jump.
                 val backgroundCap = BackgroundSession.SETTLED_CAP
