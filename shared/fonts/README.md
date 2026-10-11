@@ -1,4 +1,4 @@
-# Watermark fonts (shared by iOS and Android)
+# Watermark and Text fonts (shared by iOS and Android)
 
 The watermark text fonts approved for the editor, bundled identically in both apps so watermark rendering works offline and looks the same on each platform.
 
@@ -16,3 +16,5 @@ Downloaded 2026-10-03 from the `main` branch of github.com/google/fonts. Hashes 
 - **Builds:** both platforms copy these files at build time. There are no private copies in `ios/` or `android/`.
 
 Added 2026-10-10 from google/fonts: `DancingScript-Variable.ttf` (`ofl/dancingscript`) and `Lora-Variable.ttf` (`ofl/lora`), both at regular weight 400, with their OFL files and SHA-256 hashes.
+
+Added 2026-10-11 for the Text tool (owner-approved eight-font chooser) from google/fonts: `PlayfairDisplay-Variable.ttf` (`ofl/playfairdisplay`), `BebasNeue-Regular.ttf` (`ofl/bebasneue`), `Montserrat-Variable.ttf` (`ofl/montserrat`) and `SpaceMono-Regular.ttf` (`ofl/spacemono`), with their OFL files and SHA-256 hashes. The Text tool's fonts are Inter, Playfair Display, Bebas Neue, Caveat, Cormorant Garamond, Montserrat, Dancing Script and Space Mono.
