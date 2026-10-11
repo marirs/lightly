@@ -34,6 +34,23 @@ class DevelopParityTest {
         assertEquals(golden.getValue("renderingContract").jsonObject.getValue("constantsSha256").jsonPrimitive.content, model.constantsSha256)
     }
 
+    /** Lightroom order (2026-10-11): grayscale, then colour grading, so a sepia split tone survives on a B&W look. */
+    @Test
+    fun `colour grading tints a black and white look`() {
+        fun zone(sat: Int) = """{"hue": 38, "saturation": $sat, "luminance": 0}"""
+        val grading = """{"shadows": ${zone(40)}, "midtones": ${zone(0)}, "highlights": ${zone(40)}, "global": ${zone(0)}, "balance": 0, "blending": 50}"""
+        fun global(json: String) = GlobalRecipe.parse(kotlinx.serialization.json.Json.parseToJsonElement(json).jsonObject)
+        val toned = DevelopGlobal(global("""{"grayscale": {"mix": [0,0,0,0,0,0,0,0]}, "colorGrading": $grading}"""), model)
+        val plain = DevelopGlobal(global("""{"grayscale": {"mix": [0,0,0,0,0,0,0,0]}}"""), model)
+        val out = DoubleArray(3)
+        for (c in listOf(doubleArrayOf(0.2, 0.5, 0.8), doubleArrayOf(0.7, 0.3, 0.2), doubleArrayOf(0.5, 0.5, 0.5))) {
+            toned.evaluate(c[0], c[1], c[2], out)
+            assertTrue(out[0] - out[2] > 0.01, "warm (sepia) tint expected: ${out.toList()}")
+            plain.evaluate(c[0], c[1], c[2], out)
+            assertTrue(abs(out[0] - out[2]) < 1e-6, "grayscale alone stays neutral: ${out.toList()}")
+        }
+    }
+
     @Test
     fun `all forty parity presets are covered`() {
         assertEquals(40, cases.size)

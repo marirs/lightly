@@ -197,6 +197,12 @@ struct DevelopGlobalProgram: Sendable {
         let hueRadians = hue * .pi / 180
         var a = chroma * cos(hueRadians)
         var b = chroma * sin(hueRadians)
+        // Black & white before colour grading (Lightroom order): grading then tints the monochrome image (sepia, cool tones).
+        if let grayscaleMix {
+            lightness *= 1 + 0.3 * (band * grayscaleMix).sum() * colourful
+            a = 0
+            b = 0
+        }
         if let grading {
             let wHigh = Self.smoothstep(0.5 + 0.25 * grading.balance - grading.blend,
                                         0.5 + 0.25 * grading.balance + grading.blend, lightness)
@@ -208,11 +214,6 @@ struct DevelopGlobalProgram: Sendable {
                 b += zone.b * weights[index]
                 lightness += zone.l * weights[index]
             }
-        }
-        if let grayscaleMix {
-            lightness *= 1 + 0.3 * (band * grayscaleMix).sum() * colourful
-            a = 0
-            b = 0
         }
         return simd_clamp(Self.linearToSRGB(Self.okLabToLinear(SIMD3(lightness, a, b))), .zero, .one)
     }

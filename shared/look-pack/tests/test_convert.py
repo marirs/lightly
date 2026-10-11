@@ -163,3 +163,11 @@ def test_a_nested_value_overriding_a_consumed_setting_is_detected():
     settings = lrsettings.parse_xmp_text(XMP)  # the mask's crs:Exposure2012="+3" is merged over the preset's +0.40
     _, operators, _ = run(settings)
     assert convert.check_no_nested_override(settings, XMP, operators) == ["Exposure2012"]
+
+
+def test_black_and_white_profile_renders_as_grayscale_and_is_recorded_as_approximated():
+    # Adobe Monochrome (a creative profile) is monochrome in Lightroom even without ConvertToGrayscale (2026-10-11).
+    recipe, operators, cov = run({**BASE, "Look": {"Name": "Adobe Monochrome", "Stubbed": "true"}, "GrayMixerRed": "-10"})
+    assert "grayscale" in operators and recipe["global"]["grayscale"]["mix"][0] == -10
+    assert codes(cov, "approximated").get("monochrome-profile") == ["Look:Adobe Monochrome"]
+    assert "creative-profile" not in codes(cov, "unsupported")

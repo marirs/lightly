@@ -170,7 +170,9 @@ C *= max(1 + k_sat·saturation^, 0)
 ```
 
 #### G10 Colour grading
-The generator has already folded legacy Split Toning into these values.
+The generator has already folded legacy Split Toning into these values. **G11 (grayscale) runs before G10** (2026-10-11,
+Lightroom's order): colour grading then tints a black-and-white look (sepia, cool tones). Before, G11 ran last and
+zeroed the tint, so toned monochrome presets rendered plain grey.
 ```
 a = C·cos(H°), b = C·sin(H°)
 bal = balance/100;  bl = 0.15 + 0.35·blending/100
@@ -181,10 +183,11 @@ for zone z in (shadows w_sh, midtones w_mid, highlights w_hi, global 1), z = 0�
     b += k_grade·grade_zone[z]·sat_z/100·sin θ·w_z
     L += k_grade_lum·lum_z/100·w_z·0.5
 ```
-The weights are computed once, before the loop, from the L that G8 produced.
+The weights are computed once, before the loop, from the L that G8 produced (and G11 adjusted, when grayscale is on).
 
 #### G11 Grayscale
 `L *= 1 + 0.3·(w·mix^)·colourful`, then a = b = 0. Here w and colourful are the G8 values computed before the HSL edits.
+Runs before G10 (see there).
 
 **Output:** `clamp(enc(OKLab⁻¹(L, a, b)), 0, 1)`.
 

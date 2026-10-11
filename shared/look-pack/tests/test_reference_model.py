@@ -277,3 +277,16 @@ def test_light_leak_rotation_turns_the_overlay_and_leaves_its_uncovered_corners_
 def test_light_leak_prism_has_no_reference_yet():
     with pytest.raises(ValueError):
         rm.light_leak_premultiplied(4, 4, {**LEAK, "style": "prism"})
+
+
+def test_colour_grading_tints_a_black_and_white_look():
+    # Lightroom order (2026-10-11): grayscale, then colour grading, so a sepia split tone survives on a B&W look.
+    grading = {"shadows": {"hue": 38, "saturation": 40, "luminance": 0}, "midtones": {"hue": 0, "saturation": 0, "luminance": 0},
+               "highlights": {"hue": 38, "saturation": 40, "luminance": 0}, "global": {"hue": 0, "saturation": 0, "luminance": 0},
+               "balance": 0, "blending": 50}
+    recipe = {"global": {"grayscale": {"mix": [0] * 8}, "colorGrading": grading}}
+    rgb = np.array([[0.2, 0.5, 0.8], [0.7, 0.3, 0.2], [0.5, 0.5, 0.5]])
+    out = rm.develop_global(rgb, recipe, MODEL)
+    assert (out[:, 0] - out[:, 2] > 0.01).all(), f"warm (sepia) tint expected on every pixel: {out}"
+    plain = rm.develop_global(rgb, {"global": {"grayscale": {"mix": [0] * 8}}}, MODEL)
+    assert np.abs(plain[:, 0] - plain[:, 2]).max() < 1e-6, "grayscale alone stays neutral"

@@ -89,6 +89,8 @@ COVERAGE_CODES = {
                            "portable random field (not Lightroom's grain pattern)"),
     "iso-adaptive": ("approximated", "ISO-adaptive preset: Lightroom interpolates these settings by the photo's ISO; "
                      "Lightly applies the preset's fixed values (ISO interpolation not implemented)"),
+    "monochrome-profile": ("approximated", "Black & white creative profile (Adobe Monochrome, B&W): rendered as the "
+                           "grayscale operator with the preset's own B&W mix; the profile's own tone table is not read"),
     "process-version-2012": ("approximated", "Process version 6.7 (PV2012) is rendered with the model calibrated on "
                              "process versions 10/11 (Version 5/6); the difference is unmeasured"),
     # unsupported: changes the look, not rendered
@@ -187,8 +189,19 @@ def curve_points(raw) -> list | None:
 
 # ------------------------------------------------------------------ recipe
 
+def monochrome_profile(settings: dict) -> bool:
+    """A black & white creative profile (Adobe Monochrome, Adobe's B&W profiles). Lightroom renders these in
+    monochrome even without ConvertToGrayscale; without this, such presets rendered in colour (2026-10-11)."""
+    look = settings.get("Look")
+    name = str(look.get("Name", "") if isinstance(look, dict) else look or "")
+    return "monochrome" in name.lower() or name.upper().startswith("B&W")
+
+
 def build_recipe(settings: dict, preset_id: str) -> tuple[dict, list[str], list[str]]:
     """(recipe, operators in pipeline order, malformed curve keys)."""
+    if monochrome_profile(settings) and str(settings.get("ConvertToGrayscale", "False")) != "True":
+        # Approximated as the grayscale operator with the preset's own B&W mix (coverage: monochrome-profile).
+        settings = {**settings, "ConvertToGrayscale": "True"}
     preset = lr_model.Preset(settings, wb_mode="rendered")
     v = preset.v
     g: dict = {}
@@ -385,6 +398,8 @@ def coverage(settings: dict, operators: list[str], malformed_curves: list[str],
             name = look.get("Name") if isinstance(look, dict) else str(look)
             if name in RAW_BASE_PROFILES:
                 record("raw-base-profile", f"Look:{name}")
+            elif monochrome_profile(settings):
+                record("monochrome-profile", f"Look:{name}")
             elif name:  # an empty Look element (<crs:Look crs:Name=""/>) selects nothing
                 record("creative-profile", f"Look:{name}")
         elif key in LOOK_NESTED_KEYS and isinstance(look, dict) and key in look:

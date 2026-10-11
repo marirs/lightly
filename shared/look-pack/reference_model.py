@@ -275,6 +275,12 @@ def develop_global(rgb, recipe: dict, model: dict, curve_tables: dict | None = N
     chroma = chroma * max(1 + C["k_sat"] * presence.get("saturation", 0.0) / 100, 0.0)
     a2 = chroma * np.cos(np.radians(hue))
     b2 = chroma * np.sin(np.radians(hue))
+    # Black & white before colour grading (Lightroom order): grading then tints the monochrome image (sepia, cool tones).
+    if "grayscale" in g:
+        mix = np.asarray(g["grayscale"]["mix"]) / 100
+        L = L * (1 + 0.3 * (band @ mix) * colourful)
+        a2 = np.zeros_like(a2)
+        b2 = np.zeros_like(b2)
     if "colorGrading" in g:
         cg = g["colorGrading"]
         balance = cg["balance"] / 100
@@ -291,11 +297,6 @@ def develop_global(rgb, recipe: dict, model: dict, curve_tables: dict | None = N
                 a2 = a2 + strength * math.cos(angle) * weight
                 b2 = b2 + strength * math.sin(angle) * weight
                 L = L + C["k_grade_lum"] * zone["luminance"] / 100 * weight * 0.5
-    if "grayscale" in g:
-        mix = np.asarray(g["grayscale"]["mix"]) / 100
-        L = L * (1 + 0.3 * (band @ mix) * colourful)
-        a2 = np.zeros_like(a2)
-        b2 = np.zeros_like(b2)
     return np.clip(linear_to_srgb(oklab_to_linear(np.stack([L, a2, b2], -1))), 0, 1)
 
 

@@ -171,6 +171,24 @@ final class DevelopParityTests: XCTestCase {
         }
     }
 
+    /// Lightroom order (2026-10-11): grayscale, then colour grading, so a sepia split tone survives on a B&W look.
+    func testColourGradingTintsABlackAndWhiteLook() throws {
+        let model = try Self.loadModel()
+        let zone: (Double) -> [String: Any] = { sat in ["hue": 38, "saturation": sat, "luminance": 0] }
+        let grading: [String: Any] = ["shadows": zone(40), "midtones": zone(0), "highlights": zone(40), "global": zone(0),
+                                      "balance": 0, "blending": 50]
+        let toned = DevelopGlobalProgram(recipe: try PresetRecipe(json: ["global": ["grayscale": ["mix": Array(repeating: 0, count: 8)],
+                                                                                  "colorGrading": grading]]).global, model: model)
+        let plain = DevelopGlobalProgram(recipe: try PresetRecipe(json: ["global": ["grayscale": ["mix": Array(repeating: 0, count: 8)]]]).global,
+                                         model: model)
+        for colour in [SIMD3(0.2, 0.5, 0.8), SIMD3(0.7, 0.3, 0.2), SIMD3(0.5, 0.5, 0.5)] {
+            let out = toned.evaluate(colour)
+            XCTAssertGreaterThan(out.x - out.z, 0.01, "warm (sepia) tint expected: \(out)")
+            let neutral = plain.evaluate(colour)
+            XCTAssertEqual(neutral.x, neutral.z, accuracy: 1e-6, "grayscale alone stays neutral")
+        }
+    }
+
     func testRecipeReaderRejectsUnknownOperatorsAndMissingParameters() {
         XCTAssertThrowsError(try PresetRecipe(json: ["global": ["sparkle": ["amount": 1]]]))
         XCTAssertThrowsError(try PresetRecipe(json: ["global": ["exposure": [:]]]))

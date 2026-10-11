@@ -192,6 +192,14 @@ class DevelopGlobal(recipe: GlobalRecipe, model: DevelopModel) {
         chroma *= saturationGain
         var a2 = chroma * cos(Math.toRadians(hue))
         var b2 = chroma * sin(Math.toRadians(hue))
+        // Black & white before colour grading (Lightroom order): grading then tints the monochrome image (sepia, cool tones).
+        val mix = grayscaleMix
+        if (mix != null) {
+            // Band weights and colourfulness from before the HSL edits.
+            lightness *= 1 + 0.3 * dot(weights, mix) * colourful
+            a2 = 0.0
+            b2 = 0.0
+        }
         val cg = grading
         if (cg != null && gradeZones.isNotEmpty()) {
             // Weights come from the L that G8 produced, once, before the loop.
@@ -206,13 +214,6 @@ class DevelopGlobal(recipe: GlobalRecipe, model: DevelopModel) {
                 b2 += term.deltaB * weight
                 lightness += term.deltaL * weight
             }
-        }
-        val mix = grayscaleMix
-        if (mix != null) {
-            // Band weights and colourfulness from before the HSL edits.
-            lightness *= 1 + 0.3 * dot(weights, mix) * colourful
-            a2 = 0.0
-            b2 = 0.0
         }
         ColourMath.oklabToLinear(lightness, a2, b2, scratch)
         out[0] = linearToSrgb(scratch[0]).coerceIn(0.0, 1.0)

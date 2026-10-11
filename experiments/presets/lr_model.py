@@ -15,7 +15,7 @@ by convert.py:
 Operator order (inputs and outputs are sRGB-encoded [0,1]):
   linearise -> calibration primaries -> white balance -> exposure -> basic tone (contrast, highlights,
   shadows, whites, blacks) -> dehaze (global approx) -> parametric curve -> point curves (RGB, R, G, B)
-  -> HSL bands -> vibrance/saturation -> colour grading / split toning -> grayscale mix -> encode
+  -> HSL bands -> vibrance/saturation -> grayscale mix -> colour grading / split toning -> encode
 """
 from __future__ import annotations
 
@@ -142,7 +142,12 @@ class Preset:
         self.splits = (_f(s, "ParametricShadowSplit", 25) / 100, _f(s, "ParametricMidtoneSplit", 50) / 100, _f(s, "ParametricHighlightSplit", 75) / 100)
         self.curves = {c: curve_lut(s.get(k), method=curve_method) for c, k in
                        (("rgb", "ToneCurvePV2012"), ("r", "ToneCurvePV2012Red"), ("g", "ToneCurvePV2012Green"), ("b", "ToneCurvePV2012Blue"))}
-        self.gray = str(s.get("ConvertToGrayscale", "False")) == "True"
+        look = s.get("Look")
+        look_name = str(look.get("Name", "") if isinstance(look, dict) else look or "")
+        # A black & white creative profile (Adobe Monochrome, B&W) is monochrome in Lightroom without
+        # ConvertToGrayscale; approximated by the grayscale mix (convert.py records it as monochrome-profile).
+        self.gray = str(s.get("ConvertToGrayscale", "False")) == "True" or "monochrome" in look_name.lower() \
+            or look_name.upper().startswith("B&W")
         self.gray_mix = [_f(s, f"GrayMixer{b}") for b in HSL_BANDS]
 
 
@@ -311,6 +316,12 @@ def render(rgb: torch.Tensor, p: Preset, C: Calib) -> torch.Tensor:
     # vibrance (protects already saturated colours) and saturation
     Cc = Cc * (1 + C.k_vib * v["Vibrance"] / 100 * (1 - (Cc / 0.25).clamp(0, 1))).clamp(min=0)
     Cc = Cc * (1 + C.k_sat * v["Saturation"] / 100).clamp(min=0)
+    a2, b2 = Cc * torch.cos(torch.deg2rad(h)), Cc * torch.sin(torch.deg2rad(h))
+    # Black & white before colour grading (Lightroom order, 2026-10-11): grading then tints the monochrome image.
+    if p.gray:
+        mix = torch.tensor(p.gray_mix) / 100
+        L = L * (1 + 0.3 * (w @ mix) * colourful)
+        a2 = torch.zeros_like(a2); b2 = torch.zeros_like(b2)
     # colour grading / split toning: luminance-weighted tints added in OKLab
     g = p.grading
     bal = g["balance"] / 100
@@ -318,7 +329,6 @@ def render(rgb: torch.Tensor, p: Preset, C: Calib) -> torch.Tensor:
     w_sh = 1 - smoothstep(0.5 + 0.25 * bal - blend, 0.5 + 0.25 * bal + blend, L)
     w_hi = smoothstep(0.5 + 0.25 * bal - blend, 0.5 + 0.25 * bal + blend, L)
     w_mid = 1 - (w_sh - w_hi).abs()
-    a2, b2 = Cc * torch.cos(torch.deg2rad(h)), Cc * torch.sin(torch.deg2rad(h))
     for z, (hue, sat, lum, wgt) in enumerate(((g["sh_hue"], g["sh_sat"], g["sh_lum"], w_sh), (g["mid_hue"], g["mid_sat"], g["mid_lum"], w_mid),
                                  (g["hi_hue"], g["hi_sat"], g["hi_lum"], w_hi), (g["gl_hue"], g["gl_sat"], g["gl_lum"], torch.ones_like(L)))):
         if sat or lum:
@@ -326,10 +336,6 @@ def render(rgb: torch.Tensor, p: Preset, C: Calib) -> torch.Tensor:
             a2 = a2 + C.k_grade * C.grade_zone[z] * sat / 100 * math.cos(hh) * wgt
             b2 = b2 + C.k_grade * C.grade_zone[z] * sat / 100 * math.sin(hh) * wgt
             L = L + C.k_grade_lum * lum / 100 * wgt * 0.5
-    if p.gray:
-        mix = torch.tensor(p.gray_mix) / 100
-        L = L * (1 + 0.3 * (w @ mix) * colourful)
-        a2 = torch.zeros_like(a2); b2 = torch.zeros_like(b2)
     out = linear_to_srgb(oklab_to_lin(torch.stack([L, a2, b2], -1)))
     return out.clamp(0, 1)
 
