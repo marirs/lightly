@@ -40,8 +40,9 @@ class DevelopBenchmarkTest {
         val start = System.nanoTime()
         val pack = LookPack.parse(text, model)
         println("host manifest parse: ${"%.0f".format((System.nanoTime() - start) / 1e6)} ms for ${pack.presetCount} presets")
-        assertEquals(2591, pack.presetCount)
-        assertEquals(listOf("portrait", "landscape", "film", "cinematic", "street", "travel", "wedding", "golden-hour", "black-white"), pack.categories.map { it.id })
+        // The curated pack (owner, 2026-10-11): 513 looks in nine collections.
+        assertEquals(513, pack.presetCount)
+        assertEquals(listOf("essentials", "cinema", "film", "daylight", "golden-hour", "night", "moody", "portrait", "black-white"), pack.categories.map { it.id })
         val pool = Executors.newFixedThreadPool(4)
         try {
             pack.categories.flatMap { it.presets }.forEach { preset ->

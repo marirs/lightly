@@ -2322,7 +2322,7 @@ class EditorViewModel(
             }
             log("bake 33³ (cold, 40 Film presets): ${summary(bakes)}")
             renderMillis.clear()
-            val waits = DebugEditorApi().scrub("street", 1, 20, 50)
+            val waits = DebugEditorApi().scrub("moody", 1, 20, 50)
             log("scrub 20 stops at 50 ms/stop: stale-preview wait ${summary(waits)}")
             log("drag (global-only) preview renders: ${summary(renderMillis.toList())}")
             delay(1500)

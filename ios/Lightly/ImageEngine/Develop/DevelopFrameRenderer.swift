@@ -30,10 +30,13 @@ struct DevelopRenderPlan: Sendable {
     var hasPixelStages: Bool { !spatial.isEmpty || !finishing.isEmpty }
 
     /// The plan for a Look at `strength` (Amount / 100). Strength 0 changes nothing.
+    ///
+    /// Recipe and table looks take the same path: the cache hands back the global LUT either way, and the
+    /// strength blend toward identity below is the same for both. Throws when a table look's LUT file is unusable.
     static func look(_ preset: PresetPack.Preset, strength: Double, cache: DevelopLUTCache,
-                     lutDimension: Int = LUT3D.contractDimension) -> DevelopRenderPlan {
+                     lutDimension: Int = LUT3D.contractDimension) throws -> DevelopRenderPlan {
         guard strength > 0 else { return .identity }
-        let lut = cache.lut(for: preset, dimension: lutDimension)
+        let lut = try cache.lut(for: preset, dimension: lutDimension)
         var spatial = preset.recipe.spatial
         if var nr = spatial.noiseReduction {
             nr.luminance *= strength

@@ -89,7 +89,7 @@ struct DependencyContainer {
             defaults.removeObject(forKey: FavouritePresetsStore.storageKey)
         }
         if arguments.contains("--seed-favourites") {
-            let seeded = [("portrait", 13), ("landscape", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
+            let seeded = [("portrait", 13), ("daylight", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
                 .compactMap { catalogue.preset(inCategory: $0.0, atStop: $0.1)?.id }
             defaults.set(seeded, forKey: FavouritePresetsStore.storageKey)
         }

@@ -94,10 +94,10 @@ class PreferencesTest {
     fun `the approved catalogue resolves preset ids to names and categories`() {
         val catalogue = PresetCatalogue.parse(File(System.getProperty("lightly.presetCatalogue")!!).readText())
 
-        assertEquals(2591, catalogue.size)
-        val first = catalogue.preset("look-b101de2ee5d340ac5621")!!
-        assertEquals("01 Fitness 01", first.displayName)
-        assertEquals("Portrait", first.categoryName)
+        assertEquals(513, catalogue.size)   // the curated pack (owner, 2026-10-11)
+        val first = catalogue.preset("look-398f98633524be9aca94")!!
+        assertEquals("Pure Silk Calm", first.displayName)
+        assertEquals("Essentials", first.categoryName)
         assertNull(catalogue.preset("look-not-in-catalogue"))
     }
 

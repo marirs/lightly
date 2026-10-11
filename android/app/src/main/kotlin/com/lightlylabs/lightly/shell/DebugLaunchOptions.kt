@@ -145,26 +145,27 @@ object DebugLaunchOptions {
             fun preset(category: String, stop: Int, amount: Int = 100) = api.applyPreset(category, stop, amount)
             when (screen) {
                 "developed" -> api.setUi { it.copy(toast = "Developed") }
-                "dev-preset", "dev-starred" -> preset("landscape", 37)
+                "dev-preset", "dev-starred" -> preset("daylight", 37)
                 // Prototype `edited`: Landscape 37 and the Effects vignette on (closes the M5 equivalent:
                 // the Effects dot and the vignette show on these screens, as approved).
-                "compare", "saving", "saved", "leave-unsaved", "more" -> { preset("landscape", 37); api.effects { it.copy(vignette = it.vignette.copy(enabled = true)) } }
+                "compare", "saving", "saved", "leave-unsaved", "more" -> { preset("daylight", 37); api.effects { it.copy(vignette = it.vignette.copy(enabled = true)) } }
                 "dev-dragging" -> {
-                    preset("landscape", 37)
-                    val target = api.library?.pack?.category("landscape")?.presets?.getOrNull(40)
+                    preset("daylight", 37)
+                    val target = api.library?.pack?.category("daylight")?.presets?.getOrNull(40)
                     api.setUi { it.copy(develop = DevelopUi(dragStop = 41, fine = true)) }
                     target?.let { api.preview(globalOnly = true, look = com.lightlylabs.lightly.session.LookRef(it.id, it.lookVersion, 1f)) }
                 }
-                "dev-browse" -> { preset("landscape", 37); api.setUi { it.copy(develop = DevelopUi(category = "cinematic", dragStop = 0)) } }
-                "dev-large" -> preset("cinematic", 564)
+                "dev-browse" -> { preset("daylight", 37); api.setUi { it.copy(develop = DevelopUi(category = "cinema", dragStop = 0)) } }
+                "dev-large" -> preset("cinema", 105)
                 "dev-long-name" -> {
-                    val stop = api.library?.pack?.category("landscape")?.presets?.indexOfFirst { it.displayName == "Landscape 15 - Winter Wonderland" }?.plus(1) ?: 0
-                    if (stop > 0) preset("landscape", stop)
+                    // The longest display name in the curated pack (the old "Landscape 15 - Winter Wonderland" is gone).
+                    val longest = api.library?.pack?.categories?.flatMap { c -> c.presets.mapIndexed { i, p -> Triple(c.id, i + 1, p.displayName) } }?.maxByOrNull { it.third.length }
+                    if (longest != null) preset(longest.first, longest.second)
                 }
-                "dev-amount" -> { preset("landscape", 37, amount = 70); api.setUi { it.copy(develop = DevelopUi(amountOpen = true), rememberedAmounts = emptyMap()) } }
+                "dev-amount" -> { preset("daylight", 37, amount = 70); api.setUi { it.copy(develop = DevelopUi(amountOpen = true), rememberedAmounts = emptyMap()) } }
                 "dev-favourites" -> { preset("portrait", 13); api.setUi { it.copy(develop = DevelopUi(category = "favourites")) } }
-                "dev-fav-full" -> { preset("travel", 5); api.setUi { it.copy(develop = DevelopUi(favouritesFull = true)) } }
-                "dev-fav-replace" -> { preset("travel", 5); api.setUi { it.copy(overlay = EditorOverlay.FAVOURITE_REPLACE) } }
+                "dev-fav-full" -> { preset("daylight", 5); api.setUi { it.copy(develop = DevelopUi(favouritesFull = true)) } }
+                "dev-fav-replace" -> { preset("daylight", 5); api.setUi { it.copy(overlay = EditorOverlay.FAVOURITE_REPLACE) } }
                 "dev-bw" -> preset("black-white", 8)
                 "dev-landscape-photo" -> preset("golden-hour", 12)
                 "dev-portrait-photo", "bg-failed" -> preset("portrait", 13)
@@ -391,7 +392,7 @@ object DebugLaunchOptions {
                 ready()
                 repeat(2) { cycle ->
                     flowLog("cycle $cycle start ${api.modelSummary()}")
-                    api.applyPreset("landscape", 5 + cycle)
+                    api.applyPreset("daylight", 5 + cycle)
                     kotlinx.coroutines.delay(3_000)
                     saved("cycle $cycle develop")
                     api.prototypeStroke()?.let { stroke -> removed(stroke) }
@@ -422,7 +423,7 @@ object DebugLaunchOptions {
             "pt-landscape-photo", "pt-multi" -> face(com.lightlylabs.lightly.editor.PortraitTab.SKIN, listOf("skin.smoothing" to 20.0))
             "pt-no-usable-face" -> api.openPortrait(com.lightlylabs.lightly.editor.PortraitTab.SKIN)
             // pt-hidden: field with Landscape 120 on Develop (Portrait is not offered).
-            "pt-hidden" -> { api.applyPreset("landscape", 120); api.rebaseHistory() }
+            "pt-hidden" -> { api.applyPreset("daylight", 56); api.rebaseHistory() }
         }
     }
 
@@ -461,7 +462,7 @@ object DebugLaunchOptions {
             }
             "ed-removing" -> { edit(com.lightlylabs.lightly.editor.EditSub.REMOVE, light); api.prototypeStroke()?.let { api.holdRemove(com.lightlylabs.lightly.editor.RemoveOp.REMOVING, it) } }
             "ed-remove-failed" -> {
-                api.applyPreset("landscape", 37)
+                api.applyPreset("daylight", 37)
                 edit(com.lightlylabs.lightly.editor.EditSub.REMOVE, light)
                 // Injected for the capture: the approved failure state with the stroke the person drew.
                 api.prototypeStroke()?.let { api.holdRemove(com.lightlylabs.lightly.editor.RemoveOp.FAILED, it) }

@@ -82,6 +82,8 @@ object AndroidEditorEnvironment {
                 onBake = { millis -> Log.i(LOG_TAG, "bake 33³: ${"%.1f".format(millis)} ms") },
                 displayNames = com.lightlylabs.lightly.develop.PresetDisplayNames.parse(
                     runCatching { app.assets.open(com.lightlylabs.lightly.develop.PresetDisplayNames.ASSET_PATH).use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()),
+                // Table looks read their 33³ file lazily, on the first render that needs it (bundled by BundleLookPackTask).
+                tableSource = { relativePath -> app.assets.open(DevelopLibrary.ASSET_PACK_ROOT + relativePath).use { it.readBytes() } },
             )
         }
         // Memory (completion plan A1, 2026-10-07): 512 px, was 1024. A tile's working buffers (three Oklab float planes

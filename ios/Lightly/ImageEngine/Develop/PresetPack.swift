@@ -3,8 +3,9 @@ import Foundation
 import OSLog
 
 /// The Develop preset pack, format 3 (`shared/look-pack/build_pack.py` → `out/manifest.json`):
-/// one recipe per preset, no per-preset LUTs. The app bakes each preset's global LUT from its
-/// recipe on demand (`DevelopLUTCache`).
+/// one recipe per preset. The app bakes each preset's global LUT from its recipe on demand
+/// (`DevelopLUTCache`), except for table looks, whose global stage is a precomputed LUT file in
+/// `luts/` (`GlobalTableRef`).
 ///
 /// Categories and presets keep manifest order, which is the approved catalogue order
 /// (`presets/develop-design-ui.json`, checked by `catalogue.uiSha256`).
@@ -29,8 +30,11 @@ struct PresetPack: Sendable {
         /// From the preset's real settings: drives the Effects "added on top" notice (slice 4).
         let hasGrain: Bool
         let hasVignette: Bool
-        /// `validation.status`; nothing in today's pack is validated.
+        /// `validation.status` (`exact-table` for table looks).
         let validationStatus: String
+        /// Set for a table look: develop.global is this LUT file alone, not a bake of `recipe.global`
+        /// (which is then empty). A `var` with a default so existing memberwise constructions stay valid.
+        var globalTable: GlobalTableRef?
     }
 
     struct Category: Sendable, Equatable, Identifiable {
@@ -158,13 +162,17 @@ enum PresetPackLoader {
         guard let data = try? Data(contentsOf: url) else {
             return PresetPackLoadResult(pack: .empty, problem: .missing, droppedPresets: [], parseDuration: clock.now - start)
         }
-        let outcome = read(data, model: model, expectedCatalogueSha256: expectedCatalogueSha256, displayNames: displayNames)
+        let outcome = read(data, model: model, expectedCatalogueSha256: expectedCatalogueSha256, displayNames: displayNames,
+                           packDirectory: directory)
         return PresetPackLoadResult(pack: outcome.pack, problem: outcome.problem, droppedPresets: outcome.dropped,
                                     parseDuration: clock.now - start)
     }
 
+    /// - Parameter packDirectory: where the manifest's `luts/` files are. Without it (a manifest read on its own),
+    ///   table looks cannot be resolved and are dropped like any other preset this build cannot render.
     // swiftlint:disable:next function_body_length cyclomatic_complexity
-    static func read(_ data: Data, model: DevelopModel?, expectedCatalogueSha256: String?, displayNames: [String: String] = [:])
+    static func read(_ data: Data, model: DevelopModel?, expectedCatalogueSha256: String?, displayNames: [String: String] = [:],
+                     packDirectory: URL? = nil)
         -> (pack: PresetPack, problem: PresetPackProblem?, dropped: [DroppedPreset]) {
         func failed(_ problem: PresetPackProblem) -> (PresetPack, PresetPackProblem?, [DroppedPreset]) { (.empty, problem, []) }
         let root: [String: Any]
@@ -207,7 +215,7 @@ enum PresetPackLoader {
             }
             var presets: [PresetPack.Preset] = []
             for raw in rawPresets {
-                switch readPreset(raw, categoryID: categoryID, displayNames: displayNames) {
+                switch readPreset(raw, categoryID: categoryID, displayNames: displayNames, packDirectory: packDirectory) {
                 case .success(let preset): presets.append(preset)
                 case .failure(let reason): dropped.append(DroppedPreset(presetID: raw["id"] as? String ?? "?", reason: reason.description))
                 }
@@ -222,7 +230,8 @@ enum PresetPackLoader {
         let description: String
     }
 
-    private static func readPreset(_ raw: [String: Any], categoryID: String, displayNames: [String: String]) -> Result<PresetPack.Preset, PresetError> {
+    private static func readPreset(_ raw: [String: Any], categoryID: String, displayNames: [String: String],
+                                   packDirectory: URL?) -> Result<PresetPack.Preset, PresetError> {
         guard let id = raw["id"] as? String, let name = raw["displayName"] as? String, let stop = raw["stop"] as? Int,
               let lookVersion = raw["lookVersion"] as? String, let operators = raw["operators"] as? [String],
               let rawRecipe = raw["recipe"], let completeness = raw["completeness"] as? String,
@@ -232,15 +241,19 @@ enum PresetPackLoader {
         guard raw["recipeVersion"] as? Int == supportedRecipeVersion else {
             return .failure(PresetError(description: "recipe version \(raw["recipeVersion"] ?? "nil")"))
         }
-        // DEFERRED(validated overrides): no preset ships a Lightroom HALD override today
-        // (rendering-v2 §4.4). One that did would render differently from its recipe, so it is
-        // refused and reported rather than rendered from the recipe alone.
-        if let override = raw["globalOverride"], !(override is NSNull) {
-            return .failure(PresetError(description: "globalOverride is not supported by this build"))
-        }
         let recipe: PresetRecipe
         do { recipe = try PresetRecipe(json: rawRecipe) } catch {
             return .failure(PresetError(description: "recipe: \(error)"))
+        }
+        let globalTable: GlobalTableRef?
+        switch readGlobalTable(raw["globalOverride"], packDirectory: packDirectory) {
+        case .success(let table): globalTable = table
+        case .failure(let error): return .failure(error)
+        }
+        // A table replaces develop.global outright; a recipe global stage beside it would be silently ignored, so the
+        // two together are a malformed preset rather than something to pick between.
+        if globalTable != nil, recipe.global != PresetRecipe.Global() {
+            return .failure(PresetError(description: "globalOverride with a non-empty recipe.global"))
         }
         func codes(_ key: String) -> [String] {
             (raw[key] as? [[String: Any]] ?? []).compactMap { $0["code"] as? String }
@@ -250,7 +263,36 @@ enum PresetPackLoader {
             operators: operators, recipe: recipe, completeness: completeness,
             approximated: codes("approximated"), unsupported: codes("unsupported"), notApplied: codes("notApplied"),
             hasGrain: effects["grain"] as? Bool ?? false, hasVignette: effects["vignette"] as? Bool ?? false,
-            validationStatus: validation["status"] as? String ?? "unknown"))
+            validationStatus: validation["status"] as? String ?? "unknown", globalTable: globalTable))
+    }
+
+    /// `globalOverride`: null for recipe looks; for table looks exactly the one source, grid and encoding this build
+    /// renders. Every field is checked so an override this build would misread is refused instead of rendered.
+    ///
+    /// v3 differs: format 3 previously refused every non-null override (none shipped); `source: "cube"` tables are
+    /// now rendered. Other sources (e.g. a Lightroom HALD) are still refused.
+    private static func readGlobalTable(_ rawOverride: Any?, packDirectory: URL?) -> Result<GlobalTableRef?, PresetError> {
+        guard let rawOverride, !(rawOverride is NSNull) else { return .success(nil) }
+        func refused(_ reason: String) -> Result<GlobalTableRef?, PresetError> {
+            .failure(PresetError(description: "globalOverride: \(reason)"))
+        }
+        guard let override = rawOverride as? [String: Any] else { return refused("not an object") }
+        let source = override["source"] as? String ?? "nil"
+        guard source == GlobalTableRef.supportedSource else { return refused("source \(source) is not supported") }
+        let encoding = override["lutEncoding"] as? String ?? "nil"
+        guard encoding == GlobalTableRef.supportedEncoding else { return refused("lutEncoding \(encoding) is not supported") }
+        guard let dimension = override["lutDimension"] as? Int, dimension == GlobalTableRef.supportedDimension else {
+            return refused("lutDimension \(override["lutDimension"] ?? "nil") is not supported")
+        }
+        guard let relativePath = override["lutFile"] as? String, GlobalTableRef.isAcceptedRelativePath(relativePath) else {
+            return refused("lutFile \(override["lutFile"] ?? "nil") is not a file in luts/")
+        }
+        guard let sha256 = override["lutSha256"] as? String, GlobalTableRef.isLowercaseHexSHA256(sha256) else {
+            return refused("lutSha256 is not a SHA-256")
+        }
+        guard let packDirectory else { return refused("no pack directory to read \(relativePath) from") }
+        return .success(GlobalTableRef(relativePath: relativePath, fileURL: packDirectory.appendingPathComponent(relativePath),
+                                       sha256: sha256, dimension: dimension))
     }
 
     static func sha256Hex(_ data: Data) -> String {

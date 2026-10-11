@@ -123,7 +123,7 @@ class DevelopParityTest {
         for (case in cases) {
             val preset = presetOf(case)
             assertEquals(case.getValue("lookVersion").jsonPrimitive.content, preset.lookVersion, "fixture and manifest disagree for ${preset.id}")
-            assertEquals(preset.lookVersion, LookVersion.of(preset.recipeObject, preset.recipeVersion, model, null), "lookVersion of ${preset.id}")
+            assertEquals(preset.lookVersion, LookVersion.of(preset.recipeObject, preset.recipeVersion, model, preset.globalOverrideSha256), "lookVersion of ${preset.id}")
         }
     }
 

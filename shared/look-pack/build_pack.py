@@ -175,10 +175,15 @@ def load_catalogue(presets_dir: Path) -> tuple[dict, dict, dict]:
     bindings_bytes = (presets_dir / "develop-design-catalogue.json").read_bytes()
     ui, bindings = json.loads(ui_bytes), json.loads(bindings_bytes)
     by_id = {}
-    for ui_cat, b_cat in zip(ui["categories"], bindings["categories"], strict=True):
+    # Explicit length checks rather than zip(strict=True): the builder venv is Python 3.9.
+    if len(ui["categories"]) != len(bindings["categories"]):
+        raise PackBuildError("the UI catalogue and the bindings list different numbers of categories")
+    for ui_cat, b_cat in zip(ui["categories"], bindings["categories"]):
         if (ui_cat["id"], ui_cat["name"]) != (b_cat["id"], b_cat["name"]):
             raise PackBuildError(f"category mismatch: {ui_cat['id']} vs {b_cat['id']}")
-        for ui_p, b_p in zip(ui_cat["presets"], b_cat["presets"], strict=True):
+        if len(ui_cat["presets"]) != len(b_cat["presets"]):
+            raise PackBuildError(f"{ui_cat['id']}: the UI catalogue and the bindings list different presets")
+        for ui_p, b_p in zip(ui_cat["presets"], b_cat["presets"]):
             if (ui_p["id"], ui_p["displayName"], ui_p["stop"]) != (b_p["id"], b_p["displayName"], b_p["stop"]):
                 raise PackBuildError(f"preset mismatch in {ui_cat['id']}: {ui_p['id']} vs {b_p['id']}")
             by_id[ui_p["id"]] = b_p
@@ -186,8 +191,107 @@ def load_catalogue(presets_dir: Path) -> tuple[dict, dict, dict]:
     return ui, by_id, hashes
 
 
+# A colour-table Look (owner, 2026-10-11: the Aurelius LUTs): its global stage is the table itself, resampled to the
+# contract's 33³ grid and stored as half floats (RGB, red fastest, sRGB-encoded in and out, as the device bake).
+CUBE_LUT_DIMENSION = 33
+CUBE_LUT_ENCODING = "rgb-float16-red-fastest"
+IDENTITY_RECIPE = {"global": {}, "spatial": {}, "finishing": {}}
+
+
+def read_cube(data: bytes) -> np.ndarray:
+    """A .cube 3D table as [b][g][r][rgb] (the format lists red fastest), with its DOMAIN_MIN/MAX applied."""
+    size, rows = None, []
+    domain_min, domain_max = np.zeros(3), np.ones(3)
+    for raw in data.decode("utf-8", "ignore").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        key = line.split()[0].upper()
+        if key == "LUT_3D_SIZE":
+            size = int(line.split()[1])
+        elif key == "DOMAIN_MIN":
+            domain_min = np.array([float(v) for v in line.split()[1:4]])
+        elif key == "DOMAIN_MAX":
+            domain_max = np.array([float(v) for v in line.split()[1:4]])
+        elif key == "LUT_1D_SIZE":
+            raise PackBuildError("1D .cube tables are not Looks")
+        elif line[0] in "+-.0123456789":
+            values = line.split()
+            if len(values) >= 3:
+                rows.append([float(values[0]), float(values[1]), float(values[2])])
+    if size is None or len(rows) != size ** 3:
+        raise PackBuildError(f".cube table has {len(rows)} rows for size {size}")
+    if not (np.allclose(domain_min, 0) and np.allclose(domain_max, 1)):
+        raise PackBuildError("only .cube tables over the [0, 1] domain are supported")
+    return np.array(rows, dtype=np.float64).reshape(size, size, size, 3)
+
+
+def resample_lut(table: np.ndarray, dimension: int) -> np.ndarray:
+    """Trilinear resample of a [b][g][r][rgb] table onto a dimension³ grid (exact when the sizes match)."""
+    if table.shape[0] == dimension:
+        return table
+    grid = rm.lut_grid(dimension).reshape(-1, 3)  # r, g, b per row, red fastest
+    n = table.shape[0]
+    x = np.clip(grid, 0, 1) * (n - 1)
+    i0 = np.clip(np.floor(x).astype(int), 0, n - 2)
+    f = x - i0
+    r0, g0, b0 = i0[:, 0], i0[:, 1], i0[:, 2]
+    fr, fg, fb = f[:, :1], f[:, 1:2], f[:, 2:3]
+
+    def at(db, dg, dr):
+        return table[b0 + db, g0 + dg, r0 + dr]
+    c00 = at(0, 0, 0) * (1 - fr) + at(0, 0, 1) * fr
+    c01 = at(0, 1, 0) * (1 - fr) + at(0, 1, 1) * fr
+    c10 = at(1, 0, 0) * (1 - fr) + at(1, 0, 1) * fr
+    c11 = at(1, 1, 0) * (1 - fr) + at(1, 1, 1) * fr
+    c0 = c00 * (1 - fg) + c01 * fg
+    c1 = c10 * (1 - fg) + c11 * fg
+    return (c0 * (1 - fb) + c1 * fb).reshape(dimension, dimension, dimension, 3)
+
+
+def convert_cube_preset(ui_preset: dict, binding: dict, presets_dir: Path, model: dict, out: Path) -> dict:
+    """A colour-table Look: identity recipe, global stage replaced by the resampled table (globalOverride)."""
+    preset_id = ui_preset["id"]
+    data = (presets_dir / binding["sourceFile"]).read_bytes()
+    if sha256_bytes(data) != binding["sourceAssetId"]:
+        raise PackBuildError(f"{preset_id}: source file bytes do not match sourceAssetId")
+    table = resample_lut(read_cube(data), CUBE_LUT_DIMENSION)
+    lut_data = np.clip(table, 0, 1).astype("<f2").tobytes()
+    lut_file = f"luts/{preset_id}.f16"
+    (out / lut_file).write_bytes(lut_data)
+    lut_sha = sha256_bytes(lut_data)
+    global_override = {"source": "cube", "lutFile": lut_file, "lutSha256": lut_sha,
+                       "lutDimension": CUBE_LUT_DIMENSION, "lutEncoding": CUBE_LUT_ENCODING,
+                       "note": "develop.global = this table alone (the recipe's global stage is empty)"}
+    return {
+        "id": preset_id,
+        "displayName": ui_preset["displayName"],
+        "stop": ui_preset["stop"],
+        "sourceAssetId": binding["sourceAssetId"],
+        "settingsSha256": binding["settingsSha256"],
+        "processVersion": "",
+        "recipeVersion": convert.RECIPE_VERSION,
+        "lookVersion": look_version(IDENTITY_RECIPE, model, lut_sha),
+        "operators": [],
+        "recipe": IDENTITY_RECIPE,
+        "completeness": "complete",  # the table is the Look: nothing is converted, so nothing is left out
+        "approximated": [],
+        "unsupported": [],
+        "notApplied": [],
+        "effects": {"grain": False, "vignette": False},
+        "validation": {"globalColour": {"status": "not-run"}, "fullRecipe": {"status": "not-run"},
+                       "conversion": "complete", "status": "exact-table",
+                       "binding": {"globalStage": "cube", "lutSha256": lut_sha}},
+        "globalOverride": global_override,
+        "_verifyMaxAbs": 0.0,
+        "_unconverted": None,
+    }
+
+
 def convert_preset(ui_preset: dict, binding: dict, presets_dir: Path, model: dict, oracle: ModelOracle,
                    report, report_name, hald_dir, out: Path) -> dict:
+    if binding.get("sourceKind", "xmp") == "cube":
+        return convert_cube_preset(ui_preset, binding, presets_dir, model, out)
     preset_id = ui_preset["id"]
     source = presets_dir / binding["sourceFile"]
     data = source.read_bytes()

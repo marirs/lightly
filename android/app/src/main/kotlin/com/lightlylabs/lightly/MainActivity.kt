@@ -403,7 +403,11 @@ internal class AppGraph private constructor(context: Context) {
     init {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             readAsset(context, PresetCatalogue.ASSET_PATH)?.let { json ->
-                catalogueState.value = PresetCatalogue.parse(json, com.lightlylabs.lightly.develop.PresetDisplayNames.parse(readAsset(context, com.lightlylabs.lightly.develop.PresetDisplayNames.ASSET_PATH)))
+                val catalogue = PresetCatalogue.parse(json, com.lightlylabs.lightly.develop.PresetDisplayNames.parse(readAsset(context, com.lightlylabs.lightly.develop.PresetDisplayNames.ASSET_PATH)))
+                catalogueState.value = catalogue
+                // Favourites of presets the bundled catalogue no longer has (the pack was replaced, owner 2026-10-11)
+                // can never be applied: drop them once, as iOS does when its store loads.
+                if (catalogue.size > 0) favouritesStore.update { ids -> ids.filter { catalogue.preset(it) != null } }
             }
             packSizeState.value = runCatching {
                 context.assets.open(com.lightlylabs.lightly.editor.DevelopLibrary.ASSET_MANIFEST).reader().use(com.lightlylabs.lightly.prefs.PresetPackSize::count)

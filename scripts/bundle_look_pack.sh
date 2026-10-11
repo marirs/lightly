@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copies the Develop preset pack (format 3: manifest.json, plus luts/*.f32 overrides when any exist)
+# Copies the Develop preset pack (format 3: manifest.json, plus luts/*.f16 table looks and *.f32 overrides when any exist)
 # into the app bundle as `LookPack/`.
 #
 # Run by the "LookPack" aggregate target, which the Lightly app target depends on (see ios/project.yml for
@@ -71,10 +71,11 @@ fi
 
 mkdir -p "${destination}"
 cp "${source_dir}/manifest.json" "${destination}/manifest.json"
-# Only Lightroom HALD overrides (none exist yet); unconverted.json and anything else in out/ are build
-# records, not part of what the app reads.
-if [ -d "${source_dir}/luts" ] && [ -n "$(find "${source_dir}/luts" -maxdepth 1 -type f -name '*.f32' | head -n 1)" ]; then
+# Only the global-stage tables presets name in globalOverride: *.f16 table looks (source "cube", read by
+# GlobalTableLoader) and *.f32 Lightroom HALD overrides (none exist yet). unconverted.json and anything else in
+# out/ are build records, not part of what the app reads. The app checks each table's SHA-256 when it reads it.
+if [ -d "${source_dir}/luts" ] && [ -n "$(find "${source_dir}/luts" -maxdepth 1 -type f \( -name '*.f16' -o -name '*.f32' \) | head -n 1)" ]; then
     mkdir -p "${destination}/luts"
-    find "${source_dir}/luts" -maxdepth 1 -type f -name '*.f32' -exec cp {} "${destination}/luts/" \;
+    find "${source_dir}/luts" -maxdepth 1 -type f \( -name '*.f16' -o -name '*.f32' \) -exec cp {} "${destination}/luts/" \;
 fi
 echo "Bundled preset pack (format ${format_version}) from ${source_dir}"

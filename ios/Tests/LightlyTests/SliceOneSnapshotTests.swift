@@ -21,7 +21,7 @@ final class SliceOneSnapshotTests: XCTestCase {
     private func makeState(signatures: SignatureStore = SignatureStore(directory: nil)) -> AppState {
         let catalogue = DevelopPresetCatalogue.loadBundled()
         let favourites = FavouritePresetsStore(defaults: defaults, catalogue: catalogue)
-        let seeded = [("portrait", 13), ("landscape", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
+        let seeded = [("portrait", 13), ("daylight", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
             .compactMap { catalogue.preset(inCategory: $0.0, atStop: $0.1)?.id }
         favourites.replaceAll(with: seeded)
         return AppState(

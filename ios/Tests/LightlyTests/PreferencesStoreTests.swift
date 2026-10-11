@@ -165,7 +165,7 @@ final class BundledContentTests: XCTestCase {
         let portrait = try XCTUnwrap(catalogue.categories.first { $0.id == "portrait" })
         XCTAssertEqual(portrait.name, "Portrait")
         // The five favourites the approved Preferences screens show.
-        for (category, stop) in [("portrait", 13), ("landscape", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)] {
+        for (category, stop) in [("portrait", 13), ("daylight", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)] {
             let preset = try XCTUnwrap(catalogue.preset(inCategory: category, atStop: stop), "\(category) \(stop)")
             XCTAssertEqual(catalogue.entry(forPresetID: preset.id)?.category.id, category)
         }

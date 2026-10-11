@@ -478,7 +478,8 @@ final class EditorSession {
         prefetchTask = Task.detached(priority: .utility) {
             for preset in presets where !cache.contains(lookVersion: preset.lookVersion) {
                 if Task.isCancelled { return }
-                _ = cache.lut(for: preset, dimension: LUT3D.contractDimension)
+                // A table look whose file is unusable fails here too; the render that needs it reports the failure.
+                _ = try? cache.lut(for: preset, dimension: LUT3D.contractDimension)
             }
         }
     }
@@ -1489,7 +1490,7 @@ final class EditorSession {
                                                                      renderer: renderer, cache: cache),
                                  width: width, height: height)
         }
-        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache, lutDimension: job.lutDimension) }
+        let plan = try job.look.map { try DevelopRenderPlan.look($0, strength: job.strength, cache: cache, lutDimension: job.lutDimension) }
         let frame: RenderedFrame
         if let cached = prefixCache?.get(job.prefixKey) {
             frame = cached
@@ -1557,7 +1558,7 @@ final class EditorSession {
                                                    toRGBA8: pixels, width: width, height: height,
                                                    maximumTileSide: MetalLUTRenderer.defaultMaximumTileSide)
         }
-        let plan = job.look.map { DevelopRenderPlan.look($0, strength: job.strength, cache: cache, lutDimension: job.lutDimension) }
+        let plan = try job.look.map { try DevelopRenderPlan.look($0, strength: job.strength, cache: cache, lutDimension: job.lutDimension) }
         guard var layered = job.layered, LayeredStages.isActive(layered) else {
             guard let plan else { return pixels }
             return try renderer.render(plan, pixels: pixels, width: width, height: height, includePixelStages: job.includePixelStages)

@@ -12,8 +12,9 @@ import Observation
 final class DevelopPanelModel {
 
     static let favouritesID = "favourites"
-    /// The prototype opens on Landscape when no preset is applied (`ui.cat || … : 'landscape'`).
-    static let defaultCategoryID = "landscape"
+    /// The prototype opens on its first collection when no preset is applied. v3 differs: the curated pack
+    /// (owner, 2026-10-11) has no Landscape; its first collection is Essentials.
+    static let defaultCategoryID = "essentials"
 
     var isExpanded = false
     var galleryPull: CGFloat = 0
@@ -77,7 +78,10 @@ final class DevelopPanelModel {
         let available = Set(categoryItems.map(\.id))
         if let browsing, available.contains(browsing) { return browsing }
         if let applied = session.appliedPreset?.categoryID, available.contains(applied) { return applied }
-        return favourites.presetIDs.isEmpty ? Self.defaultCategoryID : Self.favouritesID
+        if !favourites.presetIDs.isEmpty { return Self.favouritesID }
+        // The default collection, or the first one shown when this pack has no such collection (never an empty tab).
+        if available.contains(Self.defaultCategoryID) { return Self.defaultCategoryID }
+        return categoryItems.first { !$0.isFavourites }?.id ?? Self.favouritesID
     }
 
     var isFavouritesMode: Bool { currentCategoryID == Self.favouritesID }

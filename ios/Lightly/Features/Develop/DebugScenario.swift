@@ -32,7 +32,7 @@ struct DebugScenario {
     }
 
     /// The prototype's `PRIVATE_FAVS`: Portrait 13, Landscape 37, Film 12, Golden Hour 4, B&W 3.
-    static let privateFavourites = [("portrait", 13), ("landscape", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
+    static let privateFavourites = [("portrait", 13), ("daylight", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
 
     /// The editor UI a slice-3 screen opens on (prototype `ui.tool`, `ui.sub`, `ui.bgKind`).
     struct EditorUI {
@@ -192,7 +192,7 @@ struct DebugScenario {
         case "pt-hair": face { $0.hair.definition = 30 }
         case "pt-landscape-photo", "pt-multi": face { $0.skin.smoothing = 20 }
         case "pt-hidden":
-            if let p = session.library.pack.category(id: "landscape")?.presets.first(where: { $0.stop == 120 }) { session.debugApply(p, amount: 100) }
+            if let p = session.library.pack.category(id: "daylight")?.presets.first(where: { $0.stop == 56 }) { session.debugApply(p, amount: 100) }
         default: break
         }
     }
@@ -249,7 +249,7 @@ struct DebugScenario {
             DiagnosticTrace.note("scenario ed-remove: removed, peakFootprint=\(SaveTiming.peakFootprintMB().map(String.init) ?? "?")MB")
             await saveCopyIfRequested(session: session, screenID: screenID)
         case "ed-removing", "ed-remove-failed":
-            if screenID == "ed-remove-failed" { preset("landscape", 37) }
+            if screenID == "ed-remove-failed" { preset("daylight", 37) }
             session.debugHoldRemoveState(screenID == "ed-removing" ? .removing : .failed,
                                          stroke: .init(radius: stroke.radius, points: stroke.points, status: .applied, patch: nil))
         case "fx-leak": effects { $0.lightLeak.enabled = true }
@@ -335,26 +335,27 @@ struct DebugScenario {
 
         switch screenID {
         case "dev-preset":
-            apply("landscape", 37)
+            apply("daylight", 37)
             // The 48 MP Hiking 5 device measurement (2026-10-08) saves this state.
             await saveCopyIfRequested(session: session, screenID: screenID)
         case "dev-dragging":
-            apply("landscape", 37)
+            apply("daylight", 37)
             panel.debugSetDragging(stop: 41, fine: true)
         case "dev-browse":
-            apply("landscape", 37)
-            panel.selectCategory("cinematic")
+            apply("daylight", 37)
+            panel.selectCategory("cinema")
         case "dev-large":
-            apply("cinematic", 564)
+            apply("cinema", 105)
         case "dev-long-name":
-            if let stop = pack.category(id: "landscape")?.presets.first(where: { $0.displayName == "Landscape 15 - Winter Wonderland" })?.stop {
-                apply("landscape", stop)
+            // The longest display name in the curated pack (the old "Landscape 15 - Winter Wonderland" is gone).
+            if let longest = pack.categories.flatMap(\.presets).max(by: { $0.displayName.count < $1.displayName.count }) {
+                apply(longest.categoryID, longest.stop)
             }
         case "dev-amount":
-            apply("landscape", 37, amount: 70)
+            apply("daylight", 37, amount: 70)
             panel.debugOpenAmount()
         case "dev-starred":
-            apply("landscape", 37)
+            apply("daylight", 37)
             if let id = session.appliedPreset?.id { panel.favourites.replaceAll(with: [id]) }
         case "dev-favourites":
             panel.favourites.replaceAll(with: privateFavourites())
@@ -362,11 +363,11 @@ struct DebugScenario {
             panel.selectCategory(DevelopPanelModel.favouritesID)
         case "dev-fav-full":
             panel.favourites.replaceAll(with: privateFavourites())
-            apply("travel", 5)
+            apply("daylight", 5)
             panel.debugShowFavouritesFull()
         case "dev-fav-replace":
             panel.favourites.replaceAll(with: privateFavourites())
-            apply("travel", 5)
+            apply("daylight", 5)
             panel.isReplaceSheetShown = true
         case "dev-bw":
             apply("black-white", 8)
@@ -376,11 +377,11 @@ struct DebugScenario {
             apply("portrait", 13)
         case "compare":
             // Prototype `edited`: the preset and a vignette (the Effects dot shows).
-            apply("landscape", 37)
+            apply("daylight", 37)
             session.debugSetInitial { $0.tools.effects.vignette.enabled = true }
             session.toggleCompare()
         case "saving", "saved", "share":
-            apply("landscape", 37)
+            apply("daylight", 37)
             session.debugSetInitial { $0.tools.effects.vignette.enabled = true }
             session.saveCopy()
         default:

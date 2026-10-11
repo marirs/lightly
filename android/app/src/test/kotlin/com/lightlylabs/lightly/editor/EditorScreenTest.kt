@@ -158,18 +158,18 @@ class EditorScreenTest {
         val vm = editor()
         show(vm)
         compose.runOnIdle {
-            vm.selectCategory("landscape")
+            vm.selectCategory("daylight")
             vm.onRulerDrag(2); vm.onRulerRelease(2); vm.toggleStar()
             vm.onRulerDrag(4); vm.onRulerRelease(4); vm.toggleStar()
             vm.selectCategory("favourites")
         }
         assertEquals(1, vm.panelModel()!!.stop)
-        assertEquals(BundledPack.preset("landscape", 2).displayName, vm.panelModel()!!.name)
+        assertEquals(BundledPack.preset("daylight", 2).displayName, vm.panelModel()!!.name)
         compose.onNodeWithTag("develop-thumbnail-original").assertExists()
         compose.onNodeWithText("Reset").assertExists()
         compose.runOnIdle { vm.toggleStar() }
         assertEquals(1, vm.panelModel()!!.presets.size)
-        assertEquals(BundledPack.preset("landscape", 4).displayName, vm.panelModel()!!.name)
+        assertEquals(BundledPack.preset("daylight", 4).displayName, vm.panelModel()!!.name)
     }
 
     @Test

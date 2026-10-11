@@ -52,9 +52,9 @@ final class GPUResourceReleaseTests: XCTestCase {
     private func hikingFivePlan() async throws -> (DevelopRenderPlan, DevelopFrameRenderer) {
         let library = DevelopLibrary()
         await library.loadBundled(lutApplier: try MetalLUTRenderer())
-        let presetID = try XCTUnwrap(DevelopPresetCatalogue.loadBundled().preset(inCategory: "landscape", atStop: 37)?.id)
+        let presetID = try XCTUnwrap(DevelopPresetCatalogue.loadBundled().preset(inCategory: "daylight", atStop: 37)?.id)
         let preset = try XCTUnwrap(library.pack.preset(id: presetID))
-        let plan = DevelopRenderPlan.look(preset, strength: 1, cache: try XCTUnwrap(library.cache))
+        let plan = try DevelopRenderPlan.look(preset, strength: 1, cache: try XCTUnwrap(library.cache))
         XCTAssertTrue(plan.hasPixelStages, "Hiking 5 must exercise the tiled spatial and finishing stages")
         return (plan, try XCTUnwrap(library.renderer))
     }

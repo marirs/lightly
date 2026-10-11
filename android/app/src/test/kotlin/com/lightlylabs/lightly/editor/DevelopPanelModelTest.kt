@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 /** The Develop panel's content rules (prototype `developPanel`), on the real catalogue. */
 class DevelopPanelModelTest {
     private val pack = BundledPack.library.pack
-    private val hiking = BundledPack.preset("landscape", 37)
+    private val hiking = BundledPack.preset("daylight", 37)
     private fun look(preset: com.lightlylabs.lightly.develop.LookPreset, strength: Float = 1f) = LookRef(preset.id, preset.lookVersion, strength)
     private fun derive(look: LookRef? = null, auto: AutoState = AutoState.UNAVAILABLE, favourites: List<String> = emptyList(), ui: DevelopUi = DevelopUi(), amounts: Map<String, Int> = emptyMap()) =
         DevelopPanelModel.derive(pack, look, auto, favourites, ui, amounts)
@@ -21,7 +21,7 @@ class DevelopPanelModelTest {
         val model = DevelopPanelModel.derive(pack, look(portrait), AutoState.OFF, emptyList(),
             DevelopUi(category = "portrait"), emptyMap(), hasPerson = false)
         assertFalse(model.categories.any { it.id == "portrait" })
-        assertEquals("landscape", model.categoryId)
+        assertEquals("essentials", model.categoryId)
         val person = DevelopPanelModel.derive(pack, null, AutoState.OFF, emptyList(),
             DevelopUi(category = "portrait"), emptyMap(), hasPerson = true)
         assertTrue(person.categories.any { it.id == "portrait" })
@@ -39,7 +39,7 @@ class DevelopPanelModelTest {
     @Test
     fun `categories are Favourites first, then the catalogue in order, without counts`() {
         val model = derive()
-        assertEquals(listOf("favourites", "portrait", "landscape", "film", "cinematic", "street", "travel", "wedding", "golden-hour", "black-white"), model.categories.map { it.id })
+        assertEquals(listOf("favourites", "essentials", "cinema", "film", "daylight", "golden-hour", "night", "moody", "portrait", "black-white"), model.categories.map { it.id })
         assertEquals("Black & White", model.categories.last().label)
     }
 
@@ -53,8 +53,9 @@ class DevelopPanelModelTest {
         val renamed = com.lightlylabs.lightly.develop.LookPack.parse(packDir.resolve("manifest.json").readText(), model, names)
         val original = pack.preset(hiking.id)!!
         val shown = renamed.preset(hiking.id)!!
-        assertEquals("05 Hiking 05", original.displayName)
-        assertEquals("Quiet Honey Daylight", shown.displayName)
+        // The curated catalogue (owner, 2026-10-11) already carries the shared names, so both agree with the file.
+        assertEquals(names.getValue(hiking.id), shown.displayName)
+        assertEquals(shown.displayName, original.displayName)
         assertEquals(original.lookVersion, shown.lookVersion)
         assertEquals(original.stop, shown.stop)
         assertEquals(pack.presetCount, renamed.presetCount)
@@ -69,11 +70,11 @@ class DevelopPanelModelTest {
     }
 
     @Test
-    fun `with nothing applied Landscape is shown at stop zero with the star and Amount hidden`() {
+    fun `with nothing applied Essentials is shown at stop zero with the star and Amount hidden`() {
         val model = derive()
-        assertEquals("landscape", model.categoryId)
+        assertEquals("essentials", model.categoryId)
         assertEquals(0, model.stop)
-        assertEquals("0 / 518", model.position)
+        assertEquals("0 / 58", model.position)
         assertFalse(model.presetShown)
         assertEquals("", model.context)
         assertTrue(model.categories.none { it.dotted })
@@ -82,34 +83,34 @@ class DevelopPanelModelTest {
     @Test
     fun `an applied preset shows its name, position, Amount and the category dot`() {
         val model = derive(look(hiking, 0.7f))
-        assertEquals("05 Hiking 05", model.name)
-        assertEquals("37 / 518", model.position)
+        assertEquals(hiking.displayName, model.name)
+        assertEquals("37 / 56", model.position)
         assertEquals(70, model.amount)
         assertTrue(model.presetShown)
-        assertEquals(listOf("landscape"), model.categories.filter { it.dotted }.map { it.id })
+        assertEquals(listOf("daylight"), model.categories.filter { it.dotted }.map { it.id })
     }
 
     @Test
     fun `browsing another category keeps naming the applied preset, never Original`() {
         // Owner amendment 2026-10-05: the underline moves (categoryId), the dot stays, the name row names the applied preset.
-        val model = derive(look(hiking), ui = DevelopUi(category = "cinematic"))
-        assertEquals("cinematic", model.categoryId)
+        val model = derive(look(hiking), ui = DevelopUi(category = "cinema"))
+        assertEquals("cinema", model.categoryId)
         assertEquals(0, model.stop)
-        assertEquals("05 Hiking 05", model.name)
-        assertEquals("Applied from Landscape · 37 / 518", model.context, "the applied preset's own position, in its context")
+        assertEquals(hiking.displayName, model.name)
+        assertEquals("Applied from Daylight · 37 / 56", model.context, "the applied preset's own position, in its context")
         assertEquals("", model.position, "no position beside the name that would read as this ruler's")
         assertTrue(model.presetShown)
-        assertTrue(model.categories.first { it.id == "landscape" }.dotted)
-        assertTrue(model.categories.first { it.id == "cinematic" }.selected)
+        assertTrue(model.categories.first { it.id == "daylight" }.dotted)
+        assertTrue(model.categories.first { it.id == "cinema" }.selected)
         // Dragging to stop zero previews the original and says so.
-        assertEquals("", derive(look(hiking), ui = DevelopUi(category = "cinematic", dragStop = 0)).name)
+        assertEquals("", derive(look(hiking), ui = DevelopUi(category = "cinema", dragStop = 0)).name)
     }
 
     @Test
     fun `dragging previews the stop under the needle without changing the applied Look`() {
         val model = derive(look(hiking), ui = DevelopUi(dragStop = 41, fine = true))
-        assertEquals(BundledPack.preset("landscape", 41).displayName, model.name)
-        assertEquals("41 / 518", model.position)
+        assertEquals(BundledPack.preset("daylight", 41).displayName, model.name)
+        assertEquals("41 / 56", model.position)
         assertTrue(model.fine)
         assertEquals("", model.context)
     }
@@ -135,7 +136,7 @@ class DevelopPanelModelTest {
 
     @Test
     fun `a preset not yet applied shows the Amount last set for it in this session`() {
-        val other = BundledPack.preset("landscape", 38)
+        val other = BundledPack.preset("daylight", 38)
         val model = derive(look(hiking), ui = DevelopUi(dragStop = 38), amounts = mapOf(other.id to 40))
         assertEquals(40, model.amount)
     }

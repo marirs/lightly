@@ -41,7 +41,7 @@ final class DevelopPerformanceTests: XCTestCase {
         XCTAssertLessThanOrEqual(p95, .milliseconds(33))
     }
 
-    /// The full catalogue as bundled in this build: format 3, all 2,591 presets, nothing dropped,
+    /// The full catalogue as bundled in this build: format 3, every catalogue preset, nothing dropped,
     /// the approved catalogue's categories in order, parsed within the target.
     func testBundledPackIsTheFullFormatThreeCatalogue() throws {
         let model = try DevelopModel.loadBundled()
@@ -49,7 +49,8 @@ final class DevelopPerformanceTests: XCTestCase {
         // A build without the pack (shared/look-pack/out not built) fails here: it must not be installed.
         XCTAssertNil(result.problem, result.problem?.explanation ?? "")
         XCTAssertEqual(result.droppedPresets, [])
-        XCTAssertEqual(result.pack.presetCount, 2_591)
+        // The curated pack (owner, 2026-10-11): as many presets as the bundled catalogue lists, whatever that number is.
+        XCTAssertEqual(result.pack.presetCount, DevelopPresetCatalogue.loadBundled().categories.reduce(0) { $0 + $1.presets.count })
         let catalogue = DevelopPresetCatalogue.loadBundled()
         XCTAssertEqual(result.pack.categories.map(\.id), catalogue.categories.map(\.id))
         XCTAssertEqual(result.pack.categories.map(\.name), catalogue.categories.map(\.name))
@@ -83,7 +84,7 @@ final class PreviewFrameTimingTests: XCTestCase {
         let clock = ContinuousClock()
         var global: [Duration] = [], full: [Duration] = [], wrap: [Duration] = []
         for preset in presets.prefix(12) {
-            let plan = DevelopRenderPlan.look(preset, strength: 1, cache: cache)
+            let plan = try DevelopRenderPlan.look(preset, strength: 1, cache: cache)
             var start = clock.now
             let out = try renderer.render(plan, pixels: pixels, width: 1_600, height: 1_067, includePixelStages: false)
             global.append(clock.now - start)

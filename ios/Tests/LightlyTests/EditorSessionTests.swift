@@ -433,7 +433,7 @@ final class EditorSessionTests: XCTestCase {
         let cache = DevelopLUTCache(model: model)
         let image = TestFixtures.makeImage(width: 700, height: 500)
         let source = try MetalLUTRenderer.rgba8Bytes(of: image)
-        let plan = DevelopRenderPlan.look(spatialPreset, strength: 1, cache: cache)
+        let plan = try DevelopRenderPlan.look(spatialPreset, strength: 1, cache: cache)
         let whole = try renderer.render(plan, pixels: source, width: 700, height: 500, tileSide: 4_096)
         let tiled = try renderer.render(plan, pixels: source, width: 700, height: 500, tileSide: 256)
         let worst = zip(whole, tiled).map { abs(Int($0) - Int($1)) }.max() ?? 0

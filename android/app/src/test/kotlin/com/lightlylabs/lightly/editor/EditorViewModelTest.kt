@@ -43,7 +43,8 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class EditorViewModelTest {
     private val library = BundledPack.library
-    private val hiking = BundledPack.preset("landscape", 37)
+    // Stop 37 of the collection the editor opens on (Essentials since the curated pack, owner 2026-10-11).
+    private val hiking = BundledPack.preset("essentials", 37)
 
     private fun image(width: Int, height: Int, seed: Int) = Rgba8Image(width, height, ByteArray(width * height * 4) { i -> if (i % 4 == 3) -1 else ((i * 37 + seed * 11) % 251).toByte() })
 
@@ -214,7 +215,7 @@ class EditorViewModelTest {
     fun `changing category alone never changes the Look`() = runTest {
         val (vm, _) = ready()
         vm.onRulerDrag(37); vm.onRulerRelease(37); advanceUntilIdle()
-        vm.selectCategory("cinematic")
+        vm.selectCategory("cinema")
         advanceUntilIdle()
         assertEquals(hiking.id, vm.uiState.value.session!!.current.look?.lookId)
         assertEquals(1, vm.panelModel()!!.stop)
@@ -253,45 +254,45 @@ class EditorViewModelTest {
         val (vm, _) = ready()
         fun model() = vm.panelModel()!!
         fun dotted() = model().categories.filter { it.dotted && !it.isFavourites }.map { it.id }
-        vm.selectCategory("landscape"); vm.onRulerDrag(3); vm.onRulerRelease(3); advanceUntilIdle()
-        val landscape = BundledPack.preset("landscape", 3)
+        vm.selectCategory("daylight"); vm.onRulerDrag(3); vm.onRulerRelease(3); advanceUntilIdle()
+        val landscape = BundledPack.preset("daylight", 3)
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("landscape", model().categoryId); assertEquals(listOf("landscape"), dotted()); assertEquals(landscape.displayName, model().name)
+        assertEquals("daylight", model().categoryId); assertEquals(listOf("daylight"), dotted()); assertEquals(landscape.displayName, model().name)
 
-        vm.selectCategory("cinematic"); advanceUntilIdle()
+        vm.selectCategory("cinema"); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "browsing changes nothing")
-        assertEquals("cinematic", model().categoryId); assertEquals(listOf("landscape"), dotted())
-        assertEquals(BundledPack.preset("cinematic", 1).displayName, model().name)
+        assertEquals("cinema", model().categoryId); assertEquals(listOf("daylight"), dotted())
+        assertEquals(BundledPack.preset("cinema", 1).displayName, model().name)
         assertEquals("", model().context)
         assertTrue(model().position.startsWith("1 / ")); assertEquals(1, model().stop)
         val steps = vm.uiState.value.session!!.history.entries.size
 
         // Dragging Portrait names what is under the needle with this ruler's position; back to the start is a cancel.
         vm.onRulerDrag(4); advanceUntilIdle()
-        assertEquals(BundledPack.preset("cinematic", 4).displayName, model().name); assertEquals("", model().context)
+        assertEquals(BundledPack.preset("cinema", 4).displayName, model().name); assertEquals("", model().context)
         assertTrue(model().position.startsWith("4 / "))
         vm.onRulerDrag(1); vm.onRulerRelease(1); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "releasing where the drag started changes nothing")
         assertEquals(steps, vm.uiState.value.session!!.history.entries.size)
-        assertEquals(BundledPack.preset("cinematic", 1).displayName, model().name); assertEquals("cinematic", model().categoryId)
+        assertEquals(BundledPack.preset("cinema", 1).displayName, model().name); assertEquals("cinema", model().categoryId)
         // A touch without movement (release with no drag) is a cancel too, never "no Look".
         vm.onRulerRelease(1); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId, "a touch on the browsed ruler changes nothing")
         assertEquals(steps, vm.uiState.value.session!!.history.entries.size)
 
         vm.onRulerDrag(2); vm.onRulerRelease(2); advanceUntilIdle()
-        val portrait = BundledPack.preset("cinematic", 2)
+        val portrait = BundledPack.preset("cinema", 2)
         assertEquals(portrait.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("cinematic", model().categoryId); assertEquals(listOf("cinematic"), dotted()); assertEquals(portrait.displayName, model().name)
+        assertEquals("cinema", model().categoryId); assertEquals(listOf("cinema"), dotted()); assertEquals(portrait.displayName, model().name)
 
         vm.undo(); advanceUntilIdle()
         assertEquals(landscape.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("landscape", model().categoryId, "after Undo the underline returns to the applied category")
-        assertEquals(listOf("landscape"), dotted()); assertEquals(landscape.displayName, model().name); assertEquals(3, model().stop)
+        assertEquals("daylight", model().categoryId, "after Undo the underline returns to the applied category")
+        assertEquals(listOf("daylight"), dotted()); assertEquals(landscape.displayName, model().name); assertEquals(3, model().stop)
 
         vm.redo(); advanceUntilIdle()
         assertEquals(portrait.id, vm.uiState.value.session!!.current.look?.lookId)
-        assertEquals("cinematic", model().categoryId); assertEquals(listOf("cinematic"), dotted()); assertEquals(2, model().stop)
+        assertEquals("cinema", model().categoryId); assertEquals(listOf("cinema"), dotted()); assertEquals(2, model().stop)
     }
 
     @Test
@@ -307,7 +308,7 @@ class EditorViewModelTest {
         val (vm, harness) = ready()
         val five = (1..10).map { BundledPack.preset("film", it).id }   // ten: the limit (owner, 2026-10-11)
         harness.favourites.update { five }
-        vm.selectCategory("landscape")
+        vm.selectCategory("essentials")
         vm.onRulerDrag(37); vm.onRulerRelease(37); advanceUntilIdle()
         vm.toggleStar()
         assertEquals(five, harness.favourites.favourites.value)

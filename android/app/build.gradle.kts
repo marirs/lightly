@@ -203,7 +203,7 @@ dependencies {
 // --- Look pack, format 3 (docs/v1/preset-pack.md) ------------------------------------------------
 //
 // The Develop catalogue's recipes: shared/look-pack/build_pack.py writes manifest.json (formatVersion
-// 3, one recipe per preset, no per-preset LUTs) into the git-ignored shared/look-pack/out/. It is
+// 3, one recipe per preset; table looks also reference a 33³ luts/<name>.f16 file, bundled beside it) into the git-ignored shared/look-pack/out/. It is
 // copied verbatim into every variant's assets under lookpack/, together with the rendering contract
 // (shared/contracts/rendering-v2.json), whose developModel holds the calibrated constants the device
 // bakes each preset's 33³ LUT with. The app refuses a pack whose model digest differs from the
@@ -269,6 +269,28 @@ object LookPackFacts {
         val contractDigest = (contract["developModel"] as? Map<String, Any?>)?.get("constantsSha256")
         return ((manifest["formatVersion"] as? Number)?.toInt() ?: -1) to (packDigest != null && packDigest == contractDigest)
     }
+
+    /** Only `luts/<name>.f16`: the path is joined onto the pack and asset roots, so it must not reach other files. */
+    private val tableFilePattern = Regex("""luts/[A-Za-z0-9._-]+\.f16""")
+
+    /**
+     * Table looks (`globalOverride.source == "cube"`): manifest-relative `lutFile` → `lutSha256`, for every preset
+     * that has one. A malformed path or digest fails here; the app re-checks both when it parses the manifest.
+     */
+    @Suppress("UNCHECKED_CAST")
+    fun tableFiles(manifestText: String): Map<String, String> {
+        val manifest = groovy.json.JsonSlurper().parseText(manifestText) as Map<String, Any?>
+        val presets = (manifest["categories"] as? List<Map<String, Any?>>).orEmpty().flatMap { (it["presets"] as? List<Map<String, Any?>>).orEmpty() }
+        return presets.mapNotNull { it["globalOverride"] as? Map<String, Any?> }.associate { globalOverride ->
+            val lutFile = globalOverride["lutFile"] as? String
+            val lutSha256 = globalOverride["lutSha256"] as? String
+            if (lutFile == null || !tableFilePattern.matches(lutFile) || lutFile.contains("..")) throw GradleException("Look pack table path '$lutFile' is not a luts/*.f16 path")
+            if (lutSha256 == null || !Regex("[0-9a-f]{64}").matches(lutSha256)) throw GradleException("Look pack table $lutFile has no lowercase SHA-256")
+            lutFile to lutSha256
+        }
+    }
+
+    fun sha256Hex(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 }
 
 /**
@@ -293,12 +315,25 @@ object RenderingContractFacts {
     }
 }
 
-/** Copies manifest.json and the rendering contract into a generated assets root, after checking them. */
+/**
+ * Copies manifest.json, the table-look files it references (luts/<name>.f16) and the rendering contract into a generated
+ * assets root, after checking them.
+ */
 abstract class BundleLookPackTask : DefaultTask() {
     @get:Optional
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val manifestFile: RegularFileProperty
+
+    /**
+     * The pack's luts/ directory, an input so a rebuilt table re-bundles. Only the files the manifest references are
+     * copied (a stale table left in out/luts must not ship). @InputFiles, not @InputDirectory: a pack without table
+     * looks has no luts/ directory at all.
+     */
+    @get:Optional
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val lutsDirectory: DirectoryProperty
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
@@ -320,6 +355,18 @@ abstract class BundleLookPackTask : DefaultTask() {
         assetsRoot.deleteRecursively()
         manifest.copyTo(assetsRoot.resolve("lookpack/manifest.json"))
         contract.copyTo(assetsRoot.resolve("lookpack/rendering-v2.json"))
+        copyTableFiles(manifest, assetsRoot.resolve("lookpack"))
+    }
+
+    /** Fails the build when a referenced table is missing or its bytes differ from the manifest's digest. */
+    private fun copyTableFiles(manifest: File, packAssets: File) {
+        for ((lutFile, lutSha256) in LookPackFacts.tableFiles(manifest.readText())) {
+            val source = manifest.parentFile.resolve(lutFile)
+            if (!source.isFile) throw GradleException("$manifest references $lutFile, which is not in ${manifest.parentFile}")
+            val actual = LookPackFacts.sha256Hex(source.readBytes())
+            if (actual != lutSha256) throw GradleException("$source has SHA-256 $actual; the manifest records $lutSha256")
+            source.copyTo(packAssets.resolve(lutFile))
+        }
     }
 }
 
@@ -348,7 +395,14 @@ abstract class VerifyLookPackTask : DefaultTask() {
                 val (format, digestMatches) = LookPackFacts.read(manifest, contract)
                 if (format != 3 || !digestMatches) throw GradleException("Look pack check failed for ${apk.name}: format $format, model digest matches: $digestMatches")
                 RenderingContractFacts.problems(contract).takeIf { it.isNotEmpty() }?.let { throw GradleException("Contract check failed for ${apk.name}: ${it.joinToString("; ")}") }
-                "${apk.name}: look pack format 3, ${manifest.length} bytes, model digest OK, rendering-v2 revision ${RenderingContractFacts.SUPPORTED_REVISION}"
+                // Every table look's file must be in the apk with the manifest's bytes, or that look fails at first render.
+                val tableFiles = LookPackFacts.tableFiles(manifest)
+                for ((lutFile, lutSha256) in tableFiles) {
+                    val entry = zip.getEntry("assets/lookpack/$lutFile") ?: throw GradleException("Look pack check failed for ${apk.name}: $lutFile is not in the apk")
+                    val actual = zip.getInputStream(entry).use { LookPackFacts.sha256Hex(it.readBytes()) }
+                    if (actual != lutSha256) throw GradleException("Look pack check failed for ${apk.name}: $lutFile SHA-256 $actual, manifest $lutSha256")
+                }
+                "${apk.name}: look pack format 3, ${manifest.length} bytes, ${tableFiles.size} table files OK, model digest OK, rendering-v2 revision ${RenderingContractFacts.SUPPORTED_REVISION}"
             }
         }
         reportFile.get().asFile.writeText(report + "\n")
@@ -635,7 +689,7 @@ androidComponents {
         val variantName = variant.name.replaceFirstChar { it.uppercase() }
 
         val bundleLookPack = tasks.register<BundleLookPackTask>("bundle${variantName}LookPack") {
-            lookPackDirectory?.let { manifestFile.set(it.resolve("manifest.json")) }
+            lookPackDirectory?.let { manifestFile.set(it.resolve("manifest.json")); lutsDirectory.set(it.resolve("luts")) }
             contractFile.set(renderingContractFile)
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleLookPack, BundleLookPackTask::assetsDirectory)

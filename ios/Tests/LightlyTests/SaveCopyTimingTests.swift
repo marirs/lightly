@@ -18,7 +18,7 @@ final class SaveCopyTimingTests: XCTestCase {
         guard let wanted = ProcessInfo.processInfo.environment["LIGHTLY_SAVE_TIMING"] else { throw XCTSkip("set LIGHTLY_SAVE_TIMING") }
         let library = DevelopLibrary()
         await library.loadBundled(lutApplier: try MetalLUTRenderer())
-        let presetID = try XCTUnwrap(DevelopPresetCatalogue.loadBundled().preset(inCategory: "landscape", atStop: 37)?.id)
+        let presetID = try XCTUnwrap(DevelopPresetCatalogue.loadBundled().preset(inCategory: "daylight", atStop: 37)?.id)
         let preset = try XCTUnwrap(library.pack.preset(id: presetID))
         for size in wanted.split(separator: ",").map(String.init) {
             let path = "\(EditorCaptureUITestsPaths.repositoryRoot)/\(try XCTUnwrap(Self.fixtures[size]))"

@@ -157,7 +157,8 @@ data class DevelopPanelModel(
 ) {
     companion object {
         const val FAVOURITES = "favourites"
-        const val DEFAULT_CATEGORY = "landscape"
+        // v3 differs: the curated pack (owner, 2026-10-11) has no Landscape; its first collection is Essentials.
+        const val DEFAULT_CATEGORY = "essentials"
         const val MAX_FAVOURITES = 10   // owner, 2026-10-11 (was 5)
 
         fun derive(
@@ -174,7 +175,9 @@ data class DevelopPanelModel(
             val availableIds = available.map { it.id }.toSet() + FAVOURITES
             val current = ui.category?.takeIf { it in availableIds }
                 ?: applied?.categoryId?.takeIf { it in availableIds }
-                ?: if (favourites.isNotEmpty()) FAVOURITES else DEFAULT_CATEGORY
+                ?: if (favourites.isNotEmpty()) FAVOURITES
+                // The default collection, or the first one shown when this pack has no such collection (never an empty tab).
+                else DEFAULT_CATEGORY.takeIf { it in availableIds } ?: available.firstOrNull()?.id ?: FAVOURITES
             val favouriteMode = current == FAVOURITES
             val favouritePresets = favourites.mapNotNull(pack::preset)
             val list = if (favouriteMode) favouritePresets else pack.category(current)?.presets.orEmpty()

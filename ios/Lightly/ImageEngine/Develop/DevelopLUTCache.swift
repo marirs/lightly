@@ -1,6 +1,7 @@
 import Foundation
 
-/// Baked 33³ develop.global LUTs, keyed by `lookVersion` (rendering-v2 §4.2).
+/// Baked 33³ develop.global LUTs, keyed by `lookVersion` (rendering-v2 §4.2). Table looks share the cache:
+/// their LUT is read from the pack's `luts/` file instead of baked (`GlobalTableLoader`).
 ///
 /// `lookVersion` changes whenever the recipe, the model constants or an override changes, so it is
 /// a complete cache key: a hit can never return a LUT for other pixels. Least recently used entries
@@ -29,23 +30,55 @@ final class DevelopLUTCache: @unchecked Sendable {
     /// crossed stop shows while the finger moves; the settled selection renders with the contract's 33³.
     static let dragDimension = 17
 
-    /// The preset's global LUT, baked on first use. `dimension` other than the contract's is for drag previews only.
-    func lut(for preset: PresetPack.Preset, dimension: Int = LUT3D.contractDimension) -> LUT3D {
-        let key = dimension == LUT3D.contractDimension ? preset.lookVersion : "\(preset.lookVersion)#\(dimension)"
+    /// The preset's global LUT, baked (or, for a table look, read) on first use. `dimension` other than the
+    /// contract's is for drag previews only.
+    ///
+    /// Throws only for a table look whose file is missing, the wrong size or not the file the manifest names
+    /// (`GlobalTableError`); a recipe bake cannot fail.
+    func lut(for preset: PresetPack.Preset, dimension: Int = LUT3D.contractDimension) throws -> LUT3D {
+        let key = Self.key(lookVersion: preset.lookVersion, dimension: dimension)
         if let hit = cached(key) { return hit }
+        if let table = preset.globalTable {
+            let lut = try tableLUT(table, lookVersion: preset.lookVersion, dimension: dimension)
+            store(lut, key: key)
+            return lut
+        }
         let clock = ContinuousClock()
         let start = clock.now
         let baked = DevelopGlobalProgram(recipe: preset.recipe.global, model: model).bakeLUT(dimension: dimension)
         let elapsed = clock.now - start
+        lock.withLock { bakeDurations.append(elapsed) }
+        store(baked, key: key)
+        return baked
+    }
+
+    /// The table at `dimension`. A coarser LUT is resampled from the cached 33³ one, so the file is read and its
+    /// digest checked once while that entry stays cached (again only after eviction, which re-verifies it).
+    private func tableLUT(_ table: GlobalTableRef, lookVersion: String, dimension: Int) throws -> LUT3D {
+        guard dimension != table.dimension else { return try GlobalTableLoader.load(table) }
+        let fullKey = Self.key(lookVersion: lookVersion, dimension: table.dimension)
+        let full: LUT3D
+        if let hit = cached(fullKey) {
+            full = hit
+        } else {
+            full = try GlobalTableLoader.load(table)
+            store(full, key: fullKey)
+        }
+        return GlobalTableLoader.resample(full, toDimension: dimension)
+    }
+
+    private static func key(lookVersion: String, dimension: Int) -> String {
+        dimension == LUT3D.contractDimension ? lookVersion : "\(lookVersion)#\(dimension)"
+    }
+
+    private func store(_ lut: LUT3D, key: String) {
         lock.withLock {
-            bakeDurations.append(elapsed)
-            entries[key] = baked
+            entries[key] = lut
             touch(key)
             while recency.count > capacity {
                 entries[recency.removeFirst()] = nil
             }
         }
-        return baked
     }
 
     func contains(lookVersion: String) -> Bool {

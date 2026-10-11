@@ -3,6 +3,7 @@ package com.lightlylabs.lightly.develop
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
@@ -32,6 +33,11 @@ class LookPreset internal constructor(
     val completeness: String,
     val hasGrain: Boolean,
     val hasVignette: Boolean,
+    /**
+     * Non-null for a table look: develop.global is this precomputed table, not a bake of [recipe] (whose global
+     * stage is then empty). Parsed eagerly with the display fields so a malformed override fails at pack load.
+     */
+    val globalTable: LookGlobalTable?,
     private val entryText: () -> String,
 ) {
     private val entry: JsonObject by lazy { Json.parseToJsonElement(entryText()).jsonObject }
@@ -45,7 +51,14 @@ class LookPreset internal constructor(
     /** The raw recipe object, for [LookVersion] (hashing needs the original literals). */
     val recipeObject: JsonObject get() = entry.getValue("recipe").jsonObject
 
-    val recipe: PresetRecipe by lazy { PresetRecipe.parse(recipeObject) }
+    val recipe: PresetRecipe by lazy {
+        // A table look's develop.global is the table ALONE; a non-empty recipe.global would be silently ignored.
+        require(globalTable == null || recipeObject["global"]?.jsonObject.isNullOrEmpty()) { "Table look $id also has a recipe.global stage" }
+        PresetRecipe.parse(recipeObject)
+    }
+
+    /** rendering-v2.md §4.3 `globalOverrideSha256` for [LookVersion]: the table file's digest, null for a recipe look. */
+    val globalOverrideSha256: String? get() = globalTable?.lutSha256
 
     private fun coverage(element: JsonElement?): List<CoverageRecord> = (element as? JsonArray).orEmpty().map { record ->
         val o = record.jsonObject
@@ -163,6 +176,7 @@ class LookPack(
             var grain: Boolean? = null
             var vignette: Boolean? = null
             var hasRecipe = false
+            var globalOverride: JsonObject? = null
             scanner.objectFields { key ->
                 when (key) {
                     "id" -> id = scanner.string()
@@ -178,9 +192,13 @@ class LookPack(
                             else -> scanner.skipValue()
                         }
                     }
-                    // No HALD override is implemented by this port; none exists today (all null). Refusing one
-                    // keeps a future pack from rendering the model where it promises a validated Lightroom LUT.
-                    "globalOverride" -> require(scanner.isNull()) { "Preset ${id ?: "?"} has a globalOverride, which this build cannot render" }
+                    // Table looks (source "cube") are rendered from their file; any other override kind is refused
+                    // in LookGlobalTable.parse rather than rendering the model where the pack promises a table.
+                    "globalOverride" -> globalOverride = when (val override = scanner.valueElement()) {
+                        is JsonNull -> null
+                        is JsonObject -> override
+                        else -> throw IllegalArgumentException("Preset ${id ?: "?"} globalOverride is neither null nor an object")
+                    }
                     "recipe" -> { hasRecipe = true; scanner.skipValue() }
                     else -> scanner.skipValue()
                 }
@@ -195,10 +213,11 @@ class LookPack(
             val complete = requireNotNull(completeness) { "Preset $presetId has no completeness" }
             val hasGrain = requireNotNull(grain) { "Preset $presetId has no effects" }
             val hasVignette = vignette!!
+            val globalTable = globalOverride?.let { LookGlobalTable.parse(presetId, it) }
             // Captured by the preset instead of [utf8], which also holds the String.
             val manifestBytes = utf8.bytes
             return { categoryId ->
-                LookPreset(presetId, name, categoryId, stop, version, recipeVersion, complete, hasGrain, hasVignette) { manifestBytes.decode(start, end) }
+                LookPreset(presetId, name, categoryId, stop, version, recipeVersion, complete, hasGrain, hasVignette, globalTable) { manifestBytes.decode(start, end) }
             }
         }
     }
@@ -319,13 +338,6 @@ internal class JsonScanner(private val text: String) {
         }
         skipValue()
         return value
-    }
-
-    fun isNull(): Boolean {
-        skipWhitespace()
-        val isNull = text.startsWith("null", position)
-        skipValue()
-        return isNull
     }
 
     /** The value at the cursor as a kotlinx element (for small values only). */
