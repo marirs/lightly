@@ -490,8 +490,8 @@ const dockHeight = (d) => 62 + d.bottom;
 function phoneDock(s, d) {
   const items = toolsFor(s).map(([k, l]) => {
     const on = k === s.tool, dot = `<span style="width: 4px; height: 4px; border-radius: 2px; background: ${used(s, k) ? 'var(--edited)' : 'transparent'}"></span>`;
-    if (d.os === 'android') return `<button style="flex: 0 0 58px; border: none; background: transparent; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; color: ${on ? 'var(--ink)' : 'var(--ink2)'}; font-weight: 600; font-size: 9.5px"><span style="width: 46px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; ${on ? 'background: var(--accent); color: var(--on-accent)' : ''}">${ic(k, 20)}</span>${l}${dot}</button>`;
-    return `<button style="flex: 0 0 58px; border: none; background: transparent; padding: 2px 0 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font-weight: 600; font-size: 9.5px; color: ${on ? 'var(--ink)' : 'var(--ink3)'}"><span style="color: ${on ? 'var(--accent-ink)' : 'inherit'}">${ic(k, 22)}</span><span>${l}</span>${dot}</button>`;
+    // Owner amendment (2026-10-11): iOS uses the same dock as Android, the selected tool on the lime pill.
+    return `<button style="flex: 0 0 58px; border: none; background: transparent; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; color: ${on ? 'var(--ink)' : 'var(--ink2)'}; font-weight: 600; font-size: 9.5px"><span style="width: 46px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; ${on ? 'background: var(--accent); color: var(--on-accent)' : ''}">${ic(k, 20)}</span>${l}${dot}</button>`;
   }).join('');
   // Owner amendment (2026-10-11): eight tools no longer fit; the dock scrolls sideways. Fixed 58 pt items (six and a half fit), so the next tool
   // always shows cut off at the edge (with a fade) and reads as "more this way"; scrolled to the end, the fade moves left.
