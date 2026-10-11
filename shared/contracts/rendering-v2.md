@@ -397,7 +397,7 @@ Part of stage 8, per face, after the face's other portrait operations. `a = smil
 
 Stage 11, in the frame (after crop and effects, before border, so a border never covers text and the text is part of the photo). Each layer of `tools.text.layers`, in order:
 
-- **Font size** `= size / 100 × 0.25 × min(frame width, frame height)`; the font is the named family at regular weight (shared/fonts). Lines are centred horizontally on one another; line height is the font's own (ascent + descent + leading).
+- **Font size** `= size / 100 × 0.25 × min(frame width, frame height)`; the font is the named family (shared/fonts) at the layer's `weight`: thin 200, regular 400, bold 700 on its weight axis (a single-weight font always draws its one weight). Lines are centred horizontally on one another; line height is the font's own (ascent + descent + leading).
 - **Placement:** the text block's bounding box (the lines' advance widths and line heights) is centred on `centre × (frame width, frame height)`, then rotated by `rotation` degrees clockwise about that centre.
 - **Paint:** `colour` at `opacity / 100`, anti-aliased, composited over the frame (sRGB, source-over). No shadow or outline (the on-screen selection frame and handles are never rendered).
 - Preview and export run the same layout at their resolutions; every quantity is a fraction of the frame, so the text covers the same part of the photo at any size. Text rasterises through each platform's text engine, so it is outside the §8 pixel tolerances; layout (box size and position) must agree within 0.5 % of the frame's short edge.

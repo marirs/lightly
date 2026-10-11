@@ -18,3 +18,8 @@ Downloaded 2026-10-03 from the `main` branch of github.com/google/fonts. Hashes 
 Added 2026-10-10 from google/fonts: `DancingScript-Variable.ttf` (`ofl/dancingscript`) and `Lora-Variable.ttf` (`ofl/lora`), both at regular weight 400, with their OFL files and SHA-256 hashes.
 
 Added 2026-10-11 for the Text tool (owner-approved eight-font chooser) from google/fonts: `PlayfairDisplay-Variable.ttf` (`ofl/playfairdisplay`), `BebasNeue-Regular.ttf` (`ofl/bebasneue`), `Montserrat-Variable.ttf` (`ofl/montserrat`) and `SpaceMono-Regular.ttf` (`ofl/spacemono`), with their OFL files and SHA-256 hashes. The Text tool's fonts are Inter, Playfair Display, Bebas Neue, Caveat, Cormorant Garamond, Montserrat, Dancing Script and Space Mono.
+
+Added 2026-10-11 at the owner's request, from font files the owner downloaded (each with its licence text, `<Name>-LICENSE.*`):
+- **Watermark › Text, signature fonts:** Carpenters (`Carpenters-Regular.ttf`), Sourdough Script, Jaybird, Astoria, Bonskin, Shareit, Monttee (`<Name>-Regular.otf`). Several have no "·" or other punctuation glyphs; renderers fall back to a system font for a missing glyph.
+- **Text tool:** Retro Romance, Velomino (`<Name>-Regular.otf`), Vectipede Thin (`Vectipede-Thin.otf`, with `Vectipede-ThinItalic.otf`).
+Hashes are in `SHA256SUMS`.

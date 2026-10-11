@@ -75,7 +75,8 @@
                 "properties": {
                  "id": {"type": "string", "pattern": "^[0-9a-f]{8}$", "description": "Stable per layer (random lowercase hex), so the selection survives Undo."},
                  "text": {"type": "string", "minLength": 1, "maxLength": 120, "description": "One or more lines, separated by newline."},
-                 "font": {"enum": ["Inter", "Playfair Display", "Bebas Neue", "Caveat", "Cormorant Garamond", "Montserrat", "Dancing Script", "Space Mono"]},
+                 "font": {"enum": ["Inter", "Playfair Display", "Bebas Neue", "Caveat", "Cormorant Garamond", "Montserrat", "Dancing Script", "Space Mono", "Retro Romance", "Velomino", "Vectipede Thin"]},
+                 "weight": {"enum": ["thin", "regular", "bold"], "description": "Owner amendment 2026-10-11 (second): Thin 200, Regular 400, Bold 700 on the font's weight axis. Optional: missing reads as regular; writers always write it. A font with one weight (Bebas Neue, Space Mono, Retro Romance, Velomino, Vectipede Thin) only takes regular."},
                  "size": {"type": "integer", "minimum": 10, "maximum": 100, "description": "Font size = size / 100 x 0.25 x the photo frame's short edge."},
                  "colour": {"$ref": "#/$defs/colour"},
                  "opacity": {"$ref": "#/$defs/percent"},
@@ -208,7 +209,7 @@
                                "signature": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/signatureRef"}]},
                                "text": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["text", "font"],
                                                                      "properties": {"text": {"type": "string", "minLength": 1, "maxLength": 80},
-                                                                                    "font": {"enum": ["Allura", "Cormorant Garamond", "Inter", "Caveat", "Dancing Script", "Lora"]}}}]},
+                                                                                    "font": {"enum": ["Allura", "Cormorant Garamond", "Inter", "Caveat", "Dancing Script", "Lora", "Carpenters", "Sourdough Script", "Jaybird", "Astoria", "Bonskin", "Shareit", "Monttee"], "description": "The last seven (signature scripts) added 2026-10-11 at the owner's request."}}}]},
                                "logo": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["image"],
                                                                      "properties": {"image": {"$ref": "#/$defs/assetRef"}}}]},
                                "placement": {"enum": ["photo", "border", "canvas"]},

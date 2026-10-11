@@ -36,6 +36,17 @@
   .scr { position: absolute; inset: 0; background: var(--bg); color: var(--ink); font-family: Manrope, system-ui, -apple-system, sans-serif; font-size: 14px; overflow: hidden; }
   .scr button { font-family: inherit; color: inherit; cursor: default; }
   .scr a { color: var(--accent-ink); font-weight: 600; text-decoration: none; }
+  /* Owner-supplied fonts (2026-10-11), from shared/fonts. */
+  @font-face { font-family: 'L Carpenters'; src: url('../../../../shared/fonts/Carpenters-Regular.ttf'); }
+  @font-face { font-family: 'L Sourdough Script'; src: url('../../../../shared/fonts/SourdoughScript-Regular.otf'); }
+  @font-face { font-family: 'L Jaybird'; src: url('../../../../shared/fonts/Jaybird-Regular.otf'); }
+  @font-face { font-family: 'L Astoria'; src: url('../../../../shared/fonts/Astoria-Regular.otf'); }
+  @font-face { font-family: 'L Bonskin'; src: url('../../../../shared/fonts/Bonskin-Regular.otf'); }
+  @font-face { font-family: 'L Shareit'; src: url('../../../../shared/fonts/Shareit-Regular.otf'); }
+  @font-face { font-family: 'L Monttee'; src: url('../../../../shared/fonts/Monttee-Regular.otf'); }
+  @font-face { font-family: 'L Retro Romance'; src: url('../../../../shared/fonts/RetroRomance-Regular.otf'); }
+  @font-face { font-family: 'L Velomino'; src: url('../../../../shared/fonts/Velomino-Regular.otf'); }
+  @font-face { font-family: 'L Vectipede Thin'; src: url('../../../../shared/fonts/Vectipede-Thin.otf'); }
 </style>
 </head>
 <body>
@@ -155,8 +166,8 @@ const seg = (items, on) => `<div role="group" style="padding: 4px; border-radius
 // Tool tabs: selected bold; a 5 pt orange dot on tabs holding an edit; the orange underline only in Develop (browsed category).
 // Owner amendment (2026-10-11): every tool's sub-menu is the same tab row as the presets, the selected tab underlined.
 // Owner amendment (2026-10-11): the selected tab is a translucent lime pill instead of the underline, on every tab row.
-const tabs = (all, on, { underline = true } = {}) => { const items = scrolled(all, all.findIndex(([k]) => k === on)); return `<div data-tabs style="display: flex; gap: 6px; overflow: hidden; margin-left: -12px; ${fadeRight}">${items.map(([k, l, dot]) =>
-  `<button style="border: none; padding: 7px 12px; border-radius: 16px; flex-shrink: 0; font-weight: ${k === on ? 700 : 500}; font-size: 14.5px; white-space: nowrap; display: flex; align-items: center; gap: 5px; ${k === on ? 'background: var(--pill); color: var(--pill-ink)' : 'background: transparent; color: var(--ink3)'}">${l}${dot ? '<span style="width: 5px; height: 5px; border-radius: 3px; background: var(--edited)"></span>' : ''}</button>`).join('')}</div>`; };
+const tabs = (all, on, { underline = true } = {}) => { const items = scrolled(all, all.findIndex(([k]) => k === on)); return `<div data-tabs style="display: flex; gap: 6px; overflow: hidden; margin-left: -12px; ${fadeRight}">${items.map(([k, l, dot, off]) =>
+  `<button ${off ? 'aria-disabled="true"' : ''} style="border: none; padding: 7px 12px; border-radius: 16px; flex-shrink: 0; font-weight: ${k === on ? 700 : 500}; font-size: 14.5px; white-space: nowrap; display: flex; align-items: center; gap: 5px; ${off ? 'opacity: 0.4;' : ''} ${k === on ? 'background: var(--pill); color: var(--pill-ink)' : 'background: transparent; color: var(--ink3)'}">${l}${dot ? '<span style="width: 5px; height: 5px; border-radius: 3px; background: var(--edited)"></span>' : ''}</button>`).join('')}</div>`; };
 function slider(label, v, min = 0, max = 100, { disabled = false } = {}) {
   const f = (v - min) / (max - min) * 100, mid = min < 0;
   const fill = mid ? `left: ${Math.min(50, f)}%; width: ${Math.abs(f - 50)}%` : `left: 0; width: ${f}%`;
@@ -244,7 +255,8 @@ function developList(s) {
 /* =============================================================== other tool panels (current app's controls and copy) */
 function backgroundPanel(s) {
   const b = s.bg || {}; const mode = b.mode || 'focus'; const ph = PHOTOS[s.photo];
-  const h = tabs([['focus', 'Focus &amp; Blur'], ['change', 'Change background']], mode === 'refine' ? 'focus' : mode);
+  // Owner amendment (2026-10-11, second): with no subject, Change background is greyed out (Blur still works by depth).
+  const h = tabs([['focus', 'Focus &amp; Blur'], ['change', 'Change background', false, !ph.subject]], mode === 'refine' || !ph.subject ? 'focus' : mode);
   const title = mode === 'refine' ? 'Refine edges' : mode === 'change' ? 'Change background' : 'Focus &amp; Blur';
   const reset = resetRow(title, !!(b.replaced || b.blur));
   if (b.op === 'separating') return col(12, h + notice('info', '<span>Finding the subject…</span>', quietBtn('Cancel')));
@@ -258,7 +270,10 @@ function backgroundPanel(s) {
     if (kind === 'image') {
       const thumbs = [...BACKGROUNDS, ...(b.imported ? [PHOTOS.street.src] : [])];
       const selIndex = b.imported ? thumbs.length - 1 : b.replaced === 'image' ? 0 : -1;
-      opts = `<div style="display: flex; gap: 8px; overflow: hidden; padding: 4px 2px; ${fadeRight}"><button aria-label="Choose a photo" style="width: 60px; height: 60px; flex-shrink: 0; border-radius: 16px; border: 1.5px dashed var(--ink3); background: transparent; color: var(--ink2); display: flex; align-items: center; justify-content: center">${ic('plus', 22)}</button>${scrolled(thumbs.map((src, i) => [i, src]), selIndex).map(([i, src]) => `<button aria-label="Background image" style="width: 60px; height: 60px; flex-shrink: 0; border-radius: 16px; padding: 0; ${i === selIndex ? 'box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent-ink);' : ''} border: none; background: url(${src}) center/cover"></button>`).join('')}</div>`
+      // Owner amendment (2026-10-11, second): two rows, as the presets; "+ Choose a photo" is the last tile.
+      const tile = (i, src) => `<button aria-label="Background image" style="width: 60px; height: 60px; border-radius: 16px; padding: 0; ${i === selIndex ? 'box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent-ink);' : ''} border: none; background: url(${src}) center/cover"></button>`;
+      const plus = `<button aria-label="Choose a photo" style="width: 60px; height: 60px; border-radius: 16px; border: 1.5px dashed var(--ink3); background: transparent; color: var(--ink2); display: flex; align-items: center; justify-content: center">${ic('plus', 22)}</button>`;
+      opts = `<div style="display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, 60px); grid-auto-columns: 60px; gap: 10px 8px; overflow: hidden; padding: 4px 2px; ${fadeRight}">${thumbs.map((src, i) => tile(i, src)).join('')}${plus}</div>`
         + (b.replaced === 'image' ? slider('Scale', b.scale || 120, 100, 200) + note('Drag the photo to position the background.') : '');
     }
     if (kind === 'colour') opts = colourStrip('Background colour', b.colourName || 'Slate');
@@ -323,6 +338,8 @@ function effectsPanel(s) {
   const names = { leak: 'Light Leaks', grain: 'Grain', vig: 'Vignette', sel: 'Selective Colour' };
   return col(5, tabs(items, sub) + resetRow(names[sub], !!f[sub]) + conflict + body);
 }
+// Watermark › Text fonts: the six approved, then seven signature scripts the owner added (2026-10-11).
+const WM_FONTS = [['Allura', 'cursive'], ['Cormorant Garamond', 'Georgia, serif'], ['Inter', 'system-ui'], ['Caveat', 'cursive'], ['Dancing Script', 'cursive'], ['Lora', 'Georgia, serif'], ...['Carpenters', 'Sourdough Script', 'Jaybird', 'Astoria', 'Bonskin', 'Shareit', 'Monttee'].map((n) => [n, `'L ${n}', cursive`])];
 function watermarkPanel(s) {
   const w = s.wm || {}; const type = w.type || 'none'; let body = '';
   const chip = (inner, on = false, wide = true) => `<button style="height: 50px; ${wide ? 'min-width: 112px;' : 'min-width: 50px;'} padding: 0 12px; flex-shrink: 0; border-radius: 16px; border: ${on ? '2px solid var(--accent-ink)' : '1px solid var(--line)'}; background: transparent; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; font-size: 13px">${inner}</button>`;
@@ -330,7 +347,7 @@ function watermarkPanel(s) {
   if (type === 'signature') body = rowOf(chip(SIG(64), true) + chip(ic('ellipsis', 18), false, false) + chip(SIG(64, '#3B5BA0')) + quietBtn('Clear', { h: 50 }) + chip(`${ic('plus', 16)}Draw`, false, false) + chip(`${ic('photo', 16)}Import`, false, false))
     + note('Saved signatures keep their own look. You can change the ink colour of a drawn signature.') + slider('Size', 34, 10, 80) + slider('Opacity', 85) + colourStrip('Colour', 'White');
   if (type === 'text') body = `<button style="width: 100%; min-height: 46px; border-radius: 16px; border: 1px solid var(--line); background: var(--chip); padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 16px">A. Rivera${ic('pencil', 18)}</button>`
-    + rowOf([['Allura', 'cursive'], ['Cormorant Garamond', 'Georgia, serif'], ['Inter', 'system-ui'], ['Caveat', 'cursive'], ['Dancing Script', 'cursive'], ['Lora', 'Georgia, serif']].map(([nm, css]) => `<button style="min-width: 108px; height: 58px; flex-shrink: 0; border-radius: 16px; border: ${nm === (w.font || 'Cormorant Garamond') ? '2px solid var(--accent-ink)' : '1px solid var(--line)'}; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><span style="font-family: ${css}; font-size: 19px">A. Rivera</span><small style="font-size: 10.5px; color: var(--ink3)">${nm}</small></button>`).join(''))
+    + rowOf(scrolled(WM_FONTS, WM_FONTS.findIndex(([nm]) => nm === (w.font || 'Cormorant Garamond'))).map(([nm, css]) => `<button style="min-width: 108px; height: 58px; flex-shrink: 0; border-radius: 16px; border: ${nm === (w.font || 'Cormorant Garamond') ? '2px solid var(--accent-ink)' : '1px solid var(--line)'}; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><span style="font-family: ${css}; font-size: 19px">A. Rivera</span><small style="font-size: 10.5px; color: var(--ink3)">${nm}</small></button>`).join(''))
     + slider('Size', 34, 10, 80) + slider('Opacity', 85) + colourStrip('Colour', 'White');
   if (type === 'logo') body = rowOf(`<span style="height: 50px; padding: 0 16px; border-radius: 16px; border: 2px solid var(--accent-ink); display: flex; align-items: center; font-weight: 800; letter-spacing: 1px">AR</span>${quietBtn(`${ic('photo', 16)}Replace logo`, { h: 50 })}`) + slider('Size', 30, 10, 80) + slider('Opacity', 85);
   const drag = type !== 'none' ? note('Drag the watermark on the photo to place it.') : '';
@@ -346,17 +363,23 @@ function borderPanel(s) {
   return col(6, tabs([['none', 'None'], ['solid', 'Solid'], ['frame', 'Photo Frame'], ['polaroid', 'Polaroid'], ['paper', 'Paper']], type) + (type !== 'none' ? resetRow('Border') : '') + body);
 }
 const paperEdge = (i) => i === 0 ? 'border-radius: 2px' : i === 1 ? 'clip-path: polygon(0 3%, 6% 0, 14% 2%, 24% 0, 35% 3%, 47% 0, 58% 2%, 70% 0, 82% 3%, 92% 0, 100% 2%, 98% 14%, 100% 30%, 97% 47%, 100% 63%, 98% 80%, 100% 97%, 90% 100%, 78% 97%, 66% 100%, 52% 98%, 40% 100%, 27% 97%, 15% 100%, 4% 98%, 0 100%, 2% 82%, 0 64%, 3% 46%, 0 30%, 2% 14%)' : 'clip-path: polygon(0 0, 18% 4%, 30% 0, 52% 5%, 68% 1%, 86% 6%, 100% 0, 96% 22%, 100% 44%, 95% 70%, 100% 100%, 76% 95%, 58% 100%, 36% 94%, 18% 100%, 0 96%, 4% 74%, 0 50%, 5% 26%)';
-const TEXT_FONTS = [['Inter', 'system-ui'], ['Playfair Display', 'Georgia, serif'], ['Bebas Neue', 'Impact, sans-serif'], ['Caveat', 'cursive'], ['Cormorant Garamond', 'Georgia, serif'], ['Montserrat', 'system-ui'], ['Dancing Script', 'cursive'], ['Space Mono', 'monospace']];
+const TEXT_FONTS = [['Inter', 'system-ui'], ['Playfair Display', 'Georgia, serif'], ['Bebas Neue', 'Impact, sans-serif'], ['Caveat', 'cursive'], ['Cormorant Garamond', 'Georgia, serif'], ['Montserrat', 'system-ui'], ['Dancing Script', 'cursive'], ['Space Mono', 'monospace'], ['Retro Romance', "'L Retro Romance', serif"], ['Velomino', "'L Velomino', serif"], ['Vectipede Thin', "'L Vectipede Thin', serif"]];
 // Owner amendment (2026-10-11): Text, a dock tool of its own. Any number of text boxes; the selected one is edited here and
 // moved, resized and turned on the photo. The input box opens the text sheet (keyboard below, never covering it).
 function textPanel(s) {
   const t = s.tx || {};
-  if (!t.layers) return col(10, `<button style="width: 100%; height: 56px; border-radius: 18px; border: 1.5px dashed var(--line); background: var(--chip); display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--ink)">${ic('plus', 18)}Add text</button>` + note('Add text, then drag it anywhere on the photo. Pinch to resize or turn it.'));
+  if (!t.layers) return col(10, `<div><button style="height: 40px; padding: 0 16px; border-radius: 20px; border: none; background: var(--pill); color: var(--pill-ink); display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px">${ic('plus', 16)}Add text</button></div>` + note('Add text, then drag it anywhere on the photo. Pinch to resize or turn it.'));
   const font = t.font || 'Playfair Display';
   const layers = rowOf([['1', 'Summer in Lisbon'], ['2', '2026']].slice(0, t.layers).map(([k, l]) => `<button style="height: 36px; padding: 0 12px; flex-shrink: 0; border-radius: 18px; font-weight: 600; font-size: 13px; ${k === '1' ? 'background: var(--pill); color: var(--pill-ink); border: none' : 'background: transparent; color: var(--ink2); border: 1px solid var(--line)'}">${l}</button>`).join('') + `<button style="height: 36px; padding: 0 12px; flex-shrink: 0; border-radius: 18px; border: 1px solid var(--line); background: transparent; color: var(--ink2); font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 4px">${ic('plus', 14)}Add</button>`, 8);
-  const input = `<button style="width: 100%; min-height: 50px; border-radius: 16px; border: 1px solid var(--line); background: var(--chip); padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 17px; font-family: ${TEXT_FONTS.find(([n]) => n === font)[1]}">Summer in Lisbon${ic('pencil', 18)}</button>`;
+  const input = `<button style="width: 100%; min-height: 50px; border-radius: 16px; border: 1px solid var(--line); background: var(--chip); padding: 0 14px; display: flex; align-items: center; justify-content: space-between; font-size: 17px; font-weight: ${({ thin: 200, regular: 400, bold: 700 })[t.weight || 'regular']}; font-family: ${TEXT_FONTS.find(([n]) => n === font)[1]}">Summer in Lisbon${ic('pencil', 18)}</button>`;
   const fonts = rowOf(TEXT_FONTS.map(([nm, css]) => `<button style="min-width: 96px; height: 58px; flex-shrink: 0; border-radius: 16px; border: ${nm === font ? '2px solid var(--accent-ink)' : '1px solid var(--line)'}; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px"><span style="font-family: ${css}; font-size: 20px">Aa</span><small style="font-size: 10.5px; color: var(--ink3); white-space: nowrap">${nm}</small></button>`).join(''));
-  return col(8, layers + input + fonts + slider('Size', 42, 10, 100) + colourStrip('Colour', 'White') + slider('Opacity', 100));
+  // Owner amendment (2026-10-11, second): a weight row, Thin · Regular · Bold. Fonts with one weight (Bebas Neue, Space
+  // Mono) grey out the weights they don't have.
+  const single = ['Bebas Neue', 'Space Mono', 'Retro Romance', 'Velomino', 'Vectipede Thin'].includes(font), weight = t.weight || 'regular';
+  const weights = `<div role="group" style="padding: 4px; border-radius: 22px; background: var(--chip); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px">${[['thin', 'Thin', 200], ['regular', 'Regular', 400], ['bold', 'Bold', 700]].map(([k, l, w]) => {
+    const on = k === weight, off = single && k !== 'regular';
+    return `<button ${off ? 'aria-disabled="true"' : ''} style="height: 36px; border-radius: 18px; border: none; font-weight: ${w}; font-size: 14px; ${off ? 'opacity: 0.4;' : ''} ${on ? 'background: var(--on-bg); color: var(--on-ink)' : 'background: transparent; color: var(--ink2)'}">${l}</button>`; }).join('')}</div>`;
+  return col(8, layers + input + fonts + weights + slider('Size', 42, 10, 100) + colourStrip('Colour', 'White') + slider('Opacity', 100));
 }
 const PANELS = { text: textPanel, develop: developPanel, background: backgroundPanel, portrait: portraitPanel, edit: editPanel, effects: effectsPanel, watermark: watermarkPanel, border: borderPanel };
 
@@ -423,7 +446,7 @@ function photo(s, W, H) {
   let wmark = '';
   if (s.wm && s.wm.type && s.wm.type !== 'none' && !s.compare) {
     const ink = s.wm.onBorder ? '#2A2A2A' : '#FFFFFF'; const fs = Math.max(11, pw * 0.05);
-    const inner = s.wm.type === 'signature' ? SIG(Math.max(56, pw * 0.24), ink) : s.wm.type === 'text' ? `<span style="font-family: ${s.wm.font === 'Caveat' ? 'cursive' : 'Georgia, serif'}; font-size: ${fs}px; color: ${ink}">A. Rivera</span>` : `<span style="font-weight: 800; letter-spacing: 1px; color: #FFFFFF; font-size: ${fs}px; padding: 1px 7px; border: 2px solid #FFFFFF">AR</span>`;
+    const inner = s.wm.type === 'signature' ? SIG(Math.max(56, pw * 0.24), ink) : s.wm.type === 'text' ? `<span style="font-family: ${(WM_FONTS.find(([n]) => n === s.wm.font) || [, 'Georgia, serif'])[1]}; font-size: ${fs}px; color: ${ink}">A. Rivera</span>` : `<span style="font-weight: 800; letter-spacing: 1px; color: #FFFFFF; font-size: ${fs}px; padding: 1px 7px; border: 2px solid #FFFFFF">AR</span>`;
     const pos = s.wm.onBorder ? `left: ${padX + pw * 0.06}px; bottom: ${Math.max(2, (h - padY - phh) / 2 - fs * 0.7)}px` : s.wm.at === 'top' ? `right: ${padX + pw * 0.06}px; top: ${padY + phh * 0.06}px` : `right: ${padX + pw * 0.06}px; top: ${padY + phh * 0.84}px`;
     wmark = `<div style="position: absolute; ${pos}; ${s.wm.dragging ? 'outline: 1.5px dashed rgba(0,0,0,0.5); outline-offset: 6px;' : ''}">${inner}</div>`;
   }
@@ -432,7 +455,7 @@ function photo(s, W, H) {
     const font = (TEXT_FONTS.find(([n]) => n === (s.tx.font || 'Playfair Display')) || TEXT_FONTS[1])[1]; const fs = Math.max(16, pw * 0.085);
     const selected = s.tool === 'text';
     const handles = selected ? `<span style="position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; border-radius: 11px; background: #FFFFFF; color: #141513; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.4)">${ic('close', 12)}</span><span style="position: absolute; right: -11px; bottom: -11px; width: 22px; height: 22px; border-radius: 11px; background: #FFFFFF; color: #141513; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.4)">${ic('redo', 12)}</span>` : '';
-    tlayer = `<div style="position: absolute; left: ${padX + pw * 0.14}px; top: ${padY + phh * (s.tx.y || 0.18)}px; transform: rotate(${s.tx.turn || -4}deg); padding: 4px 10px; ${selected ? 'outline: 1.5px dashed rgba(255,255,255,0.95); outline-offset: 2px;' : ''}"><span style="font-family: ${font}; font-size: ${fs}px; color: #FFFFFF; text-shadow: 0 1px 8px rgba(0,0,0,0.35); white-space: nowrap">Summer in Lisbon</span>${handles}</div>`
+    tlayer = `<div style="position: absolute; left: ${padX + pw * 0.14}px; top: ${padY + phh * (s.tx.y || 0.18)}px; transform: rotate(${s.tx.turn || -4}deg); padding: 4px 10px; ${selected ? 'outline: 1.5px dashed rgba(255,255,255,0.95); outline-offset: 2px;' : ''}"><span style="font-family: ${font}; font-weight: ${({ thin: 200, regular: 400, bold: 700 })[s.tx.weight || 'regular']}; font-size: ${fs}px; color: #FFFFFF; text-shadow: 0 1px 8px rgba(0,0,0,0.35); white-space: nowrap">Summer in Lisbon</span>${handles}</div>`
       + (s.tx.layers > 1 ? `<div style="position: absolute; left: ${padX + pw * 0.62}px; top: ${padY + phh * 0.86}px"><span style="font-family: system-ui; font-weight: 700; letter-spacing: 3px; font-size: ${fs * 0.45}px; color: #FFFFFF">2026</span></div>` : '');
   }
   const frameBg = !b ? 'transparent' : b.type === 'frame' ? '#111111' : b.type === 'paper' ? '#F3E3C3' : '#FFFFFF';
@@ -762,7 +785,8 @@ const J = [
     ['wm-sig-draw', 'Draw a signature', { ...ED('watermark', 'sunset', { wm: { type: 'signature' } }), overlay: 'sigDraw' }],
     ['wm-sig-import', 'Import a signature', { ...ED('watermark', 'sunset', { wm: { type: 'signature' } }), overlay: 'sigImport' }],
     ['wm-sig-delete', 'Delete the saved signature', { ...ED('watermark', 'sunset', { wm: { type: 'signature' } }), overlay: 'deleteSig' }],
-    ['wm-text', 'Text · six fonts', ED('watermark', 'sunset', { wm: { type: 'text', font: 'Cormorant Garamond' } })],
+    ['wm-text', 'Text · thirteen fonts (seven signature scripts added 2026-10-11)', ED('watermark', 'sunset', { wm: { type: 'text', font: 'Cormorant Garamond' } })],
+    ['wm-text-carpenters', 'Text · Carpenters', ED('watermark', 'sunset', { wm: { type: 'text', font: 'Carpenters' } })],
     ['wm-text-edit', 'Edit the watermark text', { ...ED('watermark', 'sunset', { wm: { type: 'text' } }), overlay: 'textEdit' }],
     ['wm-logo', 'Logo', ED('watermark', 'lake', { wm: { type: 'logo', at: 'top' } })],
     ['wm-dragging', 'Dragging the watermark anywhere, border included', ED('watermark', 'lake', { wm: { type: 'text', font: 'Caveat', onBorder: true, dragging: true }, border: { type: 'polaroid' } })]]],
@@ -880,6 +904,11 @@ J.push(['Dock and theme', [
   ['dock-start', 'Dock at rest · eight tools; the next one shows cut off at the edge: swipe for more', ED('develop', 'lake', { dev: HONEY })],
   ['dock-end', 'Dock scrolled to the end', ED('text', 'sunset', { tx: { layers: 1 }, dockAtEnd: true })],
   ['theme-cycle', 'Double-tap any empty space (not the photo) · cycles System → Light → Dark', { ...ED('develop', 'lake', { dev: HONEY }), themeToast: true }]]]);
+// Owner amendments approved 2026-10-11 (second, docs/ui/proposals/lightly-2-oct11b): text weight screens.
+J.find(([t]) => t === 'Text')[1].push(
+  ['tx-thin', 'Weight · Thin', ED('text', 'sunset', { tx: { layers: 1, weight: 'thin', font: 'Montserrat' }, dockAtEnd: true })],
+  ['tx-bold', 'Weight · Bold', ED('text', 'sunset', { tx: { layers: 1, weight: 'bold' }, dockAtEnd: true })],
+  ['tx-single', 'A font with one weight: the others greyed', ED('text', 'sunset', { tx: { layers: 1, font: 'Bebas Neue', turn: 0 }, dockAtEnd: true })]);
 function render() {
   const d0 = DEVICES[state.device]; let n = 0; let out = iconSection(); FILLS = [];
   for (const [title, list] of J) {
