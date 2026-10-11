@@ -13,7 +13,7 @@ import kotlin.math.sqrt
 /** `tools.effects` as plain values (edit-recipe-v1 `effects`); the app maps the recipe onto it. */
 data class EffectsParams(
     val leakEnabled: Boolean = false,
-    /** warm, amber, rose, prism. */
+    /** warm, amber, rose, prism (the drawn styles), or a leak-pack id `leak-<12 hex>` (rendering-v2 revision 8). */
     val leakStyle: String = "warm",
     val leakIntensity: Double = 55.0,
     val leakX: Double = 18.0,
@@ -34,6 +34,11 @@ data class EffectsParams(
     val selectiveColours: List<KeptColour> = emptyList(),
     val selectiveRange: Double = 40.0,
     val selectiveStrength: Double = 100.0,
+    /**
+     * The decoded leak-pack image [leakStyle] names (revision 8), sRGB-encoded; null for a drawn style, or when this build
+     * has no such image (no pack bundled), which then adds no light rather than substituting a drawn style.
+     */
+    val leakImage: Rgba8Image? = null,
 ) {
     val anyEnabled: Boolean get() = leakEnabled || grainEnabled || vignetteEnabled || selectiveColours.isNotEmpty()
 }
@@ -48,7 +53,7 @@ data class EffectsParams(
  * revision-1 operators of [FinishingPass] (the same code the preset's finishing has always used).
  */
 class EffectsStage(effects: EffectsParams, presetFinishing: FinishingRecipe, model: DevelopModel, private val frameWidth: Int, private val frameHeight: Int) {
-    private val leak = if (effects.leakEnabled) LightLeak.of(effects, frameWidth, frameHeight) else null
+    private val leak: LeakOverlay? = leakOverlay(effects, frameWidth, frameHeight)
     // After the leak, so a coloured leak does not bring colour back (rendering-v2 revision 4).
     private val selectiveColour = SelectiveColour.of(effects)
     private val presetVignette = presetFinishing.vignette?.takeIf { it.amount != 0.0 }?.let { FinishingPass(it, null, model.experimental, frameWidth, frameHeight) }
@@ -84,6 +89,13 @@ class EffectsStage(effects: EffectsParams, presetFinishing: FinishingRecipe, mod
     }
 
     companion object {
+        /** The light leak of revision 8 (a leak image) or of revisions 2–7 (a drawn style); null when it adds nothing. */
+        private fun leakOverlay(effects: EffectsParams, frameWidth: Int, frameHeight: Int): LeakOverlay? = when {
+            !effects.leakEnabled -> null
+            LeakImageOverlay.isLeakImageStyle(effects.leakStyle) -> effects.leakImage?.let { LeakImageOverlay.of(it, effects, frameWidth, frameHeight) }
+            else -> LightLeak.of(effects, frameWidth, frameHeight)
+        }
+
         /** [contract] `userVignette`: amount = −amount, midpoint = size, feather = softness, roundness 0, style 1, highlight contrast 0. */
         fun userVignette(e: EffectsParams) = Vignette(-e.vignetteAmount, e.vignetteSize, e.vignetteSoftness, 0.0, 1, 0.0)
 
@@ -111,7 +123,7 @@ internal class LightLeak private constructor(
     private val frameCentreX: Double, private val frameCentreY: Double,
     private val extent: Double, private val cosine: Double, private val sine: Double,
     private val coreAlpha: Double, private val ringAlpha: Double, private val style: String,
-) {
+) : LeakOverlay {
     /** Farthest-corner distance R (px): the gradient ray the stops are fractions of. */
     val farthestCorner: Double get() = extent
 
@@ -147,7 +159,7 @@ internal class LightLeak private constructor(
         return true
     }
 
-    fun apply(rgb: FloatArray, x: Int, y: Int) {
+    override fun apply(rgb: FloatArray, x: Int, y: Int) {
         val premultiplied = DoubleArray(3)
         if (!overlay(x, y, premultiplied)) return
         for (c in 0 until 3) {

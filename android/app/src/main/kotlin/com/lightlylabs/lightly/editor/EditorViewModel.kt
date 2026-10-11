@@ -1535,7 +1535,51 @@ class EditorViewModel(
         }
     }
 
-    fun setLeakStyle(style: com.lightlylabs.lightly.session.LeakStyle) = commitEffects { it.copy(lightLeak = it.lightLeak.copy(style = style, enabled = true, intensity = it.lightLeak.intensity.takeIf { n -> n > 0 } ?: 35.0)) }
+    /**
+     * Light Leaks gallery (rendering-v2 revision 8, owner 2026-10-11; mockup `leakGallery`): a leak turns the effect on with
+     * that image, one undo step; None ([leakId] null) turns it off and keeps the rest of the leak (intensity, place, turn).
+     * Choosing the tile that is already selected changes nothing and adds no step.
+     */
+    fun chooseLeak(leakId: String?) {
+        val leak = state.value.session?.current?.tools?.effects?.lightLeak ?: return
+        if (leakId == null) {
+            if (leak.enabled) commitEffects { it.copy(lightLeak = it.lightLeak.copy(enabled = false)) }
+            return
+        }
+        val style = com.lightlylabs.lightly.session.LeakStyle.Image(leakId)
+        if (leak.enabled && leak.style == style) return
+        // v3 differs: rendering-v2 revision 8 §Light leak (contract 080003a): a leak chosen while the effect is off starts
+        // centred (x = y = 50) at intensity 50; with the effect on, its place, turn and intensity are kept. The retired style
+        // chips kept the stored place and intensity (55 by default) and used 35 only when the intensity was 0.
+        commitEffects { e ->
+            val current = e.lightLeak
+            e.copy(lightLeak = if (current.enabled) current.copy(style = style)
+                else current.copy(style = style, enabled = true, intensity = LEAK_INTENSITY_WHEN_CHOSEN, x = LEAK_CENTRE_PERCENT, y = LEAK_CENTRE_PERCENT))
+        }
+    }
+
+    /** The leaks the gallery offers after None, in pack order. */
+    val leakPackEntries: List<com.lightlylabs.lightly.develop.LeakPackEntry> get() = env.leaks.leaks
+
+    /** A leak's gallery thumbnail (the pack's 240 px still), decoded off the main thread; null without one. */
+    suspend fun leakThumbnail(leakId: String): Rgba8Image? = withContext(env.thumbnailDispatcher ?: env.renderDispatcher) { env.leaks.thumbnail(leakId) }
+
+    /**
+     * The photo under every leak tile (mockup: the photo itself, `background: url(photo) center/cover`): the open photo at
+     * 200 px on the long edge, made once per photo.
+     */
+    suspend fun leakTilePhoto(): Rgba8Image? {
+        val source = state.value.original ?: return null
+        leakTilePhotoCache?.takeIf { it.first === source }?.let { return it.second }
+        return withContext(env.thumbnailDispatcher ?: env.renderDispatcher) {
+            val ratio = LEAK_TILE_PHOTO_EDGE.toDouble() / maxOf(source.width, source.height)
+            val small = if (ratio >= 1) source else BackgroundSession.resize(source, maxOf(1, (source.width * ratio).toInt()), maxOf(1, (source.height * ratio).toInt()))
+            leakTilePhotoCache = source to small
+            small
+        }
+    }
+
+    @Volatile private var leakTilePhotoCache: Pair<Rgba8Image, Rgba8Image>? = null
 
     fun setGrainStyle(style: com.lightlylabs.lightly.session.GrainStyle) = commitEffects { it.copy(grain = it.grain.copy(style = style, enabled = true, amount = it.grain.amount.takeIf { n -> n > 0 } ?: 25.0)) }
 
@@ -1567,9 +1611,13 @@ class EditorViewModel(
         commitEffects { withEffectsSlider(it, field, value) }
     }
 
-    /** Light Leaks › drag on the photo: the leak follows the finger (preview); release is one step. */
+    /**
+     * Light Leaks › drag on the photo: the leak follows the finger (preview); release is one step. With None chosen (the
+     * effect off) a drag does nothing: no leak turns on and no step is added (rendering-v2 revision 8 §Light leak, 080003a).
+     */
     fun moveLeak(x: Double, y: Double, release: Boolean) {
         val session = state.value.session ?: return
+        if (!session.current.tools.effects.lightLeak.enabled) return
         val move: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool = { it.copy(lightLeak = it.lightLeak.copy(enabled = true, intensity = it.lightLeak.intensity.takeIf { n -> n > 0 } ?: 35.0, x = (x * 100).coerceIn(0.0, 100.0), y = (y * 100).coerceIn(0.0, 100.0))) }
         if (release) commitEffects(move) else requestPreview(session.current.copy(tools = session.current.tools.copy(effects = move(session.current.tools.effects))), globalOnly = false)
     }
@@ -1609,7 +1657,7 @@ class EditorViewModel(
             val lab = runCatching {
                 withContext(env.renderDispatcher) {
                     val library = env.library.await()
-                    val frame = EditPipeline(library.model, env.previewRenderer)
+                    val frame = EditPipeline(library.model, env.previewRenderer, leaks = env.leaks)
                         .renderSelectiveColourInput(patched(display, edit), edit, planOf(library, edit), sourceStages(edit, library, BackgroundSession.SETTLED_CAP))
                     com.lightlylabs.lightly.develop.SelectiveColour.sample(frame, frameX, frameY)
                 }
@@ -1732,7 +1780,7 @@ class EditorViewModel(
             val edit = current.copy(look = preset?.let { LookRef(it.id,it.lookVersion,1f) })
             val patched = RemoveEngine.composite(EditMapping.patchDigests(edit).mapNotNull { removePatches[it] }, small)
             val plan = planOf(library, edit, lutDimension = DevelopLibrary.THUMBNAIL_DIMENSION)
-            val result = EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library))
+            val result = EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library), leaks = env.leaks)
                 .renderPreview(patched, edit, plan, sourceStages(edit,library,200))
             synchronized(thumbnailCache) { thumbnailCache[key] = result }
             result
@@ -1986,7 +2034,7 @@ class EditorViewModel(
     ): ExportRenderPlan {
         val library = library ?: error("no library")
         val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
-        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library), TextStage(env.watermarkFonts))
+        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library), TextStage(env.watermarkFonts), env.leaks)
         val patches = EditMapping.patchDigests(committed).mapNotNull { removePatches[it] }
         val background = if (pendingBackgroundPlan.get() == null) null else {
             { frame: com.lightlylabs.lightly.render.image.FrameSource ->
@@ -2259,7 +2307,7 @@ class EditorViewModel(
                     maxBlurFraction(edit), backgroundCap)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
-                    val pipeline = EditPipeline(library.model, renderer, watermark = watermarkPainter(edit, library), text = TextStage(env.watermarkFonts))
+                    val pipeline = EditPipeline(library.model, renderer, watermark = watermarkPainter(edit, library), text = TextStage(env.watermarkFonts), leaks = env.leaks)
                     val textlessKey = FrameBeforeText.keyOf(edit)
                     val reusable = frameBeforeText?.takeIf { request.payload.textOnly && it.first == textlessKey }?.second
                     val frame = reusable ?: pipeline.renderFrameBeforeText(patched(display, edit), edit, plan, sourceStages(edit, library, backgroundCap))
@@ -2580,6 +2628,9 @@ class EditorViewModel(
 
         fun effects(change: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool) = commitEffects(change)
 
+        /** Light Leaks › the gallery's first leak, chosen as the person would (mockup `fx-leak`); nothing without a pack. */
+        fun chooseFirstLeak() = leakPackEntries.firstOrNull()?.let { chooseLeak(it.id) }
+
         fun border(change: (com.lightlylabs.lightly.session.BorderTool) -> com.lightlylabs.lightly.session.BorderTool) = commitBorder(change)
 
         /** The Text tool's layers, committed as the user would (one step). */
@@ -2754,6 +2805,15 @@ class EditorViewModel(
         private const val THUMBNAIL_CACHE_SIZE = 240
         /** edit-recipe-v1 `selectiveColour.colours` maxItems. */
         const val MAX_KEPT_COLOURS = 8
+
+        /** A leak chosen while Light Leaks is off starts here (mockup `effectsPanel`: Intensity 50 with a leak chosen). */
+        const val LEAK_INTENSITY_WHEN_CHOSEN = 50.0
+
+        /** A leak chosen while Light Leaks is off starts centred on the frame (x = y = 50 %, contract 080003a). */
+        const val LEAK_CENTRE_PERCENT = 50.0
+
+        /** The photo under the leak tiles: 200 px on the long edge, as the preset thumbnails render. */
+        const val LEAK_TILE_PHOTO_EDGE = 200
         const val KEY_ASSET = "editor.asset"
         const val KEY_SESSION = "editor.session.json"
         /** The photo's Auto correction (AutoCorrection JSON), stored beside the session. */

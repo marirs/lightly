@@ -3,7 +3,6 @@ package com.lightlylabs.lightly.editor
 import com.lightlylabs.lightly.session.CropAspect
 import com.lightlylabs.lightly.session.EditState
 import com.lightlylabs.lightly.session.GrainStyle
-import com.lightlylabs.lightly.session.LeakStyle
 
 /** Prototype `editPanel` tabs, in order. */
 enum class EditSub(val label: String) { CROP("Crop"), ROTATE("Rotate"), STRAIGHTEN("Straighten"), PERSPECTIVE("Perspective"), ADJUST("Adjust"), REMOVE("Remove") }
@@ -105,7 +104,7 @@ object EditOptions {
         CropAspect.NINE_SIXTEEN -> 9.0 / 16
     }
 
-    val LEAK_STYLES = listOf(LeakStyle.WARM to "Warm edge", LeakStyle.AMBER to "Amber flare", LeakStyle.ROSE to "Rose", LeakStyle.PRISM to "Prism")
+    // Light Leaks offers the leak pack's images (LeakGallery, revision 8); the four drawn styles are no longer offered.
     val GRAIN_STYLES = listOf(GrainStyle.FINE to "Fine", GrainStyle.FILM to "Film", GrainStyle.COARSE to "Coarse")
 
     /** Brush size 0–100 → radius up to 5 % of the long edge (as Refine edges). */

@@ -313,7 +313,7 @@ class OwnerReportsScreenTest {
     }
 
     @Test
-    fun `with a subject, Change background › Image is two rows filled column by column, the dashed + tile last`() {
+    fun `with a subject, Change background › Image is two rows of tiles filling the row four across, column by column, the dashed + tile last`() {
         assertEquals(BackgroundOptions.IMAGES.map { BackgroundImageTile.Bundled(it.first, it.second) } + BackgroundImageTile.ChoosePhoto, BackgroundImageTile.all(hasImportedPhoto = false))
         assertEquals(listOf(BackgroundImageTile.Imported, BackgroundImageTile.ChoosePhoto), BackgroundImageTile.all(hasImportedPhoto = true).takeLast(2))
         val depth = DepthEstimator { FloatPlane(64, 48, FloatArray(64 * 48) { 0.5f }) }
@@ -332,7 +332,20 @@ class OwnerReportsScreenTest {
         // Column-major: the second photo under the first (10 dp row gap), the third starts the next column (8 dp gap).
         assertNear(first.left, second.left); assertNear(first.bottom + 10.dp, second.top)
         assertNear(first.top, third.top); assertNear(first.right + 8.dp, third.left)
-        assertNear(60.dp, first.right - first.left); assertNear(60.dp, first.bottom - first.top)
+        // Owner amendment 2026-10-11 (mockup `grid-auto-columns: calc((100% - 24px) / 4)`): four tiles fill the panel's row,
+        // square; the content is the grid less its 2 dp side padding.
+        val grid = compose.onNodeWithTag("background-images").getBoundsInRoot()
+        val tile = (grid.right - grid.left - 4.dp - 24.dp) / 4
+        assertNear(tile, first.right - first.left); assertNear(tile, first.bottom - first.top)
+        // The + tile's width only: the fixed-height panel clips its lower part until the panel is scrolled.
+        assertNear(tile, plus.right - plus.left)
+        assertNear(tile, backgroundImageTileSize(grid.right - grid.left))
+        assertTrue(tile > 60.dp, "tiles fill the row: $tile")
+        // The fourth column (the seventh photo) ends at the panel's content edge.
+        // (Measured with the drawn tile, which snaps to whole pixels.)
+        assertNear(first.left + (first.right - first.left + 8.dp) * 3, last.left)
+        // Within a dp: each of the four tiles may round up to a whole pixel (91.75 dp draws as 92 at this density).
+        assertTrue(kotlin.math.abs((grid.right - 2.dp - last.right).value) <= 1f, "fourth column ends at ${last.right}, content edge ${grid.right - 2.dp}")
         // Seven photos then +: + is under the seventh, in the fourth column.
         assertNear(last.left, plus.left); assertNear(last.bottom + 10.dp, plus.top)
     }

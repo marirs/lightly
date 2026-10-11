@@ -2,6 +2,10 @@ package com.lightlylabs.lightly.editor
 
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -64,7 +68,7 @@ class EditorScreenTest {
 
     private fun image(w: Int, h: Int) = Rgba8Image(w, h, ByteArray(w * h * 4) { if (it % 4 == 3) -1 else (it % 200).toByte() })
 
-    private fun editor(): EditorViewModel {
+    private fun editor(leaks: LeakLibrary = LeakLibrary.NONE): EditorViewModel {
         val favourites = object : FavouritesStore {
             private val state = MutableStateFlow<List<String>>(emptyList())
             override val favourites: StateFlow<List<String>> = state
@@ -93,6 +97,7 @@ class EditorScreenTest {
             exporter = ExportCoordinator(SaveCopyExporter(gateway, JpegEncoder<Rgba8ExportFrame> { _, _, _ -> }), Rgba8ExportFrame.factory, render),
             favourites = favourites,
             debugBuild = true,
+            leaks = leaks,
         )
         return EditorViewModel(SavedStateHandle(), env, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate))
     }
@@ -347,13 +352,39 @@ class EditorScreenTest {
         compose.onNodeWithText("Brush over anything you want removed.").assertExists()
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
         compose.waitForIdle()
-        listOf("Light Leaks", "Grain", "Vignette", "Warm edge", "Amber flare", "Rose", "Prism", "Intensity", "Rotation", "Drag on the photo to move the leak.").forEach {
+        // Revision 8 (owner 2026-10-11): the leak gallery replaces the four style chips; without a pack it offers only None.
+        listOf("Light Leaks", "Grain", "Vignette", "None", "Intensity", "Rotation", "Drag on the photo to move the leak.").forEach {
             assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
         }
+        listOf("Warm edge", "Amber flare", "Rose", "Prism").forEach { assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isEmpty(), it) }
         compose.onNodeWithTag("effects-on-off").assertDoesNotExist()
-        compose.onNodeWithText("Rose").performClick()
+        compose.onNodeWithTag(LeakGalleryTags.tile(null)).assertIsSelected()
+    }
+
+    @Test
+    fun `Light Leaks is a two-row gallery, None first then the pack's leaks in order, 96 dp tiles, a tap chooses one`() {
+        val vm = editor(TestLeaks.library); show(vm)
+        compose.onNodeWithTag(EditorTags.tool(EditorTool.EFFECTS)).performClick()
         compose.waitForIdle()
-        assertTrue(vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
+        val none = compose.onNodeWithTag(LeakGalleryTags.tile(null)).assertIsSelected().getBoundsInRoot()
+        val first = compose.onNodeWithTag(LeakGalleryTags.tile(TestLeaks.ids[0])).assertIsNotSelected().getBoundsInRoot()
+        val second = compose.onNodeWithTag(LeakGalleryTags.tile(TestLeaks.ids[1])).getBoundsInRoot()
+        // Column-major like the compact preset gallery: None, then the first leak under it (84 dp rows, 10 dp gap), the
+        // second leak starting the next column (96 dp + 12 dp).
+        assertEquals(none.left.value, first.left.value, 0.5f)
+        assertEquals((none.top + 94.dp).value, first.top.value, 0.5f)
+        assertEquals((none.left + 108.dp).value, second.left.value, 0.5f)
+        assertEquals(96f, (none.right - none.left).value, 0.5f)
+        listOf("None", "Gold Fringe", "Amber Edge").forEach { assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it) }
+        compose.onNodeWithTag(LeakGalleryTags.tile(TestLeaks.ids[0])).performClick()
+        compose.waitForIdle()
+        val leak = vm.uiState.value.session!!.current.tools.effects.lightLeak
+        assertTrue(leak.enabled)
+        assertEquals(com.lightlylabs.lightly.session.LeakStyle.Image(TestLeaks.ids[0]), leak.style)
+        compose.onNodeWithTag(LeakGalleryTags.tile(TestLeaks.ids[0])).assertIsSelected()
+        compose.onNodeWithTag(LeakGalleryTags.tile(null)).assertIsNotSelected().performClick()
+        compose.waitForIdle()
+        assertTrue(!vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
     }
     /** Owner report 2026-10-11: after the crop zoom, handles could not be dragged. All eight must move their own sides. */
     @Test

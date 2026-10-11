@@ -294,12 +294,12 @@ object LookPackFacts {
 }
 
 /**
- * rendering-v2 revision this app implements (revision 7, owner amendments 2026-10-11: stage 11 `text`, `portrait.smile`;
- * contract fixes 2: stage order C1/C2, perspective C3, light leak C4; fixes 1 unchanged): revision 1 moved background.focus
+ * rendering-v2 revision this app implements (revision 8, owner 2026-10-11: light leak images from the leak pack; revision 7:
+ * stage 11 `text`, `portrait.smile`; contract fixes 2: stage order C1/C2, perspective C3, light leak C4; fixes 1 unchanged): revision 1 moved background.focus
  * `maxBlurRadius` from `params` to `constants` (0.06). Bundling or shipping any other revision fails.
  */
 object RenderingContractFacts {
-    const val SUPPORTED_REVISION = 7
+    const val SUPPORTED_REVISION = 8
 
     @Suppress("UNCHECKED_CAST")
     fun problems(contractText: String): List<String> {
@@ -458,6 +458,62 @@ abstract class BundleBackgroundPhotosTask : DefaultTask() {
         val root = assetsDirectory.get().asFile
         root.deleteRecursively()
         photos.files.forEach { it.copyTo(root.resolve("backgrounds/${it.name}")) }
+    }
+}
+
+// --- Light-leak pack (rendering-v2 revision 8, owner 2026-10-11) --------------------------------------
+//
+// shared/leaks/build_leaks.py writes leaks.json ("lightly-leak-pack" 1), img/<id>.jpg and thumb/<id>.jpg into the git-ignored
+// shared/leaks/out/ (the purchased clips never enter the repository). Every variant, release included, bundles it under
+// assets/leakpack/. Unlike the look pack, a build without it only warns: the Light Leaks gallery then offers just None, and an
+// edit naming a leak adds no light (the drawn styles of earlier edits do not depend on the pack).
+val leakPackRelativePath = "shared/leaks/out"
+val leakPackDirectory: File? = listOfNotNull(rootDir.parentFile, mainCheckoutOfWorktree(rootDir.parentFile))
+    .map { it.resolve(leakPackRelativePath) }.firstOrNull { it.resolve("leaks.json").isFile }
+
+/** Copies leaks.json and the files it names into assets/leakpack/, checking each image's SHA-256 against the manifest. */
+abstract class BundleLeakPackTask : DefaultTask() {
+    /** The pack directory (leaks.json, img/, thumb/); unset when this checkout has no built pack. */
+    @get:Optional
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val packDirectory: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    @Suppress("UNCHECKED_CAST")
+    fun bundle() {
+        val root = assetsDirectory.get().asFile
+        root.deleteRecursively()
+        root.mkdirs()
+        val pack = packDirectory.orNull?.asFile
+        if (pack == null) {
+            logger.warn("No light-leak pack (build shared/leaks/out with shared/leaks/build_leaks.py): the Light Leaks gallery will offer only None")
+            return
+        }
+        val manifestFile = pack.resolve("leaks.json")
+        val manifest = groovy.json.JsonSlurper().parseText(manifestFile.readText()) as Map<String, Any?>
+        if (manifest["format"] != "lightly-leak-pack" || (manifest["formatVersion"] as? Number)?.toInt() != 1) {
+            throw GradleException("$manifestFile is ${manifest["format"]} ${manifest["formatVersion"]}; this app reads lightly-leak-pack 1")
+        }
+        val target = root.resolve("leakpack")
+        for (leak in (manifest["leaks"] as? List<Map<String, Any?>>).orEmpty()) {
+            val id = leak["id"] as? String ?: throw GradleException("$manifestFile has a leak without an id")
+            // Only the leak's own two files: the paths are joined onto the pack and asset roots.
+            if (!Regex("leak-[0-9a-f]{12}").matches(id) || leak["image"] != "img/$id.jpg" || leak["thumbnail"] != "thumb/$id.jpg") {
+                throw GradleException("$manifestFile: leak $id names ${leak["image"]}, ${leak["thumbnail"]}")
+            }
+            val image = pack.resolve("img/$id.jpg")
+            val thumbnail = pack.resolve("thumb/$id.jpg")
+            if (!image.isFile || !thumbnail.isFile) throw GradleException("$manifestFile names $id, whose image or thumbnail is not in $pack")
+            val actual = LookPackFacts.sha256Hex(image.readBytes())
+            if (actual != leak["imageSha256"]) throw GradleException("$image has SHA-256 $actual; the manifest records ${leak["imageSha256"]}")
+            image.copyTo(target.resolve("img/$id.jpg"))
+            thumbnail.copyTo(target.resolve("thumb/$id.jpg"))
+        }
+        manifestFile.copyTo(target.resolve("leaks.json"))
     }
 }
 
@@ -716,6 +772,11 @@ androidComponents {
             photos.from(backgroundPhotoNames.flatMap { listOf(folder.resolve("$it.jpg"), folder.resolve("${it}_thumb.jpg")) })
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleBackgrounds, BundleBackgroundPhotosTask::assetsDirectory)
+
+        val bundleLeakPack = tasks.register<BundleLeakPackTask>("bundle${variantName}LeakPack") {
+            leakPackDirectory?.let { packDirectory.set(it) }
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleLeakPack, BundleLeakPackTask::assetsDirectory)
 
         if (depthModelEnabled(variant.buildType ?: "")) {
             val bundleDepthModel = tasks.register<BundleDepthModelTask>("bundle${variantName}DepthModel") {

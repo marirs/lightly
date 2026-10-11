@@ -182,12 +182,8 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
     // Selective Colour has no On switch: a kept colour applies it (reference: docs/ui/proposals/selective-colour at 330cf5b; status in its README).
     when (sub) {
         EffectsSub.LEAK -> {
-            ChipRow(spacing = 6.dp) {
-                EditOptions.LEAK_STYLES.forEach { (style, label) ->
-                    val selected = fx.lightLeak.enabled && fx.lightLeak.style == style
-                    OptChip(selected, label, { vm.setLeakStyle(style) }, tag = "leak-${style.name.lowercase()}") { Text(label, maxLines = 1) }
-                }
-            }
+            // Owner amendment 2026-10-11 (rendering-v2 revision 8): the leak gallery replaces the four style chips.
+            LeakGallery(vm, ui, fx.lightLeak)
             EffectsSlider(vm, ui, "Intensity", "leakIntensity", fx.lightLeak.intensity, 0.0, 100.0)
             EffectsSlider(vm, ui, "Rotation", "leakRotation", fx.lightLeak.rotation, -180.0, 180.0)
             PanelNote("Drag on the photo to move the leak.")

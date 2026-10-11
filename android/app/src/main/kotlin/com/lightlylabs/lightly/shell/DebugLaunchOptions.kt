@@ -482,7 +482,9 @@ object DebugLaunchOptions {
                     }
                 }
             }
-            "fx-leak" -> { api.effects { it.copy(lightLeak = it.lightLeak.copy(enabled = true)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.LEAK) }
+            // Mockup (revision 8): fx-leak has the first leak of the pack chosen; fx-leak-none has none.
+            "fx-leak" -> { api.chooseFirstLeak(); fx(com.lightlylabs.lightly.editor.EffectsSub.LEAK) }
+            "fx-leak-none" -> fx(com.lightlylabs.lightly.editor.EffectsSub.LEAK)
             "fx-selective" -> fx(com.lightlylabs.lightly.editor.EffectsSub.SELECTIVE)
             "fx-grain" -> { api.effects { it.copy(grain = it.grain.copy(enabled = true, amount = 45.0)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.GRAIN) }
             "fx-vignette" -> { api.effects { it.copy(vignette = it.vignette.copy(enabled = true)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.VIGNETTE) }

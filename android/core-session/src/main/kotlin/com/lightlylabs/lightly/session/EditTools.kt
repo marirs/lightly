@@ -10,6 +10,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
@@ -306,7 +308,45 @@ data class RemoveStroke(val radius: Double, val points: List<NormalisedPoint>, v
 
 // --- effects ----------------------------------------------------------------------------------------
 
-@Serializable enum class LeakStyle { @SerialName("warm") WARM, @SerialName("amber") AMBER, @SerialName("rose") ROSE, @SerialName("prism") PRISM }
+/**
+ * `effects.lightLeak.style` (edit-recipe-v1, rendering-v2 revision 8): one of the four drawn styles, or a leak-pack image
+ * `leak-<12 hex>` (owner 2026-10-11). The drawn styles are no longer offered but still decode and render, so edits saved
+ * before revision 8 look as they did. Written as the bare string either way, so both forms share one JSON shape.
+ */
+@Serializable(with = LeakStyleSerializer::class)
+sealed interface LeakStyle {
+    /** The recipe's string: `warm` … `prism`, or the leak id. */
+    val wireName: String
+
+    /** The drawn radial styles of revisions 2–7 (rendering-v2 §Light leak, unchanged). */
+    enum class Drawn(override val wireName: String) : LeakStyle { WARM("warm"), AMBER("amber"), ROSE("rose"), PRISM("prism") }
+
+    /** A leak-pack image, by its stable id (shared/leaks/build_leaks.py: "leak-" + 12 hex digits of the source's SHA-256). */
+    data class Image(val leakId: String) : LeakStyle {
+        init { require(LEAK_ID_PATTERN.matches(leakId)) { "a leak image id is leak-<12 lowercase hex>, was $leakId" } }
+        override val wireName: String get() = leakId
+    }
+
+    companion object {
+        val WARM: LeakStyle = Drawn.WARM
+        val AMBER: LeakStyle = Drawn.AMBER
+        val ROSE: LeakStyle = Drawn.ROSE
+        val PRISM: LeakStyle = Drawn.PRISM
+
+        val LEAK_ID_PATTERN = Regex("^leak-[0-9a-f]{12}$")
+
+        /** The recipe string to a style; anything that is neither a drawn style nor a leak id fails, as the schema does. */
+        fun fromWireName(value: String): LeakStyle =
+            Drawn.entries.firstOrNull { it.wireName == value } ?: Image(value)
+    }
+}
+
+object LeakStyleSerializer : KSerializer<LeakStyle> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("lightly.LeakStyle", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: LeakStyle) = encoder.encodeString(value.wireName)
+    override fun deserialize(decoder: Decoder): LeakStyle = LeakStyle.fromWireName(decoder.decodeString())
+}
+
 @Serializable enum class GrainStyle { @SerialName("fine") FINE, @SerialName("film") FILM, @SerialName("coarse") COARSE }
 
 @Serializable

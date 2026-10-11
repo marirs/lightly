@@ -67,8 +67,8 @@ class EditEffectsTest {
 
     @Test
     fun `effect controls apply directly and zero removes effect`() = runTest {
-        val vm = ready(null)
-        vm.setLeakStyle(com.lightlylabs.lightly.session.LeakStyle.entries.last())
+        val vm = ready(null, leaks = TestLeaks.library)
+        vm.chooseLeak(TestLeaks.ids.last())
         advanceUntilIdle()
         assertTrue(vm.uiState.value.session!!.current.tools.effects.lightLeak.enabled)
         vm.undo(); advanceUntilIdle()
@@ -199,6 +199,80 @@ class EditEffectsTest {
         assertEquals(0, worst, "tiled export differs from the preview by $worst levels")
     }
 
+    @Test
+    fun `a leak image renders the same in Save copy tiles as in the whole-frame preview, and adds light`() = runTest {
+        val base = editedState()
+        val state = base.copy(tools = base.tools.copy(effects = base.tools.effects.copy(lightLeak = base.tools.effects.lightLeak.copy(
+            enabled = true, style = com.lightlylabs.lightly.session.LeakStyle.Image(TestLeaks.ids[0]), intensity = 70.0, x = 40.0, y = 60.0, rotation = 25.0))))
+        val plan = library.planFor(state)
+        val renderer = DevelopRenderer()
+        val pipeline = EditPipeline(library.model, renderer, leaks = TestLeaks.library)
+        val source = image(96, 64, 7)
+        val preview = pipeline.renderPreview(source, state, plan, null)
+        val target = Rgba8ExportFrame(preview.width, preview.height)
+        val frame = com.lightlylabs.lightly.render.image.ImageFrameSource(Rgba8Image(96, 64, source.pixels.copyOf()))
+        TiledExportRenderer(maxTileEdge = 24).render(frame, pipeline.exportPlan(state, plan, emptyList(), null).prepare(frame), target)
+        var worst = 0
+        for (i in preview.pixels.indices) if (i % 4 != 3) worst = maxOf(worst, abs((preview.pixels[i].toInt() and 0xff) - (target.pixels[i].toInt() and 0xff)))
+        assertEquals(0, worst, "tiled export differs from the preview by $worst levels")
+        // Without the pack the leak id adds no light, so the leak is what differs.
+        val withoutPack = EditPipeline(library.model, renderer).renderPreview(source, state, plan, null)
+        assertFalse(withoutPack.pixels.contentEquals(preview.pixels))
+    }
+
+    @Test
+    fun `the leak gallery - a leak turns the effect on at 50 in one step, None turns it off in one step, the chosen tile again adds none`() = runTest {
+        val vm = ready(null, leaks = TestLeaks.library)
+        assertEquals(TestLeaks.ids, vm.leakPackEntries.map { it.id })
+        fun leak() = vm.uiState.value.session!!.current.tools.effects.lightLeak
+        fun steps() = vm.uiState.value.session!!.history.entries.size
+        val start = steps()
+        vm.chooseLeak(TestLeaks.ids[1]); advanceUntilIdle()
+        assertTrue(leak().enabled)
+        assertEquals(com.lightlylabs.lightly.session.LeakStyle.Image(TestLeaks.ids[1]), leak().style)
+        // Off → on starts centred at 50 (rendering-v2 revision 8 §Light leak, 080003a), whatever was stored (18 %, 14 %, 55).
+        assertEquals(50.0, leak().intensity)
+        assertEquals(50.0 to 50.0, leak().x to leak().y)
+        assertEquals(start + 1, steps())
+        vm.chooseLeak(TestLeaks.ids[1]); advanceUntilIdle()
+        assertEquals(start + 1, steps())
+        // Another leak while on keeps the person's intensity and place.
+        vm.onEffectsSliderRelease("leakIntensity", 80.0); advanceUntilIdle()
+        vm.moveLeak(0.3, 0.7, release = true); advanceUntilIdle()
+        vm.chooseLeak(TestLeaks.ids[2]); advanceUntilIdle()
+        assertEquals(80.0, leak().intensity)
+        assertEquals(30.0, leak().x, 1e-9); assertEquals(70.0, leak().y, 1e-9)
+        assertEquals(start + 4, steps())
+        vm.chooseLeak(null); advanceUntilIdle()
+        assertFalse(leak().enabled)
+        assertEquals(start + 5, steps())
+        vm.chooseLeak(null); advanceUntilIdle()
+        assertEquals(start + 5, steps())
+        vm.undo(); advanceUntilIdle()
+        assertTrue(leak().enabled)
+        assertEquals(com.lightlylabs.lightly.session.LeakStyle.Image(TestLeaks.ids[2]), leak().style)
+    }
+
+    @Test
+    fun `dragging on the photo with None chosen does nothing, with a leak chosen it moves the leak in one step`() = runTest {
+        val vm = ready(null, leaks = TestLeaks.library)
+        fun leak() = vm.uiState.value.session!!.current.tools.effects.lightLeak
+        fun steps() = vm.uiState.value.session!!.history.entries.size
+        val before = vm.uiState.value.session!!.current
+        val start = steps()
+        vm.moveLeak(0.2, 0.3, release = false); advanceUntilIdle()
+        vm.moveLeak(0.2, 0.3, release = true); advanceUntilIdle()
+        assertEquals(before, vm.uiState.value.session!!.current)
+        assertFalse(leak().enabled)
+        assertEquals(start, steps())
+        vm.chooseLeak(TestLeaks.ids[0]); advanceUntilIdle()
+        vm.moveLeak(0.2, 0.3, release = false); advanceUntilIdle()
+        assertEquals(50.0 to 50.0, leak().x to leak().y, "a moving finger only previews")
+        vm.moveLeak(0.2, 0.3, release = true); advanceUntilIdle()
+        assertEquals(20.0, leak().x, 1e-9); assertEquals(30.0, leak().y, 1e-9)
+        assertEquals(start + 2, steps())
+    }
+
     // --- the editing session -------------------------------------------------------------------------
 
     private class MemoryGateway : MediaStoreGateway<String> {
@@ -220,7 +294,7 @@ class EditEffectsTest {
     /** When set, a Selective Colour pick waits on it before sampling ("still sampling"). */
     private var holdPick: CompletableDeferred<Unit>? = null
 
-    private fun TestScope.ready(inpainter: Inpainter?, savedState: SavedStateHandle = SavedStateHandle(), patchDirectory: java.io.File? = null, open: Boolean = true): EditorViewModel {
+    private fun TestScope.ready(inpainter: Inpainter?, savedState: SavedStateHandle = SavedStateHandle(), patchDirectory: java.io.File? = null, open: Boolean = true, leaks: LeakLibrary = LeakLibrary.NONE): EditorViewModel {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         val gateway = MemoryGateway()
@@ -248,6 +322,7 @@ class EditEffectsTest {
             inpainter = { inpainter },
             removePatchDirectory = patchDirectory,
             beforePickSample = { holdPick?.await() },
+            leaks = leaks,
         )
         val vm = EditorViewModel(savedState, env, CoroutineScope(SupervisorJob() + dispatcher))
         if (open) vm.openPhoto("content://photo/1")

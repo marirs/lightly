@@ -16,6 +16,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -178,23 +180,23 @@ private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundT
     OptionTabs(ReplacementKind.entries.map { it to it.label }, kind, vm::selectReplacementKind, tagPrefix = "replacement-kind")
     reset()
     when (kind) {
-        ReplacementKind.IMAGE -> BackgroundImageGrid(BackgroundImageTile.all(hasImportedPhoto = ui.importedBackground != null)) { tile ->
+        ReplacementKind.IMAGE -> BackgroundImageGrid(BackgroundImageTile.all(hasImportedPhoto = ui.importedBackground != null)) { tile, tileSize ->
             when (tile) {
                 is BackgroundImageTile.Bundled -> {
                     val on = (replaced as? Replacement.Image)?.image == AssetRef.Bundled(tile.id)
                     val context = LocalContext.current
                     val thumbnail = remember(tile.file) { bundledThumbnail(context, tile.file) }
-                    BackgroundThumb(thumbnail, on, "background-image-${tile.file}") { vm.chooseBackgroundImage(tile.id) }
+                    BackgroundThumb(thumbnail, on, "background-image-${tile.file}", tileSize) { vm.chooseBackgroundImage(tile.id) }
                 }
                 BackgroundImageTile.Imported -> ui.importedBackground?.let { imported ->
                     val on = (replaced as? Replacement.Image)?.image == imported.asset
                     val thumbnail = remember(imported) { imported.thumbnail.asImageBitmap() }
-                    BackgroundThumb(thumbnail, on, "background-image-imported", description = "Selected background photo") {
+                    BackgroundThumb(thumbnail, on, "background-image-imported", tileSize, description = "Selected background photo") {
                         vm.useImportedBackground(imported)
                     }
                 }
                 BackgroundImageTile.ChoosePhoto ->
-                    AddTile("Choose a photo", vm::chooseBackgroundPhoto, tag = "background-add-photo") { LightlyIcon(LightlyIcons.Plus, tint = lightlyColors.ink2) }
+                    AddTile("Choose a photo", vm::chooseBackgroundPhoto, tag = "background-add-photo", tileSize = tileSize) { LightlyIcon(LightlyIcons.Plus, tint = lightlyColors.ink2) }
             }
         }
         ReplacementKind.COLOUR -> ColourControl("Background colour", (replaced as? Replacement.Colour)?.colour ?: "#F4F1EC", ui.original, "background-colour", vm::chooseBackgroundColour, previewPhoto = ui.preview, preview = { vm.previewColour("background-colour", it) }, cancel = vm::cancelPhotoGesturePreview)
@@ -222,36 +224,48 @@ private fun ChangeBody(vm: EditorViewModel, ui: EditorUiState, tool: BackgroundT
 }
 
 /**
- * Change background › Image (owner amendment 2026-10-11, second; mockup `grid-auto-flow: column; grid-template-rows:
- * repeat(2, 60px); gap: 10px 8px; padding: 4px 2px`): two rows of 60 dp tiles like the preset gallery, filled column by
- * column, 10 dp between the rows and 8 dp between the columns, scrolling sideways with the right edge fading (88 %) while
- * tiles are hidden past it, as [ChipRow]. At most nine tiles, so a plain scrolling row of columns is enough (no laziness).
+ * Change background › Image (owner amendments 2026-10-11; mockup `grid-auto-flow: column; grid-template-rows: repeat(2, auto);
+ * grid-auto-columns: calc((100% - 24px) / 4); gap: 10px 8px; padding: 4px 2px`): the tiles fill the row, four across, as the
+ * preset gallery fills its width. Each tile is square, (content width − 3 × 8 dp) / 4 where the content is the panel width
+ * less the 2 dp side padding; two rows filled column by column, 10 dp between the rows and 8 dp between the columns,
+ * scrolling sideways with the right edge fading while tiles are hidden past it, as [ChipRow]. At most nine tiles, so a plain
+ * scrolling row of columns is enough (no laziness).
  */
 @Composable
-private fun BackgroundImageGrid(tiles: List<BackgroundImageTile>, tile: @Composable (BackgroundImageTile) -> Unit) {
+private fun BackgroundImageGrid(tiles: List<BackgroundImageTile>, tile: @Composable (BackgroundImageTile, Dp) -> Unit) {
     val rowScroll = androidx.compose.foundation.rememberScrollState()
-    Row(
-        Modifier.fillMaxWidth().fadeEnd(rowScroll.canScrollForward).horizontalScroll(rowScroll).padding(vertical = 4.dp, horizontal = 2.dp)
-            .testTagResource("background-images"),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        tiles.chunked(2).forEach { column ->
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { column.forEach { tile(it) } }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val tileSize = backgroundImageTileSize(maxWidth)
+        Row(
+            // Tagged before the scroll so the node is the visible row (the width the tiles divide), not the scrolled content.
+            Modifier.fillMaxWidth().testTagResource("background-images").fadeEnd(rowScroll.canScrollForward).horizontalScroll(rowScroll)
+                .padding(vertical = 4.dp, horizontal = BACKGROUND_GRID_SIDE_PADDING),
+            horizontalArrangement = Arrangement.spacedBy(BACKGROUND_GRID_COLUMN_GAP),
+        ) {
+            tiles.chunked(2).forEach { column ->
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { column.forEach { tile(it, tileSize) } }
+            }
         }
     }
 }
 
+private val BACKGROUND_GRID_SIDE_PADDING = 2.dp
+private val BACKGROUND_GRID_COLUMN_GAP = 8.dp
+
+/** One background tile's side for a grid [gridWidth] wide: four columns and three 8 dp gaps across the padded content. */
+internal fun backgroundImageTileSize(gridWidth: Dp): Dp = (gridWidth - BACKGROUND_GRID_SIDE_PADDING * 2 - BACKGROUND_GRID_COLUMN_GAP * 3) / 4
+
 private fun bundledThumbnail(context: android.content.Context, file: String): ImageBitmap? =
     runCatching { context.assets.open("backgrounds/${file}_thumb.jpg").use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
 
-/** A background choice: 60 dp, 16 dp corners; when chosen, a 2 dp sheet-coloured gap and a 2 dp accent ring outside it. */
+/** A background choice: [tileSize] square, 16 dp corners; when chosen, a 2 dp sheet-coloured gap and a 2 dp accent ring outside it. */
 @Composable
-private fun BackgroundThumb(bitmap: ImageBitmap?, selected: Boolean, tag: String, description: String = "Background image", onClick: () -> Unit) {
+private fun BackgroundThumb(bitmap: ImageBitmap?, selected: Boolean, tag: String, tileSize: Dp, description: String = "Background image", onClick: () -> Unit) {
     val colors = lightlyColors
     val shape = RoundedCornerShape(16.dp)
     Box(
         Modifier
-            .size(60.dp)
+            .size(tileSize)
             .drawBehind {
                 if (selected) {
                     drawRoundRect(colors.sheet, androidx.compose.ui.geometry.Offset(-2.dp.toPx(), -2.dp.toPx()), androidx.compose.ui.geometry.Size(size.width + 4.dp.toPx(), size.height + 4.dp.toPx()),

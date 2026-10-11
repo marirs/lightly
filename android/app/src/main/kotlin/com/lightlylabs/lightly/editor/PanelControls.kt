@@ -324,13 +324,13 @@ object SwatchNames {
     fun of(hex: String): String? = names[hex.uppercase()]
 }
 
-/** The (+) tile: 60 dp, 16 dp corners, a 1.5 dp dashed ink3 outline. */
+/** The (+) tile: [tileSize] square (60 dp, or a background grid's column), 16 dp corners, a 1.5 dp dashed ink3 outline. */
 @Composable
-fun AddTile(description: String, onClick: () -> Unit, tag: String, content: @Composable () -> Unit) {
+fun AddTile(description: String, onClick: () -> Unit, tag: String, tileSize: Dp = 60.dp, content: @Composable () -> Unit) {
     val colors = lightlyColors
     Box(
         Modifier
-            .size(60.dp)
+            .size(tileSize)
             .drawBehind {
                 drawRoundRect(colors.ink3, cornerRadius = CornerRadius(16.dp.toPx()), style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
             }

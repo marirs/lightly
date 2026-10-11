@@ -39,15 +39,21 @@ object EditMapping {
         return AdjustParams(a.exposure, a.contrast, a.highlights, a.shadows, a.temp, a.tint, a.saturation, a.vibrance, a.sharpness, a.clarity, a.noise)
     }
 
-    fun effects(state: EditState): EffectsParams {
+    /**
+     * [leaks] resolves a revision-8 leak id to its decoded image; a drawn style (earlier edits) needs none. Only an enabled
+     * leak is decoded, so an edit that merely remembers a leak id costs nothing.
+     */
+    fun effects(state: EditState, leaks: LeakLibrary = LeakLibrary.NONE): EffectsParams {
         val e = state.tools.effects
+        val leakImage = (e.lightLeak.style as? com.lightlylabs.lightly.session.LeakStyle.Image)?.takeIf { e.lightLeak.enabled }?.let { leaks.image(it.leakId) }
         return EffectsParams(
-            e.lightLeak.enabled, e.lightLeak.style.name.lowercase(), e.lightLeak.intensity, e.lightLeak.x, e.lightLeak.y, e.lightLeak.rotation,
+            e.lightLeak.enabled, e.lightLeak.style.wireName, e.lightLeak.intensity, e.lightLeak.x, e.lightLeak.y, e.lightLeak.rotation,
             e.grain.enabled, e.grain.style.name.lowercase(), e.grain.amount, e.grain.size, e.grain.roughness, e.grain.seed,
             e.vignette.enabled, e.vignette.amount, e.vignette.size, e.vignette.softness,
             selectiveColours = e.selectiveColour?.colours.orEmpty().map { KeptColour(it.oklab[0], it.oklab[1], it.oklab[2]) },
             selectiveRange = e.selectiveColour?.range ?: 40.0,
             selectiveStrength = e.selectiveColour?.strength ?: 100.0,
+            leakImage = leakImage,
         )
     }
 
@@ -99,6 +105,8 @@ class EditPipeline(
     private val watermark: WatermarkPainter? = null,
     /** Stage 11. Without bundled fonts (JVM tests) the layers draw in the default typeface. */
     private val text: TextStage = TextStage(WatermarkFonts(null)),
+    /** Revision 8 leak images, the same decoded image for the preview and every Save copy tile. */
+    private val leaks: LeakLibrary = LeakLibrary.NONE,
 ) {
     /**
      * The whole frame from a preview-size [source] (patches already composited). [developPlan] is the
@@ -111,7 +119,7 @@ class EditPipeline(
     /** Stages 1–10 of the preview: the frame the text stage draws on. Kept by the editor while text moves. */
     fun renderFrameBeforeText(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
         val image = frameBeforeEffects(source, state, developPlan, background)
-        return EffectsStage(EditMapping.effects(state), developPlan.finishing, model, image.width, image.height).apply(image)
+        return EffectsStage(EditMapping.effects(state, leaks), developPlan.finishing, model, image.width, image.height).apply(image)
     }
 
     /** Stages 11–13 of the preview on a frame from [renderFrameBeforeText]: text, border, watermark. */
@@ -131,7 +139,7 @@ class EditPipeline(
      */
     fun renderSelectiveColourInput(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
         val image = frameBeforeEffects(source, state, developPlan, background)
-        val leakOnly = EditMapping.effects(state).copy(grainEnabled = false, vignetteEnabled = false, selectiveColours = emptyList())
+        val leakOnly = EditMapping.effects(state, leaks).copy(grainEnabled = false, vignetteEnabled = false, selectiveColours = emptyList())
         return EffectsStage(leakOnly, FinishingRecipe.NEUTRAL, model, image.width, image.height).apply(image)
     }
 
@@ -164,7 +172,7 @@ class EditPipeline(
         val adjustApron = adjustPlan?.let { renderer.apron(it, frame.width, frame.height) } ?: 0
         val compose = background?.invoke(frame)
         val geometry = GeometryTransform(EditMapping.geometry(state), frame.width, frame.height)
-        val effects = EffectsStage(EditMapping.effects(state), developPlan.finishing, model, geometry.frameWidth, geometry.frameHeight)
+        val effects = EffectsStage(EditMapping.effects(state, leaks), developPlan.finishing, model, geometry.frameWidth, geometry.frameHeight)
         val border = EditMapping.border(state)
         val placement = BorderStage.placement(border, geometry.frameWidth, geometry.frameHeight)
 
