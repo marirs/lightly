@@ -67,7 +67,7 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
     when (ui.edit.sub) {
         // Inline free crop (owner, 2026-10-11): the frame is on the photo; the panel only says how to use it. No aspect
         // presets (owner: not asked for).
-        EditSub.CROP -> PanelNote("Drag the corners or edges. Drag inside to move. Pinch to resize.")
+        EditSub.CROP -> PanelNote(if (vm.isCropEditing(ui)) "Drag a corner or an edge." else "Tap the photo to adjust the crop.")
         // Rotate: a 2×2 grid, 8 dp gaps, of 46 dp outlined buttons (16 dp corners), an 18 dp icon and a 13 sp semibold
         // label; a flip that is on shows in the accent colour.
         EditSub.ROTATE -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -10,6 +10,8 @@ final class EditPanelModel {
 
     let session: EditorSession
     var sub: Sub = .crop
+    /// Crop: the frame is back on the photo after a tap on the cropped photo (owner, 2026-10-11).
+    var cropAdjusting = false
     var group: Group = .light
     /// Remove › "Brush size" 0…100 (prototype 35).
     var brushSize: Double = 35
@@ -71,10 +73,11 @@ struct EditPanelView: View {
 
     // MARK: Crop, Rotate, Straighten, Perspective
 
-    /// Inline free crop (owner, 2026-10-11): the frame is on the photo; the panel only says how to use it. No aspect
-    /// presets (owner: not asked for).
+    /// The crop flow (owner, 2026-10-11): one hint line; the frame and ✕ / ✓ are on the photo.
     private var crop: some View {
-        L2Note(text: Text("Drag the corners or edges. Drag inside to move. Pinch to resize."))
+        let r = geometry.cropRect
+        let cropped = !(r.x < 0.0001 && r.y < 0.0001 && r.width > 0.9999 && r.height > 0.9999)
+        return L2Note(text: Text(cropped && !model.cropAdjusting ? "Tap the photo to adjust the crop." : "Drag a corner or an edge."))
     }
 
     /// Rotate: a 2×2 grid, 8 pt gaps, of 46 pt outlined buttons (16 pt corners) with an 18 pt icon and a 13 pt

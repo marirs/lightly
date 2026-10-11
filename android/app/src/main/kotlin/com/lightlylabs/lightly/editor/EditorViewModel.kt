@@ -679,7 +679,7 @@ class EditorViewModel(
 
     fun selectEditSub(sub: EditSub) {
         val was = isCropEditing()
-        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null, cropDraft = null)) }
+        state.update { it.copy(edit = it.edit.copy(sub = sub, sliderDrag = null, cropDraft = null, cropAdjusting = false)) }
         refreshAfterCropEditingChange(was)
     }
 
@@ -687,14 +687,44 @@ class EditorViewModel(
         state.update { it.copy(edit = it.edit.copy(cropDraft = rect)) }
     }
 
-    /**
-     * Inline crop (owner, 2026-10-11): a drag or pinch on the frame is applied when the finger lifts (one undo step);
-     * there is no workspace and no Done.
+    /*
+     * The approved crop flow (owner, 2026-10-11, docs/ui/proposals/crop-flow.html): the frame is on the uncropped photo
+     * while there is no crop yet, or after a tap on the cropped photo ([adjustCrop]). A drag or pinch leaves a draft;
+     * ✓ Apply crop commits it (one undo step) and shows the cropped photo; ✕ Cancel drops it.
      */
+
+    /** A drag or pinch ended: the frame stays where it is, as a draft, until ✓ or ✕. */
     fun finishCropDrag(rect: com.lightlylabs.lightly.session.NormalisedRect?) {
-        val committed = state.value.session?.current?.tools?.edit?.geometry?.crop?.rect
-        if (rect != null && rect != committed) commitCrop(rect)
-        state.update { it.copy(edit = it.edit.copy(cropDraft = null)) }
+        if (rect != null) previewCrop(rect)
+    }
+
+    /** A moved frame waits for ✓ Apply crop or ✕ Cancel. */
+    fun hasPendingCrop(ui: EditorUiState = state.value): Boolean {
+        val draft = ui.edit.cropDraft ?: return false
+        return isCropEditing(ui) && draft != ui.session?.current?.tools?.edit?.geometry?.crop?.rect
+    }
+
+    fun applyCrop() {
+        val draft = state.value.edit.cropDraft
+        val was = isCropEditing()
+        state.update { it.copy(edit = it.edit.copy(cropDraft = null, cropAdjusting = false)) }
+        if (draft != null && draft != state.value.session?.current?.tools?.edit?.geometry?.crop?.rect) {
+            commitCrop(draft)
+            showToast("Cropped")
+        } else refreshAfterCropEditingChange(was)
+    }
+
+    fun cancelCrop() {
+        val was = isCropEditing()
+        state.update { it.copy(edit = it.edit.copy(cropDraft = null, cropAdjusting = false)) }
+        refreshAfterCropEditingChange(was)
+    }
+
+    /** A tap on the cropped photo brings the frame back. */
+    fun adjustCrop() {
+        val was = isCropEditing()
+        state.update { it.copy(edit = it.edit.copy(cropAdjusting = true, cropDraft = null)) }
+        refreshAfterCropEditingChange(was)
     }
 
     fun selectAdjustGroup(group: AdjustGroup) = state.update { it.copy(edit = it.edit.copy(group = group)) }
@@ -812,7 +842,8 @@ class EditorViewModel(
      * with the crop rectangle drawn over it in that frame's fractions; Border and Watermark are left out of those previews.
      * Save copy and every other tool use the committed, cropped recipe.
      */
-    fun isCropEditing(ui: EditorUiState = state.value): Boolean = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP
+    fun isCropEditing(ui: EditorUiState = state.value): Boolean = ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP &&
+        (ui.edit.cropAdjusting || ui.session?.current?.tools?.edit?.geometry?.crop?.rect.let { it == null || it == FULL_RECT })
 
     private fun uncroppedForCropEditor(edit: EditState): EditState {
         val tools = edit.tools
@@ -1640,14 +1671,15 @@ class EditorViewModel(
     fun undo() {
         val session = state.value.session?.takeIf { it.canUndo }?.undo() ?: return
         // Browsing returns to the applied preset's category (owner amendment 2026-10-05: underline, dot and photo agree).
-        state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null)) }
+        // An unapplied crop frame is dropped: the applied crop it was drawn against has changed.
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null), edit = it.edit.copy(cropDraft = null)) }
         commit(session, autoStateOf(session.current.auto), fastFirst = true)
         logRuler("history")
     }
 
     fun redo() {
         val session = state.value.session?.takeIf { it.canRedo }?.redo() ?: return
-        state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null)) }
+        state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null), edit = it.edit.copy(cropDraft = null)) }
         commit(session, autoStateOf(session.current.auto), fastFirst = true)
         logRuler("history")
     }

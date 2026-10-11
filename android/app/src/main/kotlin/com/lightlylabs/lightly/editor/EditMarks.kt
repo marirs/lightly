@@ -7,6 +7,8 @@ import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
+import com.lightlylabs.lightly.shell.testTagResource
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,7 +47,13 @@ fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
     if (ui.showsOriginal) return
     when (ui.tool) {
         EditorTool.EDIT -> when (ui.edit.sub) {
-            EditSub.CROP -> CropFrame(vm, ui)
+            // The frame while cropping; on the cropped photo a tap brings it back (owner, 2026-10-11).
+            EditSub.CROP -> if (vm.isCropEditing(ui)) CropFrame(vm, ui) else Box(
+                Modifier.fillMaxSize()
+                    .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = vm::adjustCrop)
+                    .semantics { contentDescription = "Adjust the crop" }
+                    .testTagResource("edit-crop-adjust"),
+            )
             EditSub.STRAIGHTEN, EditSub.PERSPECTIVE -> Canvas(Modifier.fillMaxSize()) { thirdsGrid(Offset.Zero, size) }
             EditSub.REMOVE -> RemoveMarks(vm, ui)
             else -> Unit

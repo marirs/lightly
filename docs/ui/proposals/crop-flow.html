@@ -1,0 +1,92 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Crop flow proposal</title>
+<style>
+  :root { --bg:#F3F3F0; --sheet:#FFFFFF; --ink:#141513; --ink2:#5A5E57; --ink3:#7D8179; --line:rgba(20,21,19,.09); --accent:#CFF26B; --on-accent:#121408; --edge:#8FAE2E; --browse:#C25E00; --glass:rgba(255,255,255,.78); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #2A2C30; font-family: -apple-system, system-ui, sans-serif; color: #F2F3F0; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; } p.sub { margin: 0 0 20px; color: #A6ABA3; font-size: 13px; }
+  .row { display: flex; gap: 28px; flex-wrap: wrap; }
+  .step { width: 300px; } .step h2 { font-size: 14px; margin: 10px 0 4px; } .step p { font-size: 12px; color: #A6ABA3; margin: 0; line-height: 1.4; }
+  .phone { width: 300px; height: 650px; border-radius: 36px; background: var(--bg); position: relative; overflow: hidden; color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+  .top { position: absolute; top: 34px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .cap { display: flex; gap: 2px; padding: 3px; border-radius: 22px; background: var(--glass); border: 1px solid var(--line); }
+  .ib { width: 34px; height: 34px; display: grid; place-items: center; font-size: 16px; color: var(--ink); }
+  .right { display: flex; gap: 5px; align-items: center; }
+  .save { height: 34px; padding: 0 14px; border-radius: 17px; background: var(--accent); border: 1px solid var(--edge); font-weight: 700; font-size: 13px; display: grid; place-items: center; }
+  .more { width: 34px; height: 34px; border-radius: 17px; background: var(--accent); border: 1px solid var(--edge); display: grid; place-items: center; font-weight: 800; }
+  .cmp { width: 34px; height: 34px; border-radius: 17px; background: var(--glass); border: 1px solid var(--line); display: grid; place-items: center; }
+  .stage { position: absolute; top: 80px; left: 0; right: 0; height: 300px; display: grid; place-items: center; overflow: hidden; }
+  .photo { position: relative; width: 276px; height: 184px; border-radius: 14px; background: url(../directions/lightly-2-concept/assets/landscape_03.jpg) center/cover; overflow: hidden; }
+  .frame { position: absolute; border: 1px solid rgba(255,255,255,.95); box-shadow: 0 0 0 999px rgba(0,0,0,.5); }
+  .frame i { position: absolute; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.35); }
+  .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px); background-size: 33.33% 33.33%; }
+  .finger { position: absolute; width: 30px; height: 30px; border-radius: 15px; background: rgba(255,255,255,.35); border: 2px solid rgba(255,255,255,.9); }
+  .acts { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; gap: 10px; }
+  .pill { height: 38px; padding: 0 16px; border-radius: 19px; display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; }
+  .pill.cancel { background: rgba(14,15,17,.66); color: #F2F3F0; border: 1px solid rgba(255,255,255,.18); }
+  .pill.apply { background: var(--accent); color: var(--on-accent); border: 1px solid var(--edge); }
+  .sheet { position: absolute; top: 380px; left: 0; right: 0; bottom: 0; background: var(--sheet); border-radius: 26px 26px 0 0; border-top: 1px solid var(--line); padding: 12px 14px; }
+  .tabs { display: flex; gap: 16px; font-size: 12.5px; color: var(--ink3); font-weight: 500; }
+  .tabs b { color: var(--ink); box-shadow: inset 0 -2px 0 var(--browse); padding-bottom: 5px; }
+  .head { display: flex; justify-content: space-between; margin-top: 14px; font-weight: 600; font-size: 14px; }
+  .head span { color: #557311; font-size: 13px; font-weight: 700; }
+  .hint { margin-top: 10px; font-size: 12px; color: var(--ink2); }
+  .dock { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; border-top: 1px solid var(--line); display: flex; justify-content: space-around; align-items: center; font-size: 10px; color: var(--ink3); background: var(--sheet); }
+  .dock b { color: var(--ink); }
+  .badge { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(14,15,17,.75); color: #F2F3F0; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 12px; }
+</style></head>
+<body>
+<h1>Crop · proposal (not built)</h1>
+<p class="sub">Inline on the photo. The crop is only applied when you tap ✓ Apply; ✕ puts it back. No separate screen.</p>
+<div class="row">
+
+  <div class="step">
+    <div class="phone">
+      <div class="top"><div class="cap"><div class="ib">✕</div><div class="ib">↶</div><div class="ib" style="opacity:.4">↷</div></div><div class="right"><div class="cmp">◐</div><div class="save">Save</div><div class="more">⋮</div></div></div>
+      <div class="stage"><div class="photo">
+        <div class="frame" style="inset: 0">
+          <i style="left:0;top:0;width:18px;height:3px"></i><i style="left:0;top:0;width:3px;height:18px"></i>
+          <i style="right:0;top:0;width:18px;height:3px"></i><i style="right:0;top:0;width:3px;height:18px"></i>
+          <i style="left:0;bottom:0;width:18px;height:3px"></i><i style="left:0;bottom:0;width:3px;height:18px"></i>
+          <i style="right:0;bottom:0;width:18px;height:3px"></i><i style="right:0;bottom:0;width:3px;height:18px"></i>
+          <i style="left:calc(50% - 11px);top:0;width:22px;height:3px"></i><i style="left:calc(50% - 11px);bottom:0;width:22px;height:3px"></i>
+          <i style="left:0;top:calc(50% - 11px);width:3px;height:22px"></i><i style="right:0;top:calc(50% - 11px);width:3px;height:22px"></i>
+        </div></div></div>
+      <div class="sheet"><div class="tabs"><b>Crop</b><span>Rotate</span><span>Straighten</span><span>Perspective</span></div>
+        <div class="head">Crop</div><div class="hint">Drag a corner or an edge.</div></div>
+      <div class="dock"><span>Develop</span><span>Background</span><b>Edit</b><span>Effects</span><span>Border</span></div>
+    </div>
+    <h2>1 · Tap Crop</h2><p>The frame appears on the photo, at its edges. Nothing else changes.</p>
+  </div>
+
+  <div class="step">
+    <div class="phone">
+      <div class="top"><div class="cap"><div class="ib">✕</div><div class="ib">↶</div><div class="ib" style="opacity:.4">↷</div></div><div class="right"><div class="cmp">◐</div><div class="save">Save</div><div class="more">⋮</div></div></div>
+      <div class="stage"><div class="photo">
+        <div class="frame" style="left: 22%; top: 8%; right: 14%; bottom: 10%"><div class="grid"></div>
+          <i style="left:0;top:0;width:18px;height:3px"></i><i style="left:0;top:0;width:3px;height:18px"></i>
+          <i style="right:0;top:0;width:18px;height:3px"></i><i style="right:0;top:0;width:3px;height:18px"></i>
+          <i style="left:0;bottom:0;width:18px;height:3px"></i><i style="left:0;bottom:0;width:3px;height:18px"></i>
+          <i style="right:0;bottom:0;width:18px;height:3px"></i><i style="right:0;bottom:0;width:3px;height:18px"></i>
+        </div><div class="finger" style="left: calc(22% - 15px); top: calc(8% - 15px)"></div></div>
+        <div class="acts"><div class="pill cancel">✕ Cancel</div><div class="pill apply">✓ Apply crop</div></div></div>
+      <div class="sheet"><div class="tabs"><b>Crop</b><span>Rotate</span><span>Straighten</span><span>Perspective</span></div>
+        <div class="head">Crop</div><div class="hint">Drag a corner or an edge.</div></div>
+      <div class="dock"><span>Develop</span><span>Background</span><b>Edit</b><span>Effects</span><span>Border</span></div>
+    </div>
+    <h2>2 · Drag</h2><p>The grid shows while dragging. As soon as the frame moves, ✕ Cancel and ✓ Apply crop appear under the photo.</p>
+  </div>
+
+  <div class="step">
+    <div class="phone">
+      <div class="top"><div class="cap"><div class="ib">✕</div><div class="ib">↶</div><div class="ib" style="opacity:.4">↷</div></div><div class="right"><div class="cmp">◐</div><div class="save">Save</div><div class="more">⋮</div></div></div>
+      <div class="stage"><div class="photo" style="width: 270px; height: 231px; background-repeat: no-repeat; background-size: 422px 281px; background-position: -93px -22px"></div><div class="badge">Cropped</div></div>
+      <div class="sheet"><div class="tabs"><b>Crop</b><span>Rotate</span><span>Straighten</span><span>Perspective</span></div>
+        <div class="head">Crop <span>↺ Reset</span></div><div class="hint">Tap the photo to adjust the crop.</div></div>
+      <div class="dock"><span>Develop</span><span>Background</span><b>Edit</b><span>Effects</span><span>Border</span></div>
+    </div>
+    <h2>3 · Apply</h2><p>The photo becomes the cropped photo, full size. Tap the photo to adjust again; Reset or Undo removes it.</p>
+  </div>
+
+</div>
+</body></html>

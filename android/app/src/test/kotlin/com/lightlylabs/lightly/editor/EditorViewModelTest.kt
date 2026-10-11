@@ -356,7 +356,9 @@ class EditorViewModelTest {
         assertEquals(full.first / 2, vm.uiState.value.preview!!.width, "outside Crop the preview is cropped")
 
         vm.selectTool(EditorTool.EDIT); vm.selectEditSub(EditSub.CROP); advanceUntilIdle()
-        assertTrue(vm.isCropEditing(), "Edit › Crop is the inline crop (owner, 2026-10-11)")
+        assertTrue(!vm.isCropEditing(), "a cropped photo shows cropped on the Crop tab (owner, 2026-10-11)")
+        vm.adjustCrop(); advanceUntilIdle() // a tap on the photo
+        assertTrue(vm.isCropEditing())
         assertEquals(full, vm.uiState.value.preview!!.let { it.width to it.height }, "the crop editor shows the whole frame")
 
         vm.saveCopy(); advanceUntilIdle()

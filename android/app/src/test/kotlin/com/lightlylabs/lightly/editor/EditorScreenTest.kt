@@ -195,7 +195,7 @@ class EditorScreenTest {
     }
 
     @Test
-    fun `pinch in crop resizes and applies the crop, pinch in remove never commits a stroke`() {
+    fun `pinch in crop moves the frame until Apply crop, pinch in remove never commits a stroke`() {
         val vm = editor()
         show(vm)
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
@@ -207,8 +207,13 @@ class EditorScreenTest {
         }
         pinch()
         compose.waitForIdle()
+        assertEquals(before, vm.uiState.value.session!!.current.tools.edit.geometry.crop.rect, "nothing applies before ✓")
+        compose.onNodeWithTag("edit-crop-apply").performClick()
+        compose.waitForIdle()
         val cropped = vm.uiState.value.session!!.current.tools.edit.geometry.crop.rect
-        assertTrue(cropped.width < before.width, "a pinch resizes the crop and lifting applies it: $before -> $cropped")
+        assertTrue(cropped.width < before.width, "Apply crop applies the pinched frame: $before -> $cropped")
+        compose.onNodeWithTag("edit-crop-apply").assertDoesNotExist()
+        compose.onNodeWithText("Tap the photo to adjust the crop.").assertExists()
         val afterCrop = vm.uiState.value.session
         compose.onNodeWithTag("edit-tab-remove").performClick()
         pinch()
@@ -333,7 +338,7 @@ class EditorScreenTest {
         compose.onNodeWithTag(EditorTags.tool(EditorTool.EDIT)).performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("edit-crop-cancel").assertDoesNotExist() // inline crop: no separate workspace
-        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Drag the corners or edges. Drag inside to move. Pinch to resize.").forEach {
+        listOf("Crop", "Rotate", "Straighten", "Perspective", "Adjust", "Remove", "Drag a corner or an edge.").forEach {
             assertTrue(compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty(), it)
         }
         compose.onNodeWithTag("edit-tab-remove").performClick()

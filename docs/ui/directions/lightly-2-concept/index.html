@@ -285,8 +285,7 @@ function portraitPanel(s) {
 }
 function editPanel(s) {
   const e = s.ed || {}; const sub = e.sub || 'crop'; let body = '';
-  // Inline free crop (owner, 2026-10-11): the frame on the photo, lifting the finger applies it; no aspect presets.
-  if (sub === 'crop') body = note('Drag the corners or edges. Drag inside to move. Pinch to resize.');
+  if (sub === 'crop') body = note(e.cropApplied ? 'Tap the photo to adjust the crop.' : 'Drag a corner or an edge.');
   if (sub === 'rotate') body = `<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">${[['rotl', 'Rotate left'], ['rotr', 'Rotate right'], ['fliph', 'Flip horizontal'], ['flipv', 'Flip vertical']].map(([nm, l]) => `<button style="height: 46px; border-radius: 16px; border: 1px solid ${nm === 'fliph' && e.flipH ? 'var(--accent-ink)' : 'var(--line)'}; background: transparent; color: ${nm === 'fliph' && e.flipH ? 'var(--accent-ink)' : 'var(--ink)'}; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 13px">${ic(nm, 18)}${l}</button>`).join('')}</div>`;
   if (sub === 'straighten') body = slider('Angle', -3, -45, 45) + note('The photo is zoomed slightly so no empty corners show.');
   if (sub === 'perspective') body = slider('Vertical', 18, -100, 100) + slider('Horizontal', 0, -100, 100);
@@ -394,7 +393,10 @@ function photo(s, W, H) {
   if (tool === 'background' && bg.mode === 'refine' && ph.cutout) m.push(`<div style="position: absolute; inset: 0; background: rgba(47,107,235,0.32); -webkit-mask-image: url(${ph.cutout}); mask-image: url(${ph.cutout}); -webkit-mask-size: 100% 100%; mask-size: 100% 100%"></div>`);
   // Inline crop (owner, 2026-10-11): Edit › Crop puts the frame on the photo: outside dimmed 50 %, a 1px white border,
   // 3px white L handles on the corners and bars mid-edge (inside the frame); the thirds grid shows only while dragging.
-  if (tool === 'edit' && ((s.ed || {}).sub || 'crop') === 'crop' && !s.compare) m.push(`<div style="position: absolute; inset: 6% 4%; border: 1px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 9999px rgba(0,0,0,0.5)">${[['left: 0; top: 0', 20, 3], ['left: 0; top: 0', 3, 20], ['right: 0; top: 0', 20, 3], ['right: 0; top: 0', 3, 20], ['left: 0; bottom: 0', 20, 3], ['left: 0; bottom: 0', 3, 20], ['right: 0; bottom: 0', 20, 3], ['right: 0; bottom: 0', 3, 20], ['left: calc(50% - 12px); top: 0', 24, 3], ['left: calc(50% - 12px); bottom: 0', 24, 3], ['left: 0; top: calc(50% - 12px)', 3, 24], ['right: 0; top: calc(50% - 12px)', 3, 24]].map(([p, w, h]) => `<i style="position: absolute; ${p}; width: ${w}px; height: ${h}px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.35)"></i>`).join('')}</div>`);
+  // The approved crop flow (owner, 2026-10-11, docs/ui/proposals/crop-flow.html): the frame at the photo's edges; once
+  // moved, the grid and ✕ Cancel / ✓ Apply crop; applied, the cropped photo without a frame.
+  const cropEd = s.ed || {};
+  if (tool === 'edit' && (cropEd.sub || 'crop') === 'crop' && !s.compare && !cropEd.cropApplied) m.push(`<div style="position: absolute; inset: ${cropEd.cropPending ? '8% 14% 10% 22%' : '0'}; border: 1px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 9999px rgba(0,0,0,0.5)">${cropEd.cropPending ? '<div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px); background-size: 33.33% 33.33%"></div>' : ''}${[['left: 0; top: 0', 20, 3], ['left: 0; top: 0', 3, 20], ['right: 0; top: 0', 20, 3], ['right: 0; top: 0', 3, 20], ['left: 0; bottom: 0', 20, 3], ['left: 0; bottom: 0', 3, 20], ['right: 0; bottom: 0', 20, 3], ['right: 0; bottom: 0', 3, 20], ['left: calc(50% - 12px); top: 0', 24, 3], ['left: calc(50% - 12px); bottom: 0', 24, 3], ['left: 0; top: calc(50% - 12px)', 3, 24], ['right: 0; top: calc(50% - 12px)', 3, 24]].map(([p, w, h]) => `<i style="position: absolute; ${p}; width: ${w}px; height: ${h}px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,0.35)"></i>`).join('')}</div>`);
   if (tool === 'edit' && ['straighten', 'perspective'].includes((s.ed || {}).sub)) m.push('<div style="position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px); background-size: 33.33% 33.33%"></div>');
   if (tool === 'edit' && (s.ed || {}).sub === 'remove' && (s.ed || {}).strokes) m.push('<div style="position: absolute; left: 58%; top: 30%; width: 22%; height: 5%; border-radius: 99px; background: rgba(235,60,60,0.42); transform: rotate(-12deg)"></div>');
   if (tool === 'effects' && fx.sub === 'sel' && fx.sel) m.push('<span style="position: absolute; left: 40%; top: 58%; width: 26px; height: 26px; border-radius: 13px; border: 2px solid #FFFFFF; background: #C2684A; box-shadow: 0 2px 8px rgba(0,0,0,0.4)"></span>');
@@ -693,7 +695,9 @@ const J = [
     ['pt-no-usable-face', 'People found, but no usable face', ED('portrait', 'bar', {})],
     ['pt-hidden', 'No person · Portrait tool and category hidden', ED('develop', 'field', { dev: { cat: 'landscape', applied: { cat: 'landscape', name: 'Slate Sky' } } })]]],
   ['Edit', [
-    ['ed-crop', 'Crop · free crop: drag the frame; on release the photo zooms to the crop', ED('edit', 'lake', { ed: { sub: 'crop', touched: true } })],
+    ['ed-crop', 'Crop · the frame at the photo’s edges', ED('edit', 'field', { ed: { sub: 'crop' } })],
+    ['ed-crop-pending', 'Crop · frame moved: ✕ Cancel and ✓ Apply crop', ED('edit', 'field', { ed: { sub: 'crop', cropPending: true } })],
+    ['ed-crop-applied', 'Crop · applied: the cropped photo; tap it to adjust', ED('edit', 'field', { ed: { sub: 'crop', cropApplied: true, touched: true }, toast: 'Cropped' })],
     ['ed-rotate', 'Rotate and flip', ED('edit', 'field', { ed: { sub: 'rotate', flipH: true, touched: true } })],
     ['ed-straighten', 'Straighten', ED('edit', 'field', { ed: { sub: 'straighten', touched: true } })],
     ['ed-perspective', 'Perspective', ED('edit', 'street', { ed: { sub: 'perspective', touched: true } })],
@@ -774,7 +778,8 @@ function fillStages() {
     // beside the photo), 10 px inside the stage's 12/8 px inset, not on the photo's own corner.
     const cropping = s.tool === 'edit' && ((s.ed || {}).sub || 'crop') === 'crop';
     const autoUI = s.tool && !s.compare && !cropping && !s.photoProgress ? `<div style="position: absolute; left: 12px; right: 12px; top: 8px; bottom: 8px; pointer-events: none">${autoControls(s)}</div>` : '';
-    if (w > 20 && h > 20) el.innerHTML = `<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center">${photo(s, w, h)}</div>${autoUI}`;
+    const cropActs = s.tool === 'edit' && (s.ed || {}).cropPending ? `<div style="position: absolute; left: 0; right: 0; bottom: 18px; display: flex; justify-content: center; gap: 10px; z-index: 3"><span style="height: 38px; padding: 0 16px; border-radius: 19px; background: rgba(14,15,17,0.66); border: 1px solid rgba(255,255,255,0.18); color: #F2F3F0; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px">${ic('close', 14)}Cancel</span><span style="height: 38px; padding: 0 16px; border-radius: 19px; background: var(--accent); border: 1px solid var(--accent-edge); color: var(--on-accent); font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px">${ic('check', 14)}Apply crop</span></div>` : '';
+    if (w > 20 && h > 20) el.innerHTML = `<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center">${photo(s, w, h)}</div>${autoUI}${cropActs}`;
   });
 }
 const state = { device: 'iphone', themes: ['t-dark', 't-light'], zoom: 0.6 };

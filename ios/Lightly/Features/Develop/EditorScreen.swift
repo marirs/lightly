@@ -22,8 +22,17 @@ struct EditorScreen: View {
     /// The rectangle shown while a crop drag moves (committed when it ends).
     @State private var cropDraft: EditRecipe.Rect?
     @State private var cropPinchStart: EditRecipe.Rect?
-    /// Inline crop (owner, 2026-10-11): Edit › Crop puts the crop frame on the photo itself; no separate workspace.
-    private var isCropping: Bool { tool == .edit && editPanel.sub == .crop }
+    /// Edit › Crop is the selected tab.
+    private var isCropTab: Bool { tool == .edit && editPanel.sub == .crop }
+    /// The approved crop flow (owner, 2026-10-11, docs/ui/proposals/crop-flow.html): the frame is on the uncropped photo
+    /// while there is no crop yet, or after a tap on the cropped photo; otherwise Crop shows the cropped photo.
+    private var isCropping: Bool { isCropTab && (editPanel.cropAdjusting || Self.isFullFrame(session.recipe.tools.edit.geometry.cropRect)) }
+    /// A frame moved but not applied yet: ✕ Cancel and ✓ Apply crop show under the photo.
+    private var hasPendingCrop: Bool { isCropping && cropDraft.map { $0 != session.recipe.tools.edit.geometry.cropRect } == true }
+
+    private static func isFullFrame(_ rect: EditRecipe.Rect) -> Bool {
+        rect.x < 0.0001 && rect.y < 0.0001 && rect.width > 0.9999 && rect.height > 0.9999
+    }
     /// Change background › Image: dragging the photo moves the background.
     @State private var replacementDragStart: (x: Double, y: Double)?
     /// Refine edges: the stroke being drawn (source coordinates).
@@ -126,12 +135,14 @@ struct EditorScreen: View {
             }
         }
         #endif
-        // Free crop shows the uncropped frame while Edit › Crop is open (owner amendment 2026-10-05).
-        .onChange(of: tool == .edit && editPanel.sub == .crop, initial: true) { _, cropping in
-            cropDraft = nil
+        // While the frame shows, the stage shows the uncropped frame (owner amendment 2026-10-05).
+        .onChange(of: isCropping, initial: true) { _, cropping in
             cropGestureStart = nil; cropPinchStart = nil
             session.isCropEditing = cropping
         }
+        // Opening or leaving Crop drops an unapplied frame; so does Undo/Redo changing the applied crop.
+        .onChange(of: isCropTab) { _, _ in cropDraft = nil; editPanel.cropAdjusting = false }
+        .onChange(of: session.recipe.tools.edit.geometry.cropRect) { _, _ in cropDraft = nil }
         .task {
             session.start()
             #if DEBUG
@@ -243,8 +254,8 @@ struct EditorScreen: View {
                 }
             }
             .padding(10)
-            .opacity(session.isShowingOriginal || isCropping ? 0 : 1)
-            .allowsHitTesting(!session.isShowingOriginal && !isCropping)
+            .opacity(session.isShowingOriginal || isCropTab ? 0 : 1)
+            .allowsHitTesting(!session.isShowingOriginal && !isCropTab)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
     }
@@ -252,7 +263,10 @@ struct EditorScreen: View {
     /// The stage with Auto and Reset all over its bottom-leading corner: 10 pt inside the stage's own 12/8 pt inset,
     /// where the photo's corner sits when it fills the width.
     private func photoStage() -> some View {
-        stageOnly().overlay(alignment: .bottomLeading) { photoActions.padding(.leading, 12).padding(.bottom, 8) }
+        stageOnly()
+            .overlay(alignment: .bottomLeading) { photoActions.padding(.leading, 12).padding(.bottom, 8) }
+            .overlay(alignment: .bottom) { if hasPendingCrop { cropActions.padding(.bottom, 8) } }
+            .animation(.easeOut(duration: 0.2), value: hasPendingCrop)
     }
 
     private func stageOnly() -> PhotoStage<EmptyView, AnyView> {
@@ -261,8 +275,6 @@ struct EditorScreen: View {
                    outlinesCanvas: !session.isShowingOriginal && session.recipe.tools.border.type != .none,
                    marksCoverCanvas: tool == .watermark,
                    cropWorkspace: false,
-                   // The applied crop, not the draft: the photo holds still under the finger and glides on release.
-                   cropFocus: isCropping && !session.isShowingOriginal ? session.recipe.tools.edit.geometry.cropRect : nil,
                    allowsInspection: !isCropping,
                    allowsDoubleTapZoom: tool != .watermark,
                    onInspectionBegan: {
@@ -670,9 +682,19 @@ struct EditorScreen: View {
     private func editMarks(size: CGSize) -> some View {
         switch editPanel.sub {
         case .crop:
-            CropFrameMark(rect: cropDraft ?? session.recipe.tools.edit.geometry.cropRect,
-                          isAdjusting: cropGestureStart != nil || cropPinchStart != nil)
-            cropGestureArea(size: size)
+            if isCropping {
+                CropFrameMark(rect: cropDraft ?? session.recipe.tools.edit.geometry.cropRect,
+                              isAdjusting: cropGestureStart != nil || cropPinchStart != nil)
+                cropGestureArea(size: size)
+            } else {
+                // The cropped photo: a tap brings the frame back to adjust it.
+                Color.clear.contentShape(Rectangle())
+                    .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { editPanel.cropAdjusting = true } }
+                    .accessibilityElement()
+                    .accessibilityLabel("Adjust the crop")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityIdentifier("edit.crop.adjust")
+            }
             #if DEBUG
             // UI tests only (--expose-crop): the committed aspect and rectangle, to check each handle's effect.
             if DebugArguments.current.contains("--expose-crop") {
@@ -744,17 +766,14 @@ struct EditorScreen: View {
                 }
                 .onEnded { value in
                     guard let start = cropGestureStart else { return }
-                    // Applied when the finger lifts: one undo step per drag (owner, 2026-10-11: no Done button).
-                    commitCrop(draggedCrop(start, by: value.translation, size: size))
+                    // Kept as a draft until ✓ Apply crop (owner, 2026-10-11).
+                    cropDraft = draggedCrop(start, by: value.translation, size: size)
                     cropGestureStart = nil
                 })
             .simultaneousGesture(MagnifyGesture().onChanged { value in
                 if cropPinchStart == nil { cropPinchStart = cropDraft ?? session.recipe.tools.edit.geometry.cropRect; cropGestureStart = nil }
                 if let start = cropPinchStart { cropDraft = CropGeometry.scaled(start, magnification: value.magnification) }
-            }.onEnded { _ in
-                if let rect = cropDraft { commitCrop(rect) }
-                cropPinchStart = nil
-            })
+            }.onEnded { _ in cropPinchStart = nil })
             .accessibilityHidden(true)
     }
 
@@ -767,12 +786,48 @@ struct EditorScreen: View {
                                     frameAspect: Double(frame.width) / Double(max(frame.height, 1)))
     }
 
-    /// Commits a dragged or pinched rectangle (one undo step) and drops the draft once the recipe holds it.
-    private func commitCrop(_ rect: EditRecipe.Rect) {
-        if rect != session.recipe.tools.edit.geometry.cropRect {
+    /// ✓ Apply crop: the frame becomes the crop (one undo step); Crop then shows the cropped photo.
+    private func applyCrop() {
+        if let rect = cropDraft, rect != session.recipe.tools.edit.geometry.cropRect {
             session.commitEdit { Self.setCrop(&$0.geometry, rect) }
+            session.showStageToast("Cropped")
         }
         cropDraft = nil
+        editPanel.cropAdjusting = false
+    }
+
+    /// ✕ Cancel: the frame goes back to the applied crop; a cropped photo shows again.
+    private func cancelCrop() {
+        cropDraft = nil
+        editPanel.cropAdjusting = false
+    }
+
+    /// ✕ Cancel and ✓ Apply crop under the photo while a moved frame waits (38 pt pills, 10 pt apart): Cancel on the
+    /// dark glass of the photo controls, Apply in the accent with its rim.
+    private var cropActions: some View {
+        let c = L2(scheme: colorScheme)
+        return HStack(spacing: 10) {
+            Button(action: cancelCrop) {
+                HStack(spacing: 6) { ApprovedIconView(icon: .close, size: 14); Text("Cancel") }
+                    .font(.system(size: 13, weight: .bold)).foregroundStyle(Color(hex: 0xF2F3F0))
+                    .padding(.horizontal, 16).frame(height: 38)
+                    .background(Capsule().fill(Color(hex: 0x0E0F11, opacity: 0.66)))
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                    .frame(minHeight: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).accessibilityIdentifier("edit.crop.cancel")
+            Button(action: applyCrop) {
+                HStack(spacing: 6) { ApprovedIconView(icon: .check, size: 14); Text("Apply crop") }
+                    .font(.system(size: 13, weight: .bold)).foregroundStyle(c(ApprovedColor.onAccent))
+                    .padding(.horizontal, 16).frame(height: 38)
+                    .background(Capsule().fill(c(ApprovedColor.accent)))
+                    .overlay(Capsule().strokeBorder(c(ApprovedColor.accentEdge), lineWidth: 1))
+                    .frame(minHeight: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).accessibilityIdentifier("edit.crop.apply")
+        }
+        .padding(.bottom, 10)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     /// Cropping from Original makes the aspect Free; a fixed aspect (1:1, 4:5, …) keeps its shape while dragging.

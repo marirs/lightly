@@ -184,7 +184,11 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
         Box(modifier) {
             // While cropping, a pinch resizes the crop frame instead of zooming the photo.
             Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui) }, inspection = !vm.isCropEditing(ui), onPhotoBox = vm::onStagePhotoMeasured)
-            if (!ui.showsOriginal && !vm.isCropEditing(ui)) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
+            if (!ui.showsOriginal && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP)) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
+            // ✕ Cancel and ✓ Apply crop under the photo while a moved frame waits (owner, 2026-10-11).
+            androidx.compose.animation.AnimatedVisibility(vm.hasPendingCrop(ui), Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 2 },
+                exit = androidx.compose.animation.fadeOut()) { CropActions(vm) }
         }
     }
     Box(Modifier.fillMaxSize()) {
@@ -244,6 +248,34 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
                 }
                 DevelopPanel(vm, model, false, false, expanded = true)
             }
+        }
+    }
+}
+
+/**
+ * ✕ Cancel and ✓ Apply crop (38 dp pills, 10 dp apart, 13 sp bold with a 14 dp icon): Cancel on the dark glass of the
+ * photo controls, Apply in the accent with its rim.
+ */
+@Composable
+private fun CropActions(vm: EditorViewModel) {
+    val colors = lightlyColors
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        val pill = RoundedCornerShape(19.dp)
+        Row(
+            Modifier.height(38.dp).clip(pill).background(Color(0xA80E0F11)).border(1.dp, Color.White.copy(alpha = 0.18f), pill)
+                .clickable(role = Role.Button, onClick = vm::cancelCrop).testTagResource("edit-crop-cancel").padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            LightlyIcon(LightlyIcons.Close, size = 14.dp, tint = Color(0xFFF2F3F0))
+            Text("Cancel", style = l2TextStyle(13.sp, FontWeight.Bold, Color(0xFFF2F3F0)), maxLines = 1)
+        }
+        Row(
+            Modifier.height(38.dp).clip(pill).background(colors.accent).border(1.dp, colors.accentEdge, pill)
+                .clickable(role = Role.Button, onClick = vm::applyCrop).testTagResource("edit-crop-apply").padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            LightlyIcon(LightlyIcons.Check, size = 14.dp, tint = colors.onAccent)
+            Text("Apply crop", style = l2TextStyle(13.sp, FontWeight.Bold, colors.onAccent), maxLines = 1)
         }
     }
 }
@@ -414,23 +446,9 @@ private fun Stage(ui: EditorUiState, modifier: Modifier, overlay: @Composable ()
             }, contentAlignment = Alignment.Center) {
             // Stage 11: with a border the preview is the canvas. `.pic` then has box-shadow 0 0 0 1px
             // rgba(0,0,0,.12), a ring just outside it (not while comparing: the original has no border).
-            // Inline crop (owner, 2026-10-11, as iOS): the photo glides and zooms so the applied crop fills the stage,
-            // 12 dp more clear of its edges, the dimmed rest around it. It follows the applied crop, not the draft, so it
-            // holds still under the finger and moves when the finger lifts. Touches inside map back through the layer.
-            val focus = if (ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP && !ui.showsOriginal) ui.session?.current?.tools?.edit?.geometry?.crop?.rect else null
-            // In px: [viewport] is the stage inside its 12/8 dp inset, [fitted] the photo as fitted in it.
-            val clearPx = with(density) { 24.dp.toPx() }
-            val focusScale = focus?.let { r ->
-                minOf(6f, maxOf(1f, minOf((viewport.x - clearPx) / (r.width.toFloat() * fitted.x).coerceAtLeast(1f), (viewport.y - clearPx) / (r.height.toFloat() * fitted.y).coerceAtLeast(1f))))
-            } ?: 1f
-            val glide = androidx.compose.animation.core.tween<Float>(350, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-            val cropScale by androidx.compose.animation.core.animateFloatAsState(focusScale, glide, label = "crop-scale")
-            val cropDx by androidx.compose.animation.core.animateFloatAsState(focus?.let { -((it.x + it.width / 2 - 0.5).toFloat() * fitted.x) * focusScale } ?: 0f, glide, label = "crop-dx")
-            val cropDy by androidx.compose.animation.core.animateFloatAsState(focus?.let { -((it.y + it.height / 2 - 0.5).toFloat() * fitted.y) * focusScale } ?: 0f, glide, label = "crop-dy")
             Box(
                 Modifier.size(width.dp, (width / ratio).dp).graphicsLayer {
-                    scaleX = zoom * cropScale; scaleY = zoom * cropScale
-                    translationX = pan.x + cropDx; translationY = pan.y + cropDy
+                    scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y
                 }.then(
                     if (border == null) Modifier else Modifier.drawBehind {
                         val ring = 1.dp.toPx()

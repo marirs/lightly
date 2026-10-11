@@ -48,54 +48,52 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(edit.exists)
     }
 
-    /// Inline crop (owner, 2026-10-11): Edit opens on Crop with the frame on the photo; a drag applies when the finger
-    /// lifts (one undo step); leaving the Crop tab shows the cropped photo.
-    func testInlineCropAppliesOnReleaseAndUndoes() {
+    /// The approved crop flow (owner, 2026-10-11, docs/ui/proposals/crop-flow.html): the frame is on the photo; a drag
+    /// shows ✕ Cancel and ✓ Apply crop; Apply crops the photo (one undo step); Undo restores it.
+    func testCropFlowDragApplyUndo() {
         relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
         XCTAssertTrue(element("tool.edit").waitForExistence(timeout: 30))
         element("tool.edit").tap()
         let photo = element("editor.photo")
         XCTAssertTrue(photo.waitForExistence(timeout: 30))
-        XCTAssertFalse(app.buttons["edit.crop.done"].exists, "no separate crop workspace")
         let originalRatio = photo.frame.width / photo.frame.height
+        XCTAssertFalse(app.buttons["edit.crop.apply"].exists, "no buttons before the frame moves")
         photo.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5))
             .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.5)))
-        capture(named: "crop-inline-handles")
-        XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "the drag applied when the finger lifted")
-        element("edit.sub.Rotate").tap()
-        XCTAssertTrue(waitFor { photo.frame.width / photo.frame.height < originalRatio * 0.8 })
+        let apply = app.buttons["edit.crop.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["edit.crop.cancel"].exists)
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "nothing is applied before ✓")
+        capture(named: "crop-pending")
+        apply.tap()
+        XCTAssertTrue(waitFor { photo.frame.width / photo.frame.height < originalRatio * 0.8 }, "the photo shows cropped")
+        XCTAssertFalse(apply.exists)
+        capture(named: "crop-applied")
         app.buttons["editor.undo"].tap()
         XCTAssertTrue(waitFor { abs(photo.frame.width / photo.frame.height - originalRatio) < 0.02 })
     }
 
-    /// After a crop zooms in, the frame's handles still follow the finger: dragging the right edge of the zoomed frame
-    /// inwards narrows the crop further from that edge only.
-    func testZoomedCropHandleFollowsTheFinger() {
-        relaunch(arguments: ["--reset-preferences", "--expose-crop", "--open-photo", photoPath("landscape_02")])
+    /// A tap on the cropped photo brings the frame back; ✕ Cancel leaves the applied crop unchanged.
+    func testCropAdjustThenCancelKeepsTheCrop() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
         XCTAssertTrue(element("tool.edit").waitForExistence(timeout: 30))
         element("tool.edit").tap()
         let photo = element("editor.photo")
         XCTAssertTrue(photo.waitForExistence(timeout: 30))
-        func crop() -> [Double] {
-            let parts = (element("edit.cropRect").value as? String ?? "").split(separator: " ").compactMap { Double($0) }
-            return parts.count == 4 ? parts : [0, 0, 1, 1]
-        }
         photo.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5))
-            .press(forDuration: 0.15, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)), withVelocity: .slow, thenHoldForDuration: 0.1)
-        sleep(2) // the glide
-        let first = crop()
-        XCTAssertLessThan(first[2], 0.7, "the first drag cropped")
-        capture(named: "crop-zoomed")
-        // The right edge of the crop on screen, from the (zoomed) photo's frame.
-        let f = photo.frame
-        let edgeX = f.minX + f.width * (first[0] + first[2]), midY = f.minY + f.height * (first[1] + first[3] / 2)
-        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: edgeX - 4, dy: midY))
-        start.press(forDuration: 0.15, thenDragTo: start.withOffset(CGVector(dx: -60, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.1)
-        sleep(2)
-        let second = crop()
-        XCTAssertEqual(second[0], first[0], accuracy: 0.005, "the left edge stays")
-        XCTAssertLessThan(second[2], first[2] - 0.02, "the right edge moved in under the finger")
-        capture(named: "crop-zoomed-second")
+            .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.5)))
+        app.buttons["edit.crop.apply"].tap()
+        XCTAssertTrue(waitFor { !self.app.buttons["edit.crop.apply"].exists })
+        sleep(1)
+        let croppedRatio = photo.frame.width / photo.frame.height
+        element("edit.crop.adjust").tap()
+        sleep(1)
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.01))
+            .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+        XCTAssertTrue(app.buttons["edit.crop.cancel"].waitForExistence(timeout: 5))
+        capture(named: "crop-adjusting")
+        app.buttons["edit.crop.cancel"].tap()
+        XCTAssertTrue(waitFor { abs(photo.frame.width / photo.frame.height - croppedRatio) < 0.02 }, "the applied crop is unchanged")
     }
 
     // MARK: - Welcome
