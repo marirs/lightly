@@ -343,7 +343,9 @@ struct BackgroundThumbnailFrame<Content: View>: View {
         let c = L2(scheme: colorScheme)
         content()
             .frame(width: 60, height: 60)
+            .clipped()   // a filled image overflows its frame; unclipped, it would take a neighbour's taps
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
             .overlay {
                 if isOn {
                     RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(c(ApprovedColor.sheet), lineWidth: 2).padding(-1)

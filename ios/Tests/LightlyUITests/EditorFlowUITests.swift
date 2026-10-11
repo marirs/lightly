@@ -242,6 +242,26 @@ final class EditorFlowUITests: XCTestCase {
         }
     }
 
+    /// Owner report 2026-10-11: on a portrait photo, tapping a top-row thumbnail selected the one below it (the filled
+    /// image overflowed its tile and took the taps). Taps at the top of each top-row thumbnail must select that tile.
+    func testTopRowThumbnailTapsSelectTheTappedPreset() {
+        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02")])
+        let tiles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'develop.thumbnail.'"))
+        XCTAssertTrue(tiles.element(boundBy: 2).waitForExistence(timeout: 40))
+        sleep(2)
+        let topRowY = tiles.element(boundBy: 0).frame.minY
+        let topRow = (0..<min(tiles.count, 8)).map { tiles.element(boundBy: $0) }.filter { abs($0.frame.minY - topRowY) < 4 && $0.frame.maxX <= app.windows.firstMatch.frame.maxX - 8 }
+        XCTAssertGreaterThanOrEqual(topRow.count, 2)
+        for tile in topRow {
+            let identifier = tile.identifier
+            // Near the top of the thumbnail (the name sits below it), where the row below's overflow used to reach.
+            tile.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+            let ok = waitFor { self.app.buttons[identifier].isSelected }
+            let selectedNow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'develop.thumbnail.' AND selected == true")).allElementsBoundByIndex.map { "\($0.identifier) \($0.frame)" }
+            XCTAssertTrue(ok, "tapping \(identifier) at \(tile.frame) selected \(selectedNow); top row: \(topRow.map { "\($0.identifier) \($0.frame)" })")
+        }
+    }
+
     // MARK: - Welcome
 
     /// Welcome shows the brand and both ways in; no login, no onboarding (approved Welcome).

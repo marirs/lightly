@@ -90,6 +90,7 @@ private struct PresetTile: View {
                     else { Rectangle().fill(c(ApprovedColor.chip)).overlay { ProgressView().controlSize(.small) } }
                 }
                 .frame(height: expanded ? 142 : 62).frame(maxWidth: .infinity)
+                .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay {
                     if selected {
@@ -109,6 +110,10 @@ private struct PresetTile: View {
                     .lineLimit(1).truncationMode(.tail)
             }
             .frame(width: expanded ? nil : 96, alignment: .leading)
+            // A filled thumbnail of a portrait photo is taller than its tile; the clip hides the overflow but not from
+            // hit testing, so the bottom row's image caught taps meant for the top row (owner report, 2026-10-11).
+            // The tap area is the tile's own box.
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(preset?.displayName ?? "Original")
