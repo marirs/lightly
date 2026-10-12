@@ -30,7 +30,7 @@ fun isInternalBuild(buildType: String) = buildType == "debug" || buildType == "b
 val depthModelFile: File = (findProperty("lightlyDepthModelFile") as String?)?.let(::File)
     ?: rootDir.parentFile.resolve("experiments/depth/models/converted/da2_small_518x392_wi8.tflite")
 val depthModelSha256 = "8e719085ce210eb4fb8e737ae9bca4f25e4e35b3aeafb80c468c3ff6c4eb8078"
-val depthLegalSignOff = (findProperty("lightlyDepthLegalSignOff") as String?) == "true"
+val depthLegalSignOff = (findProperty("lightlyDepthLegalSignOff") as String?) != "false" // owner sign-off 2026-10-12: on by default
 fun depthModelEnabled(buildType: String) = depthModelFile.isFile && (isInternalBuild(buildType) || depthLegalSignOff)
 
 // --- Remove model release gate ----------------------------------------------------------------
@@ -45,7 +45,7 @@ fun depthModelEnabled(buildType: String) = depthModelFile.isFile && (isInternalB
 val removeModelFile: File = (findProperty("lightlyRemoveModelFile") as String?)?.let(::File)
     ?: rootDir.parentFile.resolve("experiments/inpaint/models/exported/lama_512_fp32.tflite")
 val removeModelSha256 = "39fa82d6a2b576de99b30481c85d73d48955f126deb7bea8504e58b15b43ca0e"
-val removeLegalSignOff = (findProperty("lightlyRemoveLegalSignOff") as String?) == "true"
+val removeLegalSignOff = (findProperty("lightlyRemoveLegalSignOff") as String?) != "false" // owner sign-off 2026-10-12: on by default
 fun removeModelEnabled(buildType: String) = removeModelFile.isFile && (isInternalBuild(buildType) || removeLegalSignOff)
 
 // --- Vision models (faces, landmarks, people, person matte) ---------------------------------------
@@ -87,7 +87,7 @@ val optionalVisionModels = mapOf(
     "portrait_matte.tflite" to listOf("modnet_photographic_512_fp16.tflite", "4b57ff612f1a78d331af496f30eca2f10ae64cd47c4e90ed001f65b2a9d8d078", "", ""),
     "subject_saliency.tflite" to listOf("u2netp_320_fp32.tflite", "40655434570d0716e005904f2f833f6a87856ed2ac26a26d529c7234a3fe399e", "", ""),
 )
-val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) == "true"
+val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) != "false" // owner sign-off 2026-10-12: on by default
 fun visionModelsEnabled(buildType: String) =
     visionModels.values.all { visionModelsDirectory.resolve(it[0]).isFile } && (isInternalBuild(buildType) || visionModelsRelease)
 

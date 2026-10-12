@@ -27,10 +27,10 @@ settings:
     LIGHTLY_REPO_ROOT: $(SRCROOT)/..
     # Release gate: "pending legal sign-off (training data)" for the depth model. Set to YES only
     # after the sign-off (docs/v1/depth-evaluation.md T1).
-    LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF: "NO"
+    LIGHTLY_DEPTH_MODEL_TRAINING_DATA_SIGNED_OFF: "YES"  # owner sign-off 2026-10-12: ships in every build
     # Release gate: "pending legal sign-off (training data: Places2)" for the Remove model (LaMa).
     # Set to YES only after the sign-off (docs/v1/remove-evaluation.md §8).
-    LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF: "NO"
+    LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF: "YES"  # owner sign-off 2026-10-12: ships in every build
 
 targets:
   Lightly:
