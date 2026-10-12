@@ -10,8 +10,8 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     # Version and build come from version.properties and scripts/version.sh; every script that builds the app
-    # passes MARKETING_VERSION and CURRENT_PROJECT_VERSION. A build made without them (e.g. from the Xcode IDE)
-    # shows build 0, so it is never mistaken for a packaged one.
+    # passes MARKETING_VERSION and CURRENT_PROJECT_VERSION. Xcode IDE builds and archives get them from the Lightly
+    # scheme's pre-action (Lightly/Lightly.xcconfig); without either, the placeholders below (build 0) apply.
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "0"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -31,6 +31,10 @@ targets:
   Lightly:
     type: application
     platform: iOS
+    # Version for Xcode IDE builds and archives (see Lightly/Lightly.xcconfig and the scheme's pre-action).
+    configFiles:
+      Debug: Lightly/Lightly.xcconfig
+      Release: Lightly/Lightly.xcconfig
     deploymentTarget: "17.0"
     dependencies:
       # Copies the Look pack into Lightly.app/LookPack (and the light-leak pack into LeakPack) before the app is assembled.
@@ -185,6 +189,12 @@ targets:
         # Automatic signing: Archive › Distribute re-signs with Apple Distribution for the App Store.
         DEVELOPMENT_TEAM: 3UDFB78DLC
         CODE_SIGN_STYLE: Automatic
+        # App Store category, set in Xcode by the owner 2026-10-12.
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography
+        # iPhone and iPad only: no "Designed for iPad" Mac or Apple Vision versions (never built or tested there;
+        # Xcode offers both by default for an iPad app). Owner, 2026-10-12.
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
         # Approved layouts: iPhone portrait only (one phone layout, controls below the photo);
         # iPad in every orientation (controls below in portrait, beside in landscape).
         # v3 differs: iPhone also allowed both landscapes.
@@ -198,7 +208,11 @@ targets:
         # goes through the native picker, which needs no authorisation at all.
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGNING_ALLOWED: NO
+      configs:
+        # Debug builds (simulators, tests) are never signed. Release is signed with the team above, so an archive
+        # made in Xcode (Product › Archive) can be distributed; scripted device builds still sign explicitly.
+        Debug:
+          CODE_SIGNING_ALLOWED: NO
     postBuildScripts:
       # Last phase: fail the build (so nothing gets installed) unless the built product carries the
       # app icon. Sandboxed: it reads only the declared product files below.
@@ -303,6 +317,11 @@ schemes:
       targets:
         Lightly: all
         LightlyTests: [test]
+      # Real version and build number for builds started in Xcode, archives included (write_version_xcconfig.sh).
+      preActions:
+        - name: Write version
+          script: '"${PROJECT_DIR}/Tools/write_version_xcconfig.sh"'
+          settingsTarget: Lightly
     test:
       targets:
         - LightlyTests

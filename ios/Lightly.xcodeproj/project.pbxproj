@@ -355,6 +355,7 @@
 		127C9E7A1DEDE2FE50A1E961 /* DevelopStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopStage.swift; sourceTree = "<group>"; };
 		12DB2309F1AC746C3F878C5A /* LightlyUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LightlyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		132AEF8E45B50323D255C55A /* Bonskin-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Bonskin-LICENSE.txt"; sourceTree = "<group>"; };
+		13775D356C4C7EEDE754DAB5 /* Lightly.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Lightly.xcconfig; sourceTree = "<group>"; };
 		15118BEA84CD488D75B7DAA1 /* AnalysisProxyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisProxyTests.swift; sourceTree = "<group>"; };
 		16E9B75D14F55A329E0A6306 /* Bonskin-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Bonskin-Regular.otf"; sourceTree = "<group>"; };
 		17224281C2615D82B68AF083 /* Carpenters-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Carpenters-Regular.ttf"; sourceTree = "<group>"; };
@@ -533,6 +534,7 @@
 		B4BB8DF080B5CBE0EB749BE4 /* HairDetailRefinement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HairDetailRefinement.swift; sourceTree = "<group>"; };
 		B701BCDE146455B7448BDFA1 /* ControlContrastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlContrastTests.swift; sourceTree = "<group>"; };
 		BAE9214BBAE723CD04BB2700 /* CameraCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCaptureView.swift; sourceTree = "<group>"; };
+		BBF1DCB2E68653B7B682FBAD /* .gitignore */ = {isa = PBXFileReference; path = .gitignore; sourceTree = "<group>"; };
 		BBF3414EBA09F4EC7B539585 /* landscape_01_thumb.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = landscape_01_thumb.jpg; sourceTree = "<group>"; };
 		BC89BE3C275B456751E4E0BF /* Caveat-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Caveat-OFL.txt"; sourceTree = "<group>"; };
 		BD4A10733669174E8BA4FFEA /* ApprovedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovedComponents.swift; sourceTree = "<group>"; };
@@ -682,7 +684,9 @@
 		0A62D3FD5B30D1D6F0AE4301 /* Lightly */ = {
 			isa = PBXGroup;
 			children = (
+				BBF1DCB2E68653B7B682FBAD /* .gitignore */,
 				27BE1217B0CEBB0378E7EB3C /* Generated-Info.plist */,
+				13775D356C4C7EEDE754DAB5 /* Lightly.xcconfig */,
 				AD390892D0B0ED9C617BE341 /* App */,
 				BC70101993E461F709D85E4E /* DesignSystem */,
 				86E0B8F723C4D2AA690CCEE1 /* Domain */,
@@ -2089,13 +2093,14 @@
 		};
 		64BE45F44EE252B4E86DAB15 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 13775D356C4C7EEDE754DAB5 /* Lightly.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
@@ -2108,6 +2113,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.lightlylabs.lightly;
 				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -2122,6 +2129,7 @@
 		};
 		A770591F46BC6E60C24A88DF /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 13775D356C4C7EEDE754DAB5 /* Lightly.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = NO;
@@ -2129,6 +2137,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
@@ -2141,6 +2150,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.lightlylabs.lightly;
 				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;

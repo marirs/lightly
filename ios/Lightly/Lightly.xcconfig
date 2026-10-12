@@ -1,0 +1,6 @@
+// Version and build for builds started from Xcode (Product › Run / Archive). The Lightly scheme's pre-action
+// (Tools/write_version_xcconfig.sh) writes the git-derived values into the git-ignored file below before every
+// build, so an archive made in Xcode carries the same version and build number as the scripted builds
+// (scripts/version.sh) instead of the project's placeholder 0. Scripts that pass MARKETING_VERSION and
+// CURRENT_PROJECT_VERSION on the command line still win. Optional include: without the file the placeholders apply.
+#include? "Version.generated.xcconfig"
