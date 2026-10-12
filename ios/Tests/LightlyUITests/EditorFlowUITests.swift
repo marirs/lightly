@@ -302,11 +302,15 @@ final class EditorFlowUITests: XCTestCase {
         let more = app.buttons["editor.more"]
         XCTAssertTrue(more.waitForExistence(timeout: timeout))
         more.tap()
-        XCTAssertTrue(app.buttons["more.row.preferences"].waitForExistence(timeout: timeout))
+        // Lightly 2 More (owner 2026-10-10, a2c7f44): preferences live on the More page itself and there is no
+        // Preferences row any more, so the page is identified by its header and its Help › About row.
+        let moreHeader = app.descendants(matching: .any)["more.page.menu"]
+        XCTAssertTrue(moreHeader.waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.buttons["more.row.about"].waitForExistence(timeout: timeout))
         capture(named: "02c-editor-more")
         app.buttons["page.close"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["editor.photo"].waitForExistence(timeout: timeout))
-        XCTAssertFalse(app.buttons["more.row.preferences"].exists)
+        XCTAssertTrue(waitFor { !moreHeader.exists }, "More did not close")
     }
 
     // MARK: - Editor (slice 2)

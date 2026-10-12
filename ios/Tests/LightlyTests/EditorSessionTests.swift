@@ -700,6 +700,17 @@ final class EditorSessionTests: XCTestCase {
 
     /// Starvation (2026-10-06): a drag that starts while a settled full render runs gets its frame without waiting for
     /// that render (the drag frame cancels it), and nothing older replaces it.
+    /// Guards the scheduler rule of 2026-10-06 (`LatestWinsRenderScheduler.supersedesRunning`): a drag frame stops a
+    /// settled full render that is still running, so the ruler never waits for a frame it no longer needs.
+    ///
+    /// Why it is checked by order, not by a wall-clock budget: since the curated pack (e74dc03) the category with the
+    /// most presets holds looks with noise reduction, clarity and sharpening, and since 46947eb ("keep preview quality
+    /// stable") a drag frame renders the complete edit at preview size. Those operators run on the CPU, and the unit
+    /// tests run an unoptimised Debug build in the simulator, where one such 1600 px frame takes ~15 s. The old
+    /// 10 s budget therefore measured Debug CPU speed (and, because it started with a ruler drag, the previous drag
+    /// frame — which is by design not interrupted by the next one), never whether the settled render held the drag up.
+    /// What "held up" means is observable exactly: the settled full frame of the committed look would be published
+    /// before the drag frame. Cancelled, it is never published.
     func testADragDuringASettledRenderIsNotHeldUp() async throws {
         let photo = try await EditorTestSupport.photo(width: 2_400, height: 1_600)
         let session = try await EditorTestSupport.readySession(photo: photo, library: library, previewLongEdge: 1_600)
@@ -707,22 +718,46 @@ final class EditorSessionTests: XCTestCase {
         let category = try XCTUnwrap(pack.categories.max { $0.presets.count < $1.presets.count })
         model.selectCategory(category.id)
         await session.settleRendering()
-        // Commit a preset: a fast frame, then the full frame with pixel stages (the slow settled render).
-        model.dragChanged(to: 2); model.dragEnded(at: 2)
+        let committed = category.presets[1], dragged = category.presets[2]
+        let pixelStageOperators: Set<String> = ["noiseReduction", "clarity", "texture", "sharpening", "vignette", "grain"]
+        XCTAssertFalse(pixelStageOperators.isDisjoint(with: committed.operators),
+                       "the committed look must have pixel stages, or there is no slow settled render to stop")
+        // Commit a preset: a fast colour-only frame, then the full frame with pixel stages (the slow settled render),
+        // which the session requests as soon as the fast frame lands.
         let before = session.debugPublished.count
+        session.applyLook(committed)
+        let fastFrameShown = try await waitUntil(timeout: .seconds(60)) {
+            session.debugPublished[before...].contains { $0.lookID == committed.id && !$0.dragFrame }
+        }
+        XCTAssertTrue(fastFrameShown, "no colour-first frame for the committed look")
+        // The follow-up is submitted from a task; give it time to reach the scheduler and start (it runs for seconds).
+        try await Task.sleep(for: .milliseconds(300))
+        let afterFastFrame = session.debugPublished.count
         let start = ContinuousClock.now
         model.dragChanged(to: 3)
-        while !(session.debugPublished.last.map { $0.dragFrame && $0.lookID == category.presets[2].id } ?? false) {
-            try await Task.sleep(for: .milliseconds(5))
-            if ContinuousClock.now - start > .seconds(10) { XCTFail("no drag frame"); break }
+        let dragFrameShown = try await waitUntil(timeout: .seconds(120)) {
+            session.debugPublished.last.map { $0.dragFrame && $0.lookID == dragged.id } ?? false
         }
-        let firstFrame = ContinuousClock.now - start
+        XCTAssertTrue(dragFrameShown, "no drag frame")
+        print("first drag frame during a settled render after \(ContinuousClock.now - start)")
+        let duringDrag = Array(session.debugPublished[afterFastFrame...])
+        XCTAssertFalse(duringDrag.contains { $0.lookID == committed.id },
+                       "the settled render of the committed look finished and was shown before the drag frame: it held the drag up")
         await session.settleRendering()
-        print("first drag frame during a settled render after \(firstFrame)")
         let after = session.debugPublished[before...]
         XCTAssertEqual(Array(after.map(\.generation)), after.map(\.generation).sorted(), "frames only move forward")
-        XCTAssertEqual(session.debugPublished.last?.lookID, category.presets[2].id)
+        XCTAssertEqual(session.debugPublished.last?.lookID, dragged.id)
         model.dragEnded(at: 3)
         await session.settleRendering()
+    }
+
+    /// Polls `condition` on the main actor every 5 ms; true once it holds, false after `timeout`.
+    private func waitUntil(timeout: Duration, _ condition: () -> Bool) async throws -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while !condition() {
+            if ContinuousClock.now > deadline { return false }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        return true
     }
 }
