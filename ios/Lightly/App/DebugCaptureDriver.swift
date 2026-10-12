@@ -206,12 +206,12 @@ private final class DisplayFrameTicker: NSObject {
 
     func start() {
         keepAlive = self
-        let link = CADisplayLink(target: self, selector: #selector(tick))
+        let link = CADisplayLink(target: self, selector: #selector(lightlyCaptureFrameTick))
         link.add(to: .main, forMode: .common)
         self.link = link
     }
 
-    @objc private func tick() {
+    @objc private func lightlyCaptureFrameTick() {
         remaining -= 1
         guard remaining <= 0 else { return }
         link?.invalidate()

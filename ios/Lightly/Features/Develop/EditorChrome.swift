@@ -694,13 +694,13 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
         scroll.bouncesZoom = false
         scroll.contentInsetAdjustmentBehavior = .never
         scroll.panGestureRecognizer.minimumNumberOfTouches = 2
-        scroll.panGestureRecognizer.addTarget(context.coordinator, action: #selector(Coordinator.navigationBegan(_:)))
-        scroll.pinchGestureRecognizer?.addTarget(context.coordinator, action: #selector(Coordinator.navigationBegan(_:)))
+        scroll.panGestureRecognizer.addTarget(context.coordinator, action: #selector(Coordinator.lightlyInspectionNavigationBegan(_:)))
+        scroll.pinchGestureRecognizer?.addTarget(context.coordinator, action: #selector(Coordinator.lightlyInspectionNavigationBegan(_:)))
         scroll.accessibilityIdentifier = "editor.inspection"
         let host = context.coordinator.host
         host.view.backgroundColor = .clear
         scroll.addSubview(host.view)
-        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.doubleTap(_:)))
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.lightlyInspectionDoubleTap(_:)))
         tap.numberOfTapsRequired = 2
         // Only touches this double tap acts on reach it (Coordinator.gestureRecognizer(_:shouldReceive:)), so a tool
         // without the photo's double-tap zoom (Watermark) keeps every touch on the photo to itself.
@@ -787,10 +787,12 @@ private struct InspectionViewport<Content: View>: UIViewRepresentable {
             centre(scrollView)
             if abs(zoom.scale - scrollView.zoomScale) > 0.001 { zoom.scale = scrollView.zoomScale }
         }
-        @objc func navigationBegan(_ recognizer: UIGestureRecognizer) {
+        // Prefixed selector names: App Store Connect rejected the upload (2026-10-12) because "doubleTap:" is also a private
+        // UIKit selector. Keep @objc names in this app distinctive.
+        @objc func lightlyInspectionNavigationBegan(_ recognizer: UIGestureRecognizer) {
             if recognizer.state == .began { onInspectionBegan() }
         }
-        @objc func doubleTap(_ recognizer: UITapGestureRecognizer) {
+        @objc func lightlyInspectionDoubleTap(_ recognizer: UITapGestureRecognizer) {
             guard let scroll = recognizer.view as? UIScrollView else { return }
             // Outside the photo: the theme cycle; the photo itself keeps the inspection zoom.
             guard isOnPhoto(recognizer.location(in: host.view)) else { onEmptyDoubleTap?(); return }
