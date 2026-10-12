@@ -8,6 +8,11 @@ options:
 
 settings:
   base:
+    # Signing, set like the owner's other projects (travllr): the team at project level, so every target inherits it,
+    # and the current identity name. Team ID 3UDFB78DLC is Sriram Govindan (marirs@aol.in).
+    DEVELOPMENT_TEAM: 3UDFB78DLC
+    CODE_SIGN_IDENTITY: Apple Development
+    CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "5.10"
     # Version and build come from version.properties and scripts/version.sh; every script that builds the app
     # passes MARKETING_VERSION and CURRENT_PROJECT_VERSION. Xcode IDE builds and archives get them from the Lightly
@@ -185,8 +190,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly
-        # The owner's team, Team ID 3UDFB78DLC (Sriram Govindan), is set in Lightly/Lightly.xcconfig, where it is
-        # visible in Xcode. Automatic signing: Archive › Distribute re-signs with Apple Distribution for the App Store.
+        # Team ID 3UDFB78DLC (Sriram Govindan); also in Lightly/Lightly.xcconfig, where it is visible in Xcode.
+        # Automatic signing: Archive › Distribute re-signs with Apple Distribution for the App Store.
+        DEVELOPMENT_TEAM: 3UDFB78DLC
+        CODE_SIGN_IDENTITY: Apple Development
         CODE_SIGN_STYLE: Automatic
         # App Store category, set in Xcode by the owner 2026-10-12.
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography

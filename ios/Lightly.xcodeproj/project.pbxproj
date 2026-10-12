@@ -1552,9 +1552,19 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					212CAA7EBCD4D62ECF8AA619 = {
+						DevelopmentTeam = 3UDFB78DLC;
+						ProvisioningStyle = Automatic;
 						TestTargetID = 2260B40DD888F1447CE8DB1F;
 					};
 					2260B40DD888F1447CE8DB1F = {
+						DevelopmentTeam = 3UDFB78DLC;
+						ProvisioningStyle = Automatic;
+					};
+					5CD1534D3A7AE7F2C34939F4 = {
+						DevelopmentTeam = 3UDFB78DLC;
+						ProvisioningStyle = Automatic;
+					};
+					D126402617DC8E88FA930BED = {
 						DevelopmentTeam = 3UDFB78DLC;
 						ProvisioningStyle = Automatic;
 					};
@@ -2098,8 +2108,9 @@
 			baseConfigurationReference = 13775D356C4C7EEDE754DAB5 /* Lightly.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
@@ -2134,8 +2145,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
@@ -2207,9 +2219,12 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 0;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -2279,9 +2294,12 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 0;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
