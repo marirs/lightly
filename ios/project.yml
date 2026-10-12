@@ -181,6 +181,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly
+        # The owner's own team (Sriram Govindan), set in Xcode 2026-10-12; kept here so `xcodegen generate` keeps it.
+        # Automatic signing: Archive › Distribute re-signs with Apple Distribution for the App Store.
+        DEVELOPMENT_TEAM: 3UDFB78DLC
+        CODE_SIGN_STYLE: Automatic
         # Approved layouts: iPhone portrait only (one phone layout, controls below the photo);
         # iPad in every orientation (controls below in portrait, beside in landscape).
         # v3 differs: iPhone also allowed both landscapes.

@@ -1548,6 +1548,10 @@
 					212CAA7EBCD4D62ECF8AA619 = {
 						TestTargetID = 2260B40DD888F1447CE8DB1F;
 					};
+					2260B40DD888F1447CE8DB1F = {
+						DevelopmentTeam = 3UDFB78DLC;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = 2A2982CB8F88A79B962C9F3E /* Build configuration list for PBXProject "Lightly" */;
@@ -2089,6 +2093,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker.";
@@ -2120,6 +2126,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker.";
