@@ -98,6 +98,13 @@ class EditorEnvironment(
      * their LUT bakes (~85 ms each on the motorola edge 60) queued ahead of the photo's own render. null: [renderDispatcher].
      */
     val thumbnailDispatcher: CoroutineDispatcher? = null,
+    /**
+     * Where Edit › Remove builds its window and runs the inpainting model (2026-10-12, Remove took 20–80 s on the
+     * motorola edge 60): a thread of normal priority of its own. On [prefetchDispatcher] the stroke queued behind
+     * preset prefetches, and the model's worker threads inherited that thread's lowest priority (nice 19).
+     * null: [prefetchDispatcher] (JVM tests).
+     */
+    val removeDispatcher: CoroutineDispatcher? = null,
     val exporter: ExportCoordinator<String, *>,
     val favourites: FavouritesStore,
     /** Debug builds show stubs for the unimplemented tools and accept the capture launch options. */

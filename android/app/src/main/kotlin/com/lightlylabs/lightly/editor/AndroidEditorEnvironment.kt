@@ -50,6 +50,13 @@ object AndroidEditorEnvironment {
     private val prefetchDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-prefetch").apply { priority = Thread.MIN_PRIORITY } }.asCoroutineDispatcher()
 
     /**
+     * Remove's model runs here at normal priority: the person is waiting on the "Removing…" state. LiteRT's XNNPACK
+     * worker threads are created by the thread that opens the interpreter and inherit its nice value, so opening the
+     * model on the MIN_PRIORITY prefetch thread ran the whole inference at nice 19 (EditorEnvironment.removeDispatcher).
+     */
+    private val removeDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-remove").apply { priority = Thread.NORM_PRIORITY } }.asCoroutineDispatcher()
+
+    /**
      * Threads for bakes and row-parallel rendering: every core but two (the UI thread and the system), at most 6. Was at
      * most 4; on the 8-core motorola edge 60 a settled preview with spatial stages took ~1.9 s (owner report 2026-10-11).
      */
@@ -134,6 +141,7 @@ object AndroidEditorEnvironment {
             prefetchDispatcher = prefetchDispatcher,
             interactiveRenderDispatcher = interactiveRenderDispatcher,
             thumbnailDispatcher = thumbnailDispatcher,
+            removeDispatcher = removeDispatcher,
             exporter = ExportCoordinator(
                 saver = SaveCopyExporter(gateway, BitmapFrameJpegEncoder(), metadataStep = metadataStep(app), shareCopy = shareCopies(app)),
                 frameFactory = BitmapExportFrame.factory,

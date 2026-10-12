@@ -9,7 +9,11 @@ import org.tensorflow.lite.Interpreter
  * lock, so a release waits for an inference in progress and never closes an interpreter under it; a model object
  * stays valid after a release (the next [use] reopens the file, already memory-mapped).
  */
-class ReleasableInterpreter(private val open: () -> Interpreter) {
+class ReleasableInterpreter(
+    /** Runs after the interpreter is closed, under the same lock: frees what must outlive it (a delegate). */
+    private val afterClose: () -> Unit = {},
+    private val open: () -> Interpreter,
+) {
     private var interpreter: Interpreter? = null
 
     init { ModelResources.register(this) }
@@ -19,7 +23,7 @@ class ReleasableInterpreter(private val open: () -> Interpreter) {
     }
 
     fun release() = synchronized(this) {
-        interpreter?.close()
+        interpreter?.let { opened -> opened.close(); afterClose() }
         interpreter = null
     }
 

@@ -115,6 +115,12 @@ android {
         versionName = lightlyMarketingVersion
     }
 
+    // Remove's threaded XNNPACK delegate (src/main/jni): our own C file, no third-party native code.
+    ndkVersion = "30.0.16248370"
+    externalNativeBuild {
+        ndkBuild { path = file("src/main/jni/Android.mk") }
+    }
+
     buildFeatures {
         compose = true
         // About shows versionName (versionCode); debug-only launch options read BuildConfig.DEBUG.

@@ -922,19 +922,26 @@ class EditorViewModel(
         if (debugHoldRemove) return // capture of the approved "Removing…" state (debug builds only)
         removeJob = scope.launch {
             val result = runCatching {
-                kotlinx.coroutines.withContext(env.prefetchDispatcher) { // off the main thread; the model call blocks
+                kotlinx.coroutines.withContext(env.removeDispatcher ?: env.prefetchDispatcher) { // off the main thread, normal priority; the model call blocks
                     val model = inpainter ?: throw RemoveUnavailableException("No Remove model in this build")
                     // Full-resolution source with the earlier strokes' patches (remove-evaluation §7), read by region:
                     // only the stroke's context window leaves the native frame (48 MP: no 192 MB Java array), and the
                     // frame is closed before the model runs, so the two are never held together.
                     val applied = state.value.session?.current?.let { EditMapping.patchDigests(it) }.orEmpty().mapNotNull { removePatches[it] }
+                    val strokeStarted = System.nanoTime()
+                    var decodeMs = 0L
                     val window = current.loaded.fullResolution.decodeFrame().use { frame ->
+                        decodeMs = (System.nanoTime() - strokeStarted) / 1_000_000
                         RemoveEngine.window(RemoveEngine.PatchedFrameSource(frame, applied), stroke.points, stroke.radius)
                     }
+                    val windowMs = (System.nanoTime() - strokeStarted) / 1_000_000 - decodeMs
                     try {
                         val started = System.nanoTime()
                         val patch = RemoveEngine.patch(window, stroke.points, stroke.radius, model) { !coroutineContext.isActive }
-                        runCatching { android.util.Log.i("LightlyRemove", "stroke removed in ${(System.nanoTime() - started) / 1_000_000} ms") }
+                        runCatching {
+                            android.util.Log.i("LightlyRemove", "stroke removed in ${(System.nanoTime() - strokeStarted) / 1_000_000} ms " +
+                                "(frame open $decodeMs ms, window $windowMs ms, patch ${(System.nanoTime() - started) / 1_000_000} ms)")
+                        }
                         patch to model.model
                     } finally {
                         // The patch is kept; the model's memory is not held between strokes (each stroke reopens it).

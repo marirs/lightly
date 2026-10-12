@@ -216,6 +216,7 @@ object RemoveEngine {
     /** The rest of the pipeline from the stroke's model input: the grown hole, the model, the paste-back. */
     fun patch(window: Window, points: List<Pair<Double, Double>>, radius: Double, inpainter: Inpainter, cancelled: () -> Boolean = { false }): RemovePatch {
         require(points.isNotEmpty()) { "a stroke needs a point" }
+        val patchStarted = System.nanoTime()
         val w = window.frameWidth
         val h = window.frameHeight
         val brush = max(1.0, radius * max(w, h))
@@ -242,35 +243,54 @@ object RemoveEngine {
         require(image.size == 3 * n) { "model input of ${image.size} values" }
         val mask = FloatArray(n)
         val grow = if (side == MODEL_SIDE) 0.0 else scale / 2
-        for (my in 0 until MODEL_SIDE) for (mx in 0 until MODEL_SIDE) {
-            val sx = left + (mx + 0.5) * scale
+        val stroke = StrokeDistance(pixelPoints)
+        val maskReach = brush + grow
+        for (my in 0 until MODEL_SIDE) {
             val sy = top + (my + 0.5) * scale
-            mask[my * MODEL_SIDE + mx] = if (distanceToStroke(sx, sy, pixelPoints) <= brush + grow) 1f else 0f
+            val near = stroke.segmentsNearRow(sy, maskReach)
+            for (mx in 0 until MODEL_SIDE) {
+                val sx = left + (mx + 0.5) * scale
+                mask[my * MODEL_SIDE + mx] = if (stroke.distanceWithin(sx, sy, maskReach, near) <= maskReach) 1f else 0f
+            }
         }
         if (cancelled()) throw kotlinx.coroutines.CancellationException("Remove cancelled")
+        val maskDone = System.nanoTime()
         val filled = inpainter.inpaint(image, mask)
         require(filled.size == 3 * n) { "inpainter returned ${filled.size} values" }
         if (cancelled()) throw kotlinx.coroutines.CancellationException("Remove cancelled")
+        val inpaintDone = System.nanoTime()
 
         // Paste back only the brush and its feather.
         val pw = px1 - px0
         val ph = py1 - py0
         val rgba = ByteArray(pw * ph * 4)
-        for (row in 0 until ph) for (column in 0 until pw) {
-            val x = px0 + column + 0.5
+        val featherReach = brush + FEATHER_PX
+        for (row in 0 until ph) {
             val y = py0 + row + 0.5
-            val d = distanceToStroke(x, y, pixelPoints)
-            val alpha = if (d <= brush) 1.0 else (1 - (d - brush) / FEATHER_PX).coerceIn(0.0, 1.0)
-            val o = (row * pw + column) * 4
-            if (alpha > 0) {
-                // The fill at this source pixel: model coordinates of its centre, bilinear.
-                val mx = ((x - left) / scale - 0.5).coerceIn(0.0, MODEL_SIDE - 1.0)
-                val my = ((y - top) / scale - 0.5).coerceIn(0.0, MODEL_SIDE - 1.0)
-                for (c in 0 until 3) rgba[o + c] = (bilinear(filled, c * n, mx, my) * 255).roundToInt().coerceIn(0, 255).toByte()
+            val near = stroke.segmentsNearRow(y, featherReach)
+            for (column in 0 until pw) {
+                val x = px0 + column + 0.5
+                // Beyond the feather the alpha is 0 whatever the exact distance, so far segments are skipped.
+                val d = stroke.distanceWithin(x, y, featherReach, near)
+                val alpha = if (d <= brush) 1.0 else (1 - (d - brush) / FEATHER_PX).coerceIn(0.0, 1.0)
+                val o = (row * pw + column) * 4
+                if (alpha > 0) {
+                    // The fill at this source pixel: model coordinates of its centre, bilinear.
+                    val mx = ((x - left) / scale - 0.5).coerceIn(0.0, MODEL_SIDE - 1.0)
+                    val my = ((y - top) / scale - 0.5).coerceIn(0.0, MODEL_SIDE - 1.0)
+                    for (c in 0 until 3) rgba[o + c] = (bilinear(filled, c * n, mx, my) * 255).roundToInt().coerceIn(0, 255).toByte()
+                }
+                rgba[o + 3] = (alpha * 255).roundToInt().toByte()
             }
-            rgba[o + 3] = (alpha * 255).roundToInt().toByte()
         }
+        val pasteDone = System.nanoTime()
+        timingLog("mask ${(maskDone - patchStarted) / 1_000_000} ms, inpaint ${(inpaintDone - maskDone) / 1_000_000} ms, paste-back ${(pasteDone - inpaintDone) / 1_000_000} ms (${pw}x$ph, window $side)")
         return RemovePatch(px0, py0, pw, ph, rgba, w, h)
+    }
+
+    /** Stage timings for Remove (logcat tag LightlyRemove); a no-op off Android (JVM tests). */
+    internal fun timingLog(line: String) {
+        runCatching { android.util.Log.i("LightlyRemove", line) }
     }
 
     /**
@@ -360,8 +380,11 @@ object RemoveEngine {
         return top * (1 - fy) + bottom * fy
     }
 
+    private fun byteAt(pixels: ByteArray, index: Int): Double = (pixels[index].toInt() and 0xff).toDouble()
+
     /** Bilinear RGB at continuous pixel coordinates (centres at integers), edge-clamped. */
-    private fun sampleRgb(image: Rgba8Image, x: Double, y: Double, write: (Int, Float) -> Unit) {
+    // inline: the (Int, Float) lambda was a boxed Function2 call per channel (786 432 per stroke window).
+    private inline fun sampleRgb(image: Rgba8Image, x: Double, y: Double, write: (Int, Float) -> Unit) {
         val cx = x.coerceIn(0.0, image.width - 1.0)
         val cy = y.coerceIn(0.0, image.height - 1.0)
         val x0 = cx.toInt(); val y0 = cy.toInt()
@@ -369,9 +392,8 @@ object RemoveEngine {
         val fx = cx - x0; val fy = cy - y0
         val p = image.pixels
         for (c in 0 until 3) {
-            fun at(px: Int, py: Int) = (p[(py * image.width + px) * 4 + c].toInt() and 0xff).toDouble()
-            val top = at(x0, y0) * (1 - fx) + at(x1, y0) * fx
-            val bottom = at(x0, y1) * (1 - fx) + at(x1, y1) * fx
+            val top = byteAt(p, (y0 * image.width + x0) * 4 + c) * (1 - fx) + byteAt(p, (y0 * image.width + x1) * 4 + c) * fx
+            val bottom = byteAt(p, (y1 * image.width + x0) * 4 + c) * (1 - fx) + byteAt(p, (y1 * image.width + x1) * 4 + c) * fx
             write(c, (top * (1 - fy) + bottom * fy).toFloat())
         }
     }
@@ -380,16 +402,59 @@ object RemoveEngine {
      * [sampleRgb] at (cx, cy), already clamped to a [w] × [h] photo, from [band], the photo's rectangle at
      * ([bandX], [bandY]) that holds the four neighbours: the same arithmetic, so the same values.
      */
-    private fun sampleClamped(band: Rgba8Image, bandX: Int, bandY: Int, w: Int, h: Int, cx: Double, cy: Double, write: (Int, Float) -> Unit) {
+    private inline fun sampleClamped(band: Rgba8Image, bandX: Int, bandY: Int, w: Int, h: Int, cx: Double, cy: Double, write: (Int, Float) -> Unit) {
         val x0 = cx.toInt(); val y0 = cy.toInt()
         val x1 = min(x0 + 1, w - 1); val y1 = min(y0 + 1, h - 1)
         val fx = cx - x0; val fy = cy - y0
         val p = band.pixels
         for (c in 0 until 3) {
-            fun at(px: Int, py: Int) = (p[((py - bandY) * band.width + (px - bandX)) * 4 + c].toInt() and 0xff).toDouble()
-            val top = at(x0, y0) * (1 - fx) + at(x1, y0) * fx
-            val bottom = at(x0, y1) * (1 - fx) + at(x1, y1) * fx
+            val row0 = (y0 - bandY) * band.width
+            val row1 = (y1 - bandY) * band.width
+            val top = byteAt(p, (row0 + x0 - bandX) * 4 + c) * (1 - fx) + byteAt(p, (row0 + x1 - bandX) * 4 + c) * fx
+            val bottom = byteAt(p, (row1 + x0 - bandX) * 4 + c) * (1 - fx) + byteAt(p, (row1 + x1 - bandX) * 4 + c) * fx
             write(c, (top * (1 - fy) + bottom * fy).toFloat())
+        }
+    }
+
+    /**
+     * [distanceToStroke] for many pixels (2026-10-12, Remove speed): a finger stroke has a point per touch event, often
+     * 100+, and the mask and paste-back measured every pixel against every segment through boxed pairs. This keeps the
+     * points in primitive arrays and skips segments whose box, grown by the caller's reach, misses the pixel. Within the
+     * reach the result is bit-identical to [distanceToStroke] (same per-segment arithmetic; min of the square roots equals
+     * the square root of the minimum, both being monotonic and correctly rounded); beyond it, it is +Infinity.
+     */
+    class StrokeDistance(points: List<Pair<Double, Double>>) {
+        private val xs = DoubleArray(points.size) { points[it].first }
+        private val ys = DoubleArray(points.size) { points[it].second }
+        private val segmentCount = max(1, points.size - 1)
+        private val noSegments = IntArray(0)
+
+        /** Indices of the segments whose vertical extent, grown by [reach] (+1 px margin against rounding), contains [y]. */
+        fun segmentsNearRow(y: Double, reach: Double): IntArray {
+            val margin = reach + 1.0
+            var count = 0
+            val found = IntArray(segmentCount)
+            for (i in 0 until segmentCount) {
+                val j = min(i + 1, xs.size - 1)
+                if (y >= min(ys[i], ys[j]) - margin && y <= max(ys[i], ys[j]) + margin) found[count++] = i
+            }
+            return if (count == 0) noSegments else found.copyOf(count)
+        }
+
+        fun distanceWithin(x: Double, y: Double, reach: Double, near: IntArray): Double {
+            val margin = reach + 1.0
+            if (xs.size == 1) return if (near.isEmpty()) Double.POSITIVE_INFINITY else hypot(x - xs[0], y - ys[0])
+            var best = Double.POSITIVE_INFINITY
+            for (i in near) {
+                val ax = xs[i]; val ay = ys[i]; val bx = xs[i + 1]; val by = ys[i + 1]
+                if (x < min(ax, bx) - margin || x > max(ax, bx) + margin) continue
+                val dx = bx - ax
+                val dy = by - ay
+                val length = dx * dx + dy * dy
+                val t = if (length == 0.0) 0.0 else (((x - ax) * dx + (y - ay) * dy) / length).coerceIn(0.0, 1.0)
+                best = min(best, hypot(x - (ax + t * dx), y - (ay + t * dy)))
+            }
+            return best
         }
     }
 
