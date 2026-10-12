@@ -3,4 +3,8 @@
 // build, so an archive made in Xcode carries the same version and build number as the scripted builds
 // (scripts/version.sh) instead of the project's placeholder 0. Scripts that pass MARKETING_VERSION and
 // CURRENT_PROJECT_VERSION on the command line still win. Optional include: without the file the placeholders apply.
+// Signing team: Sriram Govindan, Team ID 3UDFB78DLC (marirs@aol.in). Xcode's Signing & Capabilities shows only the
+// team's name; this is the ID it signs with.
+DEVELOPMENT_TEAM = 3UDFB78DLC
+
 #include? "Version.generated.xcconfig"

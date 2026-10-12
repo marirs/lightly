@@ -185,9 +185,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lightlylabs.lightly
-        # The owner's own team (Sriram Govindan), set in Xcode 2026-10-12; kept here so `xcodegen generate` keeps it.
-        # Automatic signing: Archive › Distribute re-signs with Apple Distribution for the App Store.
-        DEVELOPMENT_TEAM: 3UDFB78DLC
+        # The owner's team, Team ID 3UDFB78DLC (Sriram Govindan), is set in Lightly/Lightly.xcconfig, where it is
+        # visible in Xcode. Automatic signing: Archive › Distribute re-signs with Apple Distribution for the App Store.
         CODE_SIGN_STYLE: Automatic
         # App Store category, set in Xcode by the owner 2026-10-12.
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography

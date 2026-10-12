@@ -449,6 +449,7 @@
 		612FFE3BB7E069143989C3C6 /* PresetDisplayNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetDisplayNames.swift; sourceTree = "<group>"; };
 		614765C58D29E4A3F31B500C /* EditStageMarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditStageMarks.swift; sourceTree = "<group>"; };
 		6238855D071990606106390E /* PhotoDeveloping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDeveloping.swift; sourceTree = "<group>"; };
+		626D2CC1F979193E4D71E9DA /* Version.generated.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.generated.xcconfig; sourceTree = "<group>"; };
 		62AA7687FFA8FA50ADE0FA52 /* ColorPipelineLoadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPipelineLoadTests.swift; sourceTree = "<group>"; };
 		62D50B6F71288983AD9DEE26 /* RecipeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeRenderer.swift; sourceTree = "<group>"; };
 		62F29AFB727FA04F0DF0657F /* L2Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L2Components.swift; sourceTree = "<group>"; };
@@ -687,6 +688,7 @@
 				BBF1DCB2E68653B7B682FBAD /* .gitignore */,
 				27BE1217B0CEBB0378E7EB3C /* Generated-Info.plist */,
 				13775D356C4C7EEDE754DAB5 /* Lightly.xcconfig */,
+				626D2CC1F979193E4D71E9DA /* Version.generated.xcconfig */,
 				AD390892D0B0ED9C617BE341 /* App */,
 				BC70101993E461F709D85E4E /* DesignSystem */,
 				86E0B8F723C4D2AA690CCEE1 /* Domain */,
@@ -2098,7 +2100,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
@@ -2135,7 +2136,6 @@
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
