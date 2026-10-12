@@ -67,19 +67,10 @@ final class ControlContrastTests: XCTestCase {
 
     /// `--ink3` is small text in the mockup (unselected tabs 14.5 px / 500, font names 10.5 px, notes 12 px), so the
     /// 4.5:1 text criterion applies; none of it is large text and only the `aria-disabled` tabs (opacity 0.4) are exempt.
-    /// The approved light value #7D8179 measures 3.57:1 on --bg #F3F3F0 and 3.97:1 on --surface / --sheet #FFFFFF.
-    /// That is the mockup's own colour, which the app copies exactly (AGENTS.md: no UX deviations), so the light case is
-    /// an expected failure pending an owner decision, not a value to change here. Strict: if the owner darkens --ink3 the
-    /// expectation itself fails, and this marker must be removed. The dark value passes and stays a plain assertion.
+    /// The mockup's original #7D8179 / #7E837B measured light 3.57–3.97 and dark 4.40 on --card; the owner approved
+    /// #6C7068 / #80857D on 2026-10-12.
     private func assertTertiaryTextContrast(on background: ApprovedColor.Token, _ scheme: ColorScheme, _ name: String) {
-        let measured = ratio(ApprovedColor.inkTertiary, on: background, scheme)
-        if scheme == .light {
-            XCTExpectFailure("Mockup --ink3 (light) is below 4.5:1 for text; owner decision pending") {
-                XCTAssertGreaterThanOrEqual(measured, 4.5, "\(name) in light")
-            }
-        } else {
-            XCTAssertGreaterThanOrEqual(measured, 4.5, "\(name) in dark")
-        }
+        XCTAssertGreaterThanOrEqual(ratio(ApprovedColor.inkTertiary, on: background, scheme), 4.5, "\(name) in \(scheme)")
     }
 
     func testNoticeTextOnTheNoticeFill() {

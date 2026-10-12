@@ -50,7 +50,8 @@ enum ApprovedColor {
     // Ink.
     static let ink = Token(light: 0x141513, dark: 0xF2F3F0)                       // --ink
     static let inkSecondary = Token(light: 0x5A5E57, dark: 0xA6ABA3)              // --ink2
-    static let inkTertiary = Token(light: 0x7D8179, dark: 0x7E837B)               // --ink3
+    // --ink3. Owner, 2026-10-12: darkened in light (#7D8179) and lifted in dark (#7E837B) so it reaches 4.5:1 as text.
+    static let inkTertiary = Token(light: 0x6C7068, dark: 0x80857D)               // --ink3
     /// Text on an ink fill (`--on-ink`): selected chips, segments, tabs.
     static let onInk = Token(light: 0xFFFFFF, dark: 0x121408)                     // --on-ink
 
