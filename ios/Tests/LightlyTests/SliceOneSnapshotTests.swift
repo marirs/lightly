@@ -126,7 +126,9 @@ final class WelcomeLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(link.height, 44, "Privacy Policy target below 44 pt at \(size)", file: file, line: line)
     }
 
-    /// At the default size everything fits without scrolling: the link sits above Welcome's 10 pt bottom padding.
+    /// At the default size everything fits without scrolling: the link as drawn (the mockup's text + 10 pt padding box)
+    /// sits above Welcome's 10 pt bottom padding. Its 44 pt touch target is centred on that box, so it reaches a few
+    /// points into the padding by design, but stays on screen.
     func testDefaultSizeFitsTheScreen() throws {
         try assertLayout(at: .large)
         let layout = LayoutProbe(
@@ -134,8 +136,11 @@ final class WelcomeLayoutTests: XCTestCase {
             size: SnapshotAssertion.defaultSize, dynamicTypeSize: .large
         )
         defer { layout.tearDown() }
-        let link = try XCTUnwrap(layout.frame("welcome.privacyPolicy"))
-        XCTAssertLessThanOrEqual(link.maxY, SnapshotAssertion.defaultSize.height - 10 + 0.5)
+        let visibleLink = try XCTUnwrap(layout.frame("welcome.privacyPolicy.label"))
+        let target = try XCTUnwrap(layout.frame("welcome.privacyPolicy"))
+        XCTAssertLessThanOrEqual(visibleLink.maxY, SnapshotAssertion.defaultSize.height - 10 + 0.5)
+        XCTAssertLessThanOrEqual(target.maxY, SnapshotAssertion.defaultSize.height)
+        XCTAssertEqual(target.midY, visibleLink.midY, accuracy: 0.5, "the target is centred on the visible link")
     }
 
     func testAccessibility3() throws { try assertLayout(at: .accessibility3) }

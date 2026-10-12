@@ -119,11 +119,16 @@ final class DevelopPanelModel {
     // MARK: - Ruler
 
     /// The settled stop: the applied preset's position in this list, else 0.
+    /// Lightly 2 `developState` (the approved mockup) names the applied preset whenever it is in the browsed collection
+    /// (Favourites included), and the collection's first preset only after tapping a collection that does not hold it.
+    /// The browsing start therefore yields to the applied preset: tapping the applied preset's own collection used to
+    /// name that collection's first preset while the applied tile stayed selected.
     var settledStop: Int {
+        if let applied = session.appliedPreset, let index = currentPresets.firstIndex(where: { $0.id == applied.id }) {
+            return index + 1
+        }
         if isBrowsingStart { return currentPresets.isEmpty ? 0 : 1 }
-        guard let applied = session.appliedPreset else { return 0 }
-        guard let index = currentPresets.firstIndex(where: { $0.id == applied.id }) else { return 0 }
-        return index + 1
+        return 0
     }
 
     var stop: Int { draggingStop ?? settledStop }

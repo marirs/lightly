@@ -390,12 +390,16 @@ final class EditorSessionTests: XCTestCase {
         model.dragEnded(at: 2)
         XCTAssertEqual(session.appliedPreset?.id, picks[1].id)
         XCTAssertEqual(model.stop, 2)
+        // A collection without the applied preset starts at its first preset (browsing start)…
         model.selectCategory("landscape")
+        XCTAssertEqual(model.stop, model.currentPresets.isEmpty ? 0 : 1)
+        // …but Lightly 2 `developState` names the applied preset whenever the browsed collection holds it, so
+        // Favourites comes back on picks[1], not on its first entry.
         model.selectCategory(DevelopPanelModel.favouritesID)
-        XCTAssertEqual(model.stop, 1)
-        XCTAssertEqual(model.displayedName, picks[0].displayName)
+        XCTAssertEqual(model.stop, 2)
+        XCTAssertEqual(model.displayedName, picks[1].displayName)
         XCTAssertEqual(session.appliedPreset?.id, picks[1].id)
-        model.applyBrowsedPreset()
+        model.dragEnded(at: 1)
         XCTAssertEqual(session.appliedPreset?.id, picks[0].id)
         session.undo()
         XCTAssertEqual(session.appliedPreset?.id, picks[1].id)

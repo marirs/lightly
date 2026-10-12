@@ -56,18 +56,17 @@ final class DesignCaptureUITests: XCTestCase {
 
         tap("welcome.more")
         save("welcome-more")
-        tap("more.row.preferences"); save("preferences")
+        // Lightly 2 (owner 2026-10-10, a2c7f44 / cd87746): the preferences sit on the More page itself (no Preferences
+        // row or page), and About carries the support email (no separate Support page; mockup screen `about`).
         tap("preferences.favourites"); save("pref-favourites"); tap("page.back")
         tap("preferences.signature"); save("pref-signature"); tap("page.back")
         tap("preferences.preferredBorder"); save("pref-border"); tap("page.back")
-        tap("page.back")
         tap("more.row.legal"); save("legal")
         tap("more.row.privacyPolicy"); save("privacy"); tap("page.back")
         tap("more.row.termsOfUse"); save("terms"); tap("page.back")
         tap("page.back")
         tap("more.row.about"); save("about")
-        tap("more.row.support"); save("support")
-        tap("page.back"); tap("page.back"); tap("page.close")
+        tap("page.back"); tap("page.close")
 
         tap("welcome.privacyPolicy"); save("welcome-privacy")
         tap("page.back")

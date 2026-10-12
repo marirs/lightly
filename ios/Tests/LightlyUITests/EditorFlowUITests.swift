@@ -337,12 +337,40 @@ final class EditorFlowUITests: XCTestCase {
 
     private func label(_ identifier: String) -> String { element(identifier).label }
 
-    /// Drags the ruler by `stops` (positive = towards higher stops) and releases.
-    private func dragRuler(by stops: Int) {
-        let ruler = element("develop.ruler")
-        let start = ruler.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        let end = start.withOffset(CGVector(dx: -CGFloat(stops) * 12, dy: 0))
-        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+    /// The `index`th preset thumbnail of the browsed collection ("Original" excluded). Lightly 2 (owner 2026-10-10,
+    /// mockup `developPanel`) replaced the stop ruler with this gallery, so presets are applied by tapping a tile.
+    private func presetThumbnail(_ index: Int) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'develop.thumbnail.' AND identifier != 'develop.thumbnail.original'"))
+            .element(boundBy: index)
+    }
+
+    /// Taps an item of a sideways-scrolling row (category and sub-tool tabs, the tool dock). Lightly 2 rows scroll and
+    /// keep the item before the selected one at the leading edge (mockup `scrolled()`), so the wanted item can sit past
+    /// either edge; the row is swiped towards it first, as a person does.
+    private func tapInScrollingRow(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let item = element(identifier)
+        XCTAssertTrue(item.waitForExistence(timeout: timeout), "\(identifier) missing", file: file, line: line)
+        let width = app.windows.firstMatch.frame.width
+        // isHittable throws for an item scrolled wholly off screen, so visibility is judged from its frame.
+        func fullyOnScreen() -> Bool { let f = item.frame; return !f.isEmpty && f.minX >= 0 && f.maxX <= width }
+        for _ in 0..<4 where !fullyOnScreen() {
+            let hiddenPastLeadingEdge = item.frame.midX < width / 2
+            let start = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: hiddenPastLeadingEdge ? width * 0.3 : width * 0.75, dy: item.frame.midY))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: hiddenPastLeadingEdge ? 220 : -220, dy: 0)))
+            sleep(1)
+        }
+        XCTAssertTrue(fullyOnScreen(), "\(identifier) could not be scrolled into view: \(item.frame)", file: file, line: line)
+        item.tap()
+    }
+
+    /// Taps a Lightly 2 slider row (`L2Slider`: 92 pt label, 12 pt gap, the track, 12 pt gap, 34 pt value) at `fraction`
+    /// of its track. Its drag gesture has no minimum distance, so the tap commits that value as one step.
+    private func setSlider(_ slider: XCUIElement, to fraction: CGFloat) {
+        let frame = slider.frame
+        let trackStart: CGFloat = 92 + 12, trackEnd = frame.width - 12 - 34
+        slider.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: trackStart + (trackEnd - trackStart) * fraction, dy: frame.height / 2)).tap()
     }
 
     /// iOS 1.0 Auto is Core Image auto enhancement (owner approval 2026-10-06). Owner, 2026-10-11: the photo opens
@@ -373,75 +401,105 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
     }
 
-    func testRulerPreviewsWhileDraggingAndReleaseIsOneUndoStep() {
+    /// Lightly 2 (owner 2026-10-10, mockup `developPanel`): the stop ruler and its "N / 518" position became the preset
+    /// gallery. A tapped thumbnail applies its preset as one undo step. The photo opens untouched (owner 2026-10-11), so
+    /// Undo returns the heading to "Original", and Redo brings the preset back.
+    func testThumbnailTapAppliesAPresetAsOneUndoStep() {
         openEditor()
-        XCTAssertEqual(label("develop.position"), "0 / 518")
-        dragRuler(by: 5)
-        XCTAssertTrue(waitFor { self.label("develop.position") != "0 / 518" })
-        let applied = label("develop.name")
-        XCTAssertNotEqual(applied, "Original")
+        XCTAssertEqual(label("develop.name"), "Original")
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "opening is not an edit")
+        let thumbnail = presetThumbnail(1)
+        XCTAssertTrue(thumbnail.waitForExistence(timeout: timeout))
+        let applied = thumbnail.label
+        thumbnail.tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == applied })
+        XCTAssertTrue(thumbnail.isSelected, "the tapped tile is the selected one")
         XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
         app.buttons["editor.undo"].tap()
-        // Stop zero reads Auto now that Core Image Auto is applied at open.
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Auto" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Original" })
         XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Exactly one step")
         app.buttons["editor.redo"].tap()
         XCTAssertTrue(waitFor { self.label("develop.name") == applied })
         capture(named: "s2-02-preset")
     }
 
-    func testBrowsingAnotherCategoryKeepsTheLookAndShowsTheContextLine() {
+    /// Browsing another collection never changes the applied preset (mockup `developState`): the heading names the
+    /// browsed collection's first preset, the applied preset's collection keeps its dot ("Edited"), Reset stays and no
+    /// undo step is made. Tapping the applied preset's collection again names it and shows its tile selected.
+    /// Lightly 2 (owner 2026-10-10) has no ruler position or "Applied from …" context line, and the curated pack
+    /// (e74dc03) has no Landscape collection: dev-preset applies Daylight 37, "Open Aqua".
+    func testBrowsingAnotherCategoryKeepsTheLook() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Quiet Honey Daylight" })
-        element("develop.category.cinematic").tap()
-        XCTAssertTrue(waitFor { self.label("develop.context") == "Applied from Landscape" })
-        XCTAssertEqual(label("develop.position"), "37 / 518", "The applied preset's position, beside its name")
-        XCTAssertEqual(label("develop.name"), "Quiet Honey Daylight", "The applied preset, not 'Original'")
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Open Aqua" })
+        // Open Aqua is Daylight's 37th tile, past the lazily built start of the sideways gallery, so its tile is not in
+        // the accessibility tree; the heading, the collection dot and Reset carry the applied state instead.
+        XCTAssertTrue(element("develop.clear").exists)
+        tapInScrollingRow("develop.category.cinema")
+        XCTAssertTrue(waitFor { self.element("develop.category.cinema").isSelected })
+        let firstCinema = presetThumbnail(0)
+        XCTAssertTrue(firstCinema.waitForExistence(timeout: timeout))
+        XCTAssertTrue(waitFor { self.label("develop.name") == firstCinema.label }, "the heading names the browsed collection's first preset")
+        XCTAssertEqual(element("develop.category.daylight").value as? String, "Edited", "the dot stays on the applied preset's collection")
+        XCTAssertTrue(element("develop.clear").exists, "the applied preset stays (Reset is offered)")
         XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "Browsing made no undo step")
-        // Landscape is scrolled out of sight to the left: swipe the row back, then choose it.
-        let landscape = element("develop.category.landscape")
-        for _ in 0..<3 where !landscape.isHittable {
-            let start = element("develop.category.cinematic").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 200, dy: 0)))
-        }
-        landscape.tap()
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Quiet Honey Daylight" })
-        XCTAssertEqual(label("develop.position"), "37 / 518")
+        tapInScrollingRow("develop.category.daylight")
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Open Aqua" }, "back on its collection the heading names the applied preset")
+        XCTAssertTrue(element("develop.star").isEnabled, "the star refers to the applied preset")
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled)
     }
 
-    func testAmountOpensTheSliderWithDone() {
+    /// Lightly 2 (mockup `developPanel` › `slider('Amount')`): Amount is a slider under the gallery, no longer a button
+    /// that swaps the ruler for a slider with Done. Moving it changes the applied preset's amount as one undo step.
+    func testAmountSliderAdjustsTheAppliedPresetAsOneStep() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.element("develop.amount").label == "Amount 100" })
-        element("develop.amount").tap()
-        XCTAssertTrue(element("slider.amount").waitForExistence(timeout: timeout))
-        // Drag the knob from the track's end towards its start, as a finger does.
-        let slider = element("slider.amount")
-        slider.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
-            .press(forDuration: 0.05, thenDragTo: slider.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.5)))
-        element("develop.amount.done").tap()
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
-        XCTAssertNotEqual(element("develop.amount").label, "Amount 100")
+        let amount = element("slider.amount")
+        XCTAssertTrue(amount.waitForExistence(timeout: timeout))
+        XCTAssertTrue(waitFor { amount.value as? String == "100" }, "a preset applies at 100: \(amount.value ?? "nil")")
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled)
+        setSlider(amount, to: 0.4)
+        XCTAssertTrue(waitFor { (Int(amount.value as? String ?? "") ?? 100) < 60 }, "Amount moved: \(amount.value ?? "nil")")
+        XCTAssertEqual(label("develop.name"), "Open Aqua", "the same preset, at a lower amount")
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(waitFor { amount.value as? String == "100" })
+        XCTAssertFalse(app.buttons["editor.undo"].isEnabled, "one step")
     }
 
+    /// Favourites update at once (AGENTS.md): the starred preset appears in Favourites without a relaunch; removing it
+    /// takes its tile out of Favourites immediately and keeps the applied edit (Reset stays, Daylight keeps its dot).
     func testFavouriteRemovalRefreshesWithoutRelaunch() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Quiet Honey Daylight" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Open Aqua" })
         element("develop.star").tap()
-        element("develop.category.favourites").tap()
-        XCTAssertTrue(waitFor { self.label("develop.position") == "1 / 1" })
+        XCTAssertTrue(waitFor { self.element("develop.star").isSelected })
+        tapInScrollingRow("develop.category.favourites")
+        let favourite = presetThumbnail(0)
+        XCTAssertTrue(favourite.waitForExistence(timeout: timeout), "the starred preset is in Favourites at once")
+        XCTAssertEqual(favourite.label, "Open Aqua")
+        XCTAssertTrue(favourite.isSelected, "as the applied preset")
+        let applied = favourite.identifier
+        XCTAssertEqual(label("develop.name"), "Open Aqua")
         element("develop.star").tap()
-        XCTAssertTrue(waitFor { !self.element("develop.star").isSelected })
-        XCTAssertFalse(element("develop.position").exists, "Removed preset is not still on the favourites ruler")
-        XCTAssertEqual(label("develop.name"), "Quiet Honey Daylight", "Removing the shortcut keeps the applied edit")
-        element("develop.category.landscape").tap()
-        element("develop.category.favourites").tap()
-        XCTAssertFalse(element("develop.position").exists)
+        XCTAssertTrue(waitFor { !self.app.buttons[applied].exists }, "Removed preset is not still in the Favourites gallery")
+        XCTAssertTrue(element("develop.clear").exists, "Removing the shortcut keeps the applied edit")
+        XCTAssertEqual(element("develop.category.daylight").value as? String, "Edited")
+        tapInScrollingRow("develop.category.daylight")
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Open Aqua" })
+        XCTAssertFalse(element("develop.star").isSelected)
+        tapInScrollingRow("develop.category.favourites")
+        XCTAssertTrue(waitFor { self.element("develop.category.favourites").isSelected })
+        XCTAssertFalse(app.buttons[applied].exists)
     }
 
+    /// No person in the photo: the Portrait collection is hidden and never the starting collection (AGENTS.md). The
+    /// curated pack (e74dc03, owner 2026-10-11) has no Landscape collection; with no favourites it opens on Essentials.
     func testLandscapeHidesPortraitCategory() {
         openEditor("landscape_03")
+        let essentials = element("develop.category.essentials")
+        XCTAssertTrue(essentials.waitForExistence(timeout: timeout))
+        XCTAssertTrue(essentials.isSelected, "starts on Essentials")
         XCTAssertFalse(element("develop.category.portrait").exists)
-        XCTAssertTrue(element("develop.category.landscape").exists)
+        XCTAssertFalse(element("tool.portrait").exists, "and the Portrait tool is hidden too")
     }
 
     func testFavouritesStarFullNoticeAndReplace() {
@@ -458,13 +516,13 @@ final class EditorFlowUITests: XCTestCase {
 
     func testSaveCopyShowsSavingThenSavedAndKeepEditing() {
         openEditor(extra: ["--scenario", "dev-preset"])
-        XCTAssertTrue(waitFor { self.label("develop.name") == "Quiet Honey Daylight" })
+        XCTAssertTrue(waitFor { self.label("develop.name") == "Open Aqua" })
         app.buttons["editor.saveCopy"].tap()
         XCTAssertTrue(element("saved.keepEditing").waitForExistence(timeout: 60))
         XCTAssertTrue(app.staticTexts["Saved as a new photo"].exists)
         XCTAssertTrue(app.staticTexts["The original is unchanged."].exists)
         element("saved.keepEditing").tap()
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout))
+        XCTAssertTrue(element("develop.gallery.compact").waitForExistence(timeout: timeout))
         // Saved: Close needs no confirmation.
         app.buttons["editor.close"].tap()
         XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
@@ -481,7 +539,8 @@ final class EditorFlowUITests: XCTestCase {
     }
 
     /// One interaction pass over the owner's 2026-10-05 feedback, as a person does it, with screenshots
-    /// (LIGHTLY_VERIFY_DIR): open a photo, apply a Landscape preset, browse Portrait, open Background, crop freely
+    /// (LIGHTLY_VERIFY_DIR): open a photo, apply a Daylight preset (no Landscape collection since the curated pack,
+    /// e74dc03), browse Portrait, open Background, crop freely
     /// (a corner, then moving the rectangle), Save copy through the real Photos writer. The runner checks the saved
     /// file and the unchanged original.
     func testOwnerFeedbackInteractionPass() {
@@ -489,16 +548,20 @@ final class EditorFlowUITests: XCTestCase {
         relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02"), "--subject-matte-fixture", mattes])
         XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         saveScreenshot("pass-1-opened")
-        element("develop.category.landscape").tap()
-        dragRuler(by: 5)
-        XCTAssertTrue(waitFor { self.label("develop.name") != "Original" })
-        let applied = label("develop.name")
-        saveScreenshot("pass-2-landscape-applied")
-        element("develop.category.portrait").tap()
-        XCTAssertTrue(waitFor { self.label("develop.context").hasPrefix("Applied from Landscape") })  // "· N / M" since ab0a18b (owner amendment)
-        XCTAssertEqual(label("develop.name"), applied, "browsing keeps naming the applied preset")
+        tapInScrollingRow("develop.category.daylight")
+        let thumbnail = presetThumbnail(4)
+        XCTAssertTrue(thumbnail.waitForExistence(timeout: timeout))
+        let applied = thumbnail.label
+        thumbnail.tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == applied })
+        saveScreenshot("pass-2-daylight-applied")
+        // Browsing Portrait keeps the Daylight preset applied (Lightly 2: its collection keeps the dot, Reset stays).
+        tapInScrollingRow("develop.category.portrait")
+        XCTAssertTrue(waitFor { self.element("develop.category.portrait").isSelected })
+        XCTAssertEqual(element("develop.category.daylight").value as? String, "Edited", "browsing keeps the applied preset")
+        XCTAssertTrue(element("develop.clear").exists)
         saveScreenshot("pass-3-browsing-portrait")
-        element("tool.background").tap()
+        tapInScrollingRow("tool.background")
         XCTAssertTrue(waitFor(timeout: 60) { !self.element("background.separating").exists })
         saveScreenshot("pass-4-background")
         element("tool.edit").tap()
@@ -514,64 +577,57 @@ final class EditorFlowUITests: XCTestCase {
             .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)))
         sleep(2)
         saveScreenshot("pass-7-moved")
+        // The approved crop flow (owner 2026-10-11): the moved frame is a draft until ✓ Apply crop.
+        let apply = app.buttons["edit.crop.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: timeout))
+        apply.tap()
+        XCTAssertTrue(waitFor { !apply.exists })
         app.buttons["editor.saveCopy"].tap()
         XCTAssertTrue(app.staticTexts["Saved as a new photo"].waitForExistence(timeout: 120), "no Saved sheet")
         saveScreenshot("pass-8-saved")
     }
 
-    /// Owner check 2026-10-05: browsing Portrait while a Landscape preset is applied, then cancelling, committing,
-    /// Undo and Redo. The name row, position, context line and ruler each describe their own state at every step.
-    /// Screenshots to LIGHTLY_VERIFY_DIR.
-    func testRulerHeaderStaysCoherentWhileBrowsing() {
+    /// Owner check 2026-10-05, in the Lightly 2 gallery (owner 2026-10-10; no ruler, position or context line any
+    /// more): the heading, the collection dots and the selected tile each describe their own state while browsing,
+    /// applying from another collection, Undo and Redo. Screenshots to LIGHTLY_VERIFY_DIR.
+    func testHeadingStaysCoherentWhileBrowsing() {
         relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("landscape_02")])
         XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
-        // An empty Text is not in the accessibility tree: absent reads as "".
-        func text(_ id: String) -> String { element(id).exists ? label(id) : "" }
-        element("develop.category.landscape").tap()
-        dragRuler(by: 5)
-        XCTAssertTrue(waitFor { self.label("develop.name") != "Original" })
-        let applied = label("develop.name")
-        let appliedPosition = text("develop.position")
-        XCTAssertFalse(appliedPosition.isEmpty)
-        saveScreenshot("ruler-1-landscape-applied")
+        tapInScrollingRow("develop.category.daylight")
+        let daylightTile = presetThumbnail(4)
+        XCTAssertTrue(daylightTile.waitForExistence(timeout: timeout))
+        let applied = daylightTile.label, appliedID = daylightTile.identifier
+        daylightTile.tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == applied })
+        saveScreenshot("heading-1-daylight-applied")
 
-        element("develop.category.portrait").tap()
-        XCTAssertTrue(waitFor { text("develop.context").hasPrefix("Applied from Landscape · ") })
-        XCTAssertEqual(label("develop.name"), applied)
-        XCTAssertEqual(text("develop.context"), "Applied from Landscape · \(appliedPosition)")
-        XCTAssertEqual(text("develop.position"), "", "no position beside the Landscape name while the Portrait ruler shows")
-        saveScreenshot("ruler-2-browsing-portrait")
+        tapInScrollingRow("develop.category.golden-hour")
+        XCTAssertTrue(waitFor { self.element("develop.category.golden-hour").isSelected })
+        XCTAssertTrue(waitFor { self.label("develop.name") == self.presetThumbnail(0).label }, "browsing names its first preset")
+        XCTAssertEqual(element("develop.category.daylight").value as? String, "Edited")
+        XCTAssertNotEqual(element("develop.category.golden-hour").value as? String, "Edited")
+        XCTAssertTrue(element("develop.clear").exists, "the Daylight preset stays applied")
+        saveScreenshot("heading-2-browsing-golden-hour")
 
-        // A drag on the resting Portrait ruler that ends where it started (pulled the other way, held at stop 0) is a
-        // cancel; before the fix it committed "no Look" and dropped the Landscape preset.
-        let ruler = element("develop.ruler")
-        let centre = ruler.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        centre.press(forDuration: 0.05, thenDragTo: centre.withOffset(CGVector(dx: 60, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.3)
-        sleep(1)
-        XCTAssertEqual(label("develop.name"), applied, "the Landscape preset stays applied")
-        XCTAssertTrue(text("develop.context").hasPrefix("Applied from Landscape"))
-        saveScreenshot("ruler-3-after-touch-cancel")
-
-        dragRuler(by: 2)
-        XCTAssertTrue(waitFor { self.label("develop.name") != applied })
-        let portrait = label("develop.name")
-        XCTAssertEqual(text("develop.context"), "")
-        let portraitPosition = text("develop.position")
-        XCTAssertTrue(portraitPosition.range(of: #"^[1-9]\d* / \d+$"#, options: .regularExpression) != nil, portraitPosition)
-        XCTAssertNotEqual(portraitPosition, appliedPosition, "this ruler's position, not Landscape's")
-        saveScreenshot("ruler-4-portrait-applied")
+        let goldenTile = presetThumbnail(2)
+        let golden = goldenTile.label
+        goldenTile.tap()
+        XCTAssertTrue(waitFor { self.label("develop.name") == golden })
+        XCTAssertNotEqual(golden, applied)
+        XCTAssertEqual(element("develop.category.golden-hour").value as? String, "Edited")
+        XCTAssertNotEqual(element("develop.category.daylight").value as? String, "Edited")
+        saveScreenshot("heading-3-golden-hour-applied")
 
         app.buttons["editor.undo"].tap()
         XCTAssertTrue(waitFor { self.label("develop.name") == applied })
-        XCTAssertEqual(text("develop.position"), appliedPosition, "after Undo the Landscape ruler and position are back")
-        XCTAssertEqual(text("develop.context"), "")
-        saveScreenshot("ruler-5-after-undo")
+        XCTAssertTrue(waitFor { self.element("develop.category.daylight").isSelected }, "Undo returns to the applied preset's collection")
+        XCTAssertTrue(waitFor { self.app.buttons[appliedID].isSelected })
+        saveScreenshot("heading-4-after-undo")
 
         app.buttons["editor.redo"].tap()
-        XCTAssertTrue(waitFor { self.label("develop.name") == portrait })
-        XCTAssertEqual(text("develop.context"), "")
-        XCTAssertEqual(text("develop.position"), portraitPosition)
-        saveScreenshot("ruler-6-after-redo")
+        XCTAssertTrue(waitFor { self.label("develop.name") == golden })
+        XCTAssertTrue(waitFor { self.element("develop.category.golden-hour").isSelected })
+        saveScreenshot("heading-5-after-redo")
     }
 
     /// Owner check 2026-10-05: every corner and edge, moving, a locked ratio then Free, and cropping after a rotation and
@@ -641,12 +697,12 @@ final class EditorFlowUITests: XCTestCase {
         // No aspect presets (owner, 2026-10-11): free crop only.
 
         // Rotate and straighten, then crop.
-        element("edit.sub.Rotate").tap()
+        tapInScrollingRow("edit.sub.Rotate")
         element("edit.rotateRight").tap()
-        element("edit.sub.Straighten").tap()
+        tapInScrollingRow("edit.sub.Straighten")
         let angle = app.sliders["slider.angle"]
         if angle.waitForExistence(timeout: 5) { angle.adjust(toNormalizedSliderPosition: 0.43) }
-        element("edit.sub.Crop").tap()
+        tapInScrollingRow("edit.sub.Crop")
         sleep(2)
         saveScreenshot("crop-after-rotate-straighten")
         before = sides(crop())
@@ -654,7 +710,7 @@ final class EditorFlowUITests: XCTestCase {
         after = sides(crop())
         XCTAssertEqual(changed(before, after), [true, true, false, false], "top-left after rotation: \(before) → \(after)")
         saveScreenshot("crop-after-rotate-straighten-cropped")
-        element("edit.sub.Rotate").tap()
+        tapInScrollingRow("edit.sub.Rotate")
         sleep(2)
         saveScreenshot("crop-result-shown")
     }
@@ -712,7 +768,7 @@ final class EditorFlowUITests: XCTestCase {
         saveScreenshot("cancel-2-panel")
 
         element("tool.develop").tap()
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: timeout), "navigation works")
+        XCTAssertTrue(element("develop.gallery.compact").waitForExistence(timeout: timeout), "navigation works")
         element("tool.background").tap()
         sleep(2)
         XCTAssertFalse(element("background.cancel").exists, "reopening does not restart the cancelled analysis")
@@ -738,18 +794,19 @@ final class EditorFlowUITests: XCTestCase {
                              "--open-photo", photoPath("landscape_02")])
         XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         element("tool.edit").tap()
-        element("edit.sub.Straighten").tap()
+        tapInScrollingRow("edit.sub.Straighten")
         let angle = element("slider.angle")
         XCTAssertTrue(angle.waitForExistence(timeout: timeout))
-        // The track runs between the label ("Angle", 18 pt inset + ~45 pt + 12 pt) and the value (12 + 36 + 18 pt).
+        // Lightly 2 slider row (L2Slider): the track runs between the 92 pt label column + 12 pt gap and the 12 pt gap +
+        // 34 pt value.
         let row = angle.frame
-        let trackStart = 75.0, trackEnd = row.width - 66
+        let trackStart = 104.0, trackEnd = row.width - 46
         let centre = angle.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: (trackStart + trackEnd) / 2, dy: row.height / 2))
         centre.press(forDuration: 0.1, thenDragTo: centre.withOffset(CGVector(dx: (trackEnd - trackStart) * 0.1, dy: 0)))
         let degrees = Int(angle.value as? String ?? "") ?? 0
         XCTAssertTrue((5...15).contains(degrees), "Straighten moved: \(String(describing: angle.value))")
         saveScreenshot("straighten-1-angle")
-        element("edit.sub.Crop").tap()
+        tapInScrollingRow("edit.sub.Crop")
         let photo = element("editor.photo")
         func drag(_ from: CGVector, _ to: CGVector) {
             photo.coordinate(withNormalizedOffset: from)
@@ -758,11 +815,17 @@ final class EditorFlowUITests: XCTestCase {
         }
         drag(CGVector(dx: 0.01, dy: 0.01), CGVector(dx: 0.25, dy: 0.1))
         drag(CGVector(dx: 0.99, dy: 0.99), CGVector(dx: 0.85, dy: 0.7))
+        saveScreenshot("straighten-2-cropping")
+        // The approved crop flow (owner 2026-10-11, docs/ui/proposals/crop-flow.html): a dragged frame is a draft
+        // until ✓ Apply crop; applying commits it, and cropping from Original makes the aspect Free.
+        let apply = app.buttons["edit.crop.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: timeout))
+        apply.tap()
+        XCTAssertTrue(waitFor { !apply.exists })
         let crop = element("edit.cropRect").value as? String ?? ""
         XCTAssertTrue(crop.hasPrefix("free "), crop)
-        saveScreenshot("straighten-2-cropping")
         // A sub-tool without marks shows the cropped result as it will be saved.
-        element("edit.sub.Rotate").tap()
+        tapInScrollingRow("edit.sub.Rotate")
         sleep(2)
         saveScreenshot("straighten-3-preview")
         if let directory = ProcessInfo.processInfo.environment["LIGHTLY_VERIFY_DIR"] {
@@ -778,22 +841,31 @@ final class EditorFlowUITests: XCTestCase {
 
     func testClosingWithUnsavedEditsAsks() {
         openEditor()
-        dragRuler(by: 3)
+        // Lightly 2: a preset is applied from the gallery (the ruler is gone).
+        XCTAssertTrue(presetThumbnail(2).waitForExistence(timeout: timeout))
+        presetThumbnail(2).tap()
         XCTAssertTrue(waitFor { self.label("develop.name") != "Original" })
+        // Lightly 2 draws its own alert (mockup `alert`, L2Alert), not a system alert, so it is found by its identifiers.
         app.buttons["editor.close"].tap()
-        XCTAssertTrue(app.alerts["Leave without saving?"].waitForExistence(timeout: timeout))
-        app.alerts.buttons["Keep editing"].tap()
-        XCTAssertTrue(element("develop.ruler").exists)
+        XCTAssertTrue(element("leave.keep").waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.staticTexts["Leave without saving?"].exists)
+        element("leave.keep").tap()
+        XCTAssertTrue(waitFor { !self.element("leave.keep").exists })
+        XCTAssertTrue(element("develop.gallery.compact").exists)
         app.buttons["editor.close"].tap()
-        app.alerts.buttons["Discard edits"].tap()
+        XCTAssertTrue(element("leave.discard").waitForExistence(timeout: timeout))
+        element("leave.discard").tap()
         XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: timeout))
     }
 
     func testPortraitIsOfferedOnlyForAPhotoWithAPerson() {
         openEditor("landscape_02")
         XCTAssertFalse(element("tool.portrait").exists, "No person: Portrait hidden")
+        XCTAssertFalse(element("develop.category.portrait").exists, "No person: Portrait collection hidden")
         openEditor("portrait_deep_03")
         XCTAssertTrue(element("tool.portrait").waitForExistence(timeout: timeout), "A person: Portrait offered")
+        // The Portrait preset collection follows the same rule, checked separately from the tool (AGENTS.md).
+        XCTAssertTrue(element("develop.category.portrait").waitForExistence(timeout: timeout), "A person: Portrait collection offered")
     }
 
     /// Restore after the system ends the app: an edit, the app in the background, the process
@@ -801,10 +873,13 @@ final class EditorFlowUITests: XCTestCase {
     /// Screenshots go to `LIGHTLY_VERIFY_DIR` when set (focused verification).
     func testTheSessionComesBackAfterTheSystemEndsTheApp() {
         openEditor()
-        element("tool.effects").tap()
-        element("effects.sub.Vignette").tap()
-        element("effects.vignette.toggle").tap()
-        XCTAssertEqual(element("tool.effects").value as? String, "Edited")
+        // Lightly 2 Effects have no On/Off switches: moving a slider turns the effect on (EffectsPanel).
+        tapInScrollingRow("tool.effects")
+        tapInScrollingRow("effects.sub.Vignette")
+        let vignetteAmount = element("slider.amount")
+        XCTAssertTrue(vignetteAmount.waitForExistence(timeout: timeout))
+        setSlider(vignetteAmount, to: 0.6)
+        XCTAssertTrue(waitFor { self.element("tool.effects").value as? String == "Edited" })
         saveScreenshot("restore-1-before")
         XCUIDevice.shared.press(.home)
         // The system saves scene state as the app enters the background; give it time before the kill.
@@ -812,7 +887,7 @@ final class EditorFlowUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 3)
         relaunch(arguments: [])
         // A cold launch loads the preset pack before the editor is ready (slow under a full suite).
-        XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: 60), "the editor reopens")
+        XCTAssertTrue(element("tool.effects").waitForExistence(timeout: 60), "the editor reopens")
         XCTAssertEqual(element("tool.effects").value as? String, "Edited", "with the same edit")
         XCTAssertTrue(app.buttons["editor.undo"].isEnabled, "and its history")
         saveScreenshot("restore-2-after-relaunch")
@@ -847,27 +922,29 @@ final class EditorFlowUITests: XCTestCase {
         XCTAssertNotEqual(element("tool.watermark").value as? String, "Edited")
     }
 
-    /// Edit and Effects in the same session as Develop: an effect switched on marks Effects
-    /// ("used" dot), a crop aspect marks Edit, and Undo walks back whole recipes, one step each.
+    /// Edit and Effects in the same session as Develop: a vignette marks Effects ("Edited"), a quarter turn marks Edit,
+    /// and Undo walks back whole recipes, one step each. Lightly 2 changes: no effect On/Off switches (moving a slider
+    /// turns the effect on) and no crop aspect chips (free crop only, owner 2026-10-11), so the Edit step is Rotate right.
     func testEditAndEffectsShareTheSessionAndUndoStepByStep() {
         openEditor()
-        element("tool.effects").tap()
-        XCTAssertTrue(element("effects.leak.toggle").waitForExistence(timeout: timeout))
-        element("effects.sub.Vignette").tap()
-        element("effects.vignette.toggle").tap()
-        XCTAssertEqual(element("tool.effects").value as? String, "Edited")
-        element("tool.edit").tap()
-        XCTAssertTrue(element("edit.aspect.1:1").waitForExistence(timeout: timeout))
-        element("edit.aspect.1:1").tap()
-        XCTAssertEqual(element("tool.edit").value as? String, "Edited")
-        XCTAssertTrue(element("edit.aspect.1:1").isSelected)
+        tapInScrollingRow("tool.effects")
+        tapInScrollingRow("effects.sub.Vignette")
+        let vignetteAmount = element("slider.amount")
+        XCTAssertTrue(vignetteAmount.waitForExistence(timeout: timeout))
+        setSlider(vignetteAmount, to: 0.6)
+        XCTAssertTrue(waitFor { self.element("tool.effects").value as? String == "Edited" })
+        tapInScrollingRow("tool.edit")
+        tapInScrollingRow("edit.sub.Rotate")
+        XCTAssertTrue(element("edit.rotateRight").waitForExistence(timeout: timeout))
+        element("edit.rotateRight").tap()
+        XCTAssertTrue(waitFor { self.element("tool.edit").value as? String == "Edited" })
         element("editor.undo").tap()
-        XCTAssertFalse(element("edit.aspect.1:1").isSelected, "Undo removes the crop")
+        XCTAssertTrue(waitFor { self.element("tool.edit").value as? String != "Edited" }, "Undo removes the turn")
         XCTAssertEqual(element("tool.effects").value as? String, "Edited", "…and keeps the earlier vignette")
         element("editor.undo").tap()
-        XCTAssertNotEqual(element("tool.effects").value as? String, "Edited")
+        XCTAssertTrue(waitFor { self.element("tool.effects").value as? String != "Edited" })
         element("editor.redo").tap()
-        XCTAssertEqual(element("tool.effects").value as? String, "Edited")
+        XCTAssertTrue(waitFor { self.element("tool.effects").value as? String == "Edited" })
     }
 
     func testFailedAutoOffersRetryAndContinueWithOriginal() {
