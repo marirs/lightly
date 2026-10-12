@@ -59,9 +59,17 @@ fi
 mkdir -p "$destination"
 # Compiling 103 MB takes a while; reuse the compiled copy when the weights have not changed.
 cache="${TARGET_TEMP_DIR:-${TMPDIR:-/tmp}}/remove-model-${expected}"
-if [ ! -d "${cache}/${name}.mlmodelc" ]; then
+# The cache must hold a whole compiled model, not just its folders: macOS's periodic /tmp cleanup can delete the
+# files and leave the directories, and reusing that shipped a Remove that failed every stroke (2026-10-12).
+compiled="${cache}/${name}.mlmodelc"
+if [ ! -s "${compiled}/coremldata.bin" ] || [ ! -s "${compiled}/model.mil" ] || [ -z "$(find "${compiled}/weights" -type f -size +1M 2>/dev/null)" ]; then
+    rm -rf "$cache"
     mkdir -p "$cache"
     xcrun coremlcompiler compile "$package" "$cache" >/dev/null
 fi
 cp -R "${cache}/${name}.mlmodelc" "${destination}/"
+if [ ! -s "${destination}/${name}.mlmodelc/coremldata.bin" ]; then
+    echo "error: the bundled ${name}.mlmodelc is incomplete; Remove would fail every stroke."
+    exit 1
+fi
 echo "Bundled ${name}.mlmodelc (weights ${expected})"
