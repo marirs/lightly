@@ -2051,7 +2051,7 @@ class EditorViewModel(
                 // full-resolution source region as iOS LayeredStages does.
                 val (ww, wh) = com.lightlylabs.lightly.background.BackgroundStage.workingSize(frame.width, frame.height, exportCap)
                 val developed = renderer.render(BackgroundSession.resize(frame, ww, wh), plan.withoutFinishing())
-                val adjusted = com.lightlylabs.lightly.develop.AdjustStage.plan(EditMapping.adjust(committed), library.model)?.let { renderer.render(developed, it) } ?: developed
+                val adjusted = com.lightlylabs.lightly.develop.EditAdjustmentsStage.plan(EditMapping.adjust(committed), library.model)?.let { renderer.render(developed, it) } ?: developed
                 val working = backgroundSession.working(adjusted, bp, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_EXPORT, committed.tools.background, exportCap)
                 val compose: (ByteArray, PixelRect, Int, Int) -> ByteArray = { pixels, region, fw, fh ->
                     com.lightlylabs.lightly.background.BackgroundStage.applyRegion(pixels, region.x, region.y, region.width, region.height, fw, fh, working, replacementFull)
@@ -2064,7 +2064,7 @@ class EditorViewModel(
         val portrait = committed.tools.portrait.takeIf(portraitSession::isActive)
         val composed: ((com.lightlylabs.lightly.render.image.FrameSource) -> ((ByteArray, PixelRect, Int, Int) -> ByteArray)?)? = if (portrait == null) background else { frame: com.lightlylabs.lightly.render.image.FrameSource ->
             val backgroundCompose = background?.invoke(frame)
-            val adjustPlan = com.lightlylabs.lightly.develop.AdjustStage.plan(EditMapping.adjust(committed), library.model)
+            val adjustPlan = com.lightlylabs.lightly.develop.EditAdjustmentsStage.plan(EditMapping.adjust(committed), library.model)
             val faces = portraitSession.exportPatches(portrait, frame.width, frame.height) { region ->
                 val developed = renderer.renderTile(frame, region, plan.withoutFinishing(), null)
                 val adjusted = adjustPlan?.let { renderer.render(developed, it) } ?: developed

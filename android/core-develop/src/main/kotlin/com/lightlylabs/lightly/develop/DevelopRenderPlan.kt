@@ -41,8 +41,8 @@ class DevelopRenderPlan private constructor(
 
         /**
          * Stage 5, `edit.adjust`, as a second Develop pass over the developed pixels: [colourLut] is the
-         * Adjust colour bake ([AdjustStage.colourRecipe]), [detail] the Adjust Detail operators
-         * ([AdjustStage.detailSpatial]); neither is scaled by the Look's Amount.
+         * Adjust colour bake ([EditAdjustmentsStage.colourRecipe]), [detail] the Adjust Detail operators
+         * ([EditAdjustmentsStage.detailSpatial]); neither is scaled by the Look's Amount.
          */
         fun adjust(model: DevelopModel, colourLut: Lut3D?, detail: SpatialRecipe) = DevelopRenderPlan(model, null, colourLut, detail, FinishingRecipe.NEUTRAL)
 

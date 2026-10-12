@@ -1,7 +1,7 @@
 package com.lightlylabs.lightly.editor
 
 import com.lightlylabs.lightly.develop.AdjustParams
-import com.lightlylabs.lightly.develop.AdjustStage
+import com.lightlylabs.lightly.develop.EditAdjustmentsStage
 import com.lightlylabs.lightly.develop.BorderParams
 import com.lightlylabs.lightly.develop.BorderStage
 import com.lightlylabs.lightly.develop.DevelopModel
@@ -146,7 +146,7 @@ class EditPipeline(
     private fun frameBeforeEffects(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
         val withoutFinishing = developPlan.withoutFinishing()
         var image = if (withoutFinishing.isIdentity) source else renderer.render(source, withoutFinishing)
-        AdjustStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)?.let { image = renderer.render(image, it) }
+        EditAdjustmentsStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)?.let { image = renderer.render(image, it) }
         background?.let { image = it(image) }
         return GeometryTransform(EditMapping.geometry(state), image.width, image.height).render(image)
     }
@@ -167,7 +167,7 @@ class EditPipeline(
         val frame: FrameSource = if (patches.isEmpty()) decoded else RemoveEngine.PatchedFrameSource(decoded, patches)
         val plan = developPlan.withoutFinishing()
         val base = renderer.clarityBase(frame, plan)
-        val adjustPlan = AdjustStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)
+        val adjustPlan = EditAdjustmentsStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)
         val adjustBase = adjustPlan?.let { adjustClarityBase(frame, plan, it) }
         val adjustApron = adjustPlan?.let { renderer.apron(it, frame.width, frame.height) } ?: 0
         val compose = background?.invoke(frame)

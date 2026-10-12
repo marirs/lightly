@@ -110,22 +110,22 @@ class EditStagesTest {
     @Test
     fun `Adjust maps onto the Develop model as the contract says`() {
         val a = AdjustParams(exposure = 12.0, contrast = 10.0, highlights = -20.0, shadows = 25.0, temp = 15.0, tint = -4.0, vibrance = 12.0, sharpness = 30.0, clarity = 15.0, noise = 20.0)
-        val g = AdjustStage.colourRecipe(a)
+        val g = EditAdjustmentsStage.colourRecipe(a)
         assertEquals(0.24, g.exposureEv, 1e-12)
         assertEquals(-20.0, g.toneSliders!!.highlights)
         assertEquals(15.0, g.whiteBalance!!.temperature)
         assertEquals(12.0, g.vibranceSaturation!!.vibrance)
-        val d = AdjustStage.detailSpatial(a)
+        val d = EditAdjustmentsStage.detailSpatial(a)
         assertEquals(20.0, d.noiseReduction!!.luminance); assertEquals(20.0, d.noiseReduction!!.color)
         assertEquals(15.0, d.clarity)
         assertEquals(30.0, d.sharpening!!.amount); assertEquals(1.0, d.sharpening!!.radius); assertEquals(25.0, d.sharpening!!.detail); assertEquals(0.0, d.sharpening!!.edgeMasking)
-        assertEquals(null, AdjustStage.plan(AdjustParams(), model))
+        assertEquals(null, EditAdjustmentsStage.plan(AdjustParams(), model))
     }
 
     @Test
     fun `positive exposure brightens`() {
         val source = image(16, 16)
-        val plan = AdjustStage.plan(AdjustParams(exposure = 50.0), model)!!
+        val plan = EditAdjustmentsStage.plan(AdjustParams(exposure = 50.0), model)!!
         val out = DevelopRenderer().render(source, plan)
         assertTrue(out.pixels.indices.filter { it % 4 != 3 }.sumOf { out.pixels[it].toInt() and 0xff } > source.pixels.indices.filter { it % 4 != 3 }.sumOf { source.pixels[it].toInt() and 0xff })
     }
@@ -134,7 +134,7 @@ class EditStagesTest {
     fun `the Adjust pass over a region view equals the whole-frame pass`() {
         val source = image(80, 60)
         val renderer = DevelopRenderer()
-        val plan = AdjustStage.plan(AdjustParams(sharpness = 60.0, noise = 40.0, contrast = 20.0), model)!!
+        val plan = EditAdjustmentsStage.plan(AdjustParams(sharpness = 60.0, noise = 40.0, contrast = 20.0), model)!!
         val whole = renderer.render(source, plan)
         val tile = PixelRect(20, 15, 30, 25)
         val apron = renderer.apron(plan, 80, 60)

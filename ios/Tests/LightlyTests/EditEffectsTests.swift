@@ -97,18 +97,18 @@ final class EditEffectsStageTests: XCTestCase {
     func testAdjustMapsOntoTheDevelopModelAsTheContractStates() throws {
         var a = neutral().edit.adjust
         a.exposure = 50; a.contrast = 10; a.temp = 15; a.tint = -4; a.vibrance = 12; a.sharpness = 30; a.clarity = 15; a.noise = 20
-        let global = AdjustStage.colourRecipe(a)
+        let global = EditAdjustmentsStage.colourRecipe(a)
         XCTAssertEqual(global.exposureEV, 1)
         XCTAssertEqual(global.toneSliders?.contrast, 10)
         XCTAssertEqual(global.whiteBalance, .init(temperature: 15, tint: -4))
         XCTAssertEqual(global.vibranceSaturation, .init(vibrance: 12, saturation: 0))
-        let spatial = AdjustStage.detailSpatial(a)
+        let spatial = EditAdjustmentsStage.detailSpatial(a)
         XCTAssertEqual(spatial.sharpening, .init(amount: 30, radius: 1.0, detail: 25, edgeMasking: 0))
         XCTAssertEqual(spatial.clarity, 15)
         XCTAssertEqual(spatial.noiseReduction?.luminance, 20); XCTAssertEqual(spatial.noiseReduction?.color, 20)
-        XCTAssertNil(AdjustStage.colourLUT(neutral().edit.adjust, model: try EditorTestSupport.model()))
+        XCTAssertNil(EditAdjustmentsStage.colourLUT(neutral().edit.adjust, model: try EditorTestSupport.model()))
         // +1 EV brightens mid-grey.
-        let lut = try XCTUnwrap(AdjustStage.colourLUT(.init(exposure: 50, contrast: 0, highlights: 0, shadows: 0, temp: 0, tint: 0,
+        let lut = try XCTUnwrap(EditAdjustmentsStage.colourLUT(.init(exposure: 50, contrast: 0, highlights: 0, shadows: 0, temp: 0, tint: 0,
                                                             saturation: 0, vibrance: 0, sharpness: 0, clarity: 0, noise: 0),
                                                       model: try EditorTestSupport.model()))
         XCTAssertGreaterThan(DevelopFrameRenderer.lookup(lut, SIMD3(0.4, 0.4, 0.4)).x, 0.5)

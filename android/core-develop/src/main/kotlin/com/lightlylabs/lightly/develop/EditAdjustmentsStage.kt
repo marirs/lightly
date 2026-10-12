@@ -26,7 +26,9 @@ data class AdjustParams(
  *   parameters at their defaults), clarity = clarity, sharpening amount = sharpness with radius 1.0,
  *   detail 25, edge masking 0.
  */
-object AdjustStage {
+// Named EditAdjustmentsStage, not AdjustStage (renamed 2026-10-12, as on iOS): a static scanner took the old type name
+// for the Adjust analytics SDK. Lightly embeds no analytics or tracking SDK.
+object EditAdjustmentsStage {
     fun colourRecipe(a: AdjustParams): GlobalRecipe = GlobalRecipe(
         whiteBalance = if (a.temp != 0.0 || a.tint != 0.0) WhiteBalance(a.temp, a.tint) else null,
         exposureEv = a.exposure / 50,

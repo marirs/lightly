@@ -9,7 +9,9 @@ import Foundation
 /// - Detail (`adjustDetail`): `develop.spatial` with noise reduction luminance = colour = noise
 ///   (other parameters at their defaults), clarity = clarity, sharpening amount = sharpness with
 ///   radius 1.0, detail 25, edge masking 0.
-enum AdjustStage {
+// Named EditAdjustmentsStage, not AdjustStage (renamed 2026-10-12): a static scanner took the old type name for the Adjust
+// analytics SDK. Lightly embeds no analytics or tracking SDK.
+enum EditAdjustmentsStage {
 
     static func hasColour(_ a: EditRecipe.Adjust) -> Bool {
         [a.exposure, a.contrast, a.highlights, a.shadows, a.temp, a.tint, a.saturation, a.vibrance].contains { $0 != 0 }

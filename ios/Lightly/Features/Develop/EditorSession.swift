@@ -1448,8 +1448,8 @@ final class EditorSession {
 
         /// True when a slice-4 stage changes pixels; otherwise the slice-2/3 path runs unchanged.
         var usesEditOrEffects: Bool {
-            edit.geometry != GeometryTransform.neutralGeometry || AdjustStage.hasColour(edit.adjust)
-                || AdjustStage.hasDetail(edit.adjust) || !removePatches.isEmpty || Self.hasUserEffects(effects)
+            edit.geometry != GeometryTransform.neutralGeometry || EditAdjustmentsStage.hasColour(edit.adjust)
+                || EditAdjustmentsStage.hasDetail(edit.adjust) || !removePatches.isEmpty || Self.hasUserEffects(effects)
         }
 
         static func hasUserEffects(_ effects: EditRecipe.Effects) -> Bool {
@@ -1603,8 +1603,8 @@ final class EditorSession {
                                          includePixelStages: job.includePixelStages, includeFinishing: false)
         }
         // Stage 5, Adjust: colour as a baked LUT, Detail as the Develop spatial operators.
-        let adjustLUT = AdjustStage.colourLUT(job.edit.adjust, model: renderer.model)
-        let detail = job.includePixelStages ? AdjustStage.detailSpatial(job.edit.adjust) : PresetRecipe.Spatial()
+        let adjustLUT = EditAdjustmentsStage.colourLUT(job.edit.adjust, model: renderer.model)
+        let detail = job.includePixelStages ? EditAdjustmentsStage.detailSpatial(job.edit.adjust) : PresetRecipe.Spatial()
         if adjustLUT != nil || !detail.isEmpty {
             let adjustPlan = DevelopRenderPlan(lookLUT: adjustLUT, spatial: detail, finishing: .init(), presetID: nil)
             pixels = try renderer.render(adjustPlan, pixels: pixels, width: width, height: height, includePixelStages: true)
