@@ -369,16 +369,13 @@ function borderPanel(s) {
   if (type === 'solid') body = colourStrip('Border colour', 'White') + slider('Width', 5, 1, 15);
   if (type === 'frame') body = colourStrip('Frame colour', 'Black') + slider('Frame width', 3, 1, 10) + colourStrip('Mat colour', 'Warm white') + slider('Spacing', 5, 0, 12);
   if (type === 'polaroid') body = colourStrip('Border colour', 'White') + note('A wider bottom margin, as on an instant print.');
-  const fi = ['clean', 'deckled', 'torn'].indexOf(b.finish || 'deckled');
-  if (type === 'paper') body = rowOf(['Clean', 'Deckled', 'Torn'].map((nm, i) => `<button style="border: none; background: transparent; padding: 3px; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 12.5px; font-weight: ${i === fi ? 700 : 500}; color: ${i === fi ? 'var(--ink)' : 'var(--ink2)'}; flex-shrink: 0"><span style="width: 86px; height: 56px; border-radius: 14px; background: var(--chip); display: flex; align-items: center; justify-content: center; ${i === fi ? 'box-shadow: 0 0 0 2px var(--accent-ink)' : ''}"><span style="width: 64px; height: 40px; background: #ECE8DF; ${paperEdge(i)}"></span></span>${nm}</button>`).join(''), 12)
+  // Owner amendment (2026-10-12): the Paper border is out of 1.0 (Clean, Deckled and Torn did not look real); its tab,
+  // its Preferred border row and its screen are gone. The panel body below is kept for reference only (unreachable).
+  if (type === 'paper') body = rowOf(['Clean', 'Deckled'].map((nm, i) => `<button style="border: none; background: transparent; padding: 3px; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 12.5px; font-weight: ${i === 1 ? 700 : 500}; color: ${i === 1 ? 'var(--ink)' : 'var(--ink2)'}; flex-shrink: 0"><span style="width: 86px; height: 56px; border-radius: 14px; background: var(--chip); display: flex; align-items: center; justify-content: center; ${i === 1 ? 'box-shadow: 0 0 0 2px var(--accent-ink)' : ''}"><span style="width: 64px; height: 40px; background: #ECE8DF; ${paperEdge(i)}"></span></span>${nm}</button>`).join(''), 12)
     + colourStrip('Paper colour', 'Cream') + slider('Width', 6, 1, 15) + slider('Texture', 40);
-  return col(6, tabs([['none', 'None'], ['solid', 'Solid'], ['frame', 'Photo Frame'], ['polaroid', 'Polaroid'], ['paper', 'Paper']], type) + (type !== 'none' ? resetRow('Border') : '') + body);
+  return col(6, tabs([['none', 'None'], ['solid', 'Solid'], ['frame', 'Photo Frame'], ['polaroid', 'Polaroid']], type) + (type !== 'none' ? resetRow('Border') : '') + body);
 }
-const paperEdge = (i) => i === 0 ? 'border-radius: 2px' : i === 1 ? 'clip-path: polygon(0 3%, 6% 0, 14% 2%, 24% 0, 35% 3%, 47% 0, 58% 2%, 70% 0, 82% 3%, 92% 0, 100% 2%, 98% 14%, 100% 30%, 97% 47%, 100% 63%, 98% 80%, 100% 97%, 90% 100%, 78% 97%, 66% 100%, 52% 98%, 40% 100%, 27% 97%, 15% 100%, 4% 98%, 0 100%, 2% 82%, 0 64%, 3% 46%, 0 30%, 2% 14%)' : `-webkit-mask-box-image: url(${TORN_MASK('core')}) 45 / 6px round`;
-// Owner amendment (2026-10-12): Paper › Torn tears the photo with a real rip (rendering-v2 r9 §7.5, depth 7.5 % of the
-// short edge): the photo gives way to its white core over the mat, with a soft shadow. The masks are §7.5's reference
-// output, built by shared/borders/build_torn_edge.py from the owner's ripped-edge art (git-ignored, like the leak pack).
-const TORN_MASK = (part) => `../../../../shared/borders/out/mockup/torn-${part === 'core' ? 'core' : 'photo'}.png`;
+const paperEdge = (i) => i === 0 ? 'border-radius: 2px' : i === 1 ? 'clip-path: polygon(0 3%, 6% 0, 14% 2%, 24% 0, 35% 3%, 47% 0, 58% 2%, 70% 0, 82% 3%, 92% 0, 100% 2%, 98% 14%, 100% 30%, 97% 47%, 100% 63%, 98% 80%, 100% 97%, 90% 100%, 78% 97%, 66% 100%, 52% 98%, 40% 100%, 27% 97%, 15% 100%, 4% 98%, 0 100%, 2% 82%, 0 64%, 3% 46%, 0 30%, 2% 14%)' : 'clip-path: polygon(0 0, 18% 4%, 30% 0, 52% 5%, 68% 1%, 86% 6%, 100% 0, 96% 22%, 100% 44%, 95% 70%, 100% 100%, 76% 95%, 58% 100%, 36% 94%, 18% 100%, 0 96%, 4% 74%, 0 50%, 5% 26%)';
 const TEXT_FONTS = [['Inter', 'system-ui'], ['Playfair Display', 'Georgia, serif'], ['Bebas Neue', 'Impact, sans-serif'], ['Caveat', 'cursive'], ['Cormorant Garamond', 'Georgia, serif'], ['Montserrat', 'system-ui'], ['Dancing Script', 'cursive'], ['Space Mono', 'monospace'], ['Retro Romance', "'L Retro Romance', serif"], ['Velomino', "'L Velomino', serif"], ['Vectipede Thin', "'L Vectipede Thin', serif"]];
 // Owner amendment (2026-10-11): Text, a dock tool of its own. Any number of text boxes; the selected one is edited here and
 // moved, resized and turned on the photo. The input box opens the text sheet (keyboard below, never covering it).
@@ -476,14 +473,10 @@ function photo(s, W, H) {
   }
   const frameBg = !b ? 'transparent' : b.type === 'frame' ? '#111111' : b.type === 'paper' ? '#F3E3C3' : '#FFFFFF';
   const mat = b && b.type === 'frame' ? `<div style="position: absolute; left: ${padX * 0.45}px; top: ${padY * 0.45}px; right: ${padX * 0.45}px; bottom: ${padY * 0.45}px; background: #F4F1EC"></div>` : '';
-  const torn = b && b.type === 'paper' && b.finish === 'torn';
-  const paper = b && b.type === 'paper' && !torn ? paperEdge(b.finish === 'clean' ? 0 : 1) + ';' : '';
-  const tornDepth = Math.round(0.075 * Math.min(pw, phh));
-  const tornMask = (part) => `-webkit-mask-box-image: url(${TORN_MASK(part)}) 45 / ${tornDepth}px round;`;
-  const tornCore = torn ? `<div style="position: absolute; left: ${padX}px; top: ${padY}px; width: ${pw}px; height: ${phh}px; filter: drop-shadow(${0.03 * tornDepth}px ${0.05 * tornDepth}px ${0.12 * tornDepth}px rgba(60,45,20,0.28))"><div style="position: absolute; inset: 0; background: #F4F4F2; ${tornMask('core')}"></div></div>` : '';
+  const paper = b && b.type === 'paper' ? paperEdge(1) + ';' : '';
   return `<div style="position: relative; width: ${w}px; height: ${h}px; flex-shrink: 0">
-    <div style="position: absolute; inset: 0; background: ${frameBg}; border-radius: ${b ? 3 : 18}px; overflow: hidden; ${paper}">${mat}${tornCore}
-    <div style="position: absolute; left: ${padX}px; top: ${padY}px; width: ${pw}px; height: ${phh}px; overflow: hidden; border-radius: ${b ? 0 : 18}px; ${torn ? tornMask('photo') : ''}">${layers}${over}${m.join('')}</div>${wmark}${tlayer}
+    <div style="position: absolute; inset: 0; background: ${frameBg}; border-radius: ${b ? 3 : 18}px; overflow: hidden; ${paper}">${mat}
+    <div style="position: absolute; left: ${padX}px; top: ${padY}px; width: ${pw}px; height: ${phh}px; overflow: hidden; border-radius: ${b ? 0 : 18}px">${layers}${over}${m.join('')}</div>${wmark}${tlayer}
     ${s.compare ? '<span style="position: absolute; left: 12px; top: 12px; padding: 6px 10px; border-radius: 10px; background: rgba(0,0,0,0.55); color: #FFFFFF; font-size: 12px; font-weight: 700">Original</span>' : ''}</div>
     ${s.toast ? `<span style="position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); padding: 9px 14px; border-radius: 14px; background: rgba(14,15,17,0.88); color: #F2F3F0; font-size: 13px; font-weight: 600; white-space: nowrap; z-index: 3">${s.toast}</span>` : ''}</div>`;
 }
@@ -696,7 +689,7 @@ function morePage(page, d, inSheet = false) {
       <div>${groupLabel('Help')}${card(listRow('About', 'Details and support email', chev, { first: true }) + listRow('Legal', 'Privacy Policy, Terms of Use', chev))}</div>`)],
     favourites: ['Favourite presets', 'More', `${note('Up to ten. Drag to reorder. Favourites are shortcuts in Develop; they are never applied automatically.')}<div style="height: 10px"></div>${card(FAVS.slice(0, 3).map(([nm, c], i) => `<div style="display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 0 8px 0 14px; ${i ? 'border-top: 1px solid var(--line)' : ''}"><span style="color: var(--ink3)">${ic('grip', 18)}</span><img src="${PHOTOS.lake.src}" alt="" style="width: 36px; height: 36px; border-radius: 18px; object-fit: cover; filter: ${lookFor(nm, c)}"><span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 15px">${nm}</span><span style="font-size: 12px; color: var(--ink2)">${CAT[c].name}</span></span>${iconBtn('trash', 'Remove')}</div>`).join(''))}<div style="height: 10px"></div>${note('2 free. Star a preset in Develop to add it.')}`],
     signature: ['Saved signature', 'More', `${card(`<div style="display: flex; justify-content: center; padding: 26px 0">${SIG(170, 'var(--ink)')}</div>`)}<div style="height: 12px"></div>${card(listRow('Draw a new signature', '', chev, { first: true }) + listRow('Import from a photo', '', chev) + listRow('Delete saved signature', '', '', { color: 'var(--danger)' }))}<div style="height: 10px"></div>${note('A saved signature is added only when you choose it in Watermark.')}`],
-    prefborder: ['Preferred border', 'More', `${card(['None', 'Solid', 'Photo Frame', 'Polaroid', 'Paper'].map((nm, i) => listRow(nm, '', i === 0 ? `<span style="color: var(--accent-ink)">${ic('check', 20)}</span>` : '', { first: i === 0 })).join(''))}<div style="height: 10px"></div>${note('Opens first in Border. It is never added to a photo automatically.')}`],
+    prefborder: ['Preferred border', 'More', `${card(['None', 'Solid', 'Photo Frame', 'Polaroid'].map((nm, i) => listRow(nm, '', i === 0 ? `<span style="color: var(--accent-ink)">${ic('check', 20)}</span>` : '', { first: i === 0 })).join(''))}<div style="height: 10px"></div>${note('Opens first in Border. It is never added to a photo automatically.')}`],
     legal: ['Legal', 'More', card(listRow('Privacy Policy', '', chev, { first: true }) + listRow('Terms of Use', '', chev))],
     privacy: ['Privacy Policy', 'Legal', doc('privacy')],
     terms: ['Terms of Use', 'Legal', doc('terms')],
@@ -815,9 +808,7 @@ const J = [
     ['bd-none', 'Border · None', ED('border', 'lake', {})],
     ['bd-solid', 'Solid', ED('border', 'lake', { border: { type: 'solid' } })],
     ['bd-frame', 'Photo Frame', ED('border', 'sunset', { border: { type: 'frame' } })],
-    ['bd-polaroid', 'Polaroid', ED('border', 'man', { border: { type: 'polaroid' } })],
-    ['bd-paper', 'Paper · Clean, Deckled, Torn', ED('border', 'lake', { border: { type: 'paper' } })],
-    ['bd-torn', 'Paper · Torn', ED('border', 'man', { border: { type: 'paper', finish: 'torn' } })]]],
+    ['bd-polaroid', 'Polaroid', ED('border', 'man', { border: { type: 'polaroid' } })]]],
   ['Save and leaving', [
     ['leave-unsaved', 'Leaving with unsaved changes', { ...ED('develop', 'lake', EDITED), overlay: 'leave' }],
     ['save-permission', 'First save · Photos permission (iOS)', { ...ED('develop', 'lake', EDITED), overlay: 'savePerm', iosOnly: true }],

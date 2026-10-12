@@ -369,7 +369,8 @@ private fun SignatureBody(signature: com.lightlylabs.lightly.signatures.SavedSig
 private fun PreferredBorderBody(preferences: UserPreferences, actions: MoreActions) {
     val colors = lightlyColors
     L2Card {
-        PreferredBorder.entries.forEachIndexed { index, border ->
+        // Owner, 2026-10-12: Paper is no longer offered (the enum keeps it so a stored value still reads).
+        PreferredBorder.entries.filter { it != PreferredBorder.PAPER }.forEachIndexed { index, border ->
             val selected = border == preferences.preferredBorder
             ListRow(
                 border.label,

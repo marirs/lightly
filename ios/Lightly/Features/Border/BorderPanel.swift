@@ -44,7 +44,8 @@ final class BorderPanelModel {
         case .solid: shownType = .solid
         case .photoFrame: shownType = .frame
         case .polaroid: shownType = .polaroid
-        case .paper: shownType = .paper
+        // Owner, 2026-10-12: Paper is no longer offered, so a stored Paper preference opens on nothing.
+        case .paper: shownType = nil
         }
     }
 
@@ -128,8 +129,10 @@ struct BorderPanelView: View {
     /// colour is the one colour strip.
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Owner, 2026-10-12: Paper is no longer offered (it did not look real); an edit saved with it still
+            // renders and still opens on its controls.
             PanelTabs(items: [(EditRecipe.Border.Kind.none, "None", false), (.solid, "Solid", false),
-                              (.frame, "Photo Frame", false), (.polaroid, "Polaroid", false), (.paper, "Paper", false)],
+                              (.frame, "Photo Frame", false), (.polaroid, "Polaroid", false)],
                       selected: model.selectedType, wraps: wraps, identifierPrefix: "border.type") { model.choose($0) }
             if model.selectedType != .none {
                 PanelResetRow(session: model.session, section: "border", title: "Border")

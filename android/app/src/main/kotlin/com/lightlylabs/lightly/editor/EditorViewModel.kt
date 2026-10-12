@@ -975,7 +975,8 @@ class EditorViewModel(
             com.lightlylabs.lightly.prefs.PreferredBorder.SOLID -> com.lightlylabs.lightly.session.BorderType.SOLID
             com.lightlylabs.lightly.prefs.PreferredBorder.PHOTO_FRAME -> com.lightlylabs.lightly.session.BorderType.FRAME
             com.lightlylabs.lightly.prefs.PreferredBorder.POLAROID -> com.lightlylabs.lightly.session.BorderType.POLAROID
-            com.lightlylabs.lightly.prefs.PreferredBorder.PAPER -> com.lightlylabs.lightly.session.BorderType.PAPER
+            // Owner, 2026-10-12: Paper is no longer offered, so a stored Paper preference opens on nothing.
+            com.lightlylabs.lightly.prefs.PreferredBorder.PAPER -> null
         }
         state.update { it.copy(border = it.border.copy(shown = shown)) }
     }

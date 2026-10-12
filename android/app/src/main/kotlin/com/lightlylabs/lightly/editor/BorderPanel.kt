@@ -21,7 +21,9 @@ import androidx.compose.ui.Alignment
 import com.lightlylabs.lightly.session.BorderType
 
 object BorderOptions {
-    val TABS = listOf(BorderType.NONE to "None", BorderType.SOLID to "Solid", BorderType.FRAME to "Photo Frame", BorderType.POLAROID to "Polaroid", BorderType.PAPER to "Paper")
+    // Owner, 2026-10-12: Paper is no longer offered (it did not look real); an edit saved with it still renders and
+    // still opens on its controls below.
+    val TABS = listOf(BorderType.NONE to "None", BorderType.SOLID to "Solid", BorderType.FRAME to "Photo Frame", BorderType.POLAROID to "Polaroid")
     val SOLID = listOf("#FFFFFF", "#F4F1EC", "#111111", "#3C4A55", "#C9A27E")
     val FRAME = listOf("#111111", "#5A4636", "#C9C2B8", "#FFFFFF")
     val MAT = listOf("#F4F1EC", "#FFFFFF", "#1F2328")

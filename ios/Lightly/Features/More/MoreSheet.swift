@@ -505,7 +505,7 @@ struct SavedSignaturePage: View {
 
 // MARK: - Preferred border
 
-/// Preferred border (`prefborder`): a card of None, Solid, Photo Frame, Polaroid and Paper, an accent check on the
+/// Preferred border (`prefborder`): a card of None, Solid, Photo Frame and Polaroid, an accent check on the
 /// chosen one; the note.
 struct PreferredBorderPage: View {
     @Bindable var preferences: PreferencesStore
@@ -525,7 +525,8 @@ struct PreferredBorderPage: View {
         let c = L2(scheme: colorScheme)
         VStack(alignment: .leading, spacing: 10) {
             L2Card {
-                ForEach(Array(PreferredBorder.allCases.enumerated()), id: \.element) { index, border in
+                // Owner, 2026-10-12: Paper is no longer offered (the case stays so a stored value still reads).
+                ForEach(Array(PreferredBorder.allCases.filter { $0 != .paper }.enumerated()), id: \.element) { index, border in
                     let isSelected = preferences.preferredBorder == border
                     Button { preferences.preferredBorder = border } label: {
                         L2ListRow(title: Self.name(of: border), isFirst: index == 0) {

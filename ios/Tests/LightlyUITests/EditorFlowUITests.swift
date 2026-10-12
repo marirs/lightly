@@ -1047,10 +1047,11 @@ final class SliderHitTargetUITests: XCTestCase {
         app.launchArguments = ["--keep-stored-session", "--session-store", "paper-check", "--open-photo",
             "/Users/sg/Documents/Dev/Projects/lightly/experiments/lut3d/photos/portrait_medium_02.jpg", "--scenario", "bd-solid"]
         app.launch()
-        XCTAssertTrue(app.buttons["border.type.Paper"].waitForExistence(timeout: 60))
-        app.buttons["border.type.Paper"].tap()
-        app.buttons["border.paper.torn"].tap()
-        let more = app.buttons["border.paper.colour.more"]
+        // Owner, 2026-10-12: Paper is no longer offered; Solid has the same shared colour strip.
+        XCTAssertTrue(app.buttons["border.type.Solid"].waitForExistence(timeout: 60))
+        XCTAssertFalse(app.buttons["border.type.Paper"].exists)
+        app.buttons["border.type.Solid"].tap()
+        let more = app.buttons["border.colour.more"]
         more.tap()
         XCTAssertTrue(app.staticTexts["From your photo"].waitForExistence(timeout: 10))
         // Owner, 2026-10-11: no hex field or eyedropper; the Custom row opens the system colour panel.
