@@ -263,22 +263,58 @@ class AccessibilityTest {
         return (maxOf(x, y) + 0.05) / (minOf(x, y) + 0.05)
     }
 
+    // WCAG 2.2 1.4.3: 4.5:1 for normal text, 3:1 only for large text (>= 24 px, or >= 18.66 px bold); 1.4.11: 3:1
+    // for icons and control boundaries. Text in disabled controls is exempt. Every text use below is normal size.
+
     @Test
     fun `text tokens reach 4·5 to 1 on the surfaces they are used on, light and dark`() {
         for (c in listOf(LightlyColors.Light, LightlyColors.Dark)) {
             val mode = if (c.isDark) "dark" else "light"
-            // Panels, dock and sheets: titles (ink), secondary text (ink2), values, notes and dock labels (ink3),
-            // selection (sel: Cancel / Save / Use, selected chips) and Delete (danger).
+            // Panels, dock and sheets: titles (ink), secondary text (ink2), selection (sel: Cancel / Save / Use)
+            // and Delete (danger). ink3 is checked on its own below.
             for ((surface, name) in listOf(c.bg to "bg", c.bg2 to "bg2", c.sheet to "sheet")) {
-                for ((token, label) in listOf(c.ink to "ink", c.ink2 to "ink2", c.ink3 to "ink3", c.sel to "sel", c.danger to "danger")) {
+                for ((token, label) in listOf(c.ink to "ink", c.ink2 to "ink2", c.sel to "sel", c.danger to "danger")) {
                     assertTrue(ratio(token, surface) >= 4.5, "$label on $name ($mode): ${"%.2f".format(ratio(token, surface))}")
                 }
             }
-            // `.seg .on`: the selected label on the raised segment; `.opt.on`: the selection colour on its soft fill.
-            assertTrue(ratio(c.ink, c.segmentOn) >= 4.5, "ink on segment ($mode)")
-            val soft = over(c.selSoft, c.bg)
-            assertTrue(ratio(c.sel, soft) >= 4.5, "sel on selSoft ($mode): ${"%.2f".format(ratio(c.sel, soft))}")
-            assertTrue(ratio(c.ink, soft) >= 4.5, "ink on selSoft ($mode)")
+            // Selected segments, chips and dock tabs are `background: var(--on-bg); color: var(--on-ink)` in the
+            // Lightly 2 mockup (segmentOn / onInk here). The earlier check of ink on segmentOn compared the fill with
+            // itself (1:1) — a leftover of the pre-Lightly-2 palette, not what any screen draws.
+            assertTrue(ratio(c.onInk, c.segmentOn) >= 4.5, "onInk on segmentOn ($mode): ${"%.2f".format(ratio(c.onInk, c.segmentOn))}")
+            // The selected tool tab (owner amendment 2026-10-11): pill-ink on the translucent lime pill over the sheet.
+            // This replaces the sel-on-selSoft check: selSoft is not a Lightly 2 token and no screen uses it.
+            val pill = over(c.pill, c.sheet)
+            assertTrue(ratio(c.pillInk, pill) >= 4.5, "pillInk on pill ($mode): ${"%.2f".format(ratio(c.pillInk, pill))}")
         }
+    }
+
+    @Test
+    fun `ink3 icons, ticks and dashed outlines reach 3 to 1 (WCAG 1·4·11), light and dark`() {
+        for (c in listOf(LightlyColors.Light, LightlyColors.Dark)) {
+            val mode = if (c.isDark) "dark" else "light"
+            for ((surface, name) in listOf(c.bg to "bg", c.bg2 to "bg2", c.sheet to "sheet")) {
+                assertTrue(ratio(c.ink3, surface) >= 3.0, "ink3 on $name ($mode): ${"%.2f".format(ratio(c.ink3, surface))}")
+            }
+        }
+    }
+
+    /**
+     * OWNER DECISION PENDING — do not "fix" by lowering the criterion or editing the colour without approval.
+     * ink3 (`--ink3`, light #7D8179, dark #7E837B) is copied verbatim from the Lightly 2 mockup, which itself uses it
+     * for normal-size text: unselected tool tabs (14.5 px), list-row trailing values (14 px), font names (10.5 px),
+     * the "Your edit" note (12 px), "JPEG" and the Search placeholder. As normal text it needs 4.5:1 and the mockup's
+     * own value measures light 3.57 (bg) / 3.60 (card) / 3.97 (sheet), dark 4.98 / 4.40 / 4.55.
+     */
+    @Test
+    fun `ink3 as text reaches 4·5 to 1 on the surfaces it is used on, light and dark`() {
+        // Every surface is measured before failing, so the report lists all ratios for the owner.
+        val failures = mutableListOf<String>()
+        for (c in listOf(LightlyColors.Light, LightlyColors.Dark)) {
+            val mode = if (c.isDark) "dark" else "light"
+            for ((surface, name) in listOf(c.bg to "bg", c.bg2 to "bg2", c.sheet to "sheet")) {
+                if (ratio(c.ink3, surface) < 4.5) failures += "ink3 on $name ($mode): ${"%.2f".format(ratio(c.ink3, surface))}"
+            }
+        }
+        assertTrue(failures.isEmpty(), failures.joinToString("; "))
     }
 }

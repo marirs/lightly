@@ -206,11 +206,13 @@ class WatermarkTest {
 
     @Test
     fun `W1 - the watermark is the prototype's on-screen size on every device, and Save uses the stage's size`() = runTest {
-        val vm = ready()
         // Before the stage is laid out: the contract's values.
-        assertEquals(WatermarkSizes.REVISION_2, vm.watermarkSizes(BundledPack.library))
-        // A phone-sized and a tablet-sized photo box: the text is 18 dp on screen in both.
+        assertEquals(WatermarkSizes.REVISION_2, ready().watermarkSizes(BundledPack.library))
+        // A phone-sized and a tablet-sized photo box: the text is 18 dp on screen in both. Each device is its own
+        // editor: since 46947eb ("keep preview quality stable") the size reference is the photo box's FIRST
+        // measurement after a photo opens, so a second measurement in the same session must not resize it.
         for (shortDp in listOf(400f, 760f)) {
+            val vm = ready()
             vm.onStagePhotoMeasured(shortDp, shortDp * 1.5f)
             val sizes = vm.watermarkSizes(BundledPack.library)
             assertEquals(18.0, sizes.textFontSize * shortDp, 1e-9)
@@ -220,15 +222,30 @@ class WatermarkTest {
     }
 
     @Test
-    fun `blur - R_max follows the displayed photo so the on-screen blur is blur over 9 dp on every device`() = runTest {
+    fun `W1 - a later photo-box measurement in the same session (panel height is navigation) keeps the watermark size`() = runTest {
         val vm = ready()
-        val recipe = vm.uiState.value.session!!.current
-        assertEquals(0.06, vm.maxBlurFraction(recipe), 1e-12)
+        vm.onStagePhotoMeasured(400f, 600f)
+        val first = vm.watermarkSizes(BundledPack.library)
+        vm.onStagePhotoMeasured(320f, 480f)
+        assertEquals(first, vm.watermarkSizes(BundledPack.library))
+        // Opening a photo starts a new reference.
+        vm.openPhoto("content://photo/2"); advanceUntilIdle()
+        vm.onStagePhotoMeasured(320f, 480f)
+        assertEquals(18.0, vm.watermarkSizes(BundledPack.library).textFontSize * 320.0, 1e-9)
+    }
+
+    @Test
+    fun `blur - R_max follows the displayed photo so the on-screen blur is blur over 9 dp on every device`() = runTest {
+        val phone = ready()
+        val recipe = phone.uiState.value.session!!.current
+        assertEquals(0.06, phone.maxBlurFraction(recipe), 1e-12)
         // Pixel 9 Pro bg-focus: the photo is about 479 dp long, where the contract's 0.06 was calibrated (+4 to 9 %).
-        vm.onStagePhotoMeasured(320f, 479f)
-        assertEquals(0.0576, vm.maxBlurFraction(recipe), 0.0005)
-        // A tablet shows the photo about twice as large, so the fraction halves: the same σ in dp on screen.
-        vm.onStagePhotoMeasured(640f, 958f)
-        assertEquals(0.0288, vm.maxBlurFraction(recipe), 0.0005)
+        phone.onStagePhotoMeasured(320f, 479f)
+        assertEquals(0.0576, phone.maxBlurFraction(recipe), 0.0005)
+        // A tablet shows the photo about twice as large, so the fraction halves: the same σ in dp on screen. A separate
+        // editor, because since 46947eb the reference is fixed at the first measurement after a photo opens.
+        val tablet = ready()
+        tablet.onStagePhotoMeasured(640f, 958f)
+        assertEquals(0.0288, tablet.maxBlurFraction(tablet.uiState.value.session!!.current), 0.0005)
     }
 }
