@@ -2112,6 +2112,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker.";
@@ -2149,6 +2150,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 3UDFB78DLC;
 				INFOPLIST_FILE = "Lightly/Generated-Info.plist";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Lightly uses the camera only when you choose to take a new photo. Nothing is captured until you tap the shutter.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Lightly saves your exported photos to your library. It never reads your library — choosing a photo uses Apple's own picker.";

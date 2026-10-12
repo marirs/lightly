@@ -197,6 +197,9 @@ targets:
         CODE_SIGN_STYLE: Automatic
         # App Store category, set in Xcode by the owner 2026-10-12.
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography
+        # Export compliance: Lightly makes no network connections and uses no encryption of its own, so App Store
+        # Connect and TestFlight need no encryption documentation.
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         # iPhone and iPad only: no "Designed for iPad" Mac or Apple Vision versions (never built or tested there;
         # Xcode offers both by default for an iPad app). Owner, 2026-10-12.
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
