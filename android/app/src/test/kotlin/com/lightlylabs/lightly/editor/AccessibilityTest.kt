@@ -299,15 +299,12 @@ class AccessibilityTest {
     }
 
     /**
-     * OWNER DECISION PENDING — do not "fix" by lowering the criterion or editing the colour without approval.
-     * ink3 (`--ink3`, light #7D8179, dark #7E837B) is copied verbatim from the Lightly 2 mockup, which itself uses it
-     * for normal-size text: unselected tool tabs (14.5 px), list-row trailing values (14 px), font names (10.5 px),
-     * the "Your edit" note (12 px), "JPEG" and the Search placeholder. As normal text it needs 4.5:1 and the mockup's
-     * own value measures light 3.57 (bg) / 3.60 (card) / 3.97 (sheet), dark 4.98 / 4.40 / 4.55.
+     * ink3 is drawn as normal-size text (unselected tool tabs, list-row values, font names, footnotes), so it needs
+     * 4.5:1. The mockup's original #7D8179 / #7E837B measured light 3.57–3.97 and dark 4.40 on the card; the owner
+     * approved #6C7068 / #80857D on 2026-10-12. Every surface is measured before failing so a report lists them all.
      */
     @Test
     fun `ink3 as text reaches 4·5 to 1 on the surfaces it is used on, light and dark`() {
-        // Every surface is measured before failing, so the report lists all ratios for the owner.
         val failures = mutableListOf<String>()
         for (c in listOf(LightlyColors.Light, LightlyColors.Dark)) {
             val mode = if (c.isDark) "dark" else "light"

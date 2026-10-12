@@ -54,13 +54,15 @@ data class LightlyColors(
     val isDark: Boolean,
 ) {
     companion object {
+        // Owner, 2026-10-12: ink3 (and the ruler's major tick, which shares it) is #6C7068 light / #80857D dark so
+        // the grey hint text reaches 4.5:1 on every surface (was the mockup's #7D8179 / #7E837B).
         val Light = LightlyColors(
             bg = Color(0xFFF3F3F0), surface = Color(0xFFFFFFFF), bg2 = Color(0xFFF4F4F1), canvas = Color(0xFFE6E6E2),
-            ink = Color(0xFF141513), ink2 = Color(0xFF5A5E57), ink3 = Color(0xFF7D8179), onInk = Color(0xFFFFFFFF),
+            ink = Color(0xFF141513), ink2 = Color(0xFF5A5E57), ink3 = Color(0xFF6C7068), onInk = Color(0xFFFFFFFF),
             hair = Color(0x17141513), track = Color(0x2E141513), chip = Color(0x0E141513), knob = Color(0xFFFFFFFF),
             glass = Color(0xC7FFFFFF), glassInk = Color(0xFF141513), glassLine = Color(0x1A141513),
             accent = Color(0xFFCFF26B), onAccent = Color(0xFF121408), accentEdge = Color(0xFF8FAE2E),
-            tick = Color(0x2E141513), tickMajor = Color(0xFF7D8179), sel = Color(0xFF557311), selSoft = Color(0x14557311),
+            tick = Color(0x2E141513), tickMajor = Color(0xFF6C7068), sel = Color(0xFF557311), selSoft = Color(0x14557311),
             browse = Color(0xFFC25E00), edited = Color(0xFFC25E00),
             scrim = Color(0x520A0A0A), sheet = Color(0xFFFFFFFF), danger = Color(0xFFC7362B),
             segmentOn = Color(0xFF141513),
@@ -69,11 +71,11 @@ data class LightlyColors(
         )
         val Dark = LightlyColors(
             bg = Color(0xFF0D0E10), surface = Color(0xFF131518), bg2 = Color(0xFF1A1C20), canvas = Color(0xFF0A0B0C),
-            ink = Color(0xFFF2F3F0), ink2 = Color(0xFFA6ABA3), ink3 = Color(0xFF7E837B), onInk = Color(0xFF121408),
+            ink = Color(0xFFF2F3F0), ink2 = Color(0xFFA6ABA3), ink3 = Color(0xFF80857D), onInk = Color(0xFF121408),
             hair = Color(0x14FFFFFF), track = Color(0x2EFFFFFF), chip = Color(0x12FFFFFF), knob = Color(0xFFF2F3F0),
             glass = Color(0xA30E0F11), glassInk = Color(0xFFF2F3F0), glassLine = Color(0x1AFFFFFF),
             accent = Color(0xFFCFF26B), onAccent = Color(0xFF121408), accentEdge = Color(0xFFE4FF9A),
-            tick = Color(0x2EFFFFFF), tickMajor = Color(0xFF7E837B), sel = Color(0xFFCFF26B), selSoft = Color(0x24CFF26B),
+            tick = Color(0x2EFFFFFF), tickMajor = Color(0xFF80857D), sel = Color(0xFFCFF26B), selSoft = Color(0x24CFF26B),
             browse = Color(0xFFFF9F43), edited = Color(0xFFFF9F43),
             scrim = Color(0x8C000000), sheet = Color(0xFF17191C), danger = Color(0xFFFF8A7A),
             segmentOn = Color(0xFFF2F3F0),
