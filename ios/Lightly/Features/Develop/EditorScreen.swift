@@ -258,31 +258,38 @@ struct EditorScreen: View {
     /// photo, instead of following the photo's own corner (the mockup's `autoControls` sat inside the photo).
     private var photoActions: some View {
         ZStack(alignment: .bottomLeading) {
-            HStack(spacing: 6) {
-                autoEnhanceButton.padding(-3).fixedSize()
-                if session.canReset(section: "all") {
-                    Button { isResetAlertShown = true } label: {
-                        HStack(spacing: 6) {
-                            ApprovedIconView(icon: .reset, size: 15)
-                            Text("Reset all").font(.system(size: 13, weight: .bold))
+            // Not rendered while hidden (rather than only faded): an invisible control must not stay in the
+            // accessibility tree, and `.accessibilityHidden` alone still left both buttons reachable (UI test
+            // 2026-10-12). The overlay sits on the stage, so nothing else moves; the default transition is the fade.
+            if !arePhotoActionsHidden {
+                HStack(spacing: 6) {
+                    autoEnhanceButton.padding(-3).fixedSize()
+                    if session.canReset(section: "all") {
+                        Button { isResetAlertShown = true } label: {
+                            HStack(spacing: 6) {
+                                ApprovedIconView(icon: .reset, size: 15)
+                                Text("Reset all").font(.system(size: 13, weight: .bold))
+                            }
+                            // Never squeezed by a narrow photo: the mockup's button keeps its one-line natural width.
+                            .fixedSize()
+                            .foregroundStyle(Color(hex: 0xF2F3F0))
+                            .padding(.horizontal, 13).frame(height: 38)
+                            .background(Capsule().fill(Color(hex: 0x0E0F11, opacity: 0.66)))
+                            .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                            .frame(minHeight: 44).contentShape(Rectangle())
                         }
-                        // Never squeezed by a narrow photo: the mockup's button keeps its one-line natural width.
-                        .fixedSize()
-                        .foregroundStyle(Color(hex: 0xF2F3F0))
-                        .padding(.horizontal, 13).frame(height: 38)
-                        .background(Capsule().fill(Color(hex: 0x0E0F11, opacity: 0.66)))
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
-                        .frame(minHeight: 44).contentShape(Rectangle())
+                        .buttonStyle(.plain).accessibilityLabel("Reset all edits").accessibilityIdentifier("editor.resetAll")
                     }
-                    .buttonStyle(.plain).accessibilityLabel("Reset all edits").accessibilityIdentifier("editor.resetAll")
                 }
+                .padding(10)
             }
-            .padding(10)
-            .opacity(session.isShowingOriginal || isCropTab ? 0 : 1)
-            .allowsHitTesting(!session.isShowingOriginal && !isCropTab)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
     }
+
+    /// Auto and Reset all are not shown on Edit › Crop or while Compare shows the original; then they are neither
+    /// visible, tappable nor reachable by VoiceOver (2026-10-12 accessibility finding).
+    private var arePhotoActionsHidden: Bool { session.isShowingOriginal || isCropTab }
 
     /// The stage with Auto and Reset all over its bottom-leading corner: 10 pt inside the stage's own 12/8 pt inset,
     /// where the photo's corner sits when it fills the width.

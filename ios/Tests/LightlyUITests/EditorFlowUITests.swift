@@ -545,7 +545,11 @@ final class EditorFlowUITests: XCTestCase {
     /// file and the unchanged original.
     func testOwnerFeedbackInteractionPass() {
         let mattes = "\(EditorCaptureUITests.repositoryRoot)/ios/Tests/Fixtures/SubjectMattes/portrait_medium_02.png"
-        relaunch(arguments: ["--reset-preferences", "--open-photo", photoPath("portrait_medium_02"), "--subject-matte-fixture", mattes])
+        // The inert writer: the real one asks for Photos permission, and an unanswered system prompt held "Saving a
+        // copy…" for the whole 120 s wait (save-trace 2026-10-12 08:00:54: "photos add-only authorization: 0", then
+        // "will resign active"), which read as a Save copy hang.
+        relaunch(arguments: ["--reset-preferences", "--fake-library-writer", "--open-photo", photoPath("portrait_medium_02"),
+                             "--subject-matte-fixture", mattes])
         XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "editor did not open")
         saveScreenshot("pass-1-opened")
         tapInScrollingRow("develop.category.daylight")
@@ -585,6 +589,51 @@ final class EditorFlowUITests: XCTestCase {
         app.buttons["editor.saveCopy"].tap()
         XCTAssertTrue(app.staticTexts["Saved as a new photo"].waitForExistence(timeout: 120), "no Saved sheet")
         saveScreenshot("pass-8-saved")
+    }
+
+    /// Save copy with a moved but unapplied crop frame (✕ Cancel / ✓ Apply crop showing) finishes, and saves the applied
+    /// photo: the crop is only applied by ✓ Apply crop (docs/ui/proposals/crop-flow.html, "✕ puts it back"). The draft
+    /// is still waiting after "Keep editing", and ✕ Cancel returns the frame to the whole photo, so nothing was cropped.
+    /// Auto and Reset all are faded out on Crop, and must be out of the accessibility tree too (VoiceOver).
+    func testSaveCopyWithAnUnappliedCropFinishesAndKeepsTheDraft() {
+        openEditor(extra: ["--expose-crop"])
+        tapInScrollingRow("tool.edit")
+        let photo = element("editor.photo")
+        XCTAssertTrue(photo.waitForExistence(timeout: timeout))
+        XCTAssertTrue(waitFor { !self.element("develop.auto").exists }, "Auto is hidden on Crop, also from VoiceOver")
+        XCTAssertFalse(element("editor.resetAll").exists, "Reset all is hidden on Crop, also from VoiceOver")
+        let wholeFrame = "0.0000 0.0000 1.0000 1.0000"
+        let cropRect = element("edit.cropRect")
+        XCTAssertTrue(cropRect.waitForExistence(timeout: timeout))
+        XCTAssertTrue((cropRect.value as? String ?? "").hasSuffix(wholeFrame))
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.99))
+            .press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.75)))
+        let apply = app.buttons["edit.crop.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: timeout), "the moved frame waits for ✓ Apply crop")
+        let draft = cropRect.value as? String ?? ""
+        XCTAssertFalse(draft.hasSuffix(wholeFrame), "the frame moved: \(draft)")
+        app.buttons["editor.saveCopy"].tap()
+        XCTAssertTrue(app.staticTexts["Saved as a new photo"].waitForExistence(timeout: 60), "Save copy did not finish with a crop draft")
+        saveScreenshot("crop-draft-saved")
+        app.buttons["saved.keepEditing"].tap()
+        XCTAssertTrue(apply.waitForExistence(timeout: timeout), "the unapplied frame is still waiting after saving")
+        XCTAssertEqual(cropRect.value as? String, draft)
+        app.buttons["edit.crop.cancel"].tap()
+        XCTAssertTrue(waitFor { (cropRect.value as? String ?? "").hasSuffix(wholeFrame) }, "Save copy did not apply the draft")
+        tapInScrollingRow("tool.develop")
+        XCTAssertTrue(element("develop.auto").waitForExistence(timeout: timeout), "Auto is back outside Crop")
+    }
+
+    /// Save copy while a Remove stroke is being removed, or while the subject is being found, finishes (each state held
+    /// by its DEBUG scenario) instead of waiting on the operation.
+    func testSaveCopyFinishesWhileRemovingOrSeparating() {
+        for (scenario, progress) in [("ed-removing", "edit.removing"), ("bg-separating", "background.separating")] {
+            openEditor(extra: ["--scenario", scenario])
+            XCTAssertTrue(element(progress).waitForExistence(timeout: timeout), "\(scenario): \(progress) not shown")
+            app.buttons["editor.saveCopy"].tap()
+            XCTAssertTrue(app.staticTexts["Saved as a new photo"].waitForExistence(timeout: 60), "\(scenario): Save copy did not finish")
+            saveScreenshot("save-during-\(scenario)")
+        }
     }
 
     /// Owner check 2026-10-05, in the Lightly 2 gallery (owner 2026-10-10; no ruler, position or context line any
