@@ -1196,7 +1196,7 @@
        "low": 0.3,
        "width": 0.4
       },
-      "profileOverhangMetres": 0.008
+      "profileOverhangMetres": 0.004
      },
      "note": "revision 9: per face, after smile (rendering-v2.md §7.5); a missing sunglasses key or pair null leaves the pixels unchanged; pairs from the sunglasses pack (shared/sunglasses)"
     }

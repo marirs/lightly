@@ -429,9 +429,9 @@ Part of stage 8, per face, after the face's other portrait operations (Smile inc
 
 **Pose.** World axes x right, y up, z towards the viewer; a landmark (x, y, z) maps to w = (x, −y, −z).
 `ex = norm(w263 − w33)`, `ez = norm(ex × (w10 − w152))`, `ey = ez × ex`. Scale `s = |w263 − w33| / 0.093` pixels per
-metre, times `1 + 0.004 · size`. *Profile correction:* the landmarker under-reports turns beyond about 65°. Let yaw
-= atan2(ez.x, ez.z); walk from the far iris (468 when yaw ≥ 0, else 473) towards the near iris until the background
-probability exceeds 0.5. If that distance m (metres, ÷ s) is below 7 mm, rotate ex and ez about ey so |yaw| becomes
+metre; measurements, placement and occluders use s, and the pair itself is scaled by `s · (1 + 0.004 · size)`. *Profile correction:* the landmarker under-reports turns beyond about 65°. Let yaw
+= atan2(ez.x, ez.z); walk from the far iris (468 when yaw ≥ 0, else 473) outward, continuing the near → far iris direction, until
+the background probability exceeds 0.5 (or the image edge). If that distance m (metres, ÷ s) is below 7 mm, rotate ex and ez about ey so |yaw| becomes
 `|yaw| + (85° − |yaw|)(1 − m/0.007)`, keeping its sign; the face is then a **profile**.
 
 **Placement.** The pair's origin (its lens centre) sits at `iris + s · 0.015 · ez`, where iris is the midpoint of
@@ -446,10 +446,11 @@ pushed 6 mm (0.006 s) away from the viewer.
 lens plane), *lens* (lens coverage white, frame black). Lighting for *frame*: one directional light, intensity 1000,
 Euler angles (−0.6, 0.4, 0) rad, plus ambient 400; physically based materials from the pack.
 
-**Composite** (linear RGB, on the stage input):
-1. *Existing glasses:* when the face has glasses and a pair is chosen, the stored patch (`sunglasses.removed`, a
-   LaMa inpaint of the glasses mask dilated by 3 × 15 + 9 px MaxFilters, as Remove computes patches) is composited
-   first.
+**Composite** (on the stage input, in **sRGB-encoded** values as the approved trial renders were made; linear blending lightens the lenses and brightens the frame's anti-aliased edges against skin):
+1. *Existing glasses:* when the face has glasses and a pair is chosen, the stored patch (`sunglasses.removed`) is
+   composited first. It is computed once, as Remove computes patches: the glasses mask dilated by 1.25 % of the long
+   edge (the trial's 15, 15, 15, 9 px square filters on a 2000 px photo), LaMa on a square window of 1.5 × the mask's
+   extent (at least 256 px) resized to 512, pasted back over the mask with a Gaussian feather of σ = 3 px.
 2. *Contact shadow:* coverage = max(frame alpha, lens), blurred with σ = max(1, 0.035 d), shifted by (0.01 d, 0.05 d),
    × 0.28, multiplies the photo where the background probability < 0.5.
 3. *Lenses:* `out = in·(1 − L) + (in · T · tint + R) · L`, L = lens coverage. Transmission `T = 1 − 0.95 (darkness/100)^0.75`.
@@ -459,8 +460,9 @@ Euler angles (−0.6, 0.4, 0) rad, plus ambient 400; physically based materials 
    (0.85, 0.90, 1.00).
 4. *Frame:* alpha = front + (frame − front) · (1 − clamp((hair − 0.3)/0.4, 0, 1)), hair blurred σ = 2 px: hair covers
    the arms but never the front.
-5. *Profile clip:* on a profile only, lens and frame are kept within 8 mm (0.008 s px) of the person (background
-   probability < 0.5, dilated at quarter resolution).
+5. *Profile clip:* on a profile only, lens and frame are multiplied by "near the person": background probability
+   < 0.5, dilated by 4 mm (0.004 s px; the trial's filter was 8 mm wide) at quarter resolution, blurred σ = 0.75
+   quarter pixels, up-sampled, then mapped through clamp((v − 0.25)/0.5, 0, 1) so the clip edge is soft.
 
 ### 7.4 `text` (revision 7, owner amendment 2026-10-11)
 

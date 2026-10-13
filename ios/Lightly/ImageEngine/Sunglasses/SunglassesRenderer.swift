@@ -1,0 +1,338 @@
+import Foundation
+import SceneKit
+import simd
+import UIKit
+
+/// `portrait.sunglasses` (rendering-v2 revision 9 §7.5): puts a 3D pair from the sunglasses pack on a face.
+///
+/// Reference implementation: experiments/sunglasses/wear.py with render_lsg.swift. The pair is rendered by SceneKit,
+/// offscreen and orthographically, over the face's region only; the lenses are not drawn by SceneKit but composited
+/// as tinted glass over the photo, so the eyes show through.
+enum SunglassesRenderer {
+
+    // MARK: - Pose (§7.5 "Pose" and "Placement")
+
+    /// The head's frame in scene units (x right, y up, z towards the viewer, origin at the image centre, pixels).
+    struct Pose: Equatable {
+        var ex: SIMD3<Float>, ey: SIMD3<Float>, ez: SIMD3<Float>
+        /// Pixels per metre, before Size (measurements, placement, occluders use it).
+        var pixelsPerMetre: Float
+        /// The pair's origin (lens centre) in scene units.
+        var origin: SIMD3<Float>
+        /// True when the profile correction turned the head (§7.5): the outline clip applies.
+        var isProfile: Bool
+    }
+
+    /// Landmarks at the render size: analysis pixels × (render width / analysis width).
+    static func scaledLandmarks(_ analysis: FaceSunglassesAnalysis, renderWidth: Int) -> [SIMD3<Float>] {
+        let r = Float(renderWidth) / Float(analysis.analysisWidth)
+        return analysis.landmarks.map { $0 * r }
+    }
+
+    /// §7.5 pose from the landmarks (render pixels) and the background probability (`background(x, y)` at render pixels).
+    static func pose(landmarks P: [SIMD3<Float>], width W: Int, height H: Int, background: (Float, Float) -> Float) -> Pose {
+        func w(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x, -P[i].y, -P[i].z) }
+        var ex = simd_normalize(w(263) - w(33))
+        var ez = simd_normalize(simd_cross(ex, w(10) - w(152)))
+        let ey = simd_cross(ez, ex)
+        let s = simd_length(w(263) - w(33)) / SunglassesConstants.interIrisReferenceMetres
+        // Profile correction: the landmarker cannot report more than ~65 degrees of turn. When the far iris lies within
+        // 7 mm of the person's outline (walking outward, away from the near iris), raise the turn towards 85 degrees.
+        var isProfile = false
+        let yaw = atan2(ez.x, ez.z)
+        let (near, far) = yaw < 0 ? (473, 468) : (468, 473)
+        // Walk outward from the far iris, continuing the near → far direction, until the background.
+        let start = SIMD2(P[far].x, P[far].y), toward = simd_normalize(start - SIMD2(P[near].x, P[near].y))
+        var margin: Float?
+        let steps = Int(SunglassesConstants.profileMarginMetres * s)
+        for t in 0...max(steps, 0) {
+            let q = start + toward * Float(t)
+            let xi = Int(q.x), yi = Int(q.y)
+            if xi < 0 || yi < 0 || xi >= W || yi >= H || background(Float(xi) + 0.5, Float(yi) + 0.5) > 0.5 {
+                margin = Float(t) / s; break
+            }
+        }
+        let target = SunglassesConstants.profileTargetYawDegrees * .pi / 180
+        if let margin, abs(yaw) < target {
+            let raised = abs(yaw) + (target - abs(yaw)) * (1 - margin / SunglassesConstants.profileMarginMetres)
+            let angle = (raised - abs(yaw)) * (yaw < 0 ? -1 : 1)
+            ex = rotate(ex, about: ey, by: angle)
+            ez = rotate(ez, about: ey, by: angle)
+            isProfile = true
+        }
+        // Placement: the lens plane 15 mm in front of the irises along the head's own axis.
+        func sc(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z) }
+        let iris = (sc(468) + sc(473)) / 2
+        return Pose(ex: ex, ey: ey, ez: ez, pixelsPerMetre: s, origin: iris + s * SunglassesConstants.eyeDepthMetres * ez,
+                    isProfile: isProfile)
+    }
+
+    /// Rodrigues rotation of `v` about the unit `axis`.
+    static func rotate(_ v: SIMD3<Float>, about axis: SIMD3<Float>, by angle: Float) -> SIMD3<Float> {
+        let k = simd_normalize(axis)
+        return v * cos(angle) + simd_cross(k, v) * sin(angle) + k * simd_dot(k, v) * (1 - cos(angle))
+    }
+
+    // MARK: - Lens (§7.5 "Composite" 3)
+
+    /// Transmission T = 1 − 0.95 (darkness/100)^0.75.
+    static func transmission(darkness: Double) -> Float { 1 - 0.95 * pow(Float(darkness / 100), 0.75) }
+
+    static func tint(_ lens: EditRecipe.FaceEdit.Sunglasses.Lens) -> SIMD3<Float> {
+        switch lens {
+        case .brown: SIMD3(1.00, 0.76, 0.52)
+        case .green: SIMD3(0.80, 1.00, 0.82)
+        case .dark, .gradient, .mirror: SIMD3(0.92, 1.00, 0.95)
+        }
+    }
+
+    /// The glass over one pixel: `t` runs from 0 at the lenses' top row to 1 at their bottom.
+    static func glass(_ input: SIMD3<Float>, sunglasses g: EditRecipe.FaceEdit.Sunglasses, t: Float) -> SIMD3<Float> {
+        let reflection = (0.16 * (1 - t) * (1 - t) + 0.03) * SIMD3<Float>(0.85, 0.90, 1.00)
+        switch g.lens {
+        case .gradient:
+            return input * transmission(darkness: g.darkness * Double(1 - 0.7 * t)) * tint(.dark) + reflection
+        case .mirror:
+            let blueGrey = SIMD3<Float>(0.55, 0.65, 0.80) * (1 - t) + SIMD3<Float>(0.25, 0.30, 0.38) * t
+            return input * transmission(darkness: g.darkness) * tint(.dark) + reflection * 3 + 0.35 * blueGrey
+        default:
+            return input * transmission(darkness: g.darkness) * tint(g.lens) + reflection
+        }
+    }
+
+    // MARK: - Passes
+
+    struct Passes {
+        /// The rendered region in render pixels.
+        let x0: Int, y0: Int, width: Int, height: Int
+        /// Premultiplied sRGB RGBA8 (frame, front) and lens coverage (0…1).
+        let frame: [UInt8], front: [UInt8]
+        let lens: [Float]
+    }
+
+    /// Renders the three §7.5 passes over the pair's region of a W × H render.
+    static func renderPasses(pair: SunglassesPack.Pair, pack: SunglassesPack, pose: Pose, size: Double,
+                             landmarks P: [SIMD3<Float>], width W: Int, height H: Int) throws -> Passes {
+        let s = pose.pixelsPerMetre
+        // The pair reaches ~0.16 m behind its lenses and ~0.08 m to each side: a square of ±0.2 m around its origin
+        // holds it at any turn.
+        let cx = pose.origin.x + Float(W) / 2, cy = Float(H) / 2 - pose.origin.y, half = 0.2 * s
+        let x0 = max(0, Int(cx - half)), y0 = max(0, Int(cy - half))
+        let x1 = min(W, Int((cx + half).rounded(.up))), y1 = min(H, Int((cy + half).rounded(.up)))
+        guard x1 - x0 > 2, y1 - y0 > 2 else { throw SunglassesError.modelFailed("region outside the photo") }
+        let rw = x1 - x0, rh = y1 - y0
+
+        let loaded = try pack.load(pair)
+        let scene = SCNScene()
+        let holder = SCNNode(), pairNode = SCNNode(geometry: loaded.mesh.geometry.copy() as? SCNGeometry)
+        pairNode.eulerAngles = SCNVector3(SunglassesConstants.pantoscopicTiltRadians, 0, 0)
+        holder.addChildNode(pairNode)
+        // Invisible head: depth only, drawn first, in the pair's frame.
+        let head = SCNNode(geometry: SCNSphere(radius: 1))
+        let radii = SunglassesConstants.headRadiiMetres, centre = SunglassesConstants.headCentreMetres
+        head.scale = SCNVector3(radii.x, radii.y, radii.z); head.position = SCNVector3(centre.x, centre.y, centre.z)
+        head.geometry!.materials = [depthOnly()]; head.renderingOrder = -10
+        holder.addChildNode(head)
+        let k = s * (1 + SunglassesConstants.sizePerUnit * Float(size))
+        holder.transform = SCNMatrix4(m11: pose.ex.x * k, m12: pose.ex.y * k, m13: pose.ex.z * k, m14: 0,
+                                      m21: pose.ey.x * k, m22: pose.ey.y * k, m23: pose.ey.z * k, m24: 0,
+                                      m31: pose.ez.x * k, m32: pose.ez.y * k, m33: pose.ez.z * k, m34: 0,
+                                      m41: pose.origin.x, m42: pose.origin.y, m43: 0, m44: 1)
+        scene.rootNode.addChildNode(holder)
+        // The photo's own face mesh, depth only, pushed 6 mm away so the nose bridge stays behind the frame's bridge.
+        scene.rootNode.addChildNode(faceOccluder(P, width: W, height: H, zShift: -pose.origin.z - SunglassesConstants.faceMeshPushBackMetres * s))
+
+        let camera = SCNNode(); camera.camera = SCNCamera()
+        camera.camera!.usesOrthographicProjection = true
+        camera.camera!.orthographicScale = Double(rh) / 2
+        camera.camera!.zNear = 1
+        camera.position = SCNVector3(Float(x0) + Float(rw) / 2 - Float(W) / 2, Float(H) / 2 - (Float(y0) + Float(rh) / 2), 5000)
+        scene.rootNode.addChildNode(camera)
+        let key = SCNNode(); key.light = SCNLight(); key.light!.type = .directional; key.light!.intensity = 1000
+        key.eulerAngles = SCNVector3(-0.6, 0.4, 0)
+        let ambient = SCNNode(); ambient.light = SCNLight(); ambient.light!.type = .ambient; ambient.light!.intensity = 400
+        scene.rootNode.addChildNode(key); scene.rootNode.addChildNode(ambient)
+        scene.background.contents = UIColor.clear
+
+        let renderer = SCNRenderer(device: MTLCreateSystemDefaultDevice(), options: nil)
+        renderer.scene = scene; renderer.pointOfView = camera
+        func snapshot(lensPass: Bool, frontOnly: Bool) -> [UInt8] {
+            pairNode.geometry!.materials = loaded.mesh.materialIndices.map { index in
+                material(pair.materials[index], textures: loaded.textures[index], lensPass: lensPass)
+            }
+            key.isHidden = lensPass; ambient.isHidden = lensPass
+            camera.camera!.zFar = Double(5000 + (frontOnly ? SunglassesConstants.frontDepthMetres : 0.25) * k)
+            let image = renderer.snapshot(atTime: 0, with: CGSize(width: rw, height: rh), antialiasingMode: .multisampling4X)
+            return rgba8Premultiplied(image, width: rw, height: rh)
+        }
+        let frame = snapshot(lensPass: false, frontOnly: false)
+        let front = snapshot(lensPass: false, frontOnly: true)
+        let lensPixels = snapshot(lensPass: true, frontOnly: false)
+        // Lens pass: lenses white, frame black, premultiplied, so red/255 is the lens coverage.
+        let lens = (0..<(rw * rh)).map { Float(lensPixels[$0 * 4]) / 255 }
+        return Passes(x0: x0, y0: y0, width: rw, height: rh, frame: frame, front: front, lens: lens)
+    }
+
+    private static func depthOnly() -> SCNMaterial {
+        let m = SCNMaterial(); m.colorBufferWriteMask = []; m.writesToDepthBuffer = true; m.isDoubleSided = true
+        return m
+    }
+
+    private static func material(_ spec: SunglassesPack.Material, textures: (base: UIImage?, normal: UIImage?)?, lensPass: Bool) -> SCNMaterial {
+        let m = SCNMaterial(); m.isDoubleSided = true
+        switch (spec.role, lensPass) {
+        case (.lens, true): m.lightingModel = .constant; m.diffuse.contents = UIColor.white
+        case (.lens, false): m.colorBufferWriteMask = []   // depth only: the compositor draws the glass
+        case (.frame, true): m.lightingModel = .constant; m.diffuse.contents = UIColor.black   // still hides the lens behind it
+        case (.frame, false):
+            m.lightingModel = .physicallyBased
+            if let base = textures?.base { m.diffuse.contents = base }
+            else { m.diffuse.contents = UIColor(red: spec.baseColor[0], green: spec.baseColor[1], blue: spec.baseColor[2], alpha: 1) }
+            if let normal = textures?.normal { m.normal.contents = normal }
+            m.roughness.contents = spec.roughness; m.metalness.contents = spec.metalness
+            if spec.translucent { m.transparencyMode = .aOne; m.blendMode = .alpha }
+        }
+        return m
+    }
+
+    /// The face mesh (468 landmarks, MediaPipe's canonical triangles) in scene units, depth only.
+    private static func faceOccluder(_ P: [SIMD3<Float>], width W: Int, height H: Int, zShift: Float) -> SCNNode {
+        let vertices = (0..<468).map { SCNVector3(P[$0].x - Float(W) / 2, Float(H) / 2 - P[$0].y, -P[$0].z + zShift) }
+        let element = SCNGeometryElement(indices: FaceMeshTriangles.indices, primitiveType: .triangles)
+        let geometry = SCNGeometry(sources: [SCNGeometrySource(vertices: vertices)], elements: [element])
+        geometry.materials = [depthOnly()]
+        let node = SCNNode(geometry: geometry); node.renderingOrder = -10
+        return node
+    }
+
+    private static func rgba8Premultiplied(_ image: UIImage, width: Int, height: Int) -> [UInt8] {
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let cg = image.cgImage else { return pixels }
+        pixels.withUnsafeMutableBytes { raw in
+            let context = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                    space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            context?.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+        }
+        return pixels
+    }
+
+    // MARK: - Composite (§7.5 "Composite" 2–5)
+
+    /// The person's analysis maps at render pixels, over every face (hair: max, background: min).
+    struct Maps {
+        let analyses: [FaceSunglassesAnalysis]
+        let scale: Float   // analysis pixels per render pixel
+        // Called per pixel: plain loops, no intermediate arrays.
+        func hair(_ x: Float, _ y: Float) -> Float {
+            var best: Float = 0
+            for a in analyses { if let v = a.hair.sample(x: x * scale, y: y * scale), v > best { best = v } }
+            return best
+        }
+        func background(_ x: Float, _ y: Float) -> Float {
+            var best: Float = 1
+            for a in analyses { if let v = a.background.sample(x: x * scale, y: y * scale), v < best { best = v } }
+            return best
+        }
+    }
+
+    /// Composites one face's pair onto `image` (linear RGB at render size; the arithmetic is in sRGB-encoded values).
+    static func composite(_ passes: Passes, onto image: inout FloatImage, sunglasses g: EditRecipe.FaceEdit.Sunglasses,
+                          pose: Pose, irisSpan d: Float, maps: Maps) {
+        let rw = passes.width, rh = passes.height, n = rw * rh
+        // Per-pixel planes over the region.
+        var background = [Float](repeating: 1, count: n), hair = FloatImage(width: rw, height: rh, channels: 1)
+        DispatchQueue.concurrentPerform(iterations: rh) { y in
+            for x in 0..<rw {
+                let px = Float(passes.x0 + x) + 0.5, py = Float(passes.y0 + y) + 0.5
+                background[y * rw + x] = maps.background(px, py)
+                hair.data[y * rw + x] = maps.hair(px, py)
+            }
+        }
+        hair = hair.gaussianBlurred(sigma: 2)
+        var frameAlpha = (0..<n).map { Float(passes.frame[$0 * 4 + 3]) / 255 }
+        let frontAlpha = (0..<n).map { Float(passes.front[$0 * 4 + 3]) / 255 }
+        var lens = passes.lens
+        // 5. Profile clip (applied to coverage up front): lens and frame stay within 4 mm of the person.
+        if pose.isProfile {
+            let near = nearPerson(background, width: rw, height: rh, radius: SunglassesConstants.profileOverhangMetres * pose.pixelsPerMetre)
+            for i in 0..<n { lens[i] *= near[i]; frameAlpha[i] *= near[i] }
+        }
+        // 2. Contact shadow: coverage blurred, shifted down-right, multiplies the photo on the person.
+        var coverage = FloatImage(width: rw, height: rh, channels: 1)
+        for i in 0..<n { coverage.data[i] = max(frameAlpha[i], lens[i]) }
+        coverage = coverage.gaussianBlurred(sigma: max(1, SunglassesConstants.shadowSigmaOfIrisSpan * d))
+        let dx = Int(SunglassesConstants.shadowOffsetOfIrisSpan.x * d), dy = Int(SunglassesConstants.shadowOffsetOfIrisSpan.y * d)
+        // Lens rows, for the reflection and gradient (t = 0 at the top lens row, 1 at the bottom one).
+        var top = rh, bottom = -1
+        for y in 0..<rh { for x in 0..<rw where lens[y * rw + x] > 0.5 { top = min(top, y); bottom = max(bottom, y); break } }
+        let span = Float(max(1, bottom - top))
+
+        for y in 0..<rh {
+            let t = min(max(Float(y - top) / span, 0), 1)
+            for x in 0..<rw {
+                let i = y * rw + x
+                let o = image.index(passes.x0 + x, passes.y0 + y)
+                // §7.5 composites in sRGB-encoded values, as the approved trial renders did (linear blending lightens
+                // the lenses and brightens the frame's anti-aliased edges against skin).
+                var px = ColourMath.encoded(fromLinear: SIMD3(image.data[o], image.data[o + 1], image.data[o + 2]))
+                let sx = x - dx, sy = y - dy
+                if background[i] < 0.5, sx >= 0, sy >= 0, sx < rw, sy < rh {
+                    px *= 1 - coverage.data[sy * rw + sx] * SunglassesConstants.shadowStrength
+                }
+                // 3. Lenses: the photo seen through the tinted glass.
+                let l = lens[i]
+                if l > 0 { px = px * (1 - l) + glass(px, sunglasses: g, t: t) * l }
+                // 4. Frame: hair covers the arms (frame beyond the front 12 mm), never the front.
+                let fa = frameAlpha[i]
+                if fa > 0 {
+                    let hairCover = min(max((hair.data[i] - 0.3) / 0.4, 0), 1)
+                    let alpha = min(frontAlpha[i] + (fa - frontAlpha[i]) * (1 - hairCover), fa)
+                    let p = passes.frame, a8 = Float(p[i * 4 + 3])
+                    // Unpremultiplied sRGB-encoded frame colour.
+                    let colour = SIMD3(min(Float(p[i * 4]) / a8, 1), min(Float(p[i * 4 + 1]) / a8, 1), min(Float(p[i * 4 + 2]) / a8, 1))
+                    px = px * (1 - alpha) + colour * alpha
+                }
+                let back = ColourMath.linear(fromEncoded: px)
+                image.data[o] = back.x; image.data[o + 1] = back.y; image.data[o + 2] = back.z
+            }
+        }
+    }
+
+    /// About 1 within `radius` pixels of the person (background < 0.5), 0 beyond: dilated at quarter resolution as the
+    /// reference, then up-sampled and kept soft. The reference thresholded it, which leaves a quarter-resolution
+    /// staircase where the clip crosses the frame's bridge on a profile.
+    static func nearPerson(_ background: [Float], width: Int, height: Int, radius: Float) -> [Float] {
+        var person = FloatImage(width: width, height: height, channels: 1)
+        for i in 0..<person.pixelCount { person.data[i] = background[i] < 0.5 ? 1 : 0 }
+        let qw = max(1, width / 4), qh = max(1, height / 4)
+        let quarter = person.resized(width: qw, height: qh).dilated(threshold: 0.5, radius: max(1, Int(radius / 4)))
+        let up = quarter.gaussianBlurred(sigma: 0.75).resized(width: width, height: height)
+        return (0..<person.pixelCount).map { min(max((up.data[$0] - 0.25) / 0.5, 0), 1) }
+    }
+
+    // MARK: - Stage entry
+
+    /// Applies every face's sunglasses to `image` (linear RGB at render size). Faces without a pair, without an analysis,
+    /// or not readable are left unchanged.
+    /// `removedPatch` finds a painted-out glasses patch by digest (RemovePatchStore); a missing one is skipped, never
+    /// recomputed (remove-evaluation §7).
+    static func render(_ image: inout FloatImage, faces: [(edit: EditRecipe.FaceEdit, analysis: FaceSunglassesAnalysis)],
+                       allAnalyses: [FaceSunglassesAnalysis], pack: SunglassesPack, removedPatch: (String) -> RemovePatch? = { _ in nil }) {
+        guard let first = allAnalyses.first else { return }
+        let maps = Maps(analyses: allAnalyses, scale: Float(first.analysisWidth) / Float(image.width))
+        for face in faces {
+            guard let g = face.edit.sunglasses, let id = g.pair, let pair = pack.pair(id), face.analysis.isReadable else { continue }
+            // 1. The face's own glasses, painted out (only while a pair is chosen).
+            if let removed = g.removed, let patch = removedPatch(removed.patch.sha256) {
+                SunglassesRemoval.composite(patch, onto: &image)
+            }
+            let P = scaledLandmarks(face.analysis, renderWidth: image.width)
+            let pose = pose(landmarks: P, width: image.width, height: image.height, background: maps.background)
+            guard let passes = try? renderPasses(pair: pair, pack: pack, pose: pose, size: g.size, landmarks: P,
+                                                 width: image.width, height: image.height) else { continue }
+            let d = face.analysis.irisSpan * Float(image.width) / Float(face.analysis.analysisWidth)
+            composite(passes, onto: &image, sunglasses: g, pose: pose, irisSpan: d, maps: maps)
+        }
+    }
+}

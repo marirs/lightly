@@ -288,7 +288,7 @@ def stages():
                                      "mirrorGradient": [[0.55, 0.65, 0.8], [0.25, 0.3, 0.38]], "mirrorGradientWeight": 0.35,
                                      "reflection": "(0.16 * (1 - t)^2 + 0.03) * (0.85, 0.90, 1.00)"},
                             "hairOverArms": {"blurPx": 2, "low": 0.3, "width": 0.4},
-                            "profileOverhangMetres": 0.008},
+                            "profileOverhangMetres": 0.004},
                         "note": "revision 9: per face, after smile (rendering-v2.md §7.5); a missing sunglasses key or pair null leaves "
                                 "the pixels unchanged; pairs from the sunglasses pack (shared/sunglasses)"}]},
         {"order": 9, "id": "edit.geometry", "frame": "source → frame", "recipe": "editState.tools.edit.geometry",

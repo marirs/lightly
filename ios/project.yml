@@ -311,6 +311,14 @@ aggregateTargets:
       - name: Bundle Remove model
         script: '"${SRCROOT}/Tools/bundle_remove_model.sh"'
         basedOnDependencyAnalysis: false
+      # Portrait › Sunglasses (rendering-v2 §7.5): the purchased pairs (git-ignored shared/sunglasses/out) and the two
+      # MediaPipe models converted to Core ML (git-ignored experiments/sunglasses/models/exported).
+      - name: Bundle sunglasses pack
+        script: '"${LIGHTLY_REPO_ROOT}/scripts/bundle_sunglasses_pack.sh"'
+        basedOnDependencyAnalysis: false
+      - name: Bundle sunglasses models
+        script: '"${SRCROOT}/Tools/bundle_sunglasses_models.sh"'
+        basedOnDependencyAnalysis: false
       # Version and build for About from git, on every build (Xcode IDE builds included).
       - name: Write build info
         script: '"${SRCROOT}/Tools/write_build_info.sh"'
