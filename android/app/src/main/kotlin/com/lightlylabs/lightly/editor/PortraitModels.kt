@@ -13,7 +13,11 @@ import com.lightlylabs.lightly.session.UnderEye
 import com.lightlylabs.lightly.vision.DetectedFace
 
 /** Lightly 2 `portraitPanel` tabs, in order, with their approved labels (Smile: owner amendment 2026-10-11). */
-enum class PortraitTab(val label: String) { SKIN("Skin"), UNDER("Under-eye"), EYES("Eyes"), TEETH("Teeth"), SMILE("Smile"), HAIR("Hair & Beard") }
+enum class PortraitTab(val label: String) {
+    SKIN("Skin"), UNDER("Under-eye"), EYES("Eyes"), TEETH("Teeth"), SMILE("Smile"), HAIR("Hair & Beard"),
+    /** Portrait › Sunglasses (approved design portrait-sunglasses-v2, 2026-10-13): after Hair & Beard. */
+    SUNGLASSES("Sunglasses"),
+}
 
 /**
  * Portrait UI state: the tab (prototype `ui.sub`, reset when the tool changes) and the chosen face
@@ -29,6 +33,9 @@ data class PortraitUi(
     val sunglassesRemoving: Boolean = false,
 )
 
+/** Portrait › Sunglasses states (approved design portrait-sunglasses-v2): 1 and 3 READY, 2 GLASSES_FOUND, 4 EYES_NOT_VISIBLE. */
+enum class SunglassesState { ANALYSING, READY, GLASSES_FOUND, EYES_NOT_VISIBLE }
+
 /** One Portrait slider: its approved label, recipe field and range (Smile is centred, −100…100; the rest 0…100). */
 data class PortraitSlider(val label: String, val field: String, val min: Double = 0.0, val max: Double = 100.0)
 
@@ -42,7 +49,13 @@ object PortraitOptions {
         PortraitTab.TEETH -> listOf(PortraitSlider("Brighten", "teeth.brighten"))
         PortraitTab.SMILE -> listOf(PortraitSlider("Smile", "smile.amount", min = -100.0, max = 100.0))
         PortraitTab.HAIR -> listOf(PortraitSlider("Definition", "hair.definition"), PortraitSlider("Flyaways", "hair.flyaways"), PortraitSlider("Shine", "hair.shine"))
+        // Darkness and Size are drawn by SunglassesBody, under the pairs and lenses (design order).
+        PortraitTab.SUNGLASSES -> emptyList()
     }
+
+    /** Portrait › Sunglasses sliders (design `slider('Darkness')`, `slider('Size')`, Size centred on the automatic fit). */
+    val SUNGLASSES_DARKNESS = PortraitSlider("Darkness", "sunglasses.darkness")
+    val SUNGLASSES_SIZE = PortraitSlider("Size", "sunglasses.size", min = -50.0, max = 50.0)
 
     /** [hasMouth]: the chosen face has both mouth corners (rendering-v2 §7.3); without them Smile says so instead. */
     fun note(tab: PortraitTab, hasMouth: Boolean = true): String? = when (tab) {
@@ -75,7 +88,8 @@ object PortraitEdits {
     fun changeCount(e: FaceEdit): Int {
         val values = listOf(e.skin.smoothing, e.skin.blemishes, e.skin.evenTone, e.underEye.brighten, e.underEye.softenLines, e.eyes.brighten,
             e.eyes.clarity, e.teeth.brighten, e.smile.amount, e.hair.definition, e.hair.flyaways, e.hair.shine)
-        return values.count { it != 0.0 } + if (e.skin.keepTexture != PortraitOptions.KEEP_TEXTURE_DEFAULT) 1 else 0
+        return values.count { it != 0.0 } + (if (e.skin.keepTexture != PortraitOptions.KEEP_TEXTURE_DEFAULT) 1 else 0) +
+            (if (e.sunglasses?.pair != null) 1 else 0)
     }
 
     fun value(e: FaceEdit, field: String): Double = when (field) {
@@ -92,6 +106,8 @@ object PortraitEdits {
         "hair.definition" -> e.hair.definition
         "hair.flyaways" -> e.hair.flyaways
         "hair.shine" -> e.hair.shine
+        "sunglasses.darkness" -> (e.sunglasses ?: com.lightlylabs.lightly.session.Sunglasses.NONE).darkness
+        "sunglasses.size" -> (e.sunglasses ?: com.lightlylabs.lightly.session.Sunglasses.NONE).size
         else -> throw IllegalArgumentException("unknown Portrait field $field")
     }
 
@@ -111,6 +127,8 @@ object PortraitEdits {
             "hair.definition" -> e.copy(hair = e.hair.copy(definition = v))
             "hair.flyaways" -> e.copy(hair = e.hair.copy(flyaways = v))
             "hair.shine" -> e.copy(hair = e.hair.copy(shine = v))
+            "sunglasses.darkness" -> e.copy(sunglasses = (e.sunglasses ?: com.lightlylabs.lightly.session.Sunglasses.NONE).copy(darkness = v))
+            "sunglasses.size" -> e.copy(sunglasses = (e.sunglasses ?: com.lightlylabs.lightly.session.Sunglasses.NONE).copy(size = raw.coerceIn(-50.0, 50.0)))
             else -> throw IllegalArgumentException("unknown Portrait field $field")
         }
     }

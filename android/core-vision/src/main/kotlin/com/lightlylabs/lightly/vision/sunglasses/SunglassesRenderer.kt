@@ -167,7 +167,15 @@ object SunglassesRenderer {
         return if (rx1 > rx0 && ry1 > ry0) intArrayOf(max(0, rx0), max(0, ry0), min(frameWidth, rx1) - max(0, rx0), min(frameHeight, ry1) - max(0, ry0)) else null
     }
 
-    class Passes(val frame: SunglassesRaster.Result, val front: SunglassesRaster.Result, val lens: SunglassesRaster.Result)
+    /**
+     * The three passes over a frame rectangle, kept compact (6 bytes a pixel): [frame] RGBA8 (sRGB colour, not
+     * premultiplied, and alpha), [front] alpha, [lens] lens coverage. A 2000 px face region as float buffers was
+     * hundreds of MB and ran Android's 192 MB heap out on the Pixel 9 Pro emulator (2026-10-13).
+     */
+    class Passes(val x0: Int, val y0: Int, val width: Int, val height: Int, val frame: ByteArray, val front: ByteArray, val lens: ByteArray)
+
+    /** Output tile side for the rasteriser: its per-sample buffers are about 12 MB at this size (2 × 2 supersampling). */
+    private const val TILE = 256
 
     /** The three passes over a square of ±0.2 m around the pair's origin (the pair reaches ~0.16 m behind its lenses). */
     fun passes(pack: SunglassesPack, pair: SunglassesPack.Pair, textures: (String) -> SunglassesRaster.Texture?, pose: Pose, size: Double,
@@ -177,12 +185,26 @@ object SunglassesRenderer {
         val x0 = max(0, (cx - half).toInt()); val y0 = max(0, (cy - half).toInt())
         val x1 = min(width, ceil(cx + half).toInt()); val y1 = min(height, ceil(cy + half).toInt())
         if (x1 - x0 <= 2 || y1 - y0 <= 2) return null
+        val rw = x1 - x0; val rh = y1 - y0
         val placement = SunglassesRaster.Placement(pose.origin, pose.ex, pose.ey, pose.ez, s * (1 + SunglassesConstants.SIZE_PER_UNIT * size))
         val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s)
         val mesh = pack.mesh(pair)
-        fun pass(which: SunglassesRaster.Pass) =
-            SunglassesRaster.render(pack, pair, mesh, textures, placement, width, height, x0, y0, x1 - x0, y1 - y0, faceMesh, which)
-        return Passes(pass(SunglassesRaster.Pass.FRAME), pass(SunglassesRaster.Pass.FRONT), pass(SunglassesRaster.Pass.LENS))
+        val frame = ByteArray(rw * rh * 4); val front = ByteArray(rw * rh); val lens = ByteArray(rw * rh)
+        fun byte(v: Float) = (v.coerceIn(0f, 1f) * 255 + 0.5f).toInt().toByte()
+        // Tile by tile: every sample sits at the same absolute position as in one whole render, so the result is the same.
+        for (ty in 0 until rh step TILE) for (tx in 0 until rw step TILE) {
+            val tw = min(TILE, rw - tx); val th = min(TILE, rh - ty)
+            fun pass(which: SunglassesRaster.Pass) =
+                SunglassesRaster.render(pack, pair, mesh, textures, placement, width, height, x0 + tx, y0 + ty, tw, th, faceMesh, which).rgba
+            val f = pass(SunglassesRaster.Pass.FRAME); val fr = pass(SunglassesRaster.Pass.FRONT); val l = pass(SunglassesRaster.Pass.LENS)
+            for (y in 0 until th) for (x in 0 until tw) {
+                val i = y * tw + x; val o = (ty + y) * rw + tx + x
+                for (c in 0..3) frame[o * 4 + c] = byte(f[i * 4 + c])
+                front[o] = byte(fr[i * 4 + 3])
+                lens[o] = byte(l[i * 4] * l[i * 4 + 3])
+            }
+        }
+        return Passes(x0, y0, rw, rh, frame, front, lens)
     }
 
     /** The face mesh (468 landmarks, MediaPipe's canonical triangles) as scene-unit triangles, pushed back by [zShift]. */
@@ -197,79 +219,78 @@ object SunglassesRenderer {
         return out
     }
 
+    private const val Q = 4   // quarter resolution for the blurred planes (shadow, profile clip)
+
     /**
      * §7.5 composite 2–5 over the passes' rectangle, in sRGB-encoded values, into [pixels]: the RGBA8 pixels of the region
      * at ([regionX], [regionY]) of the frame, [regionWidth] × [regionHeight]. Pixels outside the region are skipped.
+     *
+     * v3 differs from iOS (memory, Android's 192 MB heap): hair and background are sampled from the analysis maps per pixel
+     * (iOS stores them as planes and blurs hair by 2 px, below the maps' own resolution), and the shadow coverage and the
+     * profile clip are made at quarter resolution and sampled bilinearly (both are blurred, so the detail is not there).
      */
     fun composite(passes: Passes, pixels: ByteArray, regionX: Int, regionY: Int, regionWidth: Int, regionHeight: Int,
                   g: Sunglasses, pose: Pose, irisSpan: Float, maps: Maps) {
-        val frame = passes.frame; val front = passes.front; val lensPass = passes.lens
-        val rw = frame.width; val rh = frame.height; val n = rw * rh
-        val background = FloatArray(n)
-        val hairRaw = FloatPlane(rw, rh)
+        val rw = passes.width; val rh = passes.height
+        val qw = (rw + Q - 1) / Q; val qh = (rh + Q - 1) / Q
+        fun frameAlpha(i: Int) = (passes.frame[i * 4 + 3].toInt() and 0xff) / 255f
+        fun lensAt(i: Int) = (passes.lens[i].toInt() and 0xff) / 255f
+        // 5. Profile clip: near the person (dilated 4 mm, soft), at quarter resolution.
+        val near: FloatPlane? = if (!pose.isProfile) null else {
+            val person = FloatPlane(qw, qh, FloatArray(qw * qh) { q ->
+                val px = passes.x0 + (q % qw) * Q + Q / 2f; val py = passes.y0 + (q / qw) * Q + Q / 2f
+                if (maps.background(px, py) < 0.5f) 1f else 0f
+            })
+            val radius = max(1, ((SunglassesConstants.PROFILE_OVERHANG_METRES * pose.pixelsPerMetre).toFloat() / Q).toInt())
+            val spread = PlaneOps.boxFilter(person, radius)
+            PlaneOps.gaussianBlur(FloatPlane(qw, qh, FloatArray(qw * qh) { if (spread.values[it] > 1e-6f) 1f else 0f }), 0.75)
+        }
+        fun nearAt(x: Int, y: Int): Float = near?.let { ((it.sample((x + 0.5) / Q - 0.5, (y + 0.5) / Q - 0.5) - 0.25f) / 0.5f).coerceIn(0f, 1f) } ?: 1f
+        // 2. Contact shadow coverage: max(frame, lens) averaged over Q × Q blocks, blurred (σ / Q).
+        val coverage = FloatPlane(qw, qh)
         for (y in 0 until rh) for (x in 0 until rw) {
-            val px = frame.x0 + x + 0.5f; val py = frame.y0 + y + 0.5f
-            background[y * rw + x] = maps.background(px, py)
-            hairRaw[x, y] = maps.hair(px, py)
+            val i = y * rw + x
+            val c = max(frameAlpha(i), lensAt(i)) * (if (near != null) nearAt(x, y) else 1f)
+            coverage.values[(y / Q) * qw + x / Q] += c / (Q * Q)
         }
-        val hair = PlaneOps.gaussianBlur(hairRaw, 2.0)
-        val frameAlpha = FloatArray(n) { frame.rgba[it * 4 + 3] }
-        val frontAlpha = FloatArray(n) { front.rgba[it * 4 + 3] }
-        val lens = FloatArray(n) { lensPass.rgba[it * 4] * lensPass.rgba[it * 4 + 3] }
-        // 5. Profile clip: lens and frame within 4 mm of the person, soft edge.
-        if (pose.isProfile) {
-            val near = nearPerson(background, rw, rh, (SunglassesConstants.PROFILE_OVERHANG_METRES * pose.pixelsPerMetre).toFloat())
-            for (i in 0 until n) { lens[i] *= near[i]; frameAlpha[i] *= near[i] }
-        }
-        // 2. Contact shadow: coverage blurred, shifted down and right, darkens the person.
-        val coverage = PlaneOps.gaussianBlur(FloatPlane(rw, rh, FloatArray(n) { max(frameAlpha[it], lens[it]) }),
-                                             max(1.0, SunglassesConstants.SHADOW_SIGMA_OF_IRIS_SPAN * irisSpan))
+        val shadow = PlaneOps.gaussianBlur(coverage, max(1.0, SunglassesConstants.SHADOW_SIGMA_OF_IRIS_SPAN * irisSpan) / Q)
         val dx = (SunglassesConstants.SHADOW_OFFSET_X_OF_IRIS_SPAN * irisSpan).toInt()
         val dy = (SunglassesConstants.SHADOW_OFFSET_Y_OF_IRIS_SPAN * irisSpan).toInt()
         var top = rh; var bottom = -1
-        for (y in 0 until rh) for (x in 0 until rw) if (lens[y * rw + x] > 0.5f) { top = min(top, y); bottom = max(bottom, y); break }
+        for (y in 0 until rh) for (x in 0 until rw) if (lensAt(y * rw + x) > 0.5f) { top = min(top, y); bottom = max(bottom, y); break }
         val span = max(1, bottom - top).toDouble()
         val px = DoubleArray(3)
         for (y in 0 until rh) {
             val t = ((y - top) / span).coerceIn(0.0, 1.0)
-            val ry = frame.y0 + y - regionY
+            val ry = passes.y0 + y - regionY
             if (ry < 0 || ry >= regionHeight) continue
             for (x in 0 until rw) {
-                val rx = frame.x0 + x - regionX
+                val rx = passes.x0 + x - regionX
                 if (rx < 0 || rx >= regionWidth) continue
                 val i = y * rw + x
                 val o = (ry * regionWidth + rx) * 4
+                val fx = passes.x0 + x + 0.5f; val fy = passes.y0 + y + 0.5f
                 for (c in 0..2) px[c] = (pixels[o + c].toInt() and 0xff) / 255.0
                 val sx = x - dx; val sy = y - dy
-                if (background[i] < 0.5f && sx >= 0 && sy >= 0 && sx < rw && sy < rh) {
-                    val shade = 1 - coverage.values[sy * rw + sx] * SunglassesConstants.SHADOW_STRENGTH
+                if (sx >= 0 && sy >= 0 && sx < rw && sy < rh && maps.background(fx, fy) < 0.5f) {
+                    val shade = 1 - shadow.sample((sx + 0.5) / Q - 0.5, (sy + 0.5) / Q - 0.5) * SunglassesConstants.SHADOW_STRENGTH
                     for (c in 0..2) px[c] *= shade
                 }
+                val clip = nearAt(x, y)
                 // 3. Lenses: the photo seen through the tinted glass.
-                val l = lens[i].toDouble()
+                val l = (lensAt(i) * clip).toDouble()
                 if (l > 0) { val gl = glass(px, g, t); for (c in 0..2) px[c] = px[c] * (1 - l) + gl[c] * l }
                 // 4. Frame: hair covers the arms (beyond the front 12 mm), never the front.
-                val fa = frameAlpha[i]
+                val fa = frameAlpha(i) * clip
                 if (fa > 0) {
-                    val cover = ((hair.values[i] - 0.3f) / 0.4f).coerceIn(0f, 1f)
-                    val alpha = min(frontAlpha[i] + (fa - frontAlpha[i]) * (1 - cover), fa).toDouble()
-                    for (c in 0..2) px[c] = px[c] * (1 - alpha) + frame.rgba[i * 4 + c] * alpha
+                    val front = (passes.front[i].toInt() and 0xff) / 255f * clip
+                    val cover = ((maps.hair(fx, fy) - 0.3f) / 0.4f).coerceIn(0f, 1f)
+                    val alpha = min(front + (fa - front) * (1 - cover), fa).toDouble()
+                    for (c in 0..2) px[c] = px[c] * (1 - alpha) + (passes.frame[i * 4 + c].toInt() and 0xff) / 255.0 * alpha
                 }
                 for (c in 0..2) pixels[o + c] = (px[c].coerceIn(0.0, 1.0) * 255 + 0.5).toInt().toByte()
             }
         }
-    }
-
-    /** About 1 within [radius] px of the person, 0 beyond: dilated at quarter resolution, blurred, up-sampled, soft. */
-    fun nearPerson(background: FloatArray, width: Int, height: Int, radius: Float): FloatArray {
-        val person = FloatPlane(width, height, FloatArray(width * height) { if (background[it] < 0.5f) 1f else 0f })
-        val qw = max(1, width / 4); val qh = max(1, height / 4)
-        val quarter = PlaneOps.resizeBilinear(person, qw, qh)
-        val spread = PlaneOps.boxFilter(FloatPlane(qw, qh, FloatArray(qw * qh) { if (quarter.values[it] > 0.5f) 1f else 0f }),
-                                        max(1, (radius / 4).toInt()))
-        val dilated = FloatPlane(qw, qh, FloatArray(qw * qh) { if (spread.values[it] > 1e-6f) 1f else 0f })
-        val up = PlaneOps.resizeBilinear(PlaneOps.gaussianBlur(dilated, 0.75), width, height)
-        return FloatArray(width * height) { ((up.values[it] - 0.25f) / 0.5f).coerceIn(0f, 1f) }
     }
 
     // MARK: Vectors

@@ -206,7 +206,8 @@ class PortraitTest {
         show(vm)
         compose.onNodeWithTag(EditorTags.tool(EditorTool.PORTRAIT)).performClick()
         compose.waitForIdle()
-        assertEquals(listOf("Skin", "Under-eye", "Eyes", "Teeth", "Smile", "Hair & Beard"), PortraitTab.entries.map { it.label })
+        // Sunglasses after Hair & Beard: approved design portrait-sunglasses-v2 (2026-10-13).
+        assertEquals(listOf("Skin", "Under-eye", "Eyes", "Teeth", "Smile", "Hair & Beard", "Sunglasses"), PortraitTab.entries.map { it.label })
         compose.onNodeWithTag("portrait-tab-smile").performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Lifts or relaxes the corners of the mouth. Stays within a natural range; the rest of the face is unchanged.").assertIsDisplayed()

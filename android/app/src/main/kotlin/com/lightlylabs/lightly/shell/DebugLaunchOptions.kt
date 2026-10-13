@@ -427,6 +427,12 @@ object DebugLaunchOptions {
             "pt-no-usable-face" -> api.openPortrait(com.lightlylabs.lightly.editor.PortraitTab.SKIN)
             // pt-hidden: field with Landscape 120 on Develop (Portrait is not offered).
             "pt-hidden" -> { api.applyPreset("daylight", 56); api.rebaseHistory() }
+            // Portrait › Sunglasses (approved design portrait-sunglasses-v2): `pt-sunglasses-<pair>` chooses that pair for the
+            // first face as a tap would (a face wearing glasses has them painted out first); `pt-sunglasses` shows None.
+            else -> if (screen.startsWith("pt-sunglasses")) {
+                api.openPortrait(com.lightlylabs.lightly.editor.PortraitTab.SUNGLASSES)
+                screen.removePrefix("pt-sunglasses").removePrefix("-").takeIf { it.isNotEmpty() }?.let(api::chooseSunglasses)
+            }
         }
     }
 

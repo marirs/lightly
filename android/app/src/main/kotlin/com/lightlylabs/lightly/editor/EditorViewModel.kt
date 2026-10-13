@@ -648,7 +648,11 @@ class EditorViewModel(
         state.update { it.copy(portrait = it.portrait.copy(selectedFace = index, sliderDrag = null)) }
     }
 
-    fun selectPortraitTab(tab: PortraitTab) = state.update { it.copy(portrait = it.portrait.copy(tab = tab, sliderDrag = null)) }
+    fun selectPortraitTab(tab: PortraitTab) {
+        state.update { it.copy(portrait = it.portrait.copy(tab = tab, sliderDrag = null)) }
+        // Opening Sunglasses runs its analysis once (iOS PortraitPanelModel.select).
+        if (tab == PortraitTab.SUNGLASSES) ensureSunglassesAnalysis()
+    }
 
     /** The dragged value of [field], while that slider moves. */
     fun portraitDragValue(field: String): Double? = state.value.portrait.sliderDrag?.takeIf { it.first == field }?.second
@@ -717,6 +721,10 @@ class EditorViewModel(
     /** The bundled pairs in the approved order (empty without a pack: only None). */
     val sunglassesPairs: List<com.lightlylabs.lightly.vision.sunglasses.SunglassesPack.Pair> get() = env.sunglasses.pack?.pairs.orEmpty()
 
+    /** A pair's tile picture (null without a pack, or off Android). */
+    fun sunglassesThumbnail(pair: com.lightlylabs.lightly.vision.sunglasses.SunglassesPack.Pair): android.graphics.Bitmap? =
+        runCatching { env.sunglasses.thumbnail(pair) }.getOrNull()
+
     /**
      * Runs the Sunglasses analysis of every usable face once per photo (the tab is opened, or a recipe holds a pair): the
      * landmarker and segmenter on the analysis copy, off the main thread (iOS `ensureSunglassesAnalysis`).
@@ -746,6 +754,27 @@ class EditorViewModel(
             state.update { it.copy(portrait = it.portrait.copy(sunglassesAnalysing = false)) }
             state.value.session?.let { requestPreview(it.current, globalOnly = false) }
         }
+    }
+
+    /** The selected face's Sunglasses state (design states 1–4; without the models every face reads as "eyes not visible"). */
+    fun sunglassesState(ui: EditorUiState = state.value): SunglassesState {
+        val face = usableFaces.getOrNull(ui.portrait.selectedFace.coerceIn(0, (usableFaces.size - 1).coerceAtLeast(0))) ?: return SunglassesState.EYES_NOT_VISIBLE
+        val analysed = portraitSession.sunglassesAnalyses != null
+        if (ui.portrait.sunglassesAnalysing && !analysed) return SunglassesState.ANALYSING
+        val analysis = portraitSession.sunglassesAnalysis(face)?.takeIf { it.isReadable }
+            ?: return if (analysed) SunglassesState.EYES_NOT_VISIBLE else SunglassesState.ANALYSING
+        return if (analysis.glassesMask() != null) SunglassesState.GLASSES_FOUND else SunglassesState.READY
+    }
+
+    /** Lenses › a chip for the selected face: one undo step. */
+    fun setSunglassesLens(lens: com.lightlylabs.lightly.session.SunglassesLens) {
+        val face = selectedFace() ?: return
+        val session = state.value.session ?: return
+        val tool = PortraitEdits.updated(session.current.tools.portrait, face) { e ->
+            e.copy(sunglasses = (e.sunglasses ?: com.lightlylabs.lightly.session.Sunglasses.NONE).copy(lens = lens))
+        }
+        if (tool == session.current.tools.portrait) return
+        commit(session.commit { s -> s.copy(tools = s.tools.copy(portrait = tool)) }, state.value.auto)
     }
 
     /**
@@ -2326,6 +2355,8 @@ class EditorViewModel(
                     "teeth" -> f.copy(teeth = neutral.teeth)
                     "smile" -> f.copy(smile = neutral.smile)
                     "hair" -> f.copy(hair = neutral.hair)
+                    // None with default lens settings; a painted-out fill is kept so a later pair reuses it.
+                    "sunglasses" -> f.sunglasses?.let { g -> f.copy(sunglasses = com.lightlylabs.lightly.session.Sunglasses.NONE.copy(removed = g.removed)) } ?: f
                     else -> f
                 }
             })))
@@ -2801,6 +2832,15 @@ class EditorViewModel(
         fun background(change: (com.lightlylabs.lightly.session.BackgroundTool) -> com.lightlylabs.lightly.session.BackgroundTool) = commitBackground(change)
 
         /** Opens Portrait on [tab] with face [face] chosen, as the user would. */
+        /** Portrait › Sunglasses captures: once the analysis has run, chooses the pair named [name] for the first face, as a tap. */
+        fun chooseSunglasses(name: String) {
+            scope.launch {
+                sunglassesAnalysisJob?.join()
+                val pair = sunglassesPairs.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return@launch
+                setSunglassesPair(pair.id, 0)
+            }
+        }
+
         fun openPortrait(tab: PortraitTab, face: Int = 0) {
             selectTool(EditorTool.PORTRAIT)
             selectPortraitFace(face)

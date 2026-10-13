@@ -25,6 +25,14 @@ class SunglassesLibrary(val pack: SunglassesPack?, private val decode: (ByteArra
         runCatching { pack.verified(path, sha ?: "")?.let(decode) }.getOrNull()
     }
 
+    private val thumbnails = HashMap<String, android.graphics.Bitmap?>()
+
+    /** The pair's tile picture (200 px wide, transparent), verified and decoded once. */
+    @Synchronized
+    fun thumbnail(pair: SunglassesPack.Pair): android.graphics.Bitmap? = thumbnails.getOrPut(pair.id) {
+        runCatching { pack?.verified(pair.thumbnail, pair.thumbnailSha256)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
+    }
+
     companion object {
         const val ASSET_ROOT = "sunglassespack/"
 
