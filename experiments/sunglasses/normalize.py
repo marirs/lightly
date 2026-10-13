@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from fbxtex import main as fbx_materials
 from objinfo import load as load_obj
 from PIL import Image
-ROOT=os.path.expanduser('~/Downloads/Sunglasses 3D'); OUT=sys.argv[1]
+ROOT=os.path.expanduser('~/Downloads/Sunglasses 3D'); OUT=sys.argv[1] if __name__=='__main__' else None  # set by callers that import this
 FRONT_WIDTH=0.148  # used only for models not authored in metres
 # Worn arms flex outward to rest on the head. Models are authored unworn (arms 68-76 mm from the centre), which
 # puts narrow arms inside the head occluders, so the arms are splayed to ARM_X, ramping in over the first SPLAY_LEN
@@ -113,8 +113,9 @@ def normalise(name, source=None, cfg=None):
     out.close()
     json.dump(dict(name=name,scale=scale,materials=materials),open(f'{OUT}/{name}/model.json','w'),indent=1)
     print(f'{name:38s} scale {scale:.4f} width {width*scale:.3f} arm splay {splay*1000:.1f}mm roles {sorted(set(roles.values()))}')
-if '--variants' in sys.argv:
-    for name,(source,cfg) in VARIANTS.items(): normalise(name,source,cfg)
-else:
-    for d in sorted(os.listdir(ROOT)):
-        if os.path.isdir(os.path.join(ROOT,d)): normalise(d)
+if __name__=='__main__':
+    if '--variants' in sys.argv:
+        for name,(source,cfg) in VARIANTS.items(): normalise(name,source,cfg)
+    else:
+        for d in sorted(os.listdir(ROOT)):
+            if os.path.isdir(os.path.join(ROOT,d)): normalise(d)
