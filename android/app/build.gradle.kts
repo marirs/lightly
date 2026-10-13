@@ -72,6 +72,9 @@ val visionModels = mapOf(
     // 191ac952…658b; outputs equal within 1.6e-12): LiteRT's built-in kernels lack the custom op, and the
     // arm64 emulator cannot use XNNPACK, which implements it.
     "selfie_segmenter.tflite" to listOf("selfie_segmenter_builtin.tflite", "400dd25939e56f7374f2aa2345ddf31ded21f525627cbeb707a4f022ba90ef2d", "", ""),
+    // Portrait › Sunglasses (rendering-v2 §7.5): hair, the person's outline and accessories (a face's own glasses).
+    // MediaPipe selfie multiclass, Apache-2.0; built-in ops only (TRANSPOSE_CONV), so no patch is needed.
+    "selfie_multiclass_256x256.tflite" to listOf("selfie_multiclass_256x256.tflite", "c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0", "", ""),
 )
 /**
  * Optional vision models: packaged with the others when their source file is present, never required.
@@ -524,6 +527,66 @@ abstract class BundleLeakPackTask : DefaultTask() {
     }
 }
 
+// --- Sunglasses pack (rendering-v2 revision 9 §7.5, owner-approved design 2026-10-13) ---------------------------
+//
+// shared/sunglasses/build_sunglasses.py writes sunglasses.json ("lightly-sunglasses-pack" 1), mesh/<id>.lsg, tex/ and thumb/
+// into the git-ignored shared/sunglasses/out/ (the purchased models never enter the repository). Every variant bundles it under
+// assets/sunglassespack/. A build without it only warns: the Sunglasses row then offers only None.
+val sunglassesPackDirectory: File? = listOfNotNull(rootDir.parentFile, mainCheckoutOfWorktree(rootDir.parentFile))
+    .map { it.resolve("shared/sunglasses/out") }.firstOrNull { it.resolve("sunglasses.json").isFile }
+
+/** Copies sunglasses.json and the files it names into assets/sunglassespack/, checking each file's SHA-256 against the manifest. */
+abstract class BundleSunglassesPackTask : DefaultTask() {
+    @get:Optional
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val packDirectory: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    @Suppress("UNCHECKED_CAST")
+    fun bundle() {
+        val root = assetsDirectory.get().asFile
+        root.deleteRecursively()
+        root.mkdirs()
+        val pack = packDirectory.orNull?.asFile
+        if (pack == null) {
+            logger.warn("No sunglasses pack (build shared/sunglasses/out with shared/sunglasses/build_sunglasses.py): Sunglasses will offer only None")
+            return
+        }
+        val manifestFile = pack.resolve("sunglasses.json")
+        val manifest = groovy.json.JsonSlurper().parseText(manifestFile.readText()) as Map<String, Any?>
+        if (manifest["format"] != "lightly-sunglasses-pack" || (manifest["formatVersion"] as? Number)?.toInt() != 1) {
+            throw GradleException("$manifestFile is ${manifest["format"]} ${manifest["formatVersion"]}; this app reads lightly-sunglasses-pack 1")
+        }
+        val target = root.resolve("sunglassespack")
+        fun copyChecked(path: String, sha: Any?, id: String) {
+            // Only the pair's own files under the pack root (paths are joined onto the pack and asset roots).
+            if (!(path == "mesh/$id.lsg" || path == "thumb/$id.png" || path.startsWith("tex/$id-")) || ".." in path) {
+                throw GradleException("$manifestFile: pair $id names $path")
+            }
+            val file = pack.resolve(path)
+            if (!file.isFile) throw GradleException("$manifestFile names $path, which is not in $pack")
+            val actual = LookPackFacts.sha256Hex(file.readBytes())
+            if (actual != sha) throw GradleException("$file has SHA-256 $actual; the manifest records $sha")
+            file.copyTo(target.resolve(path))
+        }
+        for (pair in (manifest["pairs"] as? List<Map<String, Any?>>).orEmpty()) {
+            val id = pair["id"] as? String ?: throw GradleException("$manifestFile has a pair without an id")
+            if (!Regex("sun-[0-9a-f]{12}").matches(id)) throw GradleException("$manifestFile: pair id $id")
+            copyChecked(pair["mesh"] as String, pair["meshSha256"], id)
+            copyChecked(pair["thumbnail"] as String, pair["thumbnailSha256"], id)
+            for (material in (pair["materials"] as? List<Map<String, Any?>>).orEmpty()) {
+                (material["base"] as? String)?.let { copyChecked(it, material["baseSha256"], id) }
+                (material["normal"] as? String)?.let { copyChecked(it, material["normalSha256"], id) }
+            }
+        }
+        manifestFile.copyTo(target.resolve("sunglasses.json"))
+    }
+}
+
 /** Copies a gated model (depth, Remove) into assets/models/ after checking its SHA-256 (release gates above). */
 abstract class BundleDepthModelTask : DefaultTask() {
     @get:InputFile
@@ -784,6 +847,10 @@ androidComponents {
             leakPackDirectory?.let { packDirectory.set(it) }
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleLeakPack, BundleLeakPackTask::assetsDirectory)
+        val bundleSunglassesPack = tasks.register<BundleSunglassesPackTask>("bundle${variantName}SunglassesPack") {
+            sunglassesPackDirectory?.let { packDirectory.set(it) }
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleSunglassesPack, BundleSunglassesPackTask::assetsDirectory)
 
         if (depthModelEnabled(variant.buildType ?: "")) {
             val bundleDepthModel = tasks.register<BundleDepthModelTask>("bundle${variantName}DepthModel") {

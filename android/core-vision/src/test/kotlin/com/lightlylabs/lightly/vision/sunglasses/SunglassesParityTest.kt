@@ -63,6 +63,29 @@ class SunglassesParityTest {
     }
 
     @Test
+    fun `a region render equals the same crop of the whole frame (Save copy renders by region)`() {
+        assumeTrue("sunglasses pack not built", packDir != null)
+        val pack = SunglassesPack.load(File(packDir!!, "sunglasses.json").readText()) { File(packDir, it).takeIf(File::isFile)?.readBytes() }
+        val pair = pack.pairs.first { it.name == "Aviator" }
+        val photo = rgba(File(root, "experiments/lut3d/photos/portrait_deep_02.jpg"))
+        val analyses = analysis("portrait_deep_02")
+        val neutral = SavedEdits.decodeEditState(File(root, "shared/fixtures/edit-recipe/portrait-sunglasses.json").readText()).tools.portrait.faces.first()
+        val faces = analyses.map { SunglassesRenderer.Face(neutral.copy(sunglasses = Sunglasses(pair.id, SunglassesLens.GRADIENT, 60.0, 10.0, null)), it) }
+        val noTextures = { _: String -> null as SunglassesRaster.Texture? }
+        val whole = SunglassesRenderer.render(photo, faces, analyses, pack, noTextures)
+        val r = SunglassesRenderer.regionFor(faces[0], analyses, photo.width, photo.height)!!
+        // A region offset from the pair's square, so it cuts through the pair.
+        val x0 = r[0] + r[2] / 3; val y0 = r[1] + r[3] / 4; val w = r[2] / 2; val h = r[3] / 2
+        val crop = ByteArray(w * h * 4) { val x = (it / 4) % w; val y = (it / 4) / w; photo.pixels[((y0 + y) * photo.width + x0 + x) * 4 + it % 4] }
+        val region = SunglassesRenderer.renderRegion(RgbaImage(w, h, crop), x0, y0, photo.width, photo.height, faces, analyses, pack, noTextures)
+        var different = 0
+        for (y in 0 until h) for (x in 0 until w) for (c in 0..2) {
+            if (region.pixels[(y * w + x) * 4 + c] != whole.pixels[((y0 + y) * photo.width + x0 + x) * 4 + c]) different++
+        }
+        assertTrue(different == 0, "$different channel values differ")
+    }
+
+    @Test
     fun `renders match iOS on the trial photos`() {
         assumeTrue("sunglasses pack not built", packDir != null && File(packDir, "reference/portrait_deep_02.ios-region.png").isFile)
         val pack = SunglassesPack.load(File(packDir!!, "sunglasses.json").readText()) { File(packDir, it).takeIf(File::isFile)?.readBytes() }

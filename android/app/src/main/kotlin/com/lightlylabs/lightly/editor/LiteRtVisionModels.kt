@@ -30,6 +30,7 @@ class LiteRtVisionModels private constructor(private val context: Context) {
     private val selfie by lazy { load(SELFIE, listOf(elements(256 * 256))) }
     private val portraitMatte by lazy { load(PORTRAIT_MATTE, listOf(elements(PortraitMatting.INPUT * PortraitMatting.INPUT))) }
     private val subjectSaliencyModel by lazy { load(SUBJECT_SALIENCY, listOf(elements(SubjectSaliency.INPUT * SubjectSaliency.INPUT))) }
+    private val selfieMulticlass by lazy { load(SELFIE_MULTICLASS, listOf(elements(256 * 256 * 6))) }
 
     fun peopleAnalyser(): PeopleAnalyser? {
         val faces = faceDetector ?: return null
@@ -37,6 +38,16 @@ class LiteRtVisionModels private constructor(private val context: Context) {
     }
 
     fun personSegmenter(): PersonSegmenter? = selfie?.let(::PersonSegmenter)
+
+    /**
+     * Portrait › Sunglasses (rendering-v2 §7.5): the Face Mesh model (landmarks, then its presence logit, as the analyzer
+     * expects) and selfie multiclass; null when either is not packaged.
+     */
+    fun sunglassesAnalyzer(): com.lightlylabs.lightly.vision.sunglasses.SunglassesAnalyzer? {
+        val mesh = faceMesh ?: return null
+        val multiclass = selfieMulticlass ?: return null
+        return com.lightlylabs.lightly.vision.sunglasses.SunglassesAnalyzer(mesh, multiclass)
+    }
 
     /** MODNet, when this build packages it (optional asset): Background's person matte with hair detail. */
     fun portraitMatting(): PortraitMatting? = portraitMatte?.let(::PortraitMatting)
@@ -118,6 +129,7 @@ class LiteRtVisionModels private constructor(private val context: Context) {
         const val FACE_MESH = "face_landmarks_detector.tflite"
         const val POSE_DETECTOR = "pose_detector.tflite"
         const val SELFIE = "selfie_segmenter.tflite"
+        const val SELFIE_MULTICLASS = "selfie_multiclass_256x256.tflite"
         const val PORTRAIT_MATTE = "portrait_matte.tflite"
         const val SUBJECT_SALIENCY = "subject_saliency.tflite"
 

@@ -10,6 +10,8 @@ import com.lightlylabs.lightly.vision.PeopleAnalysis
 import com.lightlylabs.lightly.vision.Point
 import com.lightlylabs.lightly.vision.PortraitRenderer
 import com.lightlylabs.lightly.vision.RgbaImage
+import com.lightlylabs.lightly.vision.sunglasses.FaceSunglassesAnalysis
+import com.lightlylabs.lightly.vision.sunglasses.SunglassesRenderer
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -19,9 +21,39 @@ import kotlin.math.roundToInt
  * once, the first time Hair & Beard needs it, as iOS `ensurePersonMatte`), and stage 9 for previews
  * and Save copy.
  */
-class PortraitSession {
+class PortraitSession(
+    /** Portrait › Sunglasses: the bundled pairs (rendering-v2 §7.5). */
+    private val sunglasses: SunglassesLibrary = SunglassesLibrary.NONE,
+    /** A painted-out glasses patch by digest (the session's RemovePatchStore); a missing one is skipped, never recomputed. */
+    private val removedPatch: (String) -> RemovePatch? = { null },
+) {
     @Volatile var people: PeopleAnalysis? = null
         private set
+
+    /** Portrait › Sunglasses analysis of the usable faces, once it ran (null before). */
+    @Volatile var sunglassesAnalyses: List<FaceSunglassesAnalysis>? = null
+        private set
+
+    fun setSunglassesAnalyses(analyses: List<FaceSunglassesAnalysis>?) { sunglassesAnalyses = analyses }
+
+    /** The analysis of [face], once it ran. */
+    fun sunglassesAnalysis(face: DetectedFace): FaceSunglassesAnalysis? = sunglassesAnalyses?.firstOrNull { it.faceBox == face.box }
+
+    /** True when the recipe puts a pair on a face (the analysis is then needed). */
+    fun wearsSunglasses(tool: PortraitTool): Boolean = tool.faces.any { it.sunglasses?.pair != null }
+
+    /** The faces wearing a pair that can be rendered: the analysis ran and found them readable. */
+    private fun wearing(tool: PortraitTool): List<SunglassesRenderer.Face> {
+        val analyses = sunglassesAnalyses ?: return emptyList()
+        if (sunglasses.pack == null) return emptyList()
+        return tool.faces.filter { it.sunglasses?.pair != null }.mapNotNull { edit ->
+            analyses.firstOrNull { it.faceBox == edit.face.box }?.let { SunglassesRenderer.Face(edit, it) }
+        }
+    }
+
+    private val removedComposite = SunglassesRenderer.RemovedPatch { pixels, x, y, w, h, fw, fh, sha ->
+        removedPatch(sha)?.let { RemoveEngine.compositeRegion(listOf(it), Rgba8Image(w, h, pixels), x, y, fw, fh) }
+    }
 
     /** The person matte at the analysis size it was computed at; resized per render size on demand. */
     @Volatile private var personMatte: FloatPlane? = null
@@ -29,6 +61,7 @@ class PortraitSession {
 
     fun reset() {
         people = null
+        sunglassesAnalyses = null
         personMatte = null
         resizedMatte = null
     }
@@ -44,8 +77,8 @@ class PortraitSession {
         resizedMatte = null
     }
 
-    /** True when the recipe changes a usable face (stage 9 runs). */
-    fun isActive(tool: PortraitTool): Boolean = activeFaces(tool).isNotEmpty()
+    /** True when the recipe changes a usable face, or puts a pair on one (stage 9 runs). */
+    fun isActive(tool: PortraitTool): Boolean = activeFaces(tool).isNotEmpty() || wearing(tool).isNotEmpty()
 
     /** True when Hair & Beard needs the person matte and it has not been computed. */
     fun needsPersonMatte(tool: PortraitTool): Boolean = personMatte == null &&
@@ -58,9 +91,14 @@ class PortraitSession {
     /** Stage 9 on a whole image in source coordinates (previews: the display proxy). */
     fun render(image: Rgba8Image, tool: PortraitTool): Rgba8Image {
         val faces = activeFaces(tool)
-        if (faces.isEmpty()) return image
-        val out = PortraitRenderer.render(RgbaImage(image.width, image.height, image.pixels), faces, matteFor(image.width, image.height))
-        return Rgba8Image(out.width, out.height, out.pixels)
+        var out = RgbaImage(image.width, image.height, image.pixels)
+        if (faces.isNotEmpty()) out = PortraitRenderer.render(out, faces, matteFor(image.width, image.height))
+        // portrait.sunglasses (rendering-v2 §7.5): after each face's other portrait operations.
+        val wearing = wearing(tool)
+        if (wearing.isNotEmpty()) {
+            out = SunglassesRenderer.render(out, wearing, sunglassesAnalyses.orEmpty(), sunglasses.pack!!, sunglasses::texture, removedComposite)
+        }
+        return if (out.pixels === image.pixels) image else Rgba8Image(out.width, out.height, out.pixels)
     }
 
     private fun matteFor(width: Int, height: Int): FloatPlane? {
@@ -97,6 +135,17 @@ class PortraitSession {
             applyPatches(developed.pixels, region, patches)
             val retouched = retouchCrop(developed, region, frameWidth, frameHeight, face)
             patches += Patch(region, ShortArray(retouched.size) { i -> ((retouched[i].toInt() and 0xff) - (developed.pixels[i].toInt() and 0xff)).toShort() })
+        }
+        // portrait.sunglasses at full resolution: each pair's region rendered once, after the retouch patches it overlaps.
+        val analyses = sunglassesAnalyses.orEmpty()
+        for (face in wearing(tool)) {
+            val r = SunglassesRenderer.regionFor(face, analyses, frameWidth, frameHeight) ?: continue
+            val region = PixelRect(r[0], r[1], r[2], r[3])
+            val developed = renderRegion(region)
+            applyPatches(developed.pixels, region, patches)
+            val worn = SunglassesRenderer.renderRegion(RgbaImage(region.width, region.height, developed.pixels.copyOf()), region.x, region.y,
+                                                       frameWidth, frameHeight, listOf(face), analyses, sunglasses.pack!!, sunglasses::texture, removedComposite)
+            patches += Patch(region, ShortArray(worn.pixels.size) { i -> ((worn.pixels[i].toInt() and 0xff) - (developed.pixels[i].toInt() and 0xff)).toShort() })
         }
         return patches
     }

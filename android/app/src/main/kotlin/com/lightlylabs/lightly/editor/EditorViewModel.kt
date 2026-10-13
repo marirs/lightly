@@ -154,8 +154,12 @@ class EditorViewModel(
     internal val backgroundStaleResultsForTests get() = backgroundSession.staleResultsDiscarded
 
     /** Portrait: the people analysis, the person matte and stage 9 (slice 3). */
-    private val portraitSession = PortraitSession()
+    private val portraitSession = PortraitSession(env.sunglasses) { sha -> removePatches[sha] }
     private var personMatteJob: Job? = null
+    /** Portrait › Sunglasses: the analysis (once per photo) and a face's own glasses being painted out. */
+    private var sunglassesAnalysisJob: Job? = null
+    private var sunglassesRemovalJob: Job? = null
+    private val sunglassesAnalyzer by lazy { env.sunglassesAnalyzer() }
 
     /** Edit › Remove: the session's patches, the running removal, and the model (loaded on first stroke). */
     private val removePatches = RemovePatchStore(env.removePatchDirectory)
@@ -235,6 +239,8 @@ class EditorViewModel(
         depthJob?.cancel()
         backgroundSession.reset()
         personMatteJob?.cancel()
+        sunglassesAnalysisJob?.cancel()
+        sunglassesRemovalJob?.cancel()
         portraitSession.reset()
         removeJob?.cancel()
         // Memory only: a restore of this photo reads its patches back from disk.
@@ -700,6 +706,101 @@ class EditorViewModel(
             if (!isCurrent(current.generation)) return@launch
             portraitSession.setPersonMatte(matte)
             state.value.session?.let { requestPreview(it.current, globalOnly = false) }
+        }
+    }
+
+    // --- Portrait › Sunglasses (rendering-v2 §7.5) ---------------------------------------------------
+
+    /** The analysis of [face], once it ran (the Sunglasses tab shows its controls then). */
+    fun sunglassesAnalysis(face: com.lightlylabs.lightly.vision.DetectedFace) = portraitSession.sunglassesAnalysis(face)
+
+    /** The bundled pairs in the approved order (empty without a pack: only None). */
+    val sunglassesPairs: List<com.lightlylabs.lightly.vision.sunglasses.SunglassesPack.Pair> get() = env.sunglasses.pack?.pairs.orEmpty()
+
+    /**
+     * Runs the Sunglasses analysis of every usable face once per photo (the tab is opened, or a recipe holds a pair): the
+     * landmarker and segmenter on the analysis copy, off the main thread (iOS `ensureSunglassesAnalysis`).
+     */
+    fun ensureSunglassesAnalysis() {
+        if (portraitSession.sunglassesAnalyses != null || sunglassesAnalysisJob?.isActive == true) return
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
+        val faces = usableFaces
+        if (faces.isEmpty()) return
+        state.update { it.copy(portrait = it.portrait.copy(sunglassesAnalysing = true)) }
+        sunglassesAnalysisJob = scope.launch(env.prefetchDispatcher) {
+            val image = current.loaded.analysis
+            val analyses = sunglassesAnalyzer?.let { analyzer ->
+                val vision = com.lightlylabs.lightly.vision.RgbaImage(image.width, image.height, image.pixels)
+                faces.mapNotNull { face ->
+                    fun centre(points: List<com.lightlylabs.lightly.vision.Point>) = floatArrayOf(
+                        (points.sumOf { it.x } / points.size.coerceAtLeast(1) * image.width).toFloat(),
+                        (points.sumOf { it.y } / points.size.coerceAtLeast(1) * image.height).toFloat())
+                    // A face that fails is left out; the tab shows "eyes not visible" for it.
+                    runCatching { analyzer.analyse(vision, face.box, centre(face.imageLeftEye) to centre(face.imageRightEye)) }
+                        .onFailure { runCatching { android.util.Log.w("LightlySunglasses", "analysis failed: $it") } }.getOrNull()
+                }
+            }.orEmpty()
+            ensureActive()
+            if (!isCurrent(current.generation)) return@launch
+            portraitSession.setSunglassesAnalyses(analyses)
+            state.update { it.copy(portrait = it.portrait.copy(sunglassesAnalysing = false)) }
+            state.value.session?.let { requestPreview(it.current, globalOnly = false) }
+        }
+    }
+
+    /**
+     * Chooses a pair (null = None) for the face at [faceIndex]. A face found wearing glasses has them painted out first,
+     * once (None keeps the fill, so choosing again reuses it): the pair shows at once and the edit commits as one undo
+     * step when the fill lands. Without the Remove model, or when it fails, the pair is committed over the person's own
+     * glasses (owner, 2026-10-13: keep this fallback).
+     */
+    fun setSunglassesPair(pair: String?, faceIndex: Int) {
+        val face = usableFaces.getOrNull(faceIndex) ?: return
+        val analysis = portraitSession.sunglassesAnalysis(face)?.takeIf { it.isReadable } ?: return
+        val session = state.value.session ?: return
+        sunglassesRemovalJob?.cancel()
+        state.update { it.copy(portrait = it.portrait.copy(sunglassesRemoving = false)) }
+        fun withPair(edit: EditState, removed: com.lightlylabs.lightly.session.SunglassesRemoved?): EditState {
+            val tool = PortraitEdits.updated(edit.tools.portrait, face) { e ->
+                val glasses = e.sunglasses ?: com.lightlylabs.lightly.session.Sunglasses.NONE
+                e.copy(sunglasses = glasses.copy(pair = pair, removed = removed ?: glasses.removed))
+            }
+            return edit.copy(tools = edit.tools.copy(portrait = tool))
+        }
+        fun commitPair(removed: com.lightlylabs.lightly.session.SunglassesRemoved?) {
+            val latest = state.value.session ?: return
+            val edited = withPair(latest.current, removed)
+            commit(latest.commit { s -> s.copy(tools = s.tools.copy(portrait = edited.tools.portrait)) }, state.value.auto)
+        }
+        val existing = session.current.tools.portrait.faces.firstOrNull { PortraitEdits.matches(it, face) }?.sunglasses?.removed
+        val current = photo?.takeIf { isCurrent(it.generation) }
+        if (pair == null || existing != null || analysis.glassesMask() == null || current == null) { commitPair(null); return }
+        requestPreview(withPair(session.current, null), globalOnly = false)
+        state.update { it.copy(portrait = it.portrait.copy(sunglassesRemoving = true)) }
+        sunglassesRemovalJob = scope.launch {
+            val made = runCatching {
+                kotlinx.coroutines.withContext(env.removeDispatcher ?: env.prefetchDispatcher) {
+                    val model = inpainter ?: return@withContext null
+                    try {
+                        current.loaded.fullResolution.decodeFrame().use { frame ->
+                            SunglassesRemoval.patch(analysis, frame, model) { !coroutineContext.isActive }?.let { it to model.model }
+                        }
+                    } finally {
+                        model.releaseResources()
+                    }
+                }
+            }.getOrElse { failure ->
+                if (failure is CancellationException) return@launch
+                runCatching { android.util.Log.w("LightlySunglasses", "painting out the glasses failed: $failure") }
+                null
+            }
+            if (!isCurrent(current.generation)) return@launch
+            state.update { it.copy(portrait = it.portrait.copy(sunglassesRemoving = false)) }
+            val removed = made?.let { (result, modelRef) ->
+                removePatches.put(result.patch)
+                com.lightlylabs.lightly.session.SunglassesRemoved(result.rect, result.patch.derivedRef(modelRef))
+            }
+            commitPair(removed)
         }
     }
 
@@ -2401,6 +2502,8 @@ class EditorViewModel(
         // A preview of an uncommitted edit is a control moving (a slider, a drag) before it commits: a pick still
         // sampling is stale from this moment, or it would land mid-drag and replace the preview with committed values.
         if (edit != state.value.session?.current) editEpoch++
+        // A restored session or an undo can bring back sunglasses before their analysis exists.
+        if (portraitSession.sunglassesAnalyses == null && portraitSession.wearsSunglasses(edit.tools.portrait)) ensureSunglassesAnalysis()
         // While Save copy runs, its full-resolution render needs the heap: a Background preview at the
         // same time ran the 192 MB heap out of memory (Refocus.fillMasked, 12 MP replacement + blur on
         // the Pixel 9 Pro emulator). Keep the latest request and submit it when the export ends; the

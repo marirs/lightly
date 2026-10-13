@@ -171,6 +171,8 @@ object AndroidEditorEnvironment {
             bundledBackground = { id -> loadBundledBackground(app, id) },
             // The leak manifest is small (~19 KB) and parsed here, at startup; its images decode on first use.
             leaks = LeakLibrary.fromAssets(app.assets) { message -> Log.w(LOG_TAG, message) },
+            sunglassesAnalyzer = { vision?.sunglassesAnalyzer() },
+            sunglasses = SunglassesLibrary.fromAssets(app.assets) { message -> Log.w(LOG_TAG, message) },
             // Release gate "pending legal sign-off (training data: Places2)": see LiteRtLamaInpainter. Loaded
             // on the first Remove stroke, never at app start.
             // App-private files (never cache: the system may evict it under the restored session), in noBackupFilesDir

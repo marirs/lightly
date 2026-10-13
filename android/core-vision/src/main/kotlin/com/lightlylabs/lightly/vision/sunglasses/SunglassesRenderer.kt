@@ -112,30 +112,59 @@ object SunglassesRenderer {
 
     class Face(val edit: FaceEdit, val analysis: FaceSunglassesAnalysis)
 
+    /** A painted-out patch composited into a region buffer: (pixels, regionX, regionY, regionW, regionH, frameW, frameH, sha256). */
+    fun interface RemovedPatch { fun composite(pixels: ByteArray, regionX: Int, regionY: Int, regionWidth: Int, regionHeight: Int, frameWidth: Int, frameHeight: Int, sha256: String) }
+
+    /** Applies every face's pair to a copy of [image] (RGBA8 sRGB, the whole frame at render size). */
+    fun render(image: RgbaImage, faces: List<Face>, allAnalyses: List<FaceSunglassesAnalysis>, pack: SunglassesPack,
+               textures: (String) -> SunglassesRaster.Texture?, removed: RemovedPatch = RemovedPatch { _, _, _, _, _, _, _, _ -> }): RgbaImage =
+        renderRegion(image, 0, 0, image.width, image.height, faces, allAnalyses, pack, textures, removed)
+
     /**
-     * Applies every face's pair to a copy of [image] (RGBA8 sRGB, render size). [textures] decodes a pack texture;
-     * [removed] composites a face's painted-out glasses patch (§7.5 composite 1) onto the pixels, by digest.
+     * Applies every face's pair to a copy of [region]: the pixels of the rectangle at ([regionX], [regionY]) of a
+     * [frameWidth] × [frameHeight] frame (Save copy renders full-resolution regions). Pose, passes and maps are in frame
+     * coordinates, so every pixel gets what a whole-frame render gives it.
      */
-    fun render(
-        image: RgbaImage, faces: List<Face>, allAnalyses: List<FaceSunglassesAnalysis>, pack: SunglassesPack,
-        textures: (String) -> SunglassesRaster.Texture?, removed: (ByteArray, Int, Int, String) -> Unit = { _, _, _, _ -> },
-    ): RgbaImage {
+    fun renderRegion(region: RgbaImage, regionX: Int, regionY: Int, frameWidth: Int, frameHeight: Int, faces: List<Face>,
+                     allAnalyses: List<FaceSunglassesAnalysis>, pack: SunglassesPack, textures: (String) -> SunglassesRaster.Texture?,
+                     removed: RemovedPatch = RemovedPatch { _, _, _, _, _, _, _, _ -> }): RgbaImage {
         val wearing = faces.filter { it.edit.sunglasses?.pair != null && it.analysis.isReadable }
-        if (wearing.isEmpty() || allAnalyses.isEmpty()) return image
-        val out = image.pixels.copyOf()
-        val maps = Maps(allAnalyses, allAnalyses.first().analysisWidth.toFloat() / image.width)
+        if (wearing.isEmpty() || allAnalyses.isEmpty()) return region
+        val out = region.pixels.copyOf()
+        val maps = Maps(allAnalyses, allAnalyses.first().analysisWidth.toFloat() / frameWidth)
         for (face in wearing) {
             val g = face.edit.sunglasses!!
             val pair = pack.pair(g.pair!!) ?: continue
             // 1. The face's own glasses, painted out (only while a pair is chosen).
-            g.removed?.let { removed(out, image.width, image.height, it.patch.sha256) }
-            val r = image.width.toFloat() / face.analysis.analysisWidth
+            g.removed?.let { removed.composite(out, regionX, regionY, region.width, region.height, frameWidth, frameHeight, it.patch.sha256) }
+            val r = frameWidth.toFloat() / face.analysis.analysisWidth
             val p = FloatArray(face.analysis.landmarks.size) { face.analysis.landmarks[it] * r }
-            val pose = pose(p, image.width, image.height) { x, y -> maps.background(x, y) }
-            val passes = passes(pack, pair, textures, pose, g.size, p, image.width, image.height) ?: continue
-            composite(passes, out, image.width, g, pose, face.analysis.irisSpan * r, maps)
+            val pose = pose(p, frameWidth, frameHeight) { x, y -> maps.background(x, y) }
+            val passes = passes(pack, pair, textures, pose, g.size, p, frameWidth, frameHeight) ?: continue
+            composite(passes, out, regionX, regionY, region.width, region.height, g, pose, face.analysis.irisSpan * r, maps)
         }
-        return RgbaImage(image.width, image.height, out)
+        return RgbaImage(region.width, region.height, out)
+    }
+
+    /** The frame rectangle [renderRegion] changes for one face (the pair's ±0.2 m square), or null when it wears none. */
+    fun regionFor(face: Face, allAnalyses: List<FaceSunglassesAnalysis>, frameWidth: Int, frameHeight: Int): IntArray? {
+        val g = face.edit.sunglasses ?: return null
+        if (g.pair == null || !face.analysis.isReadable || allAnalyses.isEmpty()) return null
+        val maps = Maps(allAnalyses, allAnalyses.first().analysisWidth.toFloat() / frameWidth)
+        val r = frameWidth.toFloat() / face.analysis.analysisWidth
+        val p = FloatArray(face.analysis.landmarks.size) { face.analysis.landmarks[it] * r }
+        val pose = pose(p, frameWidth, frameHeight) { x, y -> maps.background(x, y) }
+        val s = pose.pixelsPerMetre
+        val cx = pose.origin[0] + frameWidth / 2.0; val cy = frameHeight / 2.0 - pose.origin[1]; val half = 0.2 * s
+        val x0 = max(0, (cx - half).toInt()); val y0 = max(0, (cy - half).toInt())
+        val x1 = min(frameWidth, ceil(cx + half).toInt()); val y1 = min(frameHeight, ceil(cy + half).toInt())
+        // The painted-out patch can reach beyond the pair's square: include it.
+        val rem = g.removed?.rect
+        val rx0 = rem?.let { min(x0, (it.x * frameWidth).toInt()) } ?: x0
+        val ry0 = rem?.let { min(y0, (it.y * frameHeight).toInt()) } ?: y0
+        val rx1 = rem?.let { max(x1, ceil((it.x + it.width) * frameWidth).toInt()) } ?: x1
+        val ry1 = rem?.let { max(y1, ceil((it.y + it.height) * frameHeight).toInt()) } ?: y1
+        return if (rx1 > rx0 && ry1 > ry0) intArrayOf(max(0, rx0), max(0, ry0), min(frameWidth, rx1) - max(0, rx0), min(frameHeight, ry1) - max(0, ry0)) else null
     }
 
     class Passes(val frame: SunglassesRaster.Result, val front: SunglassesRaster.Result, val lens: SunglassesRaster.Result)
@@ -168,8 +197,12 @@ object SunglassesRenderer {
         return out
     }
 
-    /** §7.5 composite 2–5 over the passes' region of [pixels] (RGBA8 sRGB, [width] wide), in sRGB-encoded values. */
-    fun composite(passes: Passes, pixels: ByteArray, width: Int, g: Sunglasses, pose: Pose, irisSpan: Float, maps: Maps) {
+    /**
+     * §7.5 composite 2–5 over the passes' rectangle, in sRGB-encoded values, into [pixels]: the RGBA8 pixels of the region
+     * at ([regionX], [regionY]) of the frame, [regionWidth] × [regionHeight]. Pixels outside the region are skipped.
+     */
+    fun composite(passes: Passes, pixels: ByteArray, regionX: Int, regionY: Int, regionWidth: Int, regionHeight: Int,
+                  g: Sunglasses, pose: Pose, irisSpan: Float, maps: Maps) {
         val frame = passes.frame; val front = passes.front; val lensPass = passes.lens
         val rw = frame.width; val rh = frame.height; val n = rw * rh
         val background = FloatArray(n)
@@ -199,9 +232,13 @@ object SunglassesRenderer {
         val px = DoubleArray(3)
         for (y in 0 until rh) {
             val t = ((y - top) / span).coerceIn(0.0, 1.0)
+            val ry = frame.y0 + y - regionY
+            if (ry < 0 || ry >= regionHeight) continue
             for (x in 0 until rw) {
+                val rx = frame.x0 + x - regionX
+                if (rx < 0 || rx >= regionWidth) continue
                 val i = y * rw + x
-                val o = ((frame.y0 + y) * width + frame.x0 + x) * 4
+                val o = (ry * regionWidth + rx) * 4
                 for (c in 0..2) px[c] = (pixels[o + c].toInt() and 0xff) / 255.0
                 val sx = x - dx; val sy = y - dy
                 if (background[i] < 0.5f && sx >= 0 && sy >= 0 && sx < rw && sy < rh) {

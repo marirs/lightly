@@ -150,6 +150,9 @@ class EditorEnvironment(
     val inpainter: () -> Inpainter? = { null },
     /** Private storage for Remove patches (recipe derivedRef), so a recovered session keeps its fills; null = memory only. */
     val removePatchDirectory: java.io.File? = null,
+    /** Portrait › Sunglasses (rendering-v2 §7.5): the two models (null when not packaged) and the bundled pack. */
+    val sunglassesAnalyzer: () -> com.lightlylabs.lightly.vision.sunglasses.SunglassesAnalyzer? = { null },
+    val sunglasses: SunglassesLibrary = SunglassesLibrary.NONE,
     /** Preferences › Preferred border: which Border tab opens first when the photo has none (never applied). */
     val preferredBorder: () -> com.lightlylabs.lightly.prefs.PreferredBorder = { com.lightlylabs.lightly.prefs.PreferredBorder.NONE },
     /** The saved signatures and chosen logos (Watermark, Preferences › Saved signature). */

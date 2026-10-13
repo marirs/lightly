@@ -24,6 +24,9 @@ data class PortraitUi(
     val selectedFace: Int = 0,
     /** The slider being dragged and its value (preview only until release). */
     val sliderDrag: Pair<String, Double>? = null,
+    /** Portrait › Sunglasses: the analysis is running; a face's own glasses are being painted out. */
+    val sunglassesAnalysing: Boolean = false,
+    val sunglassesRemoving: Boolean = false,
 )
 
 /** One Portrait slider: its approved label, recipe field and range (Smile is centred, −100…100; the rest 0…100). */
