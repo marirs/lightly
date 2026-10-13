@@ -8,6 +8,7 @@ These are shared by the iOS and Android tests. The schema is `shared/contracts/e
 | `develop-look-amount-auto.json` | A Look at Amount 60 (`strength` 0.6) on top of an applied Auto |
 | `background-*.json` | Replacement (bundled image, colour, gradient) plus Focus & Blur: every style and bokeh, each depth source (embedded map, estimated map; `subject-matte`, i.e. no depth, only with blur 0), refine-edge strokes, and blur applied after replacement |
 | `portrait-two-faces.json` | Two faces, each with its own settings |
+| `portrait-sunglasses.json` | Sunglasses (rendering revision 9): a pair with dark lenses on one face; on the other, its own glasses painted out (`removed`) and replaced with brown lenses |
 | `edit-geometry.json`, `edit-adjust.json`, `edit-remove-strokes.json` | Crop, quarter turn, flip, perspective, straighten; every Adjust slider; one applied and one failed Remove stroke |
 | `effects-combined-on-top-of-preset.json` | Light leak, grain and vignette over a Look (composed with the preset's own grain and vignette, never replacing them) |
 | `watermark-*.json` | Drawn and imported signature references, a dragged offset, text in a bundled font, a logo, text on a border |

@@ -29,7 +29,9 @@ final class EditRecipeCodecTests: XCTestCase {
     /// schema orders them: `smile` before each face's `hair`, `text` after `border`, the last key of `tools` (and
     /// `tools` is the document's last key). Everything else must still match byte for byte.
     static func withAlwaysWrittenKeys(_ fixture: String) -> String {
-        var json = fixture.replacingOccurrences(of: "\"hair\":{\"definition\"", with: "\"smile\":{\"amount\":0},\"hair\":{\"definition\"")
+        // portrait-sunglasses (rendering revision 9) is newer than the amendment and already carries smile.
+        var json = fixture.contains("\"smile\":") ? fixture
+            : fixture.replacingOccurrences(of: "\"hair\":{\"definition\"", with: "\"smile\":{\"amount\":0},\"hair\":{\"definition\"")
         precondition(json.hasSuffix("}}"), "tools is the last key")
         json.removeLast(2)
         return json + ",\"text\":{\"layers\":[]}}}"
@@ -37,7 +39,7 @@ final class EditRecipeCodecTests: XCTestCase {
 
     func testEveryValidFixtureRoundTripsByteForByte() throws {
         let valid = try Self.recipeFixtures().filter { !$0.lastPathComponent.hasPrefix("invalid-") }
-        XCTAssertEqual(valid.count, 25)   // 25th: effects-selective-colour (rendering-v2 revision 4)
+        XCTAssertEqual(valid.count, 26)   // 25th: effects-selective-colour (revision 4); 26th: portrait-sunglasses (revision 9)
         for file in valid {
             let bytes = try Data(contentsOf: file)
             let recipe = try EditRecipeCodec.decode(bytes)

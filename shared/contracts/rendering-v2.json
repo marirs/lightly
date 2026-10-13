@@ -1,7 +1,7 @@
 {
  "contract": "lightly-rendering",
  "version": 2,
- "revision": 8,
+ "revision": 9,
  "changeLog": "shared/contracts/rendering-v2.md#change-log",
  "prose": "shared/contracts/rendering-v2.md",
  "generatedBy": "shared/contracts/build_rendering_v2.py",
@@ -1047,6 +1047,158 @@
       "falloff": "w = max(0, 1 − d²/r²)²"
      },
      "note": "revision 7: per face, after its other portrait operators; inverse warp of the two mouth corners (rendering-v2.md §7.3); amount 0 leaves the pixels unchanged"
+    },
+    {
+     "id": "sunglasses",
+     "params": {
+      "sunglasses.pair": {
+       "type": "string|null",
+       "default": null,
+       "note": "sunglasses-pack id sun-<12 hex>; null = None"
+      },
+      "sunglasses.lens": {
+       "type": "enum",
+       "values": [
+        "dark",
+        "brown",
+        "green",
+        "gradient",
+        "mirror"
+       ],
+       "default": "dark"
+      },
+      "sunglasses.darkness": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 75,
+       "unit": "percent"
+      },
+      "sunglasses.size": {
+       "type": "number",
+       "min": -50,
+       "max": 50,
+       "default": 0,
+       "unit": "slider"
+      }
+     },
+     "constants": {
+      "landmarkCrop": {
+       "initialScale": 1.6,
+       "rollTriesDegrees": [
+        0,
+        -45,
+        -30,
+        -15,
+        15,
+        30,
+        45
+       ],
+       "refineScale": 1.5,
+       "refinePasses": 2,
+       "keepIfLogitDropAtMost": 1.0,
+       "minFaceLogit": 0.0
+      },
+      "segmentation": {
+       "hairOutlineCropScale": 3.6,
+       "accessoryCropScale": 1.4,
+       "accessoryCropRaise": 0.1,
+       "accessoryThreshold": 0.35,
+       "eyeBandPadX": 0.15,
+       "eyeBandAbove": 0.55,
+       "eyeBandBelowNoseTip": 0.1,
+       "glassesMinBoxFraction": 0.005
+      },
+      "pose": {
+       "interIrisReferenceMetres": 0.093,
+       "sizePerUnit": 0.004,
+       "profileMarginMetres": 0.007,
+       "profileTargetYawDegrees": 85
+      },
+      "placement": {
+       "eyeDepthMetres": 0.015,
+       "pantoscopicTiltRadians": -0.14
+      },
+      "occluders": {
+       "headCentreMetres": [
+        0,
+        -0.026,
+        -0.098
+       ],
+       "headRadiiMetres": [
+        0.076,
+        0.115,
+        0.098
+       ],
+       "faceMeshPushBackMetres": 0.006
+      },
+      "passes": {
+       "frontDepthMetres": 0.012,
+       "keyLight": {
+        "intensity": 1000,
+        "eulerRadians": [
+         -0.6,
+         0.4,
+         0
+        ]
+       },
+       "ambient": 400
+      },
+      "removal": {
+       "dilation": "MaxFilter 15, 15, 15, 9 (px)"
+      },
+      "shadow": {
+       "sigmaOfIrisSpan": 0.035,
+       "offsetOfIrisSpan": [
+        0.01,
+        0.05
+       ],
+       "strength": 0.28
+      },
+      "lens": {
+       "transmission": "1 - 0.95 * (darkness/100)^0.75",
+       "tint": {
+        "dark": [
+         0.92,
+         1.0,
+         0.95
+        ],
+        "brown": [
+         1.0,
+         0.76,
+         0.52
+        ],
+        "green": [
+         0.8,
+         1.0,
+         0.82
+        ]
+       },
+       "gradientBottomDarknessFactor": 0.3,
+       "mirrorReflectionGain": 3.0,
+       "mirrorGradient": [
+        [
+         0.55,
+         0.65,
+         0.8
+        ],
+        [
+         0.25,
+         0.3,
+         0.38
+        ]
+       ],
+       "mirrorGradientWeight": 0.35,
+       "reflection": "(0.16 * (1 - t)^2 + 0.03) * (0.85, 0.90, 1.00)"
+      },
+      "hairOverArms": {
+       "blurPx": 2,
+       "low": 0.3,
+       "width": 0.4
+      },
+      "profileOverhangMetres": 0.008
+     },
+     "note": "revision 9: per face, after smile (rendering-v2.md §7.5); a missing sunglasses key or pair null leaves the pixels unchanged; pairs from the sunglasses pack (shared/sunglasses)"
     }
    ]
   },

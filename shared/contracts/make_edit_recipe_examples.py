@@ -150,6 +150,24 @@ def examples() -> dict[str, dict]:
         face([0.62, 0.12, 0.2, 0.24], skin__smoothing=10, skin__keepTexture=95, eyes__clarity=12, hair__flyaways=25, hair__shine=10)]
     out["portrait-two-faces"] = s
 
+    # Portrait › Sunglasses (rendering revision 9): a pair on one face; on the other, its own glasses painted out
+    # (patch stored like a Remove stroke's) and replaced by another pair with brown lenses.
+    s = neutral_state(revision=7)
+    def with_sunglasses(entry: dict, sunglasses: dict) -> dict:
+        """Schema order: ... teeth, smile, sunglasses, hair (writers always write smile)."""
+        ordered = {k: entry[k] for k in ("face", "skin", "underEye", "eyes", "teeth")}
+        ordered["smile"] = {"amount": 0}
+        ordered["sunglasses"] = sunglasses
+        ordered["hair"] = entry["hair"]
+        return ordered
+    first = with_sunglasses(face([0.18, 0.2, 0.25, 0.3], eyes__brighten=10),
+                            {"pair": "sun-11bb23fac8a0", "lens": "dark", "darkness": 75, "size": 0, "removed": None})
+    second = with_sunglasses(face([0.55, 0.22, 0.24, 0.29]),
+                             {"pair": "sun-fe87cc0504d4", "lens": "brown", "darkness": 60, "size": -10,
+                              "removed": {"rect": [0.58, 0.29, 0.18, 0.08], "patch": derived("5a", INPAINT_MODEL, 288, 128)}})
+    s["tools"]["portrait"]["faces"] = [first, second]
+    out["portrait-sunglasses"] = s
+
     s = neutral_state(revision=6)
     s["tools"]["edit"]["geometry"] = {"quarterTurns": 1, "flipHorizontal": True, "flipVertical": False,
                                       "perspective": {"vertical": 18, "horizontal": -6}, "straighten": -3,

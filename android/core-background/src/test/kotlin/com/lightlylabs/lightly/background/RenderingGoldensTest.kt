@@ -52,7 +52,7 @@ class RenderingGoldensTest {
         val contract = Json.parseToJsonElement(File(checkNotNull(System.getProperty("lightly.renderingContract"))).readText()).jsonObject
         // Revisions 7 (text, portrait.smile) and 8 (light leak images), owner amendments 2026-10-11, leave background.focus
         // and its goldens unchanged.
-        assertEquals(8, contract.getValue("revision").jsonPrimitive.int, "bundled contract revision")
+        assertEquals(9, contract.getValue("revision").jsonPrimitive.int, "bundled contract revision")
         val stage = contract.getValue("stages").jsonArray.map { it.jsonObject }.first { it.getValue("id").jsonPrimitive.content == "background.focus" }
         val constants = stage.getValue("operators").jsonArray[0].jsonObject.getValue("constants").jsonObject
         assertEquals(Refocus.FocusConstants.MAX_BLUR_FRACTION_OF_LONG_EDGE, constants.getValue("maxBlurRadius").jsonObject.num("value"))

@@ -25,7 +25,7 @@ PRESETS = REPO / "experiments/presets"
 # 3 = background.focus subject colour from the de-contaminated estimate wherever the matte is above 0.02.
 # 4 = effects.selectiveColour (owner request 2026-10-04), after the light leak, before vignette and grain.
 # 5 = background.replace composites the estimated foreground colour (Germer multilevel), not the observed pixel.
-CONTRACT_REVISION = 8
+CONTRACT_REVISION = 9
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -262,7 +262,35 @@ def stages():
                        {"id": "smile", "params": {"smile.amount": num(-100, 100, 0, "slider (optional key; missing = 0)")},
                         "constants": {"lift": 0.10, "outward": 0.04, "radius": 0.45, "falloff": "w = max(0, 1 − d²/r²)²"},
                         "note": "revision 7: per face, after its other portrait operators; inverse warp of the two mouth corners "
-                                "(rendering-v2.md §7.3); amount 0 leaves the pixels unchanged"}]},
+                                "(rendering-v2.md §7.3); amount 0 leaves the pixels unchanged"},
+                       {"id": "sunglasses", "params": {
+                           "sunglasses.pair": {"type": "string|null", "default": None, "note": "sunglasses-pack id sun-<12 hex>; null = None"},
+                           "sunglasses.lens": {"type": "enum", "values": ["dark", "brown", "green", "gradient", "mirror"], "default": "dark"},
+                           "sunglasses.darkness": num(0, 100, 75, PERCENT), "sunglasses.size": num(-50, 50, 0, "slider")},
+                        "constants": {
+                            "landmarkCrop": {"initialScale": 1.6, "rollTriesDegrees": [0, -45, -30, -15, 15, 30, 45], "refineScale": 1.5,
+                                             "refinePasses": 2, "keepIfLogitDropAtMost": 1.0, "minFaceLogit": 0.0},
+                            "segmentation": {"hairOutlineCropScale": 3.6, "accessoryCropScale": 1.4, "accessoryCropRaise": 0.1,
+                                             "accessoryThreshold": 0.35, "eyeBandPadX": 0.15, "eyeBandAbove": 0.55, "eyeBandBelowNoseTip": 0.1,
+                                             "glassesMinBoxFraction": 0.005},
+                            "pose": {"interIrisReferenceMetres": 0.093, "sizePerUnit": 0.004, "profileMarginMetres": 0.007,
+                                     "profileTargetYawDegrees": 85},
+                            "placement": {"eyeDepthMetres": 0.015, "pantoscopicTiltRadians": -0.14},
+                            "occluders": {"headCentreMetres": [0, -0.026, -0.098], "headRadiiMetres": [0.076, 0.115, 0.098],
+                                          "faceMeshPushBackMetres": 0.006},
+                            "passes": {"frontDepthMetres": 0.012, "keyLight": {"intensity": 1000, "eulerRadians": [-0.6, 0.4, 0]},
+                                       "ambient": 400},
+                            "removal": {"dilation": "MaxFilter 15, 15, 15, 9 (px)"},
+                            "shadow": {"sigmaOfIrisSpan": 0.035, "offsetOfIrisSpan": [0.01, 0.05], "strength": 0.28},
+                            "lens": {"transmission": "1 - 0.95 * (darkness/100)^0.75",
+                                     "tint": {"dark": [0.92, 1.0, 0.95], "brown": [1.0, 0.76, 0.52], "green": [0.8, 1.0, 0.82]},
+                                     "gradientBottomDarknessFactor": 0.3, "mirrorReflectionGain": 3.0,
+                                     "mirrorGradient": [[0.55, 0.65, 0.8], [0.25, 0.3, 0.38]], "mirrorGradientWeight": 0.35,
+                                     "reflection": "(0.16 * (1 - t)^2 + 0.03) * (0.85, 0.90, 1.00)"},
+                            "hairOverArms": {"blurPx": 2, "low": 0.3, "width": 0.4},
+                            "profileOverhangMetres": 0.008},
+                        "note": "revision 9: per face, after smile (rendering-v2.md §7.5); a missing sunglasses key or pair null leaves "
+                                "the pixels unchanged; pairs from the sunglasses pack (shared/sunglasses)"}]},
         {"order": 9, "id": "edit.geometry", "frame": "source → frame", "recipe": "editState.tools.edit.geometry",
          "note": "revision 2: runs after the layered stages (Adjust, Background, Portrait), which work in source "
                   "coordinates; effects, border and watermark follow in the frame",

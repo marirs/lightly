@@ -405,6 +405,63 @@ Part of stage 8, per face, after the face's other portrait operations. `a = smil
 - **Warp (inverse mapping):** `D(p) = w_L(p)·d_L + w_R(p)·d_R`; the output pixel `p` samples the stage input at `p − D(p)` by bilinear interpolation (clamped to the image). Pixels outside both discs are copied unchanged.
 - **No mouth:** a face without both corner landmarks is left unchanged; the Smile tab says so ("Smile needs a visible mouth.").
 
+### 7.5 `portrait.sunglasses` (revision 9, owner-approved design 2026-10-13)
+
+Part of stage 8, per face, after the face's other portrait operations (Smile included). Design:
+`docs/ui/proposals/portrait-sunglasses-v2.html`. Executable reference: `experiments/sunglasses/wear.py` with
+`render_lsg.swift`; the pairs come from the sunglasses pack (`shared/sunglasses/build_sunglasses.py`, format
+"lightly-sunglasses-pack" 1). A face without `sunglasses`, or with `pair` null, is left unchanged.
+
+**Analysis (per face, cached with the photo, never part of the recipe).**
+- *Landmarks:* MediaPipe face landmarker (`face_landmarks_detector`, 478 points with irises), on a 256 × 256 crop. The
+  first crop is the platform face box ×1.6, upright along the platform's eye line; it is tried at that roll and at
+  ±15°, ±30°, ±45° and the crop with the highest face-presence logit is kept. Then twice: re-crop on the previous
+  landmarks' bounding box ×1.5, upright along forehead (10) → chin (152), keeping the new result unless its logit is
+  more than 1 lower. A face whose final logit is below 0 is **not readable**: the panel shows the "eyes not visible"
+  state for it.
+- *Segmentation:* MediaPipe selfie multiclass (256 × 256), on two square crops centred on the face box: 3.6 × the box
+  for hair (class 1) and background (class 0, the person's outline), 1.4 × the box (centre raised 0.1 box heights)
+  for accessories (class 5). Probabilities are resampled bilinearly to the photo; overlapping faces take the max
+  (hair, accessories) or min (background).
+- *Existing glasses:* the accessory probability > 0.35 inside the eye band (x: the landmark box ± 0.15 d; y: from
+  the highest eye point − 0.55 d to the nose tip (1) + 0.1 d; d = |P263 − P33| in pixels). A face has glasses when
+  the band holds more than 0.5 % of the face box's area; the panel then shows "Glasses found".
+
+**Pose.** World axes x right, y up, z towards the viewer; a landmark (x, y, z) maps to w = (x, −y, −z).
+`ex = norm(w263 − w33)`, `ez = norm(ex × (w10 − w152))`, `ey = ez × ex`. Scale `s = |w263 − w33| / 0.093` pixels per
+metre, times `1 + 0.004 · size`. *Profile correction:* the landmarker under-reports turns beyond about 65°. Let yaw
+= atan2(ez.x, ez.z); walk from the far iris (468 when yaw ≥ 0, else 473) towards the near iris until the background
+probability exceeds 0.5. If that distance m (metres, ÷ s) is below 7 mm, rotate ex and ez about ey so |yaw| becomes
+`|yaw| + (85° − |yaw|)(1 − m/0.007)`, keeping its sign; the face is then a **profile**.
+
+**Placement.** The pair's origin (its lens centre) sits at `iris + s · 0.015 · ez`, where iris is the midpoint of
+468 and 473 in scene units (x − W/2, H/2 − y, −z); the lens plane is 15 mm in front of the irises along the head's own
+axis. The pair is tilted −8° about its x axis (pantoscopic tilt). Projection is orthographic onto the photo.
+
+**Occluders** (depth only, drawn first): an ellipsoid in the pair's frame, centre (0, −0.026, −0.098) m, radii
+(0.076, 0.115, 0.098) m; and the face mesh (468 landmarks, MediaPipe's 898 canonical triangles) in scene units,
+pushed 6 mm (0.006 s) away from the viewer.
+
+**Passes,** each the photo's size: *frame* (lit pair, lenses depth-only), *front* (the same, clipped 12 mm behind the
+lens plane), *lens* (lens coverage white, frame black). Lighting for *frame*: one directional light, intensity 1000,
+Euler angles (−0.6, 0.4, 0) rad, plus ambient 400; physically based materials from the pack.
+
+**Composite** (linear RGB, on the stage input):
+1. *Existing glasses:* when the face has glasses and a pair is chosen, the stored patch (`sunglasses.removed`, a
+   LaMa inpaint of the glasses mask dilated by 3 × 15 + 9 px MaxFilters, as Remove computes patches) is composited
+   first.
+2. *Contact shadow:* coverage = max(frame alpha, lens), blurred with σ = max(1, 0.035 d), shifted by (0.01 d, 0.05 d),
+   × 0.28, multiplies the photo where the background probability < 0.5.
+3. *Lenses:* `out = in·(1 − L) + (in · T · tint + R) · L`, L = lens coverage. Transmission `T = 1 − 0.95 (darkness/100)^0.75`.
+   Tint (linear): Dark (0.92, 1.00, 0.95), Brown (1.00, 0.76, 0.52), Green (0.80, 1.00, 0.82), Gradient (Dark, with
+   darkness × (1 − 0.7 t), t from 0 at the lenses' top to 1 at their bottom), Mirror (Dark at darkness, plus R × 3 and a
+   blue-grey gradient (0.55, 0.65, 0.80) → (0.25, 0.30, 0.38) added at 0.35). Reflection R = (0.16 (1 − t)² + 0.03) ×
+   (0.85, 0.90, 1.00).
+4. *Frame:* alpha = front + (frame − front) · (1 − clamp((hair − 0.3)/0.4, 0, 1)), hair blurred σ = 2 px: hair covers
+   the arms but never the front.
+5. *Profile clip:* on a profile only, lens and frame are kept within 8 mm (0.008 s px) of the person (background
+   probability < 0.5, dilated at quarter resolution).
+
 ### 7.4 `text` (revision 7, owner amendment 2026-10-11)
 
 Stage 11, in the frame (after crop and effects, before border, so a border never covers text and the text is part of the photo). Each layer of `tools.text.layers`, in order:
@@ -451,5 +508,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
 | 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
 | 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
+| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

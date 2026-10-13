@@ -159,6 +159,21 @@ struct EditRecipe: Equatable, Sendable {
             var amount: Double
             static let neutral = Smile(amount: 0)
         }
+        /// Portrait › Sunglasses (rendering-v2 §7.5, owner-approved design portrait-sunglasses-v2, 2026-10-13).
+        struct Sunglasses: Equatable, Sendable {
+            enum Lens: String, Sendable, CaseIterable { case dark, brown, green, gradient, mirror }
+            /// The face's own glasses painted out (a LaMa patch, stored like a Remove stroke's). Kept when the person
+            /// picks None so choosing a pair again does not recompute it; rendered only while a pair is chosen.
+            struct Removed: Equatable, Sendable { var rect: Rect; var patch: DerivedRef }
+            /// A sunglasses-pack id ("sun-" + 12 hex); nil is None.
+            var pair: String?
+            var lens: Lens
+            var darkness: Double
+            /// −50…50: fine-tunes the automatic fit.
+            var size: Double
+            var removed: Removed?
+            static let none = Sunglasses(pair: nil, lens: .dark, darkness: 75, size: 0, removed: nil)
+        }
         var face: Identity
         var skin: Skin
         var underEye: UnderEye
@@ -168,6 +183,9 @@ struct EditRecipe: Equatable, Sendable {
         /// Optional on read (missing = amount 0), always written; declared last so existing call sites that build a
         /// face edit without it keep compiling and mean "no smile change".
         var smile: Smile = .neutral
+        /// Optional on read and on write (missing = no sunglasses): written once the face has had a pair, so faces
+        /// that never used Sunglasses keep their earlier bytes.
+        var sunglasses: Sunglasses? = nil
     }
 
     struct Edit: Equatable, Sendable {

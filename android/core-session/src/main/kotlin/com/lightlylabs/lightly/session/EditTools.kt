@@ -224,6 +224,33 @@ data class Teeth(val brighten: Double) { init { requirePercent(brighten, "teeth"
 @Serializable
 data class Smile(val amount: Double) { init { requireSlider(amount, "smile") } }
 
+/** Portrait › Sunglasses lens colours (rendering-v2 §7.5). */
+@Serializable enum class SunglassesLens {
+    @SerialName("dark") DARK, @SerialName("brown") BROWN, @SerialName("green") GREEN, @SerialName("gradient") GRADIENT, @SerialName("mirror") MIRROR
+}
+
+/** The face's own glasses painted out: a LaMa patch over [rect], stored like a Remove stroke's. */
+@Serializable
+data class SunglassesRemoved(val rect: NormalisedRect, val patch: DerivedRef)
+
+/**
+ * Portrait › Sunglasses (rendering-v2 revision 9 §7.5; owner-approved design portrait-sunglasses-v2, 2026-10-13).
+ * [pair] is a sunglasses-pack id ("sun-" + 12 hex), null for None. [removed] is kept when None is chosen, so picking a pair
+ * again does not recompute it; the renderer composites it only while a pair is chosen.
+ */
+@Serializable
+data class Sunglasses(val pair: String?, val lens: SunglassesLens, val darkness: Double, val size: Double, val removed: SunglassesRemoved?) {
+    init {
+        require(pair == null || PAIR_ID.matches(pair)) { "sunglasses pair must be a sunglasses-pack id" }
+        requirePercent(darkness, "sunglasses.darkness")
+        require(size in -50.0..50.0) { "sunglasses.size must be -50..50" }
+    }
+    companion object {
+        val PAIR_ID = Regex("sun-[0-9a-f]{12}")
+        val NONE = Sunglasses(pair = null, lens = SunglassesLens.DARK, darkness = 75.0, size = 0.0, removed = null)
+    }
+}
+
 @Serializable
 data class Hair(val definition: Double, val flyaways: Double, val shine: Double) {
     init { listOf(definition, flyaways, shine).forEach { requirePercent(it, "hair") } }
@@ -241,6 +268,11 @@ data class FaceEdit(
      * and it is always written, between teeth and hair as edit-recipe-v1.json lists it.
      */
     val smile: Smile = Smile(0.0),
+    /**
+     * Optional (rendering-v2 revision 9 `portrait.sunglasses`): missing = no sunglasses, and it is written only once the
+     * face has had a pair (NEVER-encoded default), between smile and hair as edit-recipe-v1.json lists it.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val sunglasses: Sunglasses? = null,
     val hair: Hair,
 )
 

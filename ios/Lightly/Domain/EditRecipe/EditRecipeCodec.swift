@@ -281,7 +281,10 @@ enum EditRecipeCodec {
             let f = try Reader(item, path: r.path + ".faces[\(index)]")
             // `smile` is the one optional key (owner amendment 2026-10-11): faces saved before it read as amount 0.
             let hasSmile = f.raw("smile") != nil
-            try f.requireExactly(["face", "skin", "underEye", "eyes", "teeth", "hair"] + (hasSmile ? ["smile"] : []))
+            // `sunglasses` is optional too (rendering revision 9, 2026-10-13): missing = no sunglasses.
+            let hasSunglasses = f.raw("sunglasses") != nil
+            try f.requireExactly(["face", "skin", "underEye", "eyes", "teeth", "hair"] + (hasSmile ? ["smile"] : [])
+                                 + (hasSunglasses ? ["sunglasses"] : []))
             let identity = try f.object("face")
             try identity.requireExactly(["box", "detector"])
             let skin = try f.object("skin"); try skin.requireExactly(["smoothing", "blemishes", "evenTone", "keepTexture"])
@@ -298,10 +301,29 @@ enum EditRecipeCodec {
                 eyes: .init(brighten: try eyes.percent("brighten"), clarity: try eyes.percent("clarity")),
                 teeth: .init(brighten: try teeth.percent("brighten")),
                 hair: .init(definition: try hair.percent("definition"), flyaways: try hair.percent("flyaways"), shine: try hair.percent("shine")),
-                smile: hasSmile ? try readSmile(f.object("smile")) : .neutral)
+                smile: hasSmile ? try readSmile(f.object("smile")) : .neutral,
+                sunglasses: hasSunglasses ? try readSunglasses(f.object("sunglasses")) : nil)
         }
         guard faces.count <= 16 else { throw r.error("faces", "at most 16") }
         return EditRecipe.Portrait(faces: faces)
+    }
+
+    private static func readSunglasses(_ r: Reader) throws -> EditRecipe.FaceEdit.Sunglasses {
+        try r.requireExactly(["pair", "lens", "darkness", "size", "removed"])
+        var pair: String?
+        if let raw = r.raw("pair"), raw != .null {
+            let id = try r.string("pair")
+            // Pack ids only: "sun-" + 12 lowercase hex digits (sunglasses pack format 1).
+            guard id.range(of: "^sun-[0-9a-f]{12}$", options: .regularExpression) != nil else { throw r.error("pair", "is not a sunglasses-pack id") }
+            pair = id
+        }
+        var removed: EditRecipe.FaceEdit.Sunglasses.Removed?
+        if let rem = try r.optionalObject("removed") {
+            try rem.requireExactly(["rect", "patch"])
+            removed = .init(rect: try readRect(rem.raw("rect") ?? .null, rem.path + ".rect"), patch: try readDerived(rem.object("patch")))
+        }
+        return .init(pair: pair, lens: try r.enumeration("lens"), darkness: try r.percent("darkness"),
+                     size: try r.number("size", -50...50), removed: removed)
     }
 
     private static func readSmile(_ r: Reader) throws -> EditRecipe.FaceEdit.Smile {
@@ -548,17 +570,21 @@ enum EditRecipeCodec {
         ])
         let portrait = CanonicalJSON.object([("faces", .array(t.portrait.faces.map { f in
             .object([
-                ("face", .object([("box", rect(f.face.box)), ("detector", model(f.face.detector))])),
+                ("face", CanonicalJSON.object([("box", rect(f.face.box)), ("detector", model(f.face.detector))])),
                 ("skin", .object([("smoothing", number(f.skin.smoothing)), ("blemishes", number(f.skin.blemishes)),
                                   ("evenTone", number(f.skin.evenTone)), ("keepTexture", number(f.skin.keepTexture))])),
                 ("underEye", .object([("brighten", number(f.underEye.brighten)), ("softenLines", number(f.underEye.softenLines))])),
                 ("eyes", .object([("brighten", number(f.eyes.brighten)), ("clarity", number(f.eyes.clarity))])),
                 ("teeth", .object([("brighten", number(f.teeth.brighten))])),
                 // Schema order puts smile between teeth and hair; always written (owner amendment 2026-10-11).
-                ("smile", .object([("amount", number(f.smile.amount))])),
-                ("hair", .object([("definition", number(f.hair.definition)), ("flyaways", number(f.hair.flyaways)),
-                                  ("shine", number(f.hair.shine))]))
-            ])
+                ("smile", .object([("amount", number(f.smile.amount))]))]
+                // Schema order puts sunglasses between smile and hair; written only once the face has had a pair.
+                + (f.sunglasses.map { g in [("sunglasses", CanonicalJSON.object([
+                    ("pair", g.pair.map { .string($0) } ?? .null), ("lens", .string(g.lens.rawValue)),
+                    ("darkness", number(g.darkness)), ("size", number(g.size)),
+                    ("removed", g.removed.map { .object([("rect", rect($0.rect)), ("patch", derived($0.patch))]) } ?? .null)]))] } ?? [])
+                + [("hair", .object([("definition", number(f.hair.definition)), ("flyaways", number(f.hair.flyaways)),
+                                     ("shine", number(f.hair.shine))]))])
         }))])
         let g = t.edit.geometry, a = t.edit.adjust
         let edit = CanonicalJSON.object([
