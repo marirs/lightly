@@ -61,6 +61,8 @@ struct DebugScenario {
         case "pt-eyes": return EditorUI(tool: .portrait, portraitTab: .eyes)
         case "pt-teeth": return EditorUI(tool: .portrait, portraitTab: .teeth)
         case "pt-hair": return EditorUI(tool: .portrait, portraitTab: .hair)
+        // Portrait › Sunglasses (approved design portrait-sunglasses-v2): open with `--open-photo` on a face photo.
+        case "pt-sunglasses", "pt-sunglasses-none": return EditorUI(tool: .portrait, portraitTab: .sunglasses)
         case "ed-crop": return EditorUI(tool: .edit, editSub: .crop)
         case "ed-crop-workspace": return EditorUI(tool: .edit, editSub: .crop) // inline crop: the same screen as ed-crop
         case "ed-rotate": return EditorUI(tool: .edit, editSub: .rotate)
@@ -191,6 +193,19 @@ struct DebugScenario {
         case "pt-teeth": face { $0.teeth.brighten = 20 }
         case "pt-hair": face { $0.hair.definition = 30 }
         case "pt-landscape-photo", "pt-multi": face { $0.skin.smoothing = 20 }
+        case "pt-sunglasses", "pt-sunglasses-none":
+            // `pt-sunglasses`: the first usable face wears the pair named by `--sunglasses-pair <name>` (default Aviator),
+            // chosen as a tap would (a face wearing glasses has them painted out first).
+            session.ensureSunglassesAnalysis()
+            await session.debugAwaitPendingAnalysis()
+            guard screenID == "pt-sunglasses", let first = session.people?.usableFaces.first else { break }
+            let arguments = DebugArguments.current
+            let name = arguments.firstIndex(of: "--sunglasses-pair").flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil } ?? "Aviator"
+            if let pair = SunglassesPack.bundled?.pairs.first(where: { $0.name == name }) {
+                session.setSunglassesPair(pair.id, forFace: first)
+                await session.debugAwaitPendingAnalysis()
+            }
+            await session.settleRendering()
         case "pt-hidden":
             if let p = session.library.pack.category(id: "daylight")?.presets.first(where: { $0.stop == 56 }) { session.debugApply(p, amount: 100) }
         default: break

@@ -1404,6 +1404,11 @@ final class EditorSession {
                     case "teeth": next.tools.portrait.faces[i].teeth = face.teeth
                     case "smile": next.tools.portrait.faces[i].smile = face.smile
                     case "hair": next.tools.portrait.faces[i].hair = face.hair
+                    case "sunglasses":
+                        // None with default lens settings; a painted-out fill is kept so a later pair reuses it.
+                        if let current = next.tools.portrait.faces[i].sunglasses {
+                            next.tools.portrait.faces[i].sunglasses = .init(pair: nil, lens: .dark, darkness: 75, size: 0, removed: current.removed)
+                        }
                     default: break
                     }
                 }

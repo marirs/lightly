@@ -126,6 +126,7 @@
 		571E7BBE6C188BD6502F11A5 /* LightlyError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B6949D79F191E031FD950B /* LightlyError.swift */; };
 		57FB8C9305F38D963BA3FAE6 /* presets_fixture.json in Resources */ = {isa = PBXBuildFile; fileRef = F26E5749A262A23F12C5B5F1 /* presets_fixture.json */; };
 		589356A9D0C7911D755D894F /* DevelopPanelModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280F7E9339864F2B8A50B3D1 /* DevelopPanelModel.swift */; };
+		590346C6C51FC3F8BE731A47 /* SunglassesControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757DD734205C6B15B0F2B696 /* SunglassesControls.swift */; };
 		59B3B827F437148E886B124B /* SceneAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA59668B377D73510341753 /* SceneAnalysis.swift */; };
 		5AA9FEAA14EA5157F4A86703 /* EditStageMarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614765C58D29E4A3F31B500C /* EditStageMarks.swift */; };
 		5B12738736814CCF3720CBC3 /* AutoEnhancer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35BE71B0D623CB01C0D3E079 /* AutoEnhancer.swift */; };
@@ -481,6 +482,7 @@
 		7393263518D156823138BF4F /* Montserrat-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Montserrat-Variable.ttf"; sourceTree = "<group>"; };
 		74554523BE88DFCC4DFCC811 /* ForegroundEstimate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundEstimate.swift; sourceTree = "<group>"; };
 		7499A72CE634A1B1D7519737 /* EditorSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSheets.swift; sourceTree = "<group>"; };
+		757DD734205C6B15B0F2B696 /* SunglassesControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SunglassesControls.swift; sourceTree = "<group>"; };
 		75AFA2AE4E25D4D088F4D701 /* Entitlements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entitlements.swift; sourceTree = "<group>"; };
 		7690F7A3166CA742EBBD129A /* GlobalTableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalTableTests.swift; sourceTree = "<group>"; };
 		7772E8B98209919C954C1C84 /* ExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportTests.swift; sourceTree = "<group>"; };
@@ -1311,6 +1313,7 @@
 			isa = PBXGroup;
 			children = (
 				F9499399968062A4FBF28E2F /* PortraitPanel.swift */,
+				757DD734205C6B15B0F2B696 /* SunglassesControls.swift */,
 			);
 			path = Portrait;
 			sourceTree = "<group>";
@@ -2088,6 +2091,7 @@
 				438BD823148BF1EC6B58ED94 /* StageMarks.swift in Sources */,
 				D375DDF413495CF6D838773F /* StopRuler.swift in Sources */,
 				228B95F2903286C7F57BEEAB /* SunglassesAnalysis.swift in Sources */,
+				590346C6C51FC3F8BE731A47 /* SunglassesControls.swift in Sources */,
 				FA4C3E086B508D099050CA78 /* SunglassesPack.swift in Sources */,
 				932970132B4CBD224C8F4D37 /* SunglassesRemoval.swift in Sources */,
 				48B72CAFCC1CF66EF80266E8 /* SunglassesRenderer.swift in Sources */,

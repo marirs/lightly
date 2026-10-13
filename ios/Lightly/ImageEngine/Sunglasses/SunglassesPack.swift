@@ -87,9 +87,15 @@ struct SunglassesPack: Sendable {
         return data
     }
 
+    /// The pair's tile picture, verified and decoded once.
     func thumbnail(_ pair: Pair) -> UIImage? {
-        (try? verifiedData(pair.thumbnail, sha256: pair.thumbnailSha256)).flatMap { UIImage(data: $0) }
+        if let hit = Self.thumbnails.withLock({ $0[pair.id] }) { return hit }
+        let image = (try? verifiedData(pair.thumbnail, sha256: pair.thumbnailSha256)).flatMap { UIImage(data: $0) }
+        Self.thumbnails.withLock { $0[pair.id] = image }
+        return image
     }
+
+    private static let thumbnails = LockedBox<[String: UIImage?]>([:])
 
     // MARK: - LSG 1
 

@@ -5,7 +5,8 @@ import SwiftUI
 @Observable
 final class PortraitPanelModel {
     /// Owner amendment 2026-10-11: Smile sits between Teeth and Hair & Beard (mockup `portraitPanel`).
-    enum Tab: String, CaseIterable { case skin, under, eyes, teeth, smile, hair }
+    /// Portrait › Sunglasses (approved design portrait-sunglasses-v2, 2026-10-13): a tab after Hair & Beard.
+    enum Tab: String, CaseIterable { case skin, under, eyes, teeth, smile, hair, sunglasses }
 
     let session: EditorSession
     var tab: Tab = .skin
@@ -30,7 +31,42 @@ final class PortraitPanelModel {
     func changeCount(for e: EditRecipe.FaceEdit) -> Int {
         let values = [e.skin.smoothing, e.skin.blemishes, e.skin.evenTone, e.underEye.brighten, e.underEye.softenLines, e.eyes.brighten,
                       e.eyes.clarity, e.teeth.brighten, e.hair.definition, e.hair.flyaways, e.hair.shine, e.smile.amount]
-        return values.filter { $0 != 0 }.count + (e.skin.keepTexture != 85 ? 1 : 0)
+        return values.filter { $0 != 0 }.count + (e.skin.keepTexture != 85 ? 1 : 0) + (e.sunglasses?.pair != nil ? 1 : 0)
+    }
+
+    // MARK: - Sunglasses
+
+    enum SunglassesState: Equatable { case analysing, ready, glassesFound, eyesNotVisible }
+
+    /// The selected face's Sunglasses state (design states 1–4). Without the models in this build every face reads as
+    /// "eyes not visible", the design's state for a face the app cannot read.
+    var sunglassesState: SunglassesState {
+        guard faces.indices.contains(selectedFace) else { return .eyesNotVisible }
+        if session.sunglassesAnalysing && !session.sunglassesAnalysed { return .analysing }
+        guard let analysis = session.sunglassesAnalysis(for: faces[selectedFace]), analysis.isReadable else {
+            return session.sunglassesAnalysed ? .eyesNotVisible : .analysing
+        }
+        return analysis.glassesMask() != nil ? .glassesFound : .ready
+    }
+
+    func setSunglassesPair(_ pair: String?) {
+        guard faces.indices.contains(selectedFace) else { return }
+        session.setSunglassesPair(pair, forFace: faces[selectedFace])
+    }
+
+    /// Lens, Darkness or Size for the selected face (a pair keeps its own settings per face).
+    func updateSunglasses(_ change: @escaping (inout EditRecipe.FaceEdit.Sunglasses) -> Void, commit: Bool) {
+        update({ edit in
+            var glasses = edit.sunglasses ?? .none
+            change(&glasses)
+            edit.sunglasses = glasses
+        }, commit: commit)
+    }
+
+    /// Opening the tab runs the analysis once (iOS `ensureSunglassesAnalysis`).
+    func select(_ tab: Tab) {
+        self.tab = tab
+        if tab == .sunglasses { session.ensureSunglassesAnalysis() }
     }
 
     /// Smile needs both mouth corners of the selected face (rendering-v2 §7.3); without them the warp leaves the face
@@ -84,9 +120,10 @@ struct PortraitPanelView: View {
                                   (.eyes, "Eyes", e.eyes.brighten != 0 || e.eyes.clarity != 0),
                                   (.teeth, "Teeth", e.teeth.brighten != 0),
                                   (.smile, "Smile", e.smile.amount != 0),
-                                  (.hair, "Hair & Beard", e.hair.definition != 0 || e.hair.flyaways != 0 || e.hair.shine != 0)],
-                          selected: model.tab, wraps: wraps, identifierPrefix: "portrait.tab") { model.tab = $0 }
-                PanelResetRow(session: model.session, section: "portrait", title: ["skin": "Skin", "under": "Under-eye", "eyes": "Eyes", "teeth": "Teeth", "smile": "Smile", "hair": "Hair & Beard"][model.tab.rawValue]!, adjustment: model.tab.rawValue, resetAdjustment: {
+                                  (.hair, "Hair & Beard", e.hair.definition != 0 || e.hair.flyaways != 0 || e.hair.shine != 0),
+                                  (.sunglasses, "Sunglasses", e.sunglasses?.pair != nil)],
+                          selected: model.tab, wraps: wraps, identifierPrefix: "portrait.tab") { model.select($0) }
+                PanelResetRow(session: model.session, section: "portrait", title: ["skin": "Skin", "under": "Under-eye", "eyes": "Eyes", "teeth": "Teeth", "smile": "Smile", "hair": "Hair & Beard", "sunglasses": "Sunglasses"][model.tab.rawValue]!, adjustment: model.tab.rawValue, resetAdjustment: {
                     model.update({ edit in
                         let neutral = PortraitPanelModel.neutral(for: nil)
                         switch model.tab {
@@ -96,6 +133,9 @@ struct PortraitPanelView: View {
                         case .teeth: edit.teeth = neutral.teeth
                         case .smile: edit.smile = neutral.smile
                         case .hair: edit.hair = neutral.hair
+                        // None, the lens settings back to their defaults; a painted-out fill is kept for a later pair.
+                        case .sunglasses: if let removed = edit.sunglasses?.removed { edit.sunglasses = .none; edit.sunglasses?.removed = removed }
+                                          else if edit.sunglasses != nil { edit.sunglasses = .none }
                         }
                     }, commit: true)
                 })
@@ -153,6 +193,8 @@ struct PortraitPanelView: View {
             slider("Definition", e.hair.definition) { $0.hair.definition = $1 }
             slider("Flyaways", e.hair.flyaways) { $0.hair.flyaways = $1 }
             slider("Shine", e.hair.shine) { $0.hair.shine = $1 }
+        case .sunglasses:
+            SunglassesControls(model: model, pack: SunglassesPack.bundled)
         }
     }
 
