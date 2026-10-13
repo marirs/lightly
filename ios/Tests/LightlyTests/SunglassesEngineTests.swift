@@ -99,8 +99,10 @@ final class SunglassesEngineTests: XCTestCase {
             let renderStarted = Date()
             SunglassesRenderer.render(&linear, faces: edits, allAnalyses: analyses, pack: pack, removedPatch: store.patch)
             print("sunglasses-timing \(name) render \(W)x\(H) \(Int(Date().timeIntervalSince(renderStarted) * 1000)) ms")
-            let png = UIImage(cgImage: Self.cgImage(linear.rgba8FromLinear(), width: W, height: H)).pngData()!
+            let rendered = linear.rgba8FromLinear()
+            let png = UIImage(cgImage: Self.cgImage(rendered, width: W, height: H)).pngData()!
             try png.write(to: out.appendingPathComponent("\(name).ios.png"))
+            try Self.writeParityFixture(name: name, analyses: analyses, edits: edits.map(\.edit), rendered: rendered, width: W, height: H, to: out)
         }
         print("Sunglasses renders: \(out.path)")
     }
@@ -122,6 +124,34 @@ final class SunglassesEngineTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// The Android parity fixture (shared/fixtures/sunglasses/<name>.*): the analysis (landmarks, crops; maps as 8-bit
+    /// PNGs) and this render's face region, so Android renders from the same analysis and compares pixels.
+    static func writeParityFixture(name: String, analyses: [FaceSunglassesAnalysis], edits: [EditRecipe.FaceEdit], rendered: [UInt8],
+                                   width W: Int, height H: Int, to out: URL) throws {
+        var faces: [[String: Any]] = []
+        for (index, (a, edit)) in zip(analyses, edits).enumerated() {
+            func crop(_ m: ProbabilityMap) -> [Double] { [Double(m.originX), Double(m.originY), Double(m.cropSide)] }
+            for (kind, map) in [("hair", a.hair), ("background", a.background), ("accessory", a.accessory)] {
+                let bytes = map.values.flatMap { v -> [UInt8] in let b = UInt8(min(max(v * 255 + 0.5, 0), 255)); return [b, b, b, 255] }
+                try UIImage(cgImage: cgImage(bytes, width: ProbabilityMap.side, height: ProbabilityMap.side)).pngData()!
+                    .write(to: out.appendingPathComponent("\(name).f\(index).\(kind).png"))
+            }
+            faces.append(["box": [a.faceBox.x, a.faceBox.y, a.faceBox.width, a.faceBox.height],
+                          "landmarks": a.landmarks.flatMap { [Double($0.x), Double($0.y), Double($0.z)] }, "logit": Double(a.faceLogit),
+                          "hairCrop": crop(a.hair), "backgroundCrop": crop(a.background), "accessoryCrop": crop(a.accessory),
+                          "pair": edit.sunglasses?.pair ?? "", "hasRemoved": edit.sunglasses?.removed != nil])
+        }
+        // The region of the first face that holds the pair: its box widened, clamped to the photo.
+        let box = analyses[0].faceBox
+        let x0 = max(0, Int((box.x - box.width * 0.6) * Double(W))), y0 = max(0, Int((box.y - box.height * 0.2) * Double(H)))
+        let x1 = min(W, Int((box.x + box.width * 1.6) * Double(W))), y1 = min(H, Int((box.y + box.height * 0.9) * Double(H)))
+        var region = [UInt8](repeating: 255, count: (x1 - x0) * (y1 - y0) * 4)
+        for y in y0..<y1 { for x in x0..<x1 { for c in 0..<4 { region[((y - y0) * (x1 - x0) + x - x0) * 4 + c] = rendered[(y * W + x) * 4 + c] } } }
+        try UIImage(cgImage: cgImage(region, width: x1 - x0, height: y1 - y0)).pngData()!.write(to: out.appendingPathComponent("\(name).ios-region.png"))
+        let json: [String: Any] = ["width": W, "height": H, "faces": faces, "region": [x0, y0, x1 - x0, y1 - y0]]
+        try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]).write(to: out.appendingPathComponent("\(name).analysis.json"))
+    }
 
     static func rgba8(_ image: CGImage) -> ([UInt8], Int, Int) {
         let W = image.width, H = image.height
