@@ -248,6 +248,10 @@ final class EditorSession {
     @ObservationIgnored private var focusTask: Task<Void, Never>?
     /// Person segmentation for the hair operators (ensurePersonMatte).
     @ObservationIgnored private var personMatteTask: Task<Void, Never>?
+    /// Portrait › Sunglasses analysis (ensureSunglassesAnalysis) and a face's glasses being painted out (setSunglassesPair).
+    @ObservationIgnored private var sunglassesTask: Task<Void, Never>?
+    @ObservationIgnored private var sunglassesRemovalTask: Task<Void, Never>?
+    @ObservationIgnored private var sunglassesAnalyzer: SunglassesAnalyzer?
     @ObservationIgnored private var isClosed = false
     @ObservationIgnored private var startTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -825,6 +829,7 @@ final class EditorSession {
         var next = recipe
         change(&next.tools.portrait)
         ensurePersonMatte()
+        if next.tools.portrait.faces.contains(where: LayeredStages.wearsSunglasses) { ensureSunglassesAnalysis() }
         render(next, final: false)
     }
 
@@ -832,7 +837,111 @@ final class EditorSession {
         var next = recipe
         change(&next.tools.portrait)
         ensurePersonMatte()
+        if next.tools.portrait.faces.contains(where: LayeredStages.wearsSunglasses) { ensureSunglassesAnalysis() }
         commit(next)
+    }
+
+    // MARK: - Portrait › Sunglasses (rendering-v2 §7.5)
+
+    /// The analysis is running (the tab shows its controls once it lands).
+    private(set) var sunglassesAnalysing = false
+    /// A face's own glasses are being painted out after a pair was chosen.
+    private(set) var sunglassesRemoving = false
+
+    /// The analysis of `face`, once it ran; nil before, or when the models are not in this build.
+    func sunglassesAnalysis(for face: DetectedFace) -> FaceSunglassesAnalysis? {
+        sceneCache.sunglasses?.first { $0.faceBox == face.box }
+    }
+
+    /// True once the analysis ran (with or without a result for every face).
+    var sunglassesAnalysed: Bool { sceneCache.sunglasses != nil }
+
+    /// Runs the Sunglasses analysis of every usable face once (the tab is opened, or a recipe already holds a pair): the
+    /// landmarker and segmenter on the preview copy, off the main actor. Kept with the session like the person matte.
+    func ensureSunglassesAnalysis() {
+        guard sceneCache.sunglasses == nil, sunglassesTask == nil, let faces = people?.usableFaces, !faces.isEmpty else { return }
+        let image = originalPreview
+        let loaded = sunglassesAnalyzer
+        sunglassesAnalysing = true
+        sunglassesTask = Task { [weak self] in
+            let work = Task.detached(priority: .userInitiated) { () -> (analyses: [FaceSunglassesAnalysis], analyzer: SunglassesAnalyzer?) in
+                guard let analyzer = loaded ?? SunglassesAnalyzer.loadBundled(),
+                      let rgba = try? RemoveEngine.drawRegion(of: image, x: 0, y: 0, width: image.width, height: image.height) else {
+                    return ([], nil)
+                }
+                let pixels = SunglassesAnalyzer.Image(rgba: rgba, width: image.width, height: image.height)
+                let W = Float(image.width), H = Float(image.height)
+                func centre(_ polygon: [CGPoint]) -> SIMD2<Float> {
+                    let n = Float(max(polygon.count, 1))
+                    return SIMD2(Float(polygon.map(\.x).reduce(0, +)) / n * W, Float(polygon.map(\.y).reduce(0, +)) / n * H)
+                }
+                // A face that fails is left out; it shows the "eyes not visible" state.
+                let analyses = faces.compactMap { face in
+                    try? analyzer.analyse(pixels, faceBox: face.box, eyes: (centre(face.leftEye), centre(face.rightEye)))
+                }
+                return (analyses, analyzer)
+            }
+            let result = await work.value
+            guard let self, !self.isClosed else { return }
+            self.sunglassesAnalyzer = result.analyzer
+            self.sceneCache.sunglasses = result.analyses
+            self.sunglassesAnalysing = false
+            self.sunglassesTask = nil
+            self.analysisRevision += 1
+            self.persistSession()
+            self.renderCommitted()
+        }
+    }
+
+    /// Chooses a pair (nil = None) for `face`. A face found wearing glasses has them painted out first (once; None keeps
+    /// the patch so choosing again does not recompute it): the pair is shown at once, and the edit is committed as one
+    /// undo step when the fill lands. Without the Remove model, or when it fails, the pair is committed over the
+    /// person's own glasses rather than not at all.
+    func setSunglassesPair(_ pair: String?, forFace face: DetectedFace) {
+        guard let analysis = sunglassesAnalysis(for: face), analysis.isReadable else { return }
+        sunglassesRemovalTask?.cancel()
+        sunglassesRemoving = false
+        func apply(_ removed: EditRecipe.FaceEdit.Sunglasses.Removed?) -> (inout EditRecipe.Portrait) -> Void {
+            { portrait in
+                let index = portrait.faces.firstIndex { $0.face.box == face.box && $0.face.detector == DetectedFace.detector }
+                var entry = index.map { portrait.faces[$0] } ?? PortraitPanelModel.neutral(for: face)
+                var glasses = entry.sunglasses ?? .none
+                glasses.pair = pair
+                if let removed { glasses.removed = removed }
+                entry.sunglasses = glasses
+                if let index { portrait.faces[index] = entry } else { portrait.faces.append(entry) }
+            }
+        }
+        let current = recipe.tools.portrait.faces.first { $0.face.box == face.box }?.sunglasses
+        guard pair != nil, current?.removed == nil, analysis.glassesMask() != nil else {
+            commitPortrait(apply(nil))
+            return
+        }
+        previewPortrait(apply(nil))
+        sunglassesRemoving = true
+        let image = photo.image
+        let loader = inpainterLoader
+        let alreadyLoaded = inpainterLoaded ? inpainter : nil
+        let needsLoad = !inpainterLoaded
+        let awake = KeepAwake.begin("sunglasses")
+        sunglassesRemovalTask = Task { [weak self] in
+            defer { KeepAwake.end(awake) }
+            let work = Task.detached(priority: .userInitiated) { () -> (patch: (patch: RemovePatch, rect: EditRecipe.Rect)?, engine: (any Inpainting)?) in
+                guard let engine = needsLoad ? loader() : alreadyLoaded else { return (nil, nil) }
+                return ((try? await SunglassesRemoval.patch(for: analysis, source: image, inpainter: engine)) ?? nil, engine)
+            }
+            let result = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
+            guard let self, !Task.isCancelled, !self.isClosed else { return }
+            self.sunglassesRemoving = false
+            if let engine = result.engine { self.inpainter = engine; self.inpainterLoaded = true }
+            var removed: EditRecipe.FaceEdit.Sunglasses.Removed?
+            if let made = result.patch, let engine = result.engine {
+                let digest = self.removePatches.add(made.patch)
+                removed = .init(rect: made.rect, patch: .init(sha256: digest, model: engine.model, width: made.patch.width,
+                                                               height: made.patch.height))
+            }
+            self.commitPortrait(apply(removed))
+        }
     }
 
     /// Hair edits use the person matte; computed once when Portrait is first used.
@@ -1682,8 +1791,12 @@ final class EditorSession {
     }
 
     private func layeredInputs(for target: EditRecipe) -> LayeredStages.Inputs? {
-        let inputs = LayeredStages.Inputs(background: target.tools.background, portrait: target.tools.portrait,
+        var inputs = LayeredStages.Inputs(background: target.tools.background, portrait: target.tools.portrait,
                                           cache: sceneCache, developLUT: nil, autoLUT: nil)
+        // The painted-out glasses the sunglasses name; a missing patch is skipped, never recomputed.
+        for face in target.tools.portrait.faces {
+            if let ref = face.sunglasses?.removed?.patch, let patch = removePatches.patch(ref.sha256) { inputs.sunglassesPatches[ref.sha256] = patch }
+        }
         return LayeredStages.isActive(inputs) ? inputs : nil
     }
 
@@ -1696,6 +1809,10 @@ final class EditorSession {
     /// Requests the complete edit at one stable preview resolution and LUT precision.
     /// Interaction changes scheduling priority, never the image-processing recipe.
     private func render(_ requested: EditRecipe, final: Bool, dragFrame: Bool = false, colourFirst: Bool = false) {
+        // A restored session or an undo can bring back sunglasses before their analysis exists (analysis not stored).
+        if sceneCache.sunglasses == nil, requested.tools.portrait.faces.contains(where: LayeredStages.wearsSunglasses) {
+            ensureSunglassesAnalysis()
+        }
         activePreviewRecipe = final ? nil : requested
         let target = isCropEditing ? Self.uncropped(requested) : requested
         // An interactive frame is a control moving (a slider, a drag) before it commits: a pick still sampling
@@ -2067,7 +2184,7 @@ final class EditorSession {
         if analysisPersistedRevision != analysisRevision {
             sessionStore.saveAnalysis(PersistedAnalysis(hasPerson: hasPerson, people: people, subjectAnalysed: sceneCache.subjectAnalysed,
                                                         subject: sceneCache.subject, disparity: sceneCache.disparity,
-                                                        personMatte: sceneCache.personMatte))
+                                                        personMatte: sceneCache.personMatte, sunglasses: sceneCache.sunglasses))
             analysisPersistedRevision = analysisRevision
         }
     }
@@ -2087,6 +2204,7 @@ final class EditorSession {
         people = analysis.people
         sceneCache.people = analysis.people
         sceneCache.personMatte = analysis.personMatte
+        sceneCache.sunglasses = analysis.sunglasses
         if analysis.subjectAnalysed {
             sceneCache.subject = analysis.subject
             sceneCache.subjectAnalysed = true
@@ -2210,6 +2328,8 @@ final class EditorSession {
     /// segmentation for the hair operators), so the captured frame is the final one.
     func debugAwaitPendingAnalysis() async {
         await personMatteTask?.value
+        await sunglassesTask?.value
+        await sunglassesRemovalTask?.value
     }
 
     /// Waits until `condition` holds (capture sessions; polled on the main actor).
@@ -2226,6 +2346,8 @@ final class EditorSession {
         await depthTask?.value
         await focusTask?.value
         await personMatteTask?.value
+        await sunglassesTask?.value
+        await sunglassesRemovalTask?.value
         await removeTask?.value
         await saveTask?.value
         await settleRendering()

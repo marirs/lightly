@@ -12,6 +12,8 @@ struct PersistedAnalysis: Sendable {
     var subject: SubjectMatte?
     var disparity: DisparityMap?
     var personMatte: FloatImage?
+    /// Portrait › Sunglasses analysis (rendering-v2 §7.5), once it ran.
+    var sunglasses: [FaceSunglassesAnalysis]?
 }
 
 /// One editing session as it stood when last changed: the original photo's bytes, the whole undo
@@ -112,8 +114,15 @@ final class EditSessionStore: @unchecked Sendable {
     func saveAnalysis(_ analysis: PersistedAnalysis) {
         write { directory in
             try self.writeFile(Self.encodeAnalysis(analysis), named: "analysis.json", in: directory)
-            for (name, image) in [("subject-matte.f32", analysis.subject?.matte), ("disparity.f32", analysis.disparity?.disparity),
-                                  ("person-matte.f32", analysis.personMatte)] {
+            var images: [(String, FloatImage?)] = [("subject-matte.f32", analysis.subject?.matte), ("disparity.f32", analysis.disparity?.disparity),
+                                                   ("person-matte.f32", analysis.personMatte)]
+            for (index, face) in (analysis.sunglasses ?? []).enumerated() {
+                for (kind, map) in [("hair", face.hair), ("background", face.background), ("accessory", face.accessory)] {
+                    images.append(("sunglasses-\(index)-\(kind).f32", FloatImage(width: ProbabilityMap.side, height: ProbabilityMap.side,
+                                                                               channels: 1, data: map.values)))
+                }
+            }
+            for (name, image) in images {
                 if let image {
                     try self.writeFile(Self.encodeImage(image), named: name, in: directory)
                 } else {
@@ -257,6 +266,16 @@ final class EditSessionStore: @unchecked Sendable {
         }
         if let subject = a.subject { object["subjectModel"] = encodeModel(subject.model) }
         if let disparity = a.disparity { object["disparityModel"] = encodeModel(disparity.model); object["disparitySource"] = disparity.source.rawValue }
+        if let sunglasses = a.sunglasses {
+            // Per face: its identity box, the analysis size, 478 landmarks (x, y, z flattened), the logit and each map's
+            // crop; the maps themselves are sunglasses-<index>-<kind>.f32.
+            object["sunglasses"] = sunglasses.map { f -> [String: Any] in
+                func crop(_ m: ProbabilityMap) -> [Double] { [Double(m.originX), Double(m.originY), Double(m.cropSide)] }
+                return ["box": encodeRect(f.faceBox), "width": f.analysisWidth, "height": f.analysisHeight,
+                        "landmarks": f.landmarks.flatMap { [Double($0.x), Double($0.y), Double($0.z)] }, "logit": Double(f.faceLogit),
+                        "hairCrop": crop(f.hair), "backgroundCrop": crop(f.background), "accessoryCrop": crop(f.accessory)]
+            }
+        }
         return (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
     }
 
@@ -281,6 +300,24 @@ final class EditSessionStore: @unchecked Sendable {
             a.disparity = DisparityMap(disparity: map, source: source, model: m)
         }
         a.personMatte = images("person-matte.f32")
+        if let faces = o["sunglasses"] as? [[String: Any]] {
+            // All or nothing: a face whose files are missing or malformed drops the whole analysis, which then runs again.
+            let decoded = faces.enumerated().map { index, f -> FaceSunglassesAnalysis? in
+                func map(_ kind: String, _ key: String) -> ProbabilityMap? {
+                    guard let crop = f[key] as? [Double], crop.count == 3, let image = images("sunglasses-\(index)-\(kind).f32"),
+                          image.width == ProbabilityMap.side, image.height == ProbabilityMap.side, image.channels == 1 else { return nil }
+                    return ProbabilityMap(values: image.data, originX: Float(crop[0]), originY: Float(crop[1]), cropSide: Float(crop[2]))
+                }
+                guard let box = decodeRect(f["box"]), let width = f["width"] as? Int, let height = f["height"] as? Int,
+                      let flat = f["landmarks"] as? [Double], flat.count == 478 * 3, let logit = f["logit"] as? Double,
+                      let hair = map("hair", "hairCrop"), let background = map("background", "backgroundCrop"),
+                      let accessory = map("accessory", "accessoryCrop") else { return nil }
+                let landmarks = (0..<478).map { SIMD3(Float(flat[$0 * 3]), Float(flat[$0 * 3 + 1]), Float(flat[$0 * 3 + 2])) }
+                return FaceSunglassesAnalysis(faceBox: box, analysisWidth: width, analysisHeight: height, landmarks: landmarks,
+                                              faceLogit: Float(logit), hair: hair, background: background, accessory: accessory)
+            }
+            if decoded.allSatisfy({ $0 != nil }) { a.sunglasses = decoded.compactMap { $0 } }
+        }
         return a
     }
 }

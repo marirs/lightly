@@ -13,6 +13,8 @@ struct SceneCache: Sendable {
     var personMatte: FloatImage?
     /// Bundled background images, decoded.
     var replacementImages: [String: CGImage] = [:]
+    /// Portrait › Sunglasses analysis of the usable faces (rendering-v2 §7.5), on the preview copy; nil until it ran.
+    var sunglasses: [FaceSunglassesAnalysis]?
 }
 
 /// Stages 7 (background.replace) and 8 (background.focus) for one frame.

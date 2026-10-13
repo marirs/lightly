@@ -22,7 +22,13 @@ enum LayeredStages {
         var adjustLUT: LUT3D? = nil
         /// Focus & Blur's R_max fraction from the displayed photo (RefocusRenderer); nil: contract 0.06.
         var maxBlurRadiusFraction: Float? = nil
+        /// The painted-out glasses patches the recipe's sunglasses name (`sunglasses.removed`), by digest.
+        var sunglassesPatches: [String: RemovePatch] = [:]
+        var sunglassesPack: SunglassesPack? = SunglassesPack.bundled
     }
+
+    /// A face edit that puts a pair on (rendering-v2 §7.5).
+    static func wearsSunglasses(_ edit: EditRecipe.FaceEdit) -> Bool { edit.sunglasses?.pair != nil }
 
     static let interactiveCap = 640
     static let previewCap = 1_024
@@ -31,6 +37,7 @@ enum LayeredStages {
     static func isActive(_ inputs: Inputs) -> Bool {
         (inputs.background.replacement != nil || inputs.background.focus.blur > 0)
             || inputs.portrait.faces.contains(where: PortraitRenderer.hasChanges)
+            || inputs.portrait.faces.contains(where: wearsSunglasses)
     }
 
     /// Applies the stages to an RGBA8 sRGB frame.
@@ -150,6 +157,16 @@ enum LayeredStages {
             }
             let person = inputs.cache.personMatte?.resized(width: width, height: height)
             full = PortraitRenderer.render(full, faces: faces, personMatte: person)
+        }
+        // portrait.sunglasses (§7.5): part of stage 8, after each face's other portrait operations.
+        let wearing = inputs.portrait.faces.filter(wearsSunglasses)
+        if !wearing.isEmpty, let analyses = inputs.cache.sunglasses, let pack = inputs.sunglassesPack {
+            try Task.checkCancellation()
+            let faces = wearing.compactMap { edit -> (edit: EditRecipe.FaceEdit, analysis: FaceSunglassesAnalysis)? in
+                analyses.first { $0.faceBox == edit.face.box }.map { (edit, $0) }
+            }
+            let patches = inputs.sunglassesPatches
+            SunglassesRenderer.render(&full, faces: faces, allAnalyses: analyses, pack: pack, removedPatch: { patches[$0] })
         }
         return full.rgba8FromLinear()
     }
