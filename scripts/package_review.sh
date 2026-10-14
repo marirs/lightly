@@ -24,8 +24,11 @@ cd ios && xcodegen generate 2>&1 | tail -1
 OPT="SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule GCC_OPTIMIZATION_LEVEL=s"
 xcodebuild build -project Lightly.xcodeproj -scheme Lightly -configuration Debug $OPT -destination "generic/platform=iOS Simulator" \
   -derivedDataPath /tmp/lightly-dd-review-sim MARKETING_VERSION="$MARKETING" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" -quiet > /tmp/lightly-dd-review-sim.log 2>&1 || { grep -E "error:" /tmp/lightly-dd-review-sim.log | head; echo "ios sim build failed"; exit 1; }
+# No -allowProvisioningUpdates (owner, 2026-10-14): with it Xcode may register every paired iPhone, personal phones
+# included, in the developer account. The build signs with the existing team profile; if that profile is missing or
+# expired the build fails and the owner renews it.
 xcodebuild build -project Lightly.xcodeproj -scheme Lightly -configuration Debug $OPT -destination "generic/platform=iOS" \
-  -derivedDataPath /tmp/lightly-dd-review-device -allowProvisioningUpdates MARKETING_VERSION="$MARKETING" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic \
+  -derivedDataPath /tmp/lightly-dd-review-device MARKETING_VERSION="$MARKETING" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic \
   DEVELOPMENT_TEAM=3UDFB78DLC CODE_SIGN_IDENTITY="Apple Development" -quiet > /tmp/lightly-dd-review-device.log 2>&1 || { grep -E "error:" /tmp/lightly-dd-review-device.log | head; echo "ios device build failed"; exit 1; }
 cd "$REPO"
 SIM=/tmp/lightly-dd-review-sim/Build/Products/Debug-iphonesimulator; DEV=/tmp/lightly-dd-review-device/Build/Products/Debug-iphoneos
