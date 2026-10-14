@@ -15,14 +15,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -31,8 +29,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -124,27 +120,21 @@ private fun WrappedPortraitTabs(items: List<Pair<PortraitTab, String>>, selected
 }
 
 /**
- * Portrait's marks on the photo (prototype `marksFor`): a `.faceRing` on each usable face, the chosen
- * one solid and the others dashed at 75 %, each a button that chooses its face, with a "Face N" tag
- * below it when there are several. With no usable face but people present, dashed rings mark them.
+ * Portrait's face targets on the photo. Owner amendment (2026-10-14): nothing is drawn on the face — no ring, no
+ * "Face N" tag, no dim marks for unusable people ("you can do it invisibly"); it covered the face while adding
+ * sunglasses. Each usable face stays an invisible, tappable area that chooses it, with its TalkBack label.
  */
 @Composable
 fun PortraitMarks(vm: EditorViewModel, ui: EditorUiState) {
     if (ui.tool != EditorTool.PORTRAIT || ui.showsOriginal) return
-    val people = ui.people ?: return
-    val usable = people.usableFaces
+    val usable = ui.people?.usableFaces ?: return
+    if (usable.isEmpty()) return
     val toFrame: (NormalisedRect) -> FrameRect = { r -> frameRect(vm, ui, r) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        if (usable.isNotEmpty()) {
-            val selected = ui.portrait.selectedFace.coerceIn(0, usable.size - 1)
-            usable.forEachIndexed { index, face ->
-                FaceRing(toFrame(face.ring), maxWidth.value, maxHeight.value, dim = index != selected, tag = if (usable.size > 1) "Face ${index + 1}" else null,
-                    description = "Face ${index + 1}", testTag = PortraitTags.ring(index)) { vm.selectPortraitFace(index) }
-            }
-        } else {
-            unusableMarks(people).forEach { rect ->
-                FaceRing(toFrame(rect), maxWidth.value, maxHeight.value, dim = true, tag = null, description = null, testTag = null, onClick = null)
-            }
+        val selected = ui.portrait.selectedFace.coerceIn(0, usable.size - 1)
+        usable.forEachIndexed { index, face ->
+            FaceTarget(toFrame(face.ring), maxWidth.value, maxHeight.value, isSelected = index == selected,
+                description = "Face ${index + 1}", testTag = PortraitTags.ring(index)) { vm.selectPortraitFace(index) }
         }
     }
 }
@@ -176,50 +166,18 @@ private fun frameRect(vm: EditorViewModel, ui: EditorUiState, r: NormalisedRect)
 }
 
 @Composable
-private fun FaceRing(r: FrameRect, boxWidthDp: Float, boxHeightDp: Float, dim: Boolean, tag: String?, description: String?, testTag: String?, onClick: (() -> Unit)?) {
-    val opacity = if (dim) 0.75f else 1f
+private fun FaceTarget(r: FrameRect, boxWidthDp: Float, boxHeightDp: Float, isSelected: Boolean, description: String, testTag: String, onClick: () -> Unit) {
     val left = (r.x * boxWidthDp).toFloat()
     val top = (r.y * boxHeightDp).toFloat()
-    val width = max(1f, (r.width * boxWidthDp).toFloat())
-    val height = max(1f, (r.height * boxHeightDp).toFloat())
     Box(
         Modifier
             .offset(left.dp, top.dp)
-            .size(width.dp, height.dp)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .then(if (description != null) Modifier.semantics { contentDescription = description; selected = !dim } else Modifier)
-            .then(if (testTag != null) Modifier.testTagResource(testTag) else Modifier)
-            .drawBehind {
-                // `box-shadow: 0 0 0 1px rgba(0,0,0,.2)`: a 1 dp dark ring just outside the border box.
-                val px = 1.dp.toPx()
-                // `.dim { opacity:.75 }` on the whole ring and its tag. Applied to each colour, not as a layer:
-                // a layer's alpha is drawn through an offscreen buffer the size of the ring, which clipped the tag.
-                drawOval(Color(0x33000000).copy(alpha = 0.2f * opacity), topLeft = androidx.compose.ui.geometry.Offset(-px / 2, -px / 2),
-                    size = androidx.compose.ui.geometry.Size(size.width + px, size.height + px), style = Stroke(px))
-                // `.faceRing { border:1.5px solid rgba(255,255,255,.95) }`, floored to 1 px as Chrome renders it;
-                // `.dim` is dashed (Chrome's 3/2 dp dash pattern, as the signature sheets).
-                drawOval(Color.White.copy(alpha = 0.95f * opacity), topLeft = androidx.compose.ui.geometry.Offset(px / 2, px / 2),
-                    size = androidx.compose.ui.geometry.Size(size.width - px, size.height - px),
-                    style = Stroke(px, pathEffect = if (dim) PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.dp.toPx())) else null))
-            },
-    ) {
-        if (tag != null) {
-            // `.tag`: centred under the ring, 6 px below it; 12 px white on rgba(0,0,0,.55), padding 2 8, radius 8.
-            Box(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .wrapContentSize(unbounded = true)
-                    .layout { measurable, constraints ->
-                        val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                        layout(placeable.width, placeable.height) { placeable.place(0, placeable.height + 6.dp.roundToPx()) }
-                    }
-                    .background(Color.Black.copy(alpha = 0.55f * opacity), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-            ) {
-                Text(tag, style = lightlyTextStyle(com.lightlylabs.lightly.shell.fixedTextSize(12f), color = Color.White.copy(alpha = opacity)), maxLines = 1)
-            }
-        }
-    }
+            .size(max(1f, (r.width * boxWidthDp).toFloat()).dp, max(1f, (r.height * boxHeightDp).toFloat()).dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .clickable(role = Role.Button, indication = null, interactionSource = null, onClick = onClick)
+            .semantics { contentDescription = description; selected = isSelected }
+            .testTagResource(testTag),
+    )
 }
 
 /**

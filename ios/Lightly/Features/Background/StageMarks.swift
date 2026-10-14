@@ -34,67 +34,33 @@ struct MatteTintMark: View {
     }
 }
 
-/// `.faceRing`: an ellipse on each face; the chosen one solid, others dashed at 75 %. With more
-/// than one face, a "Face N" tag below each. People without a usable face get dim rings.
+/// Portrait's face targets on the photo. Owner amendment (2026-10-14): nothing is drawn on the face — no ring, no
+/// "Face N" tag, no dim marks for unusable people ("you can do it invisibly"); it covered the face while adding
+/// sunglasses. Each usable face stays an invisible, tappable ellipse that chooses it, with its VoiceOver label.
 struct FaceRingsMark: View {
     let faces: [EditRecipe.Rect]
     let selected: Int
-    let people: [EditRecipe.Rect]
     let onSelect: (Int) -> Void
-    /// The photo's zoom: the tags keep their on-screen size while the photo is zoomed.
-    @Environment(InspectionZoom.self) private var zoom: InspectionZoom?
 
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
-            let tagScale = 1 / max(zoom?.scale ?? 1, 1)
             ForEach(faces.indices, id: \.self) { index in
                 let rect = frame(faces[index], in: size)
                 Button { onSelect(index) } label: {
-                    ring(dim: index != selected)
+                    Color.clear.contentShape(Ellipse())
                 }
                 .buttonStyle(.plain)
                 .frame(width: rect.width, height: rect.height)
-                .overlay(alignment: .bottom) {
-                    if faces.count > 1 {
-                        // The mockup's tag: 11 pt semibold, 3/8 pt padding, 8 pt corners, 55 % black; a constant size
-                        // on screen whatever the zoom.
-                        Text("Face \(index + 1)")
-                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55)))
-                            .fixedSize()
-                            .scaleEffect(tagScale, anchor: .top)
-                            .offset(y: 4 * tagScale)
-                            .alignmentGuide(.bottom) { $0[.top] }
-                    }
-                }
                 .position(x: rect.midX, y: rect.midY)
                 .accessibilityLabel(Text("Face \(index + 1)"))
                 .accessibilityAddTraits(index == selected ? .isSelected : [])
                 .accessibilityIdentifier("portrait.ring.\(index + 1)")
-            }
-            ForEach(people.indices, id: \.self) { index in
-                let rect = frame(people[index], in: size)
-                ring(dim: true).frame(width: rect.width * 0.35, height: rect.width * 0.35)
-                    .position(x: rect.midX, y: rect.minY + rect.width * 0.25)
-                    .allowsHitTesting(false)
             }
         }
     }
 
     private func frame(_ r: EditRecipe.Rect, in size: CGSize) -> CGRect {
         CGRect(x: r.x * size.width, y: r.y * size.height, width: r.width * size.width, height: r.height * size.height)
-    }
-
-    private func ring(dim: Bool) -> some View {
-        ZStack {
-            // `box-shadow: 0 0 0 1px`: 1 pt just outside the ring's border box.
-            Ellipse().strokeBorder(Color.black.opacity(0.2), lineWidth: 1).padding(-1)
-            // 1 pt as rendered: the approved references floor CSS border widths (Chromium computes 1.5px as 1px, 2.5px as 2px).
-            Ellipse().strokeBorder(Color.white.opacity(0.95), style: StrokeStyle(lineWidth: 1, dash: dim ? [5, 4] : []))
-        }
-        .opacity(dim ? 0.75 : 1)
-        .contentShape(Ellipse())
     }
 }

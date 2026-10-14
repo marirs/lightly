@@ -626,7 +626,6 @@ struct EditorScreen: View {
                 case .portrait:
                     if let people = session.people {
                         FaceRingsMark(faces: people.usableFaces.map { toFrame($0.ring) }, selected: portraitPanel.selectedFace,
-                                      people: people.unusableMarks.map(toFrame),
                                       onSelect: { portraitPanel.selectedFace = $0 })
                     }
                 case .edit:

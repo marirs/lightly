@@ -4,6 +4,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -176,8 +177,11 @@ class PortraitTest {
         compose.waitForIdle()
         compose.onNodeWithTag(PortraitTags.face(0)).assert(hasText("Face 1 · 1"))
         compose.onNodeWithTag(PortraitTags.face(1)).assert(hasText("Face 2"))
-        // Each face's ring is a button named for its face, with its tag under it.
-        compose.onNodeWithTag(PortraitTags.ring(1)).assert(hasText("Face 2"))
+        // Each face is an invisible button on the photo named for its face (owner, 2026-10-14: no ring, no tag).
+        compose.onNodeWithTag(PortraitTags.ring(1)).assert(hasContentDescription("Face 2"))
+        compose.onAllNodesWithText("Face 2", useUnmergedTree = true).fetchSemanticsNodes().let { nodes ->
+            assertEquals(1, nodes.size, "\"Face 2\" is written only on its chip, never on the photo")
+        }
         assertEquals(2, vm.uiState.value.session!!.history.entries.size, "one undo step per release")
         compose.onNodeWithTag(PortraitTags.face(1)).performClick()
         compose.waitForIdle()
