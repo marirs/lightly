@@ -279,7 +279,7 @@ def stages():
                                      "profileTargetYawDegrees": 85},
                             "placement": {"eyeDepthMetres": 0.015, "pantoscopicTiltRadians": -0.14},
                             "occluders": {"headCentreMetres": [0, -0.026, -0.098], "headRadiiMetres": [0.076, 0.115, 0.098],
-                                          "faceMeshPushBackMetres": 0.006},
+                                          "faceMeshPushBackMetres": 0.006, "earClipStartMetres": 0.12, "earBoxXMetres": [0.04, 0.20]},
                             "passes": {"frontDepthMetres": 0.012, "minShadingSamplesPerAxis": 2, "iosSupersampleMaxSide": 4096, "keyLight": {"intensity": 1000, "eulerRadians": [-0.6, 0.4, 0]},
                                        "ambient": 400},
                             "removal": {"dilation": "MaxFilter 15, 15, 15, 9 (px)"},

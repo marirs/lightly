@@ -133,6 +133,15 @@ enum SunglassesRenderer {
         head.scale = SCNVector3(radii.x, radii.y, radii.z); head.position = SCNVector3(centre.x, centre.y, centre.z)
         head.geometry!.materials = [depthOnly()]; head.renderingOrder = -10
         holder.addChildNode(head)
+        // Ears: depth-only boxes on both sides from earClipStartMetres behind the lens plane to the back of the head.
+        for side: Float in [-1, 1] {
+            let inner = SunglassesConstants.earBoxInnerX, outer = SunglassesConstants.earBoxOuterX
+            let front = SunglassesConstants.earClipStartMetres, back: Float = 0.30
+            let ear = SCNNode(geometry: SCNBox(width: CGFloat(outer - inner), height: 0.4, length: CGFloat(back - front), chamferRadius: 0))
+            ear.position = SCNVector3(side * (inner + outer) / 2, 0, -(front + back) / 2)
+            ear.geometry!.materials = [depthOnly()]; ear.renderingOrder = -10
+            holder.addChildNode(ear)
+        }
         let k = fittedScale(pixelsPerMetre: s, frontWidthMetres: loaded.mesh.frontWidthMetres, landmarks: P) * (1 + SunglassesConstants.sizePerUnit * Float(size))
         holder.transform = SCNMatrix4(m11: pose.ex.x * k, m12: pose.ex.y * k, m13: pose.ex.z * k, m14: 0,
                                       m21: pose.ey.x * k, m22: pose.ey.y * k, m23: pose.ey.z * k, m24: 0,

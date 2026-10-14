@@ -73,6 +73,14 @@ head.scale = SCNVector3(0.076, 0.115, 0.098); head.position = SCNVector3(0, -0.0
 let hm = SCNMaterial(); hm.colorBufferWriteMask = []; hm.writesToDepthBuffer = true
 head.geometry!.materials = [hm]; head.renderingOrder = -10
 holder.addChildNode(head)
+// Ears (rendering-v2 §7.5, 2026-10-14): depth-only boxes, |x| 0.04…0.20 m, y ±0.2 m, z −0.12…−0.30 m, in the holder's
+// frame: past the front of the ear a real arm goes behind the ear.
+for side in [-1.0, 1.0] {
+    let ear = SCNNode(geometry: SCNBox(width: 0.16, height: 0.4, length: 0.18, chamferRadius: 0))
+    ear.position = SCNVector3(side * 0.12, 0, -0.21)
+    ear.geometry!.materials = [hm]; ear.renderingOrder = -10
+    holder.addChildNode(ear)
+}
 holder.transform = SCNMatrix4(m11: R[0] * s, m12: R[1] * s, m13: R[2] * s, m14: 0,
                               m21: R[3] * s, m22: R[4] * s, m23: R[5] * s, m24: 0,
                               m31: R[6] * s, m32: R[7] * s, m33: R[8] * s, m34: 0,

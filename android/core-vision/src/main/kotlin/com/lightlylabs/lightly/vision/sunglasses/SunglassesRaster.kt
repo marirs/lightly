@@ -82,6 +82,7 @@ object SunglassesRaster {
         // 1. Occluders, depth only: the head ellipsoid (in the pair's frame) and the face mesh.
         val head = headTriangles(placement)
         rasterDepth(head, depth, sw, sh, toSampleX, toSampleY, nearestZ)
+        rasterDepth(earTriangles(placement), depth, sw, sh, toSampleX, toSampleY, nearestZ)
         rasterDepth(faceMesh, depth, sw, sh, toSampleX, toSampleY, nearestZ)
 
         // 2. The pair's vertices in scene units (tilt, then the head's axes, then the origin); normals rotated alike.
@@ -296,6 +297,28 @@ object SunglassesRaster {
                 hit(s, a.toFloat(), b.toFloat())
             }
         }
+    }
+
+    /**
+     * The ear occluders as triangles in scene units (iOS: depth-only SCNBoxes, owner report 2026-10-14): on both sides,
+     * |x| from EAR_BOX_INNER_X to EAR_BOX_OUTER_X, y ±0.2 m, z from EAR_CLIP_START_METRES behind the lens plane to
+     * 0.30 m, in the holder's frame. Past the front of the ear a real arm goes behind the ear.
+     */
+    private fun earTriangles(p: Placement): FloatArray {
+        val out = FloatArray(2 * 12 * 9)
+        var o = 0
+        fun scene(x: Double, y: Double, z: Double) = DoubleArray(3) { c -> p.origin[c] + p.scale * (x * p.ex[c] + y * p.ey[c] + z * p.ez[c]) }
+        for (side in doubleArrayOf(-1.0, 1.0)) {
+            val xs = doubleArrayOf(side * SunglassesConstants.EAR_BOX_INNER_X, side * SunglassesConstants.EAR_BOX_OUTER_X)
+            val ys = doubleArrayOf(-0.2, 0.2); val zs = doubleArrayOf(-SunglassesConstants.EAR_CLIP_START_METRES, -0.30)
+            val corner = Array(8) { i -> scene(xs[i and 1], ys[(i shr 1) and 1], zs[(i shr 2) and 1]) }
+            // Six faces, two triangles each (corners indexed by bits x, y, z).
+            val faces = arrayOf(intArrayOf(0, 1, 3, 2), intArrayOf(4, 5, 7, 6), intArrayOf(0, 1, 5, 4), intArrayOf(2, 3, 7, 6), intArrayOf(0, 2, 6, 4), intArrayOf(1, 3, 7, 5))
+            for (f in faces) for (v in intArrayOf(f[0], f[1], f[2], f[0], f[2], f[3])) {
+                out[o++] = corner[v][0].toFloat(); out[o++] = corner[v][1].toFloat(); out[o++] = corner[v][2].toFloat()
+            }
+        }
+        return out
     }
 
     /** The head ellipsoid as triangles in scene units (a 48 × 24 UV sphere, SceneKit's default segment count). */

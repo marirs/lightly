@@ -184,6 +184,32 @@ final class SunglassesEngineTests: XCTestCase {
         print("Sunglasses group diagnostic: \(out.path)")
     }
 
+    /// Side views (owner report 2026-10-14: the arm lay over the ear): Wayfarer on the turned and profile photos, no
+    /// paint-out, written as sideview.<name>.png for review.
+    func testSideViewsDiagnosticIsWritten() throws {
+        let analyzer = try XCTUnwrap(SunglassesAnalyzer.loadBundled())
+        let pack = try XCTUnwrap(SunglassesPack.bundled)
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("lightly-sunglasses")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        for name in ["glasses_side_angle_01", "profile_colour_woman_01", "profile_bw_woman_01"] {
+            let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture("experiments/test-photos/\(name).jpg").path)?.cgImage)
+            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let (rgba, W, H) = Self.rgba8(image)
+            let analyses = try Self.editorFaces(image).map { try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: $0.box, eyes: $0.eyes) }
+            let pair = try XCTUnwrap(pack.pairs.first { $0.name == "Wayfarer" })
+            let edits = analyses.map { a -> (edit: EditRecipe.FaceEdit, analysis: FaceSunglassesAnalysis) in
+                var edit = PortraitPanelModel.neutral(for: nil)
+                edit.sunglasses = .init(pair: pair.id, lens: .dark, darkness: 75, size: 0, removed: nil)
+                return (edit, a)
+            }
+            var linear = FloatImage.linear(fromRGBA8: rgba, width: W, height: H)
+            SunglassesRenderer.render(&linear, faces: edits, allAnalyses: analyses, pack: pack, removedPatch: { _ in nil })
+            try UIImage(cgImage: Self.cgImage(linear.rgba8FromLinear(), width: W, height: H)).pngData()!
+                .write(to: out.appendingPathComponent("sideview.\(name).png"))
+        }
+        print("Sunglasses side views: \(out.path)")
+    }
+
     /// Measurement for the width fit: each face's width at the cheek points 234/454 (metres, by the eye-corner scale)
     /// and each pair's front width (vertices within 2 cm of the lens plane), printed for review.
     func testFaceAndPairWidthsArePrinted() throws {

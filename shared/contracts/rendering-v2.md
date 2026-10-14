@@ -444,7 +444,9 @@ axis. The pair is tilted −8° about its x axis (pantoscopic tilt). Projection 
 
 **Occluders** (depth only, drawn first): an ellipsoid in the pair's frame, centre (0, −0.026, −0.098) m, radii
 (0.076, 0.115, 0.098) m; and the face mesh (468 landmarks, MediaPipe's 898 canonical triangles) in scene units,
-pushed 6 mm (0.006 s) away from the viewer.
+pushed 6 mm (0.006 s) away from the viewer; and two ear boxes in the head's (holder's) frame, |x| from 0.04 to 0.20 m,
+y ±0.2 m, z from −0.12 m (about the front of the ear) to −0.30 m: the arms are straight, and past the front of
+the ear a real arm goes behind the ear, so it is hidden there (owner report 2026-10-14: the arm lay over the ear).
 
 **Passes,** each the photo's size: *frame* (lit pair, lenses depth-only), *front* (the same, clipped 12 mm behind the
 lens plane), *lens* (lens coverage white, frame black). Lighting for *frame*: one directional light, intensity 1000,
@@ -516,6 +518,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
 | 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
 | 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
-| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), and 2 × 2 shading samples. | No |
+| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, and ear occluders. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

@@ -90,6 +90,12 @@ enum SunglassesConstants {
     /// multisampling: fine rim detail otherwise sparkles in sub-pixel highlights.
     static let passSupersample = 2
     static let passSupersampleMaxSide = 4096
+    /// Ear occluders (owner report 2026-10-14: on a turned face the arm lay over the ear). The arms are straight and run
+    /// ~15 cm back; past the front of the ear a real arm goes behind the ear. Depth-only boxes in the head's frame hide
+    /// the arms from this far behind the lens plane on: |x| in [earBoxInnerX, earBoxOuterX], all y, z to the back.
+    static let earClipStartMetres: Float = 0.12
+    static let earBoxInnerX: Float = 0.04
+    static let earBoxOuterX: Float = 0.20
     static let refineCropScale: Float = 1.5
     static let refinePasses = 2
     static let keepIfLogitDropAtMost: Float = 1.0

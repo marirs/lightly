@@ -24,6 +24,11 @@ object SunglassesConstants {
     const val WIDTH_FIT_CHEEK_FACTOR = 1.07
     /** A pair's front: its vertices within this of the lens plane. */
     const val FRONT_PLANE_METRES = 0.02
+    /** Ear occluders (owner report 2026-10-14: on a turned face the arm lay over the ear): depth-only boxes hide the
+     *  arms from this far behind the lens plane on, |x| between the inner and outer bounds (iOS SunglassesConstants). */
+    const val EAR_CLIP_START_METRES = 0.12
+    const val EAR_BOX_INNER_X = 0.04
+    const val EAR_BOX_OUTER_X = 0.20
     const val REFINE_CROP_SCALE = 1.5
     const val REFINE_PASSES = 2
     const val KEEP_IF_LOGIT_DROP_AT_MOST = 1.0f

@@ -1134,7 +1134,12 @@
         0.115,
         0.098
        ],
-       "faceMeshPushBackMetres": 0.006
+       "faceMeshPushBackMetres": 0.006,
+       "earClipStartMetres": 0.12,
+       "earBoxXMetres": [
+        0.04,
+        0.2
+       ]
       },
       "passes": {
        "frontDepthMetres": 0.012,
