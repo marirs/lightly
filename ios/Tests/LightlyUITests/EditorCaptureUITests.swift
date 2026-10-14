@@ -119,6 +119,18 @@ final class EditorCaptureUITests: XCTestCase {
         app = XCUIApplication()
     }
 
+    /// The screen to capture. A foldable (iPhone Duo) has two: `XCUIScreen.main` is the cover display, which is
+    /// black while the device is unfolded. `LIGHTLY_CAPTURE_SCREEN=largest` captures the largest screen instead (the
+    /// unfolded inner display); phones with one screen are unaffected.
+    static func captureScreen() -> XCUIScreen {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_CAPTURE_SCREEN"] == "largest" else { return XCUIScreen.main }
+        func area(_ screen: XCUIScreen) -> CGFloat {
+            let size = screen.screenshot().image.size
+            return size.width * size.height
+        }
+        return XCUIScreen.screens.max { area($0) < area($1) } ?? XCUIScreen.main
+    }
+
     /// Polls a small file every 10 ms (an NSPredicate expectation is evaluated about once a second).
     static func waitForFile(_ url: URL, toContain expected: String, timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
@@ -210,7 +222,7 @@ final class EditorCaptureUITests: XCTestCase {
             mark("ready-seen", screen.id)
             XCTAssertTrue(app.descendants(matching: .any)[screen.ready].firstMatch.exists, "\(screen.id): \(screen.ready) missing")
             mark("shot-start", screen.id)
-            let data = XCUIScreen.main.screenshot().pngRepresentation
+            let data = Self.captureScreen().screenshot().pngRepresentation
             try? data.write(to: directory.appendingPathComponent("\(screen.id).png"))
             mark("shot-end", screen.id)
         }
@@ -237,7 +249,7 @@ final class EditorCaptureUITests: XCTestCase {
                           "\(screen.id): render never committed")
             Thread.sleep(forTimeInterval: 1.5)
             mark("shot-start", screen.id)
-            let data = XCUIScreen.main.screenshot().pngRepresentation
+            let data = Self.captureScreen().screenshot().pngRepresentation
             try? data.write(to: directory.appendingPathComponent("\(screen.id).png"))
             mark("shot-end", screen.id)
         }

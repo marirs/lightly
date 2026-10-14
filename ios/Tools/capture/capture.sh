@@ -25,7 +25,7 @@ xcrun simctl ui "$U" appearance "$TH"
 if [ "$TX" = large ]; then xcrun simctl ui "$U" content_size extra-extra-large; else xcrun simctl ui "$U" content_size large; fi
 xcrun simctl status_bar "$U" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
 LOG=$OUT/xcodebuild.log
-TEST_RUNNER_LIGHTLY_CAPTURE_DIR="$OUT" TEST_RUNNER_LIGHTLY_CAPTURE_ORIENTATION=$OR TEST_RUNNER_LIGHTLY_CAPTURE_ONLY="$ONLY" TEST_RUNNER_LIGHTLY_CAPTURE_MODE=$MODE \
+TEST_RUNNER_LIGHTLY_CAPTURE_DIR="$OUT" TEST_RUNNER_LIGHTLY_CAPTURE_ORIENTATION=$OR TEST_RUNNER_LIGHTLY_CAPTURE_ONLY="$ONLY" TEST_RUNNER_LIGHTLY_CAPTURE_MODE=$MODE TEST_RUNNER_LIGHTLY_CAPTURE_SCREEN="${LIGHTLY_CAPTURE_SCREEN:-}" \
 xcodebuild test-without-building -project Lightly.xcodeproj -scheme LightlyUITests -destination "platform=iOS Simulator,id=$U" \
   -derivedDataPath "$LIGHTLY_DD_UI" -only-testing:LightlyUITests/EditorCaptureUITests > "$LOG" 2>&1
 grep -E "error:|\*\* TEST" "$LOG" | cut -c1-300 | head -20
