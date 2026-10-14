@@ -308,9 +308,13 @@ object SunglassesRaster {
         val out = FloatArray(2 * 12 * 9)
         var o = 0
         fun scene(x: Double, y: Double, z: Double) = DoubleArray(3) { c -> p.origin[c] + p.scale * (x * p.ex[c] + y * p.ey[c] + z * p.ez[c]) }
+        // On a turned face the far side's box starts just behind the hinge: the head hides that arm. The near side is the
+        // one whose +x points towards the viewer (ex.z > 0 → +x).
+        val farSide = if (kotlin.math.abs(p.ex[2]) > SunglassesConstants.FAR_ARM_MIN_TURN) (if (p.ex[2] > 0) -1.0 else 1.0) else 0.0
         for (side in doubleArrayOf(-1.0, 1.0)) {
             val xs = doubleArrayOf(side * SunglassesConstants.EAR_BOX_INNER_X, side * SunglassesConstants.EAR_BOX_OUTER_X)
-            val ys = doubleArrayOf(-0.2, 0.2); val zs = doubleArrayOf(-SunglassesConstants.EAR_CLIP_START_METRES, -0.30)
+            val front = if (side == farSide) SunglassesConstants.FAR_ARM_CLIP_START_METRES else SunglassesConstants.EAR_CLIP_START_METRES
+            val ys = doubleArrayOf(-0.2, 0.2); val zs = doubleArrayOf(-front, -0.30)
             val corner = Array(8) { i -> scene(xs[i and 1], ys[(i shr 1) and 1], zs[(i shr 2) and 1]) }
             // Six faces, two triangles each (corners indexed by bits x, y, z).
             val faces = arrayOf(intArrayOf(0, 1, 3, 2), intArrayOf(4, 5, 7, 6), intArrayOf(0, 1, 5, 4), intArrayOf(2, 3, 7, 6), intArrayOf(0, 2, 6, 4), intArrayOf(1, 3, 7, 5))

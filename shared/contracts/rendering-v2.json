@@ -1106,7 +1106,7 @@
        "accessoryCropScale": 1.4,
        "accessoryCropRaise": 0.1,
        "accessoryThreshold": 0.35,
-       "eyeBandPadX": 0.15,
+       "eyeBandPadX": 0.45,
        "eyeBandAbove": 0.55,
        "eyeBandBelowNoseTip": 0.1,
        "glassesMinBoxFraction": 0.005
@@ -1117,7 +1117,8 @@
        "widthFitCheekFactor": 1.07,
        "frontPlaneMetres": 0.02,
        "profileMarginMetres": 0.007,
-       "profileTargetYawDegrees": 85
+       "profileTargetYawDegrees": 85,
+       "yawRampMetres": 0.025
       },
       "placement": {
        "eyeDepthMetres": 0.015,
@@ -1139,7 +1140,9 @@
        "earBoxXMetres": [
         0.04,
         0.2
-       ]
+       ],
+       "farArmClipStartMetres": 0.02,
+       "farArmMinTurn": 0.1
       },
       "passes": {
        "frontDepthMetres": 0.012,

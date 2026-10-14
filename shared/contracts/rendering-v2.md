@@ -425,7 +425,8 @@ Part of stage 8, per face, after the face's other portrait operations (Smile inc
   for hair (class 1) and background (class 0, the person's outline), 1.4 × the box (centre raised 0.1 box heights)
   for accessories (class 5). Probabilities are resampled bilinearly to the photo; overlapping faces take the max
   (hair, accessories) or min (background).
-- *Existing glasses:* the accessory probability > 0.35 inside the eye band (x: the landmark box ± 0.15 d; y: from
+- *Existing glasses:* the accessory probability > 0.35 inside the eye band (x: the landmark box ± 0.45 d, so a turned
+  face's far rim past the nose is included; y: from
   the highest eye point − 0.55 d to the nose tip (1) + 0.1 d; d = |P263 − P33| in pixels). A face has glasses when
   the band holds more than 0.5 % of the face box's area; the panel then shows "Glasses found".
 
@@ -435,8 +436,9 @@ metre; measurements, placement and occluders use s, and the pair itself is scale
 where c = |w454 − w234| (the face's width at the cheeks, pixels) and f is the pair's front width in metres (the x extent
 of its vertices within 0.02 m of the lens plane): the front is never wider than 1.07 × the face (owner report 2026-10-14). *Profile correction:* the landmarker under-reports turns beyond about 65°. Let yaw
 = atan2(ez.x, ez.z); walk from the far iris (468 when yaw ≥ 0, else 473) outward, continuing the near → far iris direction, until
-the background probability exceeds 0.5 (or the image edge). If that distance m (metres, ÷ s) is below 7 mm, rotate ex and ez about ey so |yaw| becomes
-`|yaw| + (85° − |yaw|)(1 − m/0.007)`, keeping its sign; the face is then a **profile**.
+the background probability exceeds 0.5 (or the image edge). With that distance m (metres, ÷ s), rotate ex and ez about ey so |yaw| becomes
+`|yaw| + (85° − |yaw|)(1 − m/0.025)`, keeping its sign, for m below 25 mm (the walk stops there); the face is a
+**profile** when m is at most 7 mm (2026-10-14: the landmarker under-reports 3/4 turns too, e.g. 51° for a 75° face).
 
 **Placement.** The pair's origin (its lens centre) sits at `iris + s · 0.015 · ez`, where iris is the midpoint of
 468 and 473 in scene units (x − W/2, H/2 − y, −z); the lens plane is 15 mm in front of the irises along the head's own
@@ -446,7 +448,8 @@ axis. The pair is tilted −8° about its x axis (pantoscopic tilt). Projection 
 (0.076, 0.115, 0.098) m; and the face mesh (468 landmarks, MediaPipe's 898 canonical triangles) in scene units,
 pushed 6 mm (0.006 s) away from the viewer; and two ear boxes in the head's (holder's) frame, |x| from 0.04 to 0.20 m,
 y ±0.2 m, z from −0.12 m (about the front of the ear) to −0.30 m: the arms are straight, and past the front of
-the ear a real arm goes behind the ear, so it is hidden there (owner report 2026-10-14: the arm lay over the ear).
+the ear a real arm goes behind the ear, so it is hidden there (owner report 2026-10-14: the arm lay over the ear). On a turned face (|ex.z| > 0.1) the far side's box starts
+0.02 m behind the lens plane instead: the head hides that arm (the arms are splayed just outside the ellipsoid).
 
 **Passes,** each the photo's size: *frame* (lit pair, lenses depth-only), *front* (the same, clipped 12 mm behind the
 lens plane), *lens* (lens coverage white, frame black). Lighting for *frame*: one directional light, intensity 1000,
@@ -518,6 +521,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
 | 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
 | 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
-| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, and ear occluders. | No |
+| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, ear and far-arm occluders, the turn raised from 25 mm, and a wider eye band. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

@@ -45,7 +45,9 @@ object SunglassesRenderer {
         val dl = sqrt(dx * dx + dy * dy).takeIf { it > 1e-9 } ?: 1.0
         dx /= dl; dy /= dl
         var margin: Double? = null
-        val steps = (SunglassesConstants.PROFILE_MARGIN_METRES * s).toInt()
+        // Turn correction (iOS pose): raised in proportion as the far iris comes within YAW_RAMP_METRES of the outline;
+        // within PROFILE_MARGIN_METRES the face is a profile (the outline clip).
+        val steps = (SunglassesConstants.YAW_RAMP_METRES * s).toInt()
         for (t in 0..max(steps, 0)) {
             val qx = sx + dx * t; val qy = sy + dy * t
             val xi = qx.toInt(); val yi = qy.toInt()
@@ -53,10 +55,10 @@ object SunglassesRenderer {
         }
         val target = SunglassesConstants.PROFILE_TARGET_YAW_DEGREES * PI / 180
         if (margin != null && abs(yaw) < target) {
-            val raised = abs(yaw) + (target - abs(yaw)) * (1 - margin / SunglassesConstants.PROFILE_MARGIN_METRES)
+            val raised = abs(yaw) + (target - abs(yaw)) * (1 - margin / SunglassesConstants.YAW_RAMP_METRES)
             val angle = (raised - abs(yaw)) * (if (yaw < 0) -1 else 1)
             ex = rotate(ex, ey, angle); ez = rotate(ez, ey, angle)
-            isProfile = true
+            isProfile = margin <= SunglassesConstants.PROFILE_MARGIN_METRES
         }
         fun sc(i: Int) = doubleArrayOf(p[i * 3] - width / 2.0, height / 2.0 - p[i * 3 + 1], -p[i * 3 + 2].toDouble())
         val iris = DoubleArray(3) { (sc(468)[it] + sc(473)[it]) / 2 }

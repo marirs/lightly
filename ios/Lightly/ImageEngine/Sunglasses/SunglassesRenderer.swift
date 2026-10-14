@@ -36,35 +36,40 @@ enum SunglassesRenderer {
         var ez = simd_normalize(simd_cross(ex, w(10) - w(152)))
         let ey = simd_cross(ez, ex)
         let s = simd_length(w(263) - w(33)) / SunglassesConstants.interIrisReferenceMetres
-        // Profile correction: the landmarker cannot report more than ~65 degrees of turn. When the far iris lies within
-        // 7 mm of the person's outline (walking outward, away from the near iris), raise the turn towards 85 degrees.
+        // Turn correction: the landmarker under-reports turns (it cannot report more than ~65 degrees). The closer the
+        // far iris lies to the person's outline (walking outward, away from the near iris) within `yawRampMetres`, the
+        // more the turn is raised towards 85 degrees; within `profileMarginMetres` the face is a profile.
         var isProfile = false
         let yaw = atan2(ez.x, ez.z)
         let (near, far) = yaw < 0 ? (473, 468) : (468, 473)
-        // Walk outward from the far iris, continuing the near → far direction, until the background.
-        let start = SIMD2(P[far].x, P[far].y), toward = simd_normalize(start - SIMD2(P[near].x, P[near].y))
-        var margin: Float?
-        let steps = Int(SunglassesConstants.profileMarginMetres * s)
-        for t in 0...max(steps, 0) {
-            let q = start + toward * Float(t)
-            let xi = Int(q.x), yi = Int(q.y)
-            if xi < 0 || yi < 0 || xi >= W || yi >= H || background(Float(xi) + 0.5, Float(yi) + 0.5) > 0.5 {
-                margin = Float(t) / s; break
-            }
-        }
+        let margin = farIrisMargin(P, near: near, far: far, width: W, height: H, pixelsPerMetre: s,
+                                   upTo: SunglassesConstants.yawRampMetres, background: background)
         let target = SunglassesConstants.profileTargetYawDegrees * .pi / 180
         if let margin, abs(yaw) < target {
-            let raised = abs(yaw) + (target - abs(yaw)) * (1 - margin / SunglassesConstants.profileMarginMetres)
+            let raised = abs(yaw) + (target - abs(yaw)) * (1 - margin / SunglassesConstants.yawRampMetres)
             let angle = (raised - abs(yaw)) * (yaw < 0 ? -1 : 1)
             ex = rotate(ex, about: ey, by: angle)
             ez = rotate(ez, about: ey, by: angle)
-            isProfile = true
+            isProfile = margin <= SunglassesConstants.profileMarginMetres
         }
         // Placement: the lens plane 15 mm in front of the irises along the head's own axis.
         func sc(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z) }
         let iris = (sc(468) + sc(473)) / 2
         return Pose(ex: ex, ey: ey, ez: ez, pixelsPerMetre: s, origin: iris + s * SunglassesConstants.eyeDepthMetres * ez,
                     isProfile: isProfile)
+    }
+
+    /// Metres from the far iris to the person's outline, walking outward (continuing the near → far iris direction)
+    /// until the background, or nil when the outline is further than `upTo`.
+    static func farIrisMargin(_ P: [SIMD3<Float>], near: Int, far: Int, width W: Int, height H: Int, pixelsPerMetre s: Float,
+                              upTo: Float, background: (Float, Float) -> Float) -> Float? {
+        let start = SIMD2(P[far].x, P[far].y), toward = simd_normalize(start - SIMD2(P[near].x, P[near].y))
+        for t in 0...max(Int(upTo * s), 0) {
+            let q = start + toward * Float(t)
+            let xi = Int(q.x), yi = Int(q.y)
+            if xi < 0 || yi < 0 || xi >= W || yi >= H || background(Float(xi) + 0.5, Float(yi) + 0.5) > 0.5 { return Float(t) / s }
+        }
+        return nil
     }
 
     /// Rodrigues rotation of `v` about the unit `axis`.
@@ -133,10 +138,14 @@ enum SunglassesRenderer {
         head.scale = SCNVector3(radii.x, radii.y, radii.z); head.position = SCNVector3(centre.x, centre.y, centre.z)
         head.geometry!.materials = [depthOnly()]; head.renderingOrder = -10
         holder.addChildNode(head)
-        // Ears: depth-only boxes on both sides from earClipStartMetres behind the lens plane to the back of the head.
+        // Ears: depth-only boxes on both sides from earClipStartMetres behind the lens plane to the back of the head. On a
+        // turned face the far side's box starts just behind the hinge (farArmClipStartMetres): the head hides that arm.
+        // The near side is the one whose +x points towards the viewer (ex.z > 0 → +x).
+        let farSide: Float? = abs(pose.ex.z) > SunglassesConstants.farArmMinTurn ? (pose.ex.z > 0 ? -1 : 1) : nil
         for side: Float in [-1, 1] {
             let inner = SunglassesConstants.earBoxInnerX, outer = SunglassesConstants.earBoxOuterX
-            let front = SunglassesConstants.earClipStartMetres, back: Float = 0.30
+            let front = side == farSide ? SunglassesConstants.farArmClipStartMetres : SunglassesConstants.earClipStartMetres
+            let back: Float = 0.30
             let ear = SCNNode(geometry: SCNBox(width: CGFloat(outer - inner), height: 0.4, length: CGFloat(back - front), chamferRadius: 0))
             ear.position = SCNVector3(side * (inner + outer) / 2, 0, -(front + back) / 2)
             ear.geometry!.materials = [depthOnly()]; ear.renderingOrder = -10

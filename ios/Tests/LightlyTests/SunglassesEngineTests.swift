@@ -191,11 +191,26 @@ final class SunglassesEngineTests: XCTestCase {
         let pack = try XCTUnwrap(SunglassesPack.bundled)
         let out = FileManager.default.temporaryDirectory.appendingPathComponent("lightly-sunglasses")
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-        for name in ["glasses_side_angle_01", "profile_colour_woman_01", "profile_bw_woman_01"] {
+        for name in ["glasses_side_angle_01", "profile_colour_woman_01", "profile_bw_woman_01", "profile_beard_man_01", "profile_bw_boy_01", "profile_bw_woman_hair_01"] {
             let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture("experiments/test-photos/\(name).jpg").path)?.cgImage)
             let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
             let (rgba, W, H) = Self.rgba8(image)
             let analyses = try Self.editorFaces(image).map { try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: $0.box, eyes: $0.eyes) }
+            let maps = SunglassesRenderer.Maps(analyses: analyses, scale: 1)
+            for a in analyses {
+                let P = a.landmarks
+                func w(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x, -P[i].y, -P[i].z) }
+                let ex = simd_normalize(w(263) - w(33)), ez = simd_normalize(simd_cross(ex, w(10) - w(152)))
+                let yaw = atan2(ez.x, ez.z)
+                let s = simd_length(w(263) - w(33)) / SunglassesConstants.interIrisReferenceMetres
+                let (near, far) = yaw < 0 ? (473, 468) : (468, 473)
+                let m = SunglassesRenderer.farIrisMargin(P, near: near, far: far, width: W, height: H, pixelsPerMetre: s, upTo: 0.06,
+                                                          background: maps.background)
+                let pose = SunglassesRenderer.pose(landmarks: P, width: W, height: H, background: maps.background)
+                // The 2D eye-corner span against the face width at the cheeks: a turned face's eyes foreshorten.
+                let span2 = simd_distance(SIMD2(P[263].x, P[263].y), SIMD2(P[33].x, P[33].y))
+                print("sunglasses-yaw \(name) logit \(String(format: "%.1f", a.faceLogit)) readable \(a.isReadable) raw \(String(format: "%.1f", yaw * 180 / .pi)) margin \(m.map { String(format: "%.1f mm", $0 * 1000) } ?? ">60 mm") final \(String(format: "%.1f", atan2(pose.ez.x, pose.ez.z) * 180 / .pi)) s \(String(format: "%.0f", s)) span2d \(String(format: "%.0f", span2))")
+            }
             let pair = try XCTUnwrap(pack.pairs.first { $0.name == "Wayfarer" })
             let edits = analyses.map { a -> (edit: EditRecipe.FaceEdit, analysis: FaceSunglassesAnalysis) in
                 var edit = PortraitPanelModel.neutral(for: nil)

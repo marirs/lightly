@@ -75,9 +75,12 @@ head.geometry!.materials = [hm]; head.renderingOrder = -10
 holder.addChildNode(head)
 // Ears (rendering-v2 §7.5, 2026-10-14): depth-only boxes, |x| 0.04…0.20 m, y ±0.2 m, z −0.12…−0.30 m, in the holder's
 // frame: past the front of the ear a real arm goes behind the ear.
+// On a turned pose (|ex.z| > 0.1) the far side's box starts 0.02 m behind the lens plane: the head hides that arm.
+let farSide: Double? = abs(R[2]) > 0.1 ? (R[2] > 0 ? -1 : 1) : nil
 for side in [-1.0, 1.0] {
-    let ear = SCNNode(geometry: SCNBox(width: 0.16, height: 0.4, length: 0.18, chamferRadius: 0))
-    ear.position = SCNVector3(side * 0.12, 0, -0.21)
+    let front = side == farSide ? 0.02 : 0.12
+    let ear = SCNNode(geometry: SCNBox(width: 0.16, height: 0.4, length: 0.30 - front, chamferRadius: 0))
+    ear.position = SCNVector3(side * 0.12, 0, -(front + 0.30) / 2)
     ear.geometry!.materials = [hm]; ear.renderingOrder = -10
     holder.addChildNode(ear)
 }
