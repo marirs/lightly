@@ -12,6 +12,14 @@ final class PortraitPanelModel {
     var tab: Tab = .skin
     /// Index into the usable faces; one face is selected automatically.
     var selectedFace = 0
+    /// Bumped each time the person chooses a face (chip or tap on the photo): the photo briefly flashes that face's
+    /// outline (owner, 2026-10-14). Restores and other programmatic changes of `selectedFace` do not flash.
+    private(set) var faceFlash = 0
+
+    func chooseFace(_ index: Int) {
+        selectedFace = index
+        faceFlash &+= 1
+    }
 
     init(session: EditorSession) { self.session = session }
 
@@ -144,19 +152,24 @@ struct PortraitPanelView: View {
         }
     }
 
-    /// The faces: chips ("Face 1 · 4" with changes), then "Each face keeps its own settings.", 10 pt apart.
+    /// The faces. Owner amendments (2026-10-14): no "Each face keeps its own settings." note; each chip is a
+    /// person icon instead of "Face N", the chosen one highlighted; a face with changes shows the edited dot (as the
+    /// tabs do) instead of the "· 4" count. VoiceOver still reads "Face N" and "Edited".
     private var faceStrip: some View {
-        HStack(spacing: 10) {
+        let c = L2(scheme: colorScheme)
+        return HStack(spacing: 10) {
             HStack(spacing: 6) {
                 ForEach(model.faces.indices, id: \.self) { index in
                     let count = model.changeCount(forFace: index)
                     OptionChip(isOn: index == model.selectedFace, identifier: "portrait.face.\(index + 1)",
-                               action: { model.selectedFace = index }) {
-                        Text(count > 0 ? "Face \(index + 1) · \(count)" : "Face \(index + 1)")
+                               action: { model.chooseFace(index) }) {
+                        ApprovedIconView(icon: .portrait, size: 16)
+                        if count > 0 { Circle().fill(c(ApprovedColor.edited)).frame(width: 5, height: 5) }
                     }
+                    .accessibilityLabel(Text("Face \(index + 1)"))
+                    .accessibilityValue(Text(count > 0 ? "Edited" : ""))
                 }
             }
-            L2Note(text: Text("Each face keeps its own settings."))
         }
         .padding(.bottom, 4)
     }

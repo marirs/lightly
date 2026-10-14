@@ -1,5 +1,14 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lightlylabs.lightly.session.NormalisedRect
+import com.lightlylabs.lightly.shell.LightlyIcon
 import com.lightlylabs.lightly.shell.LightlyIcons
 import com.lightlylabs.lightly.shell.lightlyColors
 import com.lightlylabs.lightly.shell.lightlyTextStyle
@@ -67,16 +77,20 @@ fun PortraitPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean, wrappe
     }
     val selected = ui.portrait.selectedFace.coerceIn(0, faces.size - 1)
     if (faces.size > 1) {
-        // The faces ("Face 1 · 4" with changes), then "Each face keeps its own settings.", 10 dp apart.
+        // The faces. Owner amendments (2026-10-14): no "Each face keeps its own settings." note; each chip is a
+        // person icon instead of "Face N", the chosen one highlighted; a face with changes shows the edited dot (as the
+        // tabs do) instead of the "· 4" count. TalkBack still reads "Face N" and "Edited".
         Row(Modifier.padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 faces.forEachIndexed { index, face ->
-                    val count = PortraitEdits.changeCount(PortraitEdits.editFor(tool, face))
-                    val label = if (count > 0) "Face ${index + 1} · $count" else "Face ${index + 1}"
-                    OptChip(index == selected, label, { vm.selectPortraitFace(index) }, PortraitTags.face(index)) { Text(label, maxLines = 1) }
+                    val edited = PortraitEdits.changeCount(PortraitEdits.editFor(tool, face)) > 0
+                    val description = if (edited) "Face ${index + 1}, Edited" else "Face ${index + 1}"
+                    OptChip(index == selected, description, { vm.selectPortraitFace(index) }, PortraitTags.face(index)) {
+                        LightlyIcon(LightlyIcons.Portrait, size = 16.dp)
+                        if (edited) Box(Modifier.size(5.dp).background(lightlyColors.edited, CircleShape))
+                    }
                 }
             }
-            PanelNote("Each face keeps its own settings.")
         }
     }
     val tabs = PortraitTab.entries.map { it to it.label }
@@ -120,9 +134,10 @@ private fun WrappedPortraitTabs(items: List<Pair<PortraitTab, String>>, selected
 }
 
 /**
- * Portrait's face targets on the photo. Owner amendment (2026-10-14): nothing is drawn on the face — no ring, no
- * "Face N" tag, no dim marks for unusable people ("you can do it invisibly"); it covered the face while adding
- * sunglasses. Each usable face stays an invisible, tappable area that chooses it, with its TalkBack label.
+ * Portrait's face targets on the photo. Owner amendments (2026-10-14): nothing stays drawn on a face — no ring, no
+ * "Face N" tag, no dim marks ("you can do it invisibly"). With several faces, choosing one (its chip or a tap on it)
+ * flashes its outline briefly so the person sees which face is chosen. Each usable face is an invisible, tappable area
+ * that chooses it, with its TalkBack label.
  */
 @Composable
 fun PortraitMarks(vm: EditorViewModel, ui: EditorUiState) {
@@ -130,13 +145,41 @@ fun PortraitMarks(vm: EditorViewModel, ui: EditorUiState) {
     val usable = ui.people?.usableFaces ?: return
     if (usable.isEmpty()) return
     val toFrame: (NormalisedRect) -> FrameRect = { r -> frameRect(vm, ui, r) }
+    val selected = ui.portrait.selectedFace.coerceIn(0, usable.size - 1)
+    val flash = remember { Animatable(0f) }
+    LaunchedEffect(ui.portrait.faceFlash) {
+        if (ui.portrait.faceFlash == 0) return@LaunchedEffect
+        flash.snapTo(1f)
+        kotlinx.coroutines.delay(FACE_FLASH_HOLD_MS)
+        flash.animateTo(0f, tween(FACE_FLASH_FADE_MS))
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val selected = ui.portrait.selectedFace.coerceIn(0, usable.size - 1)
         usable.forEachIndexed { index, face ->
             FaceTarget(toFrame(face.ring), maxWidth.value, maxHeight.value, isSelected = index == selected,
                 description = "Face ${index + 1}", testTag = PortraitTags.ring(index)) { vm.selectPortraitFace(index) }
         }
+        if (usable.size > 1 && flash.value > 0f) FaceFlash(toFrame(usable[selected].ring), maxWidth.value, maxHeight.value, flash.value)
     }
+}
+
+/** Fully visible for this long, then fades out (iOS FaceRingsMark.flashHold / flashFade). */
+private const val FACE_FLASH_HOLD_MS = 600L
+private const val FACE_FLASH_FADE_MS = 500
+
+/** The approved `.faceRing` look at [alpha]: a white ellipse with a 1 dp dark hairline just outside it. */
+@Composable
+private fun FaceFlash(r: FrameRect, boxWidthDp: Float, boxHeightDp: Float, alpha: Float) {
+    Box(
+        Modifier
+            .offset((r.x * boxWidthDp).toFloat().dp, (r.y * boxHeightDp).toFloat().dp)
+            .size(max(1f, (r.width * boxWidthDp).toFloat()).dp, max(1f, (r.height * boxHeightDp).toFloat()).dp)
+            .drawBehind {
+                val px = 1.dp.toPx()
+                drawOval(Color.Black.copy(alpha = 0.2f * alpha), topLeft = Offset(-px / 2, -px / 2), size = Size(size.width + px, size.height + px), style = Stroke(px))
+                val ring = 1.5.dp.toPx()
+                drawOval(Color.White.copy(alpha = 0.95f * alpha), topLeft = Offset(ring / 2, ring / 2), size = Size(size.width - ring, size.height - ring), style = Stroke(ring))
+            },
+    )
 }
 
 /**

@@ -643,9 +643,13 @@ class EditorViewModel(
     /** The faces Portrait can edit, left to right (iOS `usableFaces`). */
     val usableFaces: List<com.lightlylabs.lightly.vision.DetectedFace> get() = portraitSession.usableFaces
 
-    fun selectPortraitFace(index: Int) {
+    /** [flash]: the person chose the face, so its outline flashes on the photo (owner, 2026-10-14). */
+    fun selectPortraitFace(index: Int, flash: Boolean = true) {
         if (index !in usableFaces.indices) return
-        state.update { it.copy(portrait = it.portrait.copy(selectedFace = index, sliderDrag = null)) }
+        state.update {
+            it.copy(portrait = it.portrait.copy(selectedFace = index, sliderDrag = null,
+                                                faceFlash = if (flash) it.portrait.faceFlash + 1 else it.portrait.faceFlash))
+        }
     }
 
     fun selectPortraitTab(tab: PortraitTab) {
@@ -2843,7 +2847,7 @@ class EditorViewModel(
 
         fun openPortrait(tab: PortraitTab, face: Int = 0) {
             selectTool(EditorTool.PORTRAIT)
-            selectPortraitFace(face)
+            selectPortraitFace(face, flash = false)
             selectPortraitTab(tab)
         }
 

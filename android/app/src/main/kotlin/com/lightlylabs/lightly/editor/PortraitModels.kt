@@ -26,6 +26,9 @@ enum class PortraitTab(val label: String) {
 data class PortraitUi(
     val tab: PortraitTab = PortraitTab.SKIN,
     val selectedFace: Int = 0,
+    /** Bumped each time the person chooses a face (chip or tap on the photo): the photo briefly flashes that face's
+     *  outline (owner, 2026-10-14). Programmatic selections do not flash. */
+    val faceFlash: Int = 0,
     /** The slider being dragged and its value (preview only until release). */
     val sliderDrag: Pair<String, Double>? = null,
     /** Portrait › Sunglasses: the analysis is running; a face's own glasses are being painted out. */

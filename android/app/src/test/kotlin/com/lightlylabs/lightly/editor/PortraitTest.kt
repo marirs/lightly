@@ -172,23 +172,31 @@ class PortraitTest {
         compose.waitForIdle()
         // Ordered left to right whatever order the detector returned.
         assertTrue(vm.usableFaces[0].box.x < vm.usableFaces[1].box.x)
-        compose.onNodeWithText("Each face keeps its own settings.").assertIsDisplayed()
+        // Owner, 2026-10-14: no note beside the face chips.
+        assertEquals(0, compose.onAllNodesWithText("Each face keeps its own settings.").fetchSemanticsNodes().size)
         compose.onNodeWithTag(PortraitTags.slider("skin.smoothing")).performSemanticsAction(SemanticsActions.SetProgress) { it(30f) }
         compose.waitForIdle()
-        compose.onNodeWithTag(PortraitTags.face(0)).assert(hasText("Face 1 · 1"))
-        compose.onNodeWithTag(PortraitTags.face(1)).assert(hasText("Face 2"))
+        compose.onNodeWithTag(PortraitTags.face(0)).assert(hasContentDescription("Face 1, Edited"))
+        compose.onNodeWithTag(PortraitTags.face(1)).assert(hasContentDescription("Face 2"))
         // Each face is an invisible button on the photo named for its face (owner, 2026-10-14: no ring, no tag).
         compose.onNodeWithTag(PortraitTags.ring(1)).assert(hasContentDescription("Face 2"))
-        compose.onAllNodesWithText("Face 2", useUnmergedTree = true).fetchSemanticsNodes().let { nodes ->
-            assertEquals(1, nodes.size, "\"Face 2\" is written only on its chip, never on the photo")
-        }
+        // Owner, 2026-10-14: the chips are person icons; "Face 2" is never written on screen.
+        assertEquals(0, compose.onAllNodesWithText("Face 2", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size)
+        // Choosing a face flashes its outline: the counter the photo's flash follows moves on each choice.
+        val flashes = vm.uiState.value.portrait.faceFlash
+        compose.onNodeWithTag(PortraitTags.ring(1)).performClick()
+        compose.waitForIdle()
+        assertEquals(flashes + 1, vm.uiState.value.portrait.faceFlash)
+        assertEquals(1, vm.uiState.value.portrait.selectedFace)
+        compose.onNodeWithTag(PortraitTags.face(0)).performClick()
+        compose.waitForIdle()
         assertEquals(2, vm.uiState.value.session!!.history.entries.size, "one undo step per release")
         compose.onNodeWithTag(PortraitTags.face(1)).performClick()
         compose.waitForIdle()
         compose.onNodeWithTag(PortraitTags.slider("skin.blemishes")).performSemanticsAction(SemanticsActions.SetProgress) { it(10f) }
         compose.onNodeWithTag(PortraitTags.slider("skin.keepTexture")).performSemanticsAction(SemanticsActions.SetProgress) { it(50f) }
         compose.waitForIdle()
-        compose.onNodeWithTag(PortraitTags.face(1)).assert(hasText("Face 2 · 2"))
+        compose.onNodeWithTag(PortraitTags.face(1)).assert(hasContentDescription("Face 2, Edited"))
         val faces = vm.uiState.value.session!!.current.tools.portrait.faces
         assertEquals(2, faces.size)
         assertEquals(30.0, faces.first { it.face.box == vm.usableFaces[0].box }.skin.smoothing)

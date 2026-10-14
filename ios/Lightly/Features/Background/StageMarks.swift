@@ -34,13 +34,21 @@ struct MatteTintMark: View {
     }
 }
 
-/// Portrait's face targets on the photo. Owner amendment (2026-10-14): nothing is drawn on the face — no ring, no
-/// "Face N" tag, no dim marks for unusable people ("you can do it invisibly"); it covered the face while adding
-/// sunglasses. Each usable face stays an invisible, tappable ellipse that chooses it, with its VoiceOver label.
+/// Portrait's face targets on the photo. Owner amendments (2026-10-14): nothing stays drawn on a face — no ring, no
+/// "Face N" tag, no dim marks ("you can do it invisibly"). With several faces, choosing one (its chip or a tap on it)
+/// flashes its outline briefly so the person sees which face is chosen. Each usable face is an invisible, tappable
+/// ellipse that chooses it, with its VoiceOver label.
 struct FaceRingsMark: View {
     let faces: [EditRecipe.Rect]
     let selected: Int
+    /// `PortraitPanelModel.faceFlash`: each change flashes the selected face's outline.
+    let flash: Int
     let onSelect: (Int) -> Void
+    @State private var flashOpacity = 0.0
+
+    /// Fully visible for this long, then fades out over `flashFade`.
+    static let flashHold = 0.6
+    static let flashFade = 0.5
 
     var body: some View {
         GeometryReader { geometry in
@@ -57,6 +65,27 @@ struct FaceRingsMark: View {
                 .accessibilityAddTraits(index == selected ? .isSelected : [])
                 .accessibilityIdentifier("portrait.ring.\(index + 1)")
             }
+            if faces.count > 1, faces.indices.contains(selected) {
+                let rect = frame(faces[selected], in: size)
+                Self.outline
+                    .frame(width: rect.width, height: rect.height)
+                    .position(x: rect.midX, y: rect.midY)
+                    .opacity(flashOpacity)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .onChange(of: flash) {
+            flashOpacity = 1
+            withAnimation(.easeOut(duration: Self.flashFade).delay(Self.flashHold)) { flashOpacity = 0 }
+        }
+    }
+
+    /// The approved `.faceRing` look: a 1 pt white ellipse with a 1 pt dark hairline just outside it.
+    private static var outline: some View {
+        ZStack {
+            Ellipse().strokeBorder(Color.black.opacity(0.2), lineWidth: 1).padding(-1)
+            Ellipse().strokeBorder(Color.white.opacity(0.95), lineWidth: 1.5)
         }
     }
 
