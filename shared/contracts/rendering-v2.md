@@ -415,7 +415,9 @@ Part of stage 8, per face, after the face's other portrait operations (Smile inc
 **Analysis (per face, cached with the photo, never part of the recipe).**
 - *Landmarks:* MediaPipe face landmarker (`face_landmarks_detector`, 478 points with irises), on a 256 × 256 crop. The
   first crop is the platform face box ×1.6, upright along the platform's eye line; it is tried at that roll and at
-  ±15°, ±30°, ±45° and the crop with the highest face-presence logit is kept. Then twice: re-crop on the previous
+  ±15°, ±30°, ±45°, then at the same seven angles around upright (0°) except those within 7.5° of an angle already
+  tried (the platform's eye points can be wrong on a tilted face), and the crop with the highest face-presence logit
+  is kept. Then twice: re-crop on the previous
   landmarks' bounding box ×1.5, upright along forehead (10) → chin (152), keeping the new result unless its logit is
   more than 1 lower. A face whose final logit is below 0 is **not readable**: the panel shows the "eyes not visible"
   state for it.
@@ -429,7 +431,9 @@ Part of stage 8, per face, after the face's other portrait operations (Smile inc
 
 **Pose.** World axes x right, y up, z towards the viewer; a landmark (x, y, z) maps to w = (x, −y, −z).
 `ex = norm(w263 − w33)`, `ez = norm(ex × (w10 − w152))`, `ey = ez × ex`. Scale `s = |w263 − w33| / 0.093` pixels per
-metre; measurements, placement and occluders use s, and the pair itself is scaled by `s · (1 + 0.004 · size)`. *Profile correction:* the landmarker under-reports turns beyond about 65°. Let yaw
+metre; measurements, placement and occluders use s, and the pair itself is scaled by `min(s, 1.07 · c / f) · (1 + 0.004 · size)`,
+where c = |w454 − w234| (the face's width at the cheeks, pixels) and f is the pair's front width in metres (the x extent
+of its vertices within 0.02 m of the lens plane): the front is never wider than 1.07 × the face (owner report 2026-10-14). *Profile correction:* the landmarker under-reports turns beyond about 65°. Let yaw
 = atan2(ez.x, ez.z); walk from the far iris (468 when yaw ≥ 0, else 473) outward, continuing the near → far iris direction, until
 the background probability exceeds 0.5 (or the image edge). If that distance m (metres, ÷ s) is below 7 mm, rotate ex and ez about ey so |yaw| becomes
 `|yaw| + (85° − |yaw|)(1 − m/0.007)`, keeping its sign; the face is then a **profile**.
@@ -444,7 +448,9 @@ pushed 6 mm (0.006 s) away from the viewer.
 
 **Passes,** each the photo's size: *frame* (lit pair, lenses depth-only), *front* (the same, clipped 12 mm behind the
 lens plane), *lens* (lens coverage white, frame black). Lighting for *frame*: one directional light, intensity 1000,
-Euler angles (−0.6, 0.4, 0) rad, plus ambient 400; physically based materials from the pack.
+Euler angles (−0.6, 0.4, 0) rad, plus ambient 400; physically based materials from the pack. Shading takes at least 2 × 2
+samples per pixel (iOS: the passes at twice the resolution, box-averaged, while the doubled region is at most 4096 px;
+Android: its 2 × 2 supersampling), so fine rim detail does not sparkle.
 
 **Composite** (on the stage input, in **sRGB-encoded** values as the approved trial renders were made; linear blending lightens the lenses and brightens the frame's anti-aliased edges against skin):
 1. *Existing glasses:* when the face has glasses and a pair is chosen, the stored patch (`sunglasses.removed`) is
@@ -510,6 +516,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
 | 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
 | 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
-| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. | No |
+| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), and 2 × 2 shading samples. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

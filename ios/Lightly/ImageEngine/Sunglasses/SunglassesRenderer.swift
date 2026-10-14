@@ -133,7 +133,7 @@ enum SunglassesRenderer {
         head.scale = SCNVector3(radii.x, radii.y, radii.z); head.position = SCNVector3(centre.x, centre.y, centre.z)
         head.geometry!.materials = [depthOnly()]; head.renderingOrder = -10
         holder.addChildNode(head)
-        let k = s * (1 + SunglassesConstants.sizePerUnit * Float(size))
+        let k = fittedScale(pixelsPerMetre: s, frontWidthMetres: loaded.mesh.frontWidthMetres, landmarks: P) * (1 + SunglassesConstants.sizePerUnit * Float(size))
         holder.transform = SCNMatrix4(m11: pose.ex.x * k, m12: pose.ex.y * k, m13: pose.ex.z * k, m14: 0,
                                       m21: pose.ey.x * k, m22: pose.ey.y * k, m23: pose.ey.z * k, m24: 0,
                                       m31: pose.ez.x * k, m32: pose.ez.y * k, m33: pose.ez.z * k, m34: 0,
@@ -156,14 +156,19 @@ enum SunglassesRenderer {
 
         let renderer = SCNRenderer(device: MTLCreateSystemDefaultDevice(), options: nil)
         renderer.scene = scene; renderer.pointOfView = camera
+        // Large regions (full-resolution exports) have no sub-pixel rim detail to smooth: no supersampling past
+        // `passSupersampleMaxSide`, which keeps each snapshot within ~64 MB.
+        let ss = max(rw, rh) * SunglassesConstants.passSupersample <= SunglassesConstants.passSupersampleMaxSide
+            ? SunglassesConstants.passSupersample : 1
         func snapshot(lensPass: Bool, frontOnly: Bool) -> [UInt8] {
             pairNode.geometry!.materials = loaded.mesh.materialIndices.map { index in
                 material(pair.materials[index], textures: loaded.textures[index], lensPass: lensPass)
             }
             key.isHidden = lensPass; ambient.isHidden = lensPass
             camera.camera!.zFar = Double(5000 + (frontOnly ? SunglassesConstants.frontDepthMetres : 0.25) * k)
-            let image = renderer.snapshot(atTime: 0, with: CGSize(width: rw, height: rh), antialiasingMode: .multisampling4X)
-            return rgba8Premultiplied(image, width: rw, height: rh)
+            // The same orthographic view at `ss` × the pixels, then box-averaged (premultiplied) to the region's size.
+            let image = renderer.snapshot(atTime: 0, with: CGSize(width: rw * ss, height: rh * ss), antialiasingMode: .multisampling4X)
+            return boxDownsample(rgba8Premultiplied(image, width: rw * ss, height: rh * ss), width: rw, height: rh, factor: ss)
         }
         let frame = snapshot(lensPass: false, frontOnly: false)
         let front = snapshot(lensPass: false, frontOnly: true)
@@ -171,6 +176,32 @@ enum SunglassesRenderer {
         // Lens pass: lenses white, frame black, premultiplied, so red/255 is the lens coverage.
         let lens = (0..<(rw * rh)).map { Float(lensPixels[$0 * 4]) / 255 }
         return Passes(x0: x0, y0: y0, width: rw, height: rh, frame: frame, front: front, lens: lens)
+    }
+
+    /// The pair's scale in pixels per metre before the Size slider: the eye-corner scale, but never so large that the
+    /// front is wider than `widthFitCheekFactor` × the face's width at the cheek points 234/454.
+    static func fittedScale(pixelsPerMetre s: Float, frontWidthMetres: Float, landmarks P: [SIMD3<Float>]) -> Float {
+        guard frontWidthMetres > 0, P.count > 454 else { return s }
+        let cheeks = simd_distance(SIMD3(P[454].x, -P[454].y, -P[454].z), SIMD3(P[234].x, -P[234].y, -P[234].z))
+        guard cheeks > 0 else { return s }   // no face mesh (a fixed-pose render)
+        return min(s, SunglassesConstants.widthFitCheekFactor * cheeks / frontWidthMetres)
+    }
+
+    /// Averages each `factor` × `factor` block of a premultiplied RGBA8 image (`width·factor` × `height·factor`).
+    static func boxDownsample(_ big: [UInt8], width: Int, height: Int, factor: Int) -> [UInt8] {
+        guard factor > 1 else { return big }
+        let bigWidth = width * factor, n = factor * factor
+        var out = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height { for x in 0..<width {
+            var sum = SIMD4<Int>.zero
+            for dy in 0..<factor { for dx in 0..<factor {
+                let i = ((y * factor + dy) * bigWidth + x * factor + dx) * 4
+                sum &+= SIMD4(Int(big[i]), Int(big[i + 1]), Int(big[i + 2]), Int(big[i + 3]))
+            } }
+            let o = (y * width + x) * 4
+            for c in 0..<4 { out[o + c] = UInt8((sum[c] + n / 2) / n) }
+        } }
+        return out
     }
 
     private static func depthOnly() -> SCNMaterial {

@@ -141,4 +141,13 @@ class SunglassesParityTest {
         }
         println(report)
     }
+
+    @Test
+    fun `roll tries also cover upright when the platform eye line is wrong`() {
+        kotlin.test.assertEquals(7, SunglassesAnalyzer.rollCandidates(0.0).size)
+        val skewed = SunglassesAnalyzer.rollCandidates(Math.toRadians(47.0)).map { Math.toDegrees(it) }
+        for (wanted in listOf(-45.0, -30.0, -15.0, 0.0)) {
+            kotlin.test.assertTrue(skewed.any { kotlin.math.abs(it - wanted) < 7.5 }, "$wanted° tried: $skewed")
+        }
+    }
 }

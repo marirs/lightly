@@ -17,6 +17,13 @@ import kotlin.math.sin
 object SunglassesConstants {
     const val INITIAL_CROP_SCALE = 1.6
     val ROLL_TRIES_DEGREES = doubleArrayOf(0.0, -45.0, -30.0, -15.0, 15.0, 30.0, 45.0)
+    /** The same tries are also made around upright (0°) unless within this of one already made: the platform's eye
+     *  points can be wrong on a tilted face (a group selfie, 2026-10-14), and the landmarker then returned a mirrored face. */
+    const val ROLL_TRY_MIN_SEPARATION_DEGREES = 7.5
+    /** The pair's front is never wider than this × the face's width at the cheek points 234/454 (owner report 2026-10-14). */
+    const val WIDTH_FIT_CHEEK_FACTOR = 1.07
+    /** A pair's front: its vertices within this of the lens plane. */
+    const val FRONT_PLANE_METRES = 0.02
     const val REFINE_CROP_SCALE = 1.5
     const val REFINE_PASSES = 2
     const val KEEP_IF_LOGIT_DROP_AT_MOST = 1.0f
@@ -117,8 +124,8 @@ class SunglassesAnalyzer(private val landmarker: TensorModel, private val segmen
         val cx = bx + bw / 2; val cy = by + bh / 2
         val roll = atan2((eyes.second[1] - eyes.first[1]).toDouble(), (eyes.second[0] - eyes.first[0]).toDouble())
         var best: Pair<FloatArray, Float>? = null
-        for (degrees in SunglassesConstants.ROLL_TRIES_DEGREES) {
-            val attempt = landmarks(image, cx, cy, max(bw, bh) * SunglassesConstants.INITIAL_CROP_SCALE, roll + Math.toRadians(degrees))
+        for (candidate in rollCandidates(roll)) {
+            val attempt = landmarks(image, cx, cy, max(bw, bh) * SunglassesConstants.INITIAL_CROP_SCALE, candidate)
             if (best == null || attempt.second > best.second) best = attempt
         }
         var (points, logit) = best!!
@@ -203,6 +210,16 @@ class SunglassesAnalyzer(private val landmarker: TensorModel, private val segmen
     }
 
     companion object {
+        /** The first crop's rolls (radians): the tries around the platform's eye line, then the same tries around
+         *  upright that are not within ROLL_TRY_MIN_SEPARATION_DEGREES of one already listed (iOS rollCandidates). */
+        fun rollCandidates(platformRoll: Double): List<Double> {
+            val tries = SunglassesConstants.ROLL_TRIES_DEGREES.map { Math.toRadians(it) }
+            val rolls = tries.map { platformRoll + it }.toMutableList()
+            val separation = Math.toRadians(SunglassesConstants.ROLL_TRY_MIN_SEPARATION_DEGREES)
+            for (roll in tries) if (rolls.none { kotlin.math.abs(Math.IEEEremainder(it - roll, 2 * Math.PI)) < separation }) rolls.add(roll)
+            return rolls
+        }
+
         /** Bilinear sRGB sample (0…1) at a pixel position; outside the image is black (as PIL's transform fills). */
         fun sample(image: RgbaImage, x: Float, y: Float, out: FloatArray) {
             val u = x - 0.5f; val v = y - 0.5f

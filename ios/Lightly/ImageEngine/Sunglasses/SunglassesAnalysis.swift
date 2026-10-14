@@ -77,6 +77,19 @@ struct FaceSunglassesAnalysis: Sendable, Equatable {
 enum SunglassesConstants {
     static let initialCropScale: Float = 1.6
     static let rollTriesDegrees: [Float] = [0, -45, -30, -15, 15, 30, 45]
+    /// The same tries are also made around upright (0°) unless within this of one already made: the platform's eye
+    /// points can be wrong on a tilted face (a group selfie, 2026-10-14: both "eyes" a few px apart), and the
+    /// landmarker then only saw rotations around a wrong angle and returned a mirrored face.
+    static let rollTryMinSeparationDegrees: Float = 7.5
+    /// The pair's front is never wider than this × the face's width at the cheek points 234/454 (owner report
+    /// 2026-10-14: on a narrow face the pair stuck out past the head). The approved trial faces are within 1.5 %.
+    static let widthFitCheekFactor: Float = 1.07
+    /// A pair's front: its vertices within this of the lens plane (the arms reach far behind it).
+    static let frontPlaneMetres: Float = 0.02
+    /// The frame passes are rendered at this multiple of the photo's resolution and box-averaged down, on top of 4×
+    /// multisampling: fine rim detail otherwise sparkles in sub-pixel highlights.
+    static let passSupersample = 2
+    static let passSupersampleMaxSide = 4096
     static let refineCropScale: Float = 1.5
     static let refinePasses = 2
     static let keepIfLogitDropAtMost: Float = 1.0
@@ -162,9 +175,8 @@ final class SunglassesAnalyzer: @unchecked Sendable {
         let roll = atan2(eyes.1.y - eyes.0.y, eyes.1.x - eyes.0.x)
         // Pass 1: Apple's crop at its roll and ±15/30/45 degrees; the highest face-presence logit wins.
         var best: (points: [SIMD3<Float>], logit: Float)?
-        for degrees in SunglassesConstants.rollTriesDegrees {
-            let attempt = try landmarks(image, centre: centre, side: max(bw, bh) * SunglassesConstants.initialCropScale,
-                                        roll: roll + degrees * .pi / 180)
+        for candidate in Self.rollCandidates(platformRoll: roll) {
+            let attempt = try landmarks(image, centre: centre, side: max(bw, bh) * SunglassesConstants.initialCropScale, roll: candidate)
             if best == nil || attempt.logit > best!.logit { best = attempt }
         }
         var (points, logit) = best!
@@ -186,6 +198,18 @@ final class SunglassesAnalyzer: @unchecked Sendable {
         return FaceSunglassesAnalysis(faceBox: faceBox, analysisWidth: image.width, analysisHeight: image.height,
                                       landmarks: points, faceLogit: logit,
                                       hair: wide.map(class: 1), background: wide.map(class: 0), accessory: tight.map(class: 5))
+    }
+
+    /// The first crop's rolls (radians): the tries around the platform's eye line, then the same tries around upright
+    /// that are not within `rollTryMinSeparationDegrees` of one already listed.
+    static func rollCandidates(platformRoll: Float) -> [Float] {
+        let tries = SunglassesConstants.rollTriesDegrees.map { $0 * .pi / 180 }
+        var rolls = tries.map { platformRoll + $0 }
+        let separation = SunglassesConstants.rollTryMinSeparationDegrees * .pi / 180
+        for roll in tries where !rolls.contains(where: { abs(remainder($0 - roll, 2 * .pi)) < separation }) {
+            rolls.append(roll)
+        }
+        return rolls
     }
 
     // MARK: - Landmarker

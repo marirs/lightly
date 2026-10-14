@@ -177,6 +177,17 @@ object SunglassesRenderer {
     /** Output tile side for the rasteriser: its per-sample buffers are about 12 MB at this size (2 × 2 supersampling). */
     private const val TILE = 256
 
+    /** The pair's pixels per metre before Size: the eye-corner scale, but never so large that the front is wider than
+     *  WIDTH_FIT_CHEEK_FACTOR × the face's width at the cheek points 234/454 (iOS SunglassesRenderer.fittedScale). */
+    fun fittedScale(s: Double, frontWidthMetres: Double, p: FloatArray): Double {
+        if (frontWidthMetres <= 0 || p.size < 455 * 3) return s
+        val dx = (p[454 * 3] - p[234 * 3]).toDouble(); val dy = (p[454 * 3 + 1] - p[234 * 3 + 1]).toDouble()
+        val dz = (p[454 * 3 + 2] - p[234 * 3 + 2]).toDouble()
+        val cheeks = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz)
+        if (cheeks <= 0) return s   // no face mesh (a fixed-pose render)
+        return min(s, SunglassesConstants.WIDTH_FIT_CHEEK_FACTOR * cheeks / frontWidthMetres)
+    }
+
     /** The three passes over a square of ±0.2 m around the pair's origin (the pair reaches ~0.16 m behind its lenses). */
     fun passes(pack: SunglassesPack, pair: SunglassesPack.Pair, textures: (String) -> SunglassesRaster.Texture?, pose: Pose, size: Double,
                p: FloatArray, width: Int, height: Int): Passes? {
@@ -186,9 +197,10 @@ object SunglassesRenderer {
         val x1 = min(width, ceil(cx + half).toInt()); val y1 = min(height, ceil(cy + half).toInt())
         if (x1 - x0 <= 2 || y1 - y0 <= 2) return null
         val rw = x1 - x0; val rh = y1 - y0
-        val placement = SunglassesRaster.Placement(pose.origin, pose.ex, pose.ey, pose.ez, s * (1 + SunglassesConstants.SIZE_PER_UNIT * size))
-        val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s)
         val mesh = pack.mesh(pair)
+        val placement = SunglassesRaster.Placement(pose.origin, pose.ex, pose.ey, pose.ez,
+            fittedScale(s, mesh.frontWidthMetres, p) * (1 + SunglassesConstants.SIZE_PER_UNIT * size))
+        val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s)
         val frame = ByteArray(rw * rh * 4); val front = ByteArray(rw * rh); val lens = ByteArray(rw * rh)
         fun byte(v: Float) = (v.coerceIn(0f, 1f) * 255 + 0.5f).toInt().toByte()
         // Tile by tile: every sample sits at the same absolute position as in one whole render, so the result is the same.

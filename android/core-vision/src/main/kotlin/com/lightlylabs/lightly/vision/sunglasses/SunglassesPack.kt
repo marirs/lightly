@@ -38,6 +38,15 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
     class Mesh(val vertices: FloatArray, val elements: List<Element>) {
         class Element(val materialIndex: Int, val indices: IntArray)
         val vertexCount get() = vertices.size / 8
+        /** The front's width in metres: x extent of the vertices within FRONT_PLANE_METRES of the lens plane. */
+        val frontWidthMetres: Double by lazy {
+            var lo = Double.MAX_VALUE; var hi = -Double.MAX_VALUE
+            for (i in 0 until vertexCount) {
+                if (kotlin.math.abs(vertices[i * 8 + 2]) >= SunglassesConstants.FRONT_PLANE_METRES) continue
+                lo = minOf(lo, vertices[i * 8].toDouble()); hi = maxOf(hi, vertices[i * 8].toDouble())
+            }
+            if (hi > lo) hi - lo else 0.0
+        }
     }
 
     class FormatException(message: String) : Exception(message)

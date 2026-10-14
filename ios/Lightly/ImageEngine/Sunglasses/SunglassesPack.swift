@@ -103,6 +103,9 @@ struct SunglassesPack: Sendable {
     struct Mesh {
         let geometry: SCNGeometry
         let materialIndices: [Int]
+        /// The front's width in metres: the x extent of the vertices within `SunglassesConstants.frontPlaneMetres` of
+        /// the lens plane (used to fit the pair to narrow faces).
+        let frontWidthMetres: Float
     }
 
     /// LSG 1 (shared/sunglasses/build_sunglasses.py): "LSG1", u32 version, u32 vertexCount, u32 elementCount, then
@@ -143,7 +146,15 @@ struct SunglassesPack: Sendable {
             materialIndices.append(material)
             offset += count * 4
         }
-        return Mesh(geometry: SCNGeometry(sources: sources, elements: elements), materialIndices: materialIndices)
+        let frontXs = vertices.withUnsafeBytes { raw in
+            (0..<vertexCount).compactMap { i -> Float? in
+                let z = Float(bitPattern: UInt32(littleEndian: raw.loadUnaligned(fromByteOffset: i * stride + 8, as: UInt32.self)))
+                guard abs(z) < SunglassesConstants.frontPlaneMetres else { return nil }
+                return Float(bitPattern: UInt32(littleEndian: raw.loadUnaligned(fromByteOffset: i * stride, as: UInt32.self)))
+            }
+        }
+        let frontWidth = (frontXs.max() ?? 0) - (frontXs.min() ?? 0)
+        return Mesh(geometry: SCNGeometry(sources: sources, elements: elements), materialIndices: materialIndices, frontWidthMetres: frontWidth)
     }
 
     /// The pair's mesh and its textures, verified. Cached per pair id: the files never change while the app runs.
