@@ -35,6 +35,7 @@ object SunglassesRemoval {
      *  skin-coloured smear past the cheek). */
     val BACKGROUND_FILL_SIGMAS = floatArrayOf(0.05f, 0.1f, 0.2f, 0.4f, 0.8f)
     const val TURNED_EYE_RATIO = 0.8f
+    const val BACKGROUND_FILL_CELLS_PER_IRIS_SPAN = 24f
 
     class Result(val patch: RemovePatch, val rect: NormalisedRect)
 
@@ -165,31 +166,52 @@ object SunglassesRemoval {
         val ux0 = lm(a, 263)[0] - lm(a, 33)[0]; val uy0 = lm(a, 263)[1] - lm(a, 33)[1]; val ul = kotlin.math.hypot(ux0, uy0)
         val cx = (lm(a, 468)[0] + lm(a, 473)[0]) / 2; val cy = (lm(a, 468)[1] + lm(a, 473)[1]) / 2
         val hull = faceHull(a)
-        val weighted = Array(3) { FloatPlane(ew, eh) }; val weights = FloatPlane(ew, eh)
-        val bg = FloatArray(ew * eh); val isMasked = BooleanArray(ew * eh)
-        for (y in 0 until eh) for (x in 0 until ew) {
-            val i = y * ew + x
-            val ax = ((ex0 + x + 0.5) / f).toFloat(); val ay = ((ey0 + y + 0.5) / f).toFloat()
+        // Background probability (real, and counting the far side's glasses) at a source pixel.
+        fun bgAt(x: Int, y: Int): Pair<Float, Float> {
+            val ax = ((x + 0.5) / f).toFloat(); val ay = ((y + 0.5) / f).toFloat()
             val b = a.background.sample(ax, ay) ?: 0f
-            val far = farSign != 0f && !inside(hull, ax, ay) && ((ax - cx) * ux0 + (ay - cy) * uy0) / ul * farSign > 0
-            bg[i] = if (far) min(1f, b + (a.accessory.sample(ax, ay) ?: 0f)) else b
-            isMasked[i] = masked(ex0 + x + 0.5, ey0 + y + 0.5)
-            if (isMasked[i] || b <= 0.5f) continue
-            weights.values[i] = 1f
-            for (c in 0 until 3) weighted[c].values[i] = (px[i * 4 + c].toInt() and 0xff) / 255f
+            val far = farSign != 0f && ((ax - cx) * ux0 + (ay - cy) * uy0) / ul * farSign > 0 && !inside(hull, ax, ay)
+            return b to (if (far) min(1f, b + (a.accessory.sample(ax, ay) ?: 0f)) else b)
         }
         val rgb = FloatArray(pw * ph * 3); val weight = FloatArray(pw * ph)
-        fun src(j: Int) = (j / pw + y0 - ey0) * ew + j % pw + x0 - ex0
-        var pending = (0 until pw * ph).filter { isMasked[src(it)] && bg[src(it)] > 0.3f }
+        // Which patch pixels may take the fill, at full resolution (one map sample each).
+        val pendingJ = ArrayList<Int>(); val pendingT = ArrayList<Float>()
+        for (j in 0 until pw * ph) {
+            val x = x0 + j % pw; val y = y0 + j / pw
+            if (!masked(x + 0.5, y + 0.5)) continue
+            val t = bgAt(x, y).second
+            if (t > 0.3f) { pendingJ.add(j); pendingT.add(t) }
+        }
+        if (pendingJ.isEmpty()) return rgb to weight
+        // The normalized convolution on a grid of q × q source-pixel cells, ~BACKGROUND_FILL_CELLS_PER_IRIS_SPAN cells per d
+        // (iOS backgroundFill): at full resolution its widest blur took most of a minute on the moto edge 60 (2026-10-15).
+        val q = max(1, (d / BACKGROUND_FILL_CELLS_PER_IRIS_SPAN).toInt())
+        val cw = (ew + q - 1) / q; val chh = (eh + q - 1) / q
+        val weighted = Array(3) { FloatPlane(cw, chh) }; val weights = FloatPlane(cw, chh)
+        for (y in 0 until eh) for (x in 0 until ew) {
+            if (bgAt(ex0 + x, ey0 + y).first <= 0.5f || masked(ex0 + x + 0.5, ey0 + y + 0.5)) continue
+            val i = y * ew + x; val c = (y / q) * cw + x / q
+            weights.values[c] += 1f
+            for (k in 0 until 3) weighted[k].values[c] += (px[i * 4 + k].toInt() and 0xff) / 255f
+        }
+        fun cell(plane: FloatPlane, gx: Float, gy: Float): Float {
+            val fx = (gx - 0.5f).coerceIn(0f, (cw - 1).toFloat()); val fy = (gy - 0.5f).coerceIn(0f, (chh - 1).toFloat())
+            val ix = fx.toInt(); val iy = fy.toInt(); val jx = min(ix + 1, cw - 1); val jy = min(iy + 1, chh - 1)
+            val tx = fx - ix; val ty = fy - iy
+            return (plane[ix, iy] * (1 - tx) + plane[jx, iy] * tx) * (1 - ty) + (plane[ix, jy] * (1 - tx) + plane[jx, jy] * tx) * ty
+        }
+        var open = pendingJ.indices.toList()
         for (sigma in BACKGROUND_FILL_SIGMAS) {
-            if (pending.isEmpty()) break
-            val s = max(1.0, (sigma * d).toDouble())
+            if (open.isEmpty()) break
+            val s = max(0.5, (sigma * d / q).toDouble())
             val num = Array(3) { PlaneOps.gaussianBlur(weighted[it], s) }; val den = PlaneOps.gaussianBlur(weights, s)
-            pending = pending.filter { j ->
-                val i = src(j)
-                if (den.values[i] <= 0.05f) return@filter true
-                for (c in 0 until 3) rgb[j * 3 + c] = num[c].values[i] / den.values[i]
-                weight[j] = ((bg[i] - 0.3f) / 0.4f).coerceIn(0f, 1f)
+            open = open.filter { k ->
+                val j = pendingJ[k]
+                val gx = (x0 - ex0 + j % pw + 0.5f) / q; val gy = (y0 - ey0 + j / pw + 0.5f) / q
+                val n = cell(den, gx, gy)
+                if (n <= 0.05f * q * q) return@filter true   // cells hold pixel counts
+                for (c in 0 until 3) rgb[j * 3 + c] = cell(num[c], gx, gy) / n
+                weight[j] = ((pendingT[k] - 0.3f) / 0.4f).coerceIn(0f, 1f)
                 false
             }
         }

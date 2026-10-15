@@ -27,6 +27,7 @@ enum SunglassesRemoval {
     /// background pixels at growing scales (× d), blended in by the background probability.
     static let backgroundFillSigmasOfIrisSpan: [Float] = [0.05, 0.1, 0.2, 0.4, 0.8]
     static let turnedEyeRatio: Float = 0.8
+    static let backgroundFillCellsPerIrisSpan: Float = 24
     /// Glare is not looked for within this × d of the nose (landmarks 1, 4, 5, 195): the nose seen through a turned
     /// face's far lens is bright, and painting it out drew a false nostril (2026-10-15).
     static let glareNoseClearanceOfIrisSpan: Float = 0.35
@@ -192,30 +193,44 @@ enum SunglassesRemoval {
             guard farSign != 0, !inside(hull, point), simd_dot(point - centre, u) * farSign > 0 else { return (b, b) }
             return (b, min(1, b + (analysis.accessory.sample(x: ax, y: ay) ?? 0)))
         }
-        var weighted = FloatImage(width: ew, height: eh, channels: 3), weights = FloatImage(width: ew, height: eh, channels: 1)
-        var bg = [Float](repeating: 0, count: ew * eh), isMasked = [Bool](repeating: false, count: ew * eh)
-        for y in 0..<eh { for x in 0..<ew {
-            let i = y * ew + x
-            let b = background(ex0 + x, ey0 + y)
-            bg[i] = b.target
-            isMasked[i] = masked(Double(ex0 + x) + 0.5, Double(ey0 + y) + 0.5)
-            guard !isMasked[i], b.real > 0.5 else { continue }
-            weights.data[i] = 1
-            for c in 0..<3 { weighted.data[i * 3 + c] = Float(pixels[i * 4 + c]) / 255 }
-        } }
+        // Which patch pixels may take the fill, at full resolution (cheap: one map sample each).
         var rgb = [Float](repeating: 0, count: pw * ph * 3), weight = [Float](repeating: 0, count: pw * ph)
-        var pending = (0..<(pw * ph)).filter { j in
-            let i = (j / pw + y0 - ey0) * ew + j % pw + x0 - ex0
-            return isMasked[i] && bg[i] > 0.3
+        var pending: [(j: Int, target: Float)] = []
+        for j in 0..<(pw * ph) {
+            let x = x0 + j % pw, y = y0 + j / pw
+            guard masked(Double(x) + 0.5, Double(y) + 0.5) else { continue }
+            let target = background(x, y).target
+            if target > 0.3 { pending.append((j, target)) }
+        }
+        guard !pending.isEmpty else { return (rgb, weight) }
+        // The normalized convolution runs on a grid of `q` × `q` source-pixel cells, about `backgroundFillCellsPerIrisSpan`
+        // cells per d: at full resolution its widest blur (0.8 d) took most of a minute on a mid-range phone (2026-10-15).
+        let q = max(1, Int(d / backgroundFillCellsPerIrisSpan))
+        let cw = (ew + q - 1) / q, chh = (eh + q - 1) / q
+        var weighted = FloatImage(width: cw, height: chh, channels: 3), weights = FloatImage(width: cw, height: chh, channels: 1)
+        for y in 0..<eh { for x in 0..<ew {
+            guard background(ex0 + x, ey0 + y).real > 0.5, !masked(Double(ex0 + x) + 0.5, Double(ey0 + y) + 0.5) else { continue }
+            let i = y * ew + x, c = (y / q) * cw + x / q
+            weights.data[c] += 1
+            for k in 0..<3 { weighted.data[c * 3 + k] += Float(pixels[i * 4 + k]) / 255 }
+        } }
+        func sampleCell(_ plane: FloatImage, _ channel: Int, _ gx: Float, _ gy: Float) -> Float {
+            let fx = min(max(gx - 0.5, 0), Float(cw - 1)), fy = min(max(gy - 0.5, 0), Float(chh - 1))
+            let ix = Int(fx), iy = Int(fy), jx = min(ix + 1, cw - 1), jy = min(iy + 1, chh - 1)
+            let tx = fx - Float(ix), ty = fy - Float(iy)
+            func at(_ x: Int, _ y: Int) -> Float { plane.data[(y * cw + x) * plane.channels + channel] }
+            let top = at(ix, iy) * (1 - tx) + at(jx, iy) * tx, bottom = at(ix, jy) * (1 - tx) + at(jx, jy) * tx
+            return top * (1 - ty) + bottom * ty
         }
         for sigma in backgroundFillSigmasOfIrisSpan where !pending.isEmpty {
-            let s = max(1, sigma * d)
+            let s = max(0.5, sigma * d / Float(q))
             let num = weighted.gaussianBlurred(sigma: s), den = weights.gaussianBlurred(sigma: s)
-            pending = pending.filter { j in
-                let i = (j / pw + y0 - ey0) * ew + j % pw + x0 - ex0
-                guard den.data[i] > 0.05 else { return true }
-                for c in 0..<3 { rgb[j * 3 + c] = num.data[i * 3 + c] / den.data[i] }
-                weight[j] = min(max((bg[i] - 0.3) / 0.4, 0), 1)
+            pending = pending.filter { item in
+                let gx = (Float(x0 - ex0 + item.j % pw) + 0.5) / Float(q), gy = (Float(y0 - ey0 + item.j / pw) + 0.5) / Float(q)
+                let n = sampleCell(den, 0, gx, gy)
+                guard n > 0.05 * Float(q * q) else { return true }   // cells hold pixel counts
+                for k in 0..<3 { rgb[item.j * 3 + k] = sampleCell(num, k, gx, gy) / n }
+                weight[item.j] = min(max((item.target - 0.3) / 0.4, 0), 1)
                 return false
             }
         }
