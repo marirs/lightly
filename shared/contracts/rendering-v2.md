@@ -464,7 +464,14 @@ Android: its 2 × 2 supersampling), so fine rim detail does not sparkle.
 1. *Existing glasses:* when the face has glasses and a pair is chosen, the stored patch (`sunglasses.removed`) is
    composited first. It is computed once, as Remove computes patches: the glasses mask dilated by 1.25 % of the long
    edge (the trial's 15, 15, 15, 9 px square filters on a 2000 px photo), LaMa on a square window of 1.5 × the mask's
-   extent (at least 256 px) resized to 512, pasted back over the mask with a Gaussian feather of σ = 3 px.
+   extent (at least 256 px) resized to 512, pasted back over the mask with a Gaussian feather of σ = 3 px. The mask also takes the old lenses' glare (2026-10-15):
+   in the lower half of each lens ellipse (0.5 d × 0.42 d around the eye-corner midpoint, in the eye line's frame),
+   outside the eye ellipse (0.3 d × 0.14 d) and 0.35 d clear of nose landmarks 1, 4, 5, 195, every pixel whose
+   luminance is above 0.45 and 0.08 above its surroundings (Gaussian σ = 0.08 d), grown by half the dilation radius.
+   On the far side of a turned face (that eye's corner span at most 0.8 × the other's), where the mask lies outside
+   the face mesh's convex hull, the fill is replaced by the surrounding background (normalized convolution of
+   unmasked pixels with background probability > 0.5, at σ = 0.05, 0.1, 0.2, 0.4, 0.8 d until defined), weighted by
+   clamp((b − 0.3)/0.4) with b the background probability plus the accessory probability there.
 2. *Contact shadow:* coverage = max(frame alpha, lens), blurred with σ = max(1, 0.035 d), shifted by (0.01 d, 0.05 d),
    × 0.28, multiplies the photo where the background probability < 0.5.
 3. *Lenses:* `out = in·(1 − L) + (in · T · tint + R) · L`, L = lens coverage. Transmission `T = 1 − 0.95 (darkness/100)^0.75`.
@@ -524,6 +531,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
 | 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
 | 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
-| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, ear and far-arm occluders, the turn raised from 25 mm, a wider and deeper eye band, a nose-only face occluder off profile, and the head continued backwards. | No |
+| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, ear and far-arm occluders, the turn raised from 25 mm, a wider and deeper eye band, a nose-only face occluder off profile, and the head continued backwards, and the paint-out takes lens glare and fills past a turned face's outline from the background. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

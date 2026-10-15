@@ -300,6 +300,49 @@ final class SunglassesEngineTests: XCTestCase {
         print("Sunglasses matrix: \(out.path)")
     }
 
+    /// Diagnostic: each glasses photo with only the paint-out applied (no pair), cropped around the face, written as
+    /// removal.<photo>.png next to the original crop, so leftovers of the old glasses can be reviewed.
+    func testRemovalOnlyIsWritten() async throws {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_MATRIX"] == "1" else { throw XCTSkip("set LIGHTLY_SUNGLASSES_MATRIX=1") }
+        let analyzer = try XCTUnwrap(SunglassesAnalyzer.loadBundled())
+        let lama = try XCTUnwrap(LamaInpainter.loadBundled())
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("lightly-sunglasses")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        for name in ["glasses_black_front_01", "glasses_side_angle_01", "glasses_thin_metal_01", "glasses_thick_deep_01", "glasses_pair_mixed_01", "sunglasses_round_01"] {
+            let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture("experiments/test-photos/\(name).jpg").path)?.cgImage)
+            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let (rgba, W, H) = Self.rgba8(image)
+            var linear = FloatImage.linear(fromRGBA8: rgba, width: W, height: H)
+            var crop = CGRect.null
+            for face in try Self.editorFaces(image) {
+                let a = try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: face.box, eyes: face.eyes)
+                guard let r = try await SunglassesRemoval.patch(for: a, source: image, inpainter: lama) else { continue }
+                SunglassesRemoval.composite(r.patch, onto: &linear)
+                if let (m, w, h, ox, oy) = SunglassesRemoval.lastMaskForDiagnostics {
+                    // The mask drawn in red over the original, for review.
+                    var tinted = rgba
+                    for y in 0..<h { for x in 0..<w where m.data[y * w + x] > 0.5 {
+                        let px = x + ox, py = y + oy
+                        guard px >= 0, py >= 0, px < W, py < H else { continue }
+                        let o = (py * W + px) * 4
+                        tinted[o] = UInt8((Int(tinted[o]) + 255) / 2); tinted[o + 1] /= 2; tinted[o + 2] /= 2
+                    } }
+                    try UIImage(cgImage: Self.cgImage(tinted, width: W, height: H)).pngData()!.write(to: out.appendingPathComponent("removalmask.\(name).png"))
+                }
+                crop = crop.union(CGRect(x: r.rect.x * Double(W), y: r.rect.y * Double(H), width: r.rect.width * Double(W), height: r.rect.height * Double(H)).insetBy(dx: -40, dy: -40))
+            }
+            guard !crop.isNull else { continue }
+            crop = crop.intersection(CGRect(x: 0, y: 0, width: W, height: H)).integral
+            let before = image.cropping(to: crop)!, after = Self.cgImage(linear.rgba8FromLinear(), width: W, height: H).cropping(to: crop)!
+            let sheet = UIGraphicsImageRenderer(size: CGSize(width: crop.width * 2 + 10, height: crop.height), format: {
+                let f = UIGraphicsImageRendererFormat(); f.scale = 1; f.opaque = true; return f }()).image { _ in
+                UIImage(cgImage: before).draw(at: .zero); UIImage(cgImage: after).draw(at: CGPoint(x: crop.width + 10, y: 0))
+            }
+            try sheet.pngData()!.write(to: out.appendingPathComponent("removal.\(name).png"))
+        }
+        print("Sunglasses removal: \(out.path)")
+    }
+
     /// Measurement for the width fit: each face's width at the cheek points 234/454 (metres, by the eye-corner scale)
     /// and each pair's front width (vertices within 2 cm of the lens plane), printed for review.
     func testFaceAndPairWidthsArePrinted() throws {
