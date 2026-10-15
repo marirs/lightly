@@ -83,6 +83,7 @@ object SunglassesRaster {
         val head = headTriangles(placement)
         rasterDepth(head, depth, sw, sh, toSampleX, toSampleY, nearestZ)
         rasterDepth(earTriangles(placement), depth, sw, sh, toSampleX, toSampleY, nearestZ)
+        rasterDepth(headBackTriangles(placement), depth, sw, sh, toSampleX, toSampleY, nearestZ)
         rasterDepth(faceMesh, depth, sw, sh, toSampleX, toSampleY, nearestZ)
 
         // 2. The pair's vertices in scene units (tilt, then the head's axes, then the origin); normals rotated alike.
@@ -321,6 +322,27 @@ object SunglassesRaster {
             for (f in faces) for (v in intArrayOf(f[0], f[1], f[2], f[0], f[2], f[3])) {
                 out[o++] = corner[v][0].toFloat(); out[o++] = corner[v][1].toFloat(); out[o++] = corner[v][2].toFloat()
             }
+        }
+        return out
+    }
+
+    /** The head's continuation behind its centre as triangles (iOS: an SCNCylinder scaled to the head's x and y radii,
+     *  48 segments, capped): an arm tip curling inward stays hidden behind the head. */
+    private fun headBackTriangles(p: Placement): FloatArray {
+        val seg = 48; val len = SunglassesConstants.HEAD_BACK_LENGTH_METRES
+        fun scene(x: Double, y: Double, z: Double) = DoubleArray(3) { c -> p.origin[c] + p.scale * (x * p.ex[c] + y * p.ey[c] + z * p.ez[c]) }
+        fun ring(i: Int, z: Double): DoubleArray {
+            val a = 2 * PI * i / seg
+            return scene(HEAD_CENTRE[0] + HEAD_RADII[0] * cos(a), HEAD_CENTRE[1] + HEAD_RADII[1] * sin(a), z)
+        }
+        val z0 = HEAD_CENTRE[2]; val z1 = HEAD_CENTRE[2] - len
+        val out = FloatArray(seg * 4 * 9); var o = 0
+        fun put(v: DoubleArray) { out[o++] = v[0].toFloat(); out[o++] = v[1].toFloat(); out[o++] = v[2].toFloat() }
+        val c0 = scene(HEAD_CENTRE[0], HEAD_CENTRE[1], z0); val c1 = scene(HEAD_CENTRE[0], HEAD_CENTRE[1], z1)
+        for (i in 0 until seg) {
+            val a0 = ring(i, z0); val b0 = ring(i + 1, z0); val a1 = ring(i, z1); val b1 = ring(i + 1, z1)
+            put(a0); put(b0); put(b1); put(a0); put(b1); put(a1)
+            put(c0); put(a0); put(b0); put(c1); put(a1); put(b1)
         }
         return out
     }

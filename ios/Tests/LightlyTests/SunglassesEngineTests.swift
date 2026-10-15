@@ -225,6 +225,81 @@ final class SunglassesEngineTests: XCTestCase {
         print("Sunglasses side views: \(out.path)")
     }
 
+    /// The review matrix (owner, 2026-10-15: "try different permutations and combinations"): every pair on every face
+    /// photo, as the editor sees it (1600 px preview, editor face boxes, own glasses painted out with LaMa). One sheet per
+    /// photo: the original, then the ten pairs, cropped around the faces; written as matrix.<photo>.png, with a log line
+    /// per face. Review only: no assertions. Run with LIGHTLY_SUNGLASSES_MATRIX=1 (it takes minutes).
+    func testPairMatrixSheetsAreWritten() async throws {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_MATRIX"] == "1" else { throw XCTSkip("set LIGHTLY_SUNGLASSES_MATRIX=1") }
+        let analyzer = try XCTUnwrap(SunglassesAnalyzer.loadBundled())
+        let pack = try XCTUnwrap(SunglassesPack.bundled)
+        let lama = LamaInpainter.loadBundled()
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("lightly-sunglasses")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        let photos = ["experiments/lut3d/photos/portrait_deep_01", "experiments/lut3d/photos/portrait_deep_02",
+                      "experiments/lut3d/photos/portrait_deep_03", "experiments/lut3d/photos/portrait_light_01",
+                      "experiments/lut3d/photos/portrait_light_02", "experiments/lut3d/photos/portrait_medium_01",
+                      "experiments/lut3d/photos/portrait_medium_02"]
+            + ["glasses_black_front_01", "glasses_pair_mixed_01", "glasses_side_angle_01", "glasses_thick_deep_01",
+               "glasses_thin_metal_01", "group_three_01", "profile_beard_man_01", "profile_bw_boy_01", "profile_bw_woman_01",
+               "profile_bw_woman_hair_01", "profile_colour_woman_01", "sunglasses_round_01"].map { "experiments/test-photos/\($0)" }
+        for path in photos {
+            let name = String(path.split(separator: "/").last!)
+            let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture("\(path).jpg").path)?.cgImage)
+            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let (rgba, W, H) = Self.rgba8(image)
+            let analyses = try Self.editorFaces(image).map { try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: $0.box, eyes: $0.eyes) }
+            let maps = SunglassesRenderer.Maps(analyses: analyses, scale: 1)
+            // Own glasses painted out once per face, as the editor does.
+            let store = RemovePatchStore()
+            var removed: [EditRecipe.FaceEdit.Sunglasses.Removed?] = []
+            for (index, a) in analyses.enumerated() {
+                var r: EditRecipe.FaceEdit.Sunglasses.Removed?
+                if a.glassesMask() != nil, let lama, let result = try await SunglassesRemoval.patch(for: a, source: image, inpainter: lama) {
+                    r = .init(rect: result.rect, patch: .init(sha256: store.add(result.patch), model: lama.model,
+                                                              width: result.patch.width, height: result.patch.height))
+                }
+                removed.append(r)
+                let pose = SunglassesRenderer.pose(landmarks: a.landmarks, width: W, height: H, background: maps.background)
+                print("sunglasses-matrix \(name) face \(index) logit \(String(format: "%.1f", a.faceLogit)) readable \(a.isReadable) glasses \(r != nil) yaw \(String(format: "%.0f", atan2(pose.ez.x, pose.ez.z) * 180 / .pi)) profile \(pose.isProfile)")
+            }
+            // The crop: every face box, widened, clamped to the photo.
+            var x0 = Double(W), y0 = Double(H), x1 = 0.0, y1 = 0.0
+            for a in analyses {
+                let b = a.faceBox
+                x0 = min(x0, (b.x - b.width * 0.45) * Double(W)); x1 = max(x1, (b.x + b.width * 1.45) * Double(W))
+                y0 = min(y0, (b.y - b.height * 0.25) * Double(H)); y1 = max(y1, (b.y + b.height * 1.0) * Double(H))
+            }
+            if analyses.isEmpty { x0 = 0; y0 = 0; x1 = Double(W); y1 = Double(H) }
+            let crop = CGRect(x: max(0, x0), y: max(0, y0), width: min(Double(W), x1) - max(0, x0), height: min(Double(H), y1) - max(0, y0)).integral
+            var tiles: [(String, CGImage)] = [("Original", image.cropping(to: crop)!)]
+            for pair in pack.pairs {
+                let edits = analyses.enumerated().map { index, a -> (edit: EditRecipe.FaceEdit, analysis: FaceSunglassesAnalysis) in
+                    var edit = PortraitPanelModel.neutral(for: nil)
+                    edit.sunglasses = .init(pair: pair.id, lens: .dark, darkness: 75, size: 0, removed: removed[index])
+                    return (edit, a)
+                }
+                var linear = FloatImage.linear(fromRGBA8: rgba, width: W, height: H)
+                SunglassesRenderer.render(&linear, faces: edits, allAnalyses: analyses, pack: pack, removedPatch: store.patch)
+                tiles.append((pair.name, Self.cgImage(linear.rgba8FromLinear(), width: W, height: H).cropping(to: crop)!))
+            }
+            // 4 × 3 sheet, tiles 480 px wide, the name under each.
+            let tileW: CGFloat = 480, tileH = (tileW * crop.height / crop.width).rounded(), label: CGFloat = 34
+            let sheet = UIGraphicsImageRenderer(size: CGSize(width: tileW * 4, height: (tileH + label) * 3), format: {
+                let f = UIGraphicsImageRendererFormat(); f.scale = 1; f.opaque = true; return f }()).image { ctx in
+                UIColor.white.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: tileW * 4, height: (tileH + label) * 3))
+                for (i, tile) in tiles.enumerated() {
+                    let x = CGFloat(i % 4) * tileW, y = CGFloat(i / 4) * (tileH + label)
+                    UIImage(cgImage: tile.1).draw(in: CGRect(x: x, y: y, width: tileW, height: tileH))
+                    (tile.0 as NSString).draw(at: CGPoint(x: x + 8, y: y + tileH + 4),
+                                              withAttributes: [.font: UIFont.boldSystemFont(ofSize: 22), .foregroundColor: UIColor.black])
+                }
+            }
+            try sheet.pngData()!.write(to: out.appendingPathComponent("matrix.\(name).png"))
+        }
+        print("Sunglasses matrix: \(out.path)")
+    }
+
     /// Measurement for the width fit: each face's width at the cheek points 234/454 (metres, by the eye-corner scale)
     /// and each pair's front width (vertices within 2 cm of the lens plane), printed for review.
     func testFaceAndPairWidthsArePrinted() throws {

@@ -84,6 +84,11 @@ for side in [-1.0, 1.0] {
     ear.geometry!.materials = [hm]; ear.renderingOrder = -10
     holder.addChildNode(ear)
 }
+// The head's continuation behind its centre (2026-10-15): an elliptic cylinder of the head's x and y radii, 0.2 m long.
+let back = SCNNode(geometry: SCNCylinder(radius: 1, height: 0.2)); back.geometry!.materials = [hm]; back.renderingOrder = -10
+back.eulerAngles = SCNVector3(Double.pi / 2, 0, 0)
+let backHolder = SCNNode(); backHolder.scale = SCNVector3(0.076, 0.115, 1); backHolder.position = SCNVector3(0, -0.026, -0.098 - 0.1)
+backHolder.addChildNode(back); holder.addChildNode(backHolder)
 holder.transform = SCNMatrix4(m11: R[0] * s, m12: R[1] * s, m13: R[2] * s, m14: 0,
                               m21: R[3] * s, m22: R[4] * s, m23: R[5] * s, m24: 0,
                               m31: R[6] * s, m32: R[7] * s, m33: R[8] * s, m34: 0,

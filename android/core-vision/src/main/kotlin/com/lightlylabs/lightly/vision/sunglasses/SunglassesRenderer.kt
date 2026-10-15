@@ -202,7 +202,7 @@ object SunglassesRenderer {
         val mesh = pack.mesh(pair)
         val placement = SunglassesRaster.Placement(pose.origin, pose.ex, pose.ey, pose.ez,
             fittedScale(s, mesh.frontWidthMetres, p) * (1 + SunglassesConstants.SIZE_PER_UNIT * size))
-        val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s)
+        val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s, pose)
         val frame = ByteArray(rw * rh * 4); val front = ByteArray(rw * rh); val lens = ByteArray(rw * rh)
         fun byte(v: Float) = (v.coerceIn(0f, 1f) * 255 + 0.5f).toInt().toByte()
         // Tile by tile: every sample sits at the same absolute position as in one whole render, so the result is the same.
@@ -222,8 +222,10 @@ object SunglassesRenderer {
     }
 
     /** The face mesh (468 landmarks, MediaPipe's canonical triangles) as scene-unit triangles, pushed back by [zShift]. */
-    fun faceOccluder(p: FloatArray, width: Int, height: Int, zShift: Double): FloatArray {
-        val idx = FaceMeshTriangles.INDICES
+    fun faceOccluder(p: FloatArray, width: Int, height: Int, zShift: Double, pose: Pose? = null): FloatArray {
+        // Off profile only the nose occludes (iOS SunglassesRenderer.noseTriangles, matrix review 2026-10-15): the rest of
+        // the mesh is too coarse in depth this close to the lenses and cut jagged pieces out of the far lens.
+        val idx = if (pose == null || pose.isProfile) FaceMeshTriangles.INDICES else noseTriangles(p, pose, width, height)
         val out = FloatArray(idx.size * 3)
         for ((o, i) in idx.withIndex()) {
             out[o * 3] = (p[i * 3] - width / 2.0).toFloat()
@@ -231,6 +233,24 @@ object SunglassesRenderer {
             out[o * 3 + 2] = (-p[i * 3 + 2] + zShift).toFloat()
         }
         return out
+    }
+
+    /** The face mesh's nose triangles: all three landmarks within NOSE_HALF_WIDTH_METRES of the centre line and between
+     *  NOSE_BOTTOM_METRES and NOSE_TOP_METRES (head frame, from the irises' midpoint). */
+    fun noseTriangles(p: FloatArray, pose: Pose, width: Int, height: Int): IntArray {
+        fun sc(i: Int, c: Int) = when (c) { 0 -> p[i * 3] - width / 2.0; 1 -> height / 2.0 - p[i * 3 + 1]; else -> -p[i * 3 + 2].toDouble() }
+        val iris = DoubleArray(3) { (sc(468, it) + sc(473, it)) / 2 }
+        val s = pose.pixelsPerMetre
+        val isNose = BooleanArray(468) { i ->
+            val d = DoubleArray(3) { sc(i, it) - iris[it] }
+            val x = (d[0] * pose.ex[0] + d[1] * pose.ex[1] + d[2] * pose.ex[2]) / s
+            val y = (d[0] * pose.ey[0] + d[1] * pose.ey[1] + d[2] * pose.ey[2]) / s
+            abs(x) < SunglassesConstants.NOSE_HALF_WIDTH_METRES && y < SunglassesConstants.NOSE_TOP_METRES && y > SunglassesConstants.NOSE_BOTTOM_METRES
+        }
+        val all = FaceMeshTriangles.INDICES
+        val out = ArrayList<Int>()
+        for (t in all.indices step 3) if (isNose[all[t]] && isNose[all[t + 1]] && isNose[all[t + 2]]) { out.add(all[t]); out.add(all[t + 1]); out.add(all[t + 2]) }
+        return out.toIntArray()
     }
 
     private const val Q = 4   // quarter resolution for the blurred planes (shadow, profile clip)

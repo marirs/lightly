@@ -138,6 +138,17 @@ enum SunglassesRenderer {
         head.scale = SCNVector3(radii.x, radii.y, radii.z); head.position = SCNVector3(centre.x, centre.y, centre.z)
         head.geometry!.materials = [depthOnly()]; head.renderingOrder = -10
         holder.addChildNode(head)
+        // Behind its centre the head does not narrow (matrix review 2026-10-15: an arm tip that curls inward went into the
+        // ellipsoid and came out again before the ear box): an elliptic cylinder of the head's x and y radii continues it
+        // to the back.
+        let back = SCNNode(geometry: SCNCylinder(radius: 1, height: CGFloat(SunglassesConstants.headBackLengthMetres)))
+        back.geometry!.materials = [depthOnly()]; back.renderingOrder = -10
+        back.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)   // the cylinder's axis (y) along z
+        let backHolder = SCNNode()
+        backHolder.scale = SCNVector3(radii.x, radii.y, 1)
+        backHolder.position = SCNVector3(centre.x, centre.y, centre.z - SunglassesConstants.headBackLengthMetres / 2)
+        backHolder.addChildNode(back)
+        holder.addChildNode(backHolder)
         // Ears: depth-only boxes on both sides from earClipStartMetres behind the lens plane to the back of the head. On a
         // turned face the far side's box starts just behind the hinge (farArmClipStartMetres): the head hides that arm.
         // The near side is the one whose +x points towards the viewer (ex.z > 0 → +x).
@@ -158,7 +169,7 @@ enum SunglassesRenderer {
                                       m41: pose.origin.x, m42: pose.origin.y, m43: 0, m44: 1)
         scene.rootNode.addChildNode(holder)
         // The photo's own face mesh, depth only, pushed 6 mm away so the nose bridge stays behind the frame's bridge.
-        scene.rootNode.addChildNode(faceOccluder(P, width: W, height: H, zShift: -pose.origin.z - SunglassesConstants.faceMeshPushBackMetres * s))
+        scene.rootNode.addChildNode(faceOccluder(P, pose: pose, width: W, height: H, zShift: -pose.origin.z - SunglassesConstants.faceMeshPushBackMetres * s))
 
         let camera = SCNNode(); camera.camera = SCNCamera()
         camera.camera!.usesOrthographicProjection = true
@@ -245,13 +256,36 @@ enum SunglassesRenderer {
     }
 
     /// The face mesh (468 landmarks, MediaPipe's canonical triangles) in scene units, depth only.
-    private static func faceOccluder(_ P: [SIMD3<Float>], width W: Int, height H: Int, zShift: Float) -> SCNNode {
+    private static func faceOccluder(_ P: [SIMD3<Float>], pose: Pose, width W: Int, height H: Int, zShift: Float) -> SCNNode {
         let vertices = (0..<468).map { SCNVector3(P[$0].x - Float(W) / 2, Float(H) / 2 - P[$0].y, -P[$0].z + zShift) }
-        let element = SCNGeometryElement(indices: FaceMeshTriangles.indices, primitiveType: .triangles)
+        // On a profile the whole mesh hides the far lens behind the face; otherwise only the nose (see noseTriangles).
+        let indices = pose.isProfile ? FaceMeshTriangles.indices : noseTriangles(P, pose: pose, width: W, height: H)
+        let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
         let geometry = SCNGeometry(sources: [SCNGeometrySource(vertices: vertices)], elements: [element])
         geometry.materials = [depthOnly()]
         let node = SCNNode(geometry: geometry); node.renderingOrder = -10
         return node
+    }
+
+    /// The face mesh's nose (matrix review 2026-10-15): only triangles whose three landmarks lie within
+    /// `noseHalfWidthMetres` of the face's centre line and between `noseTopMetres` and `noseBottomMetres` (head frame,
+    /// from the irises' midpoint) occlude. The rest of the mesh (brows, cheeks) is too coarse in depth this close to the
+    /// lenses and cut jagged pieces out of the far lens; the head ellipsoid covers those parts.
+    static func noseTriangles(_ P: [SIMD3<Float>], pose: Pose, width W: Int, height H: Int) -> [UInt16] {
+        func scene(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z) }
+        let iris = (scene(468) + scene(473)) / 2, s = pose.pixelsPerMetre
+        let isNose: [Bool] = (0..<468).map { i in
+            let d = scene(i) - iris
+            let x = simd_dot(d, pose.ex) / s, y = simd_dot(d, pose.ey) / s
+            return abs(x) < SunglassesConstants.noseHalfWidthMetres && y < SunglassesConstants.noseTopMetres
+                && y > SunglassesConstants.noseBottomMetres
+        }
+        let all = FaceMeshTriangles.indices
+        var out: [UInt16] = []
+        for t in stride(from: 0, to: all.count, by: 3) where isNose[Int(all[t])] && isNose[Int(all[t + 1])] && isNose[Int(all[t + 2])] {
+            out.append(contentsOf: all[t..<t + 3])
+        }
+        return out
     }
 
     private static func rgba8Premultiplied(_ image: UIImage, width: Int, height: Int) -> [UInt8] {

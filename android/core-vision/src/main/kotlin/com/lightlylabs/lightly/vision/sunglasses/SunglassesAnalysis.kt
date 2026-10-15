@@ -33,6 +33,14 @@ object SunglassesConstants {
     const val YAW_RAMP_METRES = 0.025
     /** The eye band reaches this × d beyond the landmarks (was 0.15; a turned face's far rim sticks out past the nose). */
     const val EYE_BAND_PAD_X = 0.45f
+    /** The eye band reaches this × d below the nose tip (was 0.1; a tilted face's far rim corner was missed). */
+    const val EYE_BAND_BELOW_NOSE_TIP = 0.35f
+    /** Only the nose of the face mesh occludes off profile (iOS noseTriangles), head frame from the irises (metres). */
+    const val NOSE_HALF_WIDTH_METRES = 0.02
+    const val NOSE_TOP_METRES = 0.0
+    const val NOSE_BOTTOM_METRES = -0.06
+    /** The head's continuation behind its centre: an elliptic cylinder of the head's x and y radii (iOS). */
+    const val HEAD_BACK_LENGTH_METRES = 0.2
     /** On a turned face (|ex.z| above FAR_ARM_MIN_TURN) the far arm is hidden from this far behind the lens plane. */
     const val FAR_ARM_CLIP_START_METRES = 0.02
     const val FAR_ARM_MIN_TURN = 0.1
@@ -105,7 +113,7 @@ class FaceSunglassesAnalysis(
         val eyeTop = intArrayOf(33, 263, 468, 473).minOf { y(it) }
         val pad = SunglassesConstants.EYE_BAND_PAD_X
         val x0 = max(0, (minX - pad * d).toInt()); val y0 = max(0, (eyeTop - 0.55f * d).toInt())
-        val x1 = min(analysisWidth, ceil(maxX + pad * d).toInt()); val y1 = min(analysisHeight, ceil(y(1) + 0.1f * d).toInt())
+        val x1 = min(analysisWidth, ceil(maxX + pad * d).toInt()); val y1 = min(analysisHeight, ceil(y(1) + SunglassesConstants.EYE_BAND_BELOW_NOSE_TIP * d).toInt())
         if (x1 <= x0 || y1 <= y0) return null
         val w = x1 - x0; val h = y1 - y0
         val mask = BooleanArray(w * h)

@@ -51,7 +51,7 @@ struct FaceSunglassesAnalysis: Sendable, Equatable {
         let xs = mesh.map(\.x)
         let eyeTop = [33, 263, 468, 473].map { landmarks[$0].y }.min()!
         let pad = SunglassesConstants.eyeBandPadX
-        return (xs.min()! - pad * d, eyeTop - 0.55 * d, xs.max()! + pad * d, landmarks[1].y + 0.1 * d)
+        return (xs.min()! - pad * d, eyeTop - 0.55 * d, xs.max()! + pad * d, landmarks[1].y + SunglassesConstants.eyeBandBelowNoseTip * d)
     }
 
     /// The face's own glasses: accessory probability above the threshold inside the eye band, as a mask over the band's
@@ -116,6 +116,9 @@ enum SunglassesConstants {
     /// The eye band reaches this × d beyond the landmarks on each side (was 0.15; owner report 2026-10-14: on a turned
     /// face the far rim of the person's own glasses sticks out past the nose and was left behind).
     static let eyeBandPadX: Float = 0.45
+    /// The eye band reaches this × d below the nose tip (was 0.1; matrix review 2026-10-15: on a tilted face the
+    /// upright band missed the far rim's lower corner, left as a dark tick).
+    static let eyeBandBelowNoseTip: Float = 0.35
     /// On a turned face (|ex.z| above `farArmMinTurn`) the arm on the far side is hidden from this far behind the lens
     /// plane: the head hides it in life, but the arms are splayed just outside the head ellipsoid (owner report
     /// 2026-10-14: the far arm showed through the far lens).
@@ -127,6 +130,12 @@ enum SunglassesConstants {
     static let headCentreMetres = SIMD3<Float>(0, -0.026, -0.098)
     static let headRadiiMetres = SIMD3<Float>(0.076, 0.115, 0.098)
     static let faceMeshPushBackMetres: Float = 0.006
+    /// Only the nose of the face mesh occludes (SunglassesRenderer.noseTriangles), in the head frame from the irises.
+    static let noseHalfWidthMetres: Float = 0.02
+    static let noseTopMetres: Float = 0.0
+    static let noseBottomMetres: Float = -0.06
+    /// The head's continuation behind its centre (see SunglassesRenderer.renderPasses).
+    static let headBackLengthMetres: Float = 0.2
     static let frontDepthMetres: Float = 0.012
     static let shadowSigmaOfIrisSpan: Float = 0.035
     static let shadowOffsetOfIrisSpan = SIMD2<Float>(0.01, 0.05)
