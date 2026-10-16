@@ -10,7 +10,10 @@ enum SunglassesRemoval {
 
     /// The glasses mask is widened to catch rims and their shadows: the trial's MaxFilters 15, 15, 15 and 9 px on a
     /// 2000 px photo, i.e. a radius of 25 px per 2000 px of the long edge.
-    static let dilationOfLongEdge = 0.0125
+    /// Was 0.0125, the trial's filters (owner report 2026-10-16: it repainted the nose top, eye corners and brows, which
+    /// came back smoothed). 0.8 % of the long edge still covers the rims' segmentation fringe (0.6 % left a lower-rim
+    /// spot on a tilted face, 0.3 % rim lines).
+    static let dilationOfLongEdge = 0.008
     /// The model's context: a square of 1.5 × the mask's extent, at least 256 px (the trial's crop).
     static let contextFactor = 1.5, minimumWindow = 256
     /// Paste-back feather (Gaussian sigma, source pixels), as the trial's GaussianBlur(3).
@@ -71,23 +74,7 @@ enum SunglassesRemoval {
         let bx0 = max(0, Int(Double(lo.x + gx0) * f)), by0 = max(0, Int(Double(lo.y + gy0) * f))
         let bx1 = min(W, Int((Double(hi.x + gx0 + 1) * f).rounded(.up))), by1 = min(H, Int((Double(hi.y + gy0 + 1) * f).rounded(.up)))
         guard bx1 > bx0, by1 > by0 else { return nil }
-        // The context window.
-        let extent = max(bx1 - bx0, by1 - by0)
-        let side = min(max(Int(Double(extent) * contextFactor), minimumWindow), W, H)
-        let cx = Double(bx0 + bx1) / 2, cy = Double(by0 + by1) / 2
-        let wx = min(max(Int(cx - Double(side) / 2), 0), W - side), wy = min(max(Int(cy - Double(side) / 2), 0), H - side)
-        let window = try RemoveEngine.drawRegion(of: source, x: wx, y: wy, width: side, height: side)
-        let n = RemoveEngine.side, scale = Double(side) / Double(n)
-        var image = [Float](repeating: 0, count: 3 * n * n), mask = [Float](repeating: 0, count: n * n)
-        for my in 0..<n { for mx in 0..<n {
-            let sx = (Double(mx) + 0.5) * scale - 0.5, sy = (Double(my) + 0.5) * scale - 0.5
-            let rgb = RemoveEngine.bilinear(window, width: side, height: side, x: sx, y: sy)
-            for c in 0..<3 { image[c * n * n + my * n + mx] = rgb[c] }
-            if masked(sourceX: Double(wx) + sx + 0.5, sourceY: Double(wy) + sy + 0.5) { mask[my * n + mx] = 1 }
-        } }
-        try Task.checkCancellation()
-        let result = try await inpainter.inpaint(image: image, mask: mask, side: n)
-        try Task.checkCancellation()
+        let canvas = try await modelFill(x0: bx0, y0: by0, x1: bx1, y1: by1, source: source, inpainter: inpainter, masked: masked)
         // Paste back over the mask's box, alpha = the mask feathered by a Gaussian.
         let pw = bx1 - bx0, ph = by1 - by0
         var alpha = FloatImage(width: pw, height: ph, channels: 1)
@@ -101,11 +88,10 @@ enum SunglassesRemoval {
         for y in 0..<ph { for x in 0..<pw {
             let a = alpha.data[y * pw + x]
             guard a > 0.002 else { continue }
-            let mx = (Double(bx0 + x - wx) + 0.5) / scale - 0.5, my = (Double(by0 + y - wy) + 0.5) / scale - 0.5
             let o = (y * pw + x) * 4
             let t: Float = backdrop.weight[y * pw + x]
             for c in 0..<3 {
-                let lama: Float = Float(RemoveEngine.bilinearPlane(result, plane: c, side: n, x: mx, y: my))
+                let lama: Float = canvas.rgb(bx0 + x, by0 + y, c)
                 let fill: Float = backdrop.rgb[(y * pw + x) * 3 + c]
                 let v: Float = lama * (1 - t) + fill * t
                 rgba[o + c] = UInt8(min(max(v * 255 + 0.5, 0), 255))
@@ -116,6 +102,47 @@ enum SunglassesRemoval {
         let patch = RemovePatch(x: bx0, y: by0, width: pw, height: ph, sourceWidth: W, sourceHeight: H, rgba: rgba)
         let rect = EditRecipe.Rect(x: Double(bx0) / Double(W), y: Double(by0) / Double(H), width: Double(pw) / Double(W), height: Double(ph) / Double(H))
         return (patch, rect)
+    }
+
+    /// The model's fill over the mask's box (sRGB 0…1).
+    struct Canvas {
+        let x0: Int, y0: Int, width: Int, height: Int
+        var data: [Float]   // RGB
+        func rgb(_ x: Int, _ y: Int, _ c: Int) -> Float {
+            let cx = min(max(x - x0, 0), width - 1), cy = min(max(y - y0, 0), height - 1)
+            return data[(cy * width + cx) * 3 + c]
+        }
+    }
+
+    /// The model's fill over the mask's box: one square window of `contextFactor` × the mask's extent (at least
+    /// `minimumWindow`), centred on the box, resized to the model's side. Tiling the mask at full detail was tried
+    /// (2026-10-16) and dropped: without the whole face as context the tiles lost the brows and left seams.
+    static func modelFill(x0 bx0: Int, y0 by0: Int, x1 bx1: Int, y1 by1: Int, source: CGImage, inpainter: any Inpainting,
+                          masked: (Double, Double) -> Bool) async throws -> Canvas {
+        let W = source.width, H = source.height, n = RemoveEngine.side
+        let extent = max(bx1 - bx0, by1 - by0)
+        let side = min(max(Int(Double(extent) * contextFactor), minimumWindow), W, H)
+        let cx = Double(bx0 + bx1) / 2, cy = Double(by0 + by1) / 2
+        let wx = min(max(Int(cx - Double(side) / 2), 0), W - side), wy = min(max(Int(cy - Double(side) / 2), 0), H - side)
+        let window = try RemoveEngine.drawRegion(of: source, x: wx, y: wy, width: side, height: side)
+        let scale = Double(side) / Double(n)
+        var image = [Float](repeating: 0, count: 3 * n * n), mask = [Float](repeating: 0, count: n * n)
+        for my in 0..<n { for mx in 0..<n {
+            let sx = (Double(mx) + 0.5) * scale - 0.5, sy = (Double(my) + 0.5) * scale - 0.5
+            let rgb = RemoveEngine.bilinear(window, width: side, height: side, x: sx, y: sy)
+            for c in 0..<3 { image[c * n * n + my * n + mx] = rgb[c] }
+            if masked(Double(wx) + sx + 0.5, Double(wy) + sy + 0.5) { mask[my * n + mx] = 1 }
+        } }
+        try Task.checkCancellation()
+        let result = try await inpainter.inpaint(image: image, mask: mask, side: n)
+        try Task.checkCancellation()
+        let pw = bx1 - bx0, ph = by1 - by0
+        var canvas = Canvas(x0: bx0, y0: by0, width: pw, height: ph, data: [Float](repeating: 0, count: pw * ph * 3))
+        for y in 0..<ph { for x in 0..<pw {
+            let mx = (Double(bx0 + x - wx) + 0.5) / scale - 0.5, my = (Double(by0 + y - wy) + 0.5) / scale - 0.5
+            for c in 0..<3 { canvas.data[(y * pw + x) * 3 + c] = Float(RemoveEngine.bilinearPlane(result, plane: c, side: n, x: mx, y: my)) }
+        } }
+        return canvas
     }
 
     /// The model's fill is computed at 512 px and scaled up, so it is smoother than the photo (owner report 2026-10-16:

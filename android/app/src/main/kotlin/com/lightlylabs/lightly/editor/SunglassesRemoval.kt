@@ -18,8 +18,9 @@ import kotlin.math.roundToInt
  * A port of iOS `SunglassesRemoval.swift`: the same dilation, window and feather.
  */
 object SunglassesRemoval {
-    /** The trial's MaxFilters 15, 15, 15 and 9 px on a 2000 px photo: a radius of 25 px per 2000 px of the long edge. */
-    const val DILATION_OF_LONG_EDGE = 0.0125
+    /** 0.8 % of the long edge (iOS dilationOfLongEdge; was 0.0125, which repainted the nose, eye corners and brows and
+     *  smoothed them: owner report 2026-10-16). */
+    const val DILATION_OF_LONG_EDGE = 0.008
     const val CONTEXT_FACTOR = 1.5
     const val MINIMUM_WINDOW = 256
     const val FEATHER_SIGMA = 3.0

@@ -1182,7 +1182,7 @@
        "ambient": 400
       },
       "removal": {
-       "dilation": "MaxFilter 15, 15, 15, 9 (px)",
+       "dilationOfLongEdge": 0.008,
        "glare": {
         "sigmaOfIrisSpan": 0.08,
         "contrast": 0.08,

@@ -310,7 +310,7 @@ final class SunglassesEngineTests: XCTestCase {
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
         for name in ["glasses_black_front_01", "glasses_side_angle_01", "glasses_thin_metal_01", "glasses_thick_deep_01", "glasses_pair_mixed_01", "sunglasses_round_01"] {
             let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture("experiments/test-photos/\(name).jpg").path)?.cgImage)
-            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let image = ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_FULLRES"] == "1" ? Self.upscaled(full, by: 2) : try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
             let (rgba, W, H) = Self.rgba8(image)
             var linear = FloatImage.linear(fromRGBA8: rgba, width: W, height: H)
             var crop = CGRect.null
@@ -462,6 +462,16 @@ final class SunglassesEngineTests: XCTestCase {
         try UIImage(cgImage: cgImage(region, width: x1 - x0, height: y1 - y0)).pngData()!.write(to: out.appendingPathComponent("\(name).ios-region.png"))
         let json: [String: Any] = ["width": W, "height": H, "faces": faces, "region": [x0, y0, x1 - x0, y1 - y0]]
         try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys]).write(to: out.appendingPathComponent("\(name).analysis.json"))
+    }
+
+    /// A phone-sized stand-in for a test photo: `factor` × its size, high-quality interpolation.
+    static func upscaled(_ image: CGImage, by factor: Int) -> CGImage {
+        let w = image.width * factor, h = image.height * factor
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()!
     }
 
     static func rgba8(_ image: CGImage) -> ([UInt8], Int, Int) {
