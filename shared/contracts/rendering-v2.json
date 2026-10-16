@@ -1130,6 +1130,10 @@
          25,
          50
         ],
+        "keepPaintedAreaCovered": {
+         "grid": 32,
+         "reachMetres": 0.06
+        },
         "bridgeProbe": {
          "halfWidthMetres": 0.004,
          "frontPlaneMetres": 0.02

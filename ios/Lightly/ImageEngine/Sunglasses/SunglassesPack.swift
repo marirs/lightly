@@ -111,6 +111,8 @@ struct SunglassesPack: Sendable {
         var bridgeBottomMetres: Float = 0
         /// Half the lenses' height (metres), from the lens vertices.
         var lensHalfHeightMetres: Float = 0
+        /// The front's highest point above the lens centre (metres): frame vertices within 2 cm of the lens plane.
+        var frontTopMetres: Float = 0
     }
 
     /// LSG 1 (shared/sunglasses/build_sunglasses.py): "LSG1", u32 version, u32 vertexCount, u32 elementCount, then
@@ -185,7 +187,7 @@ struct SunglassesPack: Sendable {
         func f32(_ o: Int) -> Float { Float(bitPattern: UInt32(littleEndian: data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt32.self) })) }
         let vertexCount = u32(8), elementCount = u32(12)
         var offset = 16 + vertexCount * 32
-        var bridgeBottom = Float.infinity, lensTop = -Float.infinity, lensBottom = Float.infinity
+        var bridgeBottom = Float.infinity, lensTop = -Float.infinity, lensBottom = Float.infinity, frontTop = -Float.infinity
         for _ in 0..<elementCount {
             let material = u32(offset), count = u32(offset + 4)
             offset += 8
@@ -195,12 +197,16 @@ struct SunglassesPack: Sendable {
                 let x = f32(v), y = f32(v + 4), z = f32(v + 8)
                 guard abs(z) < SunglassesConstants.frontPlaneMetres + 0.01 else { continue }
                 if isLens { lensTop = max(lensTop, y); lensBottom = min(lensBottom, y) }
-                else if abs(x) < 0.004, abs(z) < SunglassesConstants.frontPlaneMetres { bridgeBottom = min(bridgeBottom, y) }
+                else if abs(z) < SunglassesConstants.frontPlaneMetres {
+                    frontTop = max(frontTop, y)
+                    if abs(x) < 0.004 { bridgeBottom = min(bridgeBottom, y) }
+                }
             }
             offset += count * 4
         }
         mesh.bridgeBottomMetres = bridgeBottom.isFinite ? bridgeBottom : 0
         mesh.lensHalfHeightMetres = lensTop > lensBottom ? (lensTop - lensBottom) / 2 : 0
+        mesh.frontTopMetres = frontTop.isFinite ? frontTop : 0
     }
 
     private static let cache = LockedBox<[String: (mesh: Mesh, textures: [Int: (base: UIImage?, normal: UIImage?)])]>([:])

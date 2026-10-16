@@ -277,7 +277,7 @@ def stages():
                             "pose": {"interIrisReferenceMetres": 0.093, "sizePerUnit": 0.004, "widthFitCheekFactor": 1.07, "frontPlaneMetres": 0.02,
                                      "profileMarginMetres": 0.007,
                                      "profileTargetYawDegrees": 85, "yawRampMetres": 0.025},
-                            "placement": {"eyeDepthMetres": 0.015, "pantoscopicTiltRadians": -0.14, "seatOnNose": {"landmark": 6, "maxDropOfLensHalfHeight": 0.6, "fadeYawDegrees": [25, 50], "bridgeProbe": {"halfWidthMetres": 0.004, "frontPlaneMetres": 0.02}}, "faceOccluderMinYawDegrees": 25},
+                            "placement": {"eyeDepthMetres": 0.015, "pantoscopicTiltRadians": -0.14, "seatOnNose": {"landmark": 6, "maxDropOfLensHalfHeight": 0.6, "fadeYawDegrees": [25, 50], "keepPaintedAreaCovered": {"grid": 32, "reachMetres": 0.06}, "bridgeProbe": {"halfWidthMetres": 0.004, "frontPlaneMetres": 0.02}}, "faceOccluderMinYawDegrees": 25},
                             "occluders": {"headCentreMetres": [0, -0.026, -0.098], "headRadiiMetres": [0.076, 0.115, 0.098],
                                           "faceMeshPushBackMetres": 0.006, "faceMeshNoseOnlyOffProfile": {"halfWidth": 0.02, "top": 0.0, "bottom": -0.06}, "headBackLengthMetres": 0.2, "earClipStartMetres": 0.12, "earBoxXMetres": [0.04, 0.20], "farArmClipStartMetres": 0.02, "farArmMinTurn": 0.1},
                             "passes": {"frontDepthMetres": 0.012, "minShadingSamplesPerAxis": 2, "iosSupersampleMaxSide": 4096, "keyLight": {"intensity": 1000, "eulerRadians": [-0.6, 0.4, 0]},

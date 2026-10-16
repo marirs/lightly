@@ -142,7 +142,8 @@ object SunglassesRenderer {
             val r = frameWidth.toFloat() / face.analysis.analysisWidth
             val p = FloatArray(face.analysis.landmarks.size) { face.analysis.landmarks[it] * r }
             val pose = pose(p, frameWidth, frameHeight) { x, y -> maps.background(x, y) }
-            val passes = passes(pack, pair, textures, pose, g.size, p, frameWidth, frameHeight) ?: continue
+            val coverTop = g.removed?.let { paintedTopUp(it.rect, pose, p, frameWidth, frameHeight) }
+            val passes = passes(pack, pair, textures, pose, g.size, p, frameWidth, frameHeight, coverTop) ?: continue
             composite(passes, out, regionX, regionY, region.width, region.height, g, pose, face.analysis.irisSpan * r, maps)
         }
         return RgbaImage(region.width, region.height, out)
@@ -181,7 +182,7 @@ object SunglassesRenderer {
 
     /** iOS SunglassesRenderer.seatedOrigin: the origin lowered along ey so the bridge rests on the nose (owner report
      *  2026-10-16: it floated at the brows), faded out with the turn. */
-    fun seatedOrigin(pose: Pose, p: FloatArray, width: Int, height: Int, mesh: SunglassesPack.Mesh, k: Double): DoubleArray {
+    fun seatedOrigin(pose: Pose, p: FloatArray, width: Int, height: Int, mesh: SunglassesPack.Mesh, k: Double, coverTopUp: Double? = null): DoubleArray {
         if (p.size < 474 * 3) return pose.origin
         fun sc(i: Int) = doubleArrayOf(p[i * 3] - width / 2.0, height / 2.0 - p[i * 3 + 1], -p[i * 3 + 2].toDouble())
         val iris = DoubleArray(3) { (sc(468)[it] + sc(473)[it]) / 2 }
@@ -190,9 +191,32 @@ object SunglassesRenderer {
         val yaw = abs(atan2(pose.ez[0], pose.ez[2])) * 180 / PI
         val fade = ((SunglassesConstants.SEAT_FADE_END_YAW_DEGREES - yaw)
                     / (SunglassesConstants.SEAT_FADE_END_YAW_DEGREES - SunglassesConstants.SEAT_FADE_START_YAW_DEGREES)).coerceIn(0.0, 1.0)
-        val drop = fade * min(max(mesh.bridgeBottomMetres * k - noseRidge, 0.0),
+        var drop = fade * min(max(mesh.bridgeBottomMetres * k - noseRidge, 0.0),
                               SunglassesConstants.SEAT_MAX_DROP_OF_LENS_HALF_HEIGHT * mesh.lensHalfHeightMetres * k)
+        // Replacing their own glasses: lowered only while the front's top still covers the painted area (iOS).
+        if (coverTopUp != null) {
+            val originUp = (0 until 3).sumOf { (pose.origin[it] - iris[it]) * pose.ey[it] }
+            drop = min(drop, max(0.0, originUp + mesh.frontTopMetres * k - coverTopUp))
+        }
         return DoubleArray(3) { pose.origin[it] - pose.ey[it] * drop }
+    }
+
+    /** iOS SunglassesRenderer.paintedTopUp: the painted rectangle's highest point above the irises along ey (scene
+     *  units), from a 32 × 32 grid within 0.06 m of the irises along ex. */
+    fun paintedTopUp(rect: com.lightlylabs.lightly.session.NormalisedRect, pose: Pose, p: FloatArray, width: Int, height: Int): Double? {
+        val irisX = (p[468 * 3] + p[473 * 3]) / 2.0 - width / 2.0; val irisY = height / 2.0 - (p[468 * 3 + 1] + p[473 * 3 + 1]) / 2.0
+        val exl = kotlin.math.hypot(pose.ex[0], pose.ex[1]); val eyl = kotlin.math.hypot(pose.ey[0], pose.ey[1])
+        val reach = 0.06 * pose.pixelsPerMetre
+        var best: Double? = null
+        for (j in 0..31) for (i in 0..31) {
+            val x = (rect.x + rect.width * i / 31) * width - width / 2.0
+            val y = height / 2.0 - (rect.y + rect.height * j / 31) * height
+            val dx = x - irisX; val dy = y - irisY
+            if (abs((dx * pose.ex[0] + dy * pose.ex[1]) / exl) >= reach) continue
+            val up = (dx * pose.ey[0] + dy * pose.ey[1]) / eyl
+            if (best == null || up > best) best = up
+        }
+        return best
     }
 
     /** The pair's pixels per metre before Size: the eye-corner scale, but never so large that the front is wider than
@@ -208,7 +232,7 @@ object SunglassesRenderer {
 
     /** The three passes over a square of ±0.2 m around the pair's origin (the pair reaches ~0.16 m behind its lenses). */
     fun passes(pack: SunglassesPack, pair: SunglassesPack.Pair, textures: (String) -> SunglassesRaster.Texture?, pose: Pose, size: Double,
-               p: FloatArray, width: Int, height: Int): Passes? {
+               p: FloatArray, width: Int, height: Int, coverTopUp: Double? = null): Passes? {
         val s = pose.pixelsPerMetre
         val cx = pose.origin[0] + width / 2.0; val cy = height / 2.0 - pose.origin[1]; val half = 0.2 * s
         val x0 = max(0, (cx - half).toInt()); val y0 = max(0, (cy - half).toInt())
@@ -217,7 +241,7 @@ object SunglassesRenderer {
         val rw = x1 - x0; val rh = y1 - y0
         val mesh = pack.mesh(pair)
         val k = fittedScale(s, mesh.frontWidthMetres, p) * (1 + SunglassesConstants.SIZE_PER_UNIT * size)
-        val placement = SunglassesRaster.Placement(seatedOrigin(pose, p, width, height, mesh, k), pose.ex, pose.ey, pose.ez, k)
+        val placement = SunglassesRaster.Placement(seatedOrigin(pose, p, width, height, mesh, k, coverTopUp), pose.ex, pose.ey, pose.ez, k)
         val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s, pose)
         val frame = ByteArray(rw * rh * 4); val front = ByteArray(rw * rh); val lens = ByteArray(rw * rh)
         fun byte(v: Float) = (v.coerceIn(0f, 1f) * 255 + 0.5f).toInt().toByte()

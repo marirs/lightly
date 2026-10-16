@@ -167,6 +167,10 @@ final class SunglassesAnalyzer: @unchecked Sendable {
         configuration.computeUnits = .cpuOnly
         #else
         configuration.computeUnits = .all
+        #if DEBUG
+        // Device check (owner report 2026-10-16: pairs misplaced on the iPhone only): run the models on the CPU.
+        if DebugArguments.current.contains("--sunglasses-cpu") { configuration.computeUnits = .cpuOnly }
+        #endif
         #endif
         do {
             return SunglassesAnalyzer(landmarker: try MLModel(contentsOf: lm, configuration: configuration),

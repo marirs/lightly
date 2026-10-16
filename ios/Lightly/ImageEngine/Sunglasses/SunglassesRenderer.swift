@@ -117,7 +117,7 @@ enum SunglassesRenderer {
 
     /// Renders the three §7.5 passes over the pair's region of a W × H render.
     static func renderPasses(pair: SunglassesPack.Pair, pack: SunglassesPack, pose: Pose, size: Double,
-                             landmarks P: [SIMD3<Float>], width W: Int, height H: Int) throws -> Passes {
+                             landmarks P: [SIMD3<Float>], width W: Int, height H: Int, coverTopUp: Float? = nil) throws -> Passes {
         let s = pose.pixelsPerMetre
         // The pair reaches ~0.16 m behind its lenses and ~0.08 m to each side: a square of ±0.2 m around its origin
         // holds it at any turn.
@@ -163,7 +163,7 @@ enum SunglassesRenderer {
             holder.addChildNode(ear)
         }
         let k = fittedScale(pixelsPerMetre: s, frontWidthMetres: loaded.mesh.frontWidthMetres, landmarks: P) * (1 + SunglassesConstants.sizePerUnit * Float(size))
-        let seat = seatedOrigin(pose: pose, landmarks: P, width: W, height: H, mesh: loaded.mesh, scale: k)
+        let seat = seatedOrigin(pose: pose, landmarks: P, width: W, height: H, mesh: loaded.mesh, scale: k, coverTopUp: coverTopUp)
         holder.transform = SCNMatrix4(m11: pose.ex.x * k, m12: pose.ex.y * k, m13: pose.ex.z * k, m14: 0,
                                       m21: pose.ey.x * k, m22: pose.ey.y * k, m23: pose.ey.z * k, m24: 0,
                                       m31: pose.ez.x * k, m32: pose.ez.y * k, m33: pose.ez.z * k, m34: 0,
@@ -213,8 +213,11 @@ enum SunglassesRenderer {
     /// pairs the bridge sits high on the lenses). Target: the bridge's lowest point at landmark 6, the nasal ridge just
     /// below the eye line. The drop is never negative and at most `seatMaxDropOfLensHalfHeight` × half the lens height,
     /// so the pupils stay in the lens's upper part as real frames sit.
+    /// `coverTopUp`: when the face's own glasses were painted out, the painted area's highest point above the irises
+    /// along ey (scene units): the pair is lowered only while its front's top still reaches it, so the painted-out
+    /// strip never shows above the new pair (owner report 2026-10-16: smeared brows above a lowered Club).
     static func seatedOrigin(pose: Pose, landmarks P: [SIMD3<Float>], width W: Int, height H: Int, mesh: SunglassesPack.Mesh,
-                             scale k: Float) -> SIMD3<Float> {
+                             scale k: Float, coverTopUp: Float? = nil) -> SIMD3<Float> {
         guard P.count > 473 else { return pose.origin }
         func sc(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z) }
         let iris = (sc(468) + sc(473)) / 2
@@ -224,9 +227,32 @@ enum SunglassesRenderer {
         let yaw = abs(atan2(pose.ez.x, pose.ez.z)) * 180 / .pi
         let fade = min(max((SunglassesConstants.seatFadeEndYawDegrees - yaw)
                            / (SunglassesConstants.seatFadeEndYawDegrees - SunglassesConstants.seatFadeStartYawDegrees), 0), 1)
-        let drop = fade * min(max(mesh.bridgeBottomMetres * k - noseRidge, 0),
+        var drop = fade * min(max(mesh.bridgeBottomMetres * k - noseRidge, 0),
                               SunglassesConstants.seatMaxDropOfLensHalfHeight * mesh.lensHalfHeightMetres * k)
+        if let coverTopUp {
+            let originUp = simd_dot(pose.origin - iris, pose.ey)
+            drop = min(drop, max(0, originUp + mesh.frontTopMetres * k - coverTopUp))
+        }
         return pose.origin - pose.ey * drop
+    }
+
+    /// The painted-out area's highest point above the irises along ey (scene units at the render size): points of the
+    /// patch's rectangle (`sunglasses.removed.rect`, normalised), sampled on a 32 × 32 grid, within 0.06 m of the
+    /// irises along ex. nil when none.
+    static func paintedTopUp(_ rect: EditRecipe.Rect, pose: Pose, landmarks P: [SIMD3<Float>], width W: Int, height H: Int) -> Float? {
+        let irisX = (P[468].x + P[473].x) / 2 - Float(W) / 2, irisY = Float(H) / 2 - (P[468].y + P[473].y) / 2
+        let ex2 = simd_normalize(SIMD2(pose.ex.x, pose.ex.y)), ey2 = simd_normalize(SIMD2(pose.ey.x, pose.ey.y))
+        let reach = 0.06 * pose.pixelsPerMetre
+        var best: Float?
+        for j in 0...31 { for i in 0...31 {
+            let x = Float(rect.x + rect.width * Double(i) / 31) * Float(W) - Float(W) / 2
+            let y = Float(H) / 2 - Float(rect.y + rect.height * Double(j) / 31) * Float(H)
+            let d = SIMD2(x - irisX, y - irisY)
+            guard abs(simd_dot(d, ex2)) < reach else { continue }
+            let up = simd_dot(d, ey2)
+            if best == nil || up > best! { best = up }
+        } }
+        return best
     }
 
     /// The pair's scale in pixels per metre before the Size slider: the eye-corner scale, but never so large that the
@@ -433,13 +459,16 @@ enum SunglassesRenderer {
         for face in faces {
             guard let g = face.edit.sunglasses, let id = g.pair, let pair = pack.pair(id), face.analysis.isReadable else { continue }
             // 1. The face's own glasses, painted out (only while a pair is chosen).
+            var painted: EditRecipe.Rect?
             if let removed = g.removed, let patch = removedPatch(removed.patch.sha256) {
                 SunglassesRemoval.composite(patch, onto: &image)
+                painted = removed.rect
             }
             let P = scaledLandmarks(face.analysis, renderWidth: image.width)
             let pose = pose(landmarks: P, width: image.width, height: image.height, background: maps.background)
+            let coverTop = painted.map { paintedTopUp($0, pose: pose, landmarks: P, width: image.width, height: image.height) } ?? nil
             guard let passes = try? renderPasses(pair: pair, pack: pack, pose: pose, size: g.size, landmarks: P,
-                                                 width: image.width, height: image.height) else { continue }
+                                                 width: image.width, height: image.height, coverTopUp: coverTop) else { continue }
             let d = face.analysis.irisSpan * Float(image.width) / Float(face.analysis.analysisWidth)
             composite(passes, onto: &image, sunglasses: g, pose: pose, irisSpan: d, maps: maps)
         }

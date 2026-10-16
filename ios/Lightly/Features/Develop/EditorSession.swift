@@ -885,6 +885,20 @@ final class EditorSession {
             guard let self, !self.isClosed else { return }
             self.sunglassesAnalyzer = result.analyzer
             self.sceneCache.sunglasses = result.analyses
+            #if DEBUG
+            // Device check: the analysis as the phone computed it, for comparison with the simulator.
+            if DebugArguments.current.contains("--sunglasses-dump") {
+                let faces = result.analyses.map { a -> [String: Any] in
+                    ["box": [a.faceBox.x, a.faceBox.y, a.faceBox.width, a.faceBox.height], "logit": a.faceLogit,
+                     "width": a.analysisWidth, "height": a.analysisHeight,
+                     "landmarks": a.landmarks.flatMap { [Double($0.x), Double($0.y), Double($0.z)] },
+                     "eyesInput": faces.first { $0.box == a.faceBox }.map { f in [f.leftEye.map { [$0.x, $0.y] }, f.rightEye.map { [$0.x, $0.y] }] } ?? []]
+                }
+                if let data = try? JSONSerialization.data(withJSONObject: ["cpu": DebugArguments.current.contains("--sunglasses-cpu"), "faces": faces]) {
+                    DiagnosticTrace.evidence(data, named: "sunglasses-analysis.json")
+                }
+            }
+            #endif
             self.sunglassesAnalysing = false
             self.sunglassesTask = nil
             self.analysisRevision += 1
