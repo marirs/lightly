@@ -163,10 +163,11 @@ enum SunglassesRenderer {
             holder.addChildNode(ear)
         }
         let k = fittedScale(pixelsPerMetre: s, frontWidthMetres: loaded.mesh.frontWidthMetres, landmarks: P) * (1 + SunglassesConstants.sizePerUnit * Float(size))
+        let seat = seatedOrigin(pose: pose, landmarks: P, width: W, height: H, mesh: loaded.mesh, scale: k)
         holder.transform = SCNMatrix4(m11: pose.ex.x * k, m12: pose.ex.y * k, m13: pose.ex.z * k, m14: 0,
                                       m21: pose.ey.x * k, m22: pose.ey.y * k, m23: pose.ey.z * k, m24: 0,
                                       m31: pose.ez.x * k, m32: pose.ez.y * k, m33: pose.ez.z * k, m34: 0,
-                                      m41: pose.origin.x, m42: pose.origin.y, m43: 0, m44: 1)
+                                      m41: seat.x, m42: seat.y, m43: 0, m44: 1)
         scene.rootNode.addChildNode(holder)
         // The photo's own face mesh, depth only, pushed 6 mm away so the nose bridge stays behind the frame's bridge.
         scene.rootNode.addChildNode(faceOccluder(P, pose: pose, width: W, height: H, zShift: -pose.origin.z - SunglassesConstants.faceMeshPushBackMetres * s))
@@ -205,6 +206,27 @@ enum SunglassesRenderer {
         // Lens pass: lenses white, frame black, premultiplied, so red/255 is the lens coverage.
         let lens = (0..<(rw * rh)).map { Float(lensPixels[$0 * 4]) / 255 }
         return Passes(x0: x0, y0: y0, width: rw, height: rh, frame: frame, front: front, lens: lens)
+    }
+
+    /// The pair's origin, lowered along the head's up axis so its bridge rests on the nose (owner report 2026-10-16:
+    /// the bridge floated a centimetre above the nose, at the brows; the lens centre was on the pupils, but on most
+    /// pairs the bridge sits high on the lenses). Target: the bridge's lowest point at landmark 6, the nasal ridge just
+    /// below the eye line. The drop is never negative and at most `seatMaxDropOfLensHalfHeight` × half the lens height,
+    /// so the pupils stay in the lens's upper part as real frames sit.
+    static func seatedOrigin(pose: Pose, landmarks P: [SIMD3<Float>], width W: Int, height H: Int, mesh: SunglassesPack.Mesh,
+                             scale k: Float) -> SIMD3<Float> {
+        guard P.count > 473 else { return pose.origin }
+        func sc(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z) }
+        let iris = (sc(468) + sc(473)) / 2
+        let noseRidge = simd_dot(sc(6) - iris, pose.ey)                  // scene units, + up
+        // Full on a near-frontal face, fading out with the turn: on a turned face the lowered far lens met the nose
+        // occluder and lost pieces (2026-10-16), and there the eye line already sits the pair well.
+        let yaw = abs(atan2(pose.ez.x, pose.ez.z)) * 180 / .pi
+        let fade = min(max((SunglassesConstants.seatFadeEndYawDegrees - yaw)
+                           / (SunglassesConstants.seatFadeEndYawDegrees - SunglassesConstants.seatFadeStartYawDegrees), 0), 1)
+        let drop = fade * min(max(mesh.bridgeBottomMetres * k - noseRidge, 0),
+                              SunglassesConstants.seatMaxDropOfLensHalfHeight * mesh.lensHalfHeightMetres * k)
+        return pose.origin - pose.ey * drop
     }
 
     /// The pair's scale in pixels per metre before the Size slider: the eye-corner scale, but never so large that the
@@ -259,7 +281,11 @@ enum SunglassesRenderer {
     private static func faceOccluder(_ P: [SIMD3<Float>], pose: Pose, width W: Int, height H: Int, zShift: Float) -> SCNNode {
         let vertices = (0..<468).map { SCNVector3(P[$0].x - Float(W) / 2, Float(H) / 2 - P[$0].y, -P[$0].z + zShift) }
         // On a profile the whole mesh hides the far lens behind the face; otherwise only the nose (see noseTriangles).
-        let indices = pose.isProfile ? FaceMeshTriangles.indices : noseTriangles(P, pose: pose, width: W, height: H)
+        // Near frontal (|yaw| under `noseOcclusionMinYawDegrees`) nothing: a lens sits in front of the nose, and with the
+        // pair resting on the nose (seatedOrigin) the nose cut its lower inner corners (2026-10-16).
+        let yawDegrees = abs(atan2(pose.ez.x, pose.ez.z)) * 180 / .pi
+        let indices: [UInt16] = pose.isProfile ? FaceMeshTriangles.indices
+            : (yawDegrees < SunglassesConstants.noseOcclusionMinYawDegrees ? [] : noseTriangles(P, pose: pose, width: W, height: H))
         let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
         let geometry = SCNGeometry(sources: [SCNGeometrySource(vertices: vertices)], elements: [element])
         geometry.materials = [depthOnly()]

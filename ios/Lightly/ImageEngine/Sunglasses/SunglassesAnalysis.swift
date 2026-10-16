@@ -87,6 +87,10 @@ enum SunglassesConstants {
     static let widthFitCheekFactor: Float = 1.07
     /// A pair's front: its vertices within this of the lens plane (the arms reach far behind it).
     static let frontPlaneMetres: Float = 0.02
+    /// The bridge is lowered onto the nose by at most this × half the lens height (SunglassesRenderer.seatedOrigin).
+    static let seatMaxDropOfLensHalfHeight: Float = 0.6
+    static let noseOcclusionMinYawDegrees: Float = 25
+    static let seatFadeStartYawDegrees: Float = 25, seatFadeEndYawDegrees: Float = 50
     /// The frame passes are rendered at this multiple of the photo's resolution and box-averaged down, on top of 4×
     /// multisampling: fine rim detail otherwise sparkles in sub-pixel highlights.
     static let passSupersample = 2

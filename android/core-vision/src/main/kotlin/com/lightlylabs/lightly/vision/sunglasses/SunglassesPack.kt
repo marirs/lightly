@@ -38,6 +38,10 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
     class Mesh(val vertices: FloatArray, val elements: List<Element>) {
         class Element(val materialIndex: Int, val indices: IntArray)
         val vertexCount get() = vertices.size / 8
+        /** Lowest bridge point above the lens centre and half the lens height, metres (iOS SunglassesPack.measureFit);
+         *  filled by [SunglassesPack.mesh] from the materials' roles. */
+        var bridgeBottomMetres = 0.0
+        var lensHalfHeightMetres = 0.0
         /** The front's width in metres: x extent of the vertices within FRONT_PLANE_METRES of the lens plane. */
         val frontWidthMetres: Double by lazy {
             var lo = Double.MAX_VALUE; var hi = -Double.MAX_VALUE
@@ -67,7 +71,20 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
     @Synchronized
     fun mesh(pair: Pair): Mesh = meshes.getOrPut(pair.id) {
         val bytes = verified(pair.mesh, pair.meshSha256) ?: throw FormatException("${pair.mesh} is missing")
-        decodeLsg(bytes, pair.materials.size)
+        decodeLsg(bytes, pair.materials.size).also { m ->
+            var bridge = Double.MAX_VALUE; var top = -Double.MAX_VALUE; var bottom = Double.MAX_VALUE
+            for (e in m.elements) {
+                val lens = pair.materials.getOrNull(e.materialIndex)?.role == Role.LENS
+                for (i in e.indices) {
+                    val x = m.vertices[i * 8].toDouble(); val y = m.vertices[i * 8 + 1].toDouble(); val z = m.vertices[i * 8 + 2].toDouble()
+                    if (kotlin.math.abs(z) >= SunglassesConstants.FRONT_PLANE_METRES + 0.01) continue
+                    if (lens) { top = maxOf(top, y); bottom = minOf(bottom, y) }
+                    else if (kotlin.math.abs(x) < 0.004 && kotlin.math.abs(z) < SunglassesConstants.FRONT_PLANE_METRES) bridge = minOf(bridge, y)
+                }
+            }
+            m.bridgeBottomMetres = if (bridge < Double.MAX_VALUE) bridge else 0.0
+            m.lensHalfHeightMetres = if (top > bottom) (top - bottom) / 2 else 0.0
+        }
     }
 
     companion object {

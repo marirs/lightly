@@ -343,6 +343,48 @@ final class SunglassesEngineTests: XCTestCase {
         print("Sunglasses removal: \(out.path)")
     }
 
+    /// Diagnostic (owner report 2026-10-16: the pair sat above and beside her nose): the landmarks the placement uses —
+    /// irises 468/473 (red), eye corners 33/133/362/263 (blue), nose ridge 168/6/197/195/5/4/1 (yellow), with the pair's
+    /// origin (green) — over the original and over the Pilot render, written as nose.<photo>.png.
+    func testNosePlacementDiagnosticIsWritten() async throws {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_MATRIX"] == "1" else { throw XCTSkip("set LIGHTLY_SUNGLASSES_MATRIX=1") }
+        let analyzer = try XCTUnwrap(SunglassesAnalyzer.loadBundled())
+        let pack = try XCTUnwrap(SunglassesPack.bundled)
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("lightly-sunglasses")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        for name in ["glasses_black_front_01", "portrait_deep_03", "glasses_thick_deep_01"] {
+            let path = name.hasPrefix("portrait") ? "experiments/lut3d/photos/\(name).jpg" : "experiments/test-photos/\(name).jpg"
+            let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture(path).path)?.cgImage)
+            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let (rgba, W, H) = Self.rgba8(image)
+            let face = try XCTUnwrap(Self.editorFaces(image).first)
+            let a = try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: face.box, eyes: face.eyes)
+            let maps = SunglassesRenderer.Maps(analyses: [a], scale: 1)
+            let pose = SunglassesRenderer.pose(landmarks: a.landmarks, width: W, height: H, background: maps.background)
+            var linear = FloatImage.linear(fromRGBA8: rgba, width: W, height: H)
+            var edit = PortraitPanelModel.neutral(for: nil)
+            edit.sunglasses = .init(pair: try XCTUnwrap(pack.pairs.first { $0.name == "Pilot" }).id, lens: .dark, darkness: 40, size: 0, removed: nil)
+            SunglassesRenderer.render(&linear, faces: [(edit, a)], allAnalyses: [a], pack: pack)
+            for (tag, base) in [("orig", rgba), ("pilot", linear.rgba8FromLinear())] {
+                var px = base
+                func dot(_ x: Float, _ y: Float, _ c: (UInt8, UInt8, UInt8)) {
+                    for dy in -3...3 { for dx in -3...3 where dx * dx + dy * dy <= 9 {
+                        let X = Int(x) + dx, Y = Int(y) + dy
+                        guard X >= 0, Y >= 0, X < W, Y < H else { continue }
+                        let o = (Y * W + X) * 4; px[o] = c.0; px[o + 1] = c.1; px[o + 2] = c.2
+                    } }
+                }
+                for i in [468, 473] { dot(a.landmarks[i].x, a.landmarks[i].y, (255, 0, 0)) }
+                for i in [33, 133, 362, 263] { dot(a.landmarks[i].x, a.landmarks[i].y, (0, 120, 255)) }
+                for i in [168, 6, 197, 195, 5, 4, 1] { dot(a.landmarks[i].x, a.landmarks[i].y, (255, 230, 0)) }
+                dot(pose.origin.x + Float(W) / 2, Float(H) / 2 - pose.origin.y, (0, 255, 0))
+                try UIImage(cgImage: Self.cgImage(px, width: W, height: H)).pngData()!.write(to: out.appendingPathComponent("nose.\(name).\(tag).png"))
+            }
+            print("sunglasses-nose \(name) box \(face.box) visionEyes \(face.eyes) logit \(a.faceLogit)")
+        }
+        print("Sunglasses nose: \(out.path)")
+    }
+
     /// Measurement for the width fit: each face's width at the cheek points 234/454 (metres, by the eye-corner scale)
     /// and each pair's front width (vertices within 2 cm of the lens plane), printed for review.
     func testFaceAndPairWidthsArePrinted() throws {

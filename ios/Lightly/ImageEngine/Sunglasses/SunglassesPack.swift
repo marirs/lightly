@@ -106,6 +106,11 @@ struct SunglassesPack: Sendable {
         /// The front's width in metres: the x extent of the vertices within `SunglassesConstants.frontPlaneMetres` of
         /// the lens plane (used to fit the pair to narrow faces).
         let frontWidthMetres: Float
+        /// The lowest point of the bridge (frame vertices within 4 mm of x = 0 and 2 cm of the lens plane), metres above
+        /// the lens centre: where the pair rests on the nose. 0 when the pair has no such vertices.
+        var bridgeBottomMetres: Float = 0
+        /// Half the lenses' height (metres), from the lens vertices.
+        var lensHalfHeightMetres: Float = 0
     }
 
     /// LSG 1 (shared/sunglasses/build_sunglasses.py): "LSG1", u32 version, u32 vertexCount, u32 elementCount, then
@@ -167,9 +172,35 @@ struct SunglassesPack: Sendable {
             let normal = try material.normal.map { UIImage(data: try verifiedData($0, sha256: material.normalSha256 ?? "")) } ?? nil
             textures[index] = (base, normal)
         }
-        let loaded = (mesh: mesh, textures: textures)
+        var fitted = mesh
+        Self.measureFit(&fitted, data: try verifiedData(pair.mesh, sha256: pair.meshSha256), pair: pair)
+        let loaded = (mesh: fitted, textures: textures)
         Self.cache.withLock { $0[pair.id] = loaded }
         return loaded
+    }
+
+    /// Fills `bridgeBottomMetres` and `lensHalfHeightMetres` from the LSG data (frame vs lens by material role).
+    static func measureFit(_ mesh: inout Mesh, data: Data, pair: Pair) {
+        func u32(_ o: Int) -> Int { Int(data.withUnsafeBytes { UInt32(littleEndian: $0.loadUnaligned(fromByteOffset: o, as: UInt32.self)) }) }
+        func f32(_ o: Int) -> Float { Float(bitPattern: UInt32(littleEndian: data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt32.self) })) }
+        let vertexCount = u32(8), elementCount = u32(12)
+        var offset = 16 + vertexCount * 32
+        var bridgeBottom = Float.infinity, lensTop = -Float.infinity, lensBottom = Float.infinity
+        for _ in 0..<elementCount {
+            let material = u32(offset), count = u32(offset + 4)
+            offset += 8
+            let isLens = pair.materials.indices.contains(material) && pair.materials[material].role == .lens
+            for k in 0..<count {
+                let v = 16 + u32(offset + k * 4) * 32
+                let x = f32(v), y = f32(v + 4), z = f32(v + 8)
+                guard abs(z) < SunglassesConstants.frontPlaneMetres + 0.01 else { continue }
+                if isLens { lensTop = max(lensTop, y); lensBottom = min(lensBottom, y) }
+                else if abs(x) < 0.004, abs(z) < SunglassesConstants.frontPlaneMetres { bridgeBottom = min(bridgeBottom, y) }
+            }
+            offset += count * 4
+        }
+        mesh.bridgeBottomMetres = bridgeBottom.isFinite ? bridgeBottom : 0
+        mesh.lensHalfHeightMetres = lensTop > lensBottom ? (lensTop - lensBottom) / 2 : 0
     }
 
     private static let cache = LockedBox<[String: (mesh: Mesh, textures: [Int: (base: UIImage?, normal: UIImage?)])]>([:])

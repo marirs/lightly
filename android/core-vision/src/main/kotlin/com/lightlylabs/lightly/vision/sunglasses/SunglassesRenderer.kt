@@ -179,6 +179,22 @@ object SunglassesRenderer {
     /** Output tile side for the rasteriser: its per-sample buffers are about 12 MB at this size (2 × 2 supersampling). */
     private const val TILE = 256
 
+    /** iOS SunglassesRenderer.seatedOrigin: the origin lowered along ey so the bridge rests on the nose (owner report
+     *  2026-10-16: it floated at the brows), faded out with the turn. */
+    fun seatedOrigin(pose: Pose, p: FloatArray, width: Int, height: Int, mesh: SunglassesPack.Mesh, k: Double): DoubleArray {
+        if (p.size < 474 * 3) return pose.origin
+        fun sc(i: Int) = doubleArrayOf(p[i * 3] - width / 2.0, height / 2.0 - p[i * 3 + 1], -p[i * 3 + 2].toDouble())
+        val iris = DoubleArray(3) { (sc(468)[it] + sc(473)[it]) / 2 }
+        val r = sc(6)
+        val noseRidge = (0 until 3).sumOf { (r[it] - iris[it]) * pose.ey[it] }
+        val yaw = abs(atan2(pose.ez[0], pose.ez[2])) * 180 / PI
+        val fade = ((SunglassesConstants.SEAT_FADE_END_YAW_DEGREES - yaw)
+                    / (SunglassesConstants.SEAT_FADE_END_YAW_DEGREES - SunglassesConstants.SEAT_FADE_START_YAW_DEGREES)).coerceIn(0.0, 1.0)
+        val drop = fade * min(max(mesh.bridgeBottomMetres * k - noseRidge, 0.0),
+                              SunglassesConstants.SEAT_MAX_DROP_OF_LENS_HALF_HEIGHT * mesh.lensHalfHeightMetres * k)
+        return DoubleArray(3) { pose.origin[it] - pose.ey[it] * drop }
+    }
+
     /** The pair's pixels per metre before Size: the eye-corner scale, but never so large that the front is wider than
      *  WIDTH_FIT_CHEEK_FACTOR × the face's width at the cheek points 234/454 (iOS SunglassesRenderer.fittedScale). */
     fun fittedScale(s: Double, frontWidthMetres: Double, p: FloatArray): Double {
@@ -200,8 +216,8 @@ object SunglassesRenderer {
         if (x1 - x0 <= 2 || y1 - y0 <= 2) return null
         val rw = x1 - x0; val rh = y1 - y0
         val mesh = pack.mesh(pair)
-        val placement = SunglassesRaster.Placement(pose.origin, pose.ex, pose.ey, pose.ez,
-            fittedScale(s, mesh.frontWidthMetres, p) * (1 + SunglassesConstants.SIZE_PER_UNIT * size))
+        val k = fittedScale(s, mesh.frontWidthMetres, p) * (1 + SunglassesConstants.SIZE_PER_UNIT * size)
+        val placement = SunglassesRaster.Placement(seatedOrigin(pose, p, width, height, mesh, k), pose.ex, pose.ey, pose.ez, k)
         val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s, pose)
         val frame = ByteArray(rw * rh * 4); val front = ByteArray(rw * rh); val lens = ByteArray(rw * rh)
         fun byte(v: Float) = (v.coerceIn(0f, 1f) * 255 + 0.5f).toInt().toByte()
@@ -225,7 +241,9 @@ object SunglassesRenderer {
     fun faceOccluder(p: FloatArray, width: Int, height: Int, zShift: Double, pose: Pose? = null): FloatArray {
         // Off profile only the nose occludes (iOS SunglassesRenderer.noseTriangles, matrix review 2026-10-15): the rest of
         // the mesh is too coarse in depth this close to the lenses and cut jagged pieces out of the far lens.
-        val idx = if (pose == null || pose.isProfile) FaceMeshTriangles.INDICES else noseTriangles(p, pose, width, height)
+        val yaw = if (pose == null) 90.0 else abs(atan2(pose.ez[0], pose.ez[2])) * 180 / PI
+        val idx = if (pose == null || pose.isProfile) FaceMeshTriangles.INDICES
+            else if (yaw < SunglassesConstants.NOSE_OCCLUSION_MIN_YAW_DEGREES) IntArray(0) else noseTriangles(p, pose, width, height)
         val out = FloatArray(idx.size * 3)
         for ((o, i) in idx.withIndex()) {
             out[o * 3] = (p[i * 3] - width / 2.0).toFloat()

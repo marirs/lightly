@@ -1122,7 +1122,20 @@
       },
       "placement": {
        "eyeDepthMetres": 0.015,
-       "pantoscopicTiltRadians": -0.14
+       "pantoscopicTiltRadians": -0.14,
+       "seatOnNose": {
+        "landmark": 6,
+        "maxDropOfLensHalfHeight": 0.6,
+        "fadeYawDegrees": [
+         25,
+         50
+        ],
+        "bridgeProbe": {
+         "halfWidthMetres": 0.004,
+         "frontPlaneMetres": 0.02
+        }
+       },
+       "faceOccluderMinYawDegrees": 25
       },
       "occluders": {
        "headCentreMetres": [

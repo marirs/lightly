@@ -24,6 +24,12 @@ object SunglassesConstants {
     const val WIDTH_FIT_CHEEK_FACTOR = 1.07
     /** A pair's front: its vertices within this of the lens plane. */
     const val FRONT_PLANE_METRES = 0.02
+    /** The bridge is lowered onto the nose (landmark 6) by at most this × half the lens height, fully up to
+     *  SEAT_FADE_START_YAW_DEGREES of turn and not at all from SEAT_FADE_END_YAW_DEGREES (iOS seatedOrigin). */
+    const val SEAT_MAX_DROP_OF_LENS_HALF_HEIGHT = 0.6
+    const val SEAT_FADE_START_YAW_DEGREES = 25.0; const val SEAT_FADE_END_YAW_DEGREES = 50.0
+    /** Near frontal (|yaw| under this) the face mesh does not occlude at all: a lens sits in front of the nose. */
+    const val NOSE_OCCLUSION_MIN_YAW_DEGREES = 25.0
     /** Ear occluders (owner report 2026-10-14: on a turned face the arm lay over the ear): depth-only boxes hide the
      *  arms from this far behind the lens plane on, |x| between the inner and outer bounds (iOS SunglassesConstants). */
     const val EAR_CLIP_START_METRES = 0.12

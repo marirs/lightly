@@ -442,11 +442,16 @@ the background probability exceeds 0.5 (or the image edge). With that distance m
 
 **Placement.** The pair's origin (its lens centre) sits at `iris + s · 0.015 · ez`, where iris is the midpoint of
 468 and 473 in scene units (x − W/2, H/2 − y, −z); the lens plane is 15 mm in front of the irises along the head's own
-axis. The pair is tilted −8° about its x axis (pantoscopic tilt). Projection is orthographic onto the photo.
+axis. *Seat on the nose* (owner report 2026-10-16: the bridge floated at the brows): the origin is lowered along ey
+by `f · min(max(b · k − n, 0), 0.6 · h · k)`, where b is the pair's lowest bridge point above its lens centre (frame
+vertices within 4 mm of x = 0 and 2 cm of the lens plane), h half its lens height, k the pair's scale, n the height of
+landmark 6 (nasal ridge) above the irises' midpoint along ey, and f = clamp((50° − |yaw|)/25°, 0, 1). The pair is
+tilted −8° about its x axis (pantoscopic tilt). Projection is orthographic onto the photo.
 
 **Occluders** (depth only, drawn first): an ellipsoid in the pair's frame, centre (0, −0.026, −0.098) m, radii
 (0.076, 0.115, 0.098) m; and the face mesh (468 landmarks, MediaPipe's 898 canonical triangles) in scene units,
-pushed 6 mm (0.006 s) away from the viewer — off profile only its nose occludes: triangles whose three landmarks lie
+pushed 6 mm (0.006 s) away from the viewer — under 25° of turn none of it occludes (a lens sits in front of the
+nose); otherwise off profile only its nose occludes: triangles whose three landmarks lie
 within 0.02 m of the centre line (head x) and between 0.06 m below and level with the irises (head y), since the rest is
 too coarse in depth this close to the lenses and cut pieces out of the far lens (2026-10-15); behind the ellipsoid's
 centre, an elliptic cylinder of its x and y radii, 0.2 m long, so an inward-curling arm tip stays hidden; and two ear boxes in the head's (holder's) frame, |x| from 0.04 to 0.20 m,
@@ -531,6 +536,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 5 | 2026-10-05 | **background.replace, subject colour:** the composite uses the estimated foreground colour (Germer multilevel estimate at the working resolution, its colour correction up-sampled to the frame) instead of the observed pixel. Before, iOS composited the observed pixel and Android subtracted a coarse plate of the old background, which left the old background's colour in hair (iOS, Android) and over-corrected to cyan where the plate was wrong (Android). Goldens `foreground`; background.focus goldens unchanged. | No: `developModel.constantsSha256` is unchanged |
 | 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
 | 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
-| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, ear and far-arm occluders, the turn raised from 25 mm, a wider and deeper eye band, a nose-only face occluder off profile, and the head continued backwards, and the paint-out takes lens glare and fills past a turned face's outline from the background. | No |
+| 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, ear and far-arm occluders, the turn raised from 25 mm, a wider and deeper eye band, a nose-only face occluder off profile, and the head continued backwards, and the paint-out takes lens glare and fills past a turned face's outline from the background; the pair seated on the nose and no face occluder near frontal. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.
