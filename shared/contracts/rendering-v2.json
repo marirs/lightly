@@ -1203,6 +1203,10 @@
          195
         ]
        },
+       "grain": {
+        "sigmaPx": 0.7
+       },
+       "glareInsideFrameOnly": true,
        "farSideBackgroundFill": {
         "sigmasOfIrisSpan": [
          0.05,

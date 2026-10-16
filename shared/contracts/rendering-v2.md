@@ -476,12 +476,15 @@ Android: its 2 × 2 supersampling), so fine rim detail does not sparkle.
    edge (the trial's 15, 15, 15, 9 px square filters on a 2000 px photo), LaMa on a square window of 1.5 × the mask's
    extent (at least 256 px) resized to 512, pasted back over the mask with a Gaussian feather of σ = 3 px. The mask also takes the old lenses' glare (2026-10-15):
    in the lower half of each lens ellipse (0.5 d × 0.42 d around the eye-corner midpoint, in the eye line's frame),
-   outside the eye ellipse (0.3 d × 0.14 d) and 0.35 d clear of nose landmarks 1, 4, 5, 195, every pixel whose
-   luminance is above 0.45 and 0.08 above its surroundings (Gaussian σ = 0.08 d), grown by half the dilation radius.
+   outside the eye ellipse (0.3 d × 0.14 d) and 0.35 d clear of nose landmarks 1, 4, 5, 195, every pixel inside the
+   old frame (enclosed by its mask closed by twice the dilation radius) whose luminance is above 0.45 and 0.08 above its surroundings (Gaussian σ = 0.08 d), grown by half the dilation radius.
    On the far side of a turned face (that eye's corner span at most 0.8 × the other's), where the mask lies outside
    the face mesh's convex hull, the fill is replaced by the surrounding background (normalized convolution of
    unmasked pixels with background probability > 0.5, at σ = 0.05, 0.1, 0.2, 0.4, 0.8 d until defined), weighted by
-   clamp((b − 0.3)/0.4) with b the background probability plus the accessory probability there.
+   clamp((b − 0.3)/0.4) with b the background probability plus the accessory probability there. Finally the photo's grain is
+   put back on the masked pixels (owner report 2026-10-16: the fill flattened the nose): white noise from xorshift64
+   seeded by (x0 · 73856093) ^ (y0 · 19349663) | 1 of the patch box, blurred σ = 0.7 px, rescaled to the standard
+   deviation of the unmasked box pixels' luminance high-pass (luminance − its σ = 0.7 blur), added to R, G, B.
 2. *Contact shadow:* coverage = max(frame alpha, lens), blurred with σ = max(1, 0.035 d), shifted by (0.01 d, 0.05 d),
    × 0.28, multiplies the photo where the background probability < 0.5.
 3. *Lenses:* `out = in·(1 − L) + (in · T · tint + R) · L`, L = lens coverage. Transmission `T = 1 − 0.95 (darkness/100)^0.75`.

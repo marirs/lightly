@@ -112,9 +112,51 @@ enum SunglassesRemoval {
             }
             rgba[o + 3] = UInt8(min(max(a * 255 + 0.5, 0), 255))
         } }
+        try addGrain(&rgba, x0: bx0, y0: by0, width: pw, height: ph, source: source, masked: masked)
         let patch = RemovePatch(x: bx0, y: by0, width: pw, height: ph, sourceWidth: W, sourceHeight: H, rgba: rgba)
         let rect = EditRecipe.Rect(x: Double(bx0) / Double(W), y: Double(by0) / Double(H), width: Double(pw) / Double(W), height: Double(ph) / Double(H))
         return (patch, rect)
+    }
+
+    /// The model's fill is computed at 512 px and scaled up, so it is smoother than the photo (owner report 2026-10-16:
+    /// the nose and cheeks looked flattened). The photo's own fine grain is put back: the luminance high-pass (the
+    /// luminance minus its Gaussian blur, σ = `grainSigma`) of the unmasked pixels of the patch box gives its strength
+    /// (standard deviation); deterministic white noise, blurred by the same σ and rescaled to that strength, is added
+    /// equally to the channels of the masked pixels. Seeded by the box's position, so a patch is always the same.
+    static let grainSigma: Float = 0.7
+
+    static func addGrain(_ rgba: inout [UInt8], x0: Int, y0: Int, width pw: Int, height ph: Int, source: CGImage,
+                         masked: (Double, Double) -> Bool) throws {
+        let pixels = try RemoveEngine.drawRegion(of: source, x: x0, y: y0, width: pw, height: ph)
+        var luminance = FloatImage(width: pw, height: ph, channels: 1)
+        var isMasked = [Bool](repeating: false, count: pw * ph)
+        for i in 0..<(pw * ph) {
+            luminance.data[i] = (0.2126 * Float(pixels[i * 4]) + 0.7152 * Float(pixels[i * 4 + 1]) + 0.0722 * Float(pixels[i * 4 + 2])) / 255
+            isMasked[i] = masked(Double(x0 + i % pw) + 0.5, Double(y0 + i / pw) + 0.5)
+        }
+        let low = luminance.gaussianBlurred(sigma: grainSigma)
+        var sum: Double = 0, sumSquares: Double = 0, count = 0
+        for i in 0..<(pw * ph) where !isMasked[i] {
+            let v = Double(luminance.data[i] - low.data[i]); sum += v; sumSquares += v * v; count += 1
+        }
+        guard count > 64 else { return }
+        let mean = sum / Double(count)
+        let strength = Float(max(0, sumSquares / Double(count) - mean * mean).squareRoot())
+        guard strength > 0.001 else { return }
+        var noise = FloatImage(width: pw, height: ph, channels: 1)
+        var state = UInt64(truncatingIfNeeded: x0 &* 73_856_093 ^ y0 &* 19_349_663) | 1
+        for i in 0..<(pw * ph) {
+            state ^= state << 13; state ^= state >> 7; state ^= state << 17
+            noise.data[i] = Float(state % 10_000) / 10_000 - 0.5
+        }
+        noise = noise.gaussianBlurred(sigma: grainSigma)
+        var noiseSquares: Double = 0
+        for v in noise.data { noiseSquares += Double(v * v) }
+        let gain = strength / Float(max((noiseSquares / Double(pw * ph)).squareRoot(), 1e-6))
+        for i in 0..<(pw * ph) where isMasked[i] && rgba[i * 4 + 3] > 0 {
+            let delta = noise.data[i] * gain * 255
+            for c in 0..<3 { rgba[i * 4 + c] = UInt8(min(max(Float(rgba[i * 4 + c]) + delta, 0), 255).rounded()) }
+        }
     }
 
     /// Adds the old lenses' glare to `mask` (analysis pixels over the band box grown by `radius`): pixels in the lower
@@ -127,6 +169,21 @@ enum SunglassesRemoval {
         let sx0 = max(0, Int(Double(originX) * f)), sy0 = max(0, Int(Double(originY) * f))
         let sx1 = min(source.width, Int((Double(originX + w) * f).rounded(.up))), sy1 = min(source.height, Int((Double(originY + h) * f).rounded(.up)))
         guard sx1 > sx0, sy1 > sy0 else { return }
+        // Only inside the old frame (owner report 2026-10-16: shiny skin below the old lenses, on the cheeks and nose,
+        // was taken for glare and smoothed away): pixels the frame encloses, its mask closed by twice the radius
+        // (segmented rims have gaps), unreachable from the box's border.
+        let closed = frame.dilated(threshold: 0.5, radius: radius * 2)
+        var outside = [Bool](repeating: false, count: w * h)
+        var stack: [Int] = []
+        for x in 0..<w { stack.append(x); stack.append((h - 1) * w + x) }
+        for y in 0..<h { stack.append(y * w); stack.append(y * w + w - 1) }
+        while let i = stack.popLast() {
+            guard !outside[i], closed.data[i] < 0.5 else { continue }
+            outside[i] = true
+            let x = i % w, y = i / w
+            if x > 0 { stack.append(i - 1) }; if x < w - 1 { stack.append(i + 1) }
+            if y > 0 { stack.append(i - w) }; if y < h - 1 { stack.append(i + w) }
+        }
         let pixels = try RemoveEngine.drawRegion(of: source, x: sx0, y: sy0, width: sx1 - sx0, height: sy1 - sy0)
         var luminance = FloatImage(width: w, height: h, channels: 1)
         for y in 0..<h { for x in 0..<w {
@@ -147,7 +204,7 @@ enum SunglassesRemoval {
             let a = simd_dot(q, ux) / (rx * d), b = simd_dot(q, vy) / (ry * d)
             return a * a + b * b <= 1
         }
-        for y in 0..<h { for x in 0..<w where mask.data[y * w + x] < 0.5 {
+        for y in 0..<h { for x in 0..<w where mask.data[y * w + x] < 0.5 && !outside[y * w + x] {
             let i = y * w + x
             guard luminance.data[i] > glareMinLuminance, luminance.data[i] - surround.data[i] > glareContrast else { continue }
             let point = SIMD2(Float(x + originX) + 0.5, Float(y + originY) + 0.5)

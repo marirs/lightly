@@ -282,7 +282,7 @@ def stages():
                                           "faceMeshPushBackMetres": 0.006, "faceMeshNoseOnlyOffProfile": {"halfWidth": 0.02, "top": 0.0, "bottom": -0.06}, "headBackLengthMetres": 0.2, "earClipStartMetres": 0.12, "earBoxXMetres": [0.04, 0.20], "farArmClipStartMetres": 0.02, "farArmMinTurn": 0.1},
                             "passes": {"frontDepthMetres": 0.012, "minShadingSamplesPerAxis": 2, "iosSupersampleMaxSide": 4096, "keyLight": {"intensity": 1000, "eulerRadians": [-0.6, 0.4, 0]},
                                        "ambient": 400},
-                            "removal": {"dilation": "MaxFilter 15, 15, 15, 9 (px)", "glare": {"sigmaOfIrisSpan": 0.08, "contrast": 0.08, "minLuminance": 0.45, "lensRadii": [0.5, 0.42], "keepEyeRadii": [0.3, 0.14], "noseClearance": 0.35, "noseLandmarks": [1, 4, 5, 195]}, "farSideBackgroundFill": {"sigmasOfIrisSpan": [0.05, 0.1, 0.2, 0.4, 0.8], "turnedEyeRatio": 0.8}},
+                            "removal": {"dilation": "MaxFilter 15, 15, 15, 9 (px)", "glare": {"sigmaOfIrisSpan": 0.08, "contrast": 0.08, "minLuminance": 0.45, "lensRadii": [0.5, 0.42], "keepEyeRadii": [0.3, 0.14], "noseClearance": 0.35, "noseLandmarks": [1, 4, 5, 195]}, "grain": {"sigmaPx": 0.7}, "glareInsideFrameOnly": True, "farSideBackgroundFill": {"sigmasOfIrisSpan": [0.05, 0.1, 0.2, 0.4, 0.8], "turnedEyeRatio": 0.8}},
                             "shadow": {"sigmaOfIrisSpan": 0.035, "offsetOfIrisSpan": [0.01, 0.05], "strength": 0.28},
                             "lens": {"transmission": "1 - 0.95 * (darkness/100)^0.75",
                                      "tint": {"dark": [0.92, 1.0, 0.95], "brown": [1.0, 0.76, 0.52], "green": [0.8, 1.0, 0.82]},

@@ -102,8 +102,42 @@ object SunglassesRemoval {
             }
             rgba[o + 3] = (a * 255 + 0.5f).toInt().coerceIn(0, 255).toByte()
         }
+        addGrain(rgba, bx0, by0, pw, ph, frame, ::masked)
         val patch = RemovePatch(bx0, by0, pw, ph, rgba, w, h)
         return Result(patch, NormalisedRect(bx0.toDouble() / w, by0.toDouble() / h, pw.toDouble() / w, ph.toDouble() / h))
+    }
+
+    /** iOS SunglassesRemoval.addGrain: the photo's fine luminance grain put back on the model's smoother fill (owner
+     *  report 2026-10-16: the nose and cheeks looked flattened). Deterministic, seeded by the box's position. */
+    const val GRAIN_SIGMA = 0.7
+    private fun addGrain(rgba: ByteArray, x0: Int, y0: Int, pw: Int, ph: Int, frame: FrameSource, masked: (Double, Double) -> Boolean) {
+        val px = frame.region(x0, y0, pw, ph).pixels
+        val lum = FloatPlane(pw, ph); val isMasked = BooleanArray(pw * ph)
+        for (i in 0 until pw * ph) {
+            fun ch(c: Int) = (px[i * 4 + c].toInt() and 0xff) / 255f
+            lum.values[i] = 0.2126f * ch(0) + 0.7152f * ch(1) + 0.0722f * ch(2)
+            isMasked[i] = masked(x0 + i % pw + 0.5, y0 + i / pw + 0.5)
+        }
+        val low = PlaneOps.gaussianBlur(lum, GRAIN_SIGMA)
+        var sum = 0.0; var sq = 0.0; var n = 0
+        for (i in 0 until pw * ph) if (!isMasked[i]) { val v = (lum.values[i] - low.values[i]).toDouble(); sum += v; sq += v * v; n++ }
+        if (n <= 64) return
+        val mean = sum / n; val strength = kotlin.math.sqrt(max(0.0, sq / n - mean * mean)).toFloat()
+        if (strength <= 0.001f) return
+        var state = ((x0.toLong() * 73_856_093L) xor (y0.toLong() * 19_349_663L)) or 1L
+        val noisePlane = FloatPlane(pw, ph)
+        for (i in 0 until pw * ph) {
+            state = state xor (state shl 13); state = state xor (state ushr 7); state = state xor (state shl 17)
+            noisePlane.values[i] = java.lang.Long.remainderUnsigned(state, 10_000L) / 10_000f - 0.5f
+        }
+        val noise = PlaneOps.gaussianBlur(noisePlane, GRAIN_SIGMA)
+        var ns = 0.0; for (v in noise.values) ns += (v * v).toDouble()
+        val gain = strength / max(kotlin.math.sqrt(ns / (pw * ph)), 1e-6).toFloat()
+        for (i in 0 until pw * ph) {
+            if (!isMasked[i] || rgba[i * 4 + 3].toInt() == 0) continue
+            val delta = noise.values[i] * gain * 255
+            for (c in 0 until 3) rgba[i * 4 + c] = ((rgba[i * 4 + c].toInt() and 0xff) + delta).coerceIn(0f, 255f).let { Math.round(it) }.toByte()
+        }
     }
 
     private fun lm(a: FaceSunglassesAnalysis, i: Int) = floatArrayOf(a.landmarks[i * 3], a.landmarks[i * 3 + 1])
@@ -113,6 +147,21 @@ object SunglassesRemoval {
         val sx0 = max(0, (ox * f).toInt()); val sy0 = max(0, (oy * f).toInt())
         val sx1 = min(frame.width, ceil((ox + w) * f).toInt()); val sy1 = min(frame.height, ceil((oy + h) * f).toInt())
         if (sx1 <= sx0 || sy1 <= sy0) return
+        // Only inside the old frame (owner report 2026-10-16: shiny skin on the cheeks and nose was taken for glare):
+        // pixels the frame encloses, its mask closed by twice the radius, unreachable from the box's border (iOS).
+        val framePlane = FloatPlane(w, h); for (i in 0 until w * h) if (mask[i]) framePlane.values[i] = 1f
+        val closed = PlaneOps.boxFilter(framePlane, radius * 2)
+        val outside = BooleanArray(w * h)
+        val stack = ArrayDeque<Int>()
+        for (x in 0 until w) { stack.add(x); stack.add((h - 1) * w + x) }
+        for (y in 0 until h) { stack.add(y * w); stack.add(y * w + w - 1) }
+        while (stack.isNotEmpty()) {
+            val i = stack.removeLast()
+            if (outside[i] || closed.values[i] > 1e-6f) continue
+            outside[i] = true
+            val x = i % w; val y = i / w
+            if (x > 0) stack.add(i - 1); if (x < w - 1) stack.add(i + 1); if (y > 0) stack.add(i - w); if (y < h - 1) stack.add(i + w)
+        }
         val region = frame.region(sx0, sy0, sx1 - sx0, sy1 - sy0); val rw = sx1 - sx0
         val lum = FloatPlane(w, h)
         for (y in 0 until h) for (x in 0 until w) {
@@ -137,7 +186,7 @@ object SunglassesRemoval {
         val glare = FloatPlane(w, h)
         for (y in 0 until h) for (x in 0 until w) {
             val i = y * w + x
-            if (mask[i]) continue
+            if (mask[i] || outside[i]) continue
             if (lum.values[i] <= GLARE_MIN_LUMINANCE || lum.values[i] - surround.values[i] <= GLARE_CONTRAST) continue
             val px = x + ox + 0.5f; val py = y + oy + 0.5f
             val below = eyes.any { (px - it[0]) * vx + (py - it[1]) * vy > 0 }
