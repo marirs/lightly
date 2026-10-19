@@ -20,7 +20,8 @@ final class EditorCaptureUITests: XCTestCase {
         "woman": "docs/ui/assets/photos/portrait_medium_02", "smile": "docs/ui/assets/photos/portrait_deep_02",
         "bar": "docs/ui/assets/photos/night_03", "street": "docs/ui/assets/photos/wellexposed_03",
         // The licensed multi-person photo stands in for the prototype's one-face pt-multi.
-        "group": "experiments/test-photos/group_three_01"
+        "group": "experiments/test-photos/group_three_01",
+        "glasses": "experiments/test-photos/glasses_side_angle_01"
     ]
 
     /// Screen id → (photo, extra launch arguments, element to wait for).
@@ -61,6 +62,10 @@ final class EditorCaptureUITests: XCTestCase {
         ("bg-failed", "woman", [], "background.retry"),
         ("bg-no-subject", "lake", [], "slider.blur"),
         ("pt-skin", "man", [], "slider.smoothing"),
+        // Portrait › Sunglasses (1.1): a pair on the face, the side photo with its own glasses replaced, and None.
+        ("pt-sunglasses", "man", ["--sunglasses-pair", "Aviator"], "sunglasses.pair.aviator"),
+        ("pt-sunglasses-glasses", "glasses", ["--sunglasses-pair", "Wayfarer"], "sunglasses.pair.wayfarer"),
+        ("pt-sunglasses-none", "man", [], "sunglasses.pair.none"),
         ("pt-under", "man", [], "slider.softenlines"),
         ("pt-eyes", "man", [], "slider.clarity"),
         ("pt-teeth", "smile", [], "slider.brighten"),
