@@ -7,6 +7,9 @@
         <item name="android:windowBackground">@color/lightly_bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">always</item>
         <item name="android:windowSplashScreenBackground">@color/lightly_bg</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/launch_splash_mark</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/lightly_bg</item>

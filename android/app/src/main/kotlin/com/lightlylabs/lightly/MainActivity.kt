@@ -6,18 +6,15 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -30,6 +27,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.window.layout.FoldingFeature
@@ -305,10 +304,19 @@ class MainActivity : ComponentActivity() {
         requestedOrientation = OrientationPolicy.requestedOrientation(smallestWidthDp, isInMultiWindowMode)
     }
 
-    /** Transparent bars (edge-to-edge) with icons that contrast with the approved background. */
+    /**
+     * Edge-to-edge with bar icons that contrast with the approved background. Not androidx `enableEdgeToEdge`: its
+     * compatibility paths call `Window.setStatusBarColor`, `setNavigationBarColor` and
+     * `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`, deprecated in Android 15, which Play Console flags (2026-10-19).
+     * Android 15+ draws edge-to-edge by default; below it the window stops fitting the system bars here, and the theme
+     * (values-v29/v30) makes the bars transparent without a contrast scrim and lets content into the cutout.
+     */
     private fun applySystemBars(dark: Boolean) {
-        val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+        if (android.os.Build.VERSION.SDK_INT < 35) WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
     }
 
     /**
