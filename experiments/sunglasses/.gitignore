@@ -1,1 +1,10 @@
 models/
+# Review renders (pair × photo sheets, before/after crops, device captures): derived from the purchased pack, so they
+# stay local like shared/sunglasses/out.
+matrix-*/
+*-fix-*/
+devices-*/
+*-before-after.png
+ios-engine-vs-trial.png
+ios-vs-android.png
+sunglasses-tab-ios-android.png
