@@ -286,7 +286,10 @@ private fun PairTile(title: String, thumbnail: android.graphics.Bitmap?, selecte
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
-        Box(Modifier.size(52.dp, 22.dp), contentAlignment = Alignment.Center) {
+        // Dark mode only (owner choice 2026-10-19; iOS PairTile): a light backing so black frames stay visible on dark tiles.
+        val backing = if (thumbnail != null && colors.isDark)
+            Modifier.background(Color(0xFFF3F3F0).copy(alpha = 0.9f), RoundedCornerShape(7.dp)) else Modifier
+        Box(Modifier.size(56.dp, 26.dp).then(backing).padding(2.dp), contentAlignment = Alignment.Center) {
             if (thumbnail != null) {
                 androidx.compose.foundation.Image(thumbnail.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
             } else {

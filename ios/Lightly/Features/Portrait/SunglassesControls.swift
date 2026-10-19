@@ -99,6 +99,7 @@ struct SunglassesControls: View {
 
 /// One pair (design `.st`): a 66 × 54 pt tile, 14 pt corners, the pair's picture above its name (10.5 pt semibold);
 /// a 1 pt hairline border, or a 2 pt selection border with the name in ink when chosen. None shows a short line.
+/// In dark mode the picture sits on a light backing (owner choice 2026-10-19; the design shows light mode only).
 private struct PairTile: View {
     let title: String
     let thumbnail: UIImage?
@@ -106,6 +107,8 @@ private struct PairTile: View {
     let identifier: String
     let action: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    /// The dark-mode backing behind the pair's picture: the light theme's background, nearly opaque.
+    static let darkBackingOpacity = 0.9
 
     var body: some View {
         let c = L2(scheme: colorScheme)
@@ -119,6 +122,14 @@ private struct PairTile: View {
                     }
                 }
                 .frame(width: 52, height: 22)
+                // Dark mode only (owner choice 2026-10-19): a light backing so black frames stay visible on dark tiles.
+                .background {
+                    if thumbnail != nil, colorScheme == .dark {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color(red: 0xF3 / 255, green: 0xF3 / 255, blue: 0xF0 / 255).opacity(Self.darkBackingOpacity))
+                            .padding(-2)
+                    }
+                }
                 Text(verbatim: title)
                     .l2Text(10.5, weight: .semibold)
                     .lineLimit(1)
