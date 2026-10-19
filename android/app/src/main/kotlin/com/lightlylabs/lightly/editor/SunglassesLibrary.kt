@@ -27,10 +27,15 @@ class SunglassesLibrary(val pack: SunglassesPack?, private val decode: (ByteArra
 
     private val thumbnails = HashMap<String, android.graphics.Bitmap?>()
 
-    /** The pair's tile picture (200 px wide, transparent), verified and decoded once. */
+    /** The pair's tile picture (200 px wide, transparent), verified and decoded once; [dark]: the dark-mode picture
+     *  when the pack has one. */
     @Synchronized
-    fun thumbnail(pair: SunglassesPack.Pair): android.graphics.Bitmap? = thumbnails.getOrPut(pair.id) {
-        runCatching { pack?.verified(pair.thumbnail, pair.thumbnailSha256)?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } }.getOrNull()
+    fun thumbnail(pair: SunglassesPack.Pair, dark: Boolean = false): android.graphics.Bitmap? {
+        val useDark = dark && pair.thumbnailDark != null
+        return thumbnails.getOrPut(if (useDark) pair.id + "-dark" else pair.id) {
+            val (file, digest) = if (useDark) pair.thumbnailDark!! to (pair.thumbnailDarkSha256 ?: "") else pair.thumbnail to pair.thumbnailSha256
+            runCatching { pack?.verified(file, digest)?.let { SampledBitmaps.decodeByteArray(it, 200) } }.getOrNull()
+        }
     }
 
     companion object {

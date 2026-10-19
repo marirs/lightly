@@ -12,6 +12,7 @@ Output (`out/`, git-ignored like the light-leak pack, so the purchase never ente
 - mesh/<id>.lsg    the pair's geometry (format below), reduced to at most TRIANGLE_BUDGET triangles;
 - tex/<id>-<n>-{base,normal}.{jpg,png}  material textures, at most TEXTURE_EDGE px;
 - thumb/<id>.png   the panel tile, 200 px wide, transparent.
+- thumb/<id>-dark.png   the same tile for dark mode (studio rim lighting; optional `thumbnailDark` in the manifest).
 
 LSG 1 (little-endian):
     "LSG1", u32 version (1), u32 vertexCount, u32 elementCount
@@ -32,7 +33,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pyfqmr
 from PIL import Image
 
 HERE = Path(__file__).resolve().parent
@@ -103,6 +103,7 @@ def reduce_group(P, UV, NR, F, target):
     on the original surface (seam vertices do not move, so they keep theirs exactly)."""
     if len(F) <= target:
         return P, UV, NR, F
+    import pyfqmr  # only the full build reduces meshes
     s = pyfqmr.Simplify(); s.setMesh(P, F)
     s.simplify_mesh(target_count=int(target), aggressiveness=7, preserve_border=True, verbose=False)
     P2, F2, _ = s.getMesh()
@@ -164,12 +165,46 @@ def thumbnail(norm_dir: Path, out: Path, renderer: Path):
     for p in ('frame', 'lens'): Path(f'{tmp}.{p}.png').unlink(missing_ok=True)
 
 
+def dark_thumbnail(pack: Path, pid: str, out: Path, lsg_renderer: Path):
+    """The dark-mode tile (owner choice A, 2026-10-19): the pack's own mesh rendered by render_lsg.swift with studio
+    rim lighting (LSG_STUDIO=1: back lights both sides and a top light, so black acetate shows its edges on a dark
+    tile) and lenses with a cool sky reflection over their top, same framing and size as thumbnail()."""
+    import math, os
+    t = math.radians(22); ex = (math.cos(t), 0, -math.sin(t)); ez = (math.sin(t), 0, math.cos(t))
+    tmp = out.parent / '_dark'
+    args = [str(lsg_renderer), str(pack), pid, str(tmp), '480', '240', '240', '112', '2700', *map(str, (*ex, 0, 1, 0, *ez))]
+    env = dict(os.environ, LSG_STUDIO='1')
+    for p in ('frame', 'lens'): subprocess.run(args + [p], check=True, capture_output=True, env=env)
+    fr = Image.open(f'{tmp}.frame.png').convert('RGBA'); ln = np.asarray(Image.open(f'{tmp}.lens.png').convert('RGBA'), np.float32)
+    L = ln[..., 0] / 255 * ln[..., 3] / 255; H, W = L.shape
+    g = np.clip(1 - np.linspace(0, 1, H) / 0.45, 0, 1)[:, None] ** 1.5
+    rgb = np.stack([np.full((H, W), 30.) + g * 150, np.full((H, W), 34.) + g * 162, np.full((H, W), 40.) + g * 185], -1)
+    lens = Image.fromarray(np.dstack([rgb.clip(0, 255), L * 240]).astype(np.uint8)); lens.alpha_composite(fr)
+    lens = lens.crop(lens.getbbox()); lens.thumbnail((200, 100), Image.LANCZOS); lens.save(out, optimize=True)
+    for p in ('frame', 'lens'): Path(f'{tmp}.{p}.png').unlink(missing_ok=True)
+
+
+def add_dark_thumbnails(pack: Path, lsg_renderer: Path):
+    """Adds `thumbnailDark` and its digest to every pair of an existing pack (the rest of the pack is unchanged)."""
+    manifest = json.loads((pack / 'sunglasses.json').read_text())
+    for pair in manifest['pairs']:
+        f = pack / f"thumb/{pair['id']}-dark.png"; dark_thumbnail(pack, pair['id'], f, lsg_renderer)
+        pair['thumbnailDark'] = f"thumb/{pair['id']}-dark.png"; pair['thumbnailDarkSha256'] = sha256(f)
+        print(pair['name'], pair['thumbnailDark'])
+    (pack / 'sunglasses.json').write_text(json.dumps(manifest, indent=1))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--models', default=str(Path.home() / 'Downloads/Sunglasses 3D'))
     ap.add_argument('--out', default=str(HERE / 'out'))
-    ap.add_argument('--renderer', required=True, help='compiled experiments/sunglasses/render_glasses3.swift')
+    ap.add_argument('--renderer', help='compiled experiments/sunglasses/render_glasses3.swift')
+    ap.add_argument('--lsg-renderer', required=True, help='compiled experiments/sunglasses/render_lsg.swift (dark-mode tiles)')
+    ap.add_argument('--dark-thumbnails-only', action='store_true', help='only add the dark-mode tiles to an existing pack')
     a = ap.parse_args()
+    if a.dark_thumbnails_only:
+        add_dark_thumbnails(Path(a.out), Path(a.lsg_renderer)); return
+    if not a.renderer: ap.error('--renderer is required to build the pack')
     out = Path(a.out); work = out / '_normalised'
     for sub in ('mesh', 'tex', 'thumb'): (out / sub).mkdir(parents=True, exist_ok=True)
     normalize.ROOT = a.models; normalize.OUT = str(work)
@@ -210,6 +245,7 @@ def main():
         print(f'{order:2d} {name:9s} {pid}  {total:7d} -> {tri:6d} triangles  {mesh.stat().st_size / 1e6:.2f} MB mesh')
     manifest = {'format': 'lightly-sunglasses-pack', 'formatVersion': 1, 'pairs': pairs}
     (out / 'sunglasses.json').write_text(json.dumps(manifest, indent=1))
+    add_dark_thumbnails(out, Path(a.lsg_renderer))
     size = sum(f.stat().st_size for d in ('mesh', 'tex', 'thumb') for f in (out / d).iterdir())
     print(f'pack: {len(pairs)} pairs, {size / 1e6:.1f} MB')
 

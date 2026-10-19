@@ -28,6 +28,8 @@ final class SunglassesEngineTests: XCTestCase {
             XCTAssertEqual(loaded.mesh.materialIndices.count, loaded.mesh.geometry.elements.count, pair.name)
             XCTAssertTrue(pair.materials.contains { $0.role == .lens }, "\(pair.name) has lenses")
             XCTAssertNotNil(pack.thumbnail(pair), pair.name)
+            XCTAssertNotNil(pair.thumbnailDark, "\(pair.name) has a dark-mode picture")
+            XCTAssertNotNil(pack.thumbnail(pair, dark: true), pair.name)
         }
     }
 

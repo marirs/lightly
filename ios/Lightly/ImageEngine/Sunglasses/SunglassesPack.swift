@@ -32,6 +32,9 @@ struct SunglassesPack: Sendable {
         let meshSha256: String
         let thumbnail: String
         let thumbnailSha256: String
+        /// The dark-mode tile picture (studio rim lighting; owner choice 2026-10-19). Optional: older packs have none.
+        let thumbnailDark: String?
+        let thumbnailDarkSha256: String?
         let materials: [Material]
     }
 
@@ -64,7 +67,8 @@ struct SunglassesPack: Sendable {
         // Paths come from the manifest; only the pair's own files under the pack root are accepted.
         for pair in manifest.pairs {
             guard pair.id.range(of: "^sun-[0-9a-f]{12}$", options: .regularExpression) != nil,
-                  pair.mesh == "mesh/\(pair.id).lsg", pair.thumbnail == "thumb/\(pair.id).png" else {
+                  pair.mesh == "mesh/\(pair.id).lsg", pair.thumbnail == "thumb/\(pair.id).png",
+                  pair.thumbnailDark == nil || pair.thumbnailDark == "thumb/\(pair.id)-dark.png" else {
                 throw LoadError.unsupportedFormat("pair \(pair.id) names \(pair.mesh), \(pair.thumbnail)")
             }
             for material in pair.materials {
@@ -87,11 +91,15 @@ struct SunglassesPack: Sendable {
         return data
     }
 
-    /// The pair's tile picture, verified and decoded once.
-    func thumbnail(_ pair: Pair) -> UIImage? {
-        if let hit = Self.thumbnails.withLock({ $0[pair.id] }) { return hit }
-        let image = (try? verifiedData(pair.thumbnail, sha256: pair.thumbnailSha256)).flatMap { UIImage(data: $0) }
-        Self.thumbnails.withLock { $0[pair.id] = image }
+    /// The pair's tile picture, verified and decoded once. `dark`: the dark-mode picture when the pack has one.
+    func thumbnail(_ pair: Pair, dark: Bool = false) -> UIImage? {
+        let useDark = dark && pair.thumbnailDark != nil
+        let key = useDark ? pair.id + "-dark" : pair.id
+        if let hit = Self.thumbnails.withLock({ $0[key] }) { return hit }
+        let file = useDark ? pair.thumbnailDark! : pair.thumbnail
+        let digest = useDark ? pair.thumbnailDarkSha256 ?? "" : pair.thumbnailSha256
+        let image = (try? verifiedData(file, sha256: digest)).flatMap { UIImage(data: $0) }
+        Self.thumbnails.withLock { $0[key] = image }
         return image
     }
 

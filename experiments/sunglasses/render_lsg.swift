@@ -112,6 +112,16 @@ if !lensPass {
     let key = SCNNode(); key.light = SCNLight(); key.light!.type = .directional; key.light!.intensity = 1000
     key.eulerAngles = SCNVector3(-0.6, 0.4, 0); scene.rootNode.addChildNode(key)
     let amb = SCNNode(); amb.light = SCNLight(); amb.light!.type = .ambient; amb.light!.intensity = 400
+// Dark-mode tile pictures (LSG_STUDIO=1, 2026-10-19): two rim lights from behind-above on both sides and a soft top
+// light, so black acetate shows its edges on a dark tile. Not used for the face renders.
+if ProcessInfo.processInfo.environment["LSG_STUDIO"] == "1" && !lensPass {
+    for (yaw, i) in [(2.5, 3000.0), (-2.5, 3000.0)] {
+        let rim = SCNNode(); rim.light = SCNLight(); rim.light!.type = .directional; rim.light!.intensity = CGFloat(i)
+        rim.eulerAngles = SCNVector3(-0.5, yaw, 0); scene.rootNode.addChildNode(rim)
+    }
+    let top = SCNNode(); top.light = SCNLight(); top.light!.type = .directional; top.light!.intensity = 2200
+    top.eulerAngles = SCNVector3(-1.3, 0, 0); scene.rootNode.addChildNode(top)
+}
     scene.rootNode.addChildNode(amb)
 }
 scene.background.contents = NSColor.clear

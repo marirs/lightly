@@ -726,8 +726,8 @@ class EditorViewModel(
     val sunglassesPairs: List<com.lightlylabs.lightly.vision.sunglasses.SunglassesPack.Pair> get() = env.sunglasses.pack?.pairs.orEmpty()
 
     /** A pair's tile picture (null without a pack, or off Android). */
-    fun sunglassesThumbnail(pair: com.lightlylabs.lightly.vision.sunglasses.SunglassesPack.Pair): android.graphics.Bitmap? =
-        runCatching { env.sunglasses.thumbnail(pair) }.getOrNull()
+    fun sunglassesThumbnail(pair: com.lightlylabs.lightly.vision.sunglasses.SunglassesPack.Pair, dark: Boolean = false): android.graphics.Bitmap? =
+        runCatching { env.sunglasses.thumbnail(pair, dark) }.getOrNull()
 
     /**
      * Runs the Sunglasses analysis of every usable face once per photo (the tab is opened, or a recipe holds a pair): the

@@ -264,7 +264,7 @@ private fun SunglassesPairs(vm: EditorViewModel, selected: String?, enabled: Boo
         ChipRow(spacing = 8.dp, rowScroll = scroll) {
             PairTile("None", null, selected == null, enabled, "sunglasses-pair-none") { vm.setSunglassesPair(null, faceIndex) }
             pairs.forEach { pair ->
-                PairTile(pair.name, vm.sunglassesThumbnail(pair), selected == pair.id, enabled, "sunglasses-pair-${pair.name.lowercase()}") {
+                PairTile(pair.name, vm.sunglassesThumbnail(pair, dark = lightlyColors.isDark), selected == pair.id, enabled, "sunglasses-pair-${pair.name.lowercase()}") {
                     vm.setSunglassesPair(pair.id, faceIndex)
                 }
             }
@@ -286,10 +286,7 @@ private fun PairTile(title: String, thumbnail: android.graphics.Bitmap?, selecte
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
-        // Dark mode only (owner choice 2026-10-19; iOS PairTile): a light backing so black frames stay visible on dark tiles.
-        val backing = if (thumbnail != null && colors.isDark)
-            Modifier.background(Color(0xFFF3F3F0).copy(alpha = 0.9f), RoundedCornerShape(7.dp)) else Modifier
-        Box(Modifier.size(56.dp, 26.dp).then(backing).padding(2.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(52.dp, 22.dp), contentAlignment = Alignment.Center) {
             if (thumbnail != null) {
                 androidx.compose.foundation.Image(thumbnail.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
             } else {

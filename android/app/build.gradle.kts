@@ -569,7 +569,7 @@ abstract class BundleSunglassesPackTask : DefaultTask() {
         val target = root.resolve("sunglassespack")
         fun copyChecked(path: String, sha: Any?, id: String) {
             // Only the pair's own files under the pack root (paths are joined onto the pack and asset roots).
-            if (!(path == "mesh/$id.lsg" || path == "thumb/$id.png" || path.startsWith("tex/$id-")) || ".." in path) {
+            if (!(path == "mesh/$id.lsg" || path == "thumb/$id.png" || path == "thumb/$id-dark.png" || path.startsWith("tex/$id-")) || ".." in path) {
                 throw GradleException("$manifestFile: pair $id names $path")
             }
             val file = pack.resolve(path)
@@ -583,6 +583,8 @@ abstract class BundleSunglassesPackTask : DefaultTask() {
             if (!Regex("sun-[0-9a-f]{12}").matches(id)) throw GradleException("$manifestFile: pair id $id")
             copyChecked(pair["mesh"] as String, pair["meshSha256"], id)
             copyChecked(pair["thumbnail"] as String, pair["thumbnailSha256"], id)
+            // The dark-mode tile picture (optional; owner choice A, 2026-10-19).
+            (pair["thumbnailDark"] as? String)?.let { copyChecked(it, pair["thumbnailDarkSha256"], id) }
             for (material in (pair["materials"] as? List<Map<String, Any?>>).orEmpty()) {
                 (material["base"] as? String)?.let { copyChecked(it, material["baseSha256"], id) }
                 (material["normal"] as? String)?.let { copyChecked(it, material["normalSha256"], id) }

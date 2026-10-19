@@ -32,6 +32,8 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
     class Pair(
         val id: String, val name: String, val order: Int, val mesh: String, val meshSha256: String,
         val thumbnail: String, val thumbnailSha256: String, val materials: List<Material>,
+        /** The dark-mode tile picture (studio rim lighting; owner choice 2026-10-19). Older packs have none. */
+        val thumbnailDark: String? = null, val thumbnailDarkSha256: String? = null,
     )
 
     /** An LSG 1 mesh: interleaved vertices (position xyz, normal xyz, uv; 8 floats each) and one index list per element. */
@@ -110,7 +112,8 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
                 val p = element.jsonObject
                 fun s(key: String, o: JsonObject = p) = o[key]?.jsonPrimitive?.content
                 val id = s("id") ?: throw FormatException("a pair without an id")
-                if (!ID.matches(id) || s("mesh") != "mesh/$id.lsg" || s("thumbnail") != "thumb/$id.png") {
+                if (!ID.matches(id) || s("mesh") != "mesh/$id.lsg" || s("thumbnail") != "thumb/$id.png" ||
+                    (s("thumbnailDark") != null && s("thumbnailDark") != "thumb/$id-dark.png")) {
                     throw FormatException("pair $id names ${s("mesh")}, ${s("thumbnail")}")
                 }
                 val materials = p.getValue("materials").jsonArray.map { m ->
@@ -128,7 +131,7 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
                     )
                 }
                 Pair(id, s("name")!!, p.getValue("order").jsonPrimitive.int, s("mesh")!!, s("meshSha256")!!,
-                     s("thumbnail")!!, s("thumbnailSha256")!!, materials)
+                     s("thumbnail")!!, s("thumbnailSha256")!!, materials, s("thumbnailDark"), s("thumbnailDarkSha256"))
             }.sortedBy { it.order }
             return SunglassesPack(pairs, files)
         }
