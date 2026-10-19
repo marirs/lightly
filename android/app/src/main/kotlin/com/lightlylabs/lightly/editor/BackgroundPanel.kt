@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 
 import com.lightlylabs.lightly.shell.l2TextStyle
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -256,7 +255,8 @@ private val BACKGROUND_GRID_COLUMN_GAP = 8.dp
 internal fun backgroundImageTileSize(gridWidth: Dp): Dp = (gridWidth - BACKGROUND_GRID_SIDE_PADDING * 2 - BACKGROUND_GRID_COLUMN_GAP * 3) / 4
 
 private fun bundledThumbnail(context: android.content.Context, file: String): ImageBitmap? =
-    runCatching { context.assets.open("backgrounds/${file}_thumb.jpg").use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
+    // Tiles are at most ~120 dp: decoded no larger than 512 px.
+    runCatching { SampledBitmaps.decodeStream({ context.assets.open("backgrounds/${file}_thumb.jpg") }, 512)?.asImageBitmap() }.getOrNull()
 
 /** A background choice: [tileSize] square, 16 dp corners; when chosen, a 2 dp sheet-coloured gap and a 2 dp accent ring outside it. */
 @Composable

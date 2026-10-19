@@ -1,7 +1,6 @@
 package com.lightlylabs.lightly.editor
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import com.lightlylabs.lightly.background.SegmentationUnavailableException
 import com.lightlylabs.lightly.vision.PeopleAnalysis
 import com.lightlylabs.lightly.vision.RgbaImage
@@ -39,7 +38,7 @@ object VisionProbe {
         for (photo in photos) {
             val result = JSONObject().put("photo", photo.name)
             runCatching {
-                val bitmap = BitmapFactory.decodeFile(photo.absolutePath) ?: error("cannot decode")
+                val bitmap = SampledBitmaps.decodeFile(photo.absolutePath, DISPLAY_LONG_EDGE) ?: error("cannot decode")
                 val analysis = rgba(bitmap, ANALYSIS_LONG_EDGE)
                 val display = rgba(bitmap, DISPLAY_LONG_EDGE)
                 var start = System.nanoTime()
