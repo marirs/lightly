@@ -3,19 +3,18 @@
 # the same version as the Compose and serialization compiler plugins keeps exactly one Kotlin Gradle
 # plugin on the build classpath, so the pure-JVM core modules and the Android modules share a compiler.
 agp = "9.4.1"
-kotlin = "2.4.20"
-coroutines = "1.10.2"
-serialization = "1.8.1"
-# Pinned to the newest releases that still compile against compileSdk 36: Compose BOM 2026.09.00
-# and lifecycle 2.11.0 declare minCompileSdk 37 in their AAR metadata. Raise together with compileSdk.
-composeBom = "2026.06.01"
+kotlin = "2.4.21"
+coroutines = "1.11.0"
+serialization = "1.11.0"
+# Compose BOM 2026.09.00 and lifecycle 2.11.0 need compileSdk 37 (raised 2026-10-19).
+composeBom = "2026.09.00"
 activityCompose = "1.13.0"
-lifecycle = "2.10.0"
+lifecycle = "2.11.0"
 junit = "4.13.2"
-robolectric = "4.16.1"
+robolectric = "4.17"
 androidxTestCore = "1.7.0"
 # WindowManager: FoldingFeature (hinge / posture) for the editor layout.
-window = "1.5.0"
+window = "1.5.1"
 # Standalone LiteRT runtime (Apache-2.0; not Play-services TFLite), Interpreter API, CPU/XNNPACK: the
 # Depth Anything V2 Small depth model. 1.4.2, not 2.x: 2.x adds ai-delivery (AiPack downloads), Guava
 # and foreground-service permissions. Approved by the coordinator for this integration only.

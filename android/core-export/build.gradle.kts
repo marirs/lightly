@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.lightlylabs.lightly.export"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         // Spec U6: IS_PENDING and permissionless scoped-storage inserts exist only from API 29.
@@ -16,8 +16,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     testOptions {

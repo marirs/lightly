@@ -4,9 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 
+// Pinned: with no @Config Robolectric uses targetSdk 37; on SDK 36+ its ApplicationSharedMemory set-up fails on JDK 25 (2026-10-19), as the other tests pin 35.
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class PresetPackSizeTest {
     @Test
     fun `counts distinct presets and categories, skipping recipes`() {

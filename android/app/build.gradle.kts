@@ -105,13 +105,13 @@ val lightlyBuildNumber: Int = ((findProperty("lightlyBuildNumber") as String?) ?
 
 android {
     namespace = "com.lightlylabs.lightly"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.lightlylabs.lightly"
         // Spec U6 (revised after Codex M1 finding 8): the IS_PENDING save path needs API 29.
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 37
         // version.properties and scripts/version.sh, shared with iOS: marketing version and the git-derived build
         // number (YYMMDD + the commit's three-digit sequence that day). -PlightlyBuildNumber overrides it.
         versionCode = lightlyBuildNumber
@@ -166,8 +166,8 @@ android {
     androidResources { noCompress += "tflite" }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     testOptions {
