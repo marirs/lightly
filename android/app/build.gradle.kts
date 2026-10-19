@@ -147,6 +147,11 @@ android {
             buildConfigField("boolean", "DIAGNOSTICS", "true")
         }
         getByName("release") {
+            // R8: shrink, optimise and obfuscate (Play Console, 2026-10-19: DEX optimisation below threshold). The
+            // mapping file (build/outputs/mapping/release/mapping.txt) is uploaded with the bundle for crash reports.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("boolean", "DEPTH_MODEL_ENABLED", depthModelEnabled("release").toString())
             buildConfigField("boolean", "REMOVE_MODEL_ENABLED", removeModelEnabled("release").toString())
             buildConfigField("boolean", "VISION_MODELS_ENABLED", visionModelsEnabled("release").toString())
