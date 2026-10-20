@@ -426,6 +426,23 @@ final class SunglassesEngineTests: XCTestCase {
                 let rawEz = simd_normalize(simd_cross(simd_normalize(w(263) - w(33)), w(10) - w(152)))
                 let pose = SunglassesRenderer.pose(landmarks: P, width: W, height: H, background: maps.background)
                 let s = pose.pixelsPerMetre
+                // The far-iris walk (§7.5 turn correction) sampled every millimetre, for comparison with Android.
+                let rawYaw = atan2(rawEz.x, rawEz.z), (nearI, farI) = rawYaw < 0 ? (473, 468) : (468, 473)
+                let start = SIMD2(P[farI].x, P[farI].y), dir = simd_normalize(start - SIMD2(P[nearI].x, P[nearI].y))
+                let walk = stride(from: 0, through: Int(0.03 * s), by: max(1, Int(0.001 * s))).map { t -> String in
+                    let q = start + dir * Float(t)
+                    let v: Float = q.x < 0 || q.y < 0 || Int(q.x) >= W || Int(q.y) >= H ? 1 : maps.background(Float(Int(q.x)) + 0.5, Float(Int(q.y)) + 0.5)
+                    return String(format: "%.2f", v)
+                }.joined(separator: " ")
+                var across = SIMD2<Float>(-(P[152].y - P[10].y), P[152].x - P[10].x); across = simd_normalize(across)
+                if simd_dot(across, dir) < 0 { across = -across }
+                var alt: Float? = nil
+                for t in 0...Int(SunglassesConstants.yawRampMetres * s) {
+                    let q = start + across * Float(t)
+                    if q.x < 0 || q.y < 0 || Int(q.x) >= W || Int(q.y) >= H || maps.background(Float(Int(q.x)) + 0.5, Float(Int(q.y)) + 0.5) > 0.5 { alt = Float(t) / s; break }
+                }
+                print("sunglasses-alt \(name) #\(index) rawYaw \(rawYaw * 180 / .pi) across \(across.x),\(across.y) altMargin \(alt.map { String($0) } ?? "nil")")
+                print("sunglasses-walk \(name) #\(index) W \(W) H \(H) near \(P[nearI].x),\(P[nearI].y) far \(start.x),\(start.y) dir \(dir.x),\(dir.y) bgPerMm \(walk)")
                 let k = SunglassesRenderer.fittedScale(pixelsPerMetre: s, frontWidthMetres: mesh.frontWidthMetres, landmarks: P)
                 func px2(_ i: Int) -> SIMD2<Float> { SIMD2(P[i].x, P[i].y) }
                 // How far behind the lens plane (metres, along -ez) a landmark lies.

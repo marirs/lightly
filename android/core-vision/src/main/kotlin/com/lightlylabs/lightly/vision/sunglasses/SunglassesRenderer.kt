@@ -35,15 +35,22 @@ object SunglassesRenderer {
         var ez = normalise(cross(ex, sub(w(10), w(152))))
         val ey = cross(ez, ex)
         val s = length(sub(w(263), w(33))) / SunglassesConstants.INTER_IRIS_REFERENCE_METRES
-        // Profile correction: walk outward from the far iris (continuing near → far) until the background; within 7 mm,
-        // raise the turn towards 85 degrees.
+        // Profile correction: walk outward from the far iris until the background; the nearer the outline, the more the
+        // turn is raised towards 85 degrees.
         var isProfile = false
         val yaw = atan2(ez[0], ez[2])
         val near = if (yaw < 0) 473 else 468; val far = if (yaw < 0) 468 else 473
-        val sx = p[far * 3].toDouble(); val sy = p[far * 3 + 1].toDouble()
-        var dx = sx - p[near * 3]; var dy = sy - p[near * 3 + 1]
+        // The walk runs across the face, perpendicular to its forehead–chin line (10 → 152), from the far iris's position
+        // across the face at the near iris's height (iOS farIrisMargin): on a profile the far eye is hidden and the
+        // landmarkers guess its height differently (owner report 2026-10-20: 22 px higher here than on iOS, so the walk
+        // ran up to the brow and the pair was turned 64° instead of 74°).
+        var dx = -(p[152 * 3 + 1] - p[10 * 3 + 1]).toDouble(); var dy = (p[152 * 3] - p[10 * 3]).toDouble()
         val dl = sqrt(dx * dx + dy * dy).takeIf { it > 1e-9 } ?: 1.0
         dx /= dl; dy /= dl
+        val gx = (p[far * 3] - p[near * 3]).toDouble(); val gy = (p[far * 3 + 1] - p[near * 3 + 1]).toDouble()
+        if (dx * gx + dy * gy < 0) { dx = -dx; dy = -dy }
+        val along = dx * gx + dy * gy
+        val sx = p[near * 3] + dx * along; val sy = p[near * 3 + 1] + dy * along
         var margin: Double? = null
         // Turn correction (iOS pose): raised in proportion as the far iris comes within YAW_RAMP_METRES of the outline;
         // within PROFILE_MARGIN_METRES the face is a profile (the outline clip).

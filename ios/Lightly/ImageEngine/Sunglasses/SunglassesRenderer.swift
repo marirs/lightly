@@ -71,11 +71,19 @@ enum SunglassesRenderer {
         return min(max((yawDegrees - start) / (full - start), 0), 1)
     }
 
-    /// Metres from the far iris to the person's outline, walking outward (continuing the near → far iris direction)
-    /// until the background, or nil when the outline is further than `upTo`.
+    /// Metres from the far iris to the person's outline, walking outward until the background, or nil when the outline
+    /// is further than `upTo`.
+    ///
+    /// The walk runs across the face, perpendicular to its forehead–chin line (10 → 152), from the far iris's position
+    /// across the face at the near iris's height: on a profile the far eye is hidden and the landmarkers guess its
+    /// height differently (owner report 2026-10-20: Android put it 22 px higher on profile_colour_woman_01, so its walk
+    /// ran up to the brow, where the face reaches further, and the pair was turned 64° instead of iOS's 74°).
     static func farIrisMargin(_ P: [SIMD3<Float>], near: Int, far: Int, width W: Int, height H: Int, pixelsPerMetre s: Float,
                               upTo: Float, background: (Float, Float) -> Float) -> Float? {
-        let start = SIMD2(P[far].x, P[far].y), toward = simd_normalize(start - SIMD2(P[near].x, P[near].y))
+        let nearIris = SIMD2(P[near].x, P[near].y), farIris = SIMD2(P[far].x, P[far].y)
+        var toward = simd_normalize(SIMD2(-(P[152].y - P[10].y), P[152].x - P[10].x))
+        if simd_dot(toward, farIris - nearIris) < 0 { toward = -toward }
+        let start = nearIris + toward * simd_dot(farIris - nearIris, toward)
         for t in 0...max(Int(upTo * s), 0) {
             let q = start + toward * Float(t)
             let xi = Int(q.x), yi = Int(q.y)
