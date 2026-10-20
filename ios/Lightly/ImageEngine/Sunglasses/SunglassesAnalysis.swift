@@ -102,8 +102,8 @@ enum SunglassesConstants {
     /// The ear boxes start at the face's own ear depth (`SunglassesRenderer.earClipStarts`), never nearer than this.
     static let earClipMinStartMetres: Float = 0.06
     /// From the contour point by the ear (the tragus) back to the ear's top front. Without it the arms stopped ~2 cm short
-    /// of the ear (matrix v23, 2026-10-20).
-    static let earBehindContourMetres: Float = 0.015
+    /// of the ear (matrix v23, 2026-10-20); 1.5 cm left the Aviator's curl showing in front of the ear on Android, whose mesh puts the ear ~3 mm further back (moto edge 60).
+    static let earBehindContourMetres: Float = 0.010
     static let earBoxInnerX: Float = 0.04
     static let earBoxOuterX: Float = 0.20
     static let refineCropScale: Float = 1.5

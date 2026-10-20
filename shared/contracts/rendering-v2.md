@@ -463,7 +463,7 @@ within 0.02 m of the centre line (head x) and between 0.06 m below and level wit
 too coarse in depth this close to the lenses and cut pieces out of the far lens (2026-10-15); behind the ellipsoid's
 centre, an elliptic cylinder of its x and y radii, 0.2 m long, so an inward-curling arm tip stays hidden; and two ear boxes in the head's (holder's) frame, |x| from 0.04 to 0.20 m,
 y ±0.2 m, z from −e to −0.30 m, where e is the front of that side's ear: the depth behind the lens plane of the face's contour
-point by the ear (234 on −x, 454 on +x, at the tragus), `dot(origin − p, ez) / s`, plus 0.015 m to the ear's top front, clamped to 0.06…0.12 m, in pair metres (× s / k); 0.12 m
+point by the ear (234 on −x, 454 on +x, at the tragus), `dot(origin − p, ez) / s`, plus 0.010 m to the ear’s top front, clamped to 0.06…0.12 m, in pair metres (× s / k); 0.12 m
 without a face mesh. The arms are straight, and past the front of
 the ear a real arm goes behind the ear, so it is hidden there (owner report 2026-10-14: the arm lay over the ear; 2026-10-20:
 on a 3/4 face the ear starts ~9 cm back and the arm's tip showed on top of it). On a turned face (|ex.z| > 0.1) the far side's box starts
