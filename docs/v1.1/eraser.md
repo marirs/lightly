@@ -1,7 +1,7 @@
 # Eraser — 1.1 research and proposed scope
 
 Date: 2026-10-05. Platforms: iOS and Android.
-Owner approved scheduling Eraser for 1.1. The details below are recommendations,
+Owner approved scheduling Eraser for 1.1; moved to 1.2 by the owner on 2026-10-20 (see ../roadmap.md). The details below are recommendations,
 not approved screens, promised model capabilities or a new 1.0 work assignment.
 
 ## Reference review
