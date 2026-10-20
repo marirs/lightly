@@ -12,6 +12,20 @@
 
 Any 1.0 defect that needs a store fix before 1.1 still ships as 1.0.x from `release/1.0`.
 
+
+### 1.1 — 1.0 polishes (listed 2026-10-13, status 2026-10-20)
+
+| # | Polish | Status |
+|---|---|---|
+| 1 | Polaroid border: the floating Auto / "Reset all" buttons cover the Polaroid's bottom margin and signature | Open |
+| 2 | VoiceOver and TalkBack pass on iOS and Android | Open (only 6629e86, hidden Auto / Reset all no longer read, landed in 1.0) |
+| 3 | Out-of-date iOS screen tests and screenshot baselines | Open, scope not yet counted; baselines change only to match the approved design |
+
+Related platform work: Android R8 done (2a27f64; 1.0.1 on `release/1.0`). iPhone Duo: large-screen
+capture done (bec3560); iOS 27 SDK build and App Store screenshots open.
+The full 1.0 feature check on the review phones (iPhone 11 Pro Max, SE 3, moto edge 60) is still not done;
+defects it finds go to 1.0.x from `release/1.0`.
+
 ## 1.2 — Eraser
 
 Recorded 2026-10-05 from the owner's explicit request; moved from 1.1 to 1.2 by the owner on 2026-10-20. Target: iOS and Android.
