@@ -46,17 +46,29 @@ enum SunglassesRenderer {
                                    upTo: SunglassesConstants.yawRampMetres, background: background)
         let target = SunglassesConstants.profileTargetYawDegrees * .pi / 180
         if let margin, abs(yaw) < target {
+            isProfile = margin <= SunglassesConstants.profileMarginMetres
             let raised = abs(yaw) + (target - abs(yaw)) * (1 - margin / SunglassesConstants.yawRampMetres)
+                * turnRaiseWeight(yawDegrees: abs(yaw) * 180 / .pi, isProfile: isProfile)
             let angle = (raised - abs(yaw)) * (yaw < 0 ? -1 : 1)
             ex = rotate(ex, about: ey, by: angle)
             ez = rotate(ez, about: ey, by: angle)
-            isProfile = margin <= SunglassesConstants.profileMarginMetres
         }
         // Placement: the lens plane 15 mm in front of the irises along the head's own axis.
         func sc(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z) }
         let iris = (sc(468) + sc(473)) / 2
         return Pose(ex: ex, ey: ey, ez: ez, pixelsPerMetre: s, origin: iris + s * SunglassesConstants.eyeDepthMetres * ez,
                     isProfile: isProfile)
+    }
+
+    /// How much of the turn raise applies (0...1): none while the landmarker's own turn is under
+    /// `turnRaiseStartYawDegrees`, where it reads turns truly, rising to all of it at `turnRaiseFullYawDegrees`; always
+    /// all of it on a profile. Owner report 2026-10-20: a 35° face whose far iris lay 15 mm from the outline (a narrow
+    /// temple against the background) was raised to 55°, so the pair was drawn turned further than the face and the near
+    /// eye's outer corner showed beside the near lens.
+    static func turnRaiseWeight(yawDegrees: Float, isProfile: Bool) -> Float {
+        if isProfile { return 1 }
+        let start = SunglassesConstants.turnRaiseStartYawDegrees, full = SunglassesConstants.turnRaiseFullYawDegrees
+        return min(max((yawDegrees - start) / (full - start), 0), 1)
     }
 
     /// Metres from the far iris to the person's outline, walking outward (continuing the near → far iris direction)

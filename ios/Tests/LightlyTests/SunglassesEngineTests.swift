@@ -387,6 +387,57 @@ final class SunglassesEngineTests: XCTestCase {
         print("Sunglasses nose: \(out.path)")
     }
 
+    /// Diagnostic for turned faces (owner, 2026-10-20: on glasses_side_angle_01 the near eye's outer corner showed
+    /// beside the Round's near lens): the Round on each turned photo with the irises (red) and eye corners (blue)
+    /// marked, written as turn.<photo>.png, and the pose numbers printed. Review only.
+    func testTurnedFacePlacementDiagnosticIsWritten() async throws {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_MATRIX"] == "1" else { throw XCTSkip("set LIGHTLY_SUNGLASSES_MATRIX=1") }
+        let analyzer = try XCTUnwrap(SunglassesAnalyzer.loadBundled())
+        let pack = try XCTUnwrap(SunglassesPack.bundled)
+        let round = try XCTUnwrap(pack.pairs.first { $0.name == "Round" })
+        let mesh = try pack.load(round).mesh
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("lightly-sunglasses")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        for name in ["glasses_side_angle_01", "profile_beard_man_01", "profile_bw_woman_01", "profile_bw_woman_hair_01",
+                     "profile_colour_woman_01", "profile_bw_boy_01", "group_three_01", "glasses_thin_metal_01"] {
+            let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture("experiments/test-photos/\(name).jpg").path)?.cgImage)
+            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let (rgba, W, H) = Self.rgba8(image)
+            let analyses = try Self.editorFaces(image).map { try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: $0.box, eyes: $0.eyes) }
+            let maps = SunglassesRenderer.Maps(analyses: analyses, scale: 1)
+            var linear = FloatImage.linear(fromRGBA8: rgba, width: W, height: H)
+            let edits = analyses.map { a -> (edit: EditRecipe.FaceEdit, analysis: FaceSunglassesAnalysis) in
+                var edit = PortraitPanelModel.neutral(for: nil)
+                edit.sunglasses = .init(pair: round.id, lens: .dark, darkness: 40, size: 0, removed: nil)
+                return (edit, a)
+            }
+            SunglassesRenderer.render(&linear, faces: edits, allAnalyses: analyses, pack: pack)
+            var px = linear.rgba8FromLinear()
+            func dot(_ x: Float, _ y: Float, _ c: (UInt8, UInt8, UInt8)) {
+                for dy in -3...3 { for dx in -3...3 where dx * dx + dy * dy <= 9 {
+                    let X = Int(x) + dx, Y = Int(y) + dy
+                    guard X >= 0, Y >= 0, X < W, Y < H else { continue }
+                    let o = (Y * W + X) * 4; px[o] = c.0; px[o + 1] = c.1; px[o + 2] = c.2
+                } }
+            }
+            for (index, a) in analyses.enumerated() {
+                let P = a.landmarks
+                func w(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x, -P[i].y, -P[i].z) }
+                let rawEz = simd_normalize(simd_cross(simd_normalize(w(263) - w(33)), w(10) - w(152)))
+                let pose = SunglassesRenderer.pose(landmarks: P, width: W, height: H, background: maps.background)
+                let s = pose.pixelsPerMetre
+                let k = SunglassesRenderer.fittedScale(pixelsPerMetre: s, frontWidthMetres: mesh.frontWidthMetres, landmarks: P)
+                func px2(_ i: Int) -> SIMD2<Float> { SIMD2(P[i].x, P[i].y) }
+                print("sunglasses-turn \(name) #\(index) rawYaw \(String(format: "%.0f", atan2(rawEz.x, rawEz.z) * 180 / .pi)) yaw \(String(format: "%.0f", atan2(pose.ez.x, pose.ez.z) * 180 / .pi)) profile \(pose.isProfile) s \(String(format: "%.0f", s)) k/s \(String(format: "%.2f", k / s)) cheeks \(String(format: "%.0f", simd_distance(w(454), w(234)) / s * 1000)) mm irisGap2D \(String(format: "%.0f", simd_distance(px2(468), px2(473)))) px cornerGap2D \(String(format: "%.0f", simd_distance(px2(33), px2(263)))) px originShift2D \(String(format: "%.0f", pose.origin.x + Float(W) / 2 - (P[468].x + P[473].x) / 2)) px")
+                for i in [468, 473] { dot(P[i].x, P[i].y, (255, 0, 0)) }
+                for i in [33, 133, 362, 263] { dot(P[i].x, P[i].y, (0, 120, 255)) }
+                dot(pose.origin.x + Float(W) / 2, Float(H) / 2 - pose.origin.y, (0, 255, 0))
+            }
+            try UIImage(cgImage: Self.cgImage(px, width: W, height: H)).pngData()!.write(to: out.appendingPathComponent("turn.\(name).png"))
+        }
+        print("Sunglasses turn: \(out.path)")
+    }
+
     /// Measurement for the width fit: each face's width at the cheek points 234/454 (metres, by the eye-corner scale)
     /// and each pair's front width (vertices within 2 cm of the lens plane), printed for review.
     func testFaceAndPairWidthsArePrinted() throws {

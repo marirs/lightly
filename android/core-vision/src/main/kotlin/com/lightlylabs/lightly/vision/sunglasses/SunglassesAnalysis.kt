@@ -37,6 +37,9 @@ object SunglassesConstants {
     const val EAR_BOX_OUTER_X = 0.20
     /** The turn is raised in proportion as the far iris comes within this of the outline (iOS yawRampMetres). */
     const val YAW_RAMP_METRES = 0.025
+    /** The raise fades in between these landmarker turns (iOS turnRaiseStartYawDegrees/turnRaiseFullYawDegrees; owner
+     *  report 2026-10-20: a 35° face was raised to 55° and its near eye showed beside the near lens). */
+    const val TURN_RAISE_START_YAW_DEGREES = 40.0; const val TURN_RAISE_FULL_YAW_DEGREES = 50.0
     /** The eye band reaches this × d beyond the landmarks (was 0.15; a turned face's far rim sticks out past the nose). */
     const val EYE_BAND_PAD_X = 0.45f
     /** The eye band reaches this × d below the nose tip (was 0.1; a tilted face's far rim corner was missed). */

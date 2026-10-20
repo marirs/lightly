@@ -117,6 +117,9 @@ enum SunglassesConstants {
     /// person's outline (owner report 2026-10-14: a 75° face was drawn at 51°, its far iris 12 mm from the outline, past
     /// the 7 mm that marked a profile). Only within `profileMarginMetres` is the face a profile (the outline clip).
     static let yawRampMetres: Float = 0.025
+    /// The raise fades in between these landmarker turns (see `SunglassesRenderer.turnRaiseWeight`): below 40° the
+    /// landmarker reads turns truly; the faces it under-reported (2026-10-14) all read 53° or more.
+    static let turnRaiseStartYawDegrees: Float = 40, turnRaiseFullYawDegrees: Float = 50
     /// The eye band reaches this × d beyond the landmarks on each side (was 0.15; owner report 2026-10-14: on a turned
     /// face the far rim of the person's own glasses sticks out past the nose and was left behind).
     static let eyeBandPadX: Float = 0.45

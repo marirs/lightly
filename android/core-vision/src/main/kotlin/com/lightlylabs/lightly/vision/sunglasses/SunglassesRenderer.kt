@@ -55,10 +55,11 @@ object SunglassesRenderer {
         }
         val target = SunglassesConstants.PROFILE_TARGET_YAW_DEGREES * PI / 180
         if (margin != null && abs(yaw) < target) {
-            val raised = abs(yaw) + (target - abs(yaw)) * (1 - margin / SunglassesConstants.YAW_RAMP_METRES)
+            isProfile = margin <= SunglassesConstants.PROFILE_MARGIN_METRES
+            val raised = abs(yaw) + (target - abs(yaw)) * (1 - margin / SunglassesConstants.YAW_RAMP_METRES) *
+                turnRaiseWeight(abs(yaw) * 180 / PI, isProfile)
             val angle = (raised - abs(yaw)) * (if (yaw < 0) -1 else 1)
             ex = rotate(ex, ey, angle); ez = rotate(ez, ey, angle)
-            isProfile = margin <= SunglassesConstants.PROFILE_MARGIN_METRES
         }
         fun sc(i: Int) = doubleArrayOf(p[i * 3] - width / 2.0, height / 2.0 - p[i * 3 + 1], -p[i * 3 + 2].toDouble())
         val iris = DoubleArray(3) { (sc(468)[it] + sc(473)[it]) / 2 }
@@ -376,6 +377,14 @@ object SunglassesRenderer {
     private fun normalise(a: DoubleArray): DoubleArray { val l = length(a); return DoubleArray(3) { a[it] / l } }
     private fun cross(a: DoubleArray, b: DoubleArray) = doubleArrayOf(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
     private fun dot(a: DoubleArray, b: DoubleArray) = a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+    /** How much of the turn raise applies (iOS turnRaiseWeight): none under TURN_RAISE_START_YAW_DEGREES of the
+     *  landmarker's own turn, all of it from TURN_RAISE_FULL_YAW_DEGREES and always on a profile. */
+    fun turnRaiseWeight(yawDegrees: Double, isProfile: Boolean): Double {
+        if (isProfile) return 1.0
+        val start = SunglassesConstants.TURN_RAISE_START_YAW_DEGREES; val full = SunglassesConstants.TURN_RAISE_FULL_YAW_DEGREES
+        return ((yawDegrees - start) / (full - start)).coerceIn(0.0, 1.0)
+    }
+
     fun rotate(v: DoubleArray, axis: DoubleArray, angle: Double): DoubleArray {
         val k = normalise(axis); val c = cos(angle); val s = sin(angle); val kv = cross(k, v); val d = dot(k, v)
         return DoubleArray(3) { v[it] * c + kv[it] * s + k[it] * d * (1 - c) }
