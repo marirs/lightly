@@ -468,6 +468,189 @@ final class SunglassesEngineTests: XCTestCase {
         print("Sunglasses turn: \(out.path)")
     }
 
+    /// Diagnostic (owner, 2026-10-20: the low-key beard profile gets no pair): the landmarker's face-presence logit and
+    /// mesh extent per face, on the photo as is and with the photo's tones lifted by a gamma that brings the face box's
+    /// mean (sRGB) to 0.45. Review only.
+    func testLandmarkerExposureDiagnosticIsPrinted() throws {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_MATRIX"] == "1" else { throw XCTSkip("set LIGHTLY_SUNGLASSES_MATRIX=1") }
+        let analyzer = try XCTUnwrap(SunglassesAnalyzer.loadBundled())
+        for name in ["profile_beard_man_01", "profile_bw_woman_hair_01", "profile_bw_woman_01", "profile_colour_woman_01",
+                     "profile_bw_boy_01", "glasses_side_angle_01", "group_three_01"] {
+            let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture("experiments/test-photos/\(name).jpg").path)?.cgImage)
+            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let (rgba, W, H) = Self.rgba8(image)
+            for (index, face) in try Self.editorFaces(image).enumerated() {
+                let b = face.box
+                var sum = 0.0, n = 0
+                for y in Int(b.y * Double(H))..<min(H, Int((b.y + b.height) * Double(H))) {
+                    for x in Int(b.x * Double(W))..<min(W, Int((b.x + b.width) * Double(W))) {
+                        let o = (y * W + x) * 4; sum += (Double(rgba[o]) + Double(rgba[o + 1]) + Double(rgba[o + 2])) / 765; n += 1
+                    }
+                }
+                let mean = sum / Double(max(n, 1))
+                for gamma in [1.0, log(0.45) / log(max(mean, 0.01))] {
+                    let lut = (0..<256).map { UInt8(min(255, (pow(Double($0) / 255, gamma) * 255).rounded())) }
+                    let lifted = gamma == 1 ? rgba : rgba.enumerated().map { $0.offset % 4 == 3 ? $0.element : lut[Int($0.element)] }
+                    let a = try analyzer.analyse(.init(rgba: lifted, width: W, height: H), faceBox: face.box, eyes: face.eyes)
+                    let mesh = a.landmarks.prefix(468)
+                    let spanX = (mesh.map(\.x).max()! - mesh.map(\.x).min()!) / Float(b.width * Double(W))
+                    let spanY = (mesh.map(\.y).max()! - mesh.map(\.y).min()!) / Float(b.height * Double(H))
+                    if gamma == 1 {
+                        var px = rgba
+                        for q in a.landmarks.prefix(468) {
+                            let X = Int(q.x), Y = Int(q.y)
+                            guard X >= 1, Y >= 1, X < W - 1, Y < H - 1 else { continue }
+                            for dy in -1...1 { for dx in -1...1 { let o = ((Y + dy) * W + X + dx) * 4; px[o] = 0; px[o + 1] = 255; px[o + 2] = 0 } }
+                        }
+                        for e in [face.eyes.0, face.eyes.1] {
+                            for dy in -4...4 { for dx in -4...4 { let X = Int(e.x) + dx, Y = Int(e.y) + dy
+                                guard X >= 0, Y >= 0, X < W, Y < H else { continue }
+                                let o = (Y * W + X) * 4; px[o] = 255; px[o + 1] = 0; px[o + 2] = 255 } }
+                        }
+                        let out = FileManager.default.temporaryDirectory.appendingPathComponent("lightly-sunglasses")
+                        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+                        try UIImage(cgImage: Self.cgImage(px, width: W, height: H)).pngData()!.write(to: out.appendingPathComponent("mesh.\(name).\(index).png"))
+                    }
+                    if gamma != 1, name == "profile_beard_man_01", let pack = SunglassesPack.bundled {
+                        // The lifted analysis rendered on the original photo, for review.
+                        var edit = PortraitPanelModel.neutral(for: nil)
+                        edit.sunglasses = .init(pair: pack.pairs.first { $0.name == "Wayfarer" }!.id, lens: .dark, darkness: 75, size: 0, removed: nil)
+                        var linear = FloatImage.linear(fromRGBA8: rgba, width: W, height: H)
+                        SunglassesRenderer.render(&linear, faces: [(edit, a)], allAnalyses: [a], pack: pack)
+                        let out = FileManager.default.temporaryDirectory.appendingPathComponent("lightly-sunglasses")
+                        try UIImage(cgImage: Self.cgImage(linear.rgba8FromLinear(), width: W, height: H)).pngData()!.write(to: out.appendingPathComponent("lifted.\(name).png"))
+                    }
+                    print("sunglasses-exposure \(name) #\(index) boxMean \(String(format: "%.2f", mean)) gamma \(String(format: "%.2f", gamma)) logit \(String(format: "%.1f", a.faceLogit)) meshSpan \(String(format: "%.2f", spanX))x\(String(format: "%.2f", spanY)) of box")
+                }
+            }
+        }
+    }
+
+    /// Diagnostic for a geometry check on low-logit faces (owner, 2026-10-20): per face, the logit and how much darker
+    /// the photo is inside the clearer eye's landmark iris than in a ring around it (2–3 iris radii). Review only.
+    func testIrisContrastDiagnosticIsPrinted() throws {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_MATRIX"] == "1" else { throw XCTSkip("set LIGHTLY_SUNGLASSES_MATRIX=1") }
+        let analyzer = try XCTUnwrap(SunglassesAnalyzer.loadBundled())
+        var photos = Self.photos.map { "\($0.dir)/\($0.name).jpg" }
+        photos += ["glasses_black_front_01", "glasses_pair_mixed_01", "glasses_side_angle_01", "glasses_thick_deep_01",
+                   "glasses_thin_metal_01", "group_three_01", "profile_beard_man_01", "profile_bw_boy_01", "profile_bw_woman_01",
+                   "profile_bw_woman_hair_01", "profile_colour_woman_01", "sunglasses_round_01"].map { "experiments/test-photos/\($0).jpg" }
+        for path in Set(photos).sorted() {
+            let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture(path).path)?.cgImage)
+            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let (rgba, W, H) = Self.rgba8(image)
+            func luma(_ x: Int, _ y: Int) -> Float? {
+                guard x >= 0, y >= 0, x < W, y < H else { return nil }
+                let o = (y * W + x) * 4; return (Float(rgba[o]) * 0.299 + Float(rgba[o + 1]) * 0.587 + Float(rgba[o + 2]) * 0.114) / 255
+            }
+            for (index, face) in try Self.editorFaces(image).enumerated() {
+                let a = try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: face.box, eyes: face.eyes)
+                let P = a.landmarks
+                // The clearer eye: the larger iris in the image (the far one shrinks with the turn).
+                func radius(_ c: Int) -> Float { (c + 1...c + 4).map { simd_distance(SIMD2(P[$0].x, P[$0].y), SIMD2(P[c].x, P[c].y)) }.reduce(0, +) / 4 }
+                let centre = radius(468) >= radius(473) ? 468 : 473, r = max(radius(centre), 1)
+                var inner: [Float] = [], ring: [Float] = []
+                let cx = P[centre].x, cy = P[centre].y, reach = Int((3 * r).rounded(.up))
+                for dy in -reach...reach { for dx in -reach...reach {
+                    let d = (Float(dx * dx + dy * dy)).squareRoot() / r
+                    guard let l = luma(Int(cx) + dx, Int(cy) + dy) else { continue }
+                    if d <= 0.8 { inner.append(l) } else if d >= 2, d <= 3 { ring.append(l) }
+                } }
+                let li = inner.reduce(0, +) / Float(max(inner.count, 1)), lr = ring.reduce(0, +) / Float(max(ring.count, 1))
+                print("sunglasses-iris \(path.split(separator: "/").last!) #\(index) logit \(String(format: "%.1f", a.faceLogit)) irisR \(String(format: "%.1f", r)) inner \(String(format: "%.2f", li)) ring \(String(format: "%.2f", lr)) contrast \(String(format: "%.2f", (lr - li) / max(lr, 0.01)))")
+            }
+        }
+    }
+
+    /// Validation set for the low-logit geometry check (owner, 2026-10-20: not from one photo): every readable face of the
+    /// test photos, analysed again on degraded copies (darkened, blurred, noisy) and from shifted or shrunk face boxes.
+    /// Each variant that scores below `minFaceLogit` is labelled right when its clearer iris lies within one iris radius of
+    /// the original analysis's, and printed with its iris contrast. Review only.
+    func testLowLogitVariantsArePrinted() throws {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_MATRIX"] == "1" else { throw XCTSkip("set LIGHTLY_SUNGLASSES_MATRIX=1") }
+        let analyzer = try XCTUnwrap(SunglassesAnalyzer.loadBundled())
+        var photos = Self.photos.map { "\($0.dir)/\($0.name).jpg" }
+        photos += ["glasses_black_front_01", "glasses_pair_mixed_01", "glasses_side_angle_01", "glasses_thick_deep_01",
+                   "glasses_thin_metal_01", "group_three_01", "profile_bw_boy_01", "profile_bw_woman_01", "profile_beard_man_01",
+                   "profile_bw_woman_hair_01", "profile_colour_woman_01", "sunglasses_round_01"].map { "experiments/test-photos/\($0).jpg" }
+        photos += ["portrait_deep_01", "portrait_deep_03", "portrait_light_01", "portrait_light_02", "portrait_medium_01"].map { "experiments/lut3d/photos/\($0).jpg" }
+        var rng = SystemRandomNumberGenerator()
+        for path in Set(photos).sorted() {
+            let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture(path).path)?.cgImage)
+            let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))
+            let (rgba, W, H) = Self.rgba8(image)
+            func degraded(_ kind: String) -> [UInt8] {
+                switch kind {
+                case "dark": return rgba.enumerated().map { $0.offset % 4 == 3 ? $0.element : UInt8(pow(Double($0.element) / 255, 2.4) * 255) }
+                case "noise": return rgba.enumerated().map { $0.offset % 4 == 3 ? $0.element : UInt8(min(255, max(0, Int($0.element) + Int.random(in: -60...60, using: &rng)))) }
+                case "blur":
+                    var out = rgba
+                    for y in 0..<H { for x in 0..<W { for c in 0..<3 {
+                        let bx = (x / 6) * 6, by = (y / 6) * 6
+                        out[(y * W + x) * 4 + c] = rgba[(by * W + bx) * 4 + c]
+                    } } }
+                    return out
+                default: return rgba
+                }
+            }
+            for (index, face) in try Self.editorFaces(image).enumerated() {
+                let reference = try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: face.box, eyes: face.eyes)
+                let refIris = Self.clearerIris(reference.landmarks)
+                var refDrift: Float = 0
+                for (sx, sy) in [(0.08, 0.08), (-0.08, -0.08)] {
+                    let moved = EditRecipe.Rect(x: face.box.x + sx * face.box.width, y: face.box.y + sy * face.box.height, width: face.box.width, height: face.box.height)
+                    let again = try analyzer.analyse(.init(rgba: rgba, width: W, height: H), faceBox: moved, eyes: face.eyes)
+                    refDrift = max(refDrift, simd_distance(Self.clearerIris(again.landmarks).centre, refIris.centre) / refIris.radius)
+                }
+                print("sunglasses-original \(path.split(separator: "/").last!) #\(index) logit \(String(format: "%.1f", reference.faceLogit)) contrast \(String(format: "%.2f", Self.irisContrast(rgba, width: W, height: H, iris: refIris))) drift \(String(format: "%.2f", refDrift))")
+                guard reference.isReadable else { continue }
+                var variants: [(String, [UInt8], EditRecipe.Rect)] = ["dark", "noise", "blur"].map { ($0, degraded($0), face.box) }
+                let b = face.box
+                for (dx, dy, sc) in [(0.4, 0.0, 1.0), (-0.4, 0.0, 1.0), (0.0, 0.35, 1.0), (0.0, -0.35, 1.0), (0.0, 0.0, 0.5), (0.3, 0.3, 0.6)] {
+                    variants.append(("box\(dx),\(dy),\(sc)", rgba, .init(x: b.x + dx * b.width + b.width * (1 - sc) / 2, y: b.y + dy * b.height + b.height * (1 - sc) / 2,
+                                                                         width: b.width * sc, height: b.height * sc)))
+                }
+                for (kind, pixels, box) in variants {
+                    let a = try analyzer.analyse(.init(rgba: pixels, width: W, height: H), faceBox: box, eyes: face.eyes)
+                    guard !a.isReadable else { continue }
+                    let iris = Self.clearerIris(a.landmarks)
+                    let right = simd_distance(iris.centre, refIris.centre) <= refIris.radius
+                    let contrast = Self.irisContrast(rgba, width: W, height: H, iris: iris)
+                    // Stability: the same variant from boxes moved 8 % of the box each way; the iris's largest move.
+                    var drift: Float = 0
+                    for (sx, sy) in [(0.08, 0.08), (-0.08, -0.08)] {
+                        let moved = EditRecipe.Rect(x: box.x + sx * box.width, y: box.y + sy * box.height, width: box.width, height: box.height)
+                        let again = try analyzer.analyse(.init(rgba: pixels, width: W, height: H), faceBox: moved, eyes: face.eyes)
+                        drift = max(drift, simd_distance(Self.clearerIris(again.landmarks).centre, iris.centre) / iris.radius)
+                    }
+                    print("sunglasses-variant \(path.split(separator: "/").last!) #\(index) \(kind) logit \(String(format: "%.1f", a.faceLogit)) right \(right) contrast \(String(format: "%.2f", contrast)) drift \(String(format: "%.2f", drift))")
+                }
+            }
+        }
+    }
+
+    /// The larger landmark iris in the image (the far one shrinks with the turn): centre and radius in pixels.
+    static func clearerIris(_ P: [SIMD3<Float>]) -> (centre: SIMD2<Float>, radius: Float) {
+        func radius(_ c: Int) -> Float { (c + 1...c + 4).map { simd_distance(SIMD2(P[$0].x, P[$0].y), SIMD2(P[c].x, P[c].y)) }.reduce(0, +) / 4 }
+        let c = radius(468) >= radius(473) ? 468 : 473
+        return (SIMD2(P[c].x, P[c].y), max(radius(c), 1))
+    }
+
+    /// (ring − inside) / ring luminance: inside 0.8 iris radii, the ring 2–3 radii (positive when the iris is darker).
+    static func irisContrast(_ rgba: [UInt8], width W: Int, height H: Int, iris: (centre: SIMD2<Float>, radius: Float)) -> Float {
+        var inner: [Float] = [], ring: [Float] = []
+        let reach = Int((3 * iris.radius).rounded(.up))
+        for dy in -reach...reach { for dx in -reach...reach {
+            let x = Int(iris.centre.x) + dx, y = Int(iris.centre.y) + dy
+            guard x >= 0, y >= 0, x < W, y < H else { continue }
+            let o = (y * W + x) * 4, l = (Float(rgba[o]) * 0.299 + Float(rgba[o + 1]) * 0.587 + Float(rgba[o + 2]) * 0.114) / 255
+            let d = Float(dx * dx + dy * dy).squareRoot() / iris.radius
+            if d <= 0.8 { inner.append(l) } else if d >= 2, d <= 3 { ring.append(l) }
+        } }
+        let li = inner.reduce(0, +) / Float(max(inner.count, 1)), lr = ring.reduce(0, +) / Float(max(ring.count, 1))
+        return (lr - li) / max(lr, 0.01)
+    }
+
     /// Measurement for the width fit: each face's width at the cheek points 234/454 (metres, by the eye-corner scale)
     /// and each pair's front width (vertices within 2 cm of the lens plane), printed for review.
     func testFaceAndPairWidthsArePrinted() throws {
