@@ -198,6 +198,39 @@ object SunglassesRenderer {
         return doubleArrayOf(start(234), start(454))
     }
 
+    /** Each arm's turn about its hinge (radians, + raises the far end) for the −x and +x arms (iOS armBendAngles): the
+     *  arm's centre passes ARM_REST_ABOVE_CONTOUR_METRES above the contour point at the top of that side's ear (127 on −x,
+     *  356 on +x) at that point's depth. [dropMetres]: how far the seat lowered the pair (head metres). */
+    fun armBendAngles(mesh: SunglassesPack.Mesh, pose: Pose, p: FloatArray, width: Int, height: Int, k: Double, dropMetres: Double): DoubleArray {
+        if (p.size < 474 * 3 || mesh.armCentreY.size != 2) return doubleArrayOf(0.0, 0.0)
+        val s = pose.pixelsPerMetre; val r = k / s; val tilt = SunglassesConstants.PANTOSCOPIC_TILT_RADIANS
+        fun sc(i: Int) = doubleArrayOf(p[i * 3] - width / 2.0, height / 2.0 - p[i * 3 + 1], -p[i * 3 + 2].toDouble())
+        val iris = DoubleArray(3) { (sc(468)[it] + sc(473)[it]) / 2 }
+        return DoubleArray(2) { side ->
+            val q = sc(if (side == 0) 127 else 356)
+            val up = (0..2).sumOf { (q[it] - iris[it]) * pose.ey[it] } / s
+            val back = (0..2).sumOf { (pose.origin[it] - q[it]) * pose.ez[it] } / s
+            val depth = back / r
+            val armY = if (depth > SunglassesConstants.ARM_BEND_FULL_DEPTH_METRES) armCentre(mesh.armCentreY[side], depth) else null
+            if (armY == null) 0.0 else {
+                val placedUp = r * (armY * cos(tilt) + depth * sin(tilt)) - dropMetres
+                val raise = (up + SunglassesConstants.ARM_REST_ABOVE_CONTOUR_METRES - placedUp) / (r * cos(tilt))
+                atan2(raise, depth - SunglassesConstants.ARM_HINGE_DEPTH_METRES)
+                    .coerceIn(-SunglassesConstants.ARM_BEND_MAX_RADIANS, SunglassesConstants.ARM_BEND_MAX_RADIANS)
+            }
+        }
+    }
+
+    /** Linear interpolation of an arm profile (SunglassesPack.ARM_PROFILE_DEPTHS); null outside it or across a gap. */
+    fun armCentre(profile: DoubleArray, depth: Double): Double? {
+        val depths = SunglassesPack.ARM_PROFILE_DEPTHS; val step = depths[1] - depths[0]
+        val t = (depth - depths[0]) / step
+        if (t < 0 || t.toInt() + 1 >= depths.size || t.toInt() >= profile.size - 1) return null
+        val a = profile[t.toInt()]; val b = profile[t.toInt() + 1]; val f = t - t.toInt()
+        if (a.isNaN() || b.isNaN()) return if (a.isNaN()) (if (b.isNaN()) null else b) else a
+        return a + (b - a) * f
+    }
+
     fun seatedOrigin(pose: Pose, p: FloatArray, width: Int, height: Int, mesh: SunglassesPack.Mesh, k: Double, coverTopUp: Double? = null): DoubleArray {
         if (p.size < 474 * 3) return pose.origin
         fun sc(i: Int) = doubleArrayOf(p[i * 3] - width / 2.0, height / 2.0 - p[i * 3 + 1], -p[i * 3 + 2].toDouble())
@@ -257,8 +290,10 @@ object SunglassesRenderer {
         val rw = x1 - x0; val rh = y1 - y0
         val mesh = pack.mesh(pair)
         val k = fittedScale(s, mesh.frontWidthMetres, p) * (1 + SunglassesConstants.SIZE_PER_UNIT * size)
-        val placement = SunglassesRaster.Placement(seatedOrigin(pose, p, width, height, mesh, k, coverTopUp), pose.ex, pose.ey, pose.ez, k,
-            earClipStarts(pose, p, width, height, k))
+        val seat = seatedOrigin(pose, p, width, height, mesh, k, coverTopUp)
+        val drop = (0..2).sumOf { (pose.origin[it] - seat[it]) * pose.ey[it] } / s
+        val placement = SunglassesRaster.Placement(seat, pose.ex, pose.ey, pose.ez, k,
+            earClipStarts(pose, p, width, height, k), armBendAngles(mesh, pose, p, width, height, k, drop))
         val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s, pose)
         val frame = ByteArray(rw * rh * 4); val front = ByteArray(rw * rh); val lens = ByteArray(rw * rh)
         fun byte(v: Float) = (v.coerceIn(0f, 1f) * 255 + 0.5f).toInt().toByte()

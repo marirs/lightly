@@ -177,6 +177,9 @@ enum SunglassesRenderer {
             holder.addChildNode(ear)
         }
         let seat = seatedOrigin(pose: pose, landmarks: P, width: W, height: H, mesh: loaded.mesh, scale: k, coverTopUp: coverTopUp)
+        let armAngles = armBendAngles(mesh: loaded.mesh, pose: pose, landmarks: P, width: W, height: H, scale: k,
+                                      dropMetres: simd_dot(pose.origin - seat, pose.ey) / s)
+        if armAngles != [0, 0] { pairNode.geometry = bentGeometry(loaded.mesh, angles: armAngles) }
         holder.transform = SCNMatrix4(m11: pose.ex.x * k, m12: pose.ex.y * k, m13: pose.ex.z * k, m14: 0,
                                       m21: pose.ey.x * k, m22: pose.ey.y * k, m23: pose.ey.z * k, m24: 0,
                                       m31: pose.ez.x * k, m32: pose.ez.y * k, m33: pose.ez.z * k, m34: 0,
@@ -235,6 +238,75 @@ enum SunglassesRenderer {
             return min(max(behind, SunglassesConstants.earClipMinStartMetres), fixed) * pose.pixelsPerMetre / k
         }
         return [start(234), start(454)]
+    }
+
+    /// Each arm's turn about its hinge (radians, + raises the arm's far end), for the −x and +x arms, so the arm's centre
+    /// passes `armRestAboveContourMetres` above the contour point at the top of that side's ear (127 on −x, 356 on +x)
+    /// at that point's depth. `dropMetres`: how far the seat lowered the pair (head metres). 0 where the arm has no
+    /// profile at that depth (or no face mesh).
+    static func armBendAngles(mesh: SunglassesPack.Mesh, pose: Pose, landmarks P: [SIMD3<Float>], width W: Int, height H: Int,
+                              scale k: Float, dropMetres: Float) -> [Float] {
+        guard P.count > 473, mesh.armCentreY.count == 2 else { return [0, 0] }
+        let s = pose.pixelsPerMetre, r = k / s, tilt = SunglassesConstants.pantoscopicTiltRadians
+        func sc(_ i: Int) -> SIMD3<Float> { SIMD3(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z) }
+        let iris = (sc(468) + sc(473)) / 2
+        return [(0, 127), (1, 356)].map { side, landmark -> Float in
+            let up = simd_dot(sc(landmark) - iris, pose.ey) / s, back = simd_dot(pose.origin - sc(landmark), pose.ez) / s
+            let depth = back / r   // pair metres behind the lens plane
+            guard depth > SunglassesConstants.armBendFullDepthMetres,
+                  let armY = armCentre(mesh.armCentreY[side], atDepth: depth) else { return 0 }
+            // The arm's centre at that depth, in head metres above the irises, as placed (tilted, scaled, seated).
+            let placedUp = r * (armY * cos(tilt) + depth * sin(tilt)) - dropMetres
+            let raise = (up + SunglassesConstants.armRestAboveContourMetres - placedUp) / (r * cos(tilt))
+            let angle = atan2(raise, depth - SunglassesConstants.armHingeDepthMetres)
+            return min(max(angle, -SunglassesConstants.armBendMaxRadians), SunglassesConstants.armBendMaxRadians)
+        }
+    }
+
+    /// Linear interpolation of an arm profile (`SunglassesPack.armProfileDepthsMetres`); nil outside it or across a gap.
+    static func armCentre(_ profile: [Float], atDepth depth: Float) -> Float? {
+        let depths = SunglassesPack.armProfileDepthsMetres, step = depths[1] - depths[0]
+        let t = (depth - depths[0]) / step
+        guard t >= 0, Int(t) + 1 < depths.count, Int(t) < profile.count - 1 else { return nil }
+        let a = profile[Int(t)], b = profile[Int(t) + 1], f = t - Float(Int(t))
+        guard !a.isNaN, !b.isNaN else { return a.isNaN ? (b.isNaN ? nil : b) : a }
+        return a + (b - a) * f
+    }
+
+    /// The pair's geometry with each arm turned about its hinge line (x, at `armHingeDepthMetres` behind the lens plane
+    /// and the arm's own height there): no turn in front of the hinge, all of it from `armBendFullDepthMetres` back, a
+    /// smoothstep between (a real hinge bends there). Normals turn with their vertices.
+    static func bentGeometry(_ mesh: SunglassesPack.Mesh, angles: [Float]) -> SCNGeometry {
+        var data = mesh.vertexData
+        let hingeZ = -SunglassesConstants.armHingeDepthMetres, fullZ = -SunglassesConstants.armBendFullDepthMetres
+        let hingeY = [0, 1].map { armCentre(mesh.armCentreY[$0], atDepth: SunglassesConstants.armHingeDepthMetres + 0.01) ?? 0 }
+        data.withUnsafeMutableBytes { raw in
+            let f = raw.bindMemory(to: Float.self)
+            for i in 0..<mesh.vertexCount {
+                let o = i * 8, x = f[o], y = f[o + 1], z = f[o + 2]
+                guard z < hingeZ else { continue }
+                let side = x < 0 ? 0 : 1
+                let u = min(max((hingeZ - z) / (hingeZ - fullZ), 0), 1)
+                let a = angles[side] * u * u * (3 - 2 * u)
+                guard a != 0 else { continue }
+                let c = cos(a), sn = sin(a), dy = y - hingeY[side], dz = z - hingeZ
+                f[o + 1] = hingeY[side] + dy * c - dz * sn
+                f[o + 2] = hingeZ + dy * sn + dz * c
+                let ny = f[o + 4], nz = f[o + 5]
+                f[o + 4] = ny * c - nz * sn
+                f[o + 5] = ny * sn + nz * c
+            }
+        }
+        let stride = 32, n = mesh.vertexCount
+        let sources = [
+            SCNGeometrySource(data: data, semantic: .vertex, vectorCount: n, usesFloatComponents: true,
+                              componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: stride),
+            SCNGeometrySource(data: data, semantic: .normal, vectorCount: n, usesFloatComponents: true,
+                              componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 12, dataStride: stride),
+            SCNGeometrySource(data: data, semantic: .texcoord, vectorCount: n, usesFloatComponents: true,
+                              componentsPerVector: 2, bytesPerComponent: 4, dataOffset: 24, dataStride: stride),
+        ]
+        return SCNGeometry(sources: sources, elements: mesh.geometry.elements)
     }
 
     /// The pair's origin, lowered along the head's up axis so its bridge rests on the nose (owner report 2026-10-16:

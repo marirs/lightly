@@ -121,7 +121,17 @@ struct SunglassesPack: Sendable {
         var lensHalfHeightMetres: Float = 0
         /// The front's highest point above the lens centre (metres): frame vertices within 2 cm of the lens plane.
         var frontTopMetres: Float = 0
+        /// The LSG vertex block (32-byte interleaved position, normal, uv), kept so the arms can be angled per face.
+        var vertexData = Data()
+        var vertexCount = 0
+        /// Each arm's centre height above the lens centre (metres) at depths `armProfileDepthsMetres` behind the lens
+        /// plane, for the −x arm ([0]) and the +x arm ([1]): the mean y of frame vertices beyond |x| 0.03 within 4 mm of
+        /// that depth; nan where the arm has none.
+        var armCentreY: [[Float]] = [[], []]
     }
+
+    /// Depths behind the lens plane (metres) at which `Mesh.armCentreY` is sampled: 0.02 to 0.14 every 5 mm.
+    static let armProfileDepthsMetres: [Float] = (0...24).map { 0.02 + Float($0) * 0.005 }
 
     /// LSG 1 (shared/sunglasses/build_sunglasses.py): "LSG1", u32 version, u32 vertexCount, u32 elementCount, then
     /// vertexCount × {f32 position[3], normal[3], uv[2]} interleaved (32 bytes, uv origin top-left), then per element
@@ -169,7 +179,9 @@ struct SunglassesPack: Sendable {
             }
         }
         let frontWidth = (frontXs.max() ?? 0) - (frontXs.min() ?? 0)
-        return Mesh(geometry: SCNGeometry(sources: sources, elements: elements), materialIndices: materialIndices, frontWidthMetres: frontWidth)
+        var mesh = Mesh(geometry: SCNGeometry(sources: sources, elements: elements), materialIndices: materialIndices, frontWidthMetres: frontWidth)
+        mesh.vertexData = vertices; mesh.vertexCount = vertexCount
+        return mesh
     }
 
     /// The pair's mesh and its textures, verified. Cached per pair id: the files never change while the app runs.
@@ -196,13 +208,17 @@ struct SunglassesPack: Sendable {
         let vertexCount = u32(8), elementCount = u32(12)
         var offset = 16 + vertexCount * 32
         var bridgeBottom = Float.infinity, lensTop = -Float.infinity, lensBottom = Float.infinity, frontTop = -Float.infinity
+        let depths = armProfileDepthsMetres
+        var armSum = [[Float]](repeating: [Float](repeating: 0, count: depths.count), count: 2), armCount = armSum
+        var isFrameVertex = [Bool](repeating: false, count: vertexCount)
         for _ in 0..<elementCount {
             let material = u32(offset), count = u32(offset + 4)
             offset += 8
             let isLens = pair.materials.indices.contains(material) && pair.materials[material].role == .lens
             for k in 0..<count {
-                let v = 16 + u32(offset + k * 4) * 32
+                let index = u32(offset + k * 4), v = 16 + index * 32
                 let x = f32(v), y = f32(v + 4), z = f32(v + 8)
+                if !isLens { isFrameVertex[index] = true }
                 guard abs(z) < SunglassesConstants.frontPlaneMetres + 0.01 else { continue }
                 if isLens { lensTop = max(lensTop, y); lensBottom = min(lensBottom, y) }
                 else if abs(z) < SunglassesConstants.frontPlaneMetres {
@@ -212,6 +228,15 @@ struct SunglassesPack: Sendable {
             }
             offset += count * 4
         }
+        // Arm profile: each frame vertex once (an index can repeat across triangles).
+        for index in 0..<vertexCount where isFrameVertex[index] {
+            let v = 16 + index * 32
+            let x = f32(v), y = f32(v + 4), z = f32(v + 8)
+            guard abs(x) > 0.03 else { continue }
+            let side = x < 0 ? 0 : 1
+            for (j, depth) in depths.enumerated() where abs(-z - depth) < 0.004 { armSum[side][j] += y; armCount[side][j] += 1 }
+        }
+        mesh.armCentreY = (0..<2).map { side in depths.indices.map { armCount[side][$0] > 0 ? armSum[side][$0] / armCount[side][$0] : .nan } }
         mesh.bridgeBottomMetres = bridgeBottom.isFinite ? bridgeBottom : 0
         mesh.lensHalfHeightMetres = lensTop > lensBottom ? (lensTop - lensBottom) / 2 : 0
         mesh.frontTopMetres = frontTop.isFinite ? frontTop : 0

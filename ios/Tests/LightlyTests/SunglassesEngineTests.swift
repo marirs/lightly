@@ -436,6 +436,14 @@ final class SunglassesEngineTests: XCTestCase {
                 print("sunglasses-turn \(name) #\(index) rawYaw \(String(format: "%.0f", atan2(rawEz.x, rawEz.z) * 180 / .pi)) yaw \(String(format: "%.0f", atan2(pose.ez.x, pose.ez.z) * 180 / .pi)) profile \(pose.isProfile) s \(String(format: "%.0f", s)) k/s \(String(format: "%.2f", k / s)) cheeks \(String(format: "%.0f", simd_distance(w(454), w(234)) / s * 1000)) mm irisGap2D \(String(format: "%.0f", simd_distance(px2(468), px2(473)))) px cornerGap2D \(String(format: "%.0f", simd_distance(px2(33), px2(263)))) px originShift2D \(String(format: "%.0f", pose.origin.x + Float(W) / 2 - (P[468].x + P[473].x) / 2)) px ear234 \(String(format: "%.3f", earDepth(234))) ear454 \(String(format: "%.3f", earDepth(454))) m ex.z \(String(format: "%.2f", pose.ex.z))")
                 for i in [468, 473] { dot(P[i].x, P[i].y, (255, 0, 0)) }
                 for i in [33, 133, 362, 263] { dot(P[i].x, P[i].y, (0, 120, 255)) }
+                // Ear-side contour points (yellow 127/356 upper, magenta 234/454 lower), their height above the irises
+                // along ey and depth behind the lens plane (metres), for the arm-to-ear-top check.
+                for (i, c) in [(127, (255, 230, 0)), (356, (255, 230, 0)), (234, (255, 0, 255)), (454, (255, 0, 255))] as [(Int, (UInt8, UInt8, UInt8))] {
+                    dot(P[i].x, P[i].y, c)
+                    let q = SIMD3<Float>(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z)
+                    let irisMid = SIMD3<Float>((P[468].x + P[473].x) / 2 - Float(W) / 2, Float(H) / 2 - (P[468].y + P[473].y) / 2, -(P[468].z + P[473].z) / 2)
+                    print("sunglasses-ear \(name) #\(index) lm \(i) up \(String(format: "%.3f", simd_dot(q - irisMid, pose.ey) / s)) back \(String(format: "%.3f", simd_dot(pose.origin - q, pose.ez) / s))")
+                }
                 dot(pose.origin.x + Float(W) / 2, Float(H) / 2 - pose.origin.y, (0, 255, 0))
             }
             try UIImage(cgImage: Self.cgImage(px, width: W, height: H)).pngData()!.write(to: out.appendingPathComponent("turn.\(name).png"))

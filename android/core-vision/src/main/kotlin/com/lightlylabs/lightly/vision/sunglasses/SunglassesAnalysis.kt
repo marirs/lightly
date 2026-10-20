@@ -37,6 +37,14 @@ object SunglassesConstants {
     const val EAR_CLIP_MIN_START_METRES = 0.06
     /** From the contour point by the ear (the tragus) back to the ear's top front (iOS earBehindContourMetres). */
     const val EAR_BEHIND_CONTOUR_METRES = 0.010
+    /** Arm angle (iOS armHingeDepthMetres etc.; owner review 2026-10-20: the arm met the ear at mid-height, not its top):
+     *  each arm turns about its hinge so its centre passes ARM_REST_ABOVE_CONTOUR_METRES above the contour point at the
+     *  top of the ear (127 on −x, 356 on +x), fully from ARM_BEND_FULL_DEPTH_METRES, at most ARM_BEND_MAX_RADIANS. */
+    const val ARM_HINGE_DEPTH_METRES = 0.02; const val ARM_BEND_FULL_DEPTH_METRES = 0.04
+    const val ARM_REST_ABOVE_CONTOUR_METRES = 0.003
+    const val ARM_BEND_MAX_RADIANS = 0.25
+    /** The pair's pantoscopic tilt about its x axis (rendering-v2 §7.5 placement; iOS pantoscopicTiltRadians). */
+    const val PANTOSCOPIC_TILT_RADIANS = -0.14
     const val EAR_BOX_INNER_X = 0.04
     const val EAR_BOX_OUTER_X = 0.20
     /** The turn is raised in proportion as the far iris comes within this of the outline (iOS yawRampMetres). */

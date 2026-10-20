@@ -101,6 +101,13 @@ enum SunglassesConstants {
     static let earClipStartMetres: Float = 0.12
     /// The ear boxes start at the face's own ear depth (`SunglassesRenderer.earClipStarts`), never nearer than this.
     static let earClipMinStartMetres: Float = 0.06
+    /// Arm angle (owner review 2026-10-20: the arm met the ear at mid-height, not its top). Each arm is turned about
+    /// its hinge, `armHingeDepthMetres` behind the lens plane, fully from `armBendFullDepthMetres` (a smooth bend in
+    /// between), so its centre passes `armRestAboveContourMetres` above the face's contour point at the top of the ear
+    /// (127 on −x, 356 on +x); never more than `armBendMaxRadians` either way.
+    static let armHingeDepthMetres: Float = 0.02, armBendFullDepthMetres: Float = 0.04
+    static let armRestAboveContourMetres: Float = 0.003
+    static let armBendMaxRadians: Float = 0.25
     /// From the contour point by the ear (the tragus) back to the ear's top front. Without it the arms stopped ~2 cm short
     /// of the ear (matrix v23, 2026-10-20); 1.5 cm left the Aviator's curl showing in front of the ear on Android, whose mesh puts the ear ~3 mm further back (moto edge 60).
     static let earBehindContourMetres: Float = 0.010

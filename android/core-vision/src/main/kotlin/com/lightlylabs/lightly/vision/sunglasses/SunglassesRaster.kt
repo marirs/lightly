@@ -51,14 +51,17 @@ object SunglassesRaster {
     /** The pair's placement: origin (scene units), axes, and pixels per metre (Size included). */
     /** [earClipStart]: where the ear boxes start behind the lens plane (pair metres) on the −x and +x sides
      *  (SunglassesRenderer.earClipStarts). */
+    /** [armAngles]: each arm's turn about its hinge (radians, + raises the far end) for the −x and +x arms
+     *  (SunglassesRenderer.armBendAngles). */
     class Placement(val origin: DoubleArray, val ex: DoubleArray, val ey: DoubleArray, val ez: DoubleArray, val scale: Double,
-                    val earClipStart: DoubleArray = doubleArrayOf(SunglassesConstants.EAR_CLIP_START_METRES, SunglassesConstants.EAR_CLIP_START_METRES))
+                    val earClipStart: DoubleArray = doubleArrayOf(SunglassesConstants.EAR_CLIP_START_METRES, SunglassesConstants.EAR_CLIP_START_METRES),
+                    val armAngles: DoubleArray = doubleArrayOf(0.0, 0.0))
 
     /** The rendered region in image pixels and its RGBA result: colour sRGB-encoded (not premultiplied), alpha 0…1. */
     class Result(val x0: Int, val y0: Int, val width: Int, val height: Int, val rgba: FloatArray)
 
     private const val SS = 2   // supersampling factor per axis (SceneKit uses 4× MSAA)
-    private const val TILT = -0.14   // pantoscopic tilt, radians (rendering-v2 §7.5 placement)
+    private const val TILT = SunglassesConstants.PANTOSCOPIC_TILT_RADIANS   // pantoscopic tilt, radians (rendering-v2 §7.5 placement)
     private const val FRONT_DEPTH = 0.012
     private const val ALL_DEPTH = 0.25
     private val HEAD_CENTRE = doubleArrayOf(0.0, -0.026, -0.098)
@@ -94,7 +97,7 @@ object SunglassesRaster {
         val pos = FloatArray(n * 3)
         val nrm = FloatArray(n * 3)
         val ct = cos(TILT); val st = sin(TILT)
-        val v = mesh.vertices
+        val v = bentVertices(mesh, placement.armAngles)
         for (i in 0 until n) {
             val px = v[i * 8].toDouble(); val py0 = v[i * 8 + 1].toDouble(); val pz0 = v[i * 8 + 2].toDouble()
             val py = py0 * ct - pz0 * st; val pz = py0 * st + pz0 * ct
@@ -308,6 +311,32 @@ object SunglassesRaster {
      * |x| from EAR_BOX_INNER_X to EAR_BOX_OUTER_X, y ±0.2 m, z from the placement's earClipStart (at most EAR_CLIP_START_METRES behind the lens plane to
      * 0.30 m, in the holder's frame. Past the front of the ear a real arm goes behind the ear.
      */
+    /** The mesh's vertices with each arm turned about its hinge line (iOS SunglassesRenderer.bentGeometry): no turn in
+     *  front of ARM_HINGE_DEPTH_METRES, all of it from ARM_BEND_FULL_DEPTH_METRES back, a smoothstep between; normals
+     *  turn with their vertices. The mesh itself when both angles are 0. */
+    fun bentVertices(mesh: SunglassesPack.Mesh, angles: DoubleArray): FloatArray {
+        if (angles[0] == 0.0 && angles[1] == 0.0) return mesh.vertices
+        val out = mesh.vertices.copyOf()
+        val hingeZ = -SunglassesConstants.ARM_HINGE_DEPTH_METRES; val fullZ = -SunglassesConstants.ARM_BEND_FULL_DEPTH_METRES
+        val hingeY = DoubleArray(2) { SunglassesRenderer.armCentre(mesh.armCentreY[it], SunglassesConstants.ARM_HINGE_DEPTH_METRES + 0.01) ?: 0.0 }
+        for (i in 0 until mesh.vertexCount) {
+            val o = i * 8
+            val x = out[o].toDouble(); val y = out[o + 1].toDouble(); val z = out[o + 2].toDouble()
+            if (z >= hingeZ) continue
+            val side = if (x < 0) 0 else 1
+            val u = ((hingeZ - z) / (hingeZ - fullZ)).coerceIn(0.0, 1.0)
+            val a = angles[side] * u * u * (3 - 2 * u)
+            if (a == 0.0) continue
+            val c = cos(a); val sn = sin(a); val dy = y - hingeY[side]; val dz = z - hingeZ
+            out[o + 1] = (hingeY[side] + dy * c - dz * sn).toFloat()
+            out[o + 2] = (hingeZ + dy * sn + dz * c).toFloat()
+            val ny = out[o + 4].toDouble(); val nz = out[o + 5].toDouble()
+            out[o + 4] = (ny * c - nz * sn).toFloat()
+            out[o + 5] = (ny * sn + nz * c).toFloat()
+        }
+        return out
+    }
+
     private fun earTriangles(p: Placement): FloatArray {
         val out = FloatArray(2 * 12 * 9)
         var o = 0

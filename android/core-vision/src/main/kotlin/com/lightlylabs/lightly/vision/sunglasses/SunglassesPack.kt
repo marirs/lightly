@@ -46,6 +46,10 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
         var lensHalfHeightMetres = 0.0
         /** The front's highest point above the lens centre (frame vertices within 2 cm of the lens plane), metres. */
         var frontTopMetres = 0.0
+        /** Each arm's centre height above the lens centre (metres) at depths ARM_PROFILE_DEPTHS behind the lens plane, for
+         *  the −x arm ([0]) and the +x arm ([1]): the mean y of frame vertices beyond |x| 0.03 within 4 mm of that depth;
+         *  NaN where the arm has none (iOS Mesh.armCentreY). */
+        var armCentreY: Array<DoubleArray> = arrayOf(DoubleArray(0), DoubleArray(0))
         /** The front's width in metres: x extent of the vertices within FRONT_PLANE_METRES of the lens plane. */
         val frontWidthMetres: Double by lazy {
             var lo = Double.MAX_VALUE; var hi = -Double.MAX_VALUE
@@ -89,6 +93,19 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
                     }
                 }
             }
+            // Arm profile: each frame vertex once (an index can repeat across triangles).
+            val isFrame = BooleanArray(m.vertexCount)
+            for (e in m.elements) if (pair.materials.getOrNull(e.materialIndex)?.role != Role.LENS) for (i in e.indices) isFrame[i] = true
+            val depths = ARM_PROFILE_DEPTHS
+            val sum = Array(2) { DoubleArray(depths.size) }; val count = Array(2) { IntArray(depths.size) }
+            for (i in 0 until m.vertexCount) {
+                if (!isFrame[i]) continue
+                val x = m.vertices[i * 8].toDouble(); val y = m.vertices[i * 8 + 1].toDouble(); val z = m.vertices[i * 8 + 2].toDouble()
+                if (kotlin.math.abs(x) <= 0.03) continue
+                val side = if (x < 0) 0 else 1
+                for (j in depths.indices) if (kotlin.math.abs(-z - depths[j]) < 0.004) { sum[side][j] += y; count[side][j]++ }
+            }
+            m.armCentreY = Array(2) { side -> DoubleArray(depths.size) { j -> if (count[side][j] > 0) sum[side][j] / count[side][j] else Double.NaN } }
             m.bridgeBottomMetres = if (bridge < Double.MAX_VALUE) bridge else 0.0
             m.lensHalfHeightMetres = if (top > bottom) (top - bottom) / 2 else 0.0
             m.frontTopMetres = if (frontTop > -Double.MAX_VALUE) frontTop else 0.0
@@ -96,6 +113,9 @@ class SunglassesPack private constructor(val pairs: List<Pair>, private val file
     }
 
     companion object {
+        /** Depths behind the lens plane (metres) at which Mesh.armCentreY is sampled: 0.02 to 0.14 every 5 mm. */
+        val ARM_PROFILE_DEPTHS = DoubleArray(25) { 0.02 + it * 0.005 }
+
         const val FORMAT = "lightly-sunglasses-pack"
         const val FORMAT_VERSION = 1
         private val ID = Regex("sun-[0-9a-f]{12}")
