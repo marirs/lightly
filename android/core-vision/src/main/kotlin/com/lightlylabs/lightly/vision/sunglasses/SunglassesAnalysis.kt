@@ -33,6 +33,10 @@ object SunglassesConstants {
     /** Ear occluders (owner report 2026-10-14: on a turned face the arm lay over the ear): depth-only boxes hide the
      *  arms from this far behind the lens plane on, |x| between the inner and outer bounds (iOS SunglassesConstants). */
     const val EAR_CLIP_START_METRES = 0.12
+    /** The ear boxes start at the face's own ear depth, never nearer the lenses than this (iOS earClipMinStartMetres). */
+    const val EAR_CLIP_MIN_START_METRES = 0.06
+    /** From the contour point by the ear (the tragus) back to the ear's top front (iOS earBehindContourMetres). */
+    const val EAR_BEHIND_CONTOUR_METRES = 0.015
     const val EAR_BOX_INNER_X = 0.04
     const val EAR_BOX_OUTER_X = 0.20
     /** The turn is raised in proportion as the far iris comes within this of the outline (iOS yawRampMetres). */

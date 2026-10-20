@@ -99,6 +99,11 @@ enum SunglassesConstants {
     /// ~15 cm back; past the front of the ear a real arm goes behind the ear. Depth-only boxes in the head's frame hide
     /// the arms from this far behind the lens plane on: |x| in [earBoxInnerX, earBoxOuterX], all y, z to the back.
     static let earClipStartMetres: Float = 0.12
+    /// The ear boxes start at the face's own ear depth (`SunglassesRenderer.earClipStarts`), never nearer than this.
+    static let earClipMinStartMetres: Float = 0.06
+    /// From the contour point by the ear (the tragus) back to the ear's top front. Without it the arms stopped ~2 cm short
+    /// of the ear (matrix v23, 2026-10-20).
+    static let earBehindContourMetres: Float = 0.015
     static let earBoxInnerX: Float = 0.04
     static let earBoxOuterX: Float = 0.20
     static let refineCropScale: Float = 1.5

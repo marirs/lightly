@@ -428,7 +428,12 @@ final class SunglassesEngineTests: XCTestCase {
                 let s = pose.pixelsPerMetre
                 let k = SunglassesRenderer.fittedScale(pixelsPerMetre: s, frontWidthMetres: mesh.frontWidthMetres, landmarks: P)
                 func px2(_ i: Int) -> SIMD2<Float> { SIMD2(P[i].x, P[i].y) }
-                print("sunglasses-turn \(name) #\(index) rawYaw \(String(format: "%.0f", atan2(rawEz.x, rawEz.z) * 180 / .pi)) yaw \(String(format: "%.0f", atan2(pose.ez.x, pose.ez.z) * 180 / .pi)) profile \(pose.isProfile) s \(String(format: "%.0f", s)) k/s \(String(format: "%.2f", k / s)) cheeks \(String(format: "%.0f", simd_distance(w(454), w(234)) / s * 1000)) mm irisGap2D \(String(format: "%.0f", simd_distance(px2(468), px2(473)))) px cornerGap2D \(String(format: "%.0f", simd_distance(px2(33), px2(263)))) px originShift2D \(String(format: "%.0f", pose.origin.x + Float(W) / 2 - (P[468].x + P[473].x) / 2)) px")
+                // How far behind the lens plane (metres, along -ez) a landmark lies.
+                func earDepth(_ i: Int) -> Float {
+                    let q = SIMD3<Float>(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z)
+                    return simd_dot(pose.origin - q, pose.ez) / s
+                }
+                print("sunglasses-turn \(name) #\(index) rawYaw \(String(format: "%.0f", atan2(rawEz.x, rawEz.z) * 180 / .pi)) yaw \(String(format: "%.0f", atan2(pose.ez.x, pose.ez.z) * 180 / .pi)) profile \(pose.isProfile) s \(String(format: "%.0f", s)) k/s \(String(format: "%.2f", k / s)) cheeks \(String(format: "%.0f", simd_distance(w(454), w(234)) / s * 1000)) mm irisGap2D \(String(format: "%.0f", simd_distance(px2(468), px2(473)))) px cornerGap2D \(String(format: "%.0f", simd_distance(px2(33), px2(263)))) px originShift2D \(String(format: "%.0f", pose.origin.x + Float(W) / 2 - (P[468].x + P[473].x) / 2)) px ear234 \(String(format: "%.3f", earDepth(234))) ear454 \(String(format: "%.3f", earDepth(454))) m ex.z \(String(format: "%.2f", pose.ex.z))")
                 for i in [468, 473] { dot(P[i].x, P[i].y, (255, 0, 0)) }
                 for i in [33, 133, 362, 263] { dot(P[i].x, P[i].y, (0, 120, 255)) }
                 dot(pose.origin.x + Float(W) / 2, Float(H) / 2 - pose.origin.y, (0, 255, 0))

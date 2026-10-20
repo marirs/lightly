@@ -183,6 +183,21 @@ object SunglassesRenderer {
 
     /** iOS SunglassesRenderer.seatedOrigin: the origin lowered along ey so the bridge rests on the nose (owner report
      *  2026-10-16: it floated at the brows), faded out with the turn. */
+    /** Where each side's ear box starts behind the lens plane, in pair metres, for the −x and +x sides (iOS earClipStarts):
+     *  at the face's own ear, the depth of its contour point by the ear (234 on −x, 454 on +x, at the tragus) plus
+     *  EAR_BEHIND_CONTOUR_METRES (to the ear's top front), clamped to EAR_CLIP_MIN_START_METRES…EAR_CLIP_START_METRES. Owner review 2026-10-20: on a 3/4 face the ear starts ~9 cm behind
+     *  the lenses, so the fixed 12 cm left the arm's tip showing on top of the ear. */
+    fun earClipStarts(pose: Pose, p: FloatArray, width: Int, height: Int, k: Double): DoubleArray {
+        if (p.size < 455 * 3) return doubleArrayOf(SunglassesConstants.EAR_CLIP_START_METRES, SunglassesConstants.EAR_CLIP_START_METRES)
+        val s = pose.pixelsPerMetre
+        fun start(i: Int): Double {
+            val q = doubleArrayOf(p[i * 3] - width / 2.0, height / 2.0 - p[i * 3 + 1], -p[i * 3 + 2].toDouble())
+            val behind = (0..2).sumOf { (pose.origin[it] - q[it]) * pose.ez[it] } / s + SunglassesConstants.EAR_BEHIND_CONTOUR_METRES
+            return behind.coerceIn(SunglassesConstants.EAR_CLIP_MIN_START_METRES, SunglassesConstants.EAR_CLIP_START_METRES) * s / k
+        }
+        return doubleArrayOf(start(234), start(454))
+    }
+
     fun seatedOrigin(pose: Pose, p: FloatArray, width: Int, height: Int, mesh: SunglassesPack.Mesh, k: Double, coverTopUp: Double? = null): DoubleArray {
         if (p.size < 474 * 3) return pose.origin
         fun sc(i: Int) = doubleArrayOf(p[i * 3] - width / 2.0, height / 2.0 - p[i * 3 + 1], -p[i * 3 + 2].toDouble())
@@ -242,7 +257,8 @@ object SunglassesRenderer {
         val rw = x1 - x0; val rh = y1 - y0
         val mesh = pack.mesh(pair)
         val k = fittedScale(s, mesh.frontWidthMetres, p) * (1 + SunglassesConstants.SIZE_PER_UNIT * size)
-        val placement = SunglassesRaster.Placement(seatedOrigin(pose, p, width, height, mesh, k, coverTopUp), pose.ex, pose.ey, pose.ez, k)
+        val placement = SunglassesRaster.Placement(seatedOrigin(pose, p, width, height, mesh, k, coverTopUp), pose.ex, pose.ey, pose.ez, k,
+            earClipStarts(pose, p, width, height, k))
         val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s, pose)
         val frame = ByteArray(rw * rh * 4); val front = ByteArray(rw * rh); val lens = ByteArray(rw * rh)
         fun byte(v: Float) = (v.coerceIn(0f, 1f) * 255 + 0.5f).toInt().toByte()

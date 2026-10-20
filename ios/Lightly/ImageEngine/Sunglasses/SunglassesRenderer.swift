@@ -161,20 +161,21 @@ enum SunglassesRenderer {
         backHolder.position = SCNVector3(centre.x, centre.y, centre.z - SunglassesConstants.headBackLengthMetres / 2)
         backHolder.addChildNode(back)
         holder.addChildNode(backHolder)
-        // Ears: depth-only boxes on both sides from earClipStartMetres behind the lens plane to the back of the head. On a
+        let k = fittedScale(pixelsPerMetre: s, frontWidthMetres: loaded.mesh.frontWidthMetres, landmarks: P) * (1 + SunglassesConstants.sizePerUnit * Float(size))
+        // Ears: depth-only boxes on both sides from the face's own ear (earClipStarts) to the back of the head. On a
         // turned face the far side's box starts just behind the hinge (farArmClipStartMetres): the head hides that arm.
         // The near side is the one whose +x points towards the viewer (ex.z > 0 → +x).
         let farSide: Float? = abs(pose.ex.z) > SunglassesConstants.farArmMinTurn ? (pose.ex.z > 0 ? -1 : 1) : nil
+        let earStarts = earClipStarts(pose: pose, landmarks: P, width: W, height: H, scale: k)
         for side: Float in [-1, 1] {
             let inner = SunglassesConstants.earBoxInnerX, outer = SunglassesConstants.earBoxOuterX
-            let front = side == farSide ? SunglassesConstants.farArmClipStartMetres : SunglassesConstants.earClipStartMetres
+            let front = side == farSide ? SunglassesConstants.farArmClipStartMetres : earStarts[side < 0 ? 0 : 1]
             let back: Float = 0.30
             let ear = SCNNode(geometry: SCNBox(width: CGFloat(outer - inner), height: 0.4, length: CGFloat(back - front), chamferRadius: 0))
             ear.position = SCNVector3(side * (inner + outer) / 2, 0, -(front + back) / 2)
             ear.geometry!.materials = [depthOnly()]; ear.renderingOrder = -10
             holder.addChildNode(ear)
         }
-        let k = fittedScale(pixelsPerMetre: s, frontWidthMetres: loaded.mesh.frontWidthMetres, landmarks: P) * (1 + SunglassesConstants.sizePerUnit * Float(size))
         let seat = seatedOrigin(pose: pose, landmarks: P, width: W, height: H, mesh: loaded.mesh, scale: k, coverTopUp: coverTopUp)
         holder.transform = SCNMatrix4(m11: pose.ex.x * k, m12: pose.ex.y * k, m13: pose.ex.z * k, m14: 0,
                                       m21: pose.ey.x * k, m22: pose.ey.y * k, m23: pose.ey.z * k, m24: 0,
@@ -218,6 +219,22 @@ enum SunglassesRenderer {
         // Lens pass: lenses white, frame black, premultiplied, so red/255 is the lens coverage.
         let lens = (0..<(rw * rh)).map { Float(lensPixels[$0 * 4]) / 255 }
         return Passes(x0: x0, y0: y0, width: rw, height: rh, frame: frame, front: front, lens: lens)
+    }
+
+    /// Where each side's ear box starts behind the lens plane, in pair metres, for the −x and +x sides: at the face's own
+    /// ear, the depth of its contour point by the ear (234 on −x, 454 on +x, at the tragus) plus `earBehindContourMetres`
+    /// (to the top front of the ear, where a real arm goes behind it), clamped to `earClipMinStartMetres`...
+    /// `earClipStartMetres`. Owner review 2026-10-20: on a 3/4 face the ear starts ~9 cm behind the lenses, so the fixed
+    /// 12 cm (tuned on profiles, where the near ear measures 11.6–12 cm) left the arm's tip showing on top of the ear.
+    static func earClipStarts(pose: Pose, landmarks P: [SIMD3<Float>], width W: Int, height H: Int, scale k: Float) -> [Float] {
+        let fixed = SunglassesConstants.earClipStartMetres
+        guard P.count > 454 else { return [fixed, fixed] }
+        func start(_ i: Int) -> Float {
+            let q = SIMD3<Float>(P[i].x - Float(W) / 2, Float(H) / 2 - P[i].y, -P[i].z)
+            let behind = simd_dot(pose.origin - q, pose.ez) / pose.pixelsPerMetre + SunglassesConstants.earBehindContourMetres
+            return min(max(behind, SunglassesConstants.earClipMinStartMetres), fixed) * pose.pixelsPerMetre / k
+        }
+        return [start(234), start(454)]
     }
 
     /// The pair's origin, lowered along the head's up axis so its bridge rests on the nose (owner report 2026-10-16:

@@ -49,7 +49,10 @@ object SunglassesRaster {
     enum class Pass { FRAME, FRONT, LENS }
 
     /** The pair's placement: origin (scene units), axes, and pixels per metre (Size included). */
-    class Placement(val origin: DoubleArray, val ex: DoubleArray, val ey: DoubleArray, val ez: DoubleArray, val scale: Double)
+    /** [earClipStart]: where the ear boxes start behind the lens plane (pair metres) on the −x and +x sides
+     *  (SunglassesRenderer.earClipStarts). */
+    class Placement(val origin: DoubleArray, val ex: DoubleArray, val ey: DoubleArray, val ez: DoubleArray, val scale: Double,
+                    val earClipStart: DoubleArray = doubleArrayOf(SunglassesConstants.EAR_CLIP_START_METRES, SunglassesConstants.EAR_CLIP_START_METRES))
 
     /** The rendered region in image pixels and its RGBA result: colour sRGB-encoded (not premultiplied), alpha 0…1. */
     class Result(val x0: Int, val y0: Int, val width: Int, val height: Int, val rgba: FloatArray)
@@ -302,7 +305,7 @@ object SunglassesRaster {
 
     /**
      * The ear occluders as triangles in scene units (iOS: depth-only SCNBoxes, owner report 2026-10-14): on both sides,
-     * |x| from EAR_BOX_INNER_X to EAR_BOX_OUTER_X, y ±0.2 m, z from EAR_CLIP_START_METRES behind the lens plane to
+     * |x| from EAR_BOX_INNER_X to EAR_BOX_OUTER_X, y ±0.2 m, z from the placement's earClipStart (at most EAR_CLIP_START_METRES behind the lens plane to
      * 0.30 m, in the holder's frame. Past the front of the ear a real arm goes behind the ear.
      */
     private fun earTriangles(p: Placement): FloatArray {
@@ -314,7 +317,7 @@ object SunglassesRaster {
         val farSide = if (kotlin.math.abs(p.ex[2]) > SunglassesConstants.FAR_ARM_MIN_TURN) (if (p.ex[2] > 0) -1.0 else 1.0) else 0.0
         for (side in doubleArrayOf(-1.0, 1.0)) {
             val xs = doubleArrayOf(side * SunglassesConstants.EAR_BOX_INNER_X, side * SunglassesConstants.EAR_BOX_OUTER_X)
-            val front = if (side == farSide) SunglassesConstants.FAR_ARM_CLIP_START_METRES else SunglassesConstants.EAR_CLIP_START_METRES
+            val front = if (side == farSide) SunglassesConstants.FAR_ARM_CLIP_START_METRES else p.earClipStart[if (side < 0) 0 else 1]
             val ys = doubleArrayOf(-0.2, 0.2); val zs = doubleArrayOf(-front, -0.30)
             val corner = Array(8) { i -> scene(xs[i and 1], ys[(i shr 1) and 1], zs[(i shr 2) and 1]) }
             // Six faces, two triangles each (corners indexed by bits x, y, z).
