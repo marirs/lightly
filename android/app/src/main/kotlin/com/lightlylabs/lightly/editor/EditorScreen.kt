@@ -44,6 +44,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -195,13 +196,18 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
     val textGesture = remember { TextGestureClaim() }
     // Owner amendment (2026-10-10): Auto and Reset all sit on the photo area's bottom-start corner for every photo (on or
     // beside the photo), 10 dp inside the stage's 12/8 dp inset, instead of following the photo's own corner.
+    val photoActionsShown = !ui.showsOriginal && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP)
+    val showsPolaroid = ui.session?.current?.let { EditMapping.border(it) }?.type == "polaroid"
+    // Auto and Reset all's width as shown (AutoEnhanceOverlay), for the Polaroid print's clearance.
+    var photoActionsWidthDp by remember { mutableStateOf(38f) }
     val stage: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier) {
             // While cropping, a pinch resizes the crop frame instead of zooming the photo.
             Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui); TextMarks(vm, ui, textGesture) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), cropPending = vm.hasPendingCrop(ui),
                 cropTouches = if (vm.isCropEditing(ui) && !ui.showsOriginal) { photo -> CropTouches(vm, photo) } else null, onPhotoBox = vm::onStagePhotoMeasured,
-                inspectionYields = textGesture::ownsPointers, onEmptyDoubleTap = actions.cycleTheme)
-            if (!ui.showsOriginal && !(ui.tool == EditorTool.EDIT && ui.edit.sub == EditSub.CROP)) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui) }
+                inspectionYields = textGesture::ownsPointers, onEmptyDoubleTap = actions.cycleTheme,
+                photoActionsWidthDp = if (photoActionsShown && showsPolaroid) photoActionsWidthDp else null)
+            if (photoActionsShown) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui, onWidthDp = { photoActionsWidthDp = it }) }
             // ✕ Cancel and ✓ Apply crop under the photo while a moved frame waits (owner, 2026-10-11).
             androidx.compose.animation.AnimatedVisibility(vm.hasPendingCrop(ui), Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
                 enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 2 },
@@ -405,6 +411,36 @@ private fun CompareButton(vm: EditorViewModel, ui: EditorUiState, glass: Boolean
 internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { it.copyPixelsFromBuffer(ByteBuffer.wrap(pixels)) }
 
 /**
+ * Owner amendment (2026-10-20, layout approved 2026-10-21): Auto and Reset all sit 10 dp in from the inset stage's
+ * bottom-start corner, in a 44 dp row (iOS's tap height, so both platforms place the print identically); the print
+ * keeps a 6 dp gap from it. A Polaroid print that actually overlaps the buttons' rectangle is first raised, keeping
+ * its size, never past the top inset; if that is not enough it shrinks only as much as needed, either until it clears
+ * the row (top-aligned) or until it sits beside the buttons (centred), whichever keeps it larger. Same rule as iOS
+ * `PhotoStage.placement`.
+ */
+internal object PhotoActionsClearance {
+    const val INSET_DP = 10f
+    const val ROW_HEIGHT_DP = 44f
+    const val GAP_DP = 6f
+
+    /** The fitted width and the vertical shift from the inset stage's centre (negative is up), both in dp. */
+    fun placement(innerWidth: Float, innerHeight: Float, ratio: Float, photoActionsWidth: Float?): Pair<Float, Float> {
+        val centred = minOf(innerWidth, innerHeight * ratio)
+        if (photoActionsWidth == null || centred <= 0f) return centred to 0f
+        val centredHeight = centred / ratio
+        val clearBottom = innerHeight - INSET_DP - ROW_HEIGHT_DP - GAP_DP
+        val clearStart = INSET_DP + photoActionsWidth + GAP_DP
+        val overlapsHorizontally = (innerWidth - centred) / 2 < clearStart
+        if (!overlapsHorizontally || (innerHeight + centredHeight) / 2 <= clearBottom) return centred to 0f
+        if (centredHeight <= clearBottom) return centred to clearBottom - (innerHeight + centredHeight) / 2
+        val widthClearingTheRow = maxOf(0f, clearBottom) * ratio
+        val widthBesideTheButtons = maxOf(0f, innerWidth - 2 * clearStart)
+        if (widthBesideTheButtons >= widthClearingTheRow) return widthBesideTheButtons to 0f
+        return widthClearingTheRow to clearBottom - (innerHeight + widthClearingTheRow / ratio) / 2
+    }
+}
+
+/**
  * `.stage`: the canvas colour, the photo contain-fitted (never cropped). With Compare, the original and
  * the "Original" badge at the photo's top-left corner.
  */
@@ -417,6 +453,8 @@ private fun Stage(
     inspectionYields: () -> Boolean = { false },
     /** A double tap on the stage outside the photo (the theme cycle); never on the photo, which keeps inspection zoom. */
     onEmptyDoubleTap: (() -> Unit)? = null,
+    /** Owner amendment (2026-10-20): Auto and Reset all's width as shown while a Polaroid is on the stage, else null (see [PhotoActionsClearance]). */
+    photoActionsWidthDp: Float? = null,
 ) {
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
@@ -438,8 +476,9 @@ private fun Stage(
         if (image != null) {
             val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
             val ratio = image.width.toFloat() / image.height
-            val width = minOf(maxWidth.value, maxHeight.value * ratio)
+            val (width, liftDp) = PhotoActionsClearance.placement(maxWidth.value, maxHeight.value, ratio, photoActionsWidthDp)
             val density = LocalDensity.current
+            val liftPx = with(density) { liftDp.dp.toPx() }
             val viewport = with(density) { Offset(maxWidth.toPx(), maxHeight.toPx()) }
             val fitted = with(density) { Offset(width.dp.toPx(), (width / ratio).dp.toPx()) }
             var zoom by remember(ui.original) { mutableStateOf(1f) }
@@ -511,7 +550,7 @@ private fun Stage(
             Box(
                 Modifier.size(width.dp, (width / ratio).dp).graphicsLayer {
                     scaleX = zoom * cropScale; scaleY = zoom * cropScale
-                    translationX = pan.x + cropDx; translationY = pan.y + cropDy
+                    translationX = pan.x + cropDx; translationY = pan.y + cropDy + liftPx
                 }.onGloballyPositioned { photoBoundsInWindow = it.boundsInWindow() }.then(
                     if (border == null) Modifier else Modifier.drawBehind {
                         val ring = 1.dp.toPx()
@@ -931,7 +970,7 @@ private fun KeepScreenOnWhileWorking(ui: EditorUiState) {
  * bold with the reset icon. Reset all asks first (the mockup's dialog).
  */
 @Composable
-private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
+private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState, onWidthDp: (Float) -> Unit = {}) {
     val applied = ui.auto == AutoState.APPLIED
     var resetConfirmation by remember { mutableStateOf(false) }
     // In its own full-screen window: drawn here it would be confined (scrim and card) to the stage's corner.
@@ -948,7 +987,10 @@ private fun AutoEnhanceOverlay(vm: EditorViewModel, ui: EditorUiState) {
     val lime = Color(0xFFCFF26B)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
         // Unbounded: a narrow photo never squeezes or wraps "Reset all" (the mockup's button keeps its natural width).
-        Row(Modifier.wrapContentWidth(Alignment.Start, unbounded = true).padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val density = LocalDensity.current
+        // The buttons' width as shown: the Polaroid print keeps clear of it (owner amendment 2026-10-20).
+        Row(Modifier.wrapContentWidth(Alignment.Start, unbounded = true).padding(10.dp)
+            .onSizeChanged { onWidthDp(with(density) { it.width.toDp().value }) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(
                 Modifier.size(38.dp).clip(CircleShape).background(fill)
                     .border(if (applied) 1.5.dp else 1.dp, Color.White.copy(alpha = if (applied) 0.75f else 0.18f), CircleShape)

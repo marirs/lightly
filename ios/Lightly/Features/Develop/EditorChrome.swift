@@ -231,6 +231,10 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
     var cropFocus: EditRecipe.Rect?
     /// Room kept clear under the zoomed crop (✕ Cancel / ✓ Apply crop sit there).
     var cropBottomReserve: CGFloat = 0
+    /// Owner amendment (2026-10-20): the width of Auto and Reset all as shown (Reset all only while it is there), or
+    /// nil when no clearance applies. Set only while a Polaroid is shown and Auto is on the stage: the print is then
+    /// kept clear of the buttons (see `placement`).
+    var photoActionsWidth: CGFloat?
     /// Crop touches, laid over the whole stage (not inside the zoomed photo, whose hit area stays the unzoomed photo's:
     /// owner report 2026-10-11, the right-hand handles could not be dragged after the zoom). Given the photo's rect on
     /// the stage as shown, zoom included.
@@ -257,8 +261,10 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let fitted = Self.fittedSize(image: CGSize(width: image.width, height: image.height),
-                                         in: CGSize(width: max(1, geometry.size.width - 24), height: max(1, geometry.size.height - 16)))
+            let inner = CGSize(width: max(1, geometry.size.width - 24), height: max(1, geometry.size.height - 16))
+            let placement = Self.placement(image: CGSize(width: image.width, height: image.height), in: inner,
+                                           photoActionsWidth: photoActionsWidth)
+            let fitted = placement.size
             ZStack {
                 InspectionViewport(enabled: allowsInspection, doubleTapEnabled: allowsDoubleTapZoom, contentSize: fitted, viewportSize: geometry.size,
                                    onEmptyDoubleTap: onEmptyStageDoubleTap, keepsTwoFingerTouch: keepsTwoFingerTouch,
@@ -293,10 +299,11 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
                         }
                     }
                     .modifier(CropFocusTransform(focus: cropFocus, fitted: fitted, viewport: geometry.size, bottomReserve: cropBottomReserve))
+                    .offset(y: placement.liftY)
                 }
                 photoChrome
                     .frame(width: fitted.width * imageBox.width, height: fitted.height * imageBox.height)
-                    .offset(x: fitted.width * (imageBox.midX - 0.5), y: fitted.height * (imageBox.midY - 0.5))
+                    .offset(x: fitted.width * (imageBox.midX - 0.5), y: fitted.height * (imageBox.midY - 0.5) + placement.liftY)
                 overlay()
                 if let cropTouches {
                     let (scale, offset) = CropFocusTransform.placement(focus: cropFocus, fitted: fitted, viewport: geometry.size, bottomReserve: cropBottomReserve)
@@ -314,6 +321,37 @@ struct PhotoStage<Overlay: View, Marks: View>: View {
         // The crop workspace is #141414 in both themes (`cropWorkspace`).
         .background(cropWorkspace ? Color(hex: 0x141414) : Color.clear)
         .clipped()
+    }
+
+    /// Auto and Reset all sit 10 pt in from the inset stage's bottom-leading corner, in a 44 pt row (Reset all's tap
+    /// height). The print keeps a 6 pt gap from that row, the same as the gap between the two buttons.
+    static var photoActionsInset: CGFloat { 10 }
+    static var photoActionsRowHeight: CGFloat { 44 }
+    static var photoActionsGap: CGFloat { 6 }
+
+    /// The photo's fitted size and its vertical shift from the stage's centre (negative is up).
+    /// Owner amendment (2026-10-20, layout approved 2026-10-21): with `photoActionsWidth`, a print that actually overlaps
+    /// the buttons' rectangle (gap included) is first raised, keeping its size, never past the stage's top inset; if
+    /// that is not enough it shrinks only as much as needed, either until it clears the row (top-aligned) or until it
+    /// sits beside the buttons (centred), whichever keeps it larger. Without it, or with no overlap: the plain fit.
+    static func placement(image: CGSize, in inner: CGSize, photoActionsWidth: CGFloat?) -> (size: CGSize, liftY: CGFloat) {
+        let centred = fittedSize(image: image, in: inner)
+        guard let photoActionsWidth, centred.width > 0 else { return (centred, 0) }
+        let clearBottom = inner.height - photoActionsInset - photoActionsRowHeight - photoActionsGap
+        let clearLeading = photoActionsInset + photoActionsWidth + photoActionsGap
+        let overlapsHorizontally = (inner.width - centred.width) / 2 < clearLeading
+        guard overlapsHorizontally, (inner.height + centred.height) / 2 > clearBottom else { return (centred, 0) }
+        if centred.height <= clearBottom {
+            return (centred, clearBottom - (inner.height + centred.height) / 2)
+        }
+        let ratio = centred.width / centred.height
+        let widthClearingTheRow = max(0, clearBottom) * ratio
+        let widthBesideTheButtons = max(0, inner.width - 2 * clearLeading)
+        if widthBesideTheButtons >= widthClearingTheRow {
+            return (CGSize(width: widthBesideTheButtons, height: widthBesideTheButtons / ratio), 0)
+        }
+        let raised = CGSize(width: widthClearingTheRow, height: widthClearingTheRow / ratio)
+        return (raised, clearBottom - (inner.height + raised.height) / 2)
     }
 
     /// `width: min(100cqw, 100cqh · r)`: the largest size of the photo's aspect ratio that fits.

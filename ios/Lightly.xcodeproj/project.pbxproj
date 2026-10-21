@@ -78,6 +78,7 @@
 		2AEF02E3E47B22B604D6A86A /* SizingEvidenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2797DA99F15FDF9AD665BD34 /* SizingEvidenceTests.swift */; };
 		2C19E196DEDEA053146A440A /* ControlChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E2FC6144CED7C87AECBD10 /* ControlChrome.swift */; };
 		2ECC75AADE07E1136A307E0C /* ExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7772E8B98209919C954C1C84 /* ExportTests.swift */; };
+		2F530619D5B952E848E09E97 /* PhotoStagePlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4737D287699E60C7B57C70F1 /* PhotoStagePlacementTests.swift */; };
 		30162224FFB813EFA1BC78D6 /* PhotoSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FC5B0784F57C993811BC60 /* PhotoSource.swift */; };
 		30AD3FD844271B51AA07E142 /* OwnerAmendmentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1877A6807F993FCE58C9CCD6 /* OwnerAmendmentsTests.swift */; };
 		3556EAEA8BC1C31E06D2729C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60273B07655FC75C3E4C4360 /* AppState.swift */; };
@@ -429,6 +430,7 @@
 		4573A01F6D80E9780EB8ADAC /* PhotoLibraryWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryWriter.swift; sourceTree = "<group>"; };
 		4638D20123BCA0EE5B4865E0 /* Lora-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Lora-OFL.txt"; sourceTree = "<group>"; };
 		46A2557F630816ED676CA636 /* LUTGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LUTGoldenTests.swift; sourceTree = "<group>"; };
+		4737D287699E60C7B57C70F1 /* PhotoStagePlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStagePlacementTests.swift; sourceTree = "<group>"; };
 		4765D240C1C6B67BBBF6D211 /* ExportColorPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportColorPipelineTests.swift; sourceTree = "<group>"; };
 		481CABD602C3E74D684287DA /* BorderPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BorderPanel.swift; sourceTree = "<group>"; };
 		490F4449F5A4B8A6D636AEAB /* EditorSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorSession.swift; sourceTree = "<group>"; };
@@ -990,6 +992,7 @@
 				1877A6807F993FCE58C9CCD6 /* OwnerAmendmentsTests.swift */,
 				A0717973B968B04DD4B00DC7 /* PeopleMarksTests.swift */,
 				87B8C011B45EA042A8B4D617 /* PhotoOrientationTests.swift */,
+				4737D287699E60C7B57C70F1 /* PhotoStagePlacementTests.swift */,
 				DC68AAED2E065CDF96DD6BA1 /* PortraitRenderingTests.swift */,
 				C1DFDEAFE007E9240023A097 /* PreferencesStoreTests.swift */,
 				2E914E9E5E062EE6588DA665 /* PresetCatalogLoadingTests.swift */,
@@ -1912,6 +1915,7 @@
 				30AD3FD844271B51AA07E142 /* OwnerAmendmentsTests.swift in Sources */,
 				DC7B4EDA38EFB75B4DCE86D7 /* PeopleMarksTests.swift in Sources */,
 				7DA2E8314D2D7431C80F4A5C /* PhotoOrientationTests.swift in Sources */,
+				2F530619D5B952E848E09E97 /* PhotoStagePlacementTests.swift in Sources */,
 				D75BD7A13686825BF0C73063 /* PortraitRenderingTests.swift in Sources */,
 				137015641D19BBBB847E42B5 /* PreferencesStoreTests.swift in Sources */,
 				79CA298D1E24997F1B842CE4 /* PresetCatalogLoadingTests.swift in Sources */,

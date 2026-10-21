@@ -6,6 +6,8 @@ import SwiftUI
 struct EditorScreen: View {
     let session: EditorSession
     @State private var panel: DevelopPanelModel
+    /// Auto and Reset all's width as shown (`photoActions`), for the Polaroid print's clearance.
+    @State private var photoActionsWidth: CGFloat = 38
     @State private var backgroundPanel: BackgroundPanelModel
     @State private var portraitPanel: PortraitPanelModel
     @State private var editPanel: EditPanelModel
@@ -281,6 +283,8 @@ struct EditorScreen: View {
                         .buttonStyle(.plain).accessibilityLabel("Reset all edits").accessibilityIdentifier("editor.resetAll")
                     }
                 }
+                // The buttons' width as shown: the Polaroid print keeps clear of it (owner amendment 2026-10-20).
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { photoActionsWidth = $0 }
                 .padding(10)
             }
         }
@@ -321,6 +325,7 @@ struct EditorScreen: View {
                    cropWorkspace: false,
                    cropFocus: cropFocusRect,
                    cropBottomReserve: cropReserve,
+                   photoActionsWidth: !arePhotoActionsHidden && session.recipe.tools.border.type == .polaroid ? photoActionsWidth : nil,
                    cropTouches: isCropping ? { rect in AnyView(cropGestureArea(photo: rect)) } : nil,
                    allowsInspection: !isCropping,
                    allowsDoubleTapZoom: tool != .watermark,

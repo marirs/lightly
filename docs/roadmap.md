@@ -17,7 +17,7 @@ Any 1.0 defect that needs a store fix before 1.1 still ships as 1.0.x from `rele
 
 | # | Polish | Status |
 |---|---|---|
-| 1 | Polaroid border: the floating Auto / "Reset all" buttons cover the Polaroid's bottom margin and signature | Open |
+| 1 | Polaroid border: the floating Auto / "Reset all" buttons cover the Polaroid's bottom margin and signature | Fixed on iOS and Android (layout approved 2026-10-21: raise the print, shrink only as much as needed when it overlaps Auto + Reset all). Checked on iOS simulators (iPhone 11 Pro Max and SE sizes); Android and physical phones unverified |
 | 2 | VoiceOver and TalkBack pass on iOS and Android | Open (only 6629e86, hidden Auto / Reset all no longer read, landed in 1.0) |
 | 3 | Out-of-date iOS screen tests and screenshot baselines | Open, scope not yet counted; baselines change only to match the approved design |
 
