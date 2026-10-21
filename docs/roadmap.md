@@ -9,6 +9,7 @@
 | 1.3 | Enhance (on-device upscale + face restore; descratch/colourise later) |
 | 1.4 | Torn paper edges from photographed scans |
 | 1.5 | Preset Lab Studio presets (mass bundle, needs heavy curation; moved from 1.2) |
+| Last | VoiceOver and TalkBack pass on iOS and Android (owner, 2026-10-21: the last item, after the versions above; only 6629e86, hidden Auto / Reset all no longer read, landed in 1.0) |
 
 Any 1.0 defect that needs a store fix before 1.1 still ships as 1.0.x from `release/1.0`.
 
@@ -18,7 +19,7 @@ Any 1.0 defect that needs a store fix before 1.1 still ships as 1.0.x from `rele
 | # | Polish | Status |
 |---|---|---|
 | 1 | Polaroid border: the floating Auto / "Reset all" buttons cover the Polaroid's bottom margin and signature | Fixed on iOS and Android (layout approved 2026-10-21: raise the print, shrink only as much as needed when it overlaps Auto + Reset all). Checked on iOS simulators (iPhone 11 Pro Max and SE sizes, light and dark). Verified on the physical iPhone SE 3 and iPhone 11 Pro Max, light mode, build 2021283 (261021001), group and boy photos. Unverified: dark mode on the phones, Android (no phone connected), foldable/Duo/iPad |
-| 2 | VoiceOver and TalkBack pass on iOS and Android | Open (only 6629e86, hidden Auto / Reset all no longer read, landed in 1.0) |
+| 2 | VoiceOver and TalkBack pass | Moved to the last release (owner, 2026-10-21); not part of 1.1 |
 | 3 | Out-of-date iOS screen tests and screenshot baselines | Open, scope not yet counted; baselines change only to match the approved design |
 
 Related platform work: Android R8 done (2a27f64; 1.0.1 on `release/1.0`). iPhone Duo: large-screen

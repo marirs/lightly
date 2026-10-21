@@ -66,8 +66,8 @@ and the evidence is recorded.
 |---|---|
 | iPhone SE 3: full sunglasses pass (only partly checked; a low-battery alert covered the screenshots) | UNVERIFIED |
 | Android foldable (unfolded) and Duo two-pane layouts | UNVERIFIED |
-| VoiceOver (iOS) | UNVERIFIED |
-| TalkBack (Android) | UNVERIFIED |
+| VoiceOver (iOS) | UNVERIFIED — deferred to the last release with the full VoiceOver/TalkBack pass (owner, 2026-10-21) |
+| TalkBack (Android) | UNVERIFIED — deferred to the last release with the full VoiceOver/TalkBack pass (owner, 2026-10-21) |
 | Tilted thin-metal woman: brows sit under the Club's rim | UNVERIFIED (open defect) |
 | A real Android 17 phone | UNVERIFIED |
 
