@@ -160,7 +160,7 @@ struct ApprovedNote: View {
 
     /// Lightly 2 `note`: 12.5 pt ink2, line height 1.4; spacing comes from the panel's column, not the note.
     var body: some View {
-        L2Note(text: Text(verbatim: text))
+        L2Note(verbatim: text)
     }
 }
 

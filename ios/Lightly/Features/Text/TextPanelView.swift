@@ -27,7 +27,7 @@ struct TextPanelView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     addTextButton
-                    L2Note(text: Text("Add text, then drag it anywhere on the photo. Pinch to resize or turn it."))
+                    L2Note("Add text, then drag it anywhere on the photo. Pinch to resize or turn it.")
                 }
             }
         }

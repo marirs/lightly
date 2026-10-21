@@ -18,6 +18,8 @@ struct ApprovedParagraph: View {
     var trackingEm: CGFloat = 0
     /// The font's own line height instead of the approved 1.35 line box (the preset name, which `Text` drew so).
     var naturalLineHeight = false
+    /// The line box as a multiple of the size (CSS `line-height`): 1.35 for the approved type, 1.4 for Lightly 2 notes.
+    var lineHeightMultiple: CGFloat = ApprovedType.lineHeightMultiple
     /// Set on the drawing view itself, so UI tests find it by identifier.
     var identifier: String?
 
@@ -27,7 +29,7 @@ struct ApprovedParagraph: View {
         let size = ApprovedType.scaledSize(pointSize, for: dynamicTypeSize)
         let font = ApprovedType.uiFont(size: size, weight: weight)
         // As `ApprovedTextStyle`: the extra leading goes between lines and half above and below.
-        let extraLeading = naturalLineHeight ? 0 : max(0, size * ApprovedType.lineHeightMultiple - font.lineHeight)
+        let extraLeading = naturalLineHeight ? 0 : max(0, size * lineHeightMultiple - font.lineHeight)
         ReferenceLineBreakingLabel(text: text, font: font, colour: UIColor(colour), lineSpacing: extraLeading, kern: trackingEm * size, identifier: identifier)
             .padding(.vertical, extraLeading / 2)
     }
@@ -63,7 +65,10 @@ struct ReferenceLineBreakingLabel: UIViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, uiView view: ParagraphDrawingView, context: Context) -> CGSize? {
         let width = proposal.width ?? .greatestFiniteMagnitude
         let bounds = view.layoutBounds(width: width)
-        return CGSize(width: proposal.width ?? bounds.width, height: bounds.height)
+        // Unconstrained (`.fixedSize()`, e.g. the Draw signature sheet's note): the measured one-line width, rounded up.
+        // Drawing at exactly the fractional width can wrap the last word onto a second line that the one-line height
+        // then clips ("…It keeps its own" with "look." cut off).
+        return CGSize(width: proposal.width ?? bounds.width.rounded(.up), height: bounds.height)
     }
 }
 

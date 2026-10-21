@@ -140,7 +140,7 @@ struct EffectsPanelView: View {
                     .accessibilityIdentifier("effects.selective.clear")
             }
             .frame(minHeight: 44)
-            if model.isAddingColour { L2Note(text: Text("Tap another colour in the photo.")) }
+            if model.isAddingColour { L2Note("Tap another colour in the photo.") }
         }
         if !colours.isEmpty || model.isAddingColour {
             selectiveSlider("Range", \.range)

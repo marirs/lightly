@@ -385,7 +385,7 @@ struct FavouritePresetsPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            L2Note(text: Text("favourites.note", bundle: .main))
+            L2Note("favourites.note")
             if !favourites.presetIDs.isEmpty {
                 L2Card {
                     ForEach(Array(favourites.presetIDs.enumerated()), id: \.element) { index, presetID in
@@ -394,7 +394,7 @@ struct FavouritePresetsPage: View {
                 }
                 .coordinateSpace(name: "favourites")
             }
-            if favourites.freeSlots > 0 { L2Note(text: Text("favourites.free \(favourites.freeSlots)", bundle: .main)) }
+            if favourites.freeSlots > 0 { L2Note("favourites.free \(favourites.freeSlots)") }
         }
     }
 
@@ -498,7 +498,7 @@ struct SavedSignaturePage: View {
                     .buttonStyle(.plain).accessibilityIdentifier("signature.delete")
                 }
             }
-            L2Note(text: Text("signature.note", bundle: .main))
+            L2Note("signature.note")
         }
         .photosPicker(isPresented: $isPickingPhoto, selection: $photo, matching: .images)
         .onChange(of: photo) { _, item in
@@ -554,7 +554,7 @@ struct PreferredBorderPage: View {
                     .accessibilityIdentifier("border.\(border.rawValue)")
                 }
             }
-            L2Note(text: Text("border.note", bundle: .main))
+            L2Note("border.note")
         }
     }
 }
@@ -594,7 +594,7 @@ struct ReleaseDocumentPage: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier("legal.document")
         } else {
-            L2Note(text: Text("legal.unavailable", bundle: .main)).accessibilityIdentifier("legal.unavailable")
+            L2Note("legal.unavailable", identifier: "legal.unavailable")
         }
     }
 }

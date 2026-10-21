@@ -102,7 +102,7 @@ struct DrawSignatureSheetContent: View {
                     .buttonStyle(L2QuietButtonStyle())
                     .accessibilityIdentifier("signature.draw.clear")
                 Spacer(minLength: 0)
-                L2Note(text: Text("Saved for reuse. It keeps its own look.")).fixedSize()
+                L2Note("Saved for reuse. It keeps its own look.").fixedSize()
             }
             .padding(.horizontal, 16).padding(.vertical, 6)
         }
@@ -174,7 +174,7 @@ struct ImportSignatureSheetContent: View {
             }
             .frame(height: 170)
             .padding(.horizontal, 16).padding(.vertical, 4)
-            L2Note(text: Text("The paper is removed. The ink keeps its original colour and texture."))
+            L2Note("The paper is removed. The ink keeps its original colour and texture.")
                 .padding(.horizontal, 16).padding(.vertical, 8)
         }
     }

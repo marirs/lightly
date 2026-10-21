@@ -216,7 +216,7 @@ struct BackgroundPanelView: View {
             Button { model.mode = .refine } label: { L2Label(title: Text("Refine edges"), icon: .brush, iconSize: 16) }
                 .buttonStyle(L2QuietButtonStyle(accent: true))
                 .accessibilityIdentifier("background.refine")
-            L2Note(text: Text("Tap the photo to set focus."))
+            L2Note("Tap the photo to set focus.")
         }
     }
 
@@ -236,7 +236,7 @@ struct BackgroundPanelView: View {
     @ViewBuilder
     private var refine: some View {
         resetRow
-        L2Note(text: Text("Brush over the edge to add to or remove from the subject."))
+        L2Note("Brush over the edge to add to or remove from the subject.")
         L2Segmented(options: [(EditRecipe.RefineStroke.Mode.add, Text("Add"), ApprovedIcon.brush, "background.brush.add"),
                               (.erase, Text("Remove"), .erase, "background.brush.erase")],
                     selection: model.brush) { model.brush = $0 }
@@ -264,7 +264,7 @@ struct BackgroundPanelView: View {
                 PanelSlider(label: "Scale", value: scale, range: 100...200, identifier: "slider.scale",
                             onChange: { v in session.previewBackground { Self.setScale(&$0, v.rounded()) } },
                             onEnd: { v in session.commitBackground { Self.setScale(&$0, v.rounded()) } })
-                L2Note(text: Text("Drag the photo to position the background."))
+                L2Note("Drag the photo to position the background.")
             }
         case .colour:
             ColourControl(title: "Background colour", selected: backgroundColour, photo: session.originalImage, identifier: "background.colour",
@@ -303,7 +303,7 @@ struct BackgroundPanelView: View {
                     .accessibilityIdentifier("background.remove")
                 Spacer(minLength: 0)
             }
-            L2Note(text: Text("Focus & Blur still works on the new background."))
+            L2Note("Focus & Blur still works on the new background.")
         }
     }
 

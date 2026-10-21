@@ -77,7 +77,7 @@ struct EditPanelView: View {
     private var crop: some View {
         let r = geometry.cropRect
         let cropped = !(r.x < 0.0001 && r.y < 0.0001 && r.width > 0.9999 && r.height > 0.9999)
-        return L2Note(text: Text(cropped && !model.cropAdjusting ? "Tap the photo to adjust the crop." : "Drag a corner or an edge."))
+        return L2Note(cropped && !model.cropAdjusting ? "Tap the photo to adjust the crop." : "Drag a corner or an edge.")
     }
 
     /// Rotate: a 2×2 grid, 8 pt gaps, of 46 pt outlined buttons (16 pt corners) with an 18 pt icon and a 13 pt
@@ -176,7 +176,7 @@ struct EditPanelView: View {
                     .buttonStyle(L2QuietButtonStyle(dimmed: !canUndo))
                     .disabled(!canUndo)
                     .accessibilityIdentifier("edit.remove.undoStroke")
-                L2Note(text: Text("Brush over anything you want removed."))
+                L2Note("Brush over anything you want removed.")
             }
         }
     }

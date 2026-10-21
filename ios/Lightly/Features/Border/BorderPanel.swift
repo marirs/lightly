@@ -164,7 +164,7 @@ struct BorderPanelView: View {
     @ViewBuilder
     private var polaroid: some View {
         colour("Border colour", selected: border.colour, identifier: "border.colour", key: \.colour)
-        L2Note(text: Text("A wider bottom margin, as on an instant print."))
+        L2Note("A wider bottom margin, as on an instant print.")
     }
 
     private func colour(_ title: String, selected: String, identifier: String, key: WritableKeyPath<EditRecipe.Border, String>) -> some View {

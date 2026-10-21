@@ -256,10 +256,10 @@ struct WatermarkPanelView: View {
                       selected: model.selectedType, wraps: wraps, identifierPrefix: "watermark.type") { model.choose($0) }
             if model.selectedType != .none {
                 PanelResetRow(session: model.session, section: "watermark", title: "Watermark")
-                L2Note(text: Text("Drag the watermark on the photo to place it."))
+                L2Note("Drag the watermark on the photo to place it.")
             }
             switch model.selectedType {
-            case .none: L2Note(text: Text("No watermark. Choose Signature, Text or Logo to add one."))
+            case .none: L2Note("No watermark. Choose Signature, Text or Logo to add one.")
             case .signature: signature
             case .text: text
             case .logo: logo
@@ -333,9 +333,9 @@ struct WatermarkPanelView: View {
                 ApprovedIconView(icon: .photo, size: 16); Text("Import")
             }
         }
-        L2Note(text: Text(verbatim: String(localized: "Saved signatures keep their own look. ")
+        L2Note(verbatim: String(localized: "Saved signatures keep their own look. ")
             + (model.signatureKind == .drawn ? String(localized: "You can change the ink colour of a drawn signature.")
-                                             : String(localized: "An imported signature keeps its own ink."))))
+                                             : String(localized: "An imported signature keeps its own ink.")))
         commonControls(colours: model.signatureKind == .drawn)
     }
 

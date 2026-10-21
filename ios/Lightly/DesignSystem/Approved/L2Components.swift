@@ -496,10 +496,27 @@ struct L2Slider: View {
 
 /// `note`: 12.5 pt ink2, line height 1.4.
 struct L2Note: View {
-    let text: Text
+    let text: String
+    /// Set on the drawing view itself, so UI tests find it by identifier.
+    var identifier: String?
     @Environment(\.colorScheme) private var scheme
+
+    /// `text` is a key or English source string in Localizable.xcstrings, as `Text("…")` was.
+    init(_ text: String.LocalizationValue, identifier: String? = nil) {
+        self.init(verbatim: String(localized: text), identifier: identifier)
+    }
+
+    /// Already-localised text, for notes put together from several strings.
+    init(verbatim text: String, identifier: String? = nil) {
+        self.text = text
+        self.identifier = identifier
+    }
+
+    /// Drawn with `ApprovedParagraph`, not `Text`: the mockup (Chromium) breaks each line at the last word that fits,
+    /// while `Text` pushes a word down so a note never ends on one word ("…when you choose it / in Watermark." where
+    /// the mockup has "…choose it in / Watermark."). The 1.4 line box also gets CSS's half-leading above and below.
     var body: some View {
-        text.l2Text(12.5, lineHeight: 1.4).foregroundStyle(L2(scheme: scheme)(ApprovedColor.inkSecondary))
+        ApprovedParagraph(text: text, pointSize: 12.5, colour: L2(scheme: scheme)(ApprovedColor.inkSecondary), lineHeightMultiple: 1.4, identifier: identifier)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
