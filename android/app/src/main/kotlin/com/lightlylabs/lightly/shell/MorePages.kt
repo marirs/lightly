@@ -22,6 +22,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.asImageBitmap
+import com.lightlylabs.lightly.editor.toBitmap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -106,6 +108,10 @@ class MoreContent(
     val signature: com.lightlylabs.lightly.signatures.SavedSignature? = null,
     /** About › Presets, counted from the shipped look pack; null while it is being counted. */
     val packSize: com.lightlylabs.lightly.prefs.PresetPackSize? = null,
+    /** A favourite's thumbnail (EditorViewModel.favouriteThumbnail); null draws chip-filled circles (previews, tests). */
+    val favouriteThumbnail: (suspend (presetId: String) -> com.lightlylabs.lightly.render.image.Rgba8Image?)? = null,
+    /** Changes when the open photo or its edit does (null with no photo open), so the thumbnails render again. */
+    val favouriteThumbnailContext: Any? = null,
 )
 
 /**
@@ -126,7 +132,7 @@ fun MorePageView(page: MorePage, content: MoreContent, actions: MoreActions, mod
         ) {
             when (page) {
                 MorePage.MORE -> MoreBody(content, actions)
-                MorePage.FAVOURITES -> FavouritesBody(content.preferences, content.catalogue, actions)
+                MorePage.FAVOURITES -> FavouritesBody(content, actions)
                 MorePage.SIGNATURE -> SignatureBody(content.signature, actions)
                 MorePage.PREFERRED_BORDER -> PreferredBorderBody(content.preferences, actions)
                 MorePage.LEGAL -> L2Card {
@@ -168,11 +174,12 @@ private fun MoreBody(content: MoreContent, actions: MoreActions) {
         L2Card {
             ListRow(MorePage.FAVOURITES.title, sub = MoreCopy.favouritesSub(preferences.favouritePresetIds.size),
                 onClick = { actions.openPage(MorePage.FAVOURITES) }, tag = "row-favourites", first = true) {
-                // Without an open photo the favourite thumbnails are chip-filled circles.
+                // The open photo's thumbnails, or the bundled sample photo with none open (as the mockup draws them).
                 Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
-                    preferences.favouritePresetIds.take(3).forEach { _ ->
-                        Box(Modifier.size(30.dp).background(colors.surface, androidx.compose.foundation.shape.CircleShape).padding(2.dp)
-                            .background(colors.chip, androidx.compose.foundation.shape.CircleShape))
+                    preferences.favouritePresetIds.take(3).forEach { id ->
+                        Box(Modifier.size(30.dp).background(colors.surface, androidx.compose.foundation.shape.CircleShape).padding(2.dp)) {
+                            FavouriteThumbnail(id, content, Modifier.fillMaxSize())
+                        }
                     }
                 }
                 LightlyIcon(LightlyIcons.Chevron, size = 18.dp, tint = colors.ink3)
@@ -268,7 +275,9 @@ private fun AppearancePreview(value: Appearance) {
  * the bin. Adding happens only by starring in Develop (slice 2), never here.
  */
 @Composable
-private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalogue, actions: MoreActions) {
+private fun FavouritesBody(content: MoreContent, actions: MoreActions) {
+    val preferences = content.preferences
+    val catalogue = content.catalogue
     val colors = lightlyColors
     Note(MoreCopy.FAVOURITES_NOTE)
     val ids = preferences.favouritePresetIds
@@ -330,7 +339,7 @@ private fun FavouritesBody(preferences: UserPreferences, catalogue: PresetCatalo
                     .semantics { contentDescription = "Reorder" },
                 contentAlignment = Alignment.Center,
             ) { LightlyIcon(LightlyIcons.Grip, size = 18.dp, tint = colors.ink3) }
-            Box(Modifier.size(36.dp).background(colors.chip, androidx.compose.foundation.shape.CircleShape))
+            FavouriteThumbnail(id, content, Modifier.size(36.dp))
             Column(Modifier.weight(1f)) {
                 Text(name, style = l2TextStyle(15.sp, FontWeight.SemiBold, colors.ink))
                 preset?.categoryName?.let { Text(it, style = l2TextStyle(12.sp, color = colors.ink2)) }
@@ -455,3 +464,20 @@ fun FullScreenMorePage(page: MorePage, content: MoreContent, actions: MoreAction
     MorePageView(page, content, actions, Modifier.fillMaxSize().doubleTapEmptySpace(actions.cycleTheme).testTagResource("more-background"))
 }
 
+
+/**
+ * A favourite's round thumbnail (the Favourite presets row and page): chip-filled until the render arrives, as the
+ * gallery tiles keep their place. The render follows [MoreContent.favouriteThumbnail]: the open photo, or the sample photo.
+ */
+@Composable
+private fun FavouriteThumbnail(presetId: String, content: MoreContent, modifier: Modifier) {
+    val colors = lightlyColors
+    var rendered by androidx.compose.runtime.remember(presetId) { androidx.compose.runtime.mutableStateOf<com.lightlylabs.lightly.render.image.Rgba8Image?>(null) }
+    androidx.compose.runtime.LaunchedEffect(presetId, content.favouriteThumbnailContext) {
+        content.favouriteThumbnail?.invoke(presetId)?.let { rendered = it }
+    }
+    Box(modifier.clip(androidx.compose.foundation.shape.CircleShape).background(colors.chip)) {
+        val bitmap = androidx.compose.runtime.remember(rendered) { rendered?.toBitmap()?.asImageBitmap() }
+        if (bitmap != null) androidx.compose.foundation.Image(bitmap, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+    }
+}

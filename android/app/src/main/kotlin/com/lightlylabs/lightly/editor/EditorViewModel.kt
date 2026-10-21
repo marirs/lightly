@@ -1929,6 +1929,36 @@ class EditorViewModel(
         }
     }
 
+    /** Favourite thumbnails on the sample photo, by look version: their inputs never change, so they are kept for the process. */
+    private val sampleThumbnailCache = java.util.concurrent.ConcurrentHashMap<String, Rgba8Image>()
+
+    /**
+     * A favourite's thumbnail in More (the Favourite presets row and page). With a photo open: that photo's thumbnail,
+     * as the preset gallery draws it. With none (More from Welcome): the preset alone (no Auto, edits or effects, which
+     * belong to a photo) on the bundled sample photo, as the Lightly 2 mockup draws its favourites on
+     * `assets/landscape_02.jpg`. iOS does the same (EditorSession.sampleThumbnail). Null for an unknown preset.
+     * [photoOpen] comes from navigation: this view model keeps the last photo's session after leaving to Welcome.
+     */
+    suspend fun favouriteThumbnail(presetId: String, photoOpen: Boolean): Rgba8Image? {
+        val library = env.library.await()
+        val preset = library.pack.preset(presetId) ?: return null
+        if (photoOpen && state.value.session != null && state.value.original != null) return presetThumbnail(preset)
+        sampleThumbnailCache[preset.lookVersion]?.let { return it }
+        return withContext(env.thumbnailDispatcher ?: env.renderDispatcher) {
+            val photo = env.bundledBackground(SAMPLE_THUMBNAIL_PHOTO) ?: return@withContext null
+            val ratio = 200.0 / maxOf(photo.width, photo.height)
+            val small = BackgroundSession.resize(photo, maxOf(1, (photo.width * ratio).toInt()), maxOf(1, (photo.height * ratio).toInt()))
+            // A neutral edit of a stand-in source: only the look is set, so the render is the preset's Develop alone.
+            val source = com.lightlylabs.lightly.session.SourceRef(SAMPLE_THUMBNAIL_PHOTO,
+                com.lightlylabs.lightly.session.SourceFingerprint("0".repeat(64), 0, small.width, small.height), orientation = 1)
+            val edit = EditState.initial(source, noModelAuto()).copy(look = LookRef(preset.id, preset.lookVersion, 1f))
+            val plan = library.planFor(edit, lutDimension = DevelopLibrary.THUMBNAIL_DIMENSION)
+            val result = EditPipeline(library.model, env.previewRenderer, leaks = env.leaks).renderPreview(small, edit, plan, null)
+            sampleThumbnailCache[preset.lookVersion] = result
+            result
+        }
+    }
+
     fun applyBrowsedPreset() {
         val model = panelModel() ?: return
         val session = state.value.session ?: return
@@ -2958,6 +2988,8 @@ class EditorViewModel(
     companion object {
         /** Thumbnails are at most 200 px (about 110 KB each): 240 of them, about 26 MB, cover several edits of a collection. */
         private const val THUMBNAIL_CACHE_SIZE = 240
+        /** The bundled background favourite thumbnails show with no photo open (the mockup's `assets/landscape_02.jpg`). */
+        const val SAMPLE_THUMBNAIL_PHOTO = "background.landscape_02"
         /** edit-recipe-v1 `selectiveColour.colours` maxItems. */
         const val MAX_KEPT_COLOURS = 8
 

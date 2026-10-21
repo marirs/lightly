@@ -205,7 +205,9 @@ class MainActivity : ComponentActivity() {
                     LightlyAppContent(
                         state = nav,
                         layout = layout,
-                        content = MoreContent(preferences, catalogue, graph.releaseText, versionLabel(), nav.privacyFromWelcome, savedSignatures.shown, packSize),
+                        content = MoreContent(preferences, catalogue, graph.releaseText, versionLabel(), nav.privacyFromWelcome, savedSignatures.shown, packSize,
+                            favouriteThumbnail = { id -> editor.favouriteThumbnail(id, photoOpen = nav.base == BaseScreen.EDITOR) },
+                            favouriteThumbnailContext = editorUi.session?.current?.copy(look = null, revision = 0).takeIf { nav.base == BaseScreen.EDITOR }),
                         actions = ShellActions(
                             choosePhoto = choosePhoto,
                             camera = {
