@@ -333,7 +333,15 @@ struct FavouriteThumbnail: View {
     let size: CGFloat
     var ringed = false
     @State private var image: CGImage?
+    @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
+
+    /// Re-renders when the open photo's edits change, and once the preset library finishes loading (More can open
+    /// from Welcome before the bundled pack is ready).
+    private struct RenderInputs: Hashable {
+        let photoEdits: Data?
+        let libraryReady: Bool
+    }
 
     var body: some View {
         let c = L2(scheme: colorScheme)
@@ -343,9 +351,17 @@ struct FavouriteThumbnail: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
         .background { if ringed { Circle().fill(c(ApprovedColor.surface)).padding(-2) } }
-        .task(id: session?.thumbnailKey) {
-            guard let session, let preset = session.library.pack.preset(id: id) else { return }
-            image = await session.presetThumbnail(preset)
+        .task(id: RenderInputs(photoEdits: session?.thumbnailKey, libraryReady: appState.developLibrary.state == .ready)) {
+            if let session {
+                guard let preset = session.library.pack.preset(id: id) else { return }
+                image = await session.presetThumbnail(preset)
+            } else {
+                // No photo open (More from Welcome): the reference still shows each favourite's look, on its sample
+                // photo, rather than empty circles.
+                let library = appState.developLibrary
+                guard let preset = library.pack.preset(id: id) else { return }
+                image = await EditorSession.sampleThumbnail(preset, library: library)
+            }
         }
         .accessibilityHidden(true)
     }

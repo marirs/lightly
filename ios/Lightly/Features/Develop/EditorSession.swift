@@ -1523,6 +1523,33 @@ final class EditorSession {
         return result
     }
 
+    /// The photo favourite thumbnails show when no photo is open (More from Welcome): the reference draws its
+    /// favourites on `assets/landscape_02.jpg`, the same picture as this bundled background.
+    static let sampleThumbnailPhoto = "landscape_02"
+    private static var sampleThumbnailImages: [String: CGImage] = [:]
+
+    /// A favourite's thumbnail with no photo open: the preset alone (no Auto, edits or effects, which belong to a
+    /// photo) on the sample photo, through the same pipeline and size as `presetThumbnail`. Cached per look version
+    /// for the app's lifetime, because the inputs never change.
+    static func sampleThumbnail(_ preset: PresetPack.Preset, library: DevelopLibrary) async -> CGImage? {
+        if let image = sampleThumbnailImages[preset.lookVersion] { return image }
+        guard let renderer = library.renderer, let cache = library.cache,
+              let photo = BundledBackgrounds.thumbnail(sampleThumbnailPhoto),
+              let small = PhotoColours.small(photo, edge: 200), let pixels = try? MetalLUTRenderer.rgba8Bytes(of: small) else { return nil }
+        var job = RenderJob(look: preset, strength: 1, autoLUT: nil, autoStrength: 0, includePixelStages: true, generation: 0)
+        job.lutDimension = DevelopLUTCache.dragDimension
+        let snapshot = job
+        let result = try? await Task.detached(priority: .utility) {
+            try await PresetThumbnailWorker.shared.run {
+                let frame = try Self.renderPixels(snapshot, base: pixels, width: small.width, height: small.height, renderer: renderer, cache: cache)
+                return try MetalLUTRenderer.makeImage(rgba8: frame.pixels, width: frame.width, height: frame.height)
+            }
+        }.value
+        guard !Task.isCancelled else { return nil }
+        if let result { if sampleThumbnailImages.count >= 48 { sampleThumbnailImages.removeAll() }; sampleThumbnailImages[preset.lookVersion] = result }
+        return result
+    }
+
     // MARK: - Rendering
 
     private struct RenderJob: Sendable {
