@@ -244,17 +244,52 @@ private struct MoreMenuPage: View {
 
 /// `appearanceTiles`: a card (16/12/14 padding) with System, Light and Dark: 64×76 previews (14 pt corners; the chosen
 /// one with a 2 pt accent border and a 22 pt lime check badge), 13 pt labels (bold when chosen), 8 pt between.
+///
+/// Owner-approved AX5 revision 3 (2026-10-22): the three labels always share one text size, never shrunk or wrapped.
+/// The tiles stay while every label fits inside its third and at least 12 pt from its neighbour (every size up to AX3);
+/// otherwise the card lists the three as rows: the same preview and selection mark, the label beside it.
 private struct AppearanceTiles: View {
     @Binding var selection: AppearancePreference
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// The card's content width; nil before the first layout, when the tiles (the approved layout) are assumed.
+    @State private var contentWidth: CGFloat?
+
+    private static let options: [AppearancePreference] = [.system, .light, .dark]
+
+    /// Literal keys, so the string catalogue keeps tracking them.
+    private func label(_ value: AppearancePreference) -> Text {
+        switch value {
+        case .system: Text("appearance.system", bundle: .main)
+        case .light: Text("appearance.light", bundle: .main)
+        case .dark: Text("appearance.dark", bundle: .main)
+        }
+    }
+
+    private func labelString(_ value: AppearancePreference) -> String {
+        switch value {
+        case .system: String(localized: "appearance.system")
+        case .light: String(localized: "appearance.light")
+        case .dark: String(localized: "appearance.dark")
+        }
+    }
 
     var body: some View {
         L2Card(padding: EdgeInsets(top: 16, leading: 12, bottom: 14, trailing: 12)) {
-            HStack(spacing: 0) {
-                tile(.system, Text("appearance.system", bundle: .main))
-                tile(.light, Text("appearance.light", bundle: .main))
-                tile(.dark, Text("appearance.dark", bundle: .main))
+            // Only the chosen layout exists in the view tree, so each `appearance.*` identifier appears once.
+            Group {
+                if showsRows {
+                    VStack(spacing: 10) {
+                        ForEach(Self.options, id: \.self) { row($0, label($0)) }
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        ForEach(Self.options, id: \.self) { tile($0, label($0)) }
+                    }
+                }
             }
+            .frame(maxWidth: .infinity)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("preferences.group.appearance", bundle: .main))
@@ -265,29 +300,68 @@ private struct AppearanceTiles: View {
         let isOn = selection == value
         return Button { selection = value } label: {
             VStack(spacing: 8) {
-                preview(value)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .padding(3)
-                    .frame(width: 64, height: 76)
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.hairline), lineWidth: isOn ? 2 : 1))
-                    .overlay(alignment: .topTrailing) {
-                        if isOn {
-                            ApprovedIconView(icon: .check, size: 13).foregroundStyle(c(ApprovedColor.onAccent))
-                                .frame(width: 22, height: 22)
-                                .background(Circle().fill(c(ApprovedColor.accent)))
-                                .background(Circle().stroke(c(ApprovedColor.surface), lineWidth: 2))
-                                .offset(x: 6, y: -6)
-                        }
-                    }
+                framedPreview(value, isOn: isOn)
                 label.l2Text(13, weight: isOn ? .bold : .semibold).foregroundStyle(c(ApprovedColor.ink))
+                    // Never wrapped or shrunk; `showsRows` switches to rows before a label outgrows its tile.
+                    .fixedSize()
             }
-            .frame(maxWidth: .infinity)
+            .frame(minWidth: 0, maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("appearance.\(value.rawValue)")
+    }
+
+    /// The tiles fit while every label, centred in its third, stays inside it and at least 12 pt from its neighbours.
+    /// Widths are measured bold (the chosen weight, the wider one) at this text size.
+    private var showsRows: Bool {
+        guard let contentWidth else { return false }
+        let font = ApprovedType.uiFont(size: ApprovedType.scaledSize(13, for: dynamicTypeSize), weight: .bold)
+        let labelWidths = Self.options.map { ceil((labelString($0) as NSString).size(withAttributes: [.font: font]).width) }
+        let third = contentWidth / 3
+        let inside = labelWidths.allSatisfy { $0 <= third }
+        let apart = zip(labelWidths, labelWidths.dropFirst()).allSatisfy { third - ($0 + $1) / 2 >= 12 }
+        return !(inside && apart)
+    }
+
+    /// A row: the tile's preview and selection mark on the left, the label beside it at the tiles' text size. The whole
+    /// row is the tap target.
+    private func row(_ value: AppearancePreference, _ label: Text) -> some View {
+        let c = L2(scheme: colorScheme)
+        let isOn = selection == value
+        return Button { selection = value } label: {
+            HStack(spacing: 14) {
+                framedPreview(value, isOn: isOn)
+                label.l2Text(13, weight: isOn ? .bold : .semibold).foregroundStyle(c(ApprovedColor.ink))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier("appearance.\(value.rawValue)")
+    }
+
+    /// The 64×76 preview with its border (2 pt accent when chosen) and the chosen one's 22 pt lime check badge.
+    private func framedPreview(_ value: AppearancePreference, isOn: Bool) -> some View {
+        let c = L2(scheme: colorScheme)
+        return preview(value)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(3)
+            .frame(width: 64, height: 76)
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(isOn ? c(ApprovedColor.selection) : c(ApprovedColor.hairline), lineWidth: isOn ? 2 : 1))
+            .overlay(alignment: .topTrailing) {
+                if isOn {
+                    ApprovedIconView(icon: .check, size: 13).foregroundStyle(c(ApprovedColor.onAccent))
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(c(ApprovedColor.accent)))
+                        .background(Circle().stroke(c(ApprovedColor.surface), lineWidth: 2))
+                        .offset(x: 6, y: -6)
+                }
+            }
     }
 
     /// The preview: the theme's background (System split diagonally), two text lines and a lime pill.

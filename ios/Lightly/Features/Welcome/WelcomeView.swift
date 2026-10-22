@@ -58,6 +58,10 @@ struct WelcomeView: View {
             BrandMark(size: 84)
             Text("brand.wordmark", bundle: .main)
                 .l2Heading(44, tracking: -1)
+                // Owner-approved AX5 revision 3 (2026-10-22): one line, shrinking only as much as the width needs (at
+                // AX5 it broke as "Lightl / y"). At sizes where it fits, nothing changes.
+                .lineLimit(1)
+                .minimumScaleFactor(0.3)
                 .foregroundStyle(c(ApprovedColor.ink))
                 .accessibilityAddTraits(.isHeader)
             Text("welcome.tagline", bundle: .main)
@@ -75,13 +79,13 @@ struct WelcomeView: View {
                 Button { appState.chooseFromLibrary() } label: {
                     L2Label(title: Text("welcome.choosePhoto", bundle: .main), icon: .photo, iconSize: 20)
                 }
-                .buttonStyle(L2WideButtonStyle(kind: .primary, height: 56))
+                .buttonStyle(L2WideButtonStyle(kind: .primary, height: 56, insetsLabel: true))
                 .accessibilityIdentifier("welcome.choosePhoto")
 
                 Button { Task { await appState.chooseCamera() } } label: {
                     L2Label(title: Text("welcome.camera", bundle: .main), icon: .camera, iconSize: 20)
                 }
-                .buttonStyle(L2WideButtonStyle(kind: .line, height: 56))
+                .buttonStyle(L2WideButtonStyle(kind: .line, height: 56, insetsLabel: true))
                 .accessibilityIdentifier("welcome.camera")
             }
             .layoutAnchor("welcome.actions")

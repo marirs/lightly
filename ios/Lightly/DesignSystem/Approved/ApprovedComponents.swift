@@ -320,13 +320,30 @@ struct FillingScrollView<Content: View>: View {
     var body: some View {
         GeometryReader { geometry in
             ScrollView(.vertical) {
-                // The ideal height replaces the scroll view's unspecified height proposal, so the
-                // content is offered the full screen and its spacers fill it; taller content
-                // keeps its own height and scrolls.
-                content()
-                    .frame(maxWidth: .infinity, minHeight: geometry.size.height, idealHeight: geometry.size.height)
+                // Content that fits is offered the full screen so its spacers fill it (as before); taller content
+                // keeps its own height and scrolls. The former `frame(minHeight:idealHeight:)` capped the height at
+                // the screen, so at AX5 Welcome was squeezed to one screen and centred, clipping the mark at the top
+                // and Privacy Policy at the bottom with nothing to scroll.
+                AtLeastHeight(minimumHeight: geometry.size.height) { content() }
+                    .frame(maxWidth: .infinity)
             }
             .scrollBounceBehavior(.basedOnSize)
         }
+    }
+}
+
+/// Sizes its one child to the child's natural height (spacers at their minimum), or `minimumHeight` when that is
+/// taller, and places the child in that height so flexible spacers take up the extra.
+private struct AtLeastHeight: Layout {
+    var minimumHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let natural = child.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
+        return CGSize(width: proposal.width ?? natural.width, height: max(natural.height, minimumHeight))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
 }

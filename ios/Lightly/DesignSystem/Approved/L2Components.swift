@@ -128,19 +128,55 @@ struct L2WideButtonStyle: ButtonStyle {
     enum Kind { case primary, line }
     let kind: Kind
     var height: CGFloat = 52
+    /// Owner-approved AX5 revision 3 (2026-10-22), Welcome only: the label keeps 16 pt clear of the capsule ends and
+    /// 8 pt above and below, wrapping onto more lines so the button grows taller. Invisible wherever the label already
+    /// fits (it is centred well inside the capsule). Other screens keep `false` until their large-text layout is approved.
+    var insetsLabel = false
     @Environment(\.colorScheme) private var scheme
 
     func makeBody(configuration: Configuration) -> some View {
         let c = L2(scheme: scheme)
-        configuration.label
+        label(configuration)
             .l2Text(15, weight: kind == .primary ? .bold : .semibold)
             .labelStyle(L2IconLabelStyle(spacing: 10, iconSize: 20))
+            .padding(.horizontal, insetsLabel ? 16 : 0)
+            .padding(.vertical, insetsLabel ? 8 : 0)
             .foregroundStyle(kind == .primary ? c(ApprovedColor.onAccent) : c(ApprovedColor.ink))
             .frame(maxWidth: .infinity, minHeight: height)
             .background(Capsule().fill(kind == .primary ? c(ApprovedColor.accent) : .clear))
             .overlay(Capsule().strokeBorder(kind == .primary ? c(ApprovedColor.accentEdge) : c(ApprovedColor.hairline), lineWidth: 1))
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+
+    /// With `insetsLabel`, the label as it is while it fits on one line; centred lines only once it has wrapped.
+    /// Centring a label that fits shifts a glyph's anti-aliasing by a fraction of a pixel (welcome-light, 2026-10-22),
+    /// and layouts that already fit must stay exactly as approved. One label only: a `ViewThatFits` keeps its unchosen
+    /// copy in the accessibility tree, which Xcode's audit reported as clipped text.
+    @ViewBuilder private func label(_ configuration: Configuration) -> some View {
+        if insetsLabel {
+            CentredWhenWrapped { configuration.label }
+        } else {
+            configuration.label
+        }
+    }
+}
+
+/// Its content, centred line by line only when it is taller than its own one-line height (that is, it has wrapped).
+private struct CentredWhenWrapped<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @State private var height: CGFloat = 0
+    @State private var oneLineHeight: CGFloat = 0
+
+    var body: some View {
+        content()
+            .multilineTextAlignment(height > oneLineHeight + 1 && oneLineHeight > 0 ? .center : .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+            // The one-line height, measured on an unwrapped copy that is never drawn nor exposed to accessibility.
+            .background {
+                content().fixedSize().hidden().accessibilityHidden(true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { oneLineHeight = $0 }
+            }
     }
 }
 
