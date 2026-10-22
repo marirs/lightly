@@ -60,13 +60,14 @@ struct RecoveryMessageView: View {
         .frame(maxWidth: 340)
     }
 
+    /// At large text the labels wrap inside padded capsules (recovery-button revision 2, owner 2026-10-22).
     private var actions: some View {
         VStack(spacing: 10) {
             Button(action: primaryAction) { primaryTitle }
-                .buttonStyle(L2WideButtonStyle(kind: .primary))
+                .buttonStyle(L2WideButtonStyle(kind: .primary, insetsLabel: true))
                 .accessibilityIdentifier(primaryIdentifier)
             Button(action: secondaryAction) { secondaryTitle }
-                .buttonStyle(L2WideButtonStyle(kind: .line))
+                .buttonStyle(L2WideButtonStyle(kind: .line, insetsLabel: true))
                 .accessibilityIdentifier(secondaryIdentifier)
         }
         .frame(maxWidth: 340)

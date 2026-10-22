@@ -202,10 +202,9 @@ private struct MoreMenuPage: View {
                 L2GroupLabel(text: "Saving")
                 L2Card {
                     Button { open(.preferredBorder) } label: {
-                        L2ListRow(title: Text("border.title", bundle: .main), isFirst: true) {
-                            PreferredBorderPage.name(of: preferences.preferredBorder)
-                            ApprovedIconView(icon: .chevron, size: 18)
-                        }
+                        L2ValueRow(title: Text("border.title", bundle: .main), titleString: String(localized: "border.title"),
+                                   value: PreferredBorderPage.name(of: preferences.preferredBorder),
+                                   valueString: PreferredBorderPage.nameString(of: preferences.preferredBorder))
                     }
                     .buttonStyle(.plain).accessibilityIdentifier("preferences.preferredBorder")
                     switchRow($preferences.keepsPhotoMetadata, "preferences.keepMetadata", "preferences.keepMetadata.detail", "preferences.keepMetadata")
@@ -608,6 +607,17 @@ struct PreferredBorderPage: View {
         case .photoFrame: Text("border.photoFrame", bundle: .main)
         case .polaroid: Text("border.polaroid", bundle: .main)
         case .paper: Text("Paper")
+        }
+    }
+
+    /// [name(of:)] as a plain string, for measuring.
+    static func nameString(of border: PreferredBorder) -> String {
+        switch border {
+        case .none: String(localized: "border.none")
+        case .solid: String(localized: "border.solid")
+        case .photoFrame: String(localized: "border.photoFrame")
+        case .polaroid: String(localized: "border.polaroid")
+        case .paper: "Paper"
         }
     }
 

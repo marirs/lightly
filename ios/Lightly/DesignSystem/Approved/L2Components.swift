@@ -128,9 +128,11 @@ struct L2WideButtonStyle: ButtonStyle {
     enum Kind { case primary, line }
     let kind: Kind
     var height: CGFloat = 52
-    /// Owner-approved AX5 revision 3 (2026-10-22), Welcome only: the label keeps 16 pt clear of the capsule ends and
-    /// 8 pt above and below, wrapping onto more lines so the button grows taller. Invisible wherever the label already
-    /// fits (it is centred well inside the capsule). Other screens keep `false` until their large-text layout is approved.
+    /// Owner-approved AX5 revision 3 (2026-10-22, Welcome) and recovery-button revision 2 (2026-10-22, the two
+    /// recovery screens): the label keeps 16 pt clear of the capsule ends and 8 pt above and below, wrapping onto more
+    /// lines so the button grows taller; once wrapped, its sides move further in until its lines clear the rounded
+    /// ends (`CapsuleClearInset`). Invisible wherever the label already fits (it is centred well inside the capsule).
+    /// Other screens keep `false` until their large-text layout is approved.
     var insetsLabel = false
     @Environment(\.colorScheme) private var scheme
 
@@ -139,8 +141,6 @@ struct L2WideButtonStyle: ButtonStyle {
         label(configuration)
             .l2Text(15, weight: kind == .primary ? .bold : .semibold)
             .labelStyle(L2IconLabelStyle(spacing: 10, iconSize: 20))
-            .padding(.horizontal, insetsLabel ? 16 : 0)
-            .padding(.vertical, insetsLabel ? 8 : 0)
             .foregroundStyle(kind == .primary ? c(ApprovedColor.onAccent) : c(ApprovedColor.ink))
             .frame(maxWidth: .infinity, minHeight: height)
             .background(Capsule().fill(kind == .primary ? c(ApprovedColor.accent) : .clear))
@@ -155,10 +155,61 @@ struct L2WideButtonStyle: ButtonStyle {
     /// copy in the accessibility tree, which Xcode's audit reported as clipped text.
     @ViewBuilder private func label(_ configuration: Configuration) -> some View {
         if insetsLabel {
-            CentredWhenWrapped { configuration.label }
+            CapsuleClearInset(minimumHeight: height) { CentredWhenWrapped { configuration.label } }
         } else {
             configuration.label
         }
+    }
+}
+
+/// The label 16 pt in from the capsule's ends and 8 pt above and below (Welcome, revision 3). Owner, 2026-10-22: once
+/// the label wraps, the button grows tall enough that its rounded ends cut into the corners of the label's lines, so
+/// the side inset grows (1 pt at a time, re-wrapping each time) until the corners of the label's box are at least
+/// `curveClearance` inside the curve. A label on one line keeps exactly the revision 3 insets. The ends are modelled
+/// as circles; SwiftUI draws continuous ends, slightly inside them, so the drawn clearance is confirmed by the pixel
+/// check in `AccessibilityAuditUITests` (at least 6 pt on SE 3 and iPhone 17 at AX5), not by this model alone.
+private struct CapsuleClearInset: Layout {
+    let minimumHeight: CGFloat
+    private static let sideInset: CGFloat = 16
+    private static let verticalInset: CGFloat = 8
+    /// 6 pt clear of the outline, plus its 1 pt stroke drawn inside the capsule.
+    private static let curveClearance: CGFloat = 7
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let label = subviews.first else { return .zero }
+        let width = proposal.width ?? label.sizeThatFits(.unspecified).width + 2 * Self.sideInset
+        let fitted = fit(label, in: width)
+        return CGSize(width: width, height: max(minimumHeight, fitted.size.height + 2 * Self.verticalInset))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let label = subviews.first else { return }
+        let fitted = fit(label, in: bounds.width)
+        label.place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center,
+                    proposal: ProposedViewSize(width: bounds.width - 2 * fitted.inset, height: fitted.size.height))
+    }
+
+    /// The smallest side inset (at least 16 pt) at which the label, wrapped to the width left, clears the curve.
+    private func fit(_ label: LayoutSubview, in width: CGFloat) -> (inset: CGFloat, size: CGSize) {
+        let oneLineHeight = label.sizeThatFits(.unspecified).height
+        var inset = Self.sideInset
+        var size = label.sizeThatFits(ProposedViewSize(width: width - 2 * inset, height: nil))
+        guard size.height > oneLineHeight + 1 else { return (inset, size) }
+        while !clearsCurve(size, in: width), width - 2 * (inset + 1) > 40 {
+            inset += 1
+            size = label.sizeThatFits(ProposedViewSize(width: width - 2 * inset, height: nil))
+        }
+        return (inset, size)
+    }
+
+    /// Whether the label's box, centred in a capsule of [width], keeps its corners `curveClearance` inside the ends.
+    private func clearsCurve(_ size: CGSize, in width: CGFloat) -> Bool {
+        let radius = max(minimumHeight, size.height + 2 * Self.verticalInset) / 2
+        let reach = radius - Self.curveClearance
+        let halfHeight = size.height / 2
+        guard reach > halfHeight else { return false }
+        let cornerInset = (width - size.width) / 2
+        return cornerInset >= radius - (reach * reach - halfHeight * halfHeight).squareRoot()
     }
 }
 
@@ -712,6 +763,59 @@ struct L2ListRow<Trailing: View>: View {
         .frame(minHeight: 54)
         .overlay(alignment: .top) { if !isFirst { Rectangle().fill(c(ApprovedColor.hairline)).frame(height: 1) } }
         .contentShape(Rectangle())
+    }
+}
+
+/// A first-in-card `L2ListRow` whose trailing side is a value and a chevron (More › Preferred border).
+/// Owner-approved 2026-10-22 (largest text): while the title's longest word fits beside the value and chevron, it is
+/// exactly `L2ListRow`. When it does not (SE 3 at AX5: "Preferred" is wider than the room left beside "None ›", and
+/// the row broke it as "Preferre / d border"), the value moves under the title at its own size and colour and the
+/// chevron stays at the right; nothing shrinks and no word is broken.
+struct L2ValueRow: View {
+    let title: Text
+    /// The title and value as plain strings, to measure them; must read the same as [title] and [value].
+    let titleString: String
+    let value: Text
+    let valueString: String
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var rowWidth: CGFloat?
+
+    /// Mirrors `L2ListRow`'s geometry: 16 pt sides, 12 pt before the trailing group, 6 pt value-to-chevron, 18 pt chevron.
+    private var stacksValue: Bool {
+        guard let rowWidth else { return false }
+        let titleFont = ApprovedType.uiFont(size: ApprovedType.scaledSize(15, for: dynamicTypeSize), weight: .semibold)
+        let valueFont = ApprovedType.uiFont(size: ApprovedType.scaledSize(14, for: dynamicTypeSize), weight: .regular)
+        let longestTitleWord = titleString.split(separator: " ")
+            .map { ceil((String($0) as NSString).size(withAttributes: [.font: titleFont]).width) }.max() ?? 0
+        let trailingWidth = ceil((valueString as NSString).size(withAttributes: [.font: valueFont]).width) + 6 + 18
+        return longestTitleWord > rowWidth - 32 - 12 - trailingWidth
+    }
+
+    var body: some View {
+        let c = L2(scheme: scheme)
+        Group {
+            if stacksValue {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        title.l2Text(15, weight: .semibold).foregroundStyle(c(ApprovedColor.ink))
+                        value.l2Text(14).foregroundStyle(c(ApprovedColor.inkTertiary))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    ApprovedIconView(icon: .chevron, size: 18).foregroundStyle(c(ApprovedColor.inkTertiary))
+                }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .frame(minHeight: 54)
+                .contentShape(Rectangle())
+            } else {
+                L2ListRow(title: title, isFirst: true) {
+                    value
+                    ApprovedIconView(icon: .chevron, size: 18)
+                }
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
     }
 }
 

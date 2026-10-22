@@ -178,6 +178,91 @@ final class AccessibilityAuditUITests: XCTestCase {
         }
     }
 
+    private static let capsuleButtons = ["welcome.choosePhoto", "welcome.camera", "cameraOff.openSettings", "cameraOff.choosePhoto",
+                                         "loadFailed.chooseAnother", "loadFailed.tryAgain"]
+
+    /// The two recovery screens share Welcome's scroll container (FillingScrollView), changed by AX5 revision 3 (owner,
+    /// 2026-10-22: check them at large text). Their buttons do not use revision 3's label insets, which were approved
+    /// for Welcome only, so the padding check reports what they show today.
+    func testPhotoCannotBeOpenedAtLargestTextHasNoClippingOverlapOrUnreachableControls() throws {
+        XCTAssertFalse(Self.largestTextConfigurations.isEmpty, "LIGHTLY_LARGEST_TEXT_THEME selects no theme")
+        let ready = "loadFailed.chooseAnother"
+        for (sizeName, arguments) in Self.largestTextConfigurations {
+            let launchArguments = arguments + ["--open-unreadable-photo"]
+            var app = launchRecovery(launchArguments, ready: ready, screen: sizeName)
+            try checkLayout(app, screen: "load-failed \(sizeName)", identifiers: ["recovery.close", "loadFailed.chooseAnother", "loadFailed.tryAgain"])
+            // Close returns to Welcome.
+            tapAfterScrolling(app, "recovery.close", screen: sizeName)
+            XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: 10), "Close did not return to Welcome at \(sizeName)")
+            app.terminate()
+            // Choose another photo presents the photo picker over the screen.
+            app = launchRecovery(launchArguments, ready: ready, screen: sizeName)
+            tapAfterScrolling(app, "loadFailed.chooseAnother", screen: sizeName)
+            assertCovered(app, by: "loadFailed.chooseAnother", screen: sizeName)
+            app.terminate()
+            // Try again re-reads the same unreadable bytes, so the screen comes back; the check is that the control
+            // takes the tap (scrolled into view, hittable) and the app stays on this screen without failing.
+            app = launchRecovery(launchArguments, ready: ready, screen: sizeName)
+            tapAfterScrolling(app, "loadFailed.tryAgain", screen: sizeName)
+            XCTAssertTrue(app.buttons[ready].waitForExistence(timeout: 10), "load-failed did not come back after Try again at \(sizeName)")
+            saveScreenshot(app, named: "load-failed \(sizeName) tapped tryAgain")
+            app.terminate()
+        }
+    }
+
+    func testCameraAccessOffAtLargestTextHasNoClippingOverlapOrUnreachableControls() throws {
+        XCTAssertFalse(Self.largestTextConfigurations.isEmpty, "LIGHTLY_LARGEST_TEXT_THEME selects no theme")
+        for (sizeName, arguments) in Self.largestTextConfigurations {
+            // Camera access declined once; every later Camera tap then goes straight to this screen.
+            XCUIApplication().resetAuthorizationStatus(for: .camera)
+            var app = launchCameraAccessOff(arguments, screen: sizeName, declineFirst: true)
+            try checkLayout(app, screen: "camera-off \(sizeName)", identifiers: ["recovery.close", "cameraOff.openSettings", "cameraOff.choosePhoto"])
+            tapAfterScrolling(app, "recovery.close", screen: sizeName)
+            XCTAssertTrue(app.buttons["welcome.choosePhoto"].waitForExistence(timeout: 10), "Close did not return to Welcome at \(sizeName)")
+            app.terminate()
+            app = launchCameraAccessOff(arguments, screen: sizeName, declineFirst: false)
+            tapAfterScrolling(app, "cameraOff.choosePhoto", screen: sizeName)
+            assertCovered(app, by: "cameraOff.choosePhoto", screen: sizeName)
+            app.terminate()
+            // Open Settings leaves the app for the Settings app.
+            app = launchCameraAccessOff(arguments, screen: sizeName, declineFirst: false)
+            tapAfterScrolling(app, "cameraOff.openSettings", screen: sizeName)
+            let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+            XCTAssertTrue(settings.wait(for: .runningForeground, timeout: 10), "Open Settings did not open Settings at \(sizeName)")
+            settings.terminate()
+            app.terminate()
+        }
+    }
+
+    private func launchRecovery(_ arguments: [String], ready: String, screen: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["--reset-preferences"] + arguments
+        app.launch()
+        XCTAssertTrue(app.buttons[ready].waitForExistence(timeout: timeout), "\(ready) not shown at \(screen)")
+        return app
+    }
+
+    /// Welcome › Camera with access declined: the system prompt first when [declineFirst], else straight through.
+    private func launchCameraAccessOff(_ arguments: [String], screen: String, declineFirst: Bool) -> XCUIApplication {
+        let app = launch(Self.screens[0], extra: arguments)
+        tapAfterScrolling(app, "welcome.camera", screen: screen)
+        if declineFirst {
+            let alert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+            XCTAssertTrue(alert.waitForExistence(timeout: 10), "no camera prompt at \(screen)")
+            alert.buttons["Don’t Allow"].exists ? alert.buttons["Don’t Allow"].tap() : alert.buttons.element(boundBy: 0).tap()
+        }
+        XCTAssertTrue(app.buttons["cameraOff.openSettings"].waitForExistence(timeout: 10), "camera-off not shown at \(screen)")
+        return app
+    }
+
+    /// Something (the photo picker) now covers the screen that held [identifier].
+    private func assertCovered(_ app: XCUIApplication, by identifier: String, screen: String) {
+        let covered = NSPredicate { _, _ in !app.buttons[identifier].exists || !app.buttons[identifier].isHittable }
+        let presented = expectation(for: covered, evaluatedWith: NSObject())
+        XCTAssertEqual(XCTWaiter.wait(for: [presented], timeout: 10), .completed, "\(identifier) did nothing at \(screen)")
+        saveScreenshot(app, named: "\(screen) tapped \(identifier)")
+    }
+
     /// AX3 (the snapshot tests' size) and AX5 (the largest), each in light and dark. LIGHTLY_LARGEST_TEXT_THEME (set as
     /// TEST_RUNNER_LIGHTLY_LARGEST_TEXT_THEME) limits a run to one theme, so a slow simulator fits scripts/heavy's
     /// 600 s cap; both themes must still be run.
@@ -310,7 +395,8 @@ final class AccessibilityAuditUITests: XCTestCase {
         }
 
         // Welcome stays in the accessibility tree under More's sheet, so its checks run on Welcome only.
-        let onWelcome = !app.descendants(matching: .any)["more.page.menu"].exists
+        let moreOpen = app.descendants(matching: .any)["more.page.menu"].exists
+        let onWelcome = !moreOpen && app.buttons["welcome.choosePhoto"].exists
         // 2. The Welcome mark is wholly visible: its coloured rays span as much height as width (the mark is square).
         //    Checked unscrolled only: once Welcome scrolls (short screens at AX5), the mark leaving the top is scrolling,
         //    not clipping.
@@ -324,7 +410,8 @@ final class AccessibilityAuditUITests: XCTestCase {
 
         // 3. Button content keeps clear of its capsule: at least the mockup's 6 pt (its buttons set no horizontal
         //    padding, so they keep the browser's default 6 px) between any drawn content and the outline.
-        for identifier in onWelcome ? ["welcome.choosePhoto", "welcome.camera"] : [] {
+        //    Every full-width capsule button on the screen: Welcome's two and the recovery screens' two each.
+        for identifier in moreOpen ? [] : Self.capsuleButtons {
             let button = app.buttons[identifier].firstMatch
             guard button.exists, visible.contains(button.frame.insetBy(dx: 1, dy: 1)) else { continue }
             if let nearest = pixels.minimumGapToCapsule(button.frame), nearest.gap < 6 {
@@ -421,7 +508,7 @@ private struct ScreenPixels {
 
     /// The smallest distance, in points, from any drawn content (pixels unlike the button's own fill) to the capsule
     /// outline of a button filling [frame]; nil when no content is found. The outline stroke itself (within 1.5 pt) is
-    /// not content.
+    /// not content. Measured to the drawn edge found in the pixels, not to a modelled circle.
     func minimumGapToCapsule(_ frame: CGRect) -> (gap: CGFloat, at: CGPoint, colour: String)? {
         let radius = frame.height / 2
         func inwardDistance(_ p: CGPoint) -> CGFloat {
@@ -448,34 +535,47 @@ private struct ScreenPixels {
         func differs(_ a: (Double, Double, Double), _ b: (Double, Double, Double), by limit: Double) -> Bool {
             abs(a.0 - b.0) + abs(a.1 - b.1) + abs(a.2 - b.2) > limit
         }
-        // The outline itself, which is not content: its commonest colour along the straight top and bottom edges
-        // (where content never reaches), excluding the page just outside the button. Without this, the light-mode
-        // outline stroke counted as content touching the outline (2026-10-22): the accessibility frame is not
-        // pixel-aligned and can sit about 1 pt off the drawn capsule. Every edge pixel is sampled, not only those past
-        // the 1.5 pt band, because on a 2x screen the straight-edge stroke lies wholly outside the band.
-        let outside = [rgb(Int(frame.midX * scale), Int(max(0, frame.minY - 3) * scale)),
-                       rgb(Int(frame.midX * scale), Int(min(CGFloat(image.height) / scale - 1, frame.maxY + 3) * scale))]
-        let edgeRows = Array(stride(from: frame.minY - 1, to: frame.minY + 4, by: step))
-            + Array(stride(from: frame.maxY - 4, to: frame.maxY + 1, by: step))
-        var edgeCounts: [Int: Int] = [:]
-        var edgeX = frame.minX + radius
-        while edgeX < frame.maxX - radius {
-            for edgeY in edgeRows where edgeY >= 0 && Int(edgeY * scale) < image.height {
-                let c = rgb(Int(edgeX * scale), Int(edgeY * scale))
-                guard differs(c, fill, by: 0.6), outside.allSatisfy({ differs(c, $0, by: 0.3) }) else { continue }
-                edgeCounts[Int(c.0 * 15) << 8 | Int(c.1 * 15) << 4 | Int(c.2 * 15), default: 0] += 1
-            }
-            edgeX += step
+        // The drawn edge, located in the pixels rather than modelled (2026-10-22). SwiftUI's `Capsule` has continuous
+        // ends, which on a tall (wrapped) button sit several points inside circular ends near where they meet the
+        // straight edges; there, measured against a circle, anti-aliased edge pixels read as content 0 pt from the
+        // outline. Colour cannot tell those blends from text (dark text on a dark page), so the edge is found by
+        // position: along every row and column through the frame, the outermost pixel unlike the page beside the
+        // button is the outline (content never lies outside it unless it overflows, which still fails below).
+        let page = rgb(max(0, Int((frame.minX - 3) * scale)), Int(frame.midY * scale))
+        func notPage(_ x: CGFloat, _ y: CGFloat) -> Bool {
+            guard x >= 0, y >= 0, Int(x * scale) < image.width, Int(y * scale) < image.height else { return false }
+            return differs(rgb(Int(x * scale), Int(y * scale)), page, by: 0.1)
         }
-        var outline: (Double, Double, Double)?
-        if let key = edgeCounts.max(by: { $0.value < $1.value })?.key {
-            // The middle of the colour's 1/15 bucket.
-            let red = Double(key >> 8) / 15, green = Double((key >> 4) & 15) / 15, blue = Double(key & 15) / 15
-            outline = (red + 1.0 / 30, green + 1.0 / 30, blue + 1.0 / 30)
-        }
+        var edge: [CGPoint] = []
+        var row = frame.minY - 2
+        while row < frame.maxY + 2 {
+            var x = frame.minX - 3; while x < frame.midX, !notPage(x, row) { x += step }
+            if x < frame.midX { edge.append(CGPoint(x: x, y: row)) }
+            x = frame.maxX + 3; while x > frame.midX, !notPage(x, row) { x -= step }
+            if x > frame.midX { edge.append(CGPoint(x: x, y: row)) }
+            row += step }
+        var column = frame.minX - 2
+        while column < frame.maxX + 2 {
+            var y = frame.minY - 3; while y < frame.midY, !notPage(column, y) { y += step }
+            if y < frame.midY { edge.append(CGPoint(x: column, y: y)) }
+            y = frame.maxY + 3; while y > frame.midY, !notPage(column, y) { y -= step }
+            if y > frame.midY { edge.append(CGPoint(x: column, y: y)) }
+            column += step }
+        // Edge points bucketed in 8 pt cells, so each content pixel compares only with the edge near it.
+        let cell: CGFloat = 8
+        func cellKey(_ x: CGFloat, _ y: CGFloat) -> Int { Int(floor(x / cell)) << 16 | Int(floor(y / cell)) & 0xFFFF }
+        var buckets: [Int: [CGPoint]] = [:]
+        for point in edge { buckets[cellKey(point.x, point.y), default: []].append(point) }
         var nearest: (gap: CGFloat, at: CGPoint, colour: String)?
-        for (p, c) in samples where differs(c, fill, by: 0.6) && (outline.map { differs(c, $0, by: 0.3) } ?? true) {
-            let d = inwardDistance(p) - 1.5
+        for (p, c) in samples where differs(c, fill, by: 0.6) {
+            var closest = CGFloat.infinity
+            for dx in [-cell, 0, cell] { for dy in [-cell, 0, cell] {
+                for e in buckets[cellKey(p.x + dx, p.y + dy)] ?? [] { closest = min(closest, hypot(e.x - p.x, e.y - p.y)) }
+            } }
+            // Within 1.5 pt of the edge is the outline stroke and its anti-aliasing, not content; no edge point in
+            // the neighbouring cells means at least 8 pt clear.
+            guard closest.isFinite, closest > 1.5 else { continue }
+            let d = closest - 1.5
             if d < nearest?.gap ?? .infinity { nearest = (d, p, String(format: "%.2f %.2f %.2f", c.0, c.1, c.2)) }
         }
         return nearest
