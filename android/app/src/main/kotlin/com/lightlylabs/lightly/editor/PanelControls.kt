@@ -101,7 +101,10 @@ fun <T> OptionTabs(
     val scroll = rememberScrollState()
     val offsets = remember { mutableStateMapOf<Int, Int>() }
     val selectedIndex = items.indexOfFirst { it.first == selected }
-    LaunchedEffect(selectedIndex, offsets[maxOf(0, selectedIndex - 1)]) {
+    // Also re-scrolls when a dot appears or goes: the dot widens its tab, and a last tab scrolled to the old end would
+    // otherwise slide under the end fade (found on iOS 2026-10-31 with Effects › Ink).
+    val dots = items.map { dotted(it.first) }
+    LaunchedEffect(selectedIndex, offsets[maxOf(0, selectedIndex - 1)], dots, scroll.maxValue) {
         val target = offsets[maxOf(0, selectedIndex - 1)] ?: return@LaunchedEffect
         scroll.scrollTo(target.coerceIn(0, scroll.maxValue))
     }
