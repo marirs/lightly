@@ -173,6 +173,26 @@ final class InkTests: XCTestCase {
         XCTAssertNil(session.recipe.tools.effects.ink)
     }
 
+    /// Device check 2026-10-31: Size then Paper colour are two undo steps; Undo after the paper restores the paper only.
+    func testSizeThenPaperAreTwoUndoSteps() async throws {
+        let session = try await EditorTestSupport.readySession(library: try EditorTestSupport.library())
+        defer { session.close() }
+        guard InkPack.bundled.ink(id: Self.dryInkID) != nil else { throw XCTSkip("no bundled ink pack") }
+        session.chooseInk(Self.dryInkID)
+        session.pinchInk(from: try XCTUnwrap(session.recipe.tools.effects.ink), scale: 1.43, turnDegrees: 116, final: false)
+        session.pinchInk(from: try XCTUnwrap(session.recipe.tools.effects.ink), scale: 1.43, turnDegrees: 116, final: true)
+        session.changeInk(final: false) { $0.size = 70 }
+        session.changeInk(final: true) { $0.size = 70 }
+        session.changeInk(final: false) { $0.paper = "#1F2328" }
+        session.changeInk(final: true) { $0.paper = "#1F2328" }
+        XCTAssertEqual(session.recipe.tools.effects.ink.map { [$0.size, $0.rotation] }, [70, 116])
+        session.undo()
+        XCTAssertEqual(session.recipe.tools.effects.ink?.paper, "#F4F1EC", "undo: the paper only")
+        XCTAssertEqual(session.recipe.tools.effects.ink?.size, 70, "…Size stays")
+        session.undo()
+        XCTAssertEqual(session.recipe.tools.effects.ink?.size, 143)
+    }
+
     func testMovingAndPinchingChangeOnlyAChosenStrokeInk() async throws {
         let session = try await EditorTestSupport.readySession(library: try EditorTestSupport.library())
         defer { session.close() }

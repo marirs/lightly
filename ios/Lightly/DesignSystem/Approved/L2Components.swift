@@ -425,6 +425,12 @@ struct L2Tabs<Value: Hashable>: View {
                 guard let at = items.firstIndex(where: { $0.value == value }) else { return }
                 proxy.scrollTo(max(0, at - 1), anchor: .leading)
             }
+            // A dot appearing widens its tab; the last tabs (Effects › Ink) then sat past the end under the fade, cut off,
+            // because the row had stopped at the old end (device check 2026-10-31). Scroll again when the dots change.
+            .onChange(of: items.map(\.dot)) {
+                guard let at = items.firstIndex(where: { $0.value == selection }) else { return }
+                proxy.scrollTo(max(0, at - 1), anchor: .leading)
+            }
         }
         // The row is 12 pt wider on the leading side than the column it sits in (CSS negative margin).
         .padding(.leading, -Self.leadingPull)
@@ -564,6 +570,9 @@ struct L2Slider: View {
             Text(verbatim: (bipolar && v > 0 ? "+" : "") + "\(Int(v.rounded()))")
                 .l2Text(13, weight: .bold).monospacedDigit()
                 .foregroundStyle(c(ApprovedColor.ink))
+                // One line, as the mockup's 34 px span (no break point in "+116"): a three-digit signed value is a hair
+                // wider than 34 pt in SF bold digits and wrapped onto two lines (device check 2026-10-31, Ink Rotation).
+                .lineLimit(1).fixedSize()
                 .frame(width: 34, alignment: .trailing)
         }
         .frame(minHeight: 38)
