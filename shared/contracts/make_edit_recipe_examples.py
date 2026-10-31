@@ -197,6 +197,12 @@ def examples() -> dict[str, dict]:
         "range": 40, "strength": 100}
     out["effects-selective-colour"] = s
 
+    s = neutral_state(revision=3)
+    # Dry Sweep moved and turned on Charcoal paper (rendering-v2 revision 10, owner-approved 2026-10-31).
+    s["tools"]["effects"]["ink"] = {"id": "ink-cbfae4259a79", "x": 46, "y": 52, "size": 120, "rotation": -15,
+                                    "paper": "#1F2328", "intensity": 60}
+    out["effects-ink"] = s
+
     s = neutral_state(revision=2)
     s["tools"]["watermark"].update(type="signature", signature=SIGNATURE_DRAWN, size=30, colour="#111111")
     out["watermark-signature-drawn"] = s

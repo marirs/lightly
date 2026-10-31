@@ -24,8 +24,10 @@ PRESETS = REPO / "experiments/presets"
 #     stages, perspective defined, light leak measured along the farthest-corner ray as the approved CSS does.
 # 3 = background.focus subject colour from the de-contaminated estimate wherever the matte is above 0.02.
 # 4 = effects.selectiveColour (owner request 2026-10-04), after the light leak, before vignette and grain.
+# 10 = effects.ink (owner-approved 2026-10-31), first in the effects stage: the photo through an ink stroke on paper,
+#      or an overlay ink multiplied over the frame.
 # 5 = background.replace composites the estimated foreground colour (Germer multilevel), not the observed pixel.
-CONTRACT_REVISION = 9
+CONTRACT_REVISION = 10
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -313,6 +315,18 @@ def stages():
               "note": "rect [x, y, w, h] in the straightened frame; for a fixed aspect, w/h equals it in pixels"}]},
         {"order": 10, "id": "effects", "frame": "frame", "recipe": "editState.tools.effects + preset recipe.finishing",
          "operators": [
+             {"id": "ink",
+              "params": {"ink": {"type": "string|null", "default": None, "note": "ink-<12 hex>, an ink of the ink pack (shared/ink/out/inks.json); "
+                                                                                 "null (the recipe key absent): the operator does nothing"},
+                         "x": num(0, 100, 50, PERCENT), "y": num(0, 100, 50, PERCENT), "size": num(50, 150, 100, PERCENT),
+                         "rotation": num(-180, 180, 0, "degrees"), "paper": {"type": "colour", "default": "#F4F1EC", "note": "stroke inks"},
+                         "intensity": num(0, 100, 60, PERCENT, "overlay inks")},
+              "constants": {"strokeFit": "s = size/100 · 0.88 · min(W/tw, H/th): the whole stroke inside the frame, a 6 % paper margin each side at size 100",
+                            "orientation": "a portrait frame (H > W) turns the landscape mask by 90° clockwise before rotation",
+                            "outside": "stroke mask 0 (paper), overlay image 255 (no ink)",
+                            "stroke": "out = a·in + (1 − a)·paper, a = bilinear(mask)/255, on sRGB-encoded values",
+                            "overlay": "aspect fill, centred; out = in·(1 − k·(1 − g)), g = bilinear(image)/255, k = intensity/100"},
+              "equation": "rendering-v2.md#ink", "status": "revision 10"},
              {"id": "lightLeak", "params": {"style": enum(["warm", "amber", "rose", "prism"], "warm"), "intensity": num(0, 100, 55, PERCENT),
                                             "x": num(0, 100, 18, PERCENT), "y": num(0, 100, 14, PERCENT), "rotation": num(-180, 180, 0, "degrees")},
               "constants": light_leak_constants(), "equation": "rendering-v2.md#light-leak",

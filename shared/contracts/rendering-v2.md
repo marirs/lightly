@@ -34,7 +34,7 @@ Preview and export run the same stages on the same committed recipe. Only the re
 - **Adjust, Background and Portrait run in source coordinates (C2),** before `edit.geometry`. Scene mattes, depth maps and face landmarks are computed on the source, so these stages use them without resampling. Colour is per pixel and unaffected; the visible consequence is that resolution-relative radii (Detail in `edit.adjust`, Focus & Blur's R_max and kernels, portrait regions) are fractions of the **uncropped source** long edge, not of the cropped frame.
 - **Geometry then maps source → frame (stage 9),** and Effects stays in the frame after it, for the reasons below.
 
-**Departure from the order sketched in plan.md decision 3, on purpose.** The preset's own **vignette and grain** are carried in the preset (`recipe.finishing`) but evaluated in stage 10, `effects`, rather than in `develop.spatial`. They run in the order: light leak → selective colour (revision 4) → preset vignette → user vignette → preset grain → user grain. There are three reasons:
+**Departure from the order sketched in plan.md decision 3, on purpose.** The preset's own **vignette and grain** are carried in the preset (`recipe.finishing`) but evaluated in stage 10, `effects`, rather than in `develop.spatial`. They run in the order: ink (revision 10) → light leak → selective colour (revision 4) → preset vignette → user vignette → preset grain → user grain. There are three reasons:
 1. Lightroom's vignette is *post-crop*: it follows the final frame. If it were evaluated before `edit.geometry`, a crop would cut it off-centre.
 2. Grain applied before geometry would be resampled by rotation and straightening, and blurred by Focus & Blur.
 3. Grain is applied last because it belongs to the medium (the emulsion), while vignettes and light leaks are optical. This is also Lightroom's order: vignette before grain.
@@ -303,6 +303,29 @@ out = clamp(enc(OKLab⁻¹(L', a·L'/L, b·L'/L)), 0, 1)      # L ≥ ~0.0046 be
 - **Seed:** the preset seed comes from `GrainSeed` when the preset has one. Otherwise it is the first 32 bits of sha256(preset id). The user grain seed is fixed when the edit is created.
 - **User grain styles:** `fine`, `film` and `coarse` scale size by 0.7, 1.0 and 1.5 respectively, capped at 100.
 
+### Ink
+**Revision 10 (owner-approved design 2026-10-31, `docs/ui/proposals/ink-2026-10-31`).** The optional `effects.ink` names an ink of the ink pack (`shared/ink/out/inks.json`, built by `shared/ink/build_inks.py` and bundled by both apps); missing means none, so earlier recipes render unchanged. Ink runs first in the effects stage, so a light leak, the vignettes and grain fall on the paper too, as in the approved design.
+
+A **stroke** ink is a grey mask (255 where the photo shows through), stored landscape (mw ≥ mh) and cropped to the stroke. On a W × H frame:
+```
+φ  = H > W ? 90° : 0                                         # the stroke turns with a portrait photo
+(tw, th) = φ ? (mh, mw) : (mw, mh)
+s  = size/100 · 0.88 · min(W/tw, H/th)                       # the whole stroke inside, a 6 % paper margin at size 100
+o  = (x·W/100, y·H/100);   θ = rad(rotation) + φ             # clockwise positive
+u  = R(−θ)·(p − o) / s + (mw/2, mh/2)                        # mask pixel; texels outside the mask are 0
+a  = bilinear(mask, u) / 255
+out = a·in + (1 − a)·paper                                   # on sRGB-encoded values; paper is the recipe's #RRGGBB
+```
+An **overlay** ink (Splatter, Speckle) is a grey image printed over the whole frame; `x`, `y`, `size` and `paper` are not read:
+```
+φ, (tw, th) as above with the image's (iw, ih);   s = max(W/tw, H/th)   # aspect fill
+o  = (W/2, H/2);   θ = rad(rotation) + φ
+u  = R(−θ)·(p − o) / s + (iw/2, ih/2)                        # texels outside the image are 255 (no ink)
+g  = bilinear(image, u) / 255;   k = intensity/100
+out = in·(1 − k·(1 − g))                                     # multiply, on sRGB-encoded values
+```
+Bilinear sampling is between pixel centres (pixel i covers [i, i + 1)). Choosing an ink while none is chosen starts it centred (x = y = 50) at size 100, rotation 0, intensity 60 and Warm white paper (#F4F1EC); choosing another ink keeps the position, size, rotation, paper and intensity; dragging on the photo moves only a chosen stroke ink. An ink this build's pack lacks renders nothing. Preview and export sample the same image at their resolutions.
+
 ### Light leak
 **Leak images (revision 8, owner 2026-10-11).** A `style` of the form `leak-<12 hex>` names an image in the leak pack (`shared/leaks/out/leaks.json`, bundled by both apps). On a W × H frame:
 ```
@@ -558,5 +581,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 7 | 2026-10-11 | Owner amendments: stage 11 `text` (§7.4) between `effects` and `border` (border and watermark become 12 and 13); `portrait.smile` (§7.3) in stage 8. Both read optional recipe keys (missing means none), so earlier recipes render unchanged. | No |
 | 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
 | 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, ear and far-arm occluders, the turn raised from 25 mm, a wider and deeper eye band, a nose-only face occluder off profile, a tighter paint-out (0.8 %), and the head continued backwards, and the paint-out takes lens glare and fills past a turned face's outline from the background; the pair seated on the nose (never uncovering a painted-out area) and no face occluder near frontal; the turn raise only from 40° of turn, the ear boxes at each face's own ear the arms angled to the top of the ear, and the profile walk across the face from the near iris's height (2026-10-20). | No |
+| 10 | 2026-10-31 | Effects › Ink (owner-approved design `docs/ui/proposals/ink-2026-10-31`): the optional `effects.ink` (§6 Ink), first in the effects stage: the photo through a stroke ink on paper, or an overlay ink multiplied over the frame. Missing means none, so earlier recipes render unchanged. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

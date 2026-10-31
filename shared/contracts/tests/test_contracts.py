@@ -46,7 +46,7 @@ def test_stage_order_is_the_whole_edit_pipeline():
                                                          "background.focus", "portrait"))
     assert frames["edit.geometry"] == "source → frame" and frames["effects"] == "frame"
     effects = next(s for s in stages if s["id"] == "effects")
-    assert [o["id"] for o in effects["operators"]] == ["lightLeak", "selectiveColour", "presetVignette", "userVignette", "presetGrain", "userGrain"]
+    assert [o["id"] for o in effects["operators"]] == ["ink", "lightLeak", "selectiveColour", "presetVignette", "userVignette", "presetGrain", "userGrain"]
 
 
 def test_contract_is_revision_6_with_continuous_light_leak():

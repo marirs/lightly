@@ -11,6 +11,7 @@ These are shared by the iOS and Android tests. The schema is `shared/contracts/e
 | `portrait-sunglasses.json` | Sunglasses (rendering revision 9): a pair with dark lenses on one face; on the other, its own glasses painted out (`removed`) and replaced with brown lenses |
 | `edit-geometry.json`, `edit-adjust.json`, `edit-remove-strokes.json` | Crop, quarter turn, flip, perspective, straighten; every Adjust slider; one applied and one failed Remove stroke |
 | `effects-combined-on-top-of-preset.json` | Light leak, grain and vignette over a Look (composed with the preset's own grain and vignette, never replacing them) |
+| `effects-ink.json` | Ink (rendering revision 10): Dry Sweep moved, enlarged and turned, on Charcoal paper |
 | `watermark-*.json` | Drawn and imported signature references, a dragged offset, text in a bundled font, a logo, text on a border |
 | `border-*.json` | Solid, Photo Frame, and Polaroid with the signature on its margin |
 | `demo-combined.json` | The approved "Combined edit, one session" (`docs/ui/app/screens.js` DEMO steps 1 to 7) |

@@ -1,7 +1,7 @@
 {
  "contract": "lightly-rendering",
  "version": 2,
- "revision": 9,
+ "revision": 10,
  "changeLog": "shared/contracts/rendering-v2.md#change-log",
  "prose": "shared/contracts/rendering-v2.md",
  "generatedBy": "shared/contracts/build_rendering_v2.py",
@@ -1379,6 +1379,66 @@
    "frame": "frame",
    "recipe": "editState.tools.effects + preset recipe.finishing",
    "operators": [
+    {
+     "id": "ink",
+     "params": {
+      "ink": {
+       "type": "string|null",
+       "default": null,
+       "note": "ink-<12 hex>, an ink of the ink pack (shared/ink/out/inks.json); null (the recipe key absent): the operator does nothing"
+      },
+      "x": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      },
+      "y": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 50,
+       "unit": "percent"
+      },
+      "size": {
+       "type": "number",
+       "min": 50,
+       "max": 150,
+       "default": 100,
+       "unit": "percent"
+      },
+      "rotation": {
+       "type": "number",
+       "min": -180,
+       "max": 180,
+       "default": 0,
+       "unit": "degrees"
+      },
+      "paper": {
+       "type": "colour",
+       "default": "#F4F1EC",
+       "note": "stroke inks"
+      },
+      "intensity": {
+       "type": "number",
+       "min": 0,
+       "max": 100,
+       "default": 60,
+       "unit": "percent",
+       "note": "overlay inks"
+      }
+     },
+     "constants": {
+      "strokeFit": "s = size/100 · 0.88 · min(W/tw, H/th): the whole stroke inside the frame, a 6 % paper margin each side at size 100",
+      "orientation": "a portrait frame (H > W) turns the landscape mask by 90° clockwise before rotation",
+      "outside": "stroke mask 0 (paper), overlay image 255 (no ink)",
+      "stroke": "out = a·in + (1 − a)·paper, a = bilinear(mask)/255, on sRGB-encoded values",
+      "overlay": "aspect fill, centred; out = in·(1 − k·(1 − g)), g = bilinear(image)/255, k = intensity/100"
+     },
+     "equation": "rendering-v2.md#ink",
+     "status": "revision 10"
+    },
     {
      "id": "lightLeak",
      "params": {
