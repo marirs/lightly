@@ -3,7 +3,8 @@ import XCTest
 /// Effects › Ink on a physical iPhone (owner-approved design docs/ui/proposals/ink-2026-10-31): drives the Lightly build
 /// already installed on the phone through every Ink control, the photo gestures, Undo/Redo, Reset and Save copy, and keeps
 /// a screenshot of each state. Not part of any regular run: skipped unless LIGHTLY_INK_DEVICE_CHECK is set, and its
-/// xctestrun must not install the host app (the installed review build stays on the phone).
+/// xctestrun must not install the host app (the installed review build stays on the phone). LIGHTLY_INK_APPEARANCE=dark|light
+/// runs it under that in-app Appearance (More › Appearance, never the phone's Settings) and restores the previous choice.
 final class InkDeviceUITests: XCTestCase {
     private let app = XCUIApplication(bundleIdentifier: "com.lightlylabs.lightly")
     private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
@@ -23,6 +24,8 @@ final class InkDeviceUITests: XCTestCase {
         openFirstPhoto()
         XCTAssertTrue(app.buttons["tool.develop"].waitForExistence(timeout: 30), "editor open")
         pause(3)
+        let previousAppearance = ProcessInfo.processInfo.environment["LIGHTLY_INK_APPEARANCE"].flatMap(chooseAppearance)
+        defer { if let previousAppearance { _ = chooseAppearance(previousAppearance) } }
 
         // The tab: fifth in Effects, None chosen, the stroke controls and the note.
         tap(app.buttons["tool.effects"])
@@ -134,6 +137,21 @@ final class InkDeviceUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// More › Appearance: chooses `value` and returns the choice it replaced, so the owner's setting can be put back.
+    private func chooseAppearance(_ value: String) -> String? {
+        guard app.buttons["editor.more"].waitForExistence(timeout: 10) else { XCTFail("More missing"); return nil }
+        app.buttons["editor.more"].tap()
+        pause(1)
+        let previous = ["system", "light", "dark"].first { element("appearance.\($0)").isSelected }
+        tap(element("appearance.\(value)"))
+        pause(1)
+        XCTAssertTrue(element("appearance.\(value)").isSelected, "Appearance \(value) chosen")
+        shot("00-appearance-\(value)")
+        tap(element("page.close"))
+        pause(2)
+        return previous
+    }
 
     private func openFirstPhoto() {
         if app.buttons["tool.develop"].waitForExistence(timeout: 5) { return }   // a restored edit
