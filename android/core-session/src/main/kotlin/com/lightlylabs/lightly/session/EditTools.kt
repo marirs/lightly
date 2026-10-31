@@ -389,7 +389,37 @@ data class EffectsTool(
     /** Effects › Selective Colour (rendering-v2 revision 4). Optional in edit-recipe-v1: null (not written) means no
      *  kept colours, so recipes written before it stay valid and byte-identical. */
     @EncodeDefault(EncodeDefault.Mode.NEVER) val selectiveColour: SelectiveColourTool? = null,
+    /** Effects › Ink (rendering-v2 revision 10, owner-approved 2026-10-31). Optional in edit-recipe-v1: null (not written)
+     *  means no ink, so recipes written before it stay valid and byte-identical. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val ink: InkTool? = null,
 )
+
+/**
+ * `effects.ink` (docs/ui/proposals/ink-2026-10-31): [id] names an ink of the ink pack (shared/ink); a stroke ink reads
+ * [x], [y], [size], [rotation] and [paper], an overlay ink [rotation] and [intensity]. A string id, as the leak id, so the
+ * pack can grow without a recipe change.
+ */
+@Serializable
+data class InkTool(val id: String, val x: Double, val y: Double, val size: Double, val rotation: Double, val paper: String, val intensity: Double) {
+    init {
+        require(ID_PATTERN.matches(id)) { "an ink id is ink-<12 lowercase hex>, was $id" }
+        requirePercent(x, "ink x"); requirePercent(y, "ink y"); requirePercent(intensity, "ink intensity")
+        require(size in SIZE_RANGE) { "ink size must be in 50..150" }
+        require(rotation in -180.0..180.0) { "rotation must be in -180..180" }
+        requireColour(paper)
+    }
+
+    companion object {
+        val ID_PATTERN = Regex("^ink-[0-9a-f]{12}$")
+        val SIZE_RANGE = 50.0..150.0
+        /** "Warm white", the first choice's paper (the approved proposal's `fx-ink`). */
+        const val DEFAULT_PAPER = "#F4F1EC"
+        const val DEFAULT_INTENSITY = 60.0
+
+        /** A first choice (rendering-v2 §Ink): centred, size 100, unturned, Warm white paper, intensity 60. */
+        fun starting(id: String) = InkTool(id, 50.0, 50.0, 100.0, 0.0, DEFAULT_PAPER, DEFAULT_INTENSITY)
+    }
+}
 
 /** Kept colours (never empty: no colours is `selectiveColour = null`), Range and Strength. */
 @Serializable

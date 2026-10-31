@@ -492,6 +492,22 @@ object DebugLaunchOptions {
             "fx-leak" -> { api.chooseFirstLeak(); fx(com.lightlylabs.lightly.editor.EffectsSub.LEAK) }
             "fx-leak-none" -> fx(com.lightlylabs.lightly.editor.EffectsSub.LEAK)
             "fx-selective" -> fx(com.lightlylabs.lightly.editor.EffectsSub.SELECTIVE)
+            // Effects › Ink (approved proposal docs/ui/proposals/ink-2026-10-31): its screens, by ink name; fx-ink-none has none.
+            "fx-ink-none" -> fx(com.lightlylabs.lightly.editor.EffectsSub.INK)
+            "fx-ink" -> { api.chooseInkNamed("Dry Sweep"); fx(com.lightlylabs.lightly.editor.EffectsSub.INK) }
+            "fx-ink-bold" -> { api.chooseInkNamed("Bold Strokes"); fx(com.lightlylabs.lightly.editor.EffectsSub.INK) }
+            "fx-ink-paper" -> {
+                api.chooseInkNamed("Stacked")
+                api.effects { it.copy(ink = it.ink?.copy(paper = "#1F2328")) }
+                fx(com.lightlylabs.lightly.editor.EffectsSub.INK)
+            }
+            "fx-ink-bloom" -> { api.chooseInkNamed("Soft Bloom"); fx(com.lightlylabs.lightly.editor.EffectsSub.INK) }
+            "fx-ink-splatter" -> { api.chooseInkNamed("Splatter"); fx(com.lightlylabs.lightly.editor.EffectsSub.INK) }
+            "fx-ink-combined" -> {
+                api.chooseInkNamed("Dry Sweep")
+                api.effects { it.copy(grain = it.grain.copy(enabled = true, amount = 30.0)) }
+                fx(com.lightlylabs.lightly.editor.EffectsSub.INK)
+            }
             "fx-grain" -> { api.effects { it.copy(grain = it.grain.copy(enabled = true, amount = 45.0)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.GRAIN) }
             "fx-vignette" -> { api.effects { it.copy(vignette = it.vignette.copy(enabled = true)) }; fx(com.lightlylabs.lightly.editor.EffectsSub.VIGNETTE) }
             "fx-combined" -> {

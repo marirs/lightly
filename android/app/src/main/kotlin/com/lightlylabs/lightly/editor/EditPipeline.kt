@@ -13,6 +13,7 @@ import com.lightlylabs.lightly.develop.FinishingRecipe
 import com.lightlylabs.lightly.develop.FrameView
 import com.lightlylabs.lightly.develop.GeometryParams
 import com.lightlylabs.lightly.develop.GeometryTransform
+import com.lightlylabs.lightly.develop.InkParams
 import com.lightlylabs.lightly.develop.KeptColour
 import com.lightlylabs.lightly.develop.LowResPlane
 import com.lightlylabs.lightly.develop.PixelRect
@@ -43,8 +44,13 @@ object EditMapping {
      * [leaks] resolves a revision-8 leak id to its decoded image; a drawn style (earlier edits) needs none. Only an enabled
      * leak is decoded, so an edit that merely remembers a leak id costs nothing.
      */
-    fun effects(state: EditState, leaks: LeakLibrary = LeakLibrary.NONE): EffectsParams {
+    fun effects(state: EditState, leaks: LeakLibrary = LeakLibrary.NONE, inks: InkLibrary = InkLibrary.NONE): EffectsParams {
         val e = state.tools.effects
+        // Revision 10: the ink with its decoded image; an ink this build's pack lacks draws nothing.
+        val ink = e.ink?.let { tool ->
+            val entry = inks.pack.entry(tool.id) ?: return@let null
+            inks.image(tool.id)?.let { InkParams(entry.kind, it, tool.x, tool.y, tool.size, tool.rotation, tool.paper, tool.intensity) }
+        }
         val leakImage = (e.lightLeak.style as? com.lightlylabs.lightly.session.LeakStyle.Image)?.takeIf { e.lightLeak.enabled }?.let { leaks.image(it.leakId) }
         return EffectsParams(
             e.lightLeak.enabled, e.lightLeak.style.wireName, e.lightLeak.intensity, e.lightLeak.x, e.lightLeak.y, e.lightLeak.rotation,
@@ -54,6 +60,7 @@ object EditMapping {
             selectiveRange = e.selectiveColour?.range ?: 40.0,
             selectiveStrength = e.selectiveColour?.strength ?: 100.0,
             leakImage = leakImage,
+            ink = ink,
         )
     }
 
@@ -72,7 +79,7 @@ object EditMapping {
      * stay valid.
      */
     fun usesEditOrEffects(state: EditState): Boolean =
-        !geometry(state).isIdentity || !adjust(state).isNeutral || patchDigests(state).isNotEmpty() || effects(state).anyEnabled || !border(state).isNone ||
+        !geometry(state).isIdentity || !adjust(state).isNeutral || patchDigests(state).isNotEmpty() || effects(state).anyEnabled || state.tools.effects.ink != null || !border(state).isNone ||
             state.tools.watermark.type != com.lightlylabs.lightly.session.WatermarkType.NONE || state.tools.text.layers.isNotEmpty()
 }
 
@@ -107,6 +114,8 @@ class EditPipeline(
     private val text: TextStage = TextStage(WatermarkFonts(null)),
     /** Revision 8 leak images, the same decoded image for the preview and every Save copy tile. */
     private val leaks: LeakLibrary = LeakLibrary.NONE,
+    /** Revision 10 ink images, shared the same way. */
+    private val inks: InkLibrary = InkLibrary.NONE,
 ) {
     /**
      * The whole frame from a preview-size [source] (patches already composited). [developPlan] is the
@@ -119,7 +128,7 @@ class EditPipeline(
     /** Stages 1–10 of the preview: the frame the text stage draws on. Kept by the editor while text moves. */
     fun renderFrameBeforeText(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
         val image = frameBeforeEffects(source, state, developPlan, background)
-        return EffectsStage(EditMapping.effects(state, leaks), developPlan.finishing, model, image.width, image.height).apply(image)
+        return EffectsStage(EditMapping.effects(state, leaks, inks), developPlan.finishing, model, image.width, image.height).apply(image)
     }
 
     /** Stages 11–13 of the preview on a frame from [renderFrameBeforeText]: text, border, watermark. */
@@ -134,12 +143,12 @@ class EditPipeline(
 
     /**
      * Selective Colour's own input at the preview size: every stage before it (Develop without finishing,
-     * Adjust, Background, geometry) and the light leak, the one effect that runs before it. What a pick samples
+     * Adjust, Background, geometry) and ink and the light leak, the effects that run before it. What a pick samples
      * (rendering-v2 §6 Selective colour). The preset's finishing comes after it, so it is not applied.
      */
     fun renderSelectiveColourInput(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
         val image = frameBeforeEffects(source, state, developPlan, background)
-        val leakOnly = EditMapping.effects(state, leaks).copy(grainEnabled = false, vignetteEnabled = false, selectiveColours = emptyList())
+        val leakOnly = EditMapping.effects(state, leaks, inks).copy(grainEnabled = false, vignetteEnabled = false, selectiveColours = emptyList())
         return EffectsStage(leakOnly, FinishingRecipe.NEUTRAL, model, image.width, image.height).apply(image)
     }
 
@@ -172,7 +181,7 @@ class EditPipeline(
         val adjustApron = adjustPlan?.let { renderer.apron(it, frame.width, frame.height) } ?: 0
         val compose = background?.invoke(frame)
         val geometry = GeometryTransform(EditMapping.geometry(state), frame.width, frame.height)
-        val effects = EffectsStage(EditMapping.effects(state, leaks), developPlan.finishing, model, geometry.frameWidth, geometry.frameHeight)
+        val effects = EffectsStage(EditMapping.effects(state, leaks, inks), developPlan.finishing, model, geometry.frameWidth, geometry.frameHeight)
         val border = EditMapping.border(state)
         val placement = BorderStage.placement(border, geometry.frameWidth, geometry.frameHeight)
 

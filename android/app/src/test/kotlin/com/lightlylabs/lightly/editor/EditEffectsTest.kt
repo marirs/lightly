@@ -220,6 +220,70 @@ class EditEffectsTest {
         assertFalse(withoutPack.pixels.contentEquals(preview.pixels))
     }
 
+    // --- Effects › Ink (owner-approved 2026-10-31, rendering-v2 revision 10) --------------------------------------------
+
+    @Test
+    fun `an ink is one step, starts centred on Warm white, switching keeps its settings, None and Reset remove it`() = runTest {
+        val vm = ready(null, inks = TestInks.library)
+        fun ink() = vm.uiState.value.session!!.current.tools.effects.ink
+        vm.chooseInk(TestInks.STROKE); advanceUntilIdle()
+        assertEquals(com.lightlylabs.lightly.session.InkTool.starting(TestInks.STROKE), ink())
+        assertEquals("#F4F1EC", ink()?.paper)
+        vm.undo(); advanceUntilIdle()
+        assertEquals(null, ink(), "one undo step")
+        vm.redo(); advanceUntilIdle()
+        vm.onInkSlider("inkSize", 130.0, release = true); advanceUntilIdle()
+        vm.changeInk(release = true) { it.copy(paper = "#1F2328") }; advanceUntilIdle()
+        vm.chooseInk(TestInks.OVERLAY); advanceUntilIdle()
+        assertEquals(TestInks.OVERLAY, ink()?.id)
+        assertEquals(130.0, ink()?.size, "switching keeps Size")
+        assertEquals("#1F2328", ink()?.paper, "…and the paper")
+        vm.chooseInk(null); advanceUntilIdle()
+        assertEquals(null, ink(), "None: no ink")
+        vm.chooseInk(TestInks.STROKE); advanceUntilIdle()
+        vm.resetEdits("effects", "ink"); advanceUntilIdle()
+        assertEquals(null, ink(), "Reset on the Ink tab")
+    }
+
+    @Test
+    fun `a slider with None chooses the first ink, and the photo's gestures move only a chosen stroke ink`() = runTest {
+        val vm = ready(null, inks = TestInks.library)
+        fun ink() = vm.uiState.value.session!!.current.tools.effects.ink
+        val start = com.lightlylabs.lightly.session.InkTool.starting(TestInks.STROKE)
+        vm.transformInk(start, 0.2, 0.0, 1.0, 0.0, release = true); advanceUntilIdle()
+        assertEquals(null, ink(), "None: the fingers do nothing")
+        vm.onInkSlider("inkRotation", 30.0, release = true); advanceUntilIdle()
+        assertEquals(TestInks.STROKE, ink()?.id, "a slider with None picks the first ink")
+        assertEquals(30.0, ink()?.rotation)
+        vm.transformInk(ink()!!, 0.2, 0.9, 2.0, 170.0, release = true); advanceUntilIdle()
+        assertEquals(listOf(70.0, 100.0, 150.0, -160.0), ink()!!.let { listOf(it.x, it.y, it.size, it.rotation) }, "moved, clamped, scaled to 150 and wrapped")
+        vm.chooseInk(TestInks.OVERLAY); advanceUntilIdle()
+        val before = ink()
+        vm.transformInk(before!!, 0.3, 0.3, 1.5, 10.0, release = true); advanceUntilIdle()
+        assertEquals(before, ink(), "an overlay ink is printed over the whole photo: gestures do nothing")
+    }
+
+    @Test
+    fun `an ink renders the same in Save copy tiles as in the preview, and draws nothing without the pack`() = runTest {
+        val base = editedState()
+        val state = base.copy(tools = base.tools.copy(effects = base.tools.effects.copy(
+            ink = com.lightlylabs.lightly.session.InkTool(TestInks.STROKE, 40.0, 55.0, 80.0, 25.0, "#1F2328", 60.0))))
+        assertTrue(EditMapping.usesEditOrEffects(state), "an ink runs the effects stage")
+        val plan = library.planFor(state)
+        val renderer = DevelopRenderer()
+        val pipeline = EditPipeline(library.model, renderer, inks = TestInks.library)
+        val source = image(96, 64, 7)
+        val preview = pipeline.renderPreview(source, state, plan, null)
+        val target = Rgba8ExportFrame(preview.width, preview.height)
+        val frame = com.lightlylabs.lightly.render.image.ImageFrameSource(Rgba8Image(96, 64, source.pixels.copyOf()))
+        TiledExportRenderer(maxTileEdge = 24).render(frame, pipeline.exportPlan(state, plan, emptyList(), null).prepare(frame), target)
+        var worst = 0
+        for (i in preview.pixels.indices) if (i % 4 != 3) worst = maxOf(worst, abs((preview.pixels[i].toInt() and 0xff) - (target.pixels[i].toInt() and 0xff)))
+        assertEquals(0, worst, "tiled export differs from the preview by $worst levels")
+        val withoutPack = EditPipeline(library.model, renderer).renderPreview(source, state, plan, null)
+        assertFalse(withoutPack.pixels.contentEquals(preview.pixels))
+    }
+
     @Test
     fun `the leak gallery - a leak turns the effect on at 50 in one step, None turns it off in one step, the chosen tile again adds none`() = runTest {
         val vm = ready(null, leaks = TestLeaks.library)
@@ -294,7 +358,7 @@ class EditEffectsTest {
     /** When set, a Selective Colour pick waits on it before sampling ("still sampling"). */
     private var holdPick: CompletableDeferred<Unit>? = null
 
-    private fun TestScope.ready(inpainter: Inpainter?, savedState: SavedStateHandle = SavedStateHandle(), patchDirectory: java.io.File? = null, open: Boolean = true, leaks: LeakLibrary = LeakLibrary.NONE): EditorViewModel {
+    private fun TestScope.ready(inpainter: Inpainter?, savedState: SavedStateHandle = SavedStateHandle(), patchDirectory: java.io.File? = null, open: Boolean = true, leaks: LeakLibrary = LeakLibrary.NONE, inks: InkLibrary = InkLibrary.NONE): EditorViewModel {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         val gateway = MemoryGateway()
@@ -323,6 +387,7 @@ class EditEffectsTest {
             removePatchDirectory = patchDirectory,
             beforePickSample = { holdPick?.await() },
             leaks = leaks,
+            inks = inks,
         )
         val vm = EditorViewModel(savedState, env, CoroutineScope(SupervisorJob() + dispatcher))
         if (open) vm.openPhoto("content://photo/1")
@@ -487,6 +552,8 @@ class EditEffectsTest {
         vm.flipHorizontal(); advanceUntilIdle()
         assertTrue(ToolUsed.edit(recipe(), pendingStroke = false))
         assertFalse(ToolUsed.effects(recipe()))
+        val inked = recipe().let { it.copy(tools = it.tools.copy(effects = it.tools.effects.copy(ink = com.lightlylabs.lightly.session.InkTool.starting(TestInks.STROKE)))) }
+        assertTrue(ToolUsed.effects(inked), "an ink alone marks Effects as used (the dock dot)")
         vm.toggleEffect(EffectsSub.GRAIN); advanceUntilIdle()
         assertTrue(ToolUsed.effects(recipe()))
     }

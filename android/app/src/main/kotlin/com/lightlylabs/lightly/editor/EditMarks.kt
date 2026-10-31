@@ -1,6 +1,8 @@
 package com.lightlylabs.lightly.editor
 
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculateRotation
+import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.systemGestureExclusion
@@ -60,6 +62,7 @@ fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
         }
         EditorTool.EFFECTS -> when {
             ui.effects.sub == EffectsSub.LEAK -> LeakDrag(vm)
+            ui.effects.sub == EffectsSub.INK -> InkGestures(vm)
             vm.picksOnTap(ui) -> SelectiveColourTap(vm)
         }
         EditorTool.WATERMARK -> ui.session?.current?.tools?.let { tools ->
@@ -301,6 +304,42 @@ private fun SelectiveColourTap(vm: EditorViewModel) {
                 vm.pickSelectiveColour((offset.x / size.width).toDouble().coerceIn(0.0, 1.0), (offset.y / size.height).toDouble().coerceIn(0.0, 1.0))
             }
         }.semantics { contentDescription = "Tap a colour in the photo to keep it" },
+    )
+}
+
+/**
+ * Ink ("Drag on the photo to move the ink. Pinch to resize or turn it."): one finger moves the chosen stroke ink by its travel,
+ * two fingers also scale Size and turn Rotation, all from where the gesture began; preview while moving, one step on release.
+ * With None or an overlay ink the fingers do nothing (EditorViewModel.transformInk).
+ */
+@Composable
+private fun InkGestures(vm: EditorViewModel) {
+    Box(
+        Modifier.fillMaxSize().pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown()
+                val start = vm.strokeInk() ?: return@awaitEachGesture
+                var pan = Offset.Zero
+                var zoom = 1f
+                var turn = 0f
+                var moved = false
+                while (true) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.any { it.isConsumed }) { if (moved) vm.cancelPhotoGesturePreview(); return@awaitEachGesture }
+                    if (event.changes.none { it.pressed }) break
+                    pan += event.calculatePan()
+                    zoom *= event.calculateZoom()
+                    turn += event.calculateRotation()
+                    if (pan != Offset.Zero || zoom != 1f || turn != 0f) {
+                        moved = true
+                        vm.transformInk(start, (pan.x / size.width).toDouble(), (pan.y / size.height).toDouble(), zoom.toDouble(), turn.toDouble(), release = false)
+                        event.changes.forEach { it.consume() }
+                    }
+                }
+                // A tap is not a move: only moved fingers commit (one step).
+                if (moved) vm.transformInk(start, (pan.x / size.width).toDouble(), (pan.y / size.height).toDouble(), zoom.toDouble(), turn.toDouble(), release = true)
+            }
+        }.semantics { contentDescription = "Drag on the photo to move the ink. Pinch to resize or turn it." },
     )
 }
 

@@ -39,13 +39,19 @@ data class EffectsParams(
      * has no such image (no pack bundled), which then adds no light rather than substituting a drawn style.
      */
     val leakImage: Rgba8Image? = null,
+    /**
+     * Effects › Ink (rendering-v2 revision 10): the recipe's ink with its decoded image; null without an ink, or when this
+     * build's pack lacks it (then nothing is drawn).
+     */
+    val ink: InkParams? = null,
 ) {
-    val anyEnabled: Boolean get() = leakEnabled || grainEnabled || vignetteEnabled || selectiveColours.isNotEmpty()
+    val anyEnabled: Boolean get() = leakEnabled || grainEnabled || vignetteEnabled || selectiveColours.isNotEmpty() || ink != null
 }
 
 /**
  * Stage 10, `effects` (rendering-v2 §1, §6), on the frame after geometry, in the contract order
- * light leak → selective colour → preset vignette → user vignette → preset grain → user grain.
+ * ink (revision 10) → light leak → selective colour → preset vignette → user vignette → preset grain → user grain. Ink is
+ * first so a leak, the vignettes and grain fall on its paper too, as in the approved design.
  *
  * The person's effects are added on top of the preset's own vignette and grain, never replace them
  * (the approved "added to it, not replaced" notice). [presetFinishing] is already scaled by the
@@ -53,6 +59,7 @@ data class EffectsParams(
  * revision-1 operators of [FinishingPass] (the same code the preset's finishing has always used).
  */
 class EffectsStage(effects: EffectsParams, presetFinishing: FinishingRecipe, model: DevelopModel, private val frameWidth: Int, private val frameHeight: Int) {
+    private val ink: InkOverlay? = effects.ink?.let { InkOverlay.of(it, frameWidth, frameHeight) }
     private val leak: LeakOverlay? = leakOverlay(effects, frameWidth, frameHeight)
     // After the leak, so a coloured leak does not bring colour back (rendering-v2 revision 4).
     private val selectiveColour = SelectiveColour.of(effects)
@@ -61,10 +68,11 @@ class EffectsStage(effects: EffectsParams, presetFinishing: FinishingRecipe, mod
     private val presetGrain = presetFinishing.grain?.takeIf { it.amount != 0.0 }?.let { FinishingPass(null, it, model.experimental, frameWidth, frameHeight) }
     private val userGrain = if (effects.grainEnabled) FinishingPass(null, userGrain(effects), model.experimental, frameWidth, frameHeight) else null
 
-    val isEmpty: Boolean get() = leak == null && selectiveColour == null && presetVignette == null && userVignette == null && presetGrain == null && userGrain == null
+    val isEmpty: Boolean get() = ink == null && leak == null && selectiveColour == null && presetVignette == null && userVignette == null && presetGrain == null && userGrain == null
 
     /** Applies the stage to rgb (sRGB-encoded, [0, 1]) at frame pixel (x, y). [work] holds ≥ 6 doubles. */
     fun apply(rgb: FloatArray, x: Int, y: Int, work: DoubleArray) {
+        ink?.apply(rgb, x, y)
         leak?.apply(rgb, x, y)
         selectiveColour?.apply(rgb, work)
         presetVignette?.apply(rgb, x, y, work)

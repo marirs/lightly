@@ -308,13 +308,13 @@ object LookPackFacts {
 }
 
 /**
- * rendering-v2 revision this app implements (revision 9, 2026-10-13: `portrait.sunglasses`, DEFERRED: the recipe key is read
+ * rendering-v2 revision this app implements (revision 10, 2026-10-31: `effects.ink`, Effects › Ink; revision 9, 2026-10-13: `portrait.sunglasses`, DEFERRED: the recipe key is read
  * and written but not rendered until the Sunglasses tab lands; revision 8, owner 2026-10-11: light leak images from the leak pack; revision 7:
  * stage 11 `text`, `portrait.smile`; contract fixes 2: stage order C1/C2, perspective C3, light leak C4; fixes 1 unchanged): revision 1 moved background.focus
  * `maxBlurRadius` from `params` to `constants` (0.06). Bundling or shipping any other revision fails.
  */
 object RenderingContractFacts {
-    const val SUPPORTED_REVISION = 9
+    const val SUPPORTED_REVISION = 10
 
     @Suppress("UNCHECKED_CAST")
     fun problems(contractText: String): List<String> {
@@ -529,6 +529,61 @@ abstract class BundleLeakPackTask : DefaultTask() {
             thumbnail.copyTo(target.resolve("thumb/$id.jpg"))
         }
         manifestFile.copyTo(target.resolve("leaks.json"))
+    }
+}
+
+// --- Ink pack (rendering-v2 revision 10, Effects › Ink, owner-approved 2026-10-31) ---------------------------
+//
+// shared/ink/build_inks.py writes inks.json ("lightly-ink-pack" 1), img/<id>.png (stroke masks) or img/<id>.jpg (overlay inks)
+// and thumb/ into the git-ignored shared/ink/out/. Every variant bundles it under assets/inkpack/. A build without it only
+// warns: the Ink gallery then offers just None, and an edit naming an ink draws nothing.
+val inkPackDirectory: File? = listOfNotNull(rootDir.parentFile, mainCheckoutOfWorktree(rootDir.parentFile))
+    .map { it.resolve("shared/ink/out") }.firstOrNull { it.resolve("inks.json").isFile }
+
+/** Copies inks.json and the files it names into assets/inkpack/, checking each image's SHA-256 against the manifest. */
+abstract class BundleInkPackTask : DefaultTask() {
+    /** The pack directory (inks.json, img/, thumb/); unset when this checkout has no built pack. */
+    @get:Optional
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val packDirectory: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    @Suppress("UNCHECKED_CAST")
+    fun bundle() {
+        val root = assetsDirectory.get().asFile
+        root.deleteRecursively()
+        root.mkdirs()
+        val pack = packDirectory.orNull?.asFile
+        if (pack == null) {
+            logger.warn("No ink pack (build shared/ink/out with shared/ink/build_inks.py): the Ink gallery will offer only None")
+            return
+        }
+        val manifestFile = pack.resolve("inks.json")
+        val manifest = groovy.json.JsonSlurper().parseText(manifestFile.readText()) as Map<String, Any?>
+        if (manifest["format"] != "lightly-ink-pack" || (manifest["formatVersion"] as? Number)?.toInt() != 1) {
+            throw GradleException("$manifestFile is ${manifest["format"]} ${manifest["formatVersion"]}; this app reads lightly-ink-pack 1")
+        }
+        val target = root.resolve("inkpack")
+        for (ink in (manifest["inks"] as? List<Map<String, Any?>>).orEmpty()) {
+            val id = ink["id"] as? String ?: throw GradleException("$manifestFile has an ink without an id")
+            val ext = when (ink["kind"]) { "stroke" -> "png"; "overlay" -> "jpg"; else -> throw GradleException("$manifestFile: ink $id has kind ${ink["kind"]}") }
+            // Only the ink's own two files: the paths are joined onto the pack and asset roots.
+            if (!Regex("ink-[0-9a-f]{12}").matches(id) || ink["image"] != "img/$id.$ext" || ink["thumbnail"] != "thumb/$id.$ext") {
+                throw GradleException("$manifestFile: ink $id names ${ink["image"]}, ${ink["thumbnail"]}")
+            }
+            val image = pack.resolve("img/$id.$ext")
+            val thumbnail = pack.resolve("thumb/$id.$ext")
+            if (!image.isFile || !thumbnail.isFile) throw GradleException("$manifestFile names $id, whose image or thumbnail is not in $pack")
+            val actual = LookPackFacts.sha256Hex(image.readBytes())
+            if (actual != ink["imageSha256"]) throw GradleException("$image has SHA-256 $actual; the manifest records ${ink["imageSha256"]}")
+            image.copyTo(target.resolve("img/$id.$ext"))
+            thumbnail.copyTo(target.resolve("thumb/$id.$ext"))
+        }
+        manifestFile.copyTo(target.resolve("inks.json"))
     }
 }
 
@@ -854,6 +909,10 @@ androidComponents {
             leakPackDirectory?.let { packDirectory.set(it) }
         }
         variant.sources.assets?.addGeneratedSourceDirectory(bundleLeakPack, BundleLeakPackTask::assetsDirectory)
+        val bundleInkPack = tasks.register<BundleInkPackTask>("bundle${variantName}InkPack") {
+            inkPackDirectory?.let { packDirectory.set(it) }
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleInkPack, BundleInkPackTask::assetsDirectory)
         val bundleSunglassesPack = tasks.register<BundleSunglassesPackTask>("bundle${variantName}SunglassesPack") {
             sunglassesPackDirectory?.let { packDirectory.set(it) }
         }

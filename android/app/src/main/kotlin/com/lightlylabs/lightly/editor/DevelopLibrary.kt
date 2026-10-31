@@ -114,11 +114,11 @@ class DevelopLibrary(
         const val ASSET_PACK_ROOT = "lookpack/"
 
         /**
-         * The rendering-v2 revision this app implements (9: `portrait.sunglasses`, DEFERRED: read and written, not yet
+         * The rendering-v2 revision this app implements (10: `effects.ink`, Effects › Ink; 9: `portrait.sunglasses`, DEFERRED: read and written, not yet
          * rendered, until the Sunglasses tab lands; 8: light leak images from the leak pack; 7: stage 11 `text` and
          * `portrait.smile`; owner amendments 2026-10-11).
          */
-        const val SUPPORTED_CONTRACT_REVISION = 9
+        const val SUPPORTED_CONTRACT_REVISION = 10
 
         /** Parses the bundled files; [parseMillis] receives the manifest parse + index time. */
         /** [tableSource] reads table-look files (`luts/<name>.f16`) relative to the manifest's directory. */

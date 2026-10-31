@@ -39,7 +39,7 @@ class SessionSerializationTest {
 
     @Test
     fun `the shared fixture set is complete`() {
-        assertEquals(26, validRecipeFixtures.size, "valid edit-recipe fixtures: $validRecipeFixtures")   // 25th: effects-selective-colour; 26th: portrait-sunglasses (revision 9)
+        assertEquals(27, validRecipeFixtures.size, "valid edit-recipe fixtures: $validRecipeFixtures")   // 25th: effects-selective-colour; 26th: portrait-sunglasses (revision 9); 27th: effects-ink (revision 10)
         assertEquals(8, invalidRecipeFixtures.size, "invalid edit-recipe fixtures: $invalidRecipeFixtures")
     }
 

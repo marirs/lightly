@@ -34,7 +34,8 @@ data class EditUi(
 )
 
 /** Prototype `effectsPanel` tabs. */
-enum class EffectsSub(val label: String) { LEAK("Light Leaks"), GRAIN("Grain"), VIGNETTE("Vignette"), SELECTIVE("Selective Colour") }
+// Owner-approved 2026-10-31 (docs/ui/proposals/ink-2026-10-31): Ink, the fifth tab.
+enum class EffectsSub(val label: String) { LEAK("Light Leaks"), GRAIN("Grain"), VIGNETTE("Vignette"), SELECTIVE("Selective Colour"), INK("Ink") }
 
 /**
  * Transient Border UI. [shown] is the tab on screen (prototype `ui.sub || s.border.type`); null follows the
@@ -126,5 +127,9 @@ object ToolUsed {
             e.remove.strokes.isNotEmpty() || pendingStroke
     }
 
-    fun effects(state: EditState): Boolean = state.tools.effects.let { it.lightLeak.enabled || it.grain.enabled || it.vignette.enabled }
+    // Mockup `used(s, 'effects')`: leak, grain, vignette or Selective Colour (fx.sel); Ink added with the approved proposal
+    // (2026-10-31). Selective Colour was missing here, so the dock dot did not show for it alone.
+    fun effects(state: EditState): Boolean = state.tools.effects.let {
+        it.lightLeak.enabled || it.grain.enabled || it.vignette.enabled || it.selectiveColour != null || it.ink != null
+    }
 }

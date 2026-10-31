@@ -172,6 +172,7 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
     fun on(s: EffectsSub) = when (s) {
         EffectsSub.LEAK -> fx.lightLeak.enabled; EffectsSub.GRAIN -> fx.grain.enabled; EffectsSub.VIGNETTE -> fx.vignette.enabled
         EffectsSub.SELECTIVE -> fx.selectiveColour != null
+        EffectsSub.INK -> fx.ink != null
     }
     OptionTabs(EffectsSub.entries.map { it to it.label }, sub, vm::selectEffectsSub, dotted = ::on, tagPrefix = "effects-tab")
     ResetRow(vm, "effects", sub.label, sub.name.lowercase())
@@ -205,7 +206,37 @@ fun EffectsPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Colum
             EffectsSlider(vm, ui, "Softness", "vignetteSoftness", fx.vignette.softness, 0.0, 100.0)
         }
         EffectsSub.SELECTIVE -> SelectiveColourBody(vm, ui, fx.selectiveColour)
+        EffectsSub.INK -> InkBody(vm, ui, fx.ink)
     }
+}
+
+/**
+ * Effects › Ink (owner-approved 2026-10-31, docs/ui/proposals/ink-2026-10-31 `inkBody`): the gallery; then for a stroke ink
+ * Size, Rotation, Paper colour (the one colour strip) and the drag note; for an overlay ink (Splatter, Speckle) Intensity,
+ * Rotation and its note. With None the stroke controls show, and moving one chooses the first ink.
+ */
+@Composable
+private fun InkBody(vm: EditorViewModel, ui: EditorUiState, ink: com.lightlylabs.lightly.session.InkTool?) {
+    InkGallery(vm, ui, ink)
+    if (ink != null && vm.inkKind(ink.id) == com.lightlylabs.lightly.develop.InkKind.OVERLAY) {
+        InkSlider(vm, ui, "Intensity", "inkIntensity", ink.intensity, 0.0, 100.0)
+        InkSlider(vm, ui, "Rotation", "inkRotation", ink.rotation, -180.0, 180.0)
+        PanelNote("The ink is printed over the whole photo.")
+    } else {
+        InkSlider(vm, ui, "Size", "inkSize", ink?.size ?: 100.0, 50.0, 150.0)
+        InkSlider(vm, ui, "Rotation", "inkRotation", ink?.rotation ?: 0.0, -180.0, 180.0)
+        ColourControl("Paper colour", ink?.paper ?: com.lightlylabs.lightly.session.InkTool.DEFAULT_PAPER, ui.original, "effects-ink-paper",
+            { hex -> vm.changeInk(release = true) { it.copy(paper = hex) } }, previewPhoto = ui.preview,
+            preview = { hex -> vm.changeInk(release = false) { it.copy(paper = hex) } }, cancel = vm::cancelPhotoGesturePreview)
+        PanelNote("Drag on the photo to move the ink. Pinch to resize or turn it.")
+    }
+}
+
+@Composable
+private fun InkSlider(vm: EditorViewModel, ui: EditorUiState, label: String, field: String, committed: Double, min: Double, max: Double) {
+    val drag = ui.effects.sliderDrag?.takeIf { it.first == field }?.second
+    SliderRow(label, drag ?: committed, min, max, onDrag = { vm.onInkSlider(field, it, release = false) },
+        onRelease = { vm.onInkSlider(field, it, release = true) }, tag = "effects-slider-$field")
 }
 
 /**

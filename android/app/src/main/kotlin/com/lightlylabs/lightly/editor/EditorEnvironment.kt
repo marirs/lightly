@@ -137,6 +137,8 @@ class EditorEnvironment(
     val bundledBackground: (String) -> Rgba8Image? = { null },
     /** The bundled light-leak pack (rendering-v2 revision 8); [LeakLibrary.NONE] offers only None (JVM tests, no pack). */
     val leaks: LeakLibrary = LeakLibrary.NONE,
+    /** The bundled ink pack (rendering-v2 revision 10); [InkLibrary.NONE] offers only None (JVM tests, no pack). */
+    val inks: InkLibrary = InkLibrary.NONE,
     /** Debug builds only: an override of the Save-copy Background working resolution, for controlled comparisons. */
     val debugExportCapOverride: () -> Int? = { null },
     /** Test seam: runs at the start of every preview render (a deliberately slow preview in tests). No-op in the app. */

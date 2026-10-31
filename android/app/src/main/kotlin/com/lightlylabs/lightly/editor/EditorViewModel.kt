@@ -1673,7 +1673,7 @@ class EditorViewModel(
             EffectsSub.LEAK -> e.copy(lightLeak = e.lightLeak.copy(enabled = !e.lightLeak.enabled))
             EffectsSub.GRAIN -> e.copy(grain = e.grain.copy(enabled = !e.grain.enabled))
             EffectsSub.VIGNETTE -> e.copy(vignette = e.vignette.copy(enabled = !e.vignette.enabled))
-            EffectsSub.SELECTIVE -> e   // no On switch: a kept colour applies it
+            EffectsSub.SELECTIVE, EffectsSub.INK -> e   // no On switch: a kept colour, or a chosen ink, applies it
         }
     }
 
@@ -1764,6 +1764,82 @@ class EditorViewModel(
         if (release) commitEffects(move) else requestPreview(session.current.copy(tools = session.current.tools.copy(effects = move(session.current.tools.effects))), globalOnly = false)
     }
 
+    // --- Effects › Ink (owner-approved 2026-10-31, docs/ui/proposals/ink-2026-10-31; rendering-v2 revision 10) -------
+
+    /** The inks the gallery offers after None, in pack order. */
+    val inkPackEntries: List<com.lightlylabs.lightly.develop.InkPackEntry> get() = env.inks.inks
+
+    /** An ink's gallery thumbnail (the pack's 240 px image), decoded off the main thread; null without one. */
+    suspend fun inkThumbnail(inkId: String): Rgba8Image? = withContext(env.thumbnailDispatcher ?: env.renderDispatcher) { env.inks.thumbnail(inkId) }
+
+    /** The kind of the ink [inkId] names in this build's pack; null when the pack lacks it. */
+    fun inkKind(inkId: String?): com.lightlylabs.lightly.develop.InkKind? = inkId?.let { env.inks.pack.entry(it)?.kind }
+
+    /**
+     * Ink gallery: an ink of the pack, or None ([inkId] null: no ink). One undo step. A first choice starts centred at size
+     * 100, unturned, on Warm white paper; switching keeps position, size, rotation, paper and intensity (rendering-v2 §Ink).
+     * Choosing the tile that is already selected changes nothing and adds no step.
+     */
+    fun chooseInk(inkId: String?) {
+        val current = state.value.session?.current?.tools?.effects?.ink
+        if (current?.id == inkId) return
+        commitEffects { e ->
+            e.copy(ink = when {
+                inkId == null -> null
+                current == null -> com.lightlylabs.lightly.session.InkTool.starting(inkId)
+                else -> current.copy(id = inkId)
+            })
+        }
+    }
+
+    /**
+     * A slider or the paper colour on the Ink tab: changes the chosen ink, or with None chosen first chooses the pack's
+     * first ink (no On switch: moving a control turns the effect on, as on every Effects tab). [release] false previews.
+     */
+    fun changeInk(release: Boolean, change: (com.lightlylabs.lightly.session.InkTool) -> com.lightlylabs.lightly.session.InkTool) {
+        val session = state.value.session ?: return
+        val firstId = session.current.tools.effects.ink?.id ?: inkPackEntries.firstOrNull()?.id ?: return
+        val apply: (com.lightlylabs.lightly.session.EffectsTool) -> com.lightlylabs.lightly.session.EffectsTool =
+            { e -> e.copy(ink = change(e.ink ?: com.lightlylabs.lightly.session.InkTool.starting(firstId))) }
+        if (release) commitEffects(apply)
+        else requestPreview(session.current.copy(tools = session.current.tools.copy(effects = apply(session.current.tools.effects))), globalOnly = false)
+    }
+
+    /** An Ink slider ([field]: inkSize, inkRotation, inkIntensity) while dragging (the panel shows [value]) and on release. */
+    fun onInkSlider(field: String, value: Double, release: Boolean) {
+        state.update { it.copy(effects = it.effects.copy(sliderDrag = if (release) null else field to value)) }
+        changeInk(release) { ink ->
+            when (field) {
+                "inkSize" -> ink.copy(size = value.coerceIn(com.lightlylabs.lightly.session.InkTool.SIZE_RANGE).roundToTenth())
+                "inkRotation" -> ink.copy(rotation = value.coerceIn(-180.0, 180.0).roundToTenth())
+                "inkIntensity" -> ink.copy(intensity = value.coerceIn(0.0, 100.0).roundToTenth())
+                else -> ink
+            }
+        }
+    }
+
+    private fun Double.roundToTenth() = kotlin.math.round(this)
+
+    /** The chosen ink when it is a stroke ink (the only kind the photo's gestures move); null otherwise. */
+    fun strokeInk(): com.lightlylabs.lightly.session.InkTool? =
+        state.value.session?.current?.tools?.effects?.ink?.takeIf { inkKind(it.id) == com.lightlylabs.lightly.develop.InkKind.STROKE }
+
+    /**
+     * Ink › gestures on the photo ("Drag on the photo to move the ink. Pinch to resize or turn it."): from [start], the stroke
+     * ink when the gesture began, moved by ([dx], [dy]) fractions of the frame, Size scaled by [scale] and Rotation turned by
+     * [turnDegrees]. Preview while the fingers move; release is one step. With None or an overlay ink nothing changes.
+     */
+    fun transformInk(start: com.lightlylabs.lightly.session.InkTool, dx: Double, dy: Double, scale: Double, turnDegrees: Double, release: Boolean) {
+        if (strokeInk() == null) return
+        val x = kotlin.math.round((start.x + dx * 100).coerceIn(0.0, 100.0))
+        val y = kotlin.math.round((start.y + dy * 100).coerceIn(0.0, 100.0))
+        val size = kotlin.math.round((start.size * scale).coerceIn(com.lightlylabs.lightly.session.InkTool.SIZE_RANGE))
+        var rotation = (start.rotation + turnDegrees) % 360.0
+        if (rotation > 180) rotation -= 360 else if (rotation < -180) rotation += 360
+        val turned = kotlin.math.round(rotation)
+        changeInk(release) { it.copy(x = x, y = y, size = size, rotation = turned) }
+    }
+
     // --- Effects › Selective Colour (docs/ui/proposals/selective-colour at 330cf5b) ---------------
 
     /** (+): the next tap on the photo keeps another colour. */
@@ -1799,7 +1875,7 @@ class EditorViewModel(
             val lab = runCatching {
                 withContext(env.renderDispatcher) {
                     val library = env.library.await()
-                    val frame = EditPipeline(library.model, env.previewRenderer, leaks = env.leaks)
+                    val frame = EditPipeline(library.model, env.previewRenderer, leaks = env.leaks, inks = env.inks)
                         .renderSelectiveColourInput(patched(display, edit), edit, planOf(library, edit), sourceStages(edit, library, BackgroundSession.SETTLED_CAP))
                     com.lightlylabs.lightly.develop.SelectiveColour.sample(frame, frameX, frameY)
                 }
@@ -1856,7 +1932,7 @@ class EditorViewModel(
         return when (sub) {
             EffectsSub.GRAIN -> (preset.recipe.finishing.grain?.amount ?: 0.0) != 0.0
             EffectsSub.VIGNETTE -> (preset.recipe.finishing.vignette?.amount ?: 0.0) != 0.0
-            EffectsSub.LEAK, EffectsSub.SELECTIVE -> false
+            EffectsSub.LEAK, EffectsSub.SELECTIVE, EffectsSub.INK -> false
         }
     }
 
@@ -1922,7 +1998,7 @@ class EditorViewModel(
             val edit = current.copy(look = preset?.let { LookRef(it.id,it.lookVersion,1f) })
             val patched = RemoveEngine.composite(EditMapping.patchDigests(edit).mapNotNull { removePatches[it] }, small)
             val plan = planOf(library, edit, lutDimension = DevelopLibrary.THUMBNAIL_DIMENSION)
-            val result = EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library), leaks = env.leaks)
+            val result = EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library), leaks = env.leaks, inks = env.inks)
                 .renderPreview(patched, edit, plan, sourceStages(edit,library,200))
             synchronized(thumbnailCache) { thumbnailCache[key] = result }
             result
@@ -1953,7 +2029,7 @@ class EditorViewModel(
                 com.lightlylabs.lightly.session.SourceFingerprint("0".repeat(64), 0, small.width, small.height), orientation = 1)
             val edit = EditState.initial(source, noModelAuto()).copy(look = LookRef(preset.id, preset.lookVersion, 1f))
             val plan = library.planFor(edit, lutDimension = DevelopLibrary.THUMBNAIL_DIMENSION)
-            val result = EditPipeline(library.model, env.previewRenderer, leaks = env.leaks).renderPreview(small, edit, plan, null)
+            val result = EditPipeline(library.model, env.previewRenderer, leaks = env.leaks, inks = env.inks).renderPreview(small, edit, plan, null)
             sampleThumbnailCache[preset.lookVersion] = result
             result
         }
@@ -2206,7 +2282,7 @@ class EditorViewModel(
     ): ExportRenderPlan {
         val library = library ?: error("no library")
         val renderer = DevelopRenderer(exportPool, EXPORT_PARALLELISM)
-        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library), TextStage(env.watermarkFonts), env.leaks)
+        val pipeline = EditPipeline(library.model, renderer, exportPool, EXPORT_PARALLELISM, watermarkPainter(committed, library), TextStage(env.watermarkFonts), env.leaks, env.inks)
         val patches = EditMapping.patchDigests(committed).mapNotNull { removePatches[it] }
         val background = if (pendingBackgroundPlan.get() == null) null else {
             { frame: com.lightlylabs.lightly.render.image.FrameSource ->
@@ -2362,6 +2438,7 @@ class EditorViewModel(
                 "grain" -> t.effects.copy(grain = n.effects.grain)
                 "vignette" -> t.effects.copy(vignette = n.effects.vignette)
                 "selective" -> t.effects.copy(selectiveColour = null)
+                "ink" -> t.effects.copy(ink = null)
                 else -> n.effects
             }))
             "edit" -> r.copy(tools = t.copy(edit = when (adjustment) {
@@ -2481,7 +2558,7 @@ class EditorViewModel(
                     maxBlurFraction(edit), backgroundCap)
                 val image = if (EditMapping.usesEditOrEffects(edit)) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
-                    val pipeline = EditPipeline(library.model, renderer, watermark = watermarkPainter(edit, library), text = TextStage(env.watermarkFonts), leaks = env.leaks)
+                    val pipeline = EditPipeline(library.model, renderer, watermark = watermarkPainter(edit, library), text = TextStage(env.watermarkFonts), leaks = env.leaks, inks = env.inks)
                     val textlessKey = FrameBeforeText.keyOf(edit)
                     val reusable = frameBeforeText?.takeIf { request.payload.textOnly && it.first == textlessKey }?.second
                     val frame = reusable ?: pipeline.renderFrameBeforeText(patched(display, edit), edit, plan, sourceStages(edit, library, backgroundCap))
@@ -2806,6 +2883,9 @@ class EditorViewModel(
 
         /** Light Leaks › the gallery's first leak, chosen as the person would (mockup `fx-leak`); nothing without a pack. */
         fun chooseFirstLeak() = leakPackEntries.firstOrNull()?.let { chooseLeak(it.id) }
+
+        /** Ink › the pack's ink of that name, chosen as the person would (the proposal's `fx-ink-*`); nothing without a pack. */
+        fun chooseInkNamed(name: String) = inkPackEntries.firstOrNull { it.name == name }?.let { chooseInk(it.id) }
 
         fun border(change: (com.lightlylabs.lightly.session.BorderTool) -> com.lightlylabs.lightly.session.BorderTool) = commitBorder(change)
 
