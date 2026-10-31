@@ -1082,6 +1082,48 @@ final class EditorSession {
         if final { commitEffects(move) } else { previewEffects(move) }
     }
 
+    // MARK: - Ink (rendering-v2 revision 10, owner-approved 2026-10-31: docs/ui/proposals/ink-2026-10-31)
+
+    /// Effects › Ink gallery: an ink of the pack, or None (`nil`, no ink). One undo step. A first choice starts centred
+    /// at size 100, unturned, on Warm white paper; switching between inks keeps position, size, rotation, paper and
+    /// intensity (rendering-v2 §Ink).
+    func chooseInk(_ inkID: String?) {
+        commitEffects { effects in
+            guard let inkID, EditRecipe.Effects.Ink.isInkID(inkID) else { effects.ink = nil; return }
+            if effects.ink == nil { effects.ink = .starting(inkID) } else { effects.ink?.id = inkID }
+        }
+    }
+
+    /// A slider or the paper colour on the Ink tab: changes the chosen ink, or with None chosen first chooses the
+    /// pack's first ink (no On switch: moving a control turns the effect on, as every Effects tab). Preview while
+    /// dragging, one undo step at the end (`final`).
+    func changeInk(final: Bool, _ change: @escaping (inout EditRecipe.Effects.Ink) -> Void) {
+        guard let firstID = recipe.tools.effects.ink?.id ?? InkPack.bundled.inks.first?.id else { return }
+        let apply: (inout EditRecipe.Effects) -> Void = { effects in
+            var ink = effects.ink ?? .starting(firstID)
+            change(&ink)
+            effects.ink = ink
+        }
+        if final { commitEffects(apply) } else { previewEffects(apply) }
+    }
+
+    /// Drag on the photo: moves the chosen stroke ink. With None, or an overlay ink (printed over the whole photo), it
+    /// does nothing and makes no undo step.
+    func moveInk(x: Double, y: Double, final: Bool) {
+        guard let ink = recipe.tools.effects.ink, InkPack.bundled.ink(id: ink.id)?.kind == .stroke else { return }
+        changeInk(final: final) { $0.x = min(max(x, 0), 100); $0.y = min(max(y, 0), 100) }
+    }
+
+    /// Pinch on the photo: resizes and turns the chosen stroke ink from the values it had when the pinch began.
+    func pinchInk(from start: EditRecipe.Effects.Ink, scale: Double, turnDegrees: Double, final: Bool) {
+        guard recipe.tools.effects.ink != nil, InkPack.bundled.ink(id: start.id)?.kind == .stroke else { return }
+        let size = min(max(start.size * scale, EditRecipe.Effects.Ink.sizeRange.lowerBound), EditRecipe.Effects.Ink.sizeRange.upperBound)
+        var rotation = (start.rotation + turnDegrees).truncatingRemainder(dividingBy: 360)
+        if rotation > 180 { rotation -= 360 } else if rotation < -180 { rotation += 360 }
+        let turned = rotation
+        changeInk(final: final) { $0.size = size.rounded(); $0.rotation = turned.rounded() }
+    }
+
     @ObservationIgnored private var leakGalleryBaseCache: (source: CGImage, small: CGImage)?
 
     /// The photo under every Light Leaks tile, small (the mockup's tiles screen each leak over the photo itself, not
@@ -1388,6 +1430,7 @@ final class EditorSession {
             case "grain": next.tools.effects.grain = neutral.effects.grain
             case "vignette": next.tools.effects.vignette = neutral.effects.vignette
             case "selective": next.tools.effects.selectiveColour = .none
+            case "ink": next.tools.effects.ink = nil
             default: next.tools.effects = neutral.effects
             }
         case "edit":
@@ -1609,9 +1652,10 @@ final class EditorSession {
 
         static func hasUserEffects(_ effects: EditRecipe.Effects) -> Bool {
             effects.lightLeak.enabled || effects.grain.enabled || effects.vignette.enabled || !effects.selectiveColour.colours.isEmpty
+                || effects.ink != nil
         }
 
-        /// Stop at Selective Colour's input (the frame after geometry, with the light leak): what a pick samples
+        /// Stop at Selective Colour's input (the frame after geometry, with ink and the light leak): what a pick samples
         /// (rendering-v2 §6 Selective colour). Never shown.
         var stopBeforeSelectiveColour = false
     }
@@ -1782,9 +1826,11 @@ final class EditorSession {
         }
         guard job.includePixelStages else { return RenderedFrame(pixels: frame.pixels, width: frame.width, height: frame.height) }
         if job.stopBeforeSelectiveColour {
-            // Only the stage before Selective Colour, the light leak; no preset finishing (it comes after).
+            // Only the stages before Selective Colour, ink and the light leak; no preset finishing (it comes after).
             var leakOnly = EditRecipe.Tools.neutral(grainSeed: 0).effects
             leakOnly.lightLeak = job.effects.lightLeak
+            // Ink runs before the leak (rendering-v2 revision 10), so a colour is picked from the photo as inked.
+            leakOnly.ink = job.effects.ink
             let leak = EffectsStage(effects: leakOnly, presetFinishing: .init(), presetStrength: 0,
                                     frameWidth: frame.width, frameHeight: frame.height, model: renderer.model)
             return RenderedFrame(pixels: leak.apply(frame.pixels, width: frame.width, height: frame.height),

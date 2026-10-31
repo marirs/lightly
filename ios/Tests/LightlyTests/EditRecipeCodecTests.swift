@@ -39,7 +39,7 @@ final class EditRecipeCodecTests: XCTestCase {
 
     func testEveryValidFixtureRoundTripsByteForByte() throws {
         let valid = try Self.recipeFixtures().filter { !$0.lastPathComponent.hasPrefix("invalid-") }
-        XCTAssertEqual(valid.count, 26)   // 25th: effects-selective-colour (revision 4); 26th: portrait-sunglasses (revision 9)
+        XCTAssertEqual(valid.count, 27)   // 25th: effects-selective-colour (revision 4); 26th: portrait-sunglasses (revision 9); 27th: effects-ink (revision 10)
         for file in valid {
             let bytes = try Data(contentsOf: file)
             let recipe = try EditRecipeCodec.decode(bytes)

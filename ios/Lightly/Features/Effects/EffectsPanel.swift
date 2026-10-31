@@ -5,7 +5,7 @@ import simd
 @MainActor
 @Observable
 final class EffectsPanelModel {
-    enum Sub: String, CaseIterable { case leak, grain, vignette, selective }
+    enum Sub: String, CaseIterable { case leak, grain, vignette, selective, ink }
 
     let session: EditorSession
     var sub: Sub = .leak
@@ -22,6 +22,7 @@ final class EffectsPanelModel {
     /// Prototype `toolUsed(s, 'effects')`: any effect switched on.
     var isUsed: Bool {
         effects.lightLeak.enabled || effects.grain.enabled || effects.vignette.enabled || !effects.selectiveColour.colours.isEmpty
+            || effects.ink != nil
     }
 
     /// The approved notice when the applied preset carries its own grain or vignette and the
@@ -60,9 +61,11 @@ struct EffectsPanelView: View {
             PanelTabs(items: [(EffectsPanelModel.Sub.leak, "Light Leaks", effects.lightLeak.enabled),
                               (.grain, "Grain", effects.grain.enabled),
                               (.vignette, "Vignette", effects.vignette.enabled),
-                              (.selective, "Selective Colour", !effects.selectiveColour.colours.isEmpty)],
+                              (.selective, "Selective Colour", !effects.selectiveColour.colours.isEmpty),
+                              // Owner-approved 2026-10-31 (docs/ui/proposals/ink-2026-10-31): Ink, the fifth tab.
+                              (.ink, "Ink", effects.ink != nil)],
                       selected: model.sub, wraps: wraps, identifierPrefix: "effects.sub") { model.sub = $0 }
-            PanelResetRow(session: session, section: "effects", title: ["leak": "Light Leaks", "grain": "Grain", "vignette": "Vignette", "selective": "Selective Colour"][model.sub.rawValue]!, adjustment: model.sub.rawValue)
+            PanelResetRow(session: session, section: "effects", title: ["leak": "Light Leaks", "grain": "Grain", "vignette": "Vignette", "selective": "Selective Colour", "ink": "Ink"][model.sub.rawValue]!, adjustment: model.sub.rawValue)
             if let notice = model.conflictNotice {
                 L2Notice(icon: .info, text: notice)
             }
@@ -71,6 +74,7 @@ struct EffectsPanelView: View {
             case .grain: grain
             case .vignette: vignette
             case .selective: selective
+            case .ink: ink
             }
         }
     }
@@ -83,6 +87,39 @@ struct EffectsPanelView: View {
         slider("Intensity", \.lightLeak.intensity, 0...100)
         slider("Rotation", \.lightLeak.rotation, -180...180)
         ApprovedNote("Drag on the photo to move the leak.")
+    }
+
+    // MARK: Ink (owner-approved 2026-10-31, docs/ui/proposals/ink-2026-10-31 `inkBody`)
+
+    /// The gallery; then for a stroke ink Size, Rotation, Paper colour (the one colour strip) and the drag note; for an
+    /// overlay ink (Splatter, Speckle) Intensity, Rotation and its note. With None the stroke controls show, and moving
+    /// one chooses the first ink (EditorSession.changeInk).
+    @ViewBuilder
+    private var ink: some View {
+        let chosen = effects.ink
+        InkGallery(session: session)
+        if let chosen, InkPack.bundled.ink(id: chosen.id)?.kind == .overlay {
+            inkSlider("Intensity", \.intensity, 0...100, shown: chosen.intensity)
+            inkSlider("Rotation", \.rotation, -180...180, shown: chosen.rotation)
+            ApprovedNote("The ink is printed over the whole photo.")
+        } else {
+            inkSlider("Size", \.size, EditRecipe.Effects.Ink.sizeRange, shown: chosen?.size ?? 100)
+            inkSlider("Rotation", \.rotation, -180...180, shown: chosen?.rotation ?? 0)
+            ColourControl(title: "Paper colour", selected: chosen?.paper ?? EditRecipe.Effects.Ink.defaultPaper, photo: session.originalImage,
+                          identifier: "effects.ink.paper",
+                          preview: { hex in session.changeInk(final: false) { $0.paper = hex } },
+                          previewImage: { session.displayedImage }, cancel: session.cancelLookPreview) { hex in
+                session.changeInk(final: true) { $0.paper = hex }
+            }
+            ApprovedNote("Drag on the photo to move the ink. Pinch to resize or turn it.")
+        }
+    }
+
+    private func inkSlider(_ label: String, _ key: WritableKeyPath<EditRecipe.Effects.Ink, Double>, _ range: ClosedRange<Double>,
+                           shown: Double) -> some View {
+        PanelSlider(label: label, value: shown, range: range, identifier: "slider.\(label.lowercased())",
+                    onChange: { v in session.changeInk(final: false) { $0[keyPath: key] = v.rounded() } },
+                    onEnd: { v in session.changeInk(final: true) { $0[keyPath: key] = v.rounded() } })
     }
 
     @ViewBuilder
@@ -228,7 +265,7 @@ struct EffectsPanelView: View {
         case .vignette:
             if key != \.vignette.amount && value.vignette.amount == 0 { value.vignette.amount = 25 }
             value.vignette.enabled = value.vignette.amount > 0
-        case .selective: break
+        case .selective, .ink: break
         }
     }
 

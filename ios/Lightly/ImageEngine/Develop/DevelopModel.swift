@@ -49,12 +49,13 @@ struct DevelopModel: Sendable, Equatable {
         case focusConstantsMismatch(String)
     }
 
-    /// Rendering contract v2 revision this build implements: revision 9 (2026-10-13) adds `portrait.sunglasses` (§7.5).
+    /// Rendering contract v2 revision this build implements: revision 10 (2026-10-31) adds `effects.ink` (§Ink,
+    /// InkEvaluator); revision 9 (2026-10-13) adds `portrait.sunglasses` (§7.5).
     /// DEFERRED: this build reads and writes `faceEdit.sunglasses` but does not render it yet (the Sunglasses stage
     /// lands with the Portrait › Sunglasses tab; no UI writes the key before then). Revision 8 (owner, 2026-10-11) lets the light leak name a
     /// leak-pack image (§Light leak, LeakImageEvaluator); revision 7 added stage 11 `text` (§7.4) and `portrait.smile`
     /// (§7.3). The Develop constants and their digest are unchanged from revision 6.
-    static let requiredContractRevision: Int64 = 9
+    static let requiredContractRevision: Int64 = 10
 
     /// The contract bundled with the app (`rendering-v2.json`, copied verbatim by project.yml).
     static func loadBundled(from bundle: Bundle = .main) throws -> DevelopModel {

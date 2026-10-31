@@ -288,10 +288,41 @@ struct EditRecipe: Equatable, Sendable {
             var strength: Double
             static let none = SelectiveColour(colours: [], range: 40, strength: 100)
         }
+        /// Effects › Ink (rendering-v2 revision 10, owner-approved 2026-10-31: docs/ui/proposals/ink-2026-10-31). `id`
+        /// names an ink of the ink pack; a stroke ink reads x, y, size, rotation and paper, an overlay ink rotation and
+        /// intensity. A String id, not an enum, for the leak id's reason: the pack can grow without a recipe change.
+        struct Ink: Equatable, Sendable {
+            /// "Warm white", the first choice's paper (the approved proposal's `fx-ink`).
+            static let defaultPaper = "#F4F1EC"
+            static let defaultIntensity: Double = 60
+            static let sizeRange: ClosedRange<Double> = 50...150
+
+            var id: String
+            var x, y: Double
+            var size: Double
+            var rotation: Double
+            /// `#RRGGBB`, upper case.
+            var paper: String
+            var intensity: Double
+
+            /// A first choice (rendering-v2 §Ink): centred, size 100, unturned, Warm white paper, intensity 60.
+            static func starting(_ id: String) -> Ink {
+                Ink(id: id, x: 50, y: 50, size: 100, rotation: 0, paper: defaultPaper, intensity: defaultIntensity)
+            }
+
+            /// The schema's pattern `^ink-[0-9a-f]{12}$`.
+            static func isInkID(_ value: String) -> Bool {
+                guard value.hasPrefix("ink-") else { return false }
+                let hex = value.dropFirst(4)
+                return hex.count == 12 && hex.allSatisfy { "0123456789abcdef".contains($0) }
+            }
+        }
         var lightLeak: LightLeak
         var grain: Grain
         var vignette: Vignette
         var selectiveColour: SelectiveColour = .none
+        /// nil: no ink (the recipe key absent, so recipes written before revision 10 stay valid).
+        var ink: Ink? = nil
     }
 
     struct Watermark: Equatable, Sendable {

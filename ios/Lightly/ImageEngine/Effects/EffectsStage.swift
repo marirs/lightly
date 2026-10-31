@@ -2,12 +2,15 @@ import Foundation
 import simd
 
 /// Stage 10, `effects` (rendering-v2 §1, §6): on the frame, after geometry, in the contract order
-/// light leak → selective colour → preset vignette → user vignette → preset grain → user grain.
+/// ink (revision 10) → light leak → selective colour → preset vignette → user vignette → preset grain → user grain.
+/// Ink is first so a leak, the vignettes and grain fall on its paper too, as in the approved design.
 ///
 /// The user's effects are added on top of the preset's own vignette and grain, never replacing
 /// them (the approved "added to it, not replaced" notice). The preset's amounts are scaled by the
 /// Develop Amount; the user's are not.
 struct EffectsStage: Sendable {
+    /// Effects › Ink (rendering-v2 revision 10): nil without an ink, or when this build's pack lacks it.
+    let ink: InkEvaluator?
     /// One of the four drawn leaks (earlier edits), or…
     let leak: LightLeakEvaluator?
     /// …a leak-pack image (rendering-v2 revision 8). At most one of the two is set.
@@ -19,13 +22,18 @@ struct EffectsStage: Sendable {
     let presetGrain: DevelopPixelOperators.GrainEvaluator?
     let userGrain: DevelopPixelOperators.GrainEvaluator?
 
-    var isEmpty: Bool { leak == nil && leakImage == nil && selectiveColour == nil && presetVignette == nil && userVignette == nil && presetGrain == nil && userGrain == nil }
+    var isEmpty: Bool { ink == nil && leak == nil && leakImage == nil && selectiveColour == nil && presetVignette == nil && userVignette == nil && presetGrain == nil && userGrain == nil }
 
     /// - Parameter leakImages: resolves a leak-pack id to its decoded image; the bundled pack's cache unless a test
     ///   supplies its own. An id this build's pack lacks resolves to nil and adds no light.
+    /// - Parameter inkImages: the same for the ink pack; an ink this build lacks draws nothing.
     init(effects: EditRecipe.Effects, presetFinishing: PresetRecipe.Finishing, presetStrength: Double,
          frameWidth: Int, frameHeight: Int, model: DevelopModel,
-         leakImages: (String) -> LeakImage? = { LeakImageCache.bundled.image(for: $0) }) {
+         leakImages: (String) -> LeakImage? = { LeakImageCache.bundled.image(for: $0) },
+         inkImages: (String) -> (kind: InkPack.Ink.Kind, image: InkImage)? = { InkImageCache.bundled.image(for: $0) }) {
+        ink = effects.ink.flatMap { chosen in
+            inkImages(chosen.id).flatMap { InkEvaluator(chosen, kind: $0.kind, image: $0.image, frameWidth: frameWidth, frameHeight: frameHeight) }
+        }
         leak = effects.lightLeak.enabled
             ? LightLeakEvaluator(effects.lightLeak, frameWidth: frameWidth, frameHeight: frameHeight) : nil
         leakImage = effects.lightLeak.enabled
@@ -73,6 +81,7 @@ struct EffectsStage: Sendable {
                 for x in 0..<width {
                     let o = (y * width + x) * 4
                     var colour = SIMD3<Float>(Float(base[o]) / 255, Float(base[o + 1]) / 255, Float(base[o + 2]) / 255)
+                    if let ink { colour = ink.apply(colour, x: x, y: y) }
                     if let leak { colour = leak.apply(colour, x: x, y: y) }
                     if let leakImage { colour = leakImage.apply(colour, x: x, y: y) }
                     if let selectiveColour { colour = selectiveColour.apply(colour) }

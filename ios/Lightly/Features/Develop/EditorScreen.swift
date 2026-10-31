@@ -52,6 +52,8 @@ struct EditorScreen: View {
     }
     /// Change background › Image: dragging the photo moves the background.
     @State private var replacementDragStart: (x: Double, y: Double)?
+    /// Effects › Ink: the chosen ink when a drag or pinch on the photo began (moves and pinches are relative to it).
+    @State private var inkGestureStart: EditRecipe.Effects.Ink?
     /// Refine edges: the stroke being drawn (source coordinates).
     @State private var refinePoints: [EditRecipe.Point] = []
     /// A Remove or Refine edges brush is down. Unlike `onEnded`, a gesture state also resets when the system cancels
@@ -637,6 +639,7 @@ struct EditorScreen: View {
                     editMarks(size: size)
                 case .effects:
                     if effectsPanel.sub == .leak { leakDragArea(size: size) }
+                    if effectsPanel.sub == .ink { inkGestureArea(size: size) }
                     if effectsPanel.picksOnTap { selectiveColourTapArea(size: size) }
                 case .watermark:
                     if watermarkPanel.isUsed { watermarkDragArea(size: size) }
@@ -942,6 +945,35 @@ struct EditorScreen: View {
             .accessibilityHidden(true)
     }
 
+    /// Ink (approved proposal: "Drag on the photo to move the ink. Pinch to resize or turn it."): a drag moves the chosen
+    /// stroke ink by the finger's travel, a pinch scales Size and turns Rotation from where the gesture began; preview
+    /// while moving, one undo step at the end. With None or an overlay ink they do nothing (EditorSession.moveInk).
+    private func inkGestureArea(size: CGSize) -> some View {
+        let drag = DragGesture(minimumDistance: 2)
+            .onChanged { value in moveInk(by: value.translation, size: size, final: false) }
+            .onEnded { value in moveInk(by: value.translation, size: size, final: true); inkGestureStart = nil }
+        let pinch = MagnifyGesture().simultaneously(with: RotateGesture())
+            .onChanged { value in pinchInk(value, final: false) }
+            .onEnded { value in pinchInk(value, final: true); inkGestureStart = nil }
+        return Color.clear.contentShape(Rectangle())
+            .gesture(drag)
+            .simultaneousGesture(pinch)
+            .accessibilityHidden(true)
+    }
+
+    private func moveInk(by translation: CGSize, size: CGSize, final: Bool) {
+        guard let start = inkGestureStart ?? session.recipe.tools.effects.ink, size.width > 0, size.height > 0 else { return }
+        inkGestureStart = start
+        session.moveInk(x: (start.x + translation.width / size.width * 100).rounded(),
+                        y: (start.y + translation.height / size.height * 100).rounded(), final: final)
+    }
+
+    private func pinchInk(_ value: SimultaneousGesture<MagnifyGesture, RotateGesture>.Value, final: Bool) {
+        guard let start = inkGestureStart ?? session.recipe.tools.effects.ink else { return }
+        inkGestureStart = start
+        session.pinchInk(from: start, scale: Double(value.first?.magnification ?? 1), turnDegrees: value.second?.rotation.degrees ?? 0, final: final)
+    }
+
     /// Selective Colour: a tap keeps the colour under it (the first one, or after (+)).
     private func selectiveColourTapArea(size: CGSize) -> some View {
         Color.clear.contentShape(Rectangle())
@@ -1129,6 +1161,7 @@ extension EffectsPanelModel {
         if effects.grain.enabled { names.append("Grain") }
         if effects.vignette.enabled { names.append("Vignette") }
         if !effects.selectiveColour.colours.isEmpty { names.append("Selective Colour") }
+        if effects.ink != nil { names.append("Ink") }
         return names.isEmpty ? "Off" : names.joined(separator: ", ")
     }
 }

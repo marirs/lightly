@@ -74,6 +74,8 @@ struct DebugScenario {
         case "ed-remove", "ed-removing", "ed-remove-failed": return EditorUI(tool: .edit, editSub: .remove)
         case "fx-leak", "fx-leak-none": return EditorUI(tool: .effects, effectsSub: .leak)
         case "fx-selective": return EditorUI(tool: .effects, effectsSub: .selective)
+        case "fx-ink-none", "fx-ink", "fx-ink-bold", "fx-ink-paper", "fx-ink-bloom", "fx-ink-splatter", "fx-ink-combined":
+            return EditorUI(tool: .effects, effectsSub: .ink)
         case "fx-grain", "fx-preset-conflict": return EditorUI(tool: .effects, effectsSub: .grain)
         case "fx-vignette", "fx-combined": return EditorUI(tool: .effects, effectsSub: .vignette)
         case "bd-none", "bd-solid", "bd-frame", "bd-polaroid": return EditorUI(tool: .border)
@@ -212,6 +214,11 @@ struct DebugScenario {
         }
     }
 
+    /// The pack's ink of that name, as a first choice (centred, size 100, Warm white). Nothing without a bundled pack.
+    static func showInk(_ name: String, _ effects: inout EditRecipe.Effects) {
+        if let ink = InkPack.bundled.inks.first(where: { $0.name == name }) { effects.ink = .starting(ink.id) }
+    }
+
     /// `fx-leak` / `fx-combined`: the light leak on with the pack's first leak, centred, at the mockup's Intensity 50.
     static func showFirstPackLeak(_ effects: inout EditRecipe.Effects) {
         if let first = LeakPack.bundled.leaks.first, let style = EditRecipe.Effects.LightLeak.Style.leakImage(first.id) {
@@ -282,6 +289,14 @@ struct DebugScenario {
         // bundled pack the drawn warm leak stands in, as before. `fx-leak-none` needs no setup: the effect is off.
         case "fx-leak": effects { Self.showFirstPackLeak(&$0) }
         case "fx-grain": effects { $0.grain.enabled = true; $0.grain.amount = 45 }
+        // Effects › Ink (approved proposal docs/ui/proposals/ink-2026-10-31): its screens, by ink name. `fx-ink-none` needs
+        // no setup: no ink.
+        case "fx-ink": effects { Self.showInk("Dry Sweep", &$0) }
+        case "fx-ink-bold": effects { Self.showInk("Bold Strokes", &$0) }
+        case "fx-ink-paper": effects { Self.showInk("Stacked", &$0); $0.ink?.paper = "#1F2328" }
+        case "fx-ink-bloom": effects { Self.showInk("Soft Bloom", &$0) }
+        case "fx-ink-splatter": effects { Self.showInk("Splatter", &$0) }
+        case "fx-ink-combined": effects { Self.showInk("Dry Sweep", &$0); $0.grain.enabled = true; $0.grain.amount = 30 }
         case "fx-vignette": effects { $0.vignette.enabled = true }
         case "fx-combined": effects { Self.showFirstPackLeak(&$0); $0.grain.enabled = true; $0.vignette.enabled = true }
         case "fx-preset-conflict":

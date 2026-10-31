@@ -370,7 +370,9 @@ enum EditRecipeCodec {
     private static func readEffects(_ r: Reader) throws -> EditRecipe.Effects {
         // selectiveColour is optional (rendering-v2 revision 4): recipes written before it stay valid.
         let hasSelective = r.raw("selectiveColour") != nil
-        try r.requireExactly(["lightLeak", "grain", "vignette"] + (hasSelective ? ["selectiveColour"] : []))
+        // ink is optional too (rendering-v2 revision 10, 2026-10-31): missing = no ink.
+        let hasInk = r.raw("ink") != nil
+        try r.requireExactly(["lightLeak", "grain", "vignette"] + (hasSelective ? ["selectiveColour"] : []) + (hasInk ? ["ink"] : []))
         let l = try r.object("lightLeak"); try l.requireExactly(["enabled", "style", "intensity", "x", "y", "rotation"])
         let g = try r.object("grain"); try g.requireExactly(["enabled", "style", "amount", "size", "roughness", "seed"])
         let v = try r.object("vignette"); try v.requireExactly(["enabled", "amount", "size", "softness"])
@@ -383,7 +385,16 @@ enum EditRecipeCodec {
                          size: try g.percent("size"), roughness: try g.percent("roughness"), seed: UInt32(seed)),
             vignette: .init(enabled: try v.bool("enabled"), amount: try v.percent("amount"), size: try v.percent("size"),
                             softness: try v.percent("softness")),
-            selectiveColour: hasSelective ? try readSelectiveColour(try r.object("selectiveColour")) : .none)
+            selectiveColour: hasSelective ? try readSelectiveColour(try r.object("selectiveColour")) : .none,
+            ink: hasInk ? try readInk(try r.object("ink")) : nil)
+    }
+
+    private static func readInk(_ r: Reader) throws -> EditRecipe.Effects.Ink {
+        try r.requireExactly(["id", "x", "y", "size", "rotation", "paper", "intensity"])
+        let id = try r.string("id")
+        guard EditRecipe.Effects.Ink.isInkID(id) else { throw r.error("id", "must match ^ink-[0-9a-f]{12}$") }
+        return .init(id: id, x: try r.percent("x"), y: try r.percent("y"), size: try r.number("size", EditRecipe.Effects.Ink.sizeRange),
+                     rotation: try r.number("rotation", -180...180), paper: try r.colour("paper"), intensity: try r.percent("intensity"))
     }
 
     private static func readSelectiveColour(_ r: Reader) throws -> EditRecipe.Effects.SelectiveColour {
@@ -519,6 +530,13 @@ enum EditRecipeCodec {
         }
     }
 
+    /// Written only with an ink chosen (none is the same as absent, so older readers see no change).
+    private static func ink(_ ink: EditRecipe.Effects.Ink?) -> [(String, CanonicalJSON)] {
+        guard let ink else { return [] }
+        return [("ink", .object([("id", .string(ink.id)), ("x", number(ink.x)), ("y", number(ink.y)), ("size", number(ink.size)),
+                                 ("rotation", number(ink.rotation)), ("paper", .string(ink.paper)), ("intensity", number(ink.intensity))]))]
+    }
+
     /// Written only with kept colours (no colours is the same as absent, so older readers see no change).
     private static func selectiveColour(_ s: EditRecipe.Effects.SelectiveColour) -> [(String, CanonicalJSON)] {
         guard !s.colours.isEmpty else { return [] }
@@ -616,7 +634,7 @@ enum EditRecipeCodec {
                                ("roughness", number(fx.grain.roughness)), ("seed", .number(String(fx.grain.seed)))])),
             ("vignette", .object([("enabled", .bool(fx.vignette.enabled)), ("amount", number(fx.vignette.amount)),
                                   ("size", number(fx.vignette.size)), ("softness", number(fx.vignette.softness))]))
-        ] + selectiveColour(fx.selectiveColour))
+        ] + selectiveColour(fx.selectiveColour) + ink(fx.ink))
         let w = t.watermark
         let watermark = CanonicalJSON.object([
             ("type", .string(w.type.rawValue)),
