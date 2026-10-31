@@ -1571,6 +1571,9 @@ final class EditorSession {
     static let sampleThumbnailPhoto = "landscape_02"
     private static var sampleThumbnailImages: [String: CGImage] = [:]
 
+    /// The sample thumbnail if it has been rendered, without rendering it.
+    static func cachedSampleThumbnail(_ preset: PresetPack.Preset) -> CGImage? { sampleThumbnailImages[preset.lookVersion] }
+
     /// A favourite's thumbnail with no photo open: the preset alone (no Auto, edits or effects, which belong to a
     /// photo) on the sample photo, through the same pipeline and size as `presetThumbnail`. Cached per look version
     /// for the app's lifetime, because the inputs never change.

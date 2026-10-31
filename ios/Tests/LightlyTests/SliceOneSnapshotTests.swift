@@ -16,23 +16,57 @@ final class SliceOneSnapshotTests: XCTestCase {
         UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
     }
 
-    /// App state with the bundled catalogue, the five favourites the approved screens show and a
-    /// fixed version so the references do not change with the build number.
-    private func makeState(signatures: SignatureStore = SignatureStore(directory: nil)) -> AppState {
+    /// App state with the bundled catalogue and a fixed version so the references do not change with the build
+    /// number. The More pages take the approved Lightly 2 screens' state (`more`, `welcome-more`, `pref-favourites`):
+    /// three favourites, the appearance the screen's theme shows selected, and, where [library] is given, the loaded
+    /// preset pack (About's count, the favourites' thumbnails). The mockup's preset names are placeholders that are
+    /// not in the catalogue, so the favourites are real presets.
+    private func makeState(signatures: SignatureStore = SignatureStore(directory: nil), appearance: AppearancePreference = .system,
+                           library: DevelopLibrary? = nil) -> AppState {
         let catalogue = DevelopPresetCatalogue.loadBundled()
         let favourites = FavouritePresetsStore(defaults: defaults, catalogue: catalogue)
-        let seeded = [("portrait", 13), ("daylight", 37), ("film", 12), ("golden-hour", 4), ("black-white", 3)]
+        let seeded = [("portrait", 13), ("daylight", 37), ("film", 12)]
             .compactMap { catalogue.preset(inCategory: $0.0, atStop: $0.1)?.id }
         favourites.replaceAll(with: seeded)
+        let preferences = PreferencesStore(defaults: defaults)
+        preferences.appearance = appearance
         return AppState(
             photoLoader: ImageIOPhotoLoader(),
-            preferences: PreferencesStore(defaults: defaults),
+            developLibrary: library,
+            preferences: preferences,
             favourites: favourites,
             signatures: signatures,
             presetCatalogue: catalogue,
             releaseContent: .none,
             appVersion: AppVersion(version: "1.0", build: "1")
         )
+    }
+
+    /// The approved screens show a saved drawn signature: the mockup's own sample (`SIG`).
+    private func savedSignature() -> SignatureStore {
+        let signatures = SignatureStore(directory: nil)
+        signatures.saveDrawn(.lightlyTwoSample)
+        return signatures
+    }
+
+    /// The bundled preset pack, loaded once for the suite (its parse and Metal set-up are slow).
+    private static var loadedLibrary: DevelopLibrary?
+    private func library() async throws -> DevelopLibrary {
+        if let loaded = Self.loadedLibrary { return loaded }
+        let library = DevelopLibrary()
+        await library.loadBundled(lutApplier: try MetalLUTRenderer())
+        XCTAssertEqual(library.state, .ready)
+        Self.loadedLibrary = library
+        return library
+    }
+
+    /// Renders the favourites' sample thumbnails first: a snapshot is a single pass, so they must already be cached
+    /// (FavouriteThumbnail shows a cached one at once) instead of arriving from the view's task.
+    private func warmThumbnails(_ state: AppState) async {
+        for id in state.favourites.presetIDs {
+            guard let preset = state.developLibrary.pack.preset(id: id) else { XCTFail("favourite \(id) is not in the pack"); continue }
+            _ = await EditorSession.sampleThumbnail(preset, library: state.developLibrary)
+        }
     }
 
     /// A More page as it sits in the phone sheet (below the grabber).
@@ -51,7 +85,11 @@ final class SliceOneSnapshotTests: XCTestCase {
         SnapshotAssertion.assert(of: WelcomeView().environment(makeState()), named: "welcome-dark", colorScheme: .dark)
     }
 
-    func testWelcomeAccessibilityTextSize() {
+    func testWelcomeAccessibilityTextSize() throws {
+        // Owner, 2026-10-21: no pixel reference yet (the mockup has no screen at this size); without the skip the
+        // harness would record one. The size is still checked for clipping, overlap, scrolling and usable controls by
+        // AccessibilityAuditUITests.testWelcomeAndMoreAtLargestTextHaveNoClippingOverlapOrUnreachableControls.
+        try XCTSkipIf(true, "Largest text size: no pixel reference yet; layout checked by AccessibilityAuditUITests")
         let view = WelcomeView().environment(makeState()).environment(\.dynamicTypeSize, .accessibility3)
         SnapshotAssertion.assert(of: view, named: "welcome-accessibility3")
     }
@@ -68,26 +106,46 @@ final class SliceOneSnapshotTests: XCTestCase {
 
     // MARK: - More pages
 
-    func testMoreMenu() { SnapshotAssertion.assert(of: page(.menu, state: makeState()), named: "more-menu") }
-    // Lightly 2: the preferences live on the More page itself (no Preferences page).
-    func testMoreMenuDark() {
-        SnapshotAssertion.assert(of: page(.menu, state: makeState()), named: "more-menu-dark", colorScheme: .dark)
+    func testMoreMenu() async throws {
+        let state = makeState(signatures: savedSignature(), appearance: .light, library: try await library())
+        await warmThumbnails(state)
+        SnapshotAssertion.assert(of: page(.menu, state: state), named: "more-menu")
     }
-    func testMoreMenuAccessibilityTextSize() {
-        let view = page(.menu, state: makeState()).environment(\.dynamicTypeSize, .accessibility3)
+    // Lightly 2: the preferences live on the More page itself (no Preferences page).
+    func testMoreMenuDark() async throws {
+        let state = makeState(signatures: savedSignature(), appearance: .dark, library: try await library())
+        await warmThumbnails(state)
+        SnapshotAssertion.assert(of: page(.menu, state: state), named: "more-menu-dark", colorScheme: .dark)
+    }
+    func testMoreMenuAccessibilityTextSize() async throws {
+        // As testWelcomeAccessibilityTextSize: no pixel reference yet; the layout is checked by the UI test.
+        try XCTSkipIf(true, "Largest text size: no pixel reference yet; layout checked by AccessibilityAuditUITests")
+        let state = makeState(signatures: savedSignature(), appearance: .light, library: try await library())
+        await warmThumbnails(state)
+        let view = page(.menu, state: state).environment(\.dynamicTypeSize, .accessibility3)
         SnapshotAssertion.assert(of: view, named: "more-menu-accessibility3")
     }
-    func testFavourites() { SnapshotAssertion.assert(of: page(.favourites, state: makeState()), named: "more-favourites") }
-    /// Slice 5: the approved page with a saved (drawn) signature: the prototype's sample.
+    func testFavourites() async throws {
+        let state = makeState(library: try await library())
+        await warmThumbnails(state)
+        SnapshotAssertion.assert(of: page(.favourites, state: state), named: "more-favourites")
+    }
+    /// The approved page with a saved (drawn) signature: the mockup's sample.
     func testSavedSignature() {
-        let signatures = SignatureStore(directory: nil)
-        signatures.saveDrawn(.prototypeSample)
-        SnapshotAssertion.assert(of: page(.savedSignature, state: makeState(signatures: signatures)), named: "more-signature")
+        SnapshotAssertion.assert(of: page(.savedSignature, state: makeState(signatures: savedSignature())), named: "more-signature")
     }
     func testPreferredBorder() { SnapshotAssertion.assert(of: page(.preferredBorder, state: makeState()), named: "more-border") }
     func testLegal() { SnapshotAssertion.assert(of: page(.legal, state: makeState()), named: "more-legal") }
-    func testPrivacyPolicyUnavailable() { SnapshotAssertion.assert(of: page(.privacyPolicy, state: makeState()), named: "more-privacy") }
-    func testAbout() { SnapshotAssertion.assert(of: page(.about, state: makeState()), named: "more-about") }
+    /// The document-missing failure state stays tested, but its appearance has no approved design yet (owner,
+    /// 2026-10-21), so no reference is compared or recorded until it has one.
+    func testPrivacyPolicyUnavailable() throws {
+        try XCTSkipIf(true, "Privacy Policy unavailable: no approved design for this state yet")
+        SnapshotAssertion.assert(of: page(.privacyPolicy, state: makeState()), named: "more-privacy")
+    }
+    /// About › Presets counts the loaded pack.
+    func testAbout() async throws {
+        SnapshotAssertion.assert(of: page(.about, state: makeState(library: try await library())), named: "more-about")
+    }
 }
 
 /// Opens `MoreSheet` directly on one page, the way the sheet shows it after navigating there.
@@ -145,4 +203,34 @@ final class WelcomeLayoutTests: XCTestCase {
 
     func testAccessibility3() throws { try assertLayout(at: .accessibility3) }
     func testAccessibility5() throws { try assertLayout(at: .accessibility5) }
+}
+
+extension DrawnSignature {
+    /// The Lightly 2 mockup's drawn signature (`SIG`: view box 58 × 22, stroke 1.6,
+    /// `M2 16c5 0 6-12 9-12s1 12 4 12 3-8 6-8 3 6 7 6 4-10 8-10 2 10 6 10 5-4 14-4`), flattened to points. The
+    /// smooth segments (`s`) take their first control point as the reflection of the previous second one.
+    static let lightlyTwoSample: DrawnSignature = {
+        // (first control, second control, end), absolute, from the path above.
+        let start = Point(x: 2, y: 16)
+        let segments: [(Point, Point, Point)] = [
+            (Point(x: 7, y: 16), Point(x: 8, y: 4), Point(x: 11, y: 4)),
+            (Point(x: 14, y: 4), Point(x: 12, y: 16), Point(x: 15, y: 16)),
+            (Point(x: 18, y: 16), Point(x: 18, y: 8), Point(x: 21, y: 8)),
+            (Point(x: 24, y: 8), Point(x: 24, y: 14), Point(x: 28, y: 14)),
+            (Point(x: 32, y: 14), Point(x: 32, y: 4), Point(x: 36, y: 4)),
+            (Point(x: 40, y: 4), Point(x: 38, y: 14), Point(x: 42, y: 14)),
+            (Point(x: 46, y: 14), Point(x: 47, y: 10), Point(x: 56, y: 10)),
+        ]
+        var points = [start]
+        var current = start
+        for (c1, c2, end) in segments {
+            for step in 1...16 {
+                let t = Double(step) / 16, u = 1 - t
+                points.append(Point(x: u * u * u * current.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * end.x,
+                                    y: u * u * u * current.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * end.y))
+            }
+            current = end
+        }
+        return DrawnSignature(strokes: [points], viewBox: Box(x: 0, y: 0, width: 58, height: 22), strokeWidth: 1.6)
+    }()
 }

@@ -416,10 +416,16 @@ struct FavouriteThumbnail: View {
         let libraryReady: Bool
     }
 
+    /// With no photo open, an already rendered sample thumbnail is shown at once (no chip flash when More reopens).
+    private var cachedSample: CGImage? {
+        guard session == nil, let preset = appState.developLibrary.pack.preset(id: id) else { return nil }
+        return EditorSession.cachedSampleThumbnail(preset)
+    }
+
     var body: some View {
         let c = L2(scheme: colorScheme)
         Group {
-            if let image { Image(decorative: image, scale: 1).resizable().scaledToFill() } else { c(ApprovedColor.chip) }
+            if let shown = image ?? cachedSample { Image(decorative: shown, scale: 1).resizable().scaledToFill() } else { c(ApprovedColor.chip) }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
