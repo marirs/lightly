@@ -245,7 +245,9 @@ final class SunglassesEngineTests: XCTestCase {
             + ["glasses_black_front_01", "glasses_pair_mixed_01", "glasses_side_angle_01", "glasses_thick_deep_01",
                "glasses_thin_metal_01", "group_three_01", "profile_beard_man_01", "profile_bw_boy_01", "profile_bw_woman_01",
                "profile_bw_woman_hair_01", "profile_colour_woman_01", "sunglasses_round_01"].map { "experiments/test-photos/\($0)" }
-        for path in photos {
+        // LIGHTLY_SUNGLASSES_PHOTOS (comma-separated names, e.g. glasses_thin_metal_01) limits the run to those photos.
+        let only = ProcessInfo.processInfo.environment["LIGHTLY_SUNGLASSES_PHOTOS"]?.split(separator: ",").map(String.init)
+        for path in photos where only == nil || only!.contains(String(path.split(separator: "/").last!)) {
             let name = String(path.split(separator: "/").last!)
             let full = try XCTUnwrap(UIImage(contentsOfFile: DevelopParityTests.fixture("\(path).jpg").path)?.cgImage)
             let image = try XCTUnwrap(AnalysisProxy.downscaled(full, maximumLongEdge: 1_600))

@@ -68,8 +68,30 @@ and the evidence is recorded.
 | Android foldable (unfolded) and Duo two-pane layouts | UNVERIFIED |
 | VoiceOver (iOS) | UNVERIFIED — deferred to the last release with the full VoiceOver/TalkBack pass (owner, 2026-10-21) |
 | TalkBack (Android) | UNVERIFIED — deferred to the last release with the full VoiceOver/TalkBack pass (owner, 2026-10-21) |
-| Tilted thin-metal woman: brows sit under the Club's rim | UNVERIFIED (open defect) |
+| Tilted thin-metal woman: brows sit under the Club's rim | Investigated 2026-11-01, not changed (below) |
 | A real Android 17 phone | UNVERIFIED |
 
 Checked on c118144: moto edge 60, Nothing A069 and iPhone 11 Pro Max,
 for the captured scenarios only. That doesn't cover the rows above.
+
+## Tilted thin-metal woman: brows (investigated 2026-11-01)
+
+`glasses_thin_metal_01`, iPhone 17 simulator, removal-only and pair-matrix review tests (photos filter
+`LIGHTLY_SUNGLASSES_PHOTOS`):
+
+- Her brows lie inside every pair's outline: the pairs are fitted to the eye corners and face width, and
+  her brows sit close above her eyes. At the default lens darkness (transmission about 0.2) her eyes
+  still show through the lens, but her brows don't.
+- The paint-out also repaints both brows: the segmenter counts dark brows beside a rim as part of the
+  glasses, so the 0.8 % mask covers them.
+- Tried and dropped (engine unchanged):
+  - Keeping MediaPipe's brow strips (upper contour 70/63/105/66/107 and 300/293/334/296/336, lower
+    46/53/52/65/55 and 276/283/282/295/285) out of the mask. It brings the brows back in the
+    removal-only image, but her old rim runs through the strips, so grey rim pieces come back with
+    them. Keeping only the upper 60 % of each strip leaves fewer pieces. With a pair on, both
+    versions look the same as before at the default darkness.
+  - Measuring the painted area's top from the patch's painted pixels instead of its rectangle. It
+    made no difference on this photo.
+- Still open: with a light lens, the repainted brows (or rim pieces, if the strips are kept) would
+  show. Separating the rim from the brows needs a rim-only signal that the 256 px segmenter doesn't
+  give.
