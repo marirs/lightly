@@ -134,7 +134,7 @@ struct MoreSheet: View {
         }
     }
 
-    private func navigationRow(_ title: Text, subtitle: Text? = nil, to page: MorePage, isFirst: Bool = false) -> some View {
+    private func navigationRow(_ title: Text, subtitle: String? = nil, to page: MorePage, isFirst: Bool = false) -> some View {
         Button { open(page) } label: {
             L2ListRow(title: title, subtitle: subtitle, isFirst: isFirst) { ApprovedIconView(icon: .chevron, size: 18) }
         }
@@ -179,7 +179,7 @@ private struct MoreMenuPage: View {
                 L2Card {
                     Button { open(.favourites) } label: {
                         L2ListRow(title: Text("favourites.title", bundle: .main),
-                                  subtitle: Text("preferences.favourites.detail \(appState.favourites.presetIDs.count) \(FavouritePresetsStore.capacity)", bundle: .main),
+                                  subtitle: String(localized: "preferences.favourites.detail \(appState.favourites.presetIDs.count) \(FavouritePresetsStore.capacity)"),
                                   isFirst: true) {
                             FavouriteThumbnails(ids: Array(appState.favourites.presetIDs.prefix(3)), session: appState.currentEditorSession)
                             ApprovedIconView(icon: .chevron, size: 18)
@@ -187,7 +187,7 @@ private struct MoreMenuPage: View {
                     }
                     .buttonStyle(.plain).accessibilityIdentifier("preferences.favourites")
                     Button { open(.savedSignature) } label: {
-                        L2ListRow(title: Text("signature.title", bundle: .main), subtitle: Text("preferences.signature.detail", bundle: .main)) {
+                        L2ListRow(title: Text("signature.title", bundle: .main), subtitle: String(localized: "preferences.signature.detail")) {
                             if let shown = appState.signatures.shown {
                                 SignatureGlyph(signature: shown, height: 20, ink: shown.kind == .drawn ? c(ApprovedColor.ink) : nil)
                                     .frame(maxWidth: 54)
@@ -215,13 +215,13 @@ private struct MoreMenuPage: View {
                 L2GroupLabel(text: "Help")
                 L2Card {
                     Button { open(.about) } label: {
-                        L2ListRow(title: Text("about.title", bundle: .main), subtitle: Text("Details and support email"), isFirst: true) {
+                        L2ListRow(title: Text("about.title", bundle: .main), subtitle: String(localized: "Details and support email"), isFirst: true) {
                             ApprovedIconView(icon: .chevron, size: 18)
                         }
                     }
                     .buttonStyle(.plain).accessibilityIdentifier("more.row.about")
                     Button { open(.legal) } label: {
-                        L2ListRow(title: Text("legal.title", bundle: .main), subtitle: Text("Privacy Policy, Terms of Use")) {
+                        L2ListRow(title: Text("legal.title", bundle: .main), subtitle: String(localized: "Privacy Policy, Terms of Use")) {
                             ApprovedIconView(icon: .chevron, size: 18)
                         }
                     }
@@ -730,7 +730,7 @@ struct AboutPage: View {
                 L2Card {
                     Button { if let url = URL(string: "mailto:\(Self.supportEmail)") { openURL(url) } } label: {
                         L2ListRow(title: Text(verbatim: Self.supportEmail),
-                                  subtitle: Text("Questions or a problem with a photo? Include your version number."), isFirst: true) {
+                                  subtitle: String(localized: "Questions or a problem with a photo? Include your version number."), isFirst: true) {
                             ApprovedIconView(icon: .mail, size: 20).foregroundStyle(c(ApprovedColor.selection))
                         }
                     }

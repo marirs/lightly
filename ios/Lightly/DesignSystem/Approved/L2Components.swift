@@ -720,15 +720,24 @@ struct L2ToggleLabel: View {
         let c = L2(scheme: scheme)
         VStack(alignment: .leading, spacing: 2) {
             Text(LocalizedStringKey(title)).l2Text(14, weight: .semibold).foregroundStyle(c(ApprovedColor.ink))
-            if let subtitle {
-                Text(LocalizedStringKey(subtitle)).l2Text(12).foregroundStyle(c(ApprovedColor.inkSecondary))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            if let subtitle { L2RowSubtitle(text: subtitle) }
         }
     }
 }
 
 // MARK: - Lists and cards
+
+/// A row's 12 pt ink2 subtitle (`listRow` and `toggleRow` `sub`), at the font's own line height as the mockup's.
+/// Drawn with `ApprovedParagraph`, not `Text`, for the same reason as `L2Note`: the mockup breaks each line at the last
+/// word that fits, while `Text` pushes a word down ("Off / by default." where the mockup has "Off by / default.").
+struct L2RowSubtitle: View {
+    let text: String
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        ApprovedParagraph(text: text, pointSize: 12, colour: L2(scheme: scheme)(ApprovedColor.inkSecondary), naturalLineHeight: true)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
 
 /// `card`: 22 pt corners, surface fill, hairline border.
 struct L2Card<Content: View>: View {
@@ -749,7 +758,8 @@ struct L2Card<Content: View>: View {
 /// a hairline above every row but the first.
 struct L2ListRow<Trailing: View>: View {
     let title: Text
-    var subtitle: Text?
+    /// Already localised.
+    var subtitle: String?
     var isFirst = false
     var titleColour: ApprovedColor.Token = ApprovedColor.ink
     @ViewBuilder let trailing: () -> Trailing
@@ -760,7 +770,7 @@ struct L2ListRow<Trailing: View>: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 title.l2Text(15, weight: .semibold).foregroundStyle(c(titleColour))
-                if let subtitle { subtitle.l2Text(12).foregroundStyle(c(ApprovedColor.inkSecondary)) }
+                if let subtitle { L2RowSubtitle(text: subtitle) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)

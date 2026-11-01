@@ -190,7 +190,7 @@ struct ReplaceFavouriteSheetContent: View {
                         if let preset = model.session.library.pack.preset(id: id) {
                             Button { model.replaceFavourite(id) } label: {
                                 L2ListRow(title: Text(preset.displayName),
-                                          subtitle: Text(model.session.library.pack.category(id: preset.categoryID)?.name ?? ""),
+                                          subtitle: model.session.library.pack.category(id: preset.categoryID)?.name ?? "",
                                           isFirst: index == 0) {
                                     Text("Replace").l2Text(14, weight: .bold).foregroundStyle(c(ApprovedColor.selection))
                                 }
