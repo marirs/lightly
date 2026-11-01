@@ -31,9 +31,9 @@ defects it finds go to 1.0.x from `release/1.0`.
 
 | Issue | Status |
 |---|---|
-| `android/tools/capture/capture-batch.sh` `FAVS` lists five preset ids that are no longer in the Android catalogue; `MainActivity` drops unknown favourites at launch, so captures of the favourites screens show none | Open |
-| Android debug launch: `lightly.debug.appearance` (and other early preference updates) can write the preferences before the stored ones are in place, saving empty favourites over them; debug builds only | Open |
-| iOS/Android row subtitles (`Text`, not notes) still wrap with the platform's standard strategy, e.g. iOS "Include location": "Off / by default." where the mockup has "Off by / default." | Open, not yet scoped |
+| `android/tools/capture/capture-batch.sh` `FAVS` lists five preset ids that are no longer in the Android catalogue; `MainActivity` drops unknown favourites at launch, so captures of the favourites screens show none | Fixed 2026-11-01: the script resolves the five ids from `presets/develop-design-ui.json` by category and stop (Portrait 13, Landscape 37, Film 12, Golden Hour 4, Black & White 3), as iOS `--seed-favourites` does |
+| Android debug launch: `lightly.debug.appearance` (and other early preference updates) can write the preferences before the stored ones are in place, saving empty favourites over them; debug builds only | Not reproduced 2026-11-01 (Pixel 9 Pro emulator: favourites stored, then cold and warm launches with `lightly.debug.appearance` dark/light; the stored favourites stayed). The empty favourites seen on 2026-10-21 fit the stale ids above, which `MainActivity` drops at launch |
+| iOS/Android row subtitles (`Text`, not notes) still wrap with the platform's standard strategy, e.g. iOS "Include location": "Off / by default." where the mockup has "Off by / default." | Fixed on iOS 2026-11-01 (d5f04a7, `L2RowSubtitle`); Android keeps Roboto's breaks (owner, 2026-10-21) |
 
 ## 1.2 — Eraser
 

@@ -52,8 +52,15 @@ mkdir -p "$OUT"
 bounded() { local seconds=$1; shift; perl -e 'alarm shift; exec @ARGV' "$seconds" "$@"; }
 
 # --- per-screen inputs (same mapping as the per-launch captures) ---------------------------------
-FAVS=look-d8704f3622765f1c77c4,look-617ee7c8edcb1bad9c35,look-5c41fdbeb28f5f83f0d0,look-5b83aa782a1e85276462,look-a2ea17e735e9957ee464
-HIKING=look-617ee7c8edcb1bad9c35
+# The five favourites the approved Preferences screens show (prototype PRIVATE_FAVS: Portrait 13, Landscape 37,
+# Film 12, Golden Hour 4, Black & White 3), resolved from the current catalogue as iOS --seed-favourites does.
+# Fixed ids went stale when the catalogue was rebuilt and MainActivity drops unknown favourites (2026-10-21).
+favourite_ids() { /usr/bin/python3 -I -c 'import json,sys
+cats={c["id"]:c["presets"] for c in json.load(open(sys.argv[1]))["categories"]}
+print(",".join((lambda p:p if isinstance(p,str) else p["id"])(cats[c][int(s)-1]) for c,s in (a.split(":") for a in sys.argv[2:])))' \
+  "$REPO/presets/develop-design-ui.json" "$@"; }
+FAVS=$(favourite_ids portrait:13 daylight:37 film:12 golden-hour:4 black-white:3) || { echo "favourites: catalogue lookup failed" >&2; exit 1; }
+HIKING=$(favourite_ids daylight:37) || exit 1
 FILES=/data/user/0/$PKG/files
 photo_for() { case $1 in bg-no-subject) echo landscape_02;; bg-*) echo portrait_medium_02;;
   # Slice 3 Portrait (screens.js): man = portrait_deep_03, smile = portrait_deep_02, bar = night_03, field = landscape_03;
