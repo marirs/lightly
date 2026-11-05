@@ -64,7 +64,7 @@ and the evidence is recorded.
 
 | Check | Status |
 |---|---|
-| iPhone SE 3: full sunglasses pass (only partly checked; a low-battery alert covered the screenshots) | UNVERIFIED |
+| iPhone SE 3: full sunglasses pass (only partly checked; a low-battery alert covered the screenshots) | VERIFIED 2026-11-05 on build 1.1.0 (261102001), light and dark, `PortraitBorderDeviceUITests`: Oval and Club applied on a photo with the person's own glasses ("Glasses found", replaced), brown lens, Darkness 75 → 30 with Undo/Redo, saved copy reopened and matching. Same pass on iPhone 11 Pro Max, light and dark. The dark SE run used the previous run's saved copy (sunglasses already applied). Not covered: the full pair × lens matrix on a phone |
 | Android foldable (unfolded) and Duo two-pane layouts | UNVERIFIED |
 | VoiceOver (iOS) | UNVERIFIED — deferred to the last release with the full VoiceOver/TalkBack pass (owner, 2026-10-21) |
 | TalkBack (Android) | UNVERIFIED — deferred to the last release with the full VoiceOver/TalkBack pass (owner, 2026-10-21) |

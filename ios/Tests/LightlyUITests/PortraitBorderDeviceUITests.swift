@@ -194,7 +194,8 @@ final class PortraitBorderDeviceUITests: XCTestCase {
         guard e.waitForExistence(timeout: 10) else { XCTFail("\(e) missing"); return }
         let window = app.windows.firstMatch.frame
         // An element scrolled past the edge of its row can still report hittable; require it fully on screen.
-        func onScreen() -> Bool { e.isHittable && e.frame.minX >= 0 && e.frame.maxX <= window.width }
+        // Frame first: asking a fully off-screen element whether it is hittable fails the test (iPhone SE 3 dock).
+        func onScreen() -> Bool { e.frame.minX >= 0 && e.frame.maxX <= window.width && e.isHittable }
         for _ in 0..<6 where !onScreen() {
             let y = e.frame.midY
             let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: window.width * 0.8, dy: y))
