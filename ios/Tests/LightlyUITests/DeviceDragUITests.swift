@@ -15,6 +15,7 @@ final class DeviceDragUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = true
+        SystemAlertGuard.install(on: self)
         guard ProcessInfo.processInfo.environment["LIGHTLY_DEVICE_DRAG"] != nil else { throw XCTSkip("set LIGHTLY_DEVICE_DRAG (device run only)") }
         app.activate()
         XCTAssertTrue(element("develop.ruler").waitForExistence(timeout: 120), "editor did not open")

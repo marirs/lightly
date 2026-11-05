@@ -17,6 +17,7 @@ final class AppReviewWalkthroughUITests: XCTestCase {
             throw XCTSkip("App Review walkthrough: set LIGHTLY_APP_REVIEW_WALKTHROUGH to run")
         }
         continueAfterFailure = true
+        SystemAlertGuard.install(on: self)
     }
 
     func testAppReviewWalkthrough() {

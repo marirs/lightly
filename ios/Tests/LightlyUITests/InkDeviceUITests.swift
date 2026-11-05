@@ -16,6 +16,7 @@ final class InkDeviceUITests: XCTestCase {
             throw XCTSkip("Ink device check: set LIGHTLY_INK_DEVICE_CHECK to run")
         }
         continueAfterFailure = true
+        SystemAlertGuard.install(on: self)
     }
 
     func testInkOnTheDevice() throws {
@@ -24,7 +25,9 @@ final class InkDeviceUITests: XCTestCase {
         openFirstPhoto()
         XCTAssertTrue(app.buttons["tool.develop"].waitForExistence(timeout: 30), "editor open")
         pause(3)
-        let previousAppearance = ProcessInfo.processInfo.environment["LIGHTLY_INK_APPEARANCE"].flatMap(chooseAppearance)
+        // LIGHTLY_INK_RESTORE_APPEARANCE names the choice to put back when an earlier run could not restore it.
+        let chosenPrevious = ProcessInfo.processInfo.environment["LIGHTLY_INK_APPEARANCE"].flatMap(chooseAppearance)
+        let previousAppearance = ProcessInfo.processInfo.environment["LIGHTLY_INK_RESTORE_APPEARANCE"] ?? chosenPrevious
         defer { if let previousAppearance { _ = chooseAppearance(previousAppearance) } }
 
         // The tab: fifth in Effects, None chosen, the stroke controls and the note.
@@ -129,7 +132,7 @@ final class InkDeviceUITests: XCTestCase {
         if grid.waitForExistence(timeout: 20) {
             pause(2)
             shot("15-picker-newest")
-            grid.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.12)).tap()
+            tapNewestPhoto(in: grid)
             _ = app.buttons["tool.develop"].waitForExistence(timeout: 30)
             pause(4)
             shot("16-saved-copy-opened")
@@ -160,7 +163,28 @@ final class InkDeviceUITests: XCTestCase {
         let grid = app.scrollViews["photosView_content_scroll_view"]
         guard grid.waitForExistence(timeout: 20) else { return }
         pause(2)
-        grid.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.12)).tap()
+        // The picker may show its first-use header above the grid (iPhone SE 3, 2026-11-05), so a fixed point can land
+        // on the header: tap the first photo itself when the picker exposes it.
+        tapNewestPhoto(in: grid)
+    }
+
+    /// Taps the top-left photo tile, the newest photo. The picker can show a first-use header or a "Private Access to
+    /// Photos" banner above the grid (iPhone SE 3, 2026-11-05), so a fixed point may land on that instead: pick the
+    /// topmost, then leftmost, hittable photo tile below anything that is not a photo.
+    private func tapNewestPhoto(in grid: XCUIElement) {
+        let tiles = grid.images.matching(NSPredicate(format: "identifier == 'PXGGridLayout-Info'"))
+        var best: XCUIElement?
+        for index in 0..<min(tiles.count, 12) {
+            let tile = tiles.element(boundBy: index)
+            guard tile.isHittable else { continue }
+            if let current = best {
+                let a = tile.frame, b = current.frame
+                if a.minY < b.minY - 2 || (abs(a.minY - b.minY) <= 2 && a.minX < b.minX) { best = tile }
+            } else {
+                best = tile
+            }
+        }
+        if let best { best.tap() } else { grid.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.12)).tap() }
     }
 
     private func element(_ identifier: String) -> XCUIElement { app.descendants(matching: .any)[identifier].firstMatch }
@@ -218,7 +242,14 @@ final class InkDeviceUITests: XCTestCase {
     /// Drags inside the tool panel (below the photo) to scroll its contents.
     private func scrollPanel(up: Bool) {
         let window = app.windows.firstMatch.frame
-        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: window.width * 0.5, dy: window.height * (up ? 0.82 : 0.6)))
+        var y = window.height * (up ? 0.82 : 0.6)
+        // On the small iPhone SE 3 that point lies on the Size slider, so the drag moved the slider (70 → 85) instead of
+        // scrolling the panel (2026-11-05). Start above the slider, on the gallery tiles, which scroll and never select on a drag.
+        let slider = element("slider.size")
+        if slider.exists, slider.frame.insetBy(dx: 0, dy: -12).contains(CGPoint(x: window.width * 0.5, y: y)) {
+            y = slider.frame.minY - 40
+        }
+        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: window.width * 0.5, dy: y))
         start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: up ? -180 : 180)))
         pause(1)
     }
