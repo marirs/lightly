@@ -22,6 +22,7 @@ final class InkDeviceUITests: XCTestCase {
     func testInkOnTheDevice() throws {
         app.terminate()
         app.launch()
+        DeviceOrientationChoice.applyFromEnvironment()
         openFirstPhoto()
         XCTAssertTrue(app.buttons["tool.develop"].waitForExistence(timeout: 30), "editor open")
         pause(3)
@@ -246,10 +247,14 @@ final class InkDeviceUITests: XCTestCase {
         // On the small iPhone SE 3 that point lies on the Size slider, so the drag moved the slider (70 → 85) instead of
         // scrolling the panel (2026-11-05). Start above the slider, on the gallery tiles, which scroll and never select on a drag.
         let slider = element("slider.size")
-        if slider.exists, slider.frame.insetBy(dx: 0, dy: -12).contains(CGPoint(x: window.width * 0.5, y: y)) {
+        if slider.exists, slider.frame.insetBy(dx: 0, dy: -12).contains(CGPoint(x: slider.frame.midX, y: y)) {
             y = slider.frame.minY - 40
         }
-        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: window.width * 0.5, dy: y))
+        // On the iPad's landscape layout the tool panel is the left column and the screen's middle is the photo, where a
+        // drag moves the ink: start over the Ink gallery's column instead (on phones that is the screen's middle too).
+        let gallery = element("effects.ink.gallery")
+        let x = gallery.exists ? gallery.frame.midX : window.width * 0.5
+        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: y))
         start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: up ? -180 : 180)))
         pause(1)
     }
@@ -259,13 +264,16 @@ final class InkDeviceUITests: XCTestCase {
     }
 
     private func shot(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        let screenshot = XCUIScreen.main.screenshot()
+        SimulatorEvidence.save(screenshot, named: name)
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
     }
 
     private func record(_ what: String, _ value: Any?) {
+        SimulatorEvidence.note("\(what): \(value ?? "nil")")
         let attachment = XCTAttachment(string: "\(what): \(value ?? "nil")")
         attachment.name = what
         attachment.lifetime = .keepAlways

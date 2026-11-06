@@ -22,6 +22,7 @@ final class PortraitBorderDeviceUITests: XCTestCase {
     func testSunglassesAndPolaroidOnTheDevice() throws {
         app.terminate()
         app.launch()
+        DeviceOrientationChoice.applyFromEnvironment()
         let environment = ProcessInfo.processInfo.environment
         guard openPhotoWithAFace() else {
             XCTFail("No photo with a detected face among the newest picker tiles")
@@ -254,13 +255,16 @@ final class PortraitBorderDeviceUITests: XCTestCase {
     }
 
     private func shot(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        let screenshot = XCUIScreen.main.screenshot()
+        SimulatorEvidence.save(screenshot, named: name)
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
     }
 
     private func record(_ what: String, _ value: Any?) {
+        SimulatorEvidence.note("\(what): \(value ?? "nil")")
         let attachment = XCTAttachment(string: "\(what): \(value ?? "nil")")
         attachment.name = what
         attachment.lifetime = .keepAlways

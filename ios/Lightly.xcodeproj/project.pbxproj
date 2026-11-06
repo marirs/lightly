@@ -201,6 +201,7 @@
 		8AFB9B90744721FE3714600C /* develop-design-ui.json in Resources */ = {isa = PBXBuildFile; fileRef = C19345599EF03BC686B3EA56 /* develop-design-ui.json */; };
 		8C12973AB782BD36F8645934 /* PresetRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9234D806F0C86FE475798B4 /* PresetRecipe.swift */; };
 		8CBF0D9BBE0C97F82A9AE462 /* Vectipede-Thin.otf in Resources */ = {isa = PBXBuildFile; fileRef = D2DCE28A93208A9CAFE77C75 /* Vectipede-Thin.otf */; };
+		8CCA1A5106648F1E7EA74BF3 /* DeviceOrientationChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE7D8B61830B2009749F768 /* DeviceOrientationChoice.swift */; };
 		8EBFDF448E3310C3F226E17B /* EditorTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E612A25382C38752BDE760B /* EditorTestSupport.swift */; };
 		8F0D4B0A2E8E1661500E9ADE /* LUT3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A2C7B54376BC007C76E30E /* LUT3D.swift */; };
 		8F3617D36A139F521F0CECC0 /* PlayfairDisplay-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8F5C0A395C6FC9AC009A7B7C /* PlayfairDisplay-Variable.ttf */; };
@@ -490,6 +491,7 @@
 		6AF6E09639F56A586169D317 /* sunset_02.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = sunset_02.jpg; sourceTree = "<group>"; };
 		6DE53EB1E9EA9A6AAE8D08CD /* PreviewRenderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRenderScheduler.swift; sourceTree = "<group>"; };
 		6F79284EAF98359739E7CDF3 /* SunglassesAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SunglassesAnalysis.swift; sourceTree = "<group>"; };
+		6FE7D8B61830B2009749F768 /* DeviceOrientationChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceOrientationChoice.swift; sourceTree = "<group>"; };
 		70E5B42B5EF1A7569F113C7B /* Allura-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Allura-Regular.ttf"; sourceTree = "<group>"; };
 		71345F8A9DC3A6EC116B9AEA /* OwnerAmendmentsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerAmendmentsUITests.swift; sourceTree = "<group>"; };
 		7393263518D156823138BF4F /* Montserrat-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Montserrat-Variable.ttf"; sourceTree = "<group>"; };
@@ -1486,6 +1488,7 @@
 				33435199D709F8FA9AFDB6E0 /* AppReviewWalkthroughUITests.swift */,
 				8500BFF4CA6673C1D4DF0396 /* DesignCaptureUITests.swift */,
 				6682272154C3B9D406258B47 /* DeviceDragUITests.swift */,
+				6FE7D8B61830B2009749F768 /* DeviceOrientationChoice.swift */,
 				1176BF82FD88AA1594E84F4E /* EditorCaptureUITests.swift */,
 				D76A7AAE94D2D487DA845CFD /* EditorFlowUITests.swift */,
 				C146C86185FCFBBE6D2F6308 /* ForcedConditionsUITests.swift */,
@@ -1996,6 +1999,7 @@
 				A1C2ADA4A775453A3C00A3B8 /* AppReviewWalkthroughUITests.swift in Sources */,
 				1AE728C94894582F5D5EA239 /* DesignCaptureUITests.swift in Sources */,
 				B4F6BC21A03996F93EC1478F /* DeviceDragUITests.swift in Sources */,
+				8CCA1A5106648F1E7EA74BF3 /* DeviceOrientationChoice.swift in Sources */,
 				DE30A3FA105565852D4DA3DE /* EditorCaptureUITests.swift in Sources */,
 				EFEBB069E41DE8FE7D3954FF /* EditorFlowUITests.swift in Sources */,
 				6BAF8A54F18A920961C6556E /* ForcedConditionsUITests.swift in Sources */,
