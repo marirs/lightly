@@ -8,6 +8,8 @@ import XCTest
 final class PortraitBorderDeviceUITests: XCTestCase {
     private let app = XCUIApplication(bundleIdentifier: "com.lightlylabs.lightly")
     private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    /// Set once this run changes the photo; until then any unsaved edits on screen predate the test.
+    private var editedInThisRun = false
 
     override func setUpWithError() throws {
         guard ProcessInfo.processInfo.environment["LIGHTLY_PORTRAIT_DEVICE_CHECK"] != nil else {
@@ -55,6 +57,7 @@ final class PortraitBorderDeviceUITests: XCTestCase {
         let shown = (0..<pairs.count).map { pairs.element(boundBy: $0) }.filter(\.isHittable)
         for (index, pair) in shown.prefix(2).enumerated() {
             let id = pair.identifier
+            editedInThisRun = true
             pair.tap()
             pause(8)   // the paint-out of existing glasses and the fit run on the device
             record("pair \(index + 1)", "\(id) selected \(pair.isSelected)")
@@ -144,10 +147,18 @@ final class PortraitBorderDeviceUITests: XCTestCase {
         else if app.buttons["editor.close"].exists {
             tap(app.buttons["editor.close"])
             pause(1)
-            // Closing with unsaved edits asks first. The only unsaved edits here are an earlier run's on its test photo
-            // (the original in Photos is never changed), so discard them; any other prompt is left for a person.
-            let discard = element("leave.discard")   // Lightly's own "Leave without saving?" (L2Alert)
-            if discard.waitForExistence(timeout: 3) { discard.tap(); pause(1) }
+            // Closing with unsaved edits asks first (Lightly's own "Leave without saving?", L2Alert). Only edits this run
+            // made may be discarded: edits restored from before the test can be the owner's real work, so keep them and
+            // stop (Codex review, 2026-11-06).
+            if element("leave.discard").waitForExistence(timeout: 3) {
+                guard editedInThisRun else {
+                    tap(element("leave.keep"))
+                    XCTFail("Unsaved edits from before this test are open; left untouched. Save or discard them on the phone, then re-run.")
+                    return false
+                }
+                tap(element("leave.discard"))
+                pause(1)
+            }
         }
         if app.buttons["welcome.choosePhoto"].waitForExistence(timeout: 10) { app.buttons["welcome.choosePhoto"].tap() }
         guard grid.waitForExistence(timeout: 20) else { return false }
