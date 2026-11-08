@@ -29,13 +29,8 @@ import java.util.concurrent.Executors
 /**
  * Production wiring of [EditorEnvironment] for slice 2.
  *
- * Honest about what is missing:
- * - **Auto:** no shippable model (dependency D1): every photo opens with the approved
- *   "Automatic correction isn't available on this device. Presets still work." state.
- * - **Rendering:** the CPU [DevelopRenderer] (core-develop) on the display proxy and, tile by tile,
- *   on the full-resolution decode for Save copy. The GLES path (:core-render-gl) is not wired: it
- *   implements only LUT passes and has not been validated on a GPU (PENDING), while Develop also
- *   needs its spatial operators.
+ * Preview Develop and Effects use the optional GLES compute renderer, retaining the CPU renderer
+ * as the reference and unsupported-device fallback. Full-resolution export remains tiled CPU work.
  * - **Portrait and subjects (D3):** faces, landmarks, people and the person matte come from the MediaPipe
  *   models on LiteRT ([LiteRtVisionModels], docs/v1/android-vision-evaluation.md). Builds without them
  *   use [PendingPersonDetector] and the pending segmenter.
@@ -43,9 +38,9 @@ import java.util.concurrent.Executors
 object AndroidEditorEnvironment {
     private const val LOG_TAG = "LightlyDevelop"
 
-    /** Preview renders run on one thread; their per-pixel work fans out on [workerPool]. */
-    private val renderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-render") }.asCoroutineDispatcher()
-    private val interactiveRenderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-render-interactive") }.asCoroutineDispatcher()
+    /** Render submission has display priority; thumbnails and prefetch remain below visible interaction. */
+    private val renderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread({ android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DISPLAY); runnable.run() }, "lightly-render") }.asCoroutineDispatcher()
+    private val interactiveRenderDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread({ android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DISPLAY); runnable.run() }, "lightly-render-interactive") }.asCoroutineDispatcher()
     private val thumbnailDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-thumbnails").apply { priority = Thread.NORM_PRIORITY - 1 } }.asCoroutineDispatcher()
     private val prefetchDispatcher = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "lightly-prefetch").apply { priority = Thread.MIN_PRIORITY } }.asCoroutineDispatcher()
 
@@ -64,8 +59,8 @@ object AndroidEditorEnvironment {
     private val workerPool = Executors.newFixedThreadPool(parallelism) { runnable -> Thread(runnable, "lightly-develop-worker").apply { isDaemon = true } }
 
     /**
-     * The display proxy's long edge: enough for every approved stage (the largest is a tablet's photo
-     * area), small enough for the CPU spatial operators to finish a committed preview interactively.
+     * Source proxy cap. The editor renders at the fitted physical-pixel footprint when smaller,
+     * and keeps this full source for zoom and source-coordinate tools. Drag and release agree.
      */
     const val PREVIEW_LONG_EDGE_PX = 1600
 
@@ -74,6 +69,7 @@ object AndroidEditorEnvironment {
         private set
 
     fun create(context: Context, screenLongestPx: Int, metadataPolicy: () -> MetadataPolicy, favourites: FavouritesStore, preferredBorder: () -> com.lightlylabs.lightly.prefs.PreferredBorder = { com.lightlylabs.lightly.prefs.PreferredBorder.NONE }): EditorEnvironment {
+        com.lightlylabs.lightly.develop.NativeKernels.hardwareImages = android.os.Build.VERSION.SDK_INT >= 29
         val app = context.applicationContext
         val resolver = app.contentResolver
         val gateway = UriStringGateway(ContentResolverGateway(resolver)).let { if (BuildConfig.DIAGNOSTICS) DebugFaultGateway(it) else it }
@@ -136,7 +132,7 @@ object AndroidEditorEnvironment {
             segmenterModelRef = vision?.subjectMatteModelRef,
             personMatte = { image -> vision?.personSegmenter()?.let { segmenter -> withContext(Dispatchers.Default) { segmenter.segment(image.toVision()) } } },
             library = library,
-            previewRenderer = DevelopRenderer(workerPool, parallelism),
+            previewRenderer = DevelopRenderer(workerPool, parallelism).also { com.lightlylabs.lightly.develop.NativeKernels.load() },
             renderDispatcher = renderDispatcher,
             prefetchDispatcher = prefetchDispatcher,
             interactiveRenderDispatcher = interactiveRenderDispatcher,
@@ -187,6 +183,12 @@ object AndroidEditorEnvironment {
             signatures = signatureStore(app),
             watermarkFonts = WatermarkFonts(app.assets),
             inpainter = lazy { LiteRtLamaInpainter.create(app, com.lightlylabs.lightly.BuildConfig.REMOVE_MODEL_ENABLED) }.let { model -> { model.value } },
+            preparePreviewBitmap = { image ->
+                val buffer=image.backing?.platformHandle as? android.hardware.HardwareBuffer
+                val bitmap=if(buffer!=null && android.os.Build.VERSION.SDK_INT>=29 && image.isOpaque)
+                    android.graphics.Bitmap.wrapHardwareBuffer(buffer,android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB)) else null
+                (bitmap ?: image.toBitmap()).also { it.setHasAlpha(!image.isOpaque); it.prepareToDraw() }
+            },
             onPreviewRendered = { millis, globalOnly -> Log.i(LOG_TAG, "preview ${if (globalOnly) "drag" else "committed"}: ${"%.1f".format(millis)} ms") },
             newImageSpec = { _ -> NewImageSpec(displayName = "Lightly_${System.currentTimeMillis()}.jpg", metadataPolicy = metadataPolicy()) },
         )

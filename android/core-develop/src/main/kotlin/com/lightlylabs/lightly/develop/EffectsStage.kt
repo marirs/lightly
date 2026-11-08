@@ -58,7 +58,7 @@ data class EffectsParams(
  * Develop Amount (DevelopRenderPlan); the person's effects are not scaled. Vignette and grain are the
  * revision-1 operators of [FinishingPass] (the same code the preset's finishing has always used).
  */
-class EffectsStage(effects: EffectsParams, presetFinishing: FinishingRecipe, model: DevelopModel, private val frameWidth: Int, private val frameHeight: Int) {
+class EffectsStage(private val effects: EffectsParams, presetFinishing: FinishingRecipe, private val model: DevelopModel, private val frameWidth: Int, private val frameHeight: Int) {
     private val ink: InkOverlay? = effects.ink?.let { InkOverlay.of(it, frameWidth, frameHeight) }
     private val leak: LeakOverlay? = leakOverlay(effects, frameWidth, frameHeight)
     // After the leak, so a coloured leak does not bring colour back (rendering-v2 revision 4).
@@ -73,7 +73,7 @@ class EffectsStage(effects: EffectsParams, presetFinishing: FinishingRecipe, mod
     /** Applies the stage to rgb (sRGB-encoded, [0, 1]) at frame pixel (x, y). [work] holds ≥ 6 doubles. */
     fun apply(rgb: FloatArray, x: Int, y: Int, work: DoubleArray) {
         ink?.apply(rgb, x, y)
-        leak?.apply(rgb, x, y)
+        if (leak is LightLeak) leak.apply(rgb, x, y, work) else leak?.apply(rgb, x, y)
         selectiveColour?.apply(rgb, work)
         presetVignette?.apply(rgb, x, y, work)
         userVignette?.apply(rgb, x, y, work)
@@ -82,18 +82,70 @@ class EffectsStage(effects: EffectsParams, presetFinishing: FinishingRecipe, mod
     }
 
     /** The whole frame, or a tile of it at ([originX], [originY]) of a frameWidth × frameHeight frame. */
-    fun apply(image: Rgba8Image, originX: Int = 0, originY: Int = 0): Rgba8Image {
+    fun apply(image: Rgba8Image, originX: Int = 0, originY: Int = 0, renderer: DevelopRenderer? = null): Rgba8Image {
         if (isEmpty) return image
-        val out = image.pixels.copyOf()
-        val rgb = FloatArray(3)
-        val work = DoubleArray(6)
-        for (row in 0 until image.height) for (column in 0 until image.width) {
-            val o = (row * image.width + column) * 4
-            for (c in 0 until 3) rgb[c] = (out[o + c].toInt() and 0xff) / 255f
-            apply(rgb, originX + column, originY + row, work)
-            for (c in 0 until 3) out[o + c] = DevelopRenderer.encode(rgb[c])
+        if (NativeKernels.canRender(image.width,image.height) && renderer != null && originX == 0 && originY == 0 && image.width == frameWidth && image.height == frameHeight) return nativeRender(image, renderer)
+        if (renderer != null && originX == 0 && originY == 0 && image.width == frameWidth && image.height == frameHeight) {
+            listOfNotNull(presetVignette, userVignette, presetGrain, userGrain).forEach { it.prepare(renderer) }
         }
+        val out = image.pixels.copyOf()
+        val rows: (Int, Int) -> Unit = { first, end ->
+            val rgb = FloatArray(3)
+            val work = DoubleArray(6)
+            for (row in first until end) for (column in 0 until image.width) {
+                val o = (row * image.width + column) * 4
+                for (c in 0 until 3) rgb[c] = (out[o + c].toInt() and 0xff) / 255f
+                apply(rgb, originX + column, originY + row, work)
+                for (c in 0 until 3) out[o + c] = DevelopRenderer.encode(rgb[c])
+            }
+        }
+        if (renderer == null) rows(0, image.height) else renderer.parallelRows(image.height, rows)
         return Rgba8Image(image.width, image.height, out)
+    }
+
+    /** Same quantized Develop → Effects order, in one GPU dispatch chain. */
+    fun applyAfterDevelop(image: Rgba8Image, renderer: DevelopRenderer, develop: DevelopRenderPlan): Rgba8Image? {
+        if (!NativeKernels.canRender(image.width,image.height) || develop.isIdentity) return null
+        return nativeRender(image,renderer,develop,quantizeDevelop=true)
+    }
+
+    internal fun nativeRender(image: Rgba8Image, renderer: DevelopRenderer, develop: DevelopRenderPlan? = null, quantizeDevelop: Boolean = false): Rgba8Image {
+        val p = DoubleArray(96 + effects.selectiveColours.size * 3)
+        // All stages preserve alpha. An opaque source needs no per-pixel alpha readback in the GPU shader.
+        p[63] = if (image.isOpaque) 1.0 else 0.0
+        if (effects.leakEnabled && effects.leakIntensity > 0) {
+            p[0] = when { effects.leakStyle.startsWith("leak-") -> if (effects.leakImage != null) 5.0 else 0.0
+                effects.leakStyle == "amber" -> 2.0; effects.leakStyle == "rose" -> 3.0; effects.leakStyle == "prism" -> 4.0; else -> 1.0 }
+            p[1] = effects.leakIntensity; p[2] = effects.leakX; p[3] = effects.leakY; p[4] = effects.leakRotation
+            p[5] = effects.leakImage?.width?.toDouble() ?: 0.0; p[6] = effects.leakImage?.height?.toDouble() ?: 0.0
+        }
+        p[7] = effects.selectiveRange; p[8] = effects.selectiveStrength; p[9] = effects.selectiveColours.size.toDouble()
+        effects.selectiveColours.forEachIndexed { i, c -> p[64+i*3]=c.lightness; p[65+i*3]=c.a; p[66+i*3]=c.b }
+        effects.ink?.let { ink ->
+            val stroke = ink.kind == InkKind.STROKE
+            val quarter = frameHeight > frameWidth
+            val iw = if (quarter) ink.image.height else ink.image.width
+            val ih = if (quarter) ink.image.width else ink.image.height
+            p[10] = if (stroke) 1.0 else 2.0
+            p[11] = if (stroke) ink.x / 100 * frameWidth else frameWidth / 2.0
+            p[12] = if (stroke) ink.y / 100 * frameHeight else frameHeight / 2.0
+            p[13] = if (stroke) ink.size / 100 * 0.88 * min(frameWidth.toDouble()/iw, frameHeight.toDouble()/ih) else max(frameWidth.toDouble()/iw, frameHeight.toDouble()/ih)
+            val theta = Math.toRadians(ink.rotation) + if (quarter) PI/2 else 0.0
+            p[14]=cos(theta); p[15]=sin(theta)
+            val paper = InkOverlay.colour(ink.paper); for (c in 0..2) p[16+c]=paper[c].toDouble()
+            p[19]=(ink.intensity.coerceIn(0.0,100.0)/100).toFloat().toDouble()
+            p[20]=ink.image.width.toDouble(); p[21]=ink.image.height.toDouble()
+        }
+        val passes = listOf(presetVignette, userVignette, presetGrain, userGrain)
+        passes.forEachIndexed { i, pass -> pass?.nativeParameters(p,32+i*5,64+effects.selectiveColours.size*3+i*8) }
+        val matrices = ColourMath.M1 + ColourMath.M2 + ColourMath.M1_INV + ColourMath.M2_INV
+        if(develop!=null) {
+            val result=NativeKernels.develop(image,develop,p,matrices,quantizeDevelop,effects.leakImage?.pixels,effects.ink?.image?.grey)
+            if(result!=null)return result
+            return NativeKernels.reference { renderer.render(image,develop).let { if(quantizeDevelop) apply(it,renderer=renderer) else it } }
+        }
+        val result=NativeKernels.finish(image,p,effects.leakImage?.pixels,effects.ink?.image?.grey,matrices)
+        return if(result!=null) result else NativeKernels.reference { apply(image,renderer=renderer) }
     }
 
     companion object {
@@ -132,6 +184,8 @@ internal class LightLeak private constructor(
     private val extent: Double, private val cosine: Double, private val sine: Double,
     private val coreAlpha: Double, private val ringAlpha: Double, private val style: String,
 ) : LeakOverlay {
+    private val baseColours = colours(style)
+
     /** Farthest-corner distance R (px): the gradient ray the stops are fractions of. */
     val farthestCorner: Double get() = extent
 
@@ -149,7 +203,7 @@ internal class LightLeak private constructor(
         val dy = qy - centreY
         val t = sqrt(dx * dx + dy * dy) / extent
         if (t >= END_STOP) return false
-        var (core, ring) = colours(style)
+        var (core, ring) = baseColours
         if (style == "prism") {
             val hue = atan2(dy, dx) * 180 / PI
             core = prismColour(hue)
@@ -168,7 +222,10 @@ internal class LightLeak private constructor(
     }
 
     override fun apply(rgb: FloatArray, x: Int, y: Int) {
-        val premultiplied = DoubleArray(3)
+        apply(rgb, x, y, DoubleArray(3))
+    }
+
+    fun apply(rgb: FloatArray, x: Int, y: Int, premultiplied: DoubleArray) {
         if (!overlay(x, y, premultiplied)) return
         for (c in 0 until 3) {
             // Screen with source alpha: Cb + α·Cs·(1 − Cb).

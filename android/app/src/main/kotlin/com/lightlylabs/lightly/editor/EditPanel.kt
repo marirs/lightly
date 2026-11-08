@@ -1,5 +1,10 @@
 package com.lightlylabs.lightly.editor
 
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+
 import androidx.compose.foundation.layout.Arrangement
 
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -234,7 +239,8 @@ private fun InkBody(vm: EditorViewModel, ui: EditorUiState, ink: com.lightlylabs
 
 @Composable
 private fun InkSlider(vm: EditorViewModel, ui: EditorUiState, label: String, field: String, committed: Double, min: Double, max: Double) {
-    val drag = ui.effects.sliderDrag?.takeIf { it.first == field }?.second
+    val changes = remember(vm, field) { vm.uiState.map { it.effects.sliderDrag?.takeIf { drag -> drag.first == field }?.second }.distinctUntilChanged() }
+    val drag by changes.collectAsStateWithLifecycle(initialValue = ui.effects.sliderDrag?.takeIf { it.first == field }?.second)
     SliderRow(label, drag ?: committed, min, max, onDrag = { vm.onInkSlider(field, it, release = false) },
         onRelease = { vm.onInkSlider(field, it, release = true) }, tag = "effects-slider-$field")
 }
@@ -324,7 +330,8 @@ private fun displayColour(oklab: List<Double>): androidx.compose.ui.graphics.Col
 
 @Composable
 private fun EffectsSlider(vm: EditorViewModel, ui: EditorUiState, label: String, field: String, committed: Double, min: Double, max: Double) {
-    val drag = ui.effects.sliderDrag?.takeIf { it.first == field }?.second
+    val changes = remember(vm, field) { vm.uiState.map { it.effects.sliderDrag?.takeIf { drag -> drag.first == field }?.second }.distinctUntilChanged() }
+    val drag by changes.collectAsStateWithLifecycle(initialValue = ui.effects.sliderDrag?.takeIf { it.first == field }?.second)
     val fx = ui.session?.current?.tools?.effects
     val shown = when {
         field == "leakIntensity" && fx?.lightLeak?.enabled != true -> 0.0

@@ -62,13 +62,13 @@ enum class EditorOverlay { FAVOURITE_REPLACE, SAVING, SAVED, LEAVE, EXPORT_FAILE
 private data class PreviewRequest(
     val state: EditState?,
     val globalOnly: Boolean,
-    /** A preset tap's first frame: the plan's colour (global) stages only, shown at once while the full render runs. */
-    val colourOnly: Boolean = false,
     /**
      * A Text gesture or control in motion: only the text layers differ from the last full render, so the frame before
      * stage 11 is reused when it matches (the same stage-11 code then draws the text). Commits always render in full.
      */
     val textOnly: Boolean = false,
+    /** Warm the unchanged pre-effects image on entering Effects, before a finger starts moving. */
+    val prepareEffectsInput: Boolean = false,
 )
 
 data class EditorUiState(
@@ -88,6 +88,8 @@ data class EditorUiState(
     /** The decoded display proxy (the original) and the latest published render of the edit. */
     val original: Rgba8Image? = null,
     val preview: Rgba8Image? = null,
+    /** Prepared off the UI thread and published atomically with [preview]. */
+    val previewBitmap: android.graphics.Bitmap? = null,
     /**
      * The preview could not render the current edit, also on its one retry: [preview] is an earlier edit's frame. Cleared
      * by the next frame that renders. Not shown yet: its notice awaits the owner's approval of the copy (2026-10-06).
@@ -137,7 +139,8 @@ class EditorViewModel(
     private class CurrentPhoto(val generation: Long, val loaded: LoadedPhoto)
 
     private var photo: CurrentPhoto? = null
-    private var scheduler: RenderScheduler<PreviewRequest, Rgba8Image>? = null
+    private data class PreviewFrame(val pixels: Rgba8Image, val bitmap: android.graphics.Bitmap?)
+    private var scheduler: RenderScheduler<PreviewRequest, PreviewFrame>? = null
     private var schedulerCollector: Job? = null
     private var loadJob: Job? = null
     private var prefetchJob: Job? = null
@@ -213,6 +216,9 @@ class EditorViewModel(
         val previousAsset = savedState.get<String>(KEY_ASSET)
         synchronized(thumbnailCache) { thumbnailCache.clear() }   // another photo's thumbnails are never shown again
         frameBeforeText = null   // another photo's frame is never reused for Text's moving frames
+        effectsInputCache = null
+        viewportSource = null
+        previewFootprint = 0
         env.photoAccess.retain(assetId)
         if (previousAsset != null && previousAsset != assetId) env.photoAccess.release(previousAsset)
         savedState[KEY_ASSET] = assetId
@@ -405,6 +411,9 @@ class EditorViewModel(
         refreshAfterCropEditingChange(wasCropEditing)
         if (tool == EditorTool.BORDER) openBorderOnPreferredType()
         if (tool == EditorTool.BACKGROUND && state.value.separation == SeparationState.NotStarted) startSeparation()
+        if (tool == EditorTool.EFFECTS) state.value.session?.let {
+            requestPreview(it.current, globalOnly = false, prepareEffectsInput = true)
+        }
     }
 
     /** Depth is needed by Focus & Blur, and by a blur on a photo with no clear subject; nothing else starts it. */
@@ -1220,6 +1229,34 @@ class EditorViewModel(
     // --- On-screen sizes (W1 and blur defects; PROVISIONAL sizing policy) ---------------------------
 
     /** The displayed photo's box (inside any border) on the stage, in dp, as last laid out. */
+    @Volatile private var previewFootprint = 0
+    private var viewportSource: Pair<List<Any>, Rgba8Image>? = null
+
+    /** Physical pixels occupied by the fitted photo, never a drag-only quality setting. */
+    fun onPreviewFootprint(longEdgePx: Float, zoomed: Boolean) {
+        if (!longEdgePx.isFinite() || longEdgePx <= 0f) return
+        val target = if (zoomed) Int.MAX_VALUE else ((kotlin.math.ceil(longEdgePx / 32).toInt()) * 32).coerceAtLeast(32)
+        if (previewFootprint == target) return
+        previewFootprint = target
+        lastPreviewRequest?.let { (edit, moving) -> requestPreview(edit, moving) }
+    }
+
+    private fun previewSource(original: Rgba8Image, edit: EditState): Rgba8Image {
+        val target = previewFootprint
+        // Geometry, removal and subject analysis retain their established source coordinate system.
+        if (target <= 0 || target >= maxOf(original.width, original.height) ||
+            !EditMapping.geometry(edit).isIdentity || !EditMapping.border(edit).isNone || EditMapping.patchDigests(edit).isNotEmpty() ||
+            usesHeavyStages(edit) || isCropEditing()) return original
+        val key = listOf(original, target)
+        synchronized(this) {
+            viewportSource?.takeIf { it.first == key }?.let { return it.second }
+            val scale = target.toDouble() / maxOf(original.width, original.height)
+            val result = BackgroundSession.resize(original, kotlin.math.ceil(original.width * scale).toInt(), kotlin.math.ceil(original.height * scale).toInt())
+            viewportSource = key to result
+            return result
+        }
+    }
+
     data class StagePhoto(val shortDp: Float, val longDp: Float)
 
     @Volatile private var stagePhoto: StagePhoto? = null
@@ -1975,7 +2012,7 @@ class EditorViewModel(
         val session = state.value.session ?: return
         val look = preset?.let { LookRef(it.id, it.lookVersion, (state.value.rememberedAmounts[it.id] ?: 100) / 100f) }
         state.update { it.copy(develop = it.develop.copy(startsAtFirst = false, dragStop = null)) }
-        commit(session.selectLook(look), state.value.auto, fastFirst = true)
+        commit(session.selectLook(look), state.value.auto)
     }
 
     /**
@@ -1998,8 +2035,11 @@ class EditorViewModel(
             val edit = current.copy(look = preset?.let { LookRef(it.id,it.lookVersion,1f) })
             val patched = RemoveEngine.composite(EditMapping.patchDigests(edit).mapNotNull { removePatches[it] }, small)
             val plan = planOf(library, edit, lutDimension = DevelopLibrary.THUMBNAIL_DIMENSION)
-            val result = EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library), leaks = env.leaks, inks = env.inks)
-                .renderPreview(patched, edit, plan, sourceStages(edit,library,200))
+            // Tiny background thumbnails must not replace the full photo's resident GPU buffers.
+            val result = com.lightlylabs.lightly.develop.NativeKernels.reference {
+                EditPipeline(library.model, env.previewRenderer, watermark = watermarkPainter(edit,library), leaks = env.leaks, inks = env.inks)
+                    .renderPreview(patched, edit, plan, sourceStages(edit,library,200))
+            }
             synchronized(thumbnailCache) { thumbnailCache[key] = result }
             result
         }
@@ -2029,7 +2069,9 @@ class EditorViewModel(
                 com.lightlylabs.lightly.session.SourceFingerprint("0".repeat(64), 0, small.width, small.height), orientation = 1)
             val edit = EditState.initial(source, noModelAuto()).copy(look = LookRef(preset.id, preset.lookVersion, 1f))
             val plan = library.planFor(edit, lutDimension = DevelopLibrary.THUMBNAIL_DIMENSION)
-            val result = EditPipeline(library.model, env.previewRenderer, leaks = env.leaks, inks = env.inks).renderPreview(small, edit, plan, null)
+            val result = com.lightlylabs.lightly.develop.NativeKernels.reference {
+                EditPipeline(library.model, env.previewRenderer, leaks = env.leaks, inks = env.inks).renderPreview(small, edit, plan, null)
+            }
             sampleThumbnailCache[preset.lookVersion] = result
             result
         }
@@ -2040,7 +2082,7 @@ class EditorViewModel(
         val session = state.value.session ?: return
         val look = lookAt(model, model.stop) ?: return
         state.update { it.copy(develop = it.develop.copy(startsAtFirst = false)) }
-        commit(session.selectLook(look), state.value.auto, fastFirst = true)
+        commit(session.selectLook(look), state.value.auto)
     }
 
     fun clearPreset() {
@@ -2071,7 +2113,7 @@ class EditorViewModel(
             return
         }
         state.update { it.copy(develop = it.develop.copy(startsAtFirst = false)) }
-        commit(session.selectLook(look), state.value.auto, fastFirst = true)
+        commit(session.selectLook(look), state.value.auto)
     }
 
     /**
@@ -2133,6 +2175,7 @@ class EditorViewModel(
         val session = state.value.session ?: return
         val look = session.current.look ?: return
         val value = amount.coerceIn(0, 100)
+        if (state.value.develop.amountDrag == value) return
         state.update { it.copy(develop = it.develop.copy(amountDrag = value)) }
         requestPreview(session.current.copy(look = look.copy(strength = value / 100f)), globalOnly = true)
     }
@@ -2154,14 +2197,14 @@ class EditorViewModel(
         // Browsing returns to the applied preset's category (owner amendment 2026-10-05: browsed tab, dot and photo agree).
         // An unapplied crop frame is dropped: the applied crop it was drawn against has changed.
         state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null), edit = it.edit.copy(cropDraft = null)) }
-        commit(session, autoStateOf(session.current.auto), fastFirst = true)
+        commit(session, autoStateOf(session.current.auto))
         logRuler("history")
     }
 
     fun redo() {
         val session = state.value.session?.takeIf { it.canRedo }?.redo() ?: return
         state.update { it.copy(develop = it.develop.copy(dragStop = null, dragStart = null, amountDrag = null, category = null), edit = it.edit.copy(cropDraft = null)) }
-        commit(session, autoStateOf(session.current.auto), fastFirst = true)
+        commit(session, autoStateOf(session.current.auto))
         logRuler("history")
     }
 
@@ -2477,44 +2520,26 @@ class EditorViewModel(
         }
     }
 
-    /**
-     * [fastFirst] (Undo, Redo, ruler release, 2026-10-06): a quick interactive-quality frame of the new state first, so
-     * the photo agrees with the name row at once; the full frame follows. Without it the previous look stayed on screen
-     * for the whole settled render (about 3 s on the CPU emulator) while the name row already showed the new one.
-     */
-    private fun commit(session: EditSession, auto: AutoState, fastFirst: Boolean = false) {
+    /** Commit one complete rendering recipe; never flash a colour-only intermediate. */
+    private fun commit(session: EditSession, auto: AutoState) {
         if (!committingPick) editEpoch++
         savedState[KEY_SESSION] = SavedEdits.encodeEditSession(session)
         state.update { it.copy(session = session, auto = auto) }
-        if (fastFirst) requestColourOnlyFrame(session.current)
         requestPreview(session.current, globalOnly = false)
-    }
-
-    /**
-     * A preset tap shows its colours at once (owner report 2026-10-11: about a second before the photo changed on a
-     * landscape photo). The full render runs the spatial stages (clarity, sharpening, noise reduction) on the CPU,
-     * 1.2-1.8 s at 1600x1067 on the motorola edge 60; the colour stages alone take ~70 ms. This frame runs on the
-     * interactive lane and the full render, submitted right after, replaces it. Skipped when Background, Portrait,
-     * Edit or Effects are in use: their stages are not part of a colour-only frame, so it would show them missing.
-     */
-    private fun requestColourOnlyFrame(edit: EditState) {
-        if (exportRunning || isCropEditing() || usesHeavyStages(edit) || EditMapping.usesEditOrEffects(edit)) return
-        scheduler?.submit(PreviewRequest(edit, globalOnly = true, colourOnly = true))
     }
 
     /**
      * The last developed proxy (the Look and Auto on the display proxy, before Background and Portrait). A Portrait or
      * Background slider frame changes neither, so it reuses this instead of re-running the develop stages: with
      * clarity, sharpening or noise reduction they took 0.7-1.9 s per frame on the motorola edge 60 (owner report
-     * 2026-10-11: Portrait edits slow to show). The key is the source image's identity, the Look, Auto and the
-     * colour-only flag, so any change to what develop reads renders again. One entry; both render lanes share it.
+     * 2026-10-11: Portrait edits slow to show). The key is the source image's identity, the Look, Auto and the Auto LUT, so any change to what develop reads renders again. One entry; both render lanes share it.
      */
     private class DevelopedCache {
         private var key: Any? = null
         private var image: Rgba8Image? = null
 
-        fun getOrRender(source: Rgba8Image, edit: EditState, colourOnly: Boolean, autoLut: Any?, render: () -> Rgba8Image): Rgba8Image {
-            val wanted = listOf(System.identityHashCode(source), source.width, source.height, edit.look, edit.auto, colourOnly, System.identityHashCode(autoLut))
+        fun getOrRender(source: Rgba8Image, edit: EditState, autoLut: Any?, render: () -> Rgba8Image): Rgba8Image {
+            val wanted = listOf(System.identityHashCode(source), source.width, source.height, edit.look, edit.auto, System.identityHashCode(autoLut))
             synchronized(this) { if (key == wanted) image?.let { return it } }
             val rendered = render()
             synchronized(this) { key = wanted; image = rendered }
@@ -2523,24 +2548,27 @@ class EditorViewModel(
     }
 
     private val developedCache = DevelopedCache()
+    // One full-resolution intermediate; effect changes do not repeat Develop, Adjust or geometry.
+    // Include asynchronous Background/Portrait analyses so completed masks or meshes invalidate it.
+    @Volatile private var effectsInputCache: Pair<List<Any?>, Rgba8Image>? = null
 
     /**
      * The last full render's frame before stage 11, keyed by its recipe without text layers (one entry). Only Text's
-     * moving frames read it; a commit always renders every stage again, so an analysis that arrived meanwhile is never
-     * missed in a settled frame.
+     * moving frames and identical settled recipes reuse it. The key includes asynchronous rendering inputs,
+     * so newly completed analysis invalidates the cached frame.
      */
-    @Volatile private var frameBeforeText: Pair<EditState, Rgba8Image>? = null
+    @Volatile private var frameBeforeText: Pair<List<Any?>, Rgba8Image>? = null
 
     private object FrameBeforeText {
         fun keyOf(edit: EditState): EditState = edit.copy(revision = 0, tools = edit.tools.copy(text = com.lightlylabs.lightly.session.TextTool(emptyList())))
     }
 
     private fun startPreviewScheduler(loaded: LoadedPhoto, generation: Long) {
-        val display = loaded.display
-        // The drag preview renders a half-size copy (a quarter of the pixels); committed previews use the full proxy.
+        val original = loaded.display
+        // Dragging and committed frames use the same source resolution and complete recipe.
         val newScheduler = RenderScheduler(
             sessionId = "photo-$generation",
-            renderer = PreviewRenderer<PreviewRequest, Rgba8Image> { request ->
+            renderer = PreviewRenderer<PreviewRequest, PreviewFrame> { request ->
                 env.beforePreviewRender()
                 // Stops a superseded render between Background stages and layers (CPU work does not see cancellation).
                 val renderJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
@@ -2548,40 +2576,58 @@ class EditorViewModel(
                 // The develop renderer stops between row chunks too (a settled develop is 3-5 s on the emulator).
                 val renderer = env.previewRenderer.cancellable { renderJob?.isActive == false }
                 val library = env.library.await()
-                val edit = request.payload.state ?: return@PreviewRenderer display
+                val edit = request.payload.state ?: return@PreviewRenderer PreviewFrame(original, env.preparePreviewBitmap(original))
+                val display = previewSource(original, edit)
                 val start = System.nanoTime()
-                val plan = planOf(library, edit, globalOnly = request.payload.colourOnly)
+                val plan = planOf(library, edit)
                 // Interaction priority must not change pixels: use the same plan, source and Background cap
                 // during the drag and after release. Otherwise grain, sharpness and subject edges jump.
                 val backgroundCap = BackgroundSession.SETTLED_CAP
                 val backgroundPlan = backgroundSession.planFor(edit.tools.background, { plan }, renderer,
                     maxBlurFraction(edit), backgroundCap)
-                val image = if (EditMapping.usesEditOrEffects(edit)) {
+                val image = if (EditMapping.usesEditOrEffects(edit) || request.payload.prepareEffectsInput) {
                     // Slice 4: every stage on the full proxy (Remove patches are in display coordinates).
                     val pipeline = EditPipeline(library.model, renderer, watermark = watermarkPainter(edit, library), text = TextStage(env.watermarkFonts), leaks = env.leaks, inks = env.inks)
-                    val textlessKey = FrameBeforeText.keyOf(edit)
-                    val reusable = frameBeforeText?.takeIf { request.payload.textOnly && it.first == textlessKey }?.second
-                    val frame = reusable ?: pipeline.renderFrameBeforeText(patched(display, edit), edit, plan, sourceStages(edit, library, backgroundCap))
-                        .also { if (!request.payload.colourOnly) frameBeforeText = textlessKey to it }
+                    val textlessKey = listOf(display, FrameBeforeText.keyOf(edit), autoLut, backgroundSession.analysis, portraitSession.renderInputs)
+                    val reusable = frameBeforeText?.takeIf { it.first == textlessKey && !request.payload.prepareEffectsInput }?.second
+                    val frame = reusable ?: run {
+                        val inputStarted = System.nanoTime()
+                        val key = listOf(display, edit.auto, edit.look, edit.tools.edit, autoLut,
+                            edit.tools.background, edit.tools.portrait, backgroundSession.analysis, portraitSession.renderInputs)
+                        val cachedInput = effectsInputCache?.takeIf { it.first == key }?.second
+                        val stages = sourceStages(edit, library, backgroundCap)
+                        // Preset movement and release use the same fused path, including exact
+                        // intermediate RGBA quantization. Effects controls populate their input
+                        // cache once instead of forcing every preset release through two renders.
+                        val combined = if(cachedInput == null &&
+                            (request.payload.globalOnly || state.value.tool == EditorTool.DEVELOP))
+                            pipeline.combinedDevelopEffects(patched(display,edit),edit,plan,stages) else null
+                        combined ?: run {
+                            val input = cachedInput ?: pipeline.frameBeforeEffects(patched(display, edit), edit, plan, stages)
+                                .also { effectsInputCache = key to it }
+                            // Developing a cold input can span most of a fast slider sweep. Keep
+                            // that reusable input, but finish with the newest requested effect
+                            // value instead of flashing the old touch-down value onto the photo.
+                            if (cachedInput == null) scheduler?.checkpointAfterWarmup(request.revision)
+                            val effectsStarted = System.nanoTime()
+                            pipeline.applyEffects(input, edit, plan).also {
+                                if (env.debugBuild) runCatching { android.util.Log.i("LightlyDevelop", "preview stages input=${(effectsStarted - inputStarted) / 1_000_000}ms effects=${(System.nanoTime() - effectsStarted) / 1_000_000}ms") }
+                            }
+                        }
+                    }
+                        .also { frameBeforeText = textlessKey to it }
                     pipeline.finishPreview(frame, edit)
                 } else {
                     // With Background active the drag preview keeps the full proxy: the stage works at the analysis size.
                     // Portrait works on the full proxy too: its regions come from landmarks at that size.
                     val portraitActive = portraitSession.isActive(edit.tools.portrait)
-                    // A Background drag frame starts from the half-size proxy too (2026-10-06): it is the working size
-                    // already, so the Look runs on a quarter of the pixels and no resize follows.
                     val source = display
-                        val tDevelop = System.nanoTime()
-                    val developed = if (plan.isIdentity) source else developedCache.getOrRender(source, edit, request.payload.colourOnly, autoLut) { renderer.render(source, plan) }
+                    val tDevelop = System.nanoTime()
+                    val developed = if (plan.isIdentity) source else developedCache.getOrRender(source, edit, autoLut) { renderer.render(source, plan) }
                     backgroundSession.stageTiming?.invoke("develop ${source.width}x${source.height}=${"%.0f".format((System.nanoTime() - tDevelop) / 1e6)}ms globalOnly=${request.payload.globalOnly}")
                     checkpoint()
-                    // A moving control's Background frame (2026-10-06): the Look on the half-size proxy, then Background
-                    // in pipeline order, with the blurred scene at DRAG_CAP and the composite at the proxy's size, so the
-                    // subject keeps the detail every drag frame has. Drag frames earlier applied the dragged Look on top
-                    // of a cached Background composite; grading and blur do not commute, and on release the
-                    // background's colour and banding and the subject's edge changed visibly (mean ΔE 4-6 in the
-                    // background; experiments/android-vision/work/drag-order). (Portrait's regions are in display
-                    // coordinates, so a Portrait-active frame stays full size.)
+                    // Preserve stage order and resolution while moving: grading and background blur do not
+                    // commute, so reordering them for a fast intermediate makes the release visibly jump.
                     val backgroundFrame = developed
                     val composed = if (backgroundPlan == null) developed else backgroundSession.render(backgroundFrame, backgroundPlan, com.lightlylabs.lightly.background.Refocus.FocusConstants.LAYERS_PER_SIDE_PREVIEW, edit.tools.background, backgroundCap, checkpoint)
                     if (portraitActive) {
@@ -2591,10 +2637,11 @@ class EditorViewModel(
                         }
                     } else composed
                 }
+                val frame = PreviewFrame(image, env.preparePreviewBitmap(image))
                 val millis = (System.nanoTime() - start) / 1e6
                 renderMillis += millis
                 env.onPreviewRendered(millis, request.payload.globalOnly)
-                image
+                frame
             },
             parentScope = scope,
             renderDispatcher = env.renderDispatcher,
@@ -2626,7 +2673,7 @@ class EditorViewModel(
                 val rendered = (result?.outcome as? RenderOutcome.Rendered)?.value ?: return@collect
                 if (result.sessionId == "photo-$photoGeneration") {
                     retriedPreview = null
-                    state.update { it.copy(preview = rendered, previewFailed = false, text = textAfterPublishing(it.text, result.revision)) }
+                    state.update { it.copy(preview = rendered.pixels, previewBitmap = rendered.bitmap, previewFailed = false, text = textAfterPublishing(it.text, result.revision)) }
                     prepareDragReplacement()
                     publishedRevision = result.revision
                     // Time from the first movement of a ruler drag to the first frame of that drag on screen.
@@ -2640,7 +2687,7 @@ class EditorViewModel(
     }
 
     /** Latest-wins: every call replaces the pending request; at most one render is in flight. */
-    private fun requestPreview(edit: EditState, globalOnly: Boolean, textOnly: Boolean = false) {
+    private fun requestPreview(edit: EditState, globalOnly: Boolean, textOnly: Boolean = false, prepareEffectsInput: Boolean = false) {
         // A preview of an uncommitted edit is a control moving (a slider, a drag) before it commits: a pick still
         // sampling is stale from this moment, or it would land mid-drag and replace the preview with committed values.
         if (edit != state.value.session?.current) editEpoch++
@@ -2657,7 +2704,7 @@ class EditorViewModel(
         }
         // Free crop (owner amendment 2026-10-05): while Edit › Crop is open the preview is the straightened frame uncropped.
         val shown = if (isCropEditing()) uncroppedForCropEditor(edit) else edit
-        requestedRevision = scheduler?.submit(PreviewRequest(shown, globalOnly, textOnly = textOnly)) ?: requestedRevision
+        requestedRevision = scheduler?.submit(PreviewRequest(shown, globalOnly, textOnly = textOnly, prepareEffectsInput = prepareEffectsInput)) ?: requestedRevision
     }
 
     private var lastPreviewRequest: Pair<EditState, Boolean>? = null

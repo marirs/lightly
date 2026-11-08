@@ -112,6 +112,17 @@ class RenderScheduler<P : Any, R : Any>(
     val latestRequestedRevision: Long get() = synchronized(lock) { lastIssuedRevision }
 
     /**
+     * A renderer may populate reusable inputs before drawing an interactive frame. Once that
+     * cold work finishes, restart from the latest request rather than display its stale value.
+     * Call only after warming a cache: ordinary superseded frames must still publish during
+     * continuous dragging, otherwise a busy control would freeze the preview indefinitely.
+     */
+    fun checkpointAfterWarmup(revision: Long) = synchronized(lock) {
+        if (closed || revision < lastIssuedRevision || revision <= cancelledThroughRevision)
+            throw CancellationException("Warm input ready; render latest preview instead of revision $revision")
+    }
+
+    /**
      * Requests a preview of [payload] and returns its revision. Never suspends: called from the UI
      * thread on every slider step.
      */

@@ -48,6 +48,25 @@ class EditorViewModelTest {
 
     private fun image(width: Int, height: Int, seed: Int) = Rgba8Image(width, height, ByteArray(width * height * 4) { i -> if (i % 4 == 3) -1 else ((i * 37 + seed * 11) % 251).toByte() })
 
+    @Test fun photoPublicationsDoNotInvalidateControlsButGeometryAndEditingStateDo() {
+        val first = EditorUiState(phase = EditorPhase.Ready, preview = image(24, 16, 1))
+        assertTrue(sameEditorControls(first, first.copy(preview = image(24, 16, 2))))
+        assertTrue(sameEditorControls(first, first.copy(develop = first.develop.copy(amountDrag = 42))))
+        val effects = first.copy(tool = EditorTool.EFFECTS)
+        assertTrue(sameEditorControls(effects, effects.copy(effects = effects.effects.copy(sliderDrag = "grainAmount" to 42.0))))
+        assertTrue(sameEditorControls(effects, effects.copy(preview = image(24, 16, 2))))
+        val ink = effects.copy(effects = effects.effects.copy(sub = EffectsSub.INK))
+        assertFalse(sameEditorControls(ink, ink.copy(preview = image(24, 16, 2))))
+        assertFalse(sameEditorControls(effects, effects.copy(preview = image(16, 24, 2))))
+        assertFalse(sameEditorControls(effects, effects.copy(effects = effects.effects.copy(addingColour = true))))
+        assertFalse(sameEditorControls(first, first.copy(preview = image(16, 24, 2))))
+        assertFalse(sameEditorControls(first, first.copy(preview = null)))
+        assertFalse(sameEditorControls(first, first.copy(compareHeld = true)))
+        assertFalse(sameEditorControls(first, first.copy(tool = EditorTool.EFFECTS)))
+        assertFalse(sameEditorControls(first, first.copy(previewFailed = true)))
+        assertFalse(sameEditorControls(first, first.copy(original = image(24, 16, 3))))
+    }
+
     private class MemoryGateway : MediaStoreGateway<String> {
         val files = mutableMapOf<String, ByteArrayOutputStream>()
         override fun insertPending(spec: NewImageSpec) = "content://media/new/${files.size + 1}"
@@ -117,6 +136,74 @@ class EditorViewModelTest {
         vm.openPhoto("content://photo/1")
         advanceUntilIdle()
         return vm to harness
+    }
+
+    @Test
+    fun `viewport preview keeps the complete recipe and zoom invalidates effects caches`() = runTest {
+        val (vm, harness) = ready()
+        vm.onRulerRelease(1); advanceUntilIdle()
+        vm.onEffectsSliderRelease("grainAmount", 30.0); advanceUntilIdle()
+        vm.onEffectsSliderRelease("vignetteAmount", 45.0); advanceUntilIdle()
+        val session = vm.uiState.value.session
+        vm.onPreviewFootprint(30f, false); advanceUntilIdle()
+        fun check(width: Int) {
+            val edit = vm.uiState.value.session!!.current
+            val original = image(48, 32, "content://photo/1".hashCode())
+            val source = if (width == 48) original else BackgroundSession.resize(original, 32, 22)
+            val expected = EditPipeline(library.model, DevelopRenderer()).renderPreview(source, edit, library.planFor(edit), null)
+            assertEquals(width, vm.uiState.value.preview!!.width)
+            assertContentEquals(expected.pixels, vm.uiState.value.preview!!.pixels)
+            assertEquals(session, vm.uiState.value.session, "inspection must not create edits")
+        }
+        check(32)
+        vm.selectTool(EditorTool.EFFECTS); advanceUntilIdle(); check(32)
+        vm.onPreviewFootprint(30f, true); advanceUntilIdle(); check(48)
+        vm.onPreviewFootprint(30f, false); advanceUntilIdle(); check(32)
+        vm.saveCopy(); advanceUntilIdle()
+        val edit = vm.uiState.value.session!!.current
+        val full = harness.full.getValue("content://photo/1")
+        val expected = EditPipeline(library.model, DevelopRenderer()).renderPreview(full, edit, library.planFor(edit), null)
+        assertContentEquals(expected.pixels, harness.gateway.files.values.single().toByteArray())
+        assertEquals(48, vm.uiState.value.original!!.width)
+    }
+
+    @Test
+    fun `opening Effects prepares its input without changing the photo or edit history`() = runTest {
+        val (vm, _) = ready()
+        vm.onRulerRelease(1); advanceUntilIdle()
+        vm.onEffectsSliderRelease("grainAmount", 30.0); advanceUntilIdle()
+        val before = vm.uiState.value
+        vm.selectTool(EditorTool.EFFECTS); advanceUntilIdle()
+        assertContentEquals(before.preview!!.pixels, vm.uiState.value.preview!!.pixels)
+        assertEquals(before.session, vm.uiState.value.session)
+        vm.onEffectsSliderRelease("vignetteAmount", 45.0); advanceUntilIdle()
+        val edit = vm.uiState.value.session!!.current
+        val expected = EditPipeline(library.model, DevelopRenderer()).renderPreview(
+            image(48, 32, "content://photo/1".hashCode()), edit, library.planFor(edit), null)
+        assertContentEquals(expected.pixels, vm.uiState.value.preview!!.pixels)
+    }
+
+    @Test
+    fun `effects preview cache agrees with fresh pipeline after upstream edits and photo switch`() = runTest {
+        val (vm, _) = ready()
+        fun checkFresh(asset: String) {
+            val edit = vm.uiState.value.session!!.current
+            val source = image(48, 32, asset.hashCode())
+            val expected = EditPipeline(library.model, DevelopRenderer()).renderPreview(source, edit, library.planFor(edit), null)
+            assertContentEquals(expected.pixels, vm.uiState.value.preview!!.pixels)
+        }
+        vm.onEffectsSliderRelease("vignetteAmount", 45.0); advanceUntilIdle()
+        checkFresh("content://photo/1")
+        vm.onEffectsSliderRelease("vignetteAmount", 75.0); advanceUntilIdle()
+        checkFresh("content://photo/1")
+        vm.onEditSliderRelease("exposure", 1.0); advanceUntilIdle()
+        checkFresh("content://photo/1")
+        vm.onEffectsSliderRelease("grainAmount", 30.0); advanceUntilIdle()
+        checkFresh("content://photo/1")
+        vm.undo(); advanceUntilIdle(); checkFresh("content://photo/1")
+        vm.openPhoto("content://photo/2"); advanceUntilIdle()
+        vm.onEffectsSliderRelease("vignetteAmount", 45.0); advanceUntilIdle()
+        checkFresh("content://photo/2")
     }
 
     @Test

@@ -92,6 +92,9 @@ import com.lightlylabs.lightly.shell.LightlyIcons
 import com.lightlylabs.lightly.shell.lightlyColors
 import com.lightlylabs.lightly.shell.lightlyTextStyle
 import com.lightlylabs.lightly.shell.testTagResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -141,9 +144,22 @@ fun DevelopPanel(vm: EditorViewModel, model: DevelopPanelModel, roomy: Boolean, 
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f).testTagResource("develop-name"))
         if (applied) com.lightlylabs.lightly.shell.LinkButton("Reset", vm::clearPreset, icon = LightlyIcons.Reset, tag = "develop-clear")
     }
-    PresetGallery(vm, model, expanded || roomy)
-    SliderRow("Amount", model.amount.toDouble(), 0.0, 100.0, onDrag = { vm.onAmountDrag(it.toInt()) }, onRelease = { vm.onAmountRelease(it.toInt()) },
-        tag = "develop-amount-slider", enabled = applied)
+    PresetGallery(vm, model.categoryId, model.presets, expanded || roomy)
+    DevelopAmountSlider(vm, model.amount, applied)
+
+}
+
+/** A drag invalidates this slider alone, rather than the photo stage and the entire editor. */
+@Composable
+private fun DevelopAmountSlider(vm: EditorViewModel, committed: Int, enabled: Boolean) {
+    val changes = remember(vm) { vm.uiState.map { it.develop.amountDrag }.distinctUntilChanged() }
+    val drag by changes.collectAsStateWithLifecycle(initialValue = vm.uiState.value.develop.amountDrag)
+    // Keep the existing category/applied-preset rules when the browsed preset differs.
+    val current = vm.uiState.value
+    val amount = vm.panelModel(current.copy(develop = current.develop.copy(amountDrag = drag)), vm.favourites.value)?.amount ?: committed
+    SliderRow("Amount", amount.toDouble(), 0.0, 100.0,
+        onDrag = { vm.onAmountDrag(it.toInt()) }, onRelease = { vm.onAmountRelease(it.toInt()) },
+        tag = "develop-amount-slider", enabled = enabled)
 }
 
 /** `.notice`, with the approved copy for each Develop notice. */

@@ -51,7 +51,18 @@ class DevelopRenderer(
      * develop at the display size (3-5 s on the emulator) otherwise ran to the end beside the frame that replaced it.
      * Rendered pixels are unchanged; only whether the render finishes.
      */
-    fun cancellable(isCancelled: () -> Boolean) = DevelopRenderer(executor, parallelism, isCancelled)
+    fun cancellable(isCancelled: () -> Boolean) = DevelopRenderer(executor, parallelism, isCancelled).also { it.finishingFields = finishingFields }
+
+    private var finishingFields = FinishingFieldCache()
+
+    internal fun finishingField(key: Any, width: Int, height: Int, value: (Int, Int) -> Double): DoubleArray =
+        finishingFields.get(key) {
+            DoubleArray(width * height).also { field ->
+                parallel(height) { first, end ->
+                    for (y in first until end) for (x in 0 until width) field[y * width + x] = value(x, y)
+                }
+            }
+        }
 
     /** Pixels of context a tile needs around it for [plan]'s spatial operators on a frame of this size. */
     fun apron(plan: DevelopRenderPlan, frameWidth: Int, frameHeight: Int): Int {
@@ -158,8 +169,12 @@ class DevelopRenderer(
     }
 
     /** The whole frame (previews). */
-    fun render(source: Rgba8Image, plan: DevelopRenderPlan): Rgba8Image =
-        renderTile(source, PixelRect(0, 0, source.width, source.height), plan, clarityBase(source, plan))
+    fun render(source: Rgba8Image, plan: DevelopRenderPlan): Rgba8Image {
+        if (!NativeKernels.canRender(source.width,source.height)) return renderTile(source, PixelRect(0, 0, source.width, source.height), plan, clarityBase(source, plan))
+        if (isCancelled()) throw java.util.concurrent.CancellationException("render superseded")
+        return EffectsStage(EffectsParams(),plan.finishing,plan.model,source.width,source.height)
+            .nativeRender(source,this,plan)
+    }
 
     /** One tile of the frame; [base] must come from [clarityBase] on the same source and plan. */
     fun renderTile(source: Rgba8Image, tile: PixelRect, plan: DevelopRenderPlan, base: LowResPlane?): Rgba8Image =
@@ -177,6 +192,7 @@ class DevelopRenderer(
         }
         val out = ByteArray(tile.width * tile.height * Rgba8Image.CHANNELS)
         val finishing = if (plan.hasFinishing) FinishingPass(plan, view.frameWidth, view.frameHeight) else null
+        if (tile.width == view.frameWidth && tile.height == view.frameHeight) finishing?.prepare(this)
         if (!plan.hasSpatial) {
             parallel(tile.height) { first, end ->
                 val rgb = FloatArray(3)
@@ -391,6 +407,9 @@ class DevelopRenderer(
         out[offset + 3] = alpha
     }
 
+    /** Independent row bands, using this renderer's worker pool and cancellation checks. */
+    fun parallelRows(count: Int, body: (Int, Int) -> Unit) = parallel(count, body)
+
     private fun parallel(count: Int, body: (Int, Int) -> Unit) {
         if (isCancelled()) throw java.util.concurrent.CancellationException("render superseded")
         if (executor == null || parallelism <= 1 || count < 64) {
@@ -439,6 +458,23 @@ class DevelopRenderer(
     }
 }
 
+/** Bounded immutable fields shared by cancellable previews; never holds source photo pixels. */
+private class FinishingFieldCache {
+    private val fields = LinkedHashMap<Any, DoubleArray>(4, 0.75f, true)
+    fun get(key: Any, compute: () -> DoubleArray): DoubleArray {
+        synchronized(this) { fields[key]?.let { return it } }
+        val result = compute() // Do not hold a monitor while waiting on render workers.
+        synchronized(this) {
+            fields[key]?.let { return it }
+            fields[key] = result
+            while (fields.values.sumOf { it.size.toLong() * 8 } > 56L * 1024 * 1024 || fields.size > 4) {
+                fields.remove(fields.keys.first())
+            }
+        }
+        return result
+    }
+}
+
 /**
  * The preset's finishing operators (rendering-v2.md §6 F1 vignette, F2 grain), in that order, at
  * absolute frame coordinates. Stage effects runs after edit.geometry; until the Edit tool exists the
@@ -463,8 +499,10 @@ internal class FinishingPass(
     private val grainCols: Int
     private val coarseRows: Int
     private val coarseCols: Int
-    private val fine: DoubleArray?
-    private val coarse: DoubleArray?
+    // A cached output noise field makes these source grids unnecessary. Build them only
+    // on a cache miss; constructing them eagerly cost more than the GPU render itself.
+    private val fine: DoubleArray? by lazy { grain?.let { PortableRandom.field(it.seed, 0, grainRows, grainCols) } }
+    private val coarse: DoubleArray? by lazy { grain?.let { PortableRandom.field(it.seed, 1, coarseRows, coarseCols) } }
 
     /**
      * Revision 1 supersampling factor s = max(1, ceil(2·cells/longEdge)): the field is interpolated at
@@ -483,11 +521,38 @@ internal class FinishingPass(
             grainCols = max(2, Math.rint(cellsLong.toDouble() * width / longEdge).toInt())
             coarseRows = max(2, grainRows / 3)
             coarseCols = max(2, grainCols / 3)
-            fine = PortableRandom.field(g.seed, 0, grainRows, grainCols)
-            coarse = PortableRandom.field(g.seed, 1, coarseRows, coarseCols)
             grainSupersampling = max(1, kotlin.math.ceil(2.0 * cellsLong / longEdge).toInt())
         } else {
-            grainRows = 0; grainCols = 0; coarseRows = 0; coarseCols = 0; fine = null; coarse = null; grainSupersampling = 1
+            grainRows = 0; grainCols = 0; coarseRows = 0; coarseCols = 0; grainSupersampling = 1
+        }
+    }
+
+    private var vignetteField: DoubleArray? = null
+    private var noiseField: DoubleArray? = null
+
+    /** Preview-sized whole frames only; export tiles retain the streaming calculation. */
+    fun prepare(renderer: DevelopRenderer) {
+        if (width.toLong() * height > 1600L * 1600) return
+        vignette?.let { v ->
+            vignetteField = renderer.finishingField(listOf("vignette", width, height, v.midpoint, v.feather, v.roundness), width, height) { x, y -> vignetteWeight(x, y, v) }
+        }
+        grain?.let { g ->
+            noiseField = renderer.finishingField(listOf("grain", width, height, g.seed, g.size, g.roughness, experimental.grainRefLong), width, height) { x, y -> grainNoise(x, y, g.roughness / 100) }
+        }
+    }
+
+    internal fun nativeParameters(params: DoubleArray, offset: Int, geometry: Int) {
+        vignette?.let { v ->
+            params[offset]=1.0;params[offset+1]=v.amount/100;params[offset+2]=vignetteK
+            params[offset+3]=v.style.toDouble();params[offset+4]=v.highlightContrast/100
+            params[geometry]=v.midpoint/100;params[geometry+1]=v.feather/100;params[geometry+2]=v.roundness/100
+        }
+        grain?.let { g ->
+            params[offset]=2.0;params[offset+1]=g.amount/100;params[offset+2]=grainK
+            params[geometry]=grainRows.toDouble();params[geometry+1]=grainCols.toDouble()
+            params[geometry+2]=coarseRows.toDouble();params[geometry+3]=coarseCols.toDouble()
+            params[geometry+4]=grainSupersampling.toDouble();params[geometry+5]=g.roughness/100
+            params[geometry+6]=(g.seed and 65535).toDouble();params[geometry+7]=((g.seed ushr 16) and 65535).toDouble()
         }
     }
 
@@ -499,17 +564,7 @@ internal class FinishingPass(
 
     private fun applyVignette(rgb: FloatArray, column: Int, row: Int, v: Vignette, work: DoubleArray) {
         val amount = v.amount / 100
-        val midpoint = v.midpoint / 100
-        val feather = v.feather / 100
-        val roundness = v.roundness / 100
-        var x = if (width > 1) -1.0 + 2.0 * column / (width - 1) else -1.0 // linspace(-1, 1, n)
-        val y = if (height > 1) -1.0 + 2.0 * row / (height - 1) else -1.0
-        if (roundness > 0) x *= 1 + roundness * (width.toDouble() / height - 1)
-        val power = 2.0 + max(0.0, -roundness) * 6.0
-        val radius = (abs(x).pow(power) + abs(y).pow(power)).pow(1 / power) / 2.0.pow(1 / power)
-        val centre = 0.25 + 0.65 * midpoint
-        val widthBand = 0.05 + 0.6 * feather
-        val t = smoothstep(centre - widthBand / 2, centre + widthBand / 2, radius)
+        val t = vignetteField?.get(row * width + column) ?: vignetteWeight(column, row, v)
         when (v.style) {
             3 -> { // paint overlay
                 val target = if (amount < 0) 0.0 else 1.0
@@ -539,8 +594,22 @@ internal class FinishingPass(
         }
     }
 
+    private fun vignetteWeight(column: Int, row: Int, v: Vignette): Double {
+        val midpoint = v.midpoint / 100
+        val feather = v.feather / 100
+        val roundness = v.roundness / 100
+        var x = if (width > 1) -1.0 + 2.0 * column / (width - 1) else -1.0 // linspace(-1, 1, n)
+        val y = if (height > 1) -1.0 + 2.0 * row / (height - 1) else -1.0
+        if (roundness > 0) x *= 1 + roundness * (width.toDouble() / height - 1)
+        val power = 2.0 + max(0.0, -roundness) * 6.0
+        val radius = (abs(x).pow(power) + abs(y).pow(power)).pow(1 / power) / 2.0.pow(1 / power)
+        val centre = 0.25 + 0.65 * midpoint
+        val widthBand = 0.05 + 0.6 * feather
+        return smoothstep(centre - widthBand / 2, centre + widthBand / 2, radius)
+    }
+
     private fun applyGrain(rgb: FloatArray, x: Int, y: Int, g: Grain, work: DoubleArray) {
-        val noise = grainNoise(x, y, g.roughness / 100)
+        val noise = noiseField?.get(y * width + x) ?: grainNoise(x, y, g.roughness / 100)
         ColourMath.linearToOklab(srgbToLinear(rgb[0].toDouble()), srgbToLinear(rgb[1].toDouble()), srgbToLinear(rgb[2].toDouble()), work)
         val l = work[0]
         withLightnessKeepChromaticity(rgb, l + grainK * (g.amount / 100) * noise * (4 * l * (1 - l) + 0.2), l, work[1], work[2], work)

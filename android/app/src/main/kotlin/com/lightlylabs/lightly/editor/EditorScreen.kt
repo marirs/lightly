@@ -6,6 +6,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.runtime.derivedStateOf
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 import androidx.compose.ui.semantics.heading
 
@@ -149,7 +152,10 @@ object EditorTags {
  */
 @Composable
 fun EditorScreen(vm: EditorViewModel, shellLayout: ShellLayout, actions: EditorActions) {
-    val ui by vm.uiState.collectAsStateWithLifecycle()
+    // Publishing a finished photo must redraw the stage, not rebuild the tool panel.
+    // Geometry/state transitions still propagate immediately to all controls.
+    val controls = remember(vm) { vm.uiState.distinctUntilChanged(::sameEditorControls) }
+    val ui by controls.collectAsStateWithLifecycle(initialValue = vm.uiState.value)
     val favourites by vm.favourites.collectAsStateWithLifecycle()
     KeepScreenOnWhileWorking(ui)
     val colors = lightlyColors
@@ -171,7 +177,9 @@ fun EditorScreen(vm: EditorViewModel, shellLayout: ShellLayout, actions: EditorA
         )
         when (ui.phase) {
             EditorPhase.Ready -> {
-                val model = vm.panelModel(ui, favourites)
+                val model = remember(ui.session?.current?.look, ui.auto, favourites, ui.develop, ui.rememberedAmounts, ui.people?.hasPerson) {
+                    vm.panelModel(ui, favourites)
+                }
                 EditorContent(vm, ui, model, frame, actions)
                 EditorOverlays(vm, ui, model, frame, favourites, actions)
             }
@@ -179,6 +187,21 @@ fun EditorScreen(vm: EditorViewModel, shellLayout: ShellLayout, actions: EditorA
             else -> LoadingScreen(vm, ui, frame, developing = false)
         }
     }
+}
+
+/** Pixel publications belong to the stage; changes in dimensions/nullability still affect layout. */
+internal fun sameEditorControls(a: EditorUiState, b: EditorUiState): Boolean {
+    if (a.tool != b.tool) return false
+    // These panels observe their live slider values separately. Ink's colour picker,
+    // and other tools that consume preview pixels, keep receiving complete state updates.
+    val isolatedFrames = a.tool == EditorTool.DEVELOP || (a.tool == EditorTool.EFFECTS && a.effects.sub != EffectsSub.INK)
+    if (isolatedFrames && (a.preview?.width != b.preview?.width || a.preview?.height != b.preview?.height)) return false
+    return a.copy(
+        preview = if (isolatedFrames) b.preview else a.preview,
+        previewBitmap = if (isolatedFrames) b.previewBitmap else a.previewBitmap,
+        develop = if (a.tool == EditorTool.DEVELOP) a.develop.copy(amountDrag = b.develop.amountDrag) else a.develop,
+        effects = if (a.tool == EditorTool.EFFECTS) a.effects.copy(sliderDrag = b.effects.sliderDrag) else a.effects,
+    ) == b
 }
 
 /** The window's layout plus its system insets and the fold position (dp from the window's top/left). */
@@ -203,8 +226,8 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
     val stage: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier) {
             // While cropping, a pinch resizes the crop frame instead of zooming the photo.
-            Stage(ui, Modifier.fillMaxSize(), overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui); TextMarks(vm, ui, textGesture) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), cropPending = vm.hasPendingCrop(ui),
-                cropTouches = if (vm.isCropEditing(ui) && !ui.showsOriginal) { photo -> CropTouches(vm, photo) } else null, onPhotoBox = vm::onStagePhotoMeasured,
+            Stage(ui, Modifier.fillMaxSize(), previewState = vm.uiState.takeIf { ui.tool == EditorTool.DEVELOP || (ui.tool == EditorTool.EFFECTS && ui.effects.sub != EffectsSub.INK) }, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui); TextMarks(vm, ui, textGesture) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), cropPending = vm.hasPendingCrop(ui),
+                cropTouches = if (vm.isCropEditing(ui) && !ui.showsOriginal) { photo -> CropTouches(vm, photo) } else null, onPhotoBox = vm::onStagePhotoMeasured, onPreviewFootprint = vm::onPreviewFootprint,
                 inspectionYields = textGesture::ownsPointers, onEmptyDoubleTap = actions.cycleTheme,
                 photoActionsWidthDp = if (photoActionsShown && showsPolaroid) photoActionsWidthDp else null)
             if (photoActionsShown) Box(Modifier.matchParentSize().padding(start = 12.dp, bottom = 8.dp)) { AutoEnhanceOverlay(vm, ui, onWidthDp = { photoActionsWidthDp = it }) }
@@ -408,7 +431,7 @@ private fun CompareButton(vm: EditorViewModel, ui: EditorUiState, glass: Boolean
 // --- photo stage ------------------------------------------------------------------------------------
 
 /** Rgba8Image bytes are ARGB_8888's memory order (R, G, B, A), so they copy straight into a Bitmap. */
-internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { it.copyPixelsFromBuffer(ByteBuffer.wrap(pixels)) }
+internal fun Rgba8Image.toBitmap(): Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { it.copyPixelsFromBuffer(ByteBuffer.wrap(pixels)); it.setHasAlpha(!isOpaque) }
 
 /**
  * Owner amendment (2026-10-20, layout approved 2026-10-21): Auto and Reset all sit 10 dp in from the inset stage's
@@ -444,18 +467,38 @@ internal object PhotoActionsClearance {
  * `.stage`: the canvas colour, the photo contain-fitted (never cropped). With Compare, the original and
  * the "Original" badge at the photo's top-left corner.
  */
+/** Read new pixels during drawing: publishing a frame must not recompose or lay out the stage. */
+@Composable
+private fun LivePreviewImage(source: StateFlow<EditorUiState>, fallback: androidx.compose.ui.graphics.ImageBitmap, modifier: Modifier) {
+    val frames = remember(source) { source.map { it.previewBitmap }.distinctUntilChanged() }
+    val current = frames.collectAsStateWithLifecycle(initialValue = source.value.previewBitmap)
+    val painter = remember(current, fallback) {
+        object : androidx.compose.ui.graphics.painter.Painter() {
+            override val intrinsicSize = androidx.compose.ui.geometry.Size(fallback.width.toFloat(), fallback.height.toFloat())
+            override fun androidx.compose.ui.graphics.drawscope.DrawScope.onDraw() {
+                val bitmap = current.value?.asImageBitmap() ?: fallback
+                drawImage(bitmap, dstSize = androidx.compose.ui.unit.IntSize(kotlin.math.round(size.width).toInt(), kotlin.math.round(size.height).toInt()))
+            }
+        }
+    }
+    Image(painter, contentDescription = "Your photo with the edit", contentScale = ContentScale.Fit, modifier = modifier)
+}
+
 @Composable
 private fun Stage(
-    ui: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false,
+    inputUi: EditorUiState, modifier: Modifier, overlay: @Composable () -> Unit = {}, chrome: @Composable () -> Unit = {}, inspection: Boolean = false,
     cropEditing: Boolean = false, cropPending: Boolean = false, cropTouches: (@Composable (photo: androidx.compose.ui.geometry.Rect) -> Unit)? = null,
     onPhotoBox: (shortDp: Float, longDp: Float) -> Unit = { _, _ -> },
+    onPreviewFootprint: (longEdgePx: Float, zoomed: Boolean) -> Unit = { _, _ -> },
     /** True while another gesture (Text's pinch on the selected text) owns the pointers: inspection zoom stays out. */
     inspectionYields: () -> Boolean = { false },
     /** A double tap on the stage outside the photo (the theme cycle); never on the photo, which keeps inspection zoom. */
     onEmptyDoubleTap: (() -> Unit)? = null,
     /** Owner amendment (2026-10-20): Auto and Reset all's width as shown while a Polaroid is on the stage, else null (see [PhotoActionsClearance]). */
     photoActionsWidthDp: Float? = null,
+    previewState: StateFlow<EditorUiState>? = null,
 ) {
+    val ui = inputUi
     val colors = lightlyColors
     val image = if (ui.showsOriginal) ui.original else ui.preview ?: ui.original
     // The photo as shown (zoom, pan and the crop glide included) and the stage's own origin, both in window pixels.
@@ -474,14 +517,20 @@ private fun Stage(
     // corners (3 dp with a border).
     BoxWithConstraints(modifier.clipToBounds().onGloballyPositioned { stageBoundsInWindow = it.boundsInWindow() }.testTagResource(EditorTags.STAGE).then(emptyDoubleTap).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
         if (image != null) {
-            val bitmap = remember(image) { image.toBitmap().asImageBitmap() }
-            val ratio = image.width.toFloat() / image.height
+            val bitmap = remember(image, ui.previewBitmap) {
+                (ui.previewBitmap?.takeIf { image === ui.preview } ?: image.toBitmap()).asImageBitmap()
+            }
+            // Integer preview dimensions must not change the stage or restart an in-flight pinch.
+            val unframed = ui.session?.current?.let { EditMapping.geometry(it).isIdentity && EditMapping.border(it).isNone } != false
+            val aspectSource = if (unframed) ui.original ?: image else image
+            val ratio = aspectSource.width.toFloat() / aspectSource.height
             val (width, liftDp) = PhotoActionsClearance.placement(maxWidth.value, maxHeight.value, ratio, photoActionsWidthDp)
             val density = LocalDensity.current
             val liftPx = with(density) { liftDp.dp.toPx() }
             val viewport = with(density) { Offset(maxWidth.toPx(), maxHeight.toPx()) }
             val fitted = with(density) { Offset(width.dp.toPx(), (width / ratio).dp.toPx()) }
             var zoom by remember(ui.original) { mutableStateOf(1f) }
+            androidx.compose.runtime.SideEffect { if (!ui.showsOriginal) onPreviewFootprint(maxOf(fitted.x, fitted.y), zoom > 1.001f || cropEditing) }
             var pan by remember(ui.original) { mutableStateOf(Offset.Zero) }
             fun clamp(offset: Offset, scale: Float): Offset {
                 val limitX = maxOf(0f, (fitted.x * scale - viewport.x) / 2)
@@ -558,8 +607,13 @@ private fun Stage(
                     },
                 ),
             ) {
-                Image(bitmap, contentDescription = if (ui.showsOriginal) "The original photo" else "Your photo with the edit", contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(if (border != null) 3.dp else 18.dp)))
+                val photoModifier = Modifier.fillMaxSize().clip(RoundedCornerShape(if (border != null) 3.dp else 18.dp))
+                if (previewState != null && !ui.showsOriginal) {
+                    LivePreviewImage(previewState, bitmap, photoModifier)
+                } else {
+                    Image(bitmap, contentDescription = if (ui.showsOriginal) "The original photo" else "Your photo with the edit",
+                        contentScale = ContentScale.Fit, modifier = photoModifier)
+                }
                 if (ui.showsOriginal) {
                     Text(
                         "Original",

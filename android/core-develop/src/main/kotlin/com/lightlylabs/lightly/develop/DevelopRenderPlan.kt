@@ -15,26 +15,35 @@ class DevelopRenderPlan private constructor(
     /** Auto pass, strength-blended; null when Auto is off or unavailable. */
     val autoLut: Lut3D?,
     /** Develop global pass, strength-blended; null when no Look renders. */
-    val lookLut: Lut3D?,
+    private val initialLookLut: Lut3D?,
     val spatial: SpatialRecipe,
     val finishing: FinishingRecipe,
+    /** Unblended table and amount let the GPU reuse colour lookup results during Amount drags. */
+    val unblendedLookLut: Lut3D? = initialLookLut,
+    val lookStrength: Float = 1f,
+    private val blendLookOnDemand: Boolean = false,
 ) {
+    // Native preview blends cached colour samples on the GPU. Materialise the CPU
+    // table only for a CPU consumer (including export), never for every drag step.
+    val lookLut: Lut3D? by lazy {
+        if (blendLookOnDemand) unblendedLookLut?.blendTowardIdentity(lookStrength) else initialLookLut
+    }
     val hasSpatial: Boolean get() = !spatial.isNeutral
     val hasFinishing: Boolean get() = (finishing.vignette?.amount ?: 0.0) != 0.0 || (finishing.grain?.amount ?: 0.0) != 0.0
-    val isIdentity: Boolean get() = autoLut == null && lookLut == null && !hasSpatial && !hasFinishing
+    val isIdentity: Boolean get() = autoLut == null && unblendedLookLut == null && !hasSpatial && !hasFinishing
 
     /**
      * The same plan without develop.spatial and finishing: used ONLY for the transient preview while
      * a finger drags the ruler, so a new stop shows within a frame. The committed preview and the
      * export always use the full plan (see docs/v1/slice2-android.md › Rendering).
      */
-    fun globalOnly(): DevelopRenderPlan = DevelopRenderPlan(model, autoLut, lookLut, SpatialRecipe.NEUTRAL, FinishingRecipe.NEUTRAL)
+    fun globalOnly(): DevelopRenderPlan = DevelopRenderPlan(model, autoLut, initialLookLut, SpatialRecipe.NEUTRAL, FinishingRecipe.NEUTRAL, unblendedLookLut, lookStrength, blendLookOnDemand)
 
     /**
      * The same plan with its finishing operators left out: with Edit or Effects in the recipe they run
      * in the effects stage on the frame, after geometry ([EffectsStage]), not on the source.
      */
-    fun withoutFinishing(): DevelopRenderPlan = DevelopRenderPlan(model, autoLut, lookLut, spatial, FinishingRecipe.NEUTRAL)
+    fun withoutFinishing(): DevelopRenderPlan = DevelopRenderPlan(model, autoLut, initialLookLut, spatial, FinishingRecipe.NEUTRAL, unblendedLookLut, lookStrength, blendLookOnDemand)
 
     companion object {
         fun original(model: DevelopModel) = DevelopRenderPlan(model, null, null, SpatialRecipe.NEUTRAL, FinishingRecipe.NEUTRAL)
@@ -54,7 +63,7 @@ class DevelopRenderPlan private constructor(
             val auto = autoLut?.takeIf { autoStrength > 0f }?.blendTowardIdentity(autoStrength)
             if (lookLut == null || recipe == null || strength <= 0f) return DevelopRenderPlan(model, auto, null, SpatialRecipe.NEUTRAL, FinishingRecipe.NEUTRAL)
             val s = strength.toDouble()
-            return DevelopRenderPlan(model, auto, lookLut.blendTowardIdentity(strength), scaled(recipe.spatial, s), scaled(recipe.finishing, s))
+            return DevelopRenderPlan(model, auto, null, scaled(recipe.spatial, s), scaled(recipe.finishing, s), lookLut, strength, true)
         }
 
         /** rendering-v2.md §4.2: noise reduction luminance and colour, clarity, texture and sharpening amount × strength. */

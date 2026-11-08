@@ -68,6 +68,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -89,11 +90,44 @@ class MainActivity : ComponentActivity() {
     /** Store for the capture runner's per-screen view models; cleared (onCleared, scopes cancelled) per screen. */
     private val captureStore = androidx.lifecycle.ViewModelStore()
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (BuildConfig.DIAGNOSTICS && intent.getBooleanExtra("lightly.debug.profileNextPreview", false) &&
+            com.lightlylabs.lightly.develop.NativeKernels.enabled) {
+            com.lightlylabs.lightly.develop.NativeKernels.profileNext()
+        }
+        if (BuildConfig.DIAGNOSTICS) intent.getStringExtra("lightly.debug.benchmarkPreset")?.let { id ->
+            active?.editor?.let { editor -> editor.applyDebugState { api ->
+                val preset = api.library?.pack?.categories?.flatMap { it.presets }?.firstOrNull { it.id == id }
+                if (preset != null) {
+                    editor.selectThumbnail(preset)
+                    editor.onEffectsSliderRelease("grainAmount", 50.0)
+                    editor.onEffectsSliderRelease("vignetteAmount", 50.0)
+                    editor.selectTool(com.lightlylabs.lightly.editor.EditorTool.DEVELOP)
+                }
+            } }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyOrientationPolicy()
         captures = CameraCaptures(this)
         val graph = AppGraph.get(this)
+        if (BuildConfig.DIAGNOSTICS && savedInstanceState == null && intent.getBooleanExtra("lightly.debug.nativeCheck", false)) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            CoroutineScope(Dispatchers.Default).launch {
+                try {
+                    com.lightlylabs.lightly.editor.NativePreviewProbe.run(applicationContext, graph.editorEnvironment.library.await(),
+                        intent.getIntExtra("lightly.debug.nativeCatalogueStart", 0).coerceAtLeast(0),
+                        intent.getIntExtra("lightly.debug.nativeCatalogueCount", 0).coerceIn(0, 513))
+                } finally {
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                }
+            }
+        }
         val metrics = WindowInfoTracker.getOrCreate(this).windowLayoutInfo(this)
         val folds = metrics.map { info ->
             // Debug builds log what WindowManager reports, for the fold/hinge comparison runs.
@@ -121,7 +155,14 @@ class MainActivity : ComponentActivity() {
             val packSize by graph.packSize.collectAsStateWithLifecycle()
             val nav by shell.nav.collectAsStateWithLifecycle()
             val currentFolds by folds.collectAsStateWithLifecycle(initialValue = emptyList())
-            val editorUi by editor.uiState.collectAsStateWithLifecycle()
+            // The shell needs failure/navigation state and the More thumbnail recipe,
+            // never slider drafts or rendered pixels. Observing those rebuilt the whole
+            // app around every pointer event and competed with the preview GPU work.
+            val shellEditorChanges = remember(editor) {
+                editor.uiState.map { it.phase to it.session?.current?.copy(look = null, revision = 0) }.distinctUntilChanged()
+            }
+            val shellEditor by shellEditorChanges.collectAsStateWithLifecycle(
+                initialValue = editor.uiState.value.let { it.phase to it.session?.current?.copy(look = null, revision = 0) })
             val savedSignatures by editor.signatures.collectAsStateWithLifecycle()
 
             val dark = isDarkAppearance(preferences.appearance)
@@ -143,8 +184,8 @@ class MainActivity : ComponentActivity() {
             val cycleThemeInEditor = remember(cycleTheme) { { cycleTheme(true) } }
 
             // A photo the editor cannot open (or can no longer read) moves to the approved "can't be opened" screen.
-            LaunchedEffect(editorUi.phase, nav.base) {
-                val failed = editorUi.phase is EditorPhase.LoadFailed || editorUi.phase is EditorPhase.PhotoAccessLost
+            LaunchedEffect(shellEditor.first, nav.base) {
+                val failed = shellEditor.first is EditorPhase.LoadFailed || shellEditor.first is EditorPhase.PhotoAccessLost
                 if (nav.base == BaseScreen.EDITOR && failed) shell.navigate(AppNavigator.showLoadFailed())
             }
             BackHandler(enabled = nav != AppNavState()) {
@@ -207,7 +248,7 @@ class MainActivity : ComponentActivity() {
                         layout = layout,
                         content = MoreContent(preferences, catalogue, graph.releaseText, versionLabel(), nav.privacyFromWelcome, savedSignatures.shown, packSize,
                             favouriteThumbnail = { id -> editor.favouriteThumbnail(id, photoOpen = nav.base == BaseScreen.EDITOR) },
-                            favouriteThumbnailContext = editorUi.session?.current?.copy(look = null, revision = 0).takeIf { nav.base == BaseScreen.EDITOR }),
+                            favouriteThumbnailContext = shellEditor.second.takeIf { nav.base == BaseScreen.EDITOR }),
                         actions = ShellActions(
                             choosePhoto = choosePhoto,
                             camera = {

@@ -30,6 +30,40 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class) // virtual-time controls (runCurrent, advanceTimeBy, UnconfinedTestDispatcher)
 class RenderSchedulerTest {
 
+    @Test
+    fun `cold input is retained but stale touch down frame never flashes after warmup`() = runTest {
+        lateinit var scheduler: RenderScheduler<Int, Int>
+        var warm = false
+        var warmups = 0
+        val history = mutableListOf<Int>()
+        scheduler = RenderScheduler("warmup", PreviewRenderer { request ->
+            if (!warm) {
+                warmups++
+                delay(100)
+                warm = true
+                scheduler.checkpointAfterWarmup(request.revision)
+            }
+            delay(10)
+            request.payload
+        }, CoroutineScope(Job()), StandardTestDispatcher(testScheduler))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            scheduler.published.collect { result ->
+                (result?.outcome as? RenderOutcome.Rendered)?.let { history += it.value }
+            }
+        }
+        scheduler.submit(0)
+        runCurrent()
+        advanceTimeBy(80)
+        scheduler.submit(70)
+        advanceTimeBy(25)
+        // A newer movement during an ordinary warm render must not freeze publication.
+        scheduler.submit(90)
+        advanceUntilIdle()
+        assertEquals(1, warmups)
+        assertEquals(listOf(70, 90), history)
+        scheduler.close()
+    }
+
     /** A renderer that takes [renderMillis] of virtual time and records every revision it starts/finishes. */
     private class SlowFakeRenderer(
         private val renderMillis: Long = 100,

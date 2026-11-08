@@ -70,6 +70,9 @@ class PortraitSession(
 
     val usableFaces: List<DetectedFace> get() = people?.usableFaces.orEmpty()
 
+    /** Immutable analysis identities consumed by rendering; an arriving matte/mesh invalidates preview caches. */
+    internal val renderInputs: List<Any?> get() = listOf(people, personMatte, sunglassesAnalyses)
+
     val hasPersonMatte get() = personMatte != null
 
     fun setPersonMatte(matte: FloatPlane?) {

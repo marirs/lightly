@@ -128,7 +128,7 @@ class EditPipeline(
     /** Stages 1–10 of the preview: the frame the text stage draws on. Kept by the editor while text moves. */
     fun renderFrameBeforeText(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
         val image = frameBeforeEffects(source, state, developPlan, background)
-        return EffectsStage(EditMapping.effects(state, leaks, inks), developPlan.finishing, model, image.width, image.height).apply(image)
+        return applyEffects(image, state, developPlan)
     }
 
     /** Stages 11–13 of the preview on a frame from [renderFrameBeforeText]: text, border, watermark. */
@@ -149,10 +149,20 @@ class EditPipeline(
     fun renderSelectiveColourInput(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
         val image = frameBeforeEffects(source, state, developPlan, background)
         val leakOnly = EditMapping.effects(state, leaks, inks).copy(grainEnabled = false, vignetteEnabled = false, selectiveColours = emptyList())
-        return EffectsStage(leakOnly, FinishingRecipe.NEUTRAL, model, image.width, image.height).apply(image)
+        return EffectsStage(leakOnly, FinishingRecipe.NEUTRAL, model, image.width, image.height).apply(image, renderer = renderer)
     }
 
-    private fun frameBeforeEffects(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
+    fun applyEffects(image: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan): Rgba8Image =
+        EffectsStage(EditMapping.effects(state, leaks, inks), developPlan.finishing, model, image.width, image.height).apply(image, renderer = renderer)
+
+    internal fun combinedDevelopEffects(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan,
+        background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image? {
+        if(background != null || !EditMapping.geometry(state).isIdentity || !EditMapping.adjust(state).isNeutral) return null
+        return EffectsStage(EditMapping.effects(state,leaks,inks),developPlan.finishing,model,source.width,source.height)
+            .applyAfterDevelop(source,renderer,developPlan.withoutFinishing())
+    }
+
+    internal fun frameBeforeEffects(source: Rgba8Image, state: EditState, developPlan: DevelopRenderPlan, background: ((Rgba8Image) -> Rgba8Image)?): Rgba8Image {
         val withoutFinishing = developPlan.withoutFinishing()
         var image = if (withoutFinishing.isIdentity) source else renderer.render(source, withoutFinishing)
         EditAdjustmentsStage.plan(EditMapping.adjust(state), model, executor = executor, parallelism = parallelism)?.let { image = renderer.render(image, it) }

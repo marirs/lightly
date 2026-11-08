@@ -195,6 +195,41 @@ class BackgroundViewModelTest {
     }
 
     @Test
+    fun `effects cache refreshes when separation arrives and background colour changes`() = runTest {
+        val released = CompletableDeferred<Unit>()
+        val segmenter = SubjectSegmenter { _, w, h ->
+            released.await()
+            FloatPlane(w, h, FloatArray(w * h))
+        }
+        val vm = Harness(this, null, segmenter).ready(this)
+        vm.onEffectsSliderRelease("vignetteAmount", 45.0)
+        advanceUntilIdle()
+        vm.selectTool(EditorTool.BACKGROUND)
+        vm.selectBackgroundSub(BackgroundSub.CHANGE)
+        vm.chooseBackgroundColour("#3C4A55")
+        advanceUntilIdle()
+        val waiting = assertNotNull(vm.uiState.value.preview).pixels.copyOf()
+        released.complete(Unit)
+        advanceUntilIdle()
+        fun checkColour(hex: String, channels: List<Int>) {
+            vm.chooseBackgroundColour(hex)
+            advanceUntilIdle()
+            for(amount in listOf(30.0,75.0)) {
+                vm.onEffectsSliderRelease("vignetteAmount",amount)
+                advanceUntilIdle()
+                val edit = vm.uiState.value.session!!.current
+                val solid = Rgba8Image(48,32,ByteArray(48*32*4) { if(it%4==3) (-1).toByte() else channels[it%4].toByte() })
+                val expected = com.lightlylabs.lightly.develop.EffectsStage(EditMapping.effects(edit),
+                    com.lightlylabs.lightly.develop.FinishingRecipe.NEUTRAL,library.model,48,32).apply(solid)
+                kotlin.test.assertContentEquals(expected.pixels,assertNotNull(vm.uiState.value.preview).pixels)
+            }
+        }
+        assertTrue(!waiting.contentEquals(assertNotNull(vm.uiState.value.preview).pixels))
+        checkColour("#3C4A55",listOf(0x3C,0x4A,0x55))
+        checkColour("#AACCEE",listOf(0xAA,0xCC,0xEE))
+    }
+
+    @Test
     fun `a separation still running when another photo is chosen never reaches the new photo`() = runTest {
         // Photo 1 (48 × 32) separates slowly and, like the real analysis (CPU work with no suspension point),
         // does not stop when its job is cancelled. Photo 2 (60 × 40) is chosen meanwhile and separates first.

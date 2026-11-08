@@ -23,9 +23,16 @@ import androidx.compose.ui.unit.sp
 import com.lightlylabs.lightly.develop.LookPreset
 import com.lightlylabs.lightly.render.image.Rgba8Image
 import com.lightlylabs.lightly.shell.*
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import com.lightlylabs.lightly.session.EditState
+
+private data class GalleryContent(val source: Rgba8Image?, val selected: String?, val edit: EditState?)
+private fun galleryContent(ui: EditorUiState) = GalleryContent(ui.original, ui.session?.current?.look?.lookId,
+    ui.session?.current?.copy(look = null, revision = 0))
 
 @Composable
-fun PresetGallery(vm: EditorViewModel, model: DevelopPanelModel, expanded: Boolean) {
+fun PresetGallery(vm: EditorViewModel, categoryId: String, presets: List<LookPreset>, expanded: Boolean) {
     val grid = rememberLazyGridState()
     val threshold = with(LocalDensity.current) { 60.dp.toPx() }
     var pull by remember { mutableFloatStateOf(0f) }
@@ -53,12 +60,15 @@ fun PresetGallery(vm: EditorViewModel, model: DevelopPanelModel, expanded: Boole
     val accessibility = Modifier.semantics {
         customActions = listOf(CustomAccessibilityAction(if(expanded) "Collapse presets" else "Expand presets") { vm.setPresetExpanded(!expanded); true })
     }
-    LaunchedEffect(model.categoryId) { grid.scrollToItem(0) }
-    val ui by vm.uiState.collectAsState()
-    val context = ui.session?.current?.copy(look = null, revision = 0)
+    LaunchedEffect(categoryId) { grid.scrollToItem(0) }
+    // A published preview or moving Amount does not change any thumbnail. Keep
+    // those high-frequency updates out of the grid's composition and layout.
+    val contentFlow = remember(vm) { vm.uiState.map(::galleryContent).distinctUntilChanged() }
+    val content by contentFlow.collectAsState(remember(vm) { galleryContent(vm.uiState.value) })
+    val context = remember(content.source, content.edit) { content.source to content.edit }
     val tiles: LazyGridScope.() -> Unit = {
-        item(key = "original") { PresetTile(vm, null, expanded, ui.session?.current?.look == null, context) }
-        items(model.presets, key = { it.id }) { preset -> PresetTile(vm,preset,expanded,ui.session?.current?.look?.lookId == preset.id,context) }
+        item(key = "original") { PresetTile(vm, null, expanded, content.selected == null, context) }
+        items(presets, key = { it.id }) { preset -> PresetTile(vm,preset,expanded,content.selected == preset.id,context) }
     }
     // Lightly 2: compact = two 84 dp rows, 96 dp columns, 10 dp row and 12 dp column gaps, the end fading while presets lie past it; expanded = two
     // equal columns, 14 dp row and 12 dp column gaps, 142 dp thumbnails.

@@ -5,5 +5,12 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := lightly_xnnpack
 LOCAL_SRC_FILES := xnnpack_threads.c
 LOCAL_CFLAGS := -Wall -Werror -O2
-LOCAL_LDLIBS := -ldl
+LOCAL_LDLIBS :=
+include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := lightly_pixels
+LOCAL_SRC_FILES := pixels.cpp gpu.cpp
+LOCAL_CPPFLAGS := -std=c++17 -O3 -fno-fast-math -ffp-contract=off -Wall -Werror
+LOCAL_LDLIBS := -lm -lEGL -lGLESv3 -ldl -llog -landroid
 include $(BUILD_SHARED_LIBRARY)

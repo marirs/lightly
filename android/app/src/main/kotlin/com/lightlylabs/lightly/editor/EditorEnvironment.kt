@@ -143,6 +143,8 @@ class EditorEnvironment(
     val debugExportCapOverride: () -> Int? = { null },
     /** Test seam: runs at the start of every preview render (a deliberately slow preview in tests). No-op in the app. */
     val beforePreviewRender: () -> Unit = {},
+    /** Builds and pre-uploads the display bitmap on the render worker, before publishing its pixels. */
+    val preparePreviewBitmap: (Rgba8Image) -> android.graphics.Bitmap? = { null },
     /** Test seam: awaited before a Selective Colour pick samples, so a test can hold a pick "still sampling". No-op in the app. */
     val beforePickSample: suspend () -> Unit = {},
     /**
