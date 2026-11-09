@@ -1,5 +1,8 @@
 package com.lightlylabs.lightly.editor
 
+import com.lightlylabs.lightly.shell.l2TextStyle
+import com.lightlylabs.lightly.shell.LightlyButton
+import com.lightlylabs.lightly.shell.ButtonKind
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.map
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Box
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
@@ -72,7 +76,9 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
     // Lightly 2 `editPanel`, a 6 dp column: the tabs, the reset row, the tab's controls.
     val edit = ui.session?.current?.tools?.edit ?: return@Column
     OptionTabs(EditSub.entries.map { it to it.label }, ui.edit.sub, vm::selectEditSub, tagPrefix = "edit-tab")
-    ResetRow(vm, "edit", ui.edit.sub.label, ui.edit.sub.name.lowercase())
+    if (ui.edit.sub == EditSub.REMOVE) Box(Modifier.heightIn(min = 36.dp), contentAlignment = Alignment.CenterStart) {
+        Text("Eraser", style = l2TextStyle(17.sp, FontWeight.Bold, lightlyColors.ink))
+    } else ResetRow(vm, "edit", ui.edit.sub.label, ui.edit.sub.name.lowercase())
     when (ui.edit.sub) {
         // Inline free crop (owner, 2026-10-11): the frame is on the photo; the panel only says how to use it. No aspect
         // presets (owner: not asked for).
@@ -141,17 +147,21 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
 
 @Composable
 private fun RemoveBody(vm: EditorViewModel, ui: EditorUiState, hasStrokes: Boolean) {
-    when (ui.edit.removeOp) {
-        RemoveOp.REMOVING -> Notice(LightlyIcons.Info, AnnotatedString("Removing…"), listOf("Cancel" to vm::cancelRemove))
-        RemoveOp.FAILED -> Notice(LightlyIcons.Warn, boldLead("Couldn't remove that area.", " Try a smaller stroke. Your other edits are kept."), listOf("Try again" to vm::retryRemove))
-        RemoveOp.IDLE -> {
-            // The prototype's brush size is a UI-only value (`ui.brushSize`, 35); strokes store their own radius.
-            SliderRow("Brush size", ui.edit.brushSize.toDouble(), 0.0, 100.0, onDrag = { vm.setRemoveBrushSize(it.toInt()) }, onRelease = { vm.setRemoveBrushSize(it.toInt()) }, tag = EditTags.slider("brushSize"))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuietSmallButton("Undo stroke", { if (hasStrokes) vm.undoStroke() }, Modifier.testTagResource(EditTags.UNDO_STROKE), dimmed = !hasStrokes)
-                PanelNote("Brush over anything you want removed.")
-            }
+    val marked = ui.edit.eraseDraft.isNotEmpty()
+    val canUndo = marked || hasStrokes
+    Column(verticalArrangement = Arrangement.spacedBy(if (ui.edit.removeOp == RemoveOp.FAILED) 8.dp else 14.dp)) {
+        if (ui.edit.removeOp == RemoveOp.FAILED) Notice(LightlyIcons.Warn, AnnotatedString("Couldn't erase. Try again or brush a smaller area."))
+        else PanelNote(if (hasStrokes) "Done. Brush over anything else you want removed." else "Brush over what you want removed.")
+        SliderRow("Brush size", ui.edit.brushSize.toDouble(), 0.0, 100.0, onDrag = { vm.setRemoveBrushSize(it.toInt()) }, onRelease = { vm.setRemoveBrushSize(it.toInt()) }, tag = EditTags.slider("brushSize"))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LightlyButton("Undo", ButtonKind.LINE, { if (canUndo) vm.undoErase() },
+                Modifier.weight(1f).alpha(if (canUndo) 1f else 0.4f).semantics { if (!canUndo) disabled() }, icon = LightlyIcons.Undo, tag = EditTags.UNDO_STROKE)
+            LightlyButton("Clear", ButtonKind.LINE, { if (marked) vm.clearEraseDraft() },
+                Modifier.weight(1f).alpha(if (marked) 1f else 0.4f).semantics { if (!marked) disabled() }, tag = "edit-remove-clear")
         }
+        LightlyButton(if (ui.edit.removeOp == RemoveOp.FAILED) "Try again" else "Erase", ButtonKind.PRIMARY,
+            { if (marked) vm.eraseMarkedAreas() }, modifier = Modifier.alpha(if (marked) 1f else 0.4f).semantics { if (!marked) disabled() }, icon = LightlyIcons.Erase, tag = "edit-remove-erase")
+        PanelNote("Use two fingers to zoom and move.")
     }
 }
 

@@ -94,6 +94,7 @@ Lightly's existing mobile editing session.
 
 ## Next action
 
-Roadmap only now. At the 1.1 planning stage, review the current Remove implementation,
-resolve its relationship to Eraser, present precise mock screens, then implement the
-approved design. Do not interrupt current 1.0 completion for new Eraser experiments.
+Started for 1.2 on 2026-11-09 at the owner's request; 1.1 is released on both platforms.
+See [the current implementation audit and first-slice proposal](../v1.2/eraser-kickoff.md).
+Present precise mock screens before changing the approved Remove interaction, then
+implement and validate the approved design on both platforms.

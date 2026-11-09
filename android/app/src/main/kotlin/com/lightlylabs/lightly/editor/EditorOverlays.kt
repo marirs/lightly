@@ -80,10 +80,7 @@ fun EditorOverlays(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelMo
             }
         }
         // Saving: the progress card over the scrim (lime spinner and bar, Cancel).
-        EditorOverlay.SAVING -> Box(Modifier.fillMaxSize().background(colors.scrim).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
-            contentAlignment = Alignment.Center) {
-            ProgressBox("Saving a copy…", null, 0.55f, cancel = vm::cancelSave)
-        }
+        EditorOverlay.SAVING -> Unit // The editor owns the single full-screen processing overlay.
         // `saved`: the 52 dp lime check, "Saved as a new photo" (20 sp heading), "The original is unchanged." (14 sp ink2);
         // Share (primary), Keep editing (line), Choose another photo (plain, 44 dp, 15 sp semibold), 10 dp apart.
         EditorOverlay.SAVED -> L2Sheet(big, onDismiss = vm::dismiss) {

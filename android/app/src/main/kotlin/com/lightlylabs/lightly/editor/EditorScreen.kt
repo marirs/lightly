@@ -74,6 +74,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -175,6 +178,11 @@ fun EditorScreen(vm: EditorViewModel, shellLayout: ShellLayout, actions: EditorA
                 else -> null
             },
         )
+        val bgState = ui.session?.current?.tools?.background?.let { BackgroundPanelState.of(ui.background, ui.separation, it.replacement) }
+        val processing = ui.phase != EditorPhase.Ready || ui.overlay == EditorOverlay.SAVING || ui.edit.removeOp == RemoveOp.REMOVING ||
+            (ui.tool == EditorTool.BACKGROUND && (bgState == BackgroundPanelState.Separating || bgState == BackgroundPanelState.EstimatingDepth ||
+                (ui.background.sub == BackgroundSub.FOCUS && (ui.separation as? SeparationState.Finished)?.depthPending == true && (ui.session?.current?.tools?.background?.focus?.blur ?: 0.0) > 0)))
+        Box(if (processing) Modifier.fillMaxSize().clearAndSetSemantics { } else Modifier.fillMaxSize()) {
         when (ui.phase) {
             EditorPhase.Ready -> {
                 val model = remember(ui.session?.current?.look, ui.auto, favourites, ui.develop, ui.rememberedAmounts, ui.people?.hasPerson) {
@@ -185,6 +193,23 @@ fun EditorScreen(vm: EditorViewModel, shellLayout: ShellLayout, actions: EditorA
             }
             EditorPhase.Developing -> LoadingScreen(vm, ui, frame, developing = true)
             else -> LoadingScreen(vm, ui, frame, developing = false)
+        }
+        }
+        if (processing) {
+            val processingName = when {
+                ui.phase == EditorPhase.Loading -> "opening"
+                ui.phase == EditorPhase.Developing -> "auto"
+                ui.overlay == EditorOverlay.SAVING -> "saving"
+                ui.edit.removeOp == RemoveOp.REMOVING -> "eraser"
+                bgState == BackgroundPanelState.Separating -> "subject"
+                else -> "depth"
+            }
+            BackHandler { }
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.48f))
+                .pointerInput(Unit) { awaitPointerEventScope { while (true) { awaitPointerEvent().changes.forEach { it.consume() } } } }
+                .semantics { contentDescription = "Processing $processingName" }.testTagResource("processing-overlay"), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(34.dp).semantics { contentDescription = "Processing" }, color = Color.White, strokeWidth = 3.dp)
+            }
         }
     }
 }
@@ -710,11 +735,7 @@ internal fun ProgressBox(label: String, detail: String?, barFraction: Float?, ca
 @Composable
 private fun LoadingScreen(vm: EditorViewModel, ui: EditorUiState, frame: EditorFrame, developing: Boolean) {
     val layout = frame.layout
-    val box: @Composable () -> Unit = {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (developing) ProgressBox("Developing…", "Applying thoughtful enhancements.", 0.7f) else ProgressBox("Opening photo…", null, 0.3f)
-        }
-    }
+    val box: @Composable () -> Unit = {}
     Box(Modifier.fillMaxSize().padding(start = frame.start, end = frame.end)) {
         Column(Modifier.fillMaxSize()) {
             Spacer(Modifier.height(frame.top + 52.dp))
@@ -934,13 +955,7 @@ private fun BackgroundMarks(vm: EditorViewModel, ui: EditorUiState) {
     if (ui.tool != EditorTool.BACKGROUND || ui.showsOriginal) return
     val tool = ui.session?.current?.tools?.background ?: return
     when (val state = BackgroundPanelState.of(ui.background, ui.separation, tool.replacement)) {
-        BackgroundPanelState.Separating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            ProgressBox("Finding the subject…", null, null, cancel = vm::cancelSeparation)
-        }
-        // PROPOSED copy (owner approval pending, 2026-10-07): depth's own progress, distinct from the subject's.
-        BackgroundPanelState.EstimatingDepth -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            ProgressBox("Estimating depth…", null, null, cancel = vm::cancelSeparation)
-        }
+        BackgroundPanelState.Separating, BackgroundPanelState.EstimatingDepth -> Unit
         BackgroundPanelState.Focus, BackgroundPanelState.NoSubject -> BoxWithConstraints(
             Modifier.fillMaxSize().pointerInput(Unit) {
                 detectTapGestures { offset ->
@@ -951,12 +966,6 @@ private fun BackgroundMarks(vm: EditorViewModel, ui: EditorUiState) {
                 }
             }.semantics { contentDescription = "Tap the photo to set focus" },
         ) {
-            // No subject and a blur waiting for depth: depth's own progress (PROPOSED copy, see EstimatingDepth).
-            if (state == BackgroundPanelState.NoSubject && tool.focus.blur > 0 && (ui.separation as? SeparationState.Finished)?.depthPending == true) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    ProgressBox("Estimating depth…", null, null, cancel = vm::cancelSeparation)
-                }
-            }
             // The prototype shows the target only when the photo has a subject.
             if (state == BackgroundPanelState.Focus) {
                 val (tx, ty) = vm.focusTarget.let { (x, y) -> vm.displayGeometry(ui)?.frameFromSource(x, y) ?: (x to y) }

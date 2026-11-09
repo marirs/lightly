@@ -143,6 +143,23 @@ struct EditorScreen: View {
                 overlays(layout)
                 dialogs
             }
+            .allowsHitTesting(!processing)
+            .accessibilityHidden(processing)
+            .overlay {
+                if processing {
+                    ZStack {
+                        Color.black.opacity(0.48).ignoresSafeArea()
+                        ProgressView().progressViewStyle(.circular).controlSize(.large).tint(.white)
+                            .accessibilityLabel("Processing")
+                    }
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle()).onTapGesture { }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Processing")
+                    .accessibilityValue(processingStateName)
+                    .accessibilityIdentifier("processing.overlay")
+                }
+            }
         }
         .background(ApprovedColor.background.resolved(colorScheme).ignoresSafeArea())
         #if DEBUG
@@ -652,20 +669,28 @@ struct EditorScreen: View {
         }
     }
 
+    private var processingStateName: String {
+        if session.phase == .opening { return "opening" }
+        if session.phase == .developing { return "auto" }
+        if session.saveState == .saving { return "saving" }
+        if session.removeState == .removing { return "eraser" }
+        if session.subjectState == .separating { return "subject" }
+        return "depth"
+    }
+
+    private var processing: Bool {
+        session.phase != .ready || session.saveState == .saving || session.removeState == .removing ||
+        (tool == .background && (session.subjectState == .separating || session.depthProgressVisible(needsDepth: backgroundPanel.mode == .focus)))
+    }
+
     @ViewBuilder
     private func backgroundMarks(size: CGSize) -> some View {
         let background = session.recipe.tools.background
         switch (session.backgroundContent(needsDepth: backgroundPanel.mode == .focus), backgroundPanel.mode) {
         case (.finding, _) where session.subjectState == .separating:
-            // `.progress` sits at the centre of the photo (left/top 50 %, translate −50 %).
-            StageOperationProgress(title: "Finding the subject…", identifier: "background.separating",
-                                   onCancel: session.cancelSubjectSeparation)
-                .position(x: size.width / 2, y: size.height / 2)
+            EmptyView()
         case (_, _) where session.depthProgressVisible(needsDepth: backgroundPanel.mode == .focus):
-            // PROPOSED copy (owner approval pending, 2026-10-07): depth's own progress, distinct from the subject's.
-            StageOperationProgress(title: "Estimating depth…", identifier: "background.depth",
-                                   onCancel: session.cancelSubjectSeparation)
-                .position(x: size.width / 2, y: size.height / 2)
+            EmptyView()
         case (.controls, .refine):
             MatteTintMark(matte: session.displayMatteImage)
             Color.clear.contentShape(Rectangle())
@@ -796,10 +821,7 @@ struct EditorScreen: View {
             ThirdsGridMark()
         case .remove:
             RemoveStrokesMark(strokes: removeStrokesOnFrame(size: size))
-            if session.removeState == .removing {
-                StageOperationProgress(title: "Removing…", identifier: "edit.removing", onCancel: session.cancelRemove)
-                    .position(x: size.width / 2, y: size.height / 2)
-            } else {
+            if session.removeState != .removing {
                 Color.clear.contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 0)
                         .updating($isBrushing) { _, brushing, _ in brushing = true }
@@ -809,7 +831,7 @@ struct EditorScreen: View {
                         }
                         .onEnded { _ in
                             guard !removePoints.isEmpty else { return }
-                            session.removeStroke(points: removePoints, radius: editPanel.brushRadius)
+                            session.addEraseStroke(points: removePoints, radius: editPanel.brushRadius)
                             removePoints = []
                         })
                     .accessibilityHidden(true)
@@ -829,7 +851,7 @@ struct EditorScreen: View {
         let sourceLongEdge = Double(max(transform.sourceWidth, transform.sourceHeight))
         // Frame points per source pixel (the frame is displayed at `size`).
         let pointsPerPixel = Double(size.width) / Double(transform.frameWidth)
-        let strokes = RemoveStrokesMark.strokesShown(brushing: removePoints, brushRadius: editPanel.brushRadius)
+        let strokes = session.eraseDraft.map { ($0.points, $0.radius) } + RemoveStrokesMark.strokesShown(brushing: removePoints, brushRadius: editPanel.brushRadius)
         return strokes.map { points, radius in
             (points.map { toFrame(CGPoint(x: $0.x, y: $0.y)) }, CGFloat(radius * sourceLongEdge * pointsPerPixel))
         }
@@ -1005,31 +1027,11 @@ struct EditorScreen: View {
 
     // MARK: - Loading (`loadingHTML`)
 
-    @ViewBuilder
-    private func loadingProgress(maximumWidth: CGFloat) -> some View {
-        if session.phase == .opening {
-            ProgressBox(title: "Opening photo…", barFraction: 0.3, maximumWidth: maximumWidth) { EmptyView() }
-                .accessibilityIdentifier("loading.opening")
-        } else {
-            ProgressBox(title: "Developing…", subtitle: "Applying thoughtful enhancements.", barFraction: 0.7,
-                        maximumWidth: maximumWidth) { EmptyView() }
-                .accessibilityIdentifier("loading.developing")
-        }
-    }
-
-    /// Loading (`loadingScreen`): the photo between the 52 pt bar area and 120 pt from the bottom (phones), the progress
-    /// card centred on it, Close at the top leading corner (12 pt in).
-    @ViewBuilder
     private func loading(_ layout: EditorLayout) -> some View {
         ZStack(alignment: .topLeading) {
             VStack(spacing: 0) {
                 Color.clear.frame(height: 52)
-                PhotoStage(image: session.displayedImage, overlay: { EmptyView() }, marks: {
-                    GeometryReader { photo in
-                        loadingProgress(maximumWidth: photo.size.width / 2)
-                            .position(x: photo.size.width / 2, y: photo.size.height / 2)
-                    }
-                })
+                PhotoStage(image: session.displayedImage, overlay: { EmptyView() }, marks: { EmptyView() })
                 Color.clear.frame(height: layout.mode == .phone ? 120 : 16)
             }
             L2IconButton(icon: .close, label: Text("Cancel"), identifier: "loading.cancel") {
@@ -1045,18 +1047,6 @@ struct EditorScreen: View {
     @ViewBuilder
     private func overlays(_ layout: EditorLayout) -> some View {
         let isTabletSheet = layout.mode != .phone
-        if session.saveState == .saving {
-            // `.scrim.middle` covers the whole screen, status bar included, and centres the box in it.
-            ZStack {
-                ApprovedColor.scrim(colorScheme)
-                ProgressBox(title: "Saving a copy…", barFraction: 0.55) {
-                    ProgressCancelButton(identifier: "saving.cancel") { session.cancelSave() }
-                }
-                .accessibilityIdentifier("saving")
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea()
-        }
         if case .saved(let data) = session.saveState {
             ApprovedSheetOverlay(isTablet: isTabletSheet, onDismiss: session.dismissSaveState) {
                 SavedSheetContent(

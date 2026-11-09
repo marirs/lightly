@@ -146,6 +146,7 @@ class BackgroundSession(private val env: EditorEnvironment) {
             return SeparationState.Finished(depthAvailable = false, matteAvailable = matte != null, noClearSubject = noSubject, depthNotStarted = true)
         }
         onMatte(SeparationState.Finished(depthAvailable = false, matteAvailable = matte != null, noClearSubject = noSubject, depthPending = true))
+        com.lightlylabs.lightly.shell.DebugProcessingReview.pause()
         val depthAvailable = estimateAndInstallDepth(loaded, grey, startedEpoch)
         return SeparationState.Finished(depthAvailable = depthAvailable, matteAvailable = matte != null, noClearSubject = noSubject)
     }

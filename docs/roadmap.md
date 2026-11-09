@@ -38,7 +38,7 @@ defects it finds go to 1.0.x from `release/1.0`.
 ## 1.2 — Eraser
 
 Recorded 2026-10-05 from the owner's explicit request; moved from 1.1 to 1.2 by the owner on 2026-10-20. Target: iOS and Android.
-Status: scheduled for 1.2; research recorded, detailed UX and implementation not approved or started.
+Status: simplified Eraser UX approved and implemented on iOS and Android. The [1.2 kickoff](v1.2/eraser-kickoff.md) records the approved flow; [device checks](v1.2/eraser-device-check-2026-11-09.md) cover the core flow, and [all 48 loading-state checks](v1.2/processing-device-check-2026-11-09.md) pass. Failure/retry, pending-mark gestures and saved-output consistency remain to verify. Version 1.1 is already released on both platforms.
 
 Remove unwanted people, objects and distractions from a photograph, reconstructing
 what belongs behind them rather than leaving transparency or a blurred patch.

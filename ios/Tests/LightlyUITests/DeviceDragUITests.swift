@@ -101,3 +101,112 @@ final class DeviceDragUITests: XCTestCase {
         XCTAssertTrue(saved, "Save copy with the replacement completed")
     }
 }
+
+/// Focused 1.2 check on an already installed app, opened to a disposable test photo by devicectl.
+final class EraserDeviceUITests: XCTestCase {
+    private let app = XCUIApplication(bundleIdentifier: "com.lightlylabs.lightly")
+    private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id].firstMatch }
+    private func shot(_ name: String) {
+        let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
+    }
+    func testDraftEraseUndoAndSave() throws {
+        guard ProcessInfo.processInfo.environment["LIGHTLY_ERASER_DEVICE"] == "1" else { throw XCTSkip("Physical Eraser check only") }
+        continueAfterFailure = false
+        SystemAlertGuard.install(on: self)
+        app.activate()
+        XCTAssertTrue(element("tool.edit").waitForExistence(timeout: 120))
+        element("tool.edit").tap()
+        let tab = element("edit.sub.Eraser")
+        for _ in 0..<5 where !tab.isHittable {
+            let row = element("edit.sub.Adjust")
+            let y = row.exists ? row.frame.midY : element("edit.sub.Crop").frame.midY
+            let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: app.frame.width * 0.85, dy: y))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: -app.frame.width * 0.65, dy: 0)))
+        }
+        XCTAssertTrue(tab.isHittable); tab.tap()
+        let erase = element("edit.remove.erase"), clear = element("edit.remove.clear"), undo = element("edit.remove.undoStroke")
+        XCTAssertTrue(erase.waitForExistence(timeout: 10)); XCTAssertFalse(erase.isEnabled)
+        shot("eraser-empty")
+        let photo = element("editor.photo")
+        func stroke(_ y: Double) {
+            photo.coordinate(withNormalizedOffset: CGVector(dx: 0.40, dy: y)).press(forDuration: 0.1,
+                thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.48, dy: y)))
+        }
+        stroke(0.4); stroke(0.7)
+        XCTAssertTrue(erase.isEnabled); XCTAssertFalse(element("processing.overlay").exists)
+        shot("eraser-two-marks")
+        undo.tap(); XCTAssertTrue(erase.isEnabled)
+        clear.tap(); XCTAssertFalse(erase.isEnabled)
+        stroke(0.4); stroke(0.7)
+        erase.tap()
+        let deadline = Date().addingTimeInterval(180)
+        while Date() < deadline && (element("processing.overlay").exists || erase.isEnabled) { Thread.sleep(forTimeInterval: 0.5) }
+        XCTAssertFalse(element("processing.overlay").exists)
+        XCTAssertFalse(erase.isEnabled, "successful batch clears the marks")
+        XCTAssertTrue(undo.isEnabled)
+        shot("eraser-applied")
+        undo.tap(); XCTAssertFalse(undo.isEnabled, "Undo restores the entire two-stroke batch")
+        shot("eraser-undone")
+        element("editor.undo").tap() // undo the removal-undo: replay the same stored patches
+        element("editor.saveCopy").tap()
+        XCTAssertTrue(element("saved.title").waitForExistence(timeout: 120), "the actual edited photo saves")
+        shot("eraser-saved")
+    }
+}
+
+/// Real opening/Auto/matte/depth/inpainting/export, with opt-in diagnostic dwell for inspection.
+final class ProcessingDeviceUITests: XCTestCase {
+    private let app = XCUIApplication(bundleIdentifier: "com.lightlylabs.lightly")
+    private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id].firstMatch }
+    private func shot(_ name: String) {
+        let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        a.name = name; a.lifetime = .keepAlways; add(a)
+    }
+    private func check(_ state: String) {
+        let overlay = element("processing.overlay")
+        let predicate = NSPredicate { _, _ in overlay.exists && (overlay.value as? String) == state }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: nil)], timeout: 120), .completed, state)
+        XCTAssertFalse(app.staticTexts["Cancel"].exists, "No visible loading Cancel label")
+        shot("processing-\(state)")
+        // Tap the toolbar where Close would be. The actual operation must remain active.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.075)).tap()
+        XCTAssertTrue(overlay.exists, "Background controls blocked during \(state)")
+    }
+    func testSixLoadingStates() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard env["LIGHTLY_PROCESSING_DEVICE"] == "1" else { throw XCTSkip("Opt-in physical processing review") }
+        let theme = env["LIGHTLY_PROCESSING_THEME"] ?? "light"
+        continueAfterFailure = false
+        SystemAlertGuard.install(on: self)
+        app.launchArguments = ["--keep-stored-session", "--session-store", "processing-review-\(theme)", "--keep-awake", "--open-photo", "processing-check.jpg", "--processing-review", "-lightly.preferences.v1.appearance", theme]
+        app.launch()
+        check("opening"); check("auto")
+        XCTAssertTrue(element("tool.background").waitForExistence(timeout: 120))
+        shot("ready-\(theme)")
+        element("tool.background").tap()
+        check("subject"); check("depth")
+        XCTAssertTrue(element("tool.edit").waitForExistence(timeout: 120))
+        shot("background-ready")
+        element("tool.edit").tap()
+        let tab = element("edit.sub.Eraser")
+        for _ in 0..<5 where !tab.isHittable {
+            let y = element("edit.sub.Crop").exists ? element("edit.sub.Crop").frame.midY : element("edit.sub.Adjust").frame.midY
+            let p = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: app.frame.width * 0.85, dy: y))
+            p.press(forDuration: 0.05, thenDragTo: p.withOffset(CGVector(dx: -app.frame.width * 0.65, dy: 0)))
+        }
+        XCTAssertTrue(tab.isHittable); tab.tap()
+        let photo = element("editor.photo")
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.40, dy: 0.40)).press(forDuration: 0.1,
+            thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.46, dy: 0.40)))
+        element("edit.remove.erase").tap()
+        check("eraser")
+        XCTAssertTrue(element("edit.remove.undoStroke").waitForExistence(timeout: 120))
+        XCTAssertTrue(element("edit.remove.undoStroke").isEnabled)
+        XCTAssertFalse(element("edit.remove.erase").isEnabled)
+        shot("eraser-ready")
+        element("editor.saveCopy").tap()
+        check("saving")
+        XCTAssertTrue(element("saved.title").waitForExistence(timeout: 120))
+        shot("saved")
+    }
+}

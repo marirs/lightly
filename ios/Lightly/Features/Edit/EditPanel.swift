@@ -57,9 +57,13 @@ struct EditPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             PanelTabs(items: [(EditPanelModel.Sub.crop, "Crop", false), (.rotate, "Rotate", false), (.straighten, "Straighten", false),
-                              (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Remove", false)],
+                              (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Eraser", false)],
                       selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0 }
-            PanelResetRow(session: model.session, section: "edit", title: model.sub.rawValue.capitalized, adjustment: model.sub.rawValue)
+            if model.sub == .remove {
+                Text("Eraser").l2Text(17, weight: .bold).frame(minHeight: 36)
+            } else {
+                PanelResetRow(session: model.session, section: "edit", title: model.sub.rawValue.capitalized, adjustment: model.sub.rawValue)
+            }
             switch model.sub {
             case .crop: crop
             case .rotate: rotate
@@ -161,23 +165,32 @@ struct EditPanelView: View {
 
     @ViewBuilder
     private var remove: some View {
-        switch session.removeState {
-        case .removing:
-            L2Notice(icon: .info, text: "Removing…", actions: [("Cancel", "edit.remove.cancel", { session.cancelRemove() })])
-        case .failed:
-            L2Notice(icon: .warn, bold: "Couldn't remove that area.", text: " Try a smaller stroke. Your other edits are kept.",
-                     actions: [("Try again", "edit.remove.retry", { session.retryRemove() })])
-        case .idle:
+        let marked = !session.eraseDraft.isEmpty
+        let canUndo = marked || !model.edit.remove.strokes.isEmpty
+        VStack(alignment: .leading, spacing: session.removeState == .failed ? 8 : 14) {
+            if session.removeState == .failed {
+                L2Notice(icon: .warn, text: "Couldn't erase. Try again or brush a smaller area.")
+            } else {
+                L2Note(model.edit.remove.strokes.isEmpty ? "Brush over what you want removed." : "Done. Brush over anything else you want removed.")
+            }
             PanelSlider(label: "Brush size", value: model.brushSize, range: 0...100, identifier: "slider.brushSize",
                         onChange: { model.brushSize = $0.rounded() }, onEnd: { model.brushSize = $0.rounded() })
             HStack(spacing: 10) {
-                let canUndo = !model.edit.remove.strokes.isEmpty
-                Button("Undo stroke") { session.undoStroke() }
-                    .buttonStyle(L2QuietButtonStyle(dimmed: !canUndo))
-                    .disabled(!canUndo)
-                    .accessibilityIdentifier("edit.remove.undoStroke")
-                L2Note("Brush over anything you want removed.")
+                Button { session.undoErase() } label: {
+                    Label { Text("Undo") } icon: { ApprovedIconView(icon: .undo, size: 20) }
+                }
+                .buttonStyle(L2WideButtonStyle(kind: .line)).disabled(!canUndo).opacity(canUndo ? 1 : 0.4)
+                .accessibilityIdentifier("edit.remove.undoStroke")
+                Button("Clear") { session.clearEraseDraft() }
+                    .buttonStyle(L2WideButtonStyle(kind: .line)).disabled(!marked).opacity(marked ? 1 : 0.4)
+                    .accessibilityIdentifier("edit.remove.clear")
             }
+            Button { session.eraseMarkedAreas() } label: {
+                Label { Text(session.removeState == .failed ? "Try again" : "Erase") } icon: { ApprovedIconView(icon: .erase, size: 20) }
+            }
+            .buttonStyle(L2WideButtonStyle(kind: .primary)).disabled(!marked).opacity(marked ? 1 : 0.4)
+            .accessibilityIdentifier("edit.remove.erase")
+            L2Note("Use two fingers to zoom and move.")
         }
     }
 }

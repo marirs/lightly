@@ -441,6 +441,47 @@ final class EditEffectsSessionTests: XCTestCase {
         return total / Double(width * height)
     }
 
+    func testEraserWaitsForEraseAndCommitsMultipleStrokesAtomically() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, inpainter: FlatInpainter())
+        let before = session.recipe
+        session.addEraseStroke(points: [.init(x: 0.2, y: 0.3)], radius: 0.02)
+        session.addEraseStroke(points: [.init(x: 0.8, y: 0.7)], radius: 0.04)
+        XCTAssertEqual(session.eraseDraft.count, 2)
+        XCTAssertEqual(session.recipe, before)
+        XCTAssertEqual(session.removeState, .idle)
+        session.undoErase()
+        XCTAssertEqual(session.eraseDraft.count, 1)
+        session.clearEraseDraft()
+        XCTAssertTrue(session.eraseDraft.isEmpty)
+        session.addEraseStroke(points: [.init(x: 0.2, y: 0.3)], radius: 0.02)
+        session.addEraseStroke(points: [.init(x: 0.8, y: 0.7)], radius: 0.04)
+        session.eraseMarkedAreas()
+        await session.debugAwaitQuiescence()
+        XCTAssertEqual(session.recipe.tools.edit.remove.strokes.count, 2)
+        XCTAssertTrue(session.eraseDraft.isEmpty)
+        session.undo()
+        XCTAssertEqual(session.recipe, before, "One history step for both disconnected strokes")
+        session.redo()
+        XCTAssertEqual(session.recipe.tools.edit.remove.strokes.count, 2)
+        session.undoErase()
+        XCTAssertTrue(session.recipe.tools.edit.remove.strokes.isEmpty)
+    }
+
+    func testEraserFailureRetainsAllMarksAndLeavesRecipeUnchanged() async throws {
+        let session = try await EditorTestSupport.readySession(library: library, inpainter: nil)
+        let before = session.recipe
+        session.addEraseStroke(points: [.init(x: 0.2, y: 0.3)], radius: 0.02)
+        session.addEraseStroke(points: [.init(x: 0.8, y: 0.7)], radius: 0.04)
+        session.eraseMarkedAreas()
+        await session.debugAwaitQuiescence()
+        XCTAssertEqual(session.removeState, .failed)
+        XCTAssertEqual(session.recipe, before)
+        XCTAssertEqual(session.eraseDraft.count, 2)
+        session.clearEraseDraft()
+        XCTAssertEqual(session.removeState, .idle)
+        XCTAssertTrue(session.eraseDraft.isEmpty)
+    }
+
     func testRemoveCommitsOneStepWithItsPatchAndUndoStrokeRemovesIt() async throws {
         let session = try await EditorTestSupport.readySession(library: library, inpainter: FlatInpainter())
         session.removeStroke(points: [.init(x: 0.5, y: 0.5), .init(x: 0.55, y: 0.5)], radius: 0.03)

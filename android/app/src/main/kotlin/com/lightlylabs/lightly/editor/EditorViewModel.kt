@@ -271,6 +271,7 @@ class EditorViewModel(
             // The photo is visible under "Opening photo…" while the pack and Develop finish.
             state.update { it.copy(original = loaded.display) }
             startPreviewScheduler(loaded, generation)
+            com.lightlylabs.lightly.shell.DebugProcessingReview.pause()
             if (debugHoldLoading) return@launch // capture of the approved loading screen (debug builds only)
             val library = env.library.await()
             if (!isCurrent(generation)) return@launch
@@ -308,6 +309,8 @@ class EditorViewModel(
         val faces = portraitSession.people?.usableFaces.orEmpty().map { f ->
             com.lightlylabs.lightly.develop.auto.AutoAnalysis.Face(f.box.x, f.box.y, f.box.width, f.box.height)
         }
+        state.update { it.copy(phase = EditorPhase.Developing) }
+        com.lightlylabs.lightly.shell.DebugProcessingReview.pause()
         val autoStarted = System.nanoTime()
         val result = env.autoDeveloper.develop(loaded.source.fingerprint, loaded.analysis, faces)
         val autoMillis = (System.nanoTime() - autoStarted) / 1_000_000
@@ -405,7 +408,7 @@ class EditorViewModel(
         if (!EditorTools.isImplemented(tool) && !env.debugBuild) return // release: unimplemented tools stay put
         // Prototype `tool`: sub, op and group reset; a removal already running keeps running.
         val wasCropEditing = isCropEditing()
-        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi(), portrait = PortraitUi(selectedFace = it.portrait.selectedFace),
+        state.update { it.copy(tool = tool, develop = DevelopUi(), background = BackgroundUi(), edit = EditUi(removeOp = it.edit.removeOp, pendingStroke = it.edit.pendingStroke, eraseDraft = it.edit.eraseDraft), effects = EffectsUi(), border = BorderUi(), watermark = WatermarkUi(), portrait = PortraitUi(selectedFace = it.portrait.selectedFace),
             // Opening Text selects the first layer (mockup `tx-selected`, `tx-two`), so its handles show at once.
             text = TextUi(selectedId = if (tool == EditorTool.TEXT) it.session?.current?.tools?.text?.layers?.firstOrNull()?.id else null)) }
         refreshAfterCropEditingChange(wasCropEditing)
@@ -433,6 +436,7 @@ class EditorViewModel(
         depthJob?.cancel()
         state.update { it.copy(separation = from.copy(depthNotStarted = false, depthPending = true)) }
         depthJob = scope.launch(env.prefetchDispatcher) {
+            com.lightlylabs.lightly.shell.DebugProcessingReview.pause()
             val available = backgroundSession.analyseDepth(current.loaded)
             // Like the matte: long CPU work with no suspension point. A Cancel, reset or another photo meanwhile
             // leaves the state alone (BackgroundSession also refuses to install the stale depth).
@@ -459,6 +463,7 @@ class EditorViewModel(
             // Capture of the approved "Finding the subject…" state (debug builds only): stays separating.
             if (debugHoldSeparation) return@launch
             if (debugSlowSeparation) delay(8_000)
+            com.lightlylabs.lightly.shell.DebugProcessingReview.pause()
             // Capture of the approved "Couldn't separate the subject" state (debug builds only, injected:
             // with the vision models this photo separates, so the failure is no longer what a user sees).
             if (debugFailSeparation) { state.update { it.copy(separation = SeparationState.Finished(depthAvailable = false, matteAvailable = false, noClearSubject = false)) }; return@launch }
@@ -1042,67 +1047,95 @@ class EditorViewModel(
         runRemove(PendingRemoveStroke(points, radius))
     }
 
-    /** Remove failed › Try again: the same stroke once more. */
-    fun retryRemove() {
-        val stroke = state.value.edit.pendingStroke?.takeIf { state.value.edit.removeOp == RemoveOp.FAILED } ?: return
-        runRemove(stroke)
+
+    fun addEraseStroke(framePoints: List<Pair<Double, Double>>) {
+        if (framePoints.isEmpty() || state.value.edit.removeOp == RemoveOp.REMOVING) return
+        val geometry = displayGeometry() ?: return
+        val points = framePoints.map { (x, y) -> geometry.sourceFromFrame(x, y).let { (sx, sy) -> sx.coerceIn(0.0, 1.0) to sy.coerceIn(0.0, 1.0) } }
+        state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.IDLE,
+            pendingStroke = null, eraseDraft = it.edit.eraseDraft + PendingRemoveStroke(points, EditOptions.brushRadius(it.edit.brushSize)))) }
     }
 
-    /** Removing › Cancel: "Cancelled · nothing changed". */
+    fun clearEraseDraft() {
+        if (state.value.edit.removeOp == RemoveOp.REMOVING) return
+        state.update { it.copy(edit = it.edit.copy(eraseDraft = emptyList(), pendingStroke = null, removeOp = RemoveOp.IDLE)) }
+    }
+
+    fun undoErase() {
+        if (state.value.edit.removeOp == RemoveOp.REMOVING) return
+        if (state.value.edit.eraseDraft.isNotEmpty()) {
+            state.update { it.copy(edit = it.edit.copy(eraseDraft = it.edit.eraseDraft.dropLast(1), pendingStroke = null, removeOp = RemoveOp.IDLE)) }
+        } else {
+            val count = state.value.session?.current?.tools?.edit?.remove?.strokes?.size ?: return
+            if (count == 0) return
+            val history = state.value.session!!.history
+            val current = history.current.tools.edit.remove.strokes
+            val previous = history.entries.take(history.cursor).asReversed().map { it.tools.edit.remove.strokes }
+                .firstOrNull { it.size < count && current.take(it.size) == it }
+            val size = count - (previous?.size ?: (count - 1).coerceAtLeast(0))
+            commitEdit { it.copy(remove = it.remove.copy(strokes = it.remove.strokes.dropLast(size))) }
+        }
+    }
+
+    fun eraseMarkedAreas() {
+        val edit = state.value.edit
+        if (edit.removeOp != RemoveOp.REMOVING && edit.eraseDraft.isNotEmpty()) runRemove(edit.eraseDraft)
+    }
+
+    fun retryRemove() {
+        if (state.value.edit.removeOp != RemoveOp.FAILED) return
+        if (state.value.edit.eraseDraft.isNotEmpty()) eraseMarkedAreas()
+        else state.value.edit.pendingStroke?.let { runRemove(it) }
+    }
+
     fun cancelRemove() {
         removeJob?.cancel()
         state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.IDLE, pendingStroke = null)) }
         showToast(OPERATION_CANCELLED)
     }
 
-    /** Undo stroke: removes the last applied stroke (one step); redo replays its stored patch. */
     fun undoStroke() = commitEdit { e -> e.copy(remove = e.remove.copy(strokes = e.remove.strokes.dropLast(1))) }
 
-    private fun runRemove(stroke: PendingRemoveStroke) {
+    private fun runRemove(stroke: PendingRemoveStroke) = runRemove(listOf(stroke))
+
+    private fun runRemove(strokes: List<PendingRemoveStroke>) {
         val current = photo?.takeIf { isCurrent(it.generation) } ?: return
         removeJob?.cancel()
-        state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.REMOVING, pendingStroke = stroke)) }
-        if (debugHoldRemove) return // capture of the approved "Removing…" state (debug builds only)
+        state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.REMOVING, pendingStroke = strokes.first())) }
+        if (debugHoldRemove) return
+        // Freeze the input recipe. Nothing is published until every stroke succeeds.
+        val applied = state.value.session?.current?.let { EditMapping.patchDigests(it) }.orEmpty().mapNotNull { removePatches[it] }
         removeJob = scope.launch {
             val result = runCatching {
-                kotlinx.coroutines.withContext(env.removeDispatcher ?: env.prefetchDispatcher) { // off the main thread, normal priority; the model call blocks
+                kotlinx.coroutines.withContext(env.removeDispatcher ?: env.prefetchDispatcher) {
+                    com.lightlylabs.lightly.shell.DebugProcessingReview.pause()
                     val model = inpainter ?: throw RemoveUnavailableException("No Remove model in this build")
-                    // Full-resolution source with the earlier strokes' patches (remove-evaluation §7), read by region:
-                    // only the stroke's context window leaves the native frame (48 MP: no 192 MB Java array), and the
-                    // frame is closed before the model runs, so the two are never held together.
-                    val applied = state.value.session?.current?.let { EditMapping.patchDigests(it) }.orEmpty().mapNotNull { removePatches[it] }
-                    val strokeStarted = System.nanoTime()
-                    var decodeMs = 0L
-                    val window = current.loaded.fullResolution.decodeFrame().use { frame ->
-                        decodeMs = (System.nanoTime() - strokeStarted) / 1_000_000
-                        RemoveEngine.window(RemoveEngine.PatchedFrameSource(frame, applied), stroke.points, stroke.radius)
-                    }
-                    val windowMs = (System.nanoTime() - strokeStarted) / 1_000_000 - decodeMs
+                    val patches = mutableListOf<RemovePatch>()
                     try {
-                        val started = System.nanoTime()
-                        val patch = RemoveEngine.patch(window, stroke.points, stroke.radius, model) { !coroutineContext.isActive }
-                        runCatching {
-                            android.util.Log.i("LightlyRemove", "stroke removed in ${(System.nanoTime() - strokeStarted) / 1_000_000} ms " +
-                                "(frame open $decodeMs ms, window $windowMs ms, patch ${(System.nanoTime() - started) / 1_000_000} ms)")
+                        for (stroke in strokes) {
+                            if (!coroutineContext.isActive) throw CancellationException()
+                            val window = current.loaded.fullResolution.decodeFrame().use { frame ->
+                                RemoveEngine.window(RemoveEngine.PatchedFrameSource(frame, applied + patches), stroke.points, stroke.radius)
+                            }
+                            patches += RemoveEngine.patch(window, stroke.points, stroke.radius, model) { !coroutineContext.isActive }
                         }
-                        patch to model.model
-                    } finally {
-                        // The patch is kept; the model's memory is not held between strokes (each stroke reopens it).
-                        model.releaseResources()
-                    }
+                        patches to model.model
+                    } finally { model.releaseResources() }
                 }
             }
-            if (!isCurrent(current.generation)) return@launch
-            val (patch, modelRef) = result.getOrElse { failure ->
+            if (!isCurrent(current.generation) || !coroutineContext.isActive) return@launch
+            val (patches, modelRef) = result.getOrElse { failure ->
                 if (failure is CancellationException) return@launch
-                runCatching { android.util.Log.w("LightlyRemove", "remove failed: $failure") }
+                runCatching { android.util.Log.w("LightlyRemove", "erase failed: $failure") }
                 state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.FAILED)) }
                 return@launch
             }
-            removePatches.put(patch)
-            val recorded = com.lightlylabs.lightly.session.RemoveStroke(stroke.radius.coerceIn(1e-6, 0.5), stroke.points.map { (x, y) -> com.lightlylabs.lightly.session.NormalisedPoint(x, y) },
-                com.lightlylabs.lightly.session.RemoveResult(com.lightlylabs.lightly.session.RemoveStatus.APPLIED, patch.derivedRef(modelRef)))
-            state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.IDLE, pendingStroke = null)) }
+            val recorded = strokes.zip(patches).map { (stroke, patch) ->
+                removePatches.put(patch)
+                com.lightlylabs.lightly.session.RemoveStroke(stroke.radius.coerceIn(1e-6, 0.5), stroke.points.map { (x, y) -> com.lightlylabs.lightly.session.NormalisedPoint(x, y) },
+                    com.lightlylabs.lightly.session.RemoveResult(com.lightlylabs.lightly.session.RemoveStatus.APPLIED, patch.derivedRef(modelRef)))
+            }
+            state.update { it.copy(edit = it.edit.copy(removeOp = RemoveOp.IDLE, pendingStroke = null, eraseDraft = emptyList())) }
             commitEdit { e -> e.copy(remove = e.remove.copy(strokes = e.remove.strokes + recorded)) }
             debugAfterRemove?.let { action -> debugAfterRemove = null; action() }
         }
@@ -2239,6 +2272,7 @@ class EditorViewModel(
         userCancelledSave = false
         state.update { it.copy(overlay = EditorOverlay.SAVING) }
         scope.launch {
+            com.lightlylabs.lightly.shell.DebugProcessingReview.pause()
             scheduler?.cancelAllAndAwaitIdle()
             backgroundSession.trimForExport()
             exportPreparationsStarted++
@@ -2450,7 +2484,7 @@ class EditorViewModel(
     // --- commit and preview ---------------------------------------------------------------------
 
     fun resetEdits(section: String = "all", adjustment: String? = null) {
-        if (section == "all" || section == "edit") cancelRemove()
+        if (section == "all" || section == "edit") { cancelRemove(); clearEraseDraft() }
         val session = state.value.session ?: return
         val next = resetRecipe(session.current, section, adjustment)
         commit(session.commit { next }, if (section == "all" && state.value.auto == AutoState.APPLIED) AutoState.OFF else state.value.auto)

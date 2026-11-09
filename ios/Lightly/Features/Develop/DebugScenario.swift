@@ -15,6 +15,13 @@ import ImageIO
 struct DebugScenario {
     let screenID: String
 
+    /// Opt-in device review: keep real operations visible long enough to inspect and
+    /// probe blocked controls. No substituted results; absent from release builds.
+    static func processingReviewPause(_ state: String) async {
+        guard DebugArguments.current.contains("--processing-review") else { return }
+        try? await Task.sleep(for: .seconds(state == "depth" ? 40 : 12))
+    }
+
     static var current: DebugScenario? {
         let arguments = DebugArguments.current
         guard let flag = arguments.firstIndex(of: "--scenario"), arguments.indices.contains(flag + 1) else { return nil }

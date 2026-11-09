@@ -69,6 +69,7 @@ object DebugLaunchOptions {
 
     fun apply(intent: Intent?, shell: AppViewModel, preferences: PreferencesStore, editor: EditorViewModel): kotlinx.coroutines.Job? {
         if (!BuildConfig.DIAGNOSTICS || intent == null) return null
+        DebugProcessingReview.enabled = intent.getBooleanExtra("lightly.debug.processingReview", false)
         // A11 forced conditions: `--es lightly.debug.saveFails storage|other` (see DebugSaveFault).
         com.lightlylabs.lightly.editor.DebugSaveFault.mode = intent.getStringExtra("lightly.debug.saveFails")
         // D3 functional check: `--es lightly.debug.visionProbe <folder>` (see VisionProbe).
@@ -608,5 +609,13 @@ object DebugLaunchOptions {
             // The import sheet with the prototype's imported signature as the extracted one.
             "wm-sig-import" -> api.setUi { it.copy(overlay = com.lightlylabs.lightly.editor.EditorOverlay.SIGNATURE_IMPORT, watermark = it.watermark.copy(imported = com.lightlylabs.lightly.signatures.SignatureImages.prototypeImportedSample())) }
         }
+    }
+}
+
+/** Review-only dwell around real work, never a replacement result or release delay. */
+internal object DebugProcessingReview {
+    @Volatile var enabled = false
+    suspend fun pause() {
+        if (BuildConfig.DIAGNOSTICS && enabled) kotlinx.coroutines.delay(12_000)
     }
 }

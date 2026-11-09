@@ -5,7 +5,7 @@ import com.lightlylabs.lightly.session.EditState
 import com.lightlylabs.lightly.session.GrainStyle
 
 /** Prototype `editPanel` tabs, in order. */
-enum class EditSub(val label: String) { CROP("Crop"), ROTATE("Rotate"), STRAIGHTEN("Straighten"), PERSPECTIVE("Perspective"), ADJUST("Adjust"), REMOVE("Remove") }
+enum class EditSub(val label: String) { CROP("Crop"), ROTATE("Rotate"), STRAIGHTEN("Straighten"), PERSPECTIVE("Perspective"), ADJUST("Adjust"), REMOVE("Eraser") }
 
 /** Adjust › groups (prototype `ui.group`). */
 enum class AdjustGroup(val label: String) { LIGHT("Light"), COLOUR("Colour"), DETAIL("Detail") }
@@ -31,6 +31,7 @@ data class EditUi(
     val brushSize: Int = 35,
     val removeOp: RemoveOp = RemoveOp.IDLE,
     val pendingStroke: PendingRemoveStroke? = null,
+    val eraseDraft: List<PendingRemoveStroke> = emptyList(),
 )
 
 /** Prototype `effectsPanel` tabs. */

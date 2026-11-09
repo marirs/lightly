@@ -559,6 +559,51 @@ class EditEffectsTest {
     }
 
     @Test
+    fun `Eraser drafts wait for Erase and a batch is one history step`() = runTest {
+        val model = RedInpainter()
+        val vm = ready(model)
+        val before = vm.uiState.value.session!!.current
+        vm.addEraseStroke(listOf(0.2 to 0.3))
+        vm.addEraseStroke(listOf(0.8 to 0.7))
+        advanceUntilIdle()
+        assertEquals(0, model.calls)
+        assertEquals(2, vm.uiState.value.edit.eraseDraft.size)
+        vm.undoErase()
+        assertEquals(1, vm.uiState.value.edit.eraseDraft.size)
+        vm.clearEraseDraft()
+        assertTrue(vm.uiState.value.edit.eraseDraft.isEmpty())
+        vm.addEraseStroke(listOf(0.2 to 0.3))
+        vm.addEraseStroke(listOf(0.8 to 0.7))
+        vm.eraseMarkedAreas()
+        advanceUntilIdle()
+        assertEquals(2, model.calls)
+        assertEquals(2, vm.uiState.value.session!!.current.tools.edit.remove.strokes.size)
+        assertTrue(vm.uiState.value.edit.eraseDraft.isEmpty())
+        vm.undo(); advanceUntilIdle()
+        assertEquals(before, vm.uiState.value.session!!.current)
+        vm.redo(); advanceUntilIdle()
+        assertEquals(2, vm.uiState.value.session!!.current.tools.edit.remove.strokes.size)
+        vm.undoErase(); advanceUntilIdle()
+        assertTrue(vm.uiState.value.session!!.current.tools.edit.remove.strokes.isEmpty())
+    }
+
+    @Test
+    fun `Eraser failure retains marks without changing the photo`() = runTest {
+        val vm = ready(null)
+        val before = vm.uiState.value.session!!.current
+        vm.addEraseStroke(listOf(0.2 to 0.3))
+        vm.addEraseStroke(listOf(0.8 to 0.7))
+        vm.eraseMarkedAreas()
+        advanceUntilIdle()
+        assertEquals(RemoveOp.FAILED, vm.uiState.value.edit.removeOp)
+        assertEquals(before, vm.uiState.value.session!!.current)
+        assertEquals(2, vm.uiState.value.edit.eraseDraft.size)
+        vm.clearEraseDraft()
+        assertEquals(RemoveOp.IDLE, vm.uiState.value.edit.removeOp)
+        assertTrue(vm.uiState.value.edit.eraseDraft.isEmpty())
+    }
+
+    @Test
     fun `a Remove stroke is one step with its patch, Undo stroke takes it back, redo replays the patch`() = runTest {
         val model = RedInpainter()
         val vm = ready(model)

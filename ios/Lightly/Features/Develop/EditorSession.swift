@@ -385,6 +385,9 @@ final class EditorSession {
             return
         }
         #endif
+        #if DEBUG
+        await DebugScenario.processingReviewPause("opening")
+        #endif
         await develop(appliesAuto: false)
         DiagnosticTrace.note("open: ready at \(DebugModelLoad.ms(since: openStarted)) ms, phase \(phase)")
     }
@@ -395,6 +398,9 @@ final class EditorSession {
     /// off and the photo opens untouched; only a Retry the person asked for (`appliesAuto`) switches it on.
     private func develop(appliesAuto: Bool) async {
         phase = .developing
+        #if DEBUG
+        await DebugScenario.processingReviewPause("auto")
+        #endif
         let proxy = try? AnalysisProxy.make(from: photo)
         let result: AutoResult = if let proxy { await autoEnhancer.autoLUT(forAnalysisProxy: proxy) } else { .unavailable(.analysisFailed) }
         guard !isClosed else { return }
@@ -621,6 +627,9 @@ final class EditorSession {
             defer { KeepAwake.end(awake) }
             let started = ContinuousClock.now
             do {
+                #if DEBUG
+                await DebugScenario.processingReviewPause("subject")
+                #endif
                 var matte = try await Self.traced("subject matte", started) { try await sceneAnalyser.subjectMatte(for: image) }
                 try Task.checkCancellation()
                 // Hair detail: only for a photo with faces (see SubjectMatte.refinedAtHair).
@@ -665,6 +674,9 @@ final class EditorSession {
             defer { KeepAwake.end(awake) }
             let started = ContinuousClock.now
             do {
+                #if DEBUG
+                await DebugScenario.processingReviewPause("depth")
+                #endif
                 let disparity = try await Self.traced("depth", started) { try await sceneAnalyser.disparity(for: image, originalData: data) }
                 try Task.checkCancellation()
                 self?.finishDepth(disparity, generation: generation)
@@ -991,6 +1003,36 @@ final class EditorSession {
     /// The stroke being removed, or the one that failed (drawn on the photo until it is applied,
     /// retried or replaced).
     private(set) var pendingRemoveStroke: EditRecipe.RemoveStroke?
+    private(set) var eraseDraft: [EditRecipe.RemoveStroke] = []
+
+    func addEraseStroke(points: [EditRecipe.Point], radius: Double) {
+        guard removeState != .removing, !points.isEmpty else { return }
+        pendingRemoveStroke = nil
+        eraseDraft.append(.init(radius: min(max(radius, 0.001), 0.5), points: points, status: .applied, patch: nil))
+        removeState = .idle
+    }
+    func clearEraseDraft() {
+        guard removeState != .removing else { return }
+        eraseDraft = []; pendingRemoveStroke = nil; removeState = .idle
+    }
+    func undoErase() {
+        guard removeState != .removing else { return }
+        if !eraseDraft.isEmpty { eraseDraft.removeLast(); pendingRemoveStroke = nil; removeState = .idle }
+        else {
+            let count = recipe.tools.edit.remove.strokes.count
+            guard count > 0 else { return }
+            let current = recipe.tools.edit.remove.strokes
+            let previous = history.prefix(historyIndex).reversed().map { $0.tools.edit.remove.strokes }
+                .first { $0.count < count && Array(current.prefix($0.count)) == $0 }
+            let size = count - (previous?.count ?? max(0, count - 1))
+            commitEdit { $0.remove.strokes.removeLast(size) }
+        }
+    }
+    func eraseMarkedAreas() {
+        guard removeState != .removing, !eraseDraft.isEmpty else { return }
+        pendingRemoveStroke = eraseDraft.first
+        runRemove(eraseDraft)
+    }
     /// Remove patches by digest; written beside the edit when the app gives a directory.
     @ObservationIgnored let removePatches: RemovePatchStore
     @ObservationIgnored private var removeTask: Task<Void, Never>?
@@ -1304,13 +1346,14 @@ final class EditorSession {
         guard removeState != .removing, !points.isEmpty else { return }
         let stroke = EditRecipe.RemoveStroke(radius: min(max(radius, 0.001), 0.5), points: points, status: .applied, patch: nil)
         pendingRemoveStroke = stroke
-        runRemove(stroke)
+        runRemove([stroke])
     }
 
     /// Remove failed › Try again: the same stroke once more.
     func retryRemove() {
-        guard removeState == .failed, let stroke = pendingRemoveStroke else { return }
-        runRemove(stroke)
+        guard removeState == .failed else { return }
+        if !eraseDraft.isEmpty { eraseMarkedAreas() }
+        else if let stroke = pendingRemoveStroke { runRemove([stroke]) }
     }
 
     /// Removing › Cancel: nothing changes ("Cancelled · nothing changed"). A model call already
@@ -1330,7 +1373,7 @@ final class EditorSession {
         commitEdit { $0.remove.strokes.removeLast() }
     }
 
-    private func runRemove(_ stroke: EditRecipe.RemoveStroke) {
+    private func runRemove(_ strokes: [EditRecipe.RemoveStroke]) {
         removeState = .removing
         let image = photo.image
         let earlier = removePatches.patches(for: recipe.tools.edit.remove.strokes)
@@ -1341,17 +1384,24 @@ final class EditorSession {
         removeTask = Task { [weak self] in
             defer { KeepAwake.end(awake) }
             do {
-                let work = Task.detached(priority: .userInitiated) { () -> (patch: RemovePatch, engine: any Inpainting) in
+                #if DEBUG
+                await DebugScenario.processingReviewPause("eraser")
+                #endif
+                let work = Task.detached(priority: .userInitiated) { () -> (patches: [RemovePatch], engine: any Inpainting) in
                     // The model loads on first use (seconds for 103 MB), off the main actor.
                     guard let engine = needsLoad ? loader() : alreadyLoaded else { throw RemoveEngine.Failure.modelUnavailable }
                     // Only bands of the stroke's context window are drawn (no full-resolution copy of the
                     // photo per stroke: 192 MB at 48 MP); the same patch as the whole-buffer route.
-                    let patch = try await RemoveEngine.patch(for: stroke, image: image, earlier: earlier, inpainter: engine)
-                    return (patch, engine)
+                    var patches: [RemovePatch] = []
+                    for stroke in strokes {
+                        try Task.checkCancellation()
+                        patches.append(try await RemoveEngine.patch(for: stroke, image: image, earlier: earlier + patches, inpainter: engine))
+                    }
+                    return (patches, engine)
                 }
                 let result = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
                 try Task.checkCancellation()
-                self?.finishRemove(stroke, patch: result.patch, engine: result.engine)
+                self?.finishRemove(strokes, patches: result.patches, engine: result.engine)
             } catch is CancellationError {
                 return
             } catch {
@@ -1372,16 +1422,20 @@ final class EditorSession {
         DiagnosticTrace.note("remove: model released before save copy")
     }
 
-    private func finishRemove(_ stroke: EditRecipe.RemoveStroke, patch: RemovePatch, engine: any Inpainting) {
+    private func finishRemove(_ strokes: [EditRecipe.RemoveStroke], patches: [RemovePatch], engine: any Inpainting) {
         guard !isClosed, removeState == .removing else { return }
         inpainter = engine
         inpainterLoaded = true
-        var applied = stroke
-        let digest = removePatches.add(patch)
-        applied.patch = EditRecipe.DerivedRef(sha256: digest, model: engine.model, width: patch.width, height: patch.height)
+        let applied = zip(strokes, patches).map { stroke, patch in
+            var result = stroke
+            let digest = removePatches.add(patch)
+            result.patch = EditRecipe.DerivedRef(sha256: digest, model: engine.model, width: patch.width, height: patch.height)
+            return result
+        }
         removeState = .idle
         pendingRemoveStroke = nil
-        commitEdit { $0.remove.strokes.append(applied) }
+        eraseDraft = []
+        commitEdit { $0.remove.strokes.append(contentsOf: applied) }
     }
 
     /// The preset's own finishing, for the Effects notice ("already includes its own grain").
@@ -1394,7 +1448,7 @@ final class EditorSession {
 
     /// One undoable operation; cached assets stay available to Undo.
     func resetEdits(section: String = "all", adjustment: String? = nil) {
-        if section == "all" || section == "edit" { cancelRemove() }
+        if section == "all" || section == "edit" { cancelRemove(); clearEraseDraft() }
         let next = recipeAfterReset(section: section, adjustment: adjustment)
         if section == "all", autoState == .applied { autoState = .off }
         commit(next)
@@ -2069,6 +2123,9 @@ final class EditorSession {
         saveTask = Task { [weak self] in
             defer { KeepAwake.end(awake) }
             do {
+                #if DEBUG
+                await DebugScenario.processingReviewPause("saving")
+                #endif
                 let timing = SaveTiming(width: image.width, height: image.height)
                 let work = Task.detached(priority: .userInitiated) { () -> Data in
                     var pixels = try timing.measure("bytes") { try MetalLUTRenderer.rgba8Bytes(of: image) }

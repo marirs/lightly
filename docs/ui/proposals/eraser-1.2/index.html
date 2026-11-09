@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lightly 1.2 · Eraser proposal</title>
+<style>body{margin:0;background:#232428;color:#eee;font:14px system-ui}header{padding:16px 28px;border-bottom:1px solid #444}h1{font-size:20px;margin:0 0 8px}p{margin:6px 0;color:#bdc1ba;line-height:1.5}iframe{border:0;width:100%;height:calc(100vh - 135px)}a{color:#d5eeb0}</style>
+<header><h1>Eraser · proposed interaction for 1.2</h1><p>Existing Lightly 2 shell. Brush → Erase. Undo or Clear a mistake. Choose device and theme below.</p><p>Static UX mockups — the mask is illustrative; the result screen does not demonstrate an AI removal. No app changes or design approval implied.</p></header>
+<iframe title="Eraser screens" id="preview"></iframe>
+<script>
+(async()=>{
+ const capture=new URLSearchParams(location.search).get('capture');
+ if(capture){document.querySelector('header').hidden=true;document.getElementById('preview').style.cssText='width:808px;height:844px;display:block';}
+ const base=new URL('../../directions/lightly-2-concept/',location.href);
+ const response=await fetch(new URL('index.html',base));if(!response.ok)throw Error('Reference could not load');
+ let source=await response.text();
+ const overrides=await (await fetch('proposal.js?v=2')).text();
+ source=source.replace('<head>','<head><base href="'+base.href+'">');
+ source=source.replace(/render\(\);\s*<\/script>/,overrides+'\nrender();\n<\/script>');
+ source=source.replaceAll('lightly2-view','lightly12-eraser-proposal');
+ document.getElementById('preview').srcdoc=source;
+})().catch(e=>{document.getElementById('preview').replaceWith(document.createTextNode(e.message));});
+</script></html>

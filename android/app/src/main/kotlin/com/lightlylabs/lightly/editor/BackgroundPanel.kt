@@ -94,8 +94,10 @@ fun BackgroundPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) {
                 Notice(LightlyIcons.Info, bold("No clear subject found.", " Change background needs a person or object in front. You can still blur by tapping where to focus."))
                 FocusSlider(vm, ui, "Blur", "blur", tool.focus.blur, 0.0, 100.0)
             }
-            BackgroundPanelState.Separating -> Notice(LightlyIcons.Info, AnnotatedString("Finding the subject…"), listOf("Cancel" to vm::cancelSeparation))
-            BackgroundPanelState.EstimatingDepth -> Notice(LightlyIcons.Info, AnnotatedString("Estimating depth…"), listOf("Cancel" to vm::cancelSeparation))
+            BackgroundPanelState.Separating, BackgroundPanelState.EstimatingDepth -> {
+                if (bg.sub == BackgroundSub.CHANGE) ChangeBody(vm, ui, tool, bg.kind ?: ReplacementKind.IMAGE, reset)
+                else FocusBody(vm, ui, tool, reset)
+            }
             BackgroundPanelState.Failed -> { reset(); Notice(LightlyIcons.Warn, bold("Couldn't separate the subject.", " Your other edits are kept."), listOf("Try again" to vm::retrySeparation)) }
             BackgroundPanelState.DepthFailed -> { reset(); Notice(LightlyIcons.Warn, bold("Couldn't measure depth.", " Blur needs it. Change background still works."), listOf("Try again" to vm::retrySeparation)) }
             BackgroundPanelState.Refine -> { reset(); RefineBody(vm, ui) }

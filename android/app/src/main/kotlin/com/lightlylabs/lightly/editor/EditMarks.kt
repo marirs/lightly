@@ -227,7 +227,7 @@ private fun RemoveMarks(vm: EditorViewModel, ui: EditorUiState) {
     Box(Modifier.fillMaxSize().testTagResource(EditTags.REMOVE_MARKS).pointerInput(removing) {
         if (!removing) brushGestures(onPath = { path -> brushing.clear(); brushing.addAll(path) }, onEnd = { path ->
             brushing.clear()
-            vm.removeStroke(path.map { (it.x / size.width).toDouble().coerceIn(0.0, 1.0) to (it.y / size.height).toDouble().coerceIn(0.0, 1.0) })
+            vm.addEraseStroke(path.map { (it.x / size.width).toDouble().coerceIn(0.0, 1.0) to (it.y / size.height).toDouble().coerceIn(0.0, 1.0) })
         })
     }.semantics { contentDescription = "Brush over anything you want removed" }) {
         if (geometry != null && brushing.isNotEmpty()) Canvas(Modifier.fillMaxSize().testTagResource(EditTags.REMOVE_STROKE)) {
@@ -242,8 +242,17 @@ private fun RemoveMarks(vm: EditorViewModel, ui: EditorUiState) {
                 drawPath(path, STROKE_FILL, style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
         }
-        if (removing) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            ProgressBox("Removing…", null, null, cancel = vm::cancelRemove)
+        if (geometry != null) Canvas(Modifier.fillMaxSize()) {
+            val scale = size.width / geometry.frameWidth
+            for (stroke in ui.edit.eraseDraft) {
+                val points = stroke.points.map { (x, y) -> geometry.frameFromSource(x, y).let { (fx, fy) -> Offset((fx * size.width).toFloat(), (fy * size.height).toFloat()) } }
+                val width = (2 * stroke.radius * max(geometry.sourceWidth, geometry.sourceHeight) * scale).toFloat()
+                if (points.size == 1) drawCircle(STROKE_FILL, width / 2, points.first())
+                else if (points.isNotEmpty()) {
+                    val path = Path().apply { moveTo(points.first().x, points.first().y); points.drop(1).forEach { lineTo(it.x, it.y) } }
+                    drawPath(path, STROKE_FILL, style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                }
+            }
         }
     }
 }

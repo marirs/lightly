@@ -137,12 +137,12 @@ struct BackgroundPanelView: View {
     private var content: some View {
         // Only Focus & Blur waits for depth; Change background and Refine edges need the matte alone.
         switch session.backgroundContent(needsDepth: model.mode == .focus) {
-        case .finding:
-            L2Notice(icon: .info, text: "Finding the subject…",
-                     actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
-        case .estimatingDepth:
-            L2Notice(icon: .info, text: "Estimating depth…",
-                     actions: [("Cancel", "background.cancel", { session.cancelSubjectSeparation() })])
+        case .finding, .estimatingDepth:
+            switch model.mode {
+            case .refine: refine
+            case .change: change
+            case .focus: focusControls
+            }
         case .subjectFailed:
             resetRow
             L2Notice(icon: .warn, bold: "Couldn't separate the subject.", text: " Your other edits are kept.",
