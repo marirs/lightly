@@ -756,9 +756,13 @@ private fun LoadingScreen(vm: EditorViewModel, ui: EditorUiState, frame: EditorF
 @Composable
 fun ResetRow(vm: EditorViewModel, section: String, title: String, adjustment: String? = null) {
     var choices by remember { mutableStateOf(false) }
+    // Observed, not read once: canReset reads the view model's current state, which Compose does not track, so the link
+    // stayed hidden after the first edit until something else recomposed the panel (A069 device check 2026-11-12).
+    val resettable by remember(vm, section) { vm.uiState.map { vm.canReset(section) }.distinctUntilChanged() }
+        .collectAsStateWithLifecycle(initialValue = vm.canReset(section))
     Row(Modifier.fillMaxWidth().heightIn(min = 34.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = l2TextStyle(14.sp, FontWeight.Bold, lightlyColors.ink), modifier = Modifier.weight(1f))
-        if (vm.canReset(section)) LinkButton("Reset", { choices = true }, icon = LightlyIcons.Reset, tag = "reset-$section")
+        if (resettable) LinkButton("Reset", { choices = true }, icon = LightlyIcons.Reset, tag = "reset-$section")
     }
     if (choices) L2ResetChoices(
         listOfNotNull(

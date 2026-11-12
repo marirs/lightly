@@ -160,6 +160,25 @@ class EditorScreenTest {
     }
 
     @Test
+    fun `section Reset appears with the first edit and its choice dims the whole screen`() {
+        val vm = editor()
+        show(vm)
+        compose.runOnIdle { vm.selectTool(EditorTool.EFFECTS); vm.selectEffectsSub(EffectsSub.GRAIN) }
+        compose.onNodeWithTag("reset-effects").assertDoesNotExist()
+        // The first edit alone must show the link (it used to wait for an unrelated recomposition, A069 2026-11-12).
+        compose.runOnIdle { vm.toggleEffect(EffectsSub.GRAIN) }
+        compose.onNodeWithTag("reset-effects").assertExists().performClick()
+        // The choice is its own dialog window over the editor, not drawn inside the tool panel.
+        compose.onNodeWithTag("reset-effects-grain").assertExists()
+        compose.onNodeWithTag("reset-cancel").performClick()
+        assertTrue(vm.uiState.value.session!!.current.tools.effects.grain.enabled)
+        compose.onNodeWithTag("reset-effects").performClick()
+        compose.onNodeWithTag("reset-effects-grain").performClick()
+        assertTrue(!vm.uiState.value.session!!.current.tools.effects.grain.enabled)
+        compose.onNodeWithTag("reset-effects").assertDoesNotExist()
+    }
+
+    @Test
     fun `favourites starts at first and star edits the shown preset`() {
         val vm = editor()
         show(vm)
