@@ -144,7 +144,11 @@ struct EditorScreen: View {
                 dialogs
             }
             .allowsHitTesting(!processing)
-            .accessibilityHidden(processing)
+            // Not .accessibilityHidden(processing): with it toggled on the whole editor, XCUITest reported the save
+            // sheet's decorations (grabber, check circle; typed "Alert" in the tree) as alerts interrupting
+            // "Keep editing" once a save finished, which stopped the device UI tests there on the SE 3 and 11 Pro Max
+            // (2026-11-12; 1.1 without this toggle passed). The overlay below is modal instead, so VoiceOver still reads
+            // only "Processing" while it shows.
             .overlay {
                 if processing {
                     ZStack {
@@ -157,6 +161,7 @@ struct EditorScreen: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Processing")
                     .accessibilityValue(processingStateName)
+                    .accessibilityAddTraits(.isModal)
                     .accessibilityIdentifier("processing.overlay")
                 }
             }
