@@ -13,6 +13,7 @@ import com.lightlylabs.lightly.vision.sunglasses.FaceSunglassesAnalysis
 import com.lightlylabs.lightly.vision.sunglasses.ProbabilityMap
 import com.lightlylabs.lightly.vision.sunglasses.SunglassesPack
 import com.lightlylabs.lightly.vision.sunglasses.SunglassesRaster
+import com.lightlylabs.lightly.vision.sunglasses.SunglassesRenderer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.int
@@ -134,5 +135,8 @@ class SunglassesSessionTest {
         var different = 0
         for (i in tiled.indices) if (i % 4 != 3 && tiled[i] != whole.pixels[i]) different++
         assertEquals(0, different, "channel values that differ between Save copy and the preview render")
+        // The patch keeps only the pair's changed box, not the whole ±0.2 m region (A069 Save copy ran out of memory, 2026-11-11).
+        val region = SunglassesRenderer.regionFor(SunglassesRenderer.Face(edit, analyses[0]), analyses, frame.width, frame.height)!!
+        assertTrue(patches[0].region.width * patches[0].region.height < region[2] * region[3], "patch box smaller than the render region")
     }
 }

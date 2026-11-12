@@ -16,8 +16,12 @@
         </intent>
     </queries>
 
+    <!-- largeHeap: Save copy holds a full-resolution frame plus full-resolution working regions (Portrait,
+         Sunglasses, Background). The Nothing A069 allows 256 MB without it and ran out on a close-up 12 MP
+         Sunglasses save (2026-11-11); exports are also bounded in code (PortraitSession.Patch.between). -->
     <application
         android:allowBackup="false"
+        android:largeHeap="true"
         android:label="Lightly"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"

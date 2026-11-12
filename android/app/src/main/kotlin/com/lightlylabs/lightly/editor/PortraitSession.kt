@@ -111,8 +111,46 @@ class PortraitSession(
         return PlaneOps.resizeBilinear(matte, width, height).also { resizedMatte = it }
     }
 
-    /** One face's retouch for Save copy: the crop region (frame pixels) and its per-channel change. */
-    class Patch(val region: PixelRect, val delta: ShortArray)
+    /**
+     * One face's retouch (or pair) for Save copy: [region] is the box of frame pixels it changes, [delta] the per-channel
+     * change there (RGBA layout; [applyPatches] reads only the colour channels).
+     */
+    class Patch(val region: PixelRect, val delta: ShortArray) {
+        companion object {
+            /**
+             * The change from [before] to [after] (both RGBA8 pixels of [renderedRegion]), cropped to the smallest box that
+             * holds every changed colour channel; null when nothing changed.
+             *
+             * Why cropped: a Sunglasses region is the pair's ±0.2 m square, which on a close-up portrait covers most of a
+             * 12 MP frame while the pair changes a fraction of it. Its full-region ShortArray was 96 MB and, with the
+             * region's other buffers, ran the Nothing A069's 256 MB heap out on every Save copy (device check 2026-11-11).
+             * Outside the box every delta is zero, so the saved pixels are the same as before.
+             */
+            fun between(renderedRegion: PixelRect, before: ByteArray, after: ByteArray): Patch? {
+                val regionWidth = renderedRegion.width
+                var minX = regionWidth; var minY = renderedRegion.height; var maxX = -1; var maxY = -1
+                for (y in 0 until renderedRegion.height) for (x in 0 until regionWidth) {
+                    val i = (y * regionWidth + x) * 4
+                    if (before[i] != after[i] || before[i + 1] != after[i + 1] || before[i + 2] != after[i + 2]) {
+                        if (x < minX) minX = x
+                        if (x > maxX) maxX = x
+                        if (y < minY) minY = y
+                        maxY = y // rows are scanned top to bottom
+                    }
+                }
+                if (maxX < 0) return null
+                val changedWidth = maxX - minX + 1
+                val changedHeight = maxY - minY + 1
+                val delta = ShortArray(changedWidth * changedHeight * 4)
+                for (y in 0 until changedHeight) for (x in 0 until changedWidth) {
+                    val source = ((minY + y) * regionWidth + minX + x) * 4
+                    val target = (y * changedWidth + x) * 4
+                    for (c in 0 until 3) delta[target + c] = ((after[source + c].toInt() and 0xff) - (before[source + c].toInt() and 0xff)).toShort()
+                }
+                return Patch(PixelRect(renderedRegion.x + minX, renderedRegion.y + minY, changedWidth, changedHeight), delta)
+            }
+        }
+    }
 
     /**
      * Save copy: one patch per changed face at full resolution. [renderRegion] returns the developed
@@ -137,7 +175,7 @@ class PortraitSession(
             val developed = renderRegion(region)
             applyPatches(developed.pixels, region, patches)
             val retouched = retouchCrop(developed, region, frameWidth, frameHeight, face)
-            patches += Patch(region, ShortArray(retouched.size) { i -> ((retouched[i].toInt() and 0xff) - (developed.pixels[i].toInt() and 0xff)).toShort() })
+            Patch.between(region, developed.pixels, retouched)?.let { patches += it }
         }
         // portrait.sunglasses at full resolution: each pair's region rendered once, after the retouch patches it overlaps.
         val analyses = sunglassesAnalyses.orEmpty()
@@ -146,9 +184,11 @@ class PortraitSession(
             val region = PixelRect(r[0], r[1], r[2], r[3])
             val developed = renderRegion(region)
             applyPatches(developed.pixels, region, patches)
-            val worn = SunglassesRenderer.renderRegion(RgbaImage(region.width, region.height, developed.pixels.copyOf()), region.x, region.y,
+            // No copy of the developed pixels here: renderRegion composites into its own copy and leaves its input unchanged
+            // (one 48 MB buffer less on a close-up 12 MP portrait; see Patch.between).
+            val worn = SunglassesRenderer.renderRegion(RgbaImage(region.width, region.height, developed.pixels), region.x, region.y,
                                                        frameWidth, frameHeight, listOf(face), analyses, sunglasses.pack!!, sunglasses::texture, removedComposite)
-            patches += Patch(region, ShortArray(worn.pixels.size) { i -> ((worn.pixels[i].toInt() and 0xff) - (developed.pixels[i].toInt() and 0xff)).toShort() })
+            Patch.between(region, developed.pixels, worn.pixels)?.let { patches += it }
         }
         return patches
     }
