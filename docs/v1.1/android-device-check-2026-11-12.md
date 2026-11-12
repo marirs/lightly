@@ -60,3 +60,27 @@ Size dragging is still not live; a faster rasteriser would be needed.
 
 moto edge 60 (not connected), foldable/Duo, iOS (iOS haptics db84ce6 on `master` are unit-tested only; simulators have
 no haptics).
+
+## 1.2 from `master` on all review phones (2026-11-12)
+
+Builds from `master` 1d70d49, version 1.2.0 (261112020): Android release (R8) on the Nothing A069; iOS Debug with
+Release optimisation, team-signed, on the iPhone SE 3 and iPhone 11 Pro Max (iOS with the 4b9dea6 fix, same version
+label).
+
+| Check | Nothing A069 | iPhone SE 3 | iPhone 11 Pro Max |
+|---|---|---|---|
+| Version shown in More | verified 1.2.0 (261112020) | | |
+| Sunglasses: preview speed, Reset link, Reset dialog, 12 MP save = preview (4 s), haptics | verified (adb) | | |
+| Eraser: brush, processing, "Done…", Undo | smoke-verified (adb) | | |
+| `InkDeviceUITests`, light / dark | | passed / passed | passed / passed |
+| `PortraitBorderDeviceUITests` (Sunglasses + Polaroid), light / dark | | passed / passed | passed / passed |
+| `EraserDeviceUITests.testDraftEraseUndoAndSave` (photo opened with `--open-photo eraser-check.jpg`) | | passed | passed |
+| iOS haptics | | untested (must be felt) | untested |
+
+Before the fix, every iOS device test that saves stopped at "Keep editing" on both iPhones: 4ebd3a6 toggled
+`.accessibilityHidden` on the whole editor while processing, and XCUITest then took the save sheet's decorations for
+interrupting alerts. The shipped 1.1 app (f446ed8, 261102001) passed the same test on the same SE 3; the haptics
+commit was ruled out by a build without it. Fixed in 4b9dea6 (modal processing overlay).
+
+Test-flow notes: `EraserDeviceUITests` needs a photo already open; one Ink run on the 11 Pro Max that followed the
+420 s Sunglasses run failed at its opening step and left iOS's camera permission alert, which the owner declined.
