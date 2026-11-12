@@ -95,10 +95,19 @@ fun L2Dialog(title: String, body: String?, buttons: List<L2DialogButton>, onDism
     }
 }
 
-/** The Reset choice (`actionSheet` on Android): the dialog titled "Reset" with the reset options (danger) and Cancel. */
+/**
+ * The Reset choice (`actionSheet` on Android): the dialog titled "Reset" with the reset options (danger) and Cancel.
+ *
+ * Hosted in its own full-screen window, as "Reset all edits?" is: callers are tool panels (ResetRow), and drawn in place
+ * the scrim and card were confined to the panel, scrolled with it and left Undo/Redo and the dock live behind the dialog
+ * (A069 device check 2026-11-11). The mockup dims the whole screen.
+ */
 @Composable
 fun L2ResetChoices(options: List<L2DialogButton>, onCancel: () -> Unit) {
-    L2Dialog("Reset", null, options.map { it.copy(destructive = true) } + L2DialogButton("Cancel", "reset-cancel", action = onCancel), onCancel)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        L2Dialog("Reset", null, options.map { it.copy(destructive = true) } + L2DialogButton("Cancel", "reset-cancel", action = onCancel), onCancel)
+    }
 }
 
 /**
