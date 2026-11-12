@@ -151,10 +151,45 @@ object SunglassesRenderer {
             val p = FloatArray(face.analysis.landmarks.size) { face.analysis.landmarks[it] * r }
             val pose = pose(p, frameWidth, frameHeight) { x, y -> maps.background(x, y) }
             val coverTop = g.removed?.let { paintedTopUp(it.rect, pose, p, frameWidth, frameHeight) }
-            val passes = passes(pack, pair, textures, pose, g.size, p, frameWidth, frameHeight, coverTop) ?: continue
+            val key = PassesKey(pack, pair, face.analysis, allAnalyses, g.size, frameWidth, frameHeight, coverTop)
+            val passes = cachedPasses(key) { passes(pack, pair, textures, pose, g.size, p, frameWidth, frameHeight, coverTop) } ?: continue
             composite(passes, out, regionX, regionY, region.width, region.height, g, pose, face.analysis.irisSpan * r, maps)
         }
         return RgbaImage(region.width, region.height, out)
+    }
+
+    /**
+     * Everything [passes] depends on for one face. Analyses, pack and pair are immutable and compare by identity; Lens
+     * and Darkness are not part of it (only [composite] reads them).
+     */
+    private class PassesKey(
+        val pack: SunglassesPack, val pair: SunglassesPack.Pair, val analysis: FaceSunglassesAnalysis,
+        val allAnalyses: List<FaceSunglassesAnalysis>, val size: Double, val frameWidth: Int, val frameHeight: Int, val coverTop: Double?,
+    ) {
+        override fun equals(other: Any?): Boolean = other is PassesKey && pack === other.pack && pair === other.pair &&
+            analysis === other.analysis && allAnalyses === other.allAnalyses && size == other.size &&
+            frameWidth == other.frameWidth && frameHeight == other.frameHeight && coverTop == other.coverTop
+
+        override fun hashCode(): Int = listOf(System.identityHashCode(pair), System.identityHashCode(analysis), size, frameWidth, frameHeight, coverTop).hashCode()
+    }
+
+    /** Passes kept for reuse: a few faces' worth at preview size (A069: a 1600 px close-up pair is about 10 MB). */
+    private const val PASSES_CACHE_ENTRIES = 4
+    private const val PASSES_CACHE_MAX_BYTES_EACH = 16 * 1024 * 1024
+    private val passesCache = object : LinkedHashMap<PassesKey, Passes>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<PassesKey, Passes>?) = size > PASSES_CACHE_ENTRIES
+    }
+
+    /**
+     * [render] reuses a face's passes while only Lens or Darkness change: rasterising the pair is ~93 % of a preview
+     * render and took ~2 s per change on the Nothing A069 (2026-11-12), so those sliders did not track the finger.
+     * Save copy's full-resolution passes are too large to keep and are always rendered afresh.
+     */
+    private fun cachedPasses(key: PassesKey, render: () -> Passes?): Passes? {
+        synchronized(passesCache) { passesCache[key] }?.let { return it }
+        val passes = render() ?: return null
+        if (passes.width.toLong() * passes.height * 6 <= PASSES_CACHE_MAX_BYTES_EACH) synchronized(passesCache) { passesCache[key] = passes }
+        return passes
     }
 
     /** The frame rectangle [renderRegion] changes for one face (the pair's ±0.2 m square), or null when it wears none. */
@@ -304,9 +339,18 @@ object SunglassesRenderer {
         val faceMesh = faceOccluder(p, width, height, -pose.origin[2] - SunglassesConstants.FACE_MESH_PUSH_BACK_METRES * s, pose)
         val frame = ByteArray(rw * rh * 4); val front = ByteArray(rw * rh); val lens = ByteArray(rw * rh)
         fun byte(v: Float) = (v.coerceIn(0f, 1f) * 255 + 0.5f).toInt().toByte()
-        // Tile by tile: every sample sits at the same absolute position as in one whole render, so the result is the same.
+        // Only the tiles that can hold part of the pair are rendered: outside its vertices' bounds every pass is zero, and
+        // the arrays above start at zero (on a close-up face the ±0.2 m square is mostly empty tiles).
+        val bounds = SunglassesRaster.pairImageBounds(mesh, placement, width, height)
+        val tiles = ArrayList<IntArray>()
         for (ty in 0 until rh step TILE) for (tx in 0 until rw step TILE) {
             val tw = min(TILE, rw - tx); val th = min(TILE, rh - ty)
+            val overlaps = x0 + tx < bounds[2] && x0 + tx + tw > bounds[0] && y0 + ty < bounds[3] && y0 + ty + th > bounds[1]
+            if (overlaps) tiles += intArrayOf(tx, ty, tw, th)
+        }
+        // Tile by tile: every sample sits at the same absolute position as in one whole render, so the result is the same,
+        // whichever thread renders it. Tiles write disjoint parts of the arrays.
+        renderTilesInParallel(tiles) { (tx, ty, tw, th) ->
             fun pass(which: SunglassesRaster.Pass) =
                 SunglassesRaster.render(pack, pair, mesh, textures, placement, width, height, x0 + tx, y0 + ty, tw, th, faceMesh, which).rgba
             val f = pass(SunglassesRaster.Pass.FRAME); val fr = pass(SunglassesRaster.Pass.FRONT); val l = pass(SunglassesRaster.Pass.LENS)
@@ -318,6 +362,29 @@ object SunglassesRenderer {
             }
         }
         return Passes(x0, y0, rw, rh, frame, front, lens)
+    }
+
+    /**
+     * At most this many tiles rasterise at once. Each holds about 12 MB of per-sample buffers ([TILE]), so the cap bounds
+     * memory during Save copy as well as the preview; the A069 has 8 cores.
+     */
+    private val TILE_THREADS = max(1, min(4, Runtime.getRuntime().availableProcessors()))
+
+    /** Daemon threads, so a pool never keeps a JVM test run (or the app's process) alive. */
+    private val tilePool: java.util.concurrent.ExecutorService by lazy {
+        java.util.concurrent.Executors.newFixedThreadPool(TILE_THREADS) { runnable -> Thread(runnable, "sunglasses-tiles").apply { isDaemon = true } }
+    }
+
+    /** Runs [render] for every tile, on up to [TILE_THREADS] threads; returns once all have finished (rethrowing a failure). */
+    private fun renderTilesInParallel(tiles: List<IntArray>, render: (IntArray) -> Unit) {
+        if (tiles.size <= 1 || TILE_THREADS == 1) { tiles.forEach(render); return }
+        val futures = tiles.map { tile -> tilePool.submit { render(tile) } }
+        try {
+            for (future in futures) future.get()
+        } catch (failure: java.util.concurrent.ExecutionException) {
+            futures.forEach { it.cancel(true) }
+            throw failure.cause ?: failure
+        }
     }
 
     /** The face mesh (468 landmarks, MediaPipe's canonical triangles) as scene-unit triangles, pushed back by [zShift]. */
