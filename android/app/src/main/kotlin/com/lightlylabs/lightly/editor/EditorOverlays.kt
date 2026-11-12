@@ -87,6 +87,7 @@ fun EditorOverlays(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelMo
         // `saved`: the 52 dp lime check, "Saved as a new photo" (20 sp heading), "The original is unchanged." (14 sp ink2);
         // Share (primary), Keep editing (line), Choose another photo (plain, 44 dp, 15 sp semibold), 10 dp apart.
         EditorOverlay.SAVED -> L2Sheet(big, onDismiss = vm::dismiss) {
+            ResultHaptic(androidx.compose.ui.hapticfeedback.HapticFeedbackType.Confirm)
             Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 10.dp), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(52.dp).background(colors.accent, CircleShape), contentAlignment = Alignment.Center) {
@@ -111,21 +112,38 @@ fun EditorOverlays(vm: EditorViewModel, ui: EditorUiState, model: DevelopPanelMo
                 L2DialogButton("Keep editing", "dialog-Keep editing", action = vm::dismiss)),
             onDismiss = vm::dismiss,
         )
-        EditorOverlay.EXPORT_FAILED -> L2Dialog(
-            "Couldn’t save the copy", "Something went wrong while saving. Your edits are kept and the original is unchanged.",
-            listOf(L2DialogButton("Try again", "dialog-Try again") { vm.dismiss(); vm.saveCopy() }, L2DialogButton("Keep editing", "dialog-Keep editing", action = vm::dismiss)),
-            onDismiss = vm::dismiss,
-        )
+        EditorOverlay.EXPORT_FAILED -> {
+            ResultHaptic(androidx.compose.ui.hapticfeedback.HapticFeedbackType.Reject)
+            L2Dialog(
+                "Couldn’t save the copy", "Something went wrong while saving. Your edits are kept and the original is unchanged.",
+                listOf(L2DialogButton("Try again", "dialog-Try again") { vm.dismiss(); vm.saveCopy() }, L2DialogButton("Keep editing", "dialog-Keep editing", action = vm::dismiss)),
+                onDismiss = vm::dismiss,
+            )
+        }
         EditorOverlay.SIGNATURE_DRAW -> L2Sheet(big, onDismiss = vm::dismiss) {
             DrawSignatureSheet(ui.watermark.pad, vm::padStroke, onCancel = vm::dismiss, onSave = vm::saveDrawnSignature, onClear = vm::clearPad)
         }
         EditorOverlay.SIGNATURE_IMPORT -> L2Sheet(big, onDismiss = vm::dismiss) {
             ImportSignatureSheet(ui.watermark.imported, onCancel = vm::dismiss, onUse = vm::useImportedSignature)
         }
-        EditorOverlay.STORAGE_FULL -> L2Dialog(
-            "Not enough storage", "Free up some space and try again. Your edits are kept.",
-            listOf(L2DialogButton("Try again", "dialog-Try again") { vm.dismiss(); vm.saveCopy() }, L2DialogButton("OK", "dialog-OK", action = vm::dismiss)),
-            onDismiss = vm::dismiss,
-        )
+        EditorOverlay.STORAGE_FULL -> {
+            ResultHaptic(androidx.compose.ui.hapticfeedback.HapticFeedbackType.Reject)
+            L2Dialog(
+                "Not enough storage", "Free up some space and try again. Your edits are kept.",
+                listOf(L2DialogButton("Try again", "dialog-Try again") { vm.dismiss(); vm.saveCopy() }, L2DialogButton("OK", "dialog-OK", action = vm::dismiss)),
+                onDismiss = vm::dismiss,
+            )
+        }
     }
+}
+
+/**
+ * One haptic when a Save copy result appears (owner request 2026-11-12): Confirm on "Saved as a new photo", Reject on the
+ * failure dialogs. Keyed on nothing, so it plays once per appearance, not on recomposition; the system touch-feedback
+ * setting still applies.
+ */
+@Composable
+private fun ResultHaptic(type: androidx.compose.ui.hapticfeedback.HapticFeedbackType) {
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { haptics.performHapticFeedback(type) }
 }
