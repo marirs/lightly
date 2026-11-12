@@ -2,7 +2,7 @@ import XCTest
 
 /// Release functionality (2026-10-07): run against a Release build with the depth and Remove gates open (the build that
 /// ships after sign-off). No debug launch arguments (Release ignores them): a library photo through the system picker,
-/// one Remove stroke, then Focus & Blur. Outcomes are written to /tmp/lightly-a11y/release-features.json.
+/// one Eraser mark and Erase, then Focus & Blur. Outcomes are written to /tmp/lightly-a11y/release-features.json.
 final class ReleaseFeatureUITests: XCTestCase {
     private var results: [String: String] = [:]
 
@@ -23,23 +23,29 @@ final class ReleaseFeatureUITests: XCTestCase {
         let explainer = app.buttons["Close"].firstMatch
         if explainer.waitForExistence(timeout: 3), explainer.isHittable { explainer.tap() }
         grid.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.12)).tap()
-        XCTAssertTrue(app.descendants(matching: .any)["develop.ruler"].waitForExistence(timeout: 90), "editor did not open")
+        // The Lightly 2 editor opens on the preset gallery (no Develop ruler), so the dock is the sign it is open.
+        XCTAssertTrue(app.buttons["tool.develop"].waitForExistence(timeout: 90), "editor did not open")
 
-        // Edit › Remove: one stroke across the middle of the photo.
+        // Edit › Eraser (was "Remove" before the 1.2 Eraser): brush one mark, then Erase runs the inpainting model.
         app.descendants(matching: .any)["tool.edit"].tap()
-        let removeTab = app.descendants(matching: .any)["edit.sub.Remove"]
-        XCTAssertTrue(removeTab.waitForExistence(timeout: 10))
+        let eraserTab = app.descendants(matching: .any)["edit.sub.Eraser"]
+        XCTAssertTrue(eraserTab.waitForExistence(timeout: 10))
         let width = app.windows.firstMatch.frame.maxX
-        for _ in 0..<4 where removeTab.frame.maxX > width - 4 { app.descendants(matching: .any)["edit.sub.Crop"].swipeLeft() }
-        removeTab.tap()
+        for _ in 0..<4 where eraserTab.frame.maxX > width - 4 { app.descendants(matching: .any)["edit.sub.Crop"].swipeLeft() }
+        eraserTab.tap()
         let photo = app.descendants(matching: .any)["editor.photo"]
         XCTAssertTrue(photo.waitForExistence(timeout: 10))
         photo.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5)).press(forDuration: 0.1, thenDragTo: photo.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.52)))
-        let undoStroke = app.buttons["edit.remove.undoStroke"]
-        let failed = app.buttons["edit.remove.retry"]
+        let erase = app.descendants(matching: .any)["edit.remove.erase"].firstMatch
+        let undoStroke = app.descendants(matching: .any)["edit.remove.undoStroke"].firstMatch
+        let processing = app.descendants(matching: .any)["processing.overlay"].firstMatch
+        XCTAssertTrue(erase.waitForExistence(timeout: 10) && erase.isEnabled, "the mark enables Erase")
+        erase.tap()
+        // A successful Erase clears the marks (Erase disabled) and leaves the batch undoable.
         let deadline = Date().addingTimeInterval(180)
-        while Date() < deadline && !failed.exists && !(undoStroke.exists && undoStroke.isEnabled) { Thread.sleep(forTimeInterval: 1) }
-        results["remove"] = failed.exists ? "failed: Couldn't remove that area" : (undoStroke.isEnabled ? "applied (Undo stroke enabled)" : "no result in 180 s")
+        while Date() < deadline && (processing.exists || erase.isEnabled) { Thread.sleep(forTimeInterval: 1) }
+        let applied = !processing.exists && !erase.isEnabled && undoStroke.isEnabled
+        results["remove"] = applied ? "applied (Undo stroke enabled)" : "no result in 180 s"
 
         // Background › Focus & Blur: the blur control, or the approved depth-failure notice.
         app.descendants(matching: .any)["tool.background"].tap()
