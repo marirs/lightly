@@ -199,6 +199,7 @@ struct RootView: View {
                     onChooseAnotherPhoto: { appState.chooseFromLibrary() },
                     onCycleTheme: { appState.cycleAppearance() }
                 )
+                .modifier(SaveResultHaptics(session: appState.editorSession(for: photo)))
                 .id(photo.id)
             }
         }

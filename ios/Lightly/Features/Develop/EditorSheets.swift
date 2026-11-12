@@ -122,6 +122,25 @@ struct L2TextButton: View {
     }
 }
 
+/// One haptic per Save copy result (owner request 2026-11-12, as Android): success when "Saved as a new photo" appears,
+/// error with "Couldn’t save the copy" and "Not enough storage". Attached where the editor is hosted (RootView), so it
+/// follows `saveState` without touching the alerts themselves. The system haptics setting applies.
+struct SaveResultHaptics: ViewModifier {
+    let session: EditorSession
+
+    static func feedback(for state: EditorSession.SaveState) -> SensoryFeedback? {
+        switch state {
+        case .saved: return .success
+        case .failed, .storageFull: return .error
+        default: return nil
+        }
+    }
+
+    func body(content: Content) -> some View {
+        content.sensoryFeedback(trigger: session.saveState) { _, new in Self.feedback(for: new) }
+    }
+}
+
 /// `saved`: the check, "Saved as a new photo", "The original is unchanged.", then Share, Keep
 /// editing and Choose another photo.
 struct SavedSheetContent: View {

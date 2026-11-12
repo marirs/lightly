@@ -174,3 +174,30 @@ final class TextWeightModelTests: XCTestCase {
         session.close()
     }
 }
+
+/// Haptics (owner request 2026-11-12): the slider's zero tick and the Save copy results, as on Android.
+final class HapticsTests: XCTestCase {
+    func testSliderTicksOnReachingOrCrossingZero() {
+        XCTAssertTrue(L2Haptics.reachesZero(from: -1, to: 0))
+        XCTAssertTrue(L2Haptics.reachesZero(from: 1, to: 0))
+        XCTAssertTrue(L2Haptics.reachesZero(from: -3, to: 4))
+        XCTAssertTrue(L2Haptics.reachesZero(from: 5, to: -2))
+    }
+
+    func testSliderDoesNotTickLeavingZeroOrOnOneSide() {
+        XCTAssertFalse(L2Haptics.reachesZero(from: 0, to: 1))
+        XCTAssertFalse(L2Haptics.reachesZero(from: 0, to: -1))
+        XCTAssertFalse(L2Haptics.reachesZero(from: 3, to: 7))
+        XCTAssertFalse(L2Haptics.reachesZero(from: -7, to: -3))
+        XCTAssertFalse(L2Haptics.reachesZero(from: 0, to: 0))
+    }
+
+    func testSaveResultsMapToSuccessAndError() {
+        XCTAssertEqual(SaveResultHaptics.feedback(for: .saved(Data())), .success)
+        XCTAssertEqual(SaveResultHaptics.feedback(for: .failed), .error)
+        XCTAssertEqual(SaveResultHaptics.feedback(for: .storageFull), .error)
+        XCTAssertNil(SaveResultHaptics.feedback(for: .saving))
+        XCTAssertNil(SaveResultHaptics.feedback(for: .idle))
+        XCTAssertNil(SaveResultHaptics.feedback(for: .permissionDenied))
+    }
+}

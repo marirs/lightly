@@ -513,6 +513,16 @@ extension View {
     }
 }
 
+// MARK: - Haptics
+
+/// Where Lightly plays haptics (owner request 2026-11-12; the same places as Android). Pure, so tests can check them.
+enum L2Haptics {
+    /// True when a slider step from `previous` to `next` lands on 0 or jumps across it (a fast drag can skip 0 itself).
+    static func reachesZero(from previous: Double, to next: Double) -> Bool {
+        previous != next && (next == 0 || (previous < 0 && next > 0) || (previous > 0 && next < 0))
+    }
+}
+
 // MARK: - Slider
 
 /// `slider`: label (92 pt, 13 pt semibold ink2), 3 pt track (`--off`), accent fill (from the centre for bipolar
@@ -525,6 +535,9 @@ struct L2Slider: View {
     let onChange: (Double) -> Void
     let onEnd: (Double) -> Void
     @State private var tracking: Double?
+    /// Counts drags onto or across 0 on a bipolar slider; each change plays one selection tick (owner request 2026-11-12,
+    /// as Android's SliderRow). The system haptics setting applies.
+    @State private var zeroCrossings = 0
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
@@ -558,7 +571,11 @@ struct L2Slider: View {
                     .onChanged { gesture in
                         guard isEnabled else { return }
                         let next = (range.lowerBound + min(max(gesture.location.x / max(width, 1), 0), 1) * span).rounded()
-                        if tracking != next { tracking = next; onChange(next) }
+                        if tracking != next {
+                            // Only steps within a drag tick, not the touch-down jump (as on Android).
+                            if bipolar, let previous = tracking, L2Haptics.reachesZero(from: previous, to: next) { zeroCrossings += 1 }
+                            tracking = next; onChange(next)
+                        }
                     }
                     .onEnded { gesture in
                         guard isEnabled else { return }
@@ -577,6 +594,7 @@ struct L2Slider: View {
         }
         .frame(minHeight: 38)
         .opacity(isEnabled ? 1 : 0.4)
+        .sensoryFeedback(.selection, trigger: zeroCrossings)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(LocalizedStringKey(label)))
         .accessibilityValue(Text("\(Int(v.rounded()))"))
