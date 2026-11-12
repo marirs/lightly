@@ -174,6 +174,9 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
     val displayedValue = if (trackingValue.isNaN()) value else trackingValue.toDouble()
     val colors = lightlyColors
     val centred = min < 0
+    // Owner request 2026-11-12: a light detent tick when a bipolar slider's drag reaches or crosses 0, so the neutral
+    // point can be found without looking. Compose routes it through the system touch-feedback setting.
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     Row(
         Modifier.fillMaxWidth().heightIn(min = 38.dp).graphicsLayer { alpha = if (enabled) 1f else 0.4f },
         verticalAlignment = Alignment.CenterVertically,
@@ -196,6 +199,9 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
                             if (!change.pressed) break
                             val next = valueAt(change.position.x)
                             trackingValue = next.toFloat()
+                            if (centred && reachesZero(current.roundToInt(), next.roundToInt())) {
+                                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick)
+                            }
                             if (next.roundToInt() != current.roundToInt()) dragCallback(next.roundToInt().toDouble())
                             current = next
                             change.consume()
@@ -231,6 +237,10 @@ fun SliderRow(label: String, value: Double, min: Double, max: Double, onDrag: (D
         Text((if (centred && shown > 0) "+" else "") + shown, style = l2TextStyle(13.sp, FontWeight.Bold, colors.ink), textAlign = TextAlign.End, modifier = Modifier.width(34.dp), maxLines = 1)
     }
 }
+
+/** True when a drag step from [previous] to [next] lands on 0 or jumps across it (a fast drag can skip 0 itself). */
+internal fun reachesZero(previous: Int, next: Int): Boolean =
+    previous != next && (next == 0 || (previous < 0 && next > 0) || (previous > 0 && next < 0))
 
 /**
  * A sideways-scrolling row (`rowOf`/`chips`): [spacing] dp gaps, the end fading (88 %). Pass [rowScroll] to scroll it
