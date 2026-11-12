@@ -93,21 +93,7 @@ object SunglassesRaster {
         rasterDepth(faceMesh, depth, sw, sh, toSampleX, toSampleY, nearestZ)
 
         // 2. The pair's vertices in scene units (tilt, then the head's axes, then the origin); normals rotated alike.
-        val n = mesh.vertexCount
-        val pos = FloatArray(n * 3)
-        val nrm = FloatArray(n * 3)
-        val ct = cos(TILT); val st = sin(TILT)
-        val v = bentVertices(mesh, placement.armAngles)
-        for (i in 0 until n) {
-            val px = v[i * 8].toDouble(); val py0 = v[i * 8 + 1].toDouble(); val pz0 = v[i * 8 + 2].toDouble()
-            val py = py0 * ct - pz0 * st; val pz = py0 * st + pz0 * ct
-            val nx = v[i * 8 + 3].toDouble(); val ny0 = v[i * 8 + 4].toDouble(); val nz0 = v[i * 8 + 5].toDouble()
-            val ny = ny0 * ct - nz0 * st; val nz = ny0 * st + nz0 * ct
-            for (c in 0..2) {
-                pos[i * 3 + c] = (placement.origin[c] + k * (px * placement.ex[c] + py * placement.ey[c] + pz * placement.ez[c])).toFloat()
-                nrm[i * 3 + c] = (nx * placement.ex[c] + ny * placement.ey[c] + nz * placement.ez[c]).toFloat()
-            }
-        }
+        val (pos, nrm) = scenePositions(mesh, placement)
         // 3. Visibility: per sample, the nearest opaque fragment (frame, or lens as depth/coverage).
         val triangleOf = IntArray(sw * sh) { -1 }
         val elementOf = IntArray(sw * sh) { -1 }
@@ -169,6 +155,48 @@ object SunglassesRaster {
             out[o + 3] = a
         }
         return Result(x0, y0, width, height, out)
+    }
+
+    /** The pair's vertex positions and normals in scene units (step 2 of [render]): tilt, the head's axes, the origin. */
+    fun scenePositions(mesh: SunglassesPack.Mesh, placement: Placement): kotlin.Pair<FloatArray, FloatArray> {
+        val n = mesh.vertexCount
+        val k = placement.scale
+        val pos = FloatArray(n * 3)
+        val nrm = FloatArray(n * 3)
+        val ct = cos(TILT); val st = sin(TILT)
+        val v = bentVertices(mesh, placement.armAngles)
+        for (i in 0 until n) {
+            val px = v[i * 8].toDouble(); val py0 = v[i * 8 + 1].toDouble(); val pz0 = v[i * 8 + 2].toDouble()
+            val py = py0 * ct - pz0 * st; val pz = py0 * st + pz0 * ct
+            val nx = v[i * 8 + 3].toDouble(); val ny0 = v[i * 8 + 4].toDouble(); val nz0 = v[i * 8 + 5].toDouble()
+            val ny = ny0 * ct - nz0 * st; val nz = ny0 * st + nz0 * ct
+            for (c in 0..2) {
+                pos[i * 3 + c] = (placement.origin[c] + k * (px * placement.ex[c] + py * placement.ey[c] + pz * placement.ez[c])).toFloat()
+                nrm[i * 3 + c] = (nx * placement.ex[c] + ny * placement.ey[c] + nz * placement.ez[c]).toFloat()
+            }
+        }
+        return pos to nrm
+    }
+
+    /**
+     * The image-pixel rectangle (x0, y0, x1, y1; x1/y1 exclusive) that holds every vertex of the pair, one pixel wider on
+     * each side. No pass draws outside it: the occluders only write depth, and the pair's triangles never reach past their
+     * vertices. SunglassesRenderer.passes skips the tiles outside it, whose result is all zero anyway.
+     */
+    fun pairImageBounds(mesh: SunglassesPack.Mesh, placement: Placement, imageWidth: Int, imageHeight: Int): IntArray {
+        val (pos, _) = scenePositions(mesh, placement)
+        var minX = Double.POSITIVE_INFINITY; var maxX = Double.NEGATIVE_INFINITY
+        var minY = Double.POSITIVE_INFINITY; var maxY = Double.NEGATIVE_INFINITY
+        for (i in 0 until mesh.vertexCount) {
+            val x = pos[i * 3] + imageWidth / 2.0
+            val y = imageHeight / 2.0 - pos[i * 3 + 1]
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+        }
+        if (minX > maxX) return intArrayOf(0, 0, 0, 0)
+        return intArrayOf(floor(minX).toInt() - 1, floor(minY).toInt() - 1, floor(maxX).toInt() + 2, floor(maxY).toInt() + 2)
     }
 
     // MARK: Shading
