@@ -3,9 +3,8 @@
 ## Release state
 
 1.1 is live on both stores: Android 1.1.0 (261108001) in Production, full rollout since 2026-11-09 (Play Console,
-owner 2026-11-12); iOS 1.1.0 (261102001). `master` carries the 1.2 work (Eraser). The fixes below are on
-`release/1.1` (from 2275972, the commit of the live Android build) for a 1.1.x store update; its
-`version.properties` still says 1.1.0 and needs a marketing-version bump before upload.
+owner 2026-11-12); iOS 1.1.0 (261102001). The fixes below are on `master`, which ships next as 1.2 (owner,
+2026-11-12); `master` also carries the Eraser work. There are no other branches.
 
 **The live Android build has the Sunglasses Save copy failure below** (every save of a pair on a close-up 12 MP
 portrait on a 256 MB-heap phone).
@@ -20,7 +19,7 @@ signed off as on iOS), signed with the debug key for installation only:
 | 1.1.0 (261108001) | 2275972 (= the live build's commit) | Ink checks; found the Sunglasses save failure |
 | 1.1.0 (261112001) | 9a07bd6 | Sunglasses (save fix), own glasses, Polaroid |
 | 1.1.0-dev (261112002) | d019615's code, uncommitted | Speed, Reset dialog and link, haptics |
-| 1.1.0 (261112006) | d019615 (`release/1.1`) | Installed release candidate; same code as the row above, not re-checked |
+| 1.1.0 (261112006) | d019615 (a since-merged branch from 2275972) | Installed build; same code as the row above, not re-checked |
 
 Driven by adb taps and screenshots; saved copies pulled from `Pictures/Lightly` and compared with the preview;
 preview times from the app log (`preview committed`); haptics from `dumpsys vibrator_manager`. Fixture photos
