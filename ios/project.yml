@@ -17,7 +17,7 @@ settings:
     # Version and build come from version.properties and scripts/version.sh; every script that builds the app
     # passes MARKETING_VERSION and CURRENT_PROJECT_VERSION. Xcode IDE builds and archives get them from the Lightly
     # scheme's pre-action (Lightly/Lightly.xcconfig); without either, the placeholders below (build 0) apply.
-    MARKETING_VERSION: "1.1.0"
+    MARKETING_VERSION: "1.1.1"
     CURRENT_PROJECT_VERSION: "0"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_STRICT_CONCURRENCY: complete
