@@ -19,3 +19,4 @@ xcuserdata/
 /experiments/enhance-*/real-photos/*.jpg
 /experiments/enhance-*/coreml/
 /experiments/enhance-*/tflite/
+/experiments/enhance-*/art-test/*/

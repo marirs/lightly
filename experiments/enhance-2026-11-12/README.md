@@ -149,3 +149,20 @@ full pipeline (`run_d_real.py faces-colour`):
   restored detail; mean colour shift from the original falls from 1.0–1.9 to 0.3–0.5 (Lab a/b, blurred).
 - colour: real blue eyes, red lips, skin and teeth keep the original colour; no visible loss against CodeFormer alone.
 - Cost on the phone: one Lab conversion and four box filters per 512 px face, no model.
+
+## Step 1f: leaving paintings and drawings alone (in progress, 2026-11-13)
+
+CodeFormer turns painted faces photographic, so Enhance should skip paintings, drawings and prints. Test set
+(`fetch_art_test_set.py`, The Met Open Access, CC0, sources in `art-test/SOURCES.csv`, images git-ignored): 70 portrait
+paintings and miniatures, 20 drawings and prints, 56 old photographs (daguerreotypes, tintypes, cartes de visite, cabinet
+cards, many shot in their cases or mounts), plus the Unsplash real photos and `experiments/test-photos`. 124 images have a
+face (eyes at least 20 px apart at 1200 px): 81 art, 43 photos.
+
+| Signal | Art caught | Photos wrongly skipped | Notes |
+|---|---|---|---|
+| CodeFormer's own confidence (top code probability, `run_f_art.py`) | – | – | AUC 0.68: painted faces score barely lower; not usable |
+| Apple Vision `VNClassifyImageRequest`, whole image, max(painting, drawing, illustrations, sketch) ≥ 0.2 | 71/81 | 4/43 | gilt cases and mounts read as "painting"; iOS only |
+| Apple Vision on the aligned face crop ≥ 0.2 | 30/81 | 1/43 | the face alone loses the brushwork cues |
+
+Neither is good enough, and Vision has no Android equivalent. Next: a small cross-platform photo-or-art classifier
+(needs a backbone and a separate training set; owner approval pending).
