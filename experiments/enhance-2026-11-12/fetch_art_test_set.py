@@ -28,19 +28,23 @@ def get_json(url: str) -> dict:
         return json.load(response)
 
 
-def main() -> None:
-    sources = OUT / "SOURCES.csv"
-    OUT.mkdir(exist_ok=True)
+def main(out: Path = OUT, sets=SETS, exclude: frozenset = frozenset(), offsets=(0,)) -> None:
+    """exclude: object ids never to fetch (the training set excludes every test image)."""
+    sources = out / "SOURCES.csv"
+    out.mkdir(exist_ok=True)
     recorded = set()
     if sources.exists():
         recorded = {(row[0], row[1]) for row in csv.reader(sources.open()) if row}
     with sources.open("a", newline="") as handle:
         writer = csv.writer(handle)  # one row per image as it is saved, so an interrupted run keeps its sources
-        for label, department, query, wanted in SETS:
-            folder = OUT / label
+        for label, department, query, wanted in sets:
+            folder = out / label
             folder.mkdir(parents=True, exist_ok=True)
-            ids = get_json(f"{API}/v1.1/search?q={urllib.parse.quote(query)}&hasImages=true"
-                           f"&departmentId={department}&limit=200")["objectIDs"]
+            ids = []
+            for offset in offsets:
+                ids += get_json(f"{API}/v1.1/search?q={urllib.parse.quote(query)}&hasImages=true"
+                                f"&departmentId={department}&limit=200&offset={offset}").get("objectIDs") or []
+            ids = [object_id for object_id in ids if object_id not in exclude]
             have = 0
             for object_id in ids:
                 if have >= wanted:
@@ -55,10 +59,11 @@ def main() -> None:
                     if not record.get("isPublicDomain") or not image_url.startswith("https://images.metmuseum.org/"):
                         continue
                     if not target.exists():
-                        with urllib.request.urlopen(image_url, timeout=60) as response:
+                        # Some Met file names contain spaces: encode the path, keep the scheme and host.
+                        with urllib.request.urlopen(urllib.parse.quote(image_url, safe=":/"), timeout=60) as response:
                             target.write_bytes(response.read())
-                except urllib.error.HTTPError as error:  # some objects are refused (403); skip them, no retry loop
-                    print("skipped", object_id, error.code, flush=True)
+                except (urllib.error.URLError, OSError, ValueError) as error:  # refused (403/404), timeout or bad URL:
+                    print("skipped", object_id, getattr(error, "code", error), flush=True)  # skip, no retry loop
                     time.sleep(1.0)
                     continue
                 writer.writerow([label, object_id, record.get("title", ""), record.get("objectDate", ""),

@@ -150,7 +150,7 @@ full pipeline (`run_d_real.py faces-colour`):
 - colour: real blue eyes, red lips, skin and teeth keep the original colour; no visible loss against CodeFormer alone.
 - Cost on the phone: one Lab conversion and four box filters per 512 px face, no model.
 
-## Step 1f: leaving paintings and drawings alone (in progress, 2026-11-13)
+## Step 1f: leaving paintings and drawings alone (2026-11-13)
 
 CodeFormer turns painted faces photographic, so Enhance should skip paintings, drawings and prints. Test set
 (`fetch_art_test_set.py`, The Met Open Access, CC0, sources in `art-test/SOURCES.csv`, images git-ignored): 70 portrait
@@ -164,5 +164,26 @@ face (eyes at least 20 px apart at 1200 px): 81 art, 43 photos.
 | Apple Vision `VNClassifyImageRequest`, whole image, max(painting, drawing, illustrations, sketch) ≥ 0.2 | 71/81 | 4/43 | gilt cases and mounts read as "painting"; iOS only |
 | Apple Vision on the aligned face crop ≥ 0.2 | 30/81 | 1/43 | the face alone loses the brushwork cues |
 
-Neither is good enough, and Vision has no Android equivalent. Next: a small cross-platform photo-or-art classifier
-(needs a backbone and a separate training set; owner approval pending).
+Neither is good enough, and Vision has no Android equivalent, so Enhance gets its own small photo-or-art classifier
+(owner approved the backbone and training downloads, 2026-11-13).
+
+Training set (`fetch_art_train_set.py`, `art-train/`, git-ignored; none of it in the test set): The Met Open Access
+(313 paintings, 166 drawings and prints, 430 photographs; 117 objects refused) and Unsplash (193 old and recent photos
+from the visible search results, ids in `art-train/unsplash-ids.txt`; 9 paintings found among them moved to the art side,
+7 test-set photos removed). 487 art, 623 photos.
+
+| Classifier (MobileNetV3-Large, ImageNet weights) | Art caught (faces) | Photos skipped (faces) |
+|---|---|---|
+| Frozen features + linear layer, 3 views (`train_art_classifier.py`) | 68/81 | 2/43 |
+| **Fine-tuned, colour-blind training (`finetune_art_classifier.py`), threshold 0.8** | **72/81** | **1/43** |
+| same, threshold 0.6 (from validation) | 78/81 | 3/43 |
+
+Fine-tuning randomly turns both classes grey or sepia so colour cannot stand in for "painting", and trains on crops at
+256–560 px so brushwork and paper show; five views (whole image + four crops) are averaged. EfficientNet-B0 was no better
+than MobileNetV3 with frozen features (69/81, 2/43). Remaining errors at 0.8: the one photo is a presidential campaign
+medal with a tintype portrait (an object rather than a print); at 0.6 a hand-tinted daguerreotype in a gilt mount (0.67)
+is skipped too. Missed art: smooth realistic oil portraits and an engraving. Every ordinary photo (Unsplash, test-photos)
+scores 0.25 or less. The test set is small (124 images with faces), so these rates are rough.
+
+Next: convert the classifier to Core ML and TFLite and check that both phones make the same decisions; a larger test set
+of phone copies of real prints would firm up the threshold.
