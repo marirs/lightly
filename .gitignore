@@ -13,3 +13,6 @@ xcuserdata/
 /experiments/auto-ci/per_filter
 /experiments/android-vision/results/
 /experiments/enhance-*/weights/
+/experiments/enhance-*/.venv/
+/experiments/enhance-*/repos/
+/experiments/enhance-*/outputs/
