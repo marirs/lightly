@@ -132,4 +132,5 @@ and its fp16 output was wrong (26–41 of 255), so iOS keeps the step 1c model. 
 Max Neural Engine without the crash (2.59 s), no faster than its GPU.
 
 Open: the GPU kernel cache is a file the size of the model (~350 MB for the single model; split not yet measured) and the
-first load takes ~42 s; the transformer on the CPU could try XNNPACK fp16 (1.0 s now).
+first load takes ~42 s. The CPU transformer stays the original code at full precision: the owner keeps quality over
+a ~1 s gain (2026-11-13).
