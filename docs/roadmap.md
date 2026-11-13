@@ -7,11 +7,11 @@
 | 1.1 | Portrait › Sunglasses (open issues: [v1.1/sunglasses-open-issues.md](v1.1/sunglasses-open-issues.md)); 1.0 polishes; Effects › Ink (scanned ink strokes) |
 | 1.2 | Eraser (below) |
 | 1.3 | Enhance (on-device upscale + face restore; descratch/colourise later) |
-| 1.4 | Torn paper edges from photographed scans |
+| 1.4 | Torn paper edges from photographed scans; Portrait › Face light (a virtual key light moved around the face, from the face mesh and depth) and Portrait › Makeup (lips, blush, brows, liner; colours from the 24-colour strip) (owner, 2026-11-13) |
 | 1.5 | Preset Lab Studio presets (mass bundle, needs heavy curation; moved from 1.2) |
 | Last | VoiceOver and TalkBack pass on iOS and Android (owner, 2026-10-21: the last item, after the versions above; only 6629e86, hidden Auto / Reset all no longer read, landed in 1.0) |
 
-Any 1.0 defect that needs a store fix before 1.1 still ships as 1.0.x from `release/1.0`.
+Every release, including store fixes, ships from `master`; there are no release branches (owner, 2026-11-12).
 
 
 ### 1.1 — 1.0 polishes (listed 2026-10-13, status 2026-10-21)

@@ -12,3 +12,4 @@ xcuserdata/
 /experiments/auto-ci/lut_worst
 /experiments/auto-ci/per_filter
 /experiments/android-vision/results/
+/experiments/enhance-*/weights/
