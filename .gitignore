@@ -16,3 +16,6 @@ xcuserdata/
 /experiments/enhance-*/.venv/
 /experiments/enhance-*/repos/
 /experiments/enhance-*/outputs/
+/experiments/enhance-*/real-photos/*.jpg
+/experiments/enhance-*/coreml/
+/experiments/enhance-*/tflite/

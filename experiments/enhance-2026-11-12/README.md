@@ -35,5 +35,51 @@ Observations:
 - Every face model removes freckles: an identity change to watch.
 - Phone cost: the face models are 270–370 MB fp32 (~135–185 MB fp16) beside a ~200 MB app; general-x4v3 is 4.7 MB.
 
-Provisional pick: general-x4v3 for the photo, GPEN-512 for faces (CodeFormer 0.8 as the alternative). Next: real old and
-low-resolution photos, then Core ML / TFLite conversion and timing on the three review phones.
+Provisional pick: general-x4v3 for the photo, GPEN-512 for faces (CodeFormer 0.8 as the alternative). The owner prefers
+**CodeFormer 0.8** (2026-11-13), so the steps below use it.
+
+## Step 1b: real old photos (Unsplash, 2026-11-13)
+
+Ten free Unsplash photos (`real-photos/SOURCES.txt`; images git-ignored): five old family groups and five sepia or
+black-and-white portraits (the portraits are recent uploads and may be vintage-style rather than real scans). Each is
+reduced to 1200 px wide and enhanced x2: general-x4v3 for the photo, CodeFormer 0.8 for every face (`run_d_real.py`,
+sheets from `make_real_sheets.py` in `outputs/real/sheets/`). CodeFormer found faces in all ten (up to 11 in a group).
+
+- Old black-and-white family groups: small, soft faces become natural and recognisable; general-x4v3 alone makes them
+  plastic and warps features. The pair is right for this case.
+- Sepia portrait: CodeFormer paints blue eyes and red lips into a toned photo (its black-and-white check misses sepia).
+  Fix to try: keep the restored face's detail and take its colour from the original.
+- A painted family portrait (SpeUAC9IOng is a painting): CodeFormer turns painted faces photographic. Enhance should
+  probably leave paintings and illustrations alone.
+
+## Step 1c: on the phones (2026-11-13)
+
+Conversions: `convert_coreml.py` (fp16 mlprogram; CodeFormer through `torch.export`, since tracing turns its shape-keyed
+layer lookup into a cast Core ML cannot convert) and `convert_tflite.py` (litert-torch; CodeFormer's one-hot codebook
+scatter replaced by the equivalent embedding lookup at conversion time). Core ML CodeFormer against PyTorch on real
+aligned faces: mean difference 1.0–1.6 of 255; TFLite matches PyTorch to 1e-5. Sizes: general-x4v3 2.4 MB (Core ML) /
+4.7 MB (TFLite); CodeFormer 181 MB (Core ML fp16) / 377 MB (TFLite fp32).
+
+Timings with random inputs, harnesses in `phone/` (run from a scratch build only; not in the app):
+`EnhanceBenchmarkTests.swift` (LightlyTests on the iPhone) and `EnhanceBench.kt` (debug launch hook on Android, LiteRT
+with the app's threaded XNNPACK delegate). Median of repeated runs after one warm-up.
+
+| Phone | general-x4v3, one 256 px tile | CodeFormer 0.8, one 512 px face | Peak memory with CodeFormer |
+|---|---|---|---|
+| iPhone SE 3 (A15), Core ML all units (Neural Engine) | 0.02 s (load 1.2 s) | **0.17 s** (load 8.1 s, first run) | ~145 MB |
+| iPhone SE 3, CPU + GPU | 0.11 s | 0.68 s | ~450 MB |
+| iPhone 11 Pro Max (A13), all units | 0.11 s | **crashes the app** (every run) | – |
+| iPhone 11 Pro Max, CPU + GPU | 0.34 s | 2.4 s | ~590 MB |
+| Nothing A069, XNNPACK fp16, 4 threads | 1.9 s | 9.3 s | ~1.5 GB PSS |
+| Nothing A069, XNNPACK fp32 | 4.0 s | 21.5 s | ~1.9 GB PSS |
+
+A 1200 px photo is about 20 tiles of 256 px, so the photo pass alone is ~0.4 s on the SE 3, ~2–7 s on the 11 Pro Max and
+~40 s on the A069.
+
+Conclusions:
+- iOS on A14/A15 and later: CodeFormer 0.8 plus general-x4v3 is practical (well under a second per face).
+- iPhone 11 Pro Max (A13): CodeFormer must run on CPU + GPU (the Neural Engine path crashes), 2.4 s per face, ~590 MB.
+- Android on the A069: too slow and too large as is. Options: LiteRT GPU delegate, fp16/int8 weights, a smaller face
+  model (GPEN-256 or GFPGAN's lighter variants), or a lower tile resolution for the photo pass.
+- App size: CodeFormer adds ~180 MB on iOS (fp16) and ~190–380 MB on Android; an on-demand download would avoid
+  doubling the app.
