@@ -4,7 +4,8 @@ Each photo is reduced to 1200 px wide (a typical phone copy of an old print), th
   stage "bg"    (pip basicsr process): Real-ESRGAN general x4 v3 at outscale 2 -> outputs/real/<id>/bg.png
   stage "faces" (CodeFormer repo process): CodeFormer w=0.8 faces pasted onto bg -> outputs/real/<id>/codeformer-0.8.png
 The two stages need different basicsr packages, so this file runs itself twice in separate processes.
-Run: .venv/bin/python run_d_real.py
+  stage "faces-colour" (step 1e): the same with the original colour -> codeformer-0.8-original-colour.png
+Run: .venv/bin/python run_d_real.py [bg|faces|faces-colour]
 """
 import json
 import subprocess
@@ -43,7 +44,8 @@ def stage_background() -> None:
         cv2.imwrite(str(folder / "bg.png"), background)
 
 
-def stage_faces() -> None:
+def stage_faces(original_colour: bool = False) -> None:
+    """original_colour (step 1e): restored detail with the original face's colour (colour_from_original.py)."""
     import os
     sys.path.insert(0, str(HERE / "repos" / "CodeFormer"))
     os.chdir(HERE / "repos" / "CodeFormer")
@@ -77,19 +79,27 @@ def stage_faces() -> None:
             normalize(tensor, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True)
             with torch.no_grad():
                 output = net(tensor.unsqueeze(0).to(device), w=FIDELITY, adain=True)[0]
-            helper.add_restored_face(tensor2img(output, rgb2bgr=True, min_max=(-1, 1)).astype("uint8"), cropped)
+            restored = tensor2img(output, rgb2bgr=True, min_max=(-1, 1)).astype("uint8")
+            if original_colour:
+                sys.path.insert(0, str(HERE))
+                from colour_from_original import restored_detail_original_colour
+                restored = restored_detail_original_colour(restored, cropped)
+            helper.add_restored_face(restored, cropped)
         helper.get_inverse_affine(None)
         result = helper.paste_faces_to_input_image(upsample_img=background)
         seconds = round(time.perf_counter() - start, 2)
-        cv2.imwrite(str(folder / f"codeformer-{FIDELITY}.png"), result)
+        suffix = "-original-colour" if original_colour else ""
+        cv2.imwrite(str(folder / f"codeformer-{FIDELITY}{suffix}.png"), result)
         summary[folder.name] = {"faces": faces, "seconds": seconds}
         print(folder.name, summary[folder.name], flush=True)
-    (OUT / "summary.json").write_text(json.dumps(summary, indent=2))
+    if not original_colour:
+        (OUT / "summary.json").write_text(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        {"bg": stage_background, "faces": stage_faces}[sys.argv[1]]()
+        {"bg": stage_background, "faces": stage_faces,
+         "faces-colour": lambda: stage_faces(original_colour=True)}[sys.argv[1]]()
     else:
         for stage in ("bg", "faces"):
             subprocess.run([sys.executable, __file__, stage], check=True)

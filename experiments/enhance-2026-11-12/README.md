@@ -134,3 +134,18 @@ Max Neural Engine without the crash (2.59 s), no faster than its GPU.
 Open: the GPU kernel cache is a file the size of the model (~350 MB for the single model; split not yet measured) and the
 first load takes ~42 s. The CPU transformer stays the original code at full precision: the owner keeps quality over
 a ~1 s gain (2026-11-13).
+
+## Step 1e: colour from the original (2026-11-13)
+
+CodeFormer repaints colour along with detail: on sepia prints it adds blue eyes, pink eyelids and red lips (its own
+black-and-white check only catches pure grey). A sepia-or-colour switch is unreliable: measured hue spread puts a sepia
+print (4.8) between warm colour portraits (4.3–4.6). Old photos lose detail, not colour, so every restored face now keeps
+CodeFormer's lightness (Lab L) and takes its colour (a, b) from the original aligned face, smoothed with a guided filter
+steered by the restored lightness so colour follows the restored lips, eyes and hair (`colour_from_original.py`).
+
+Checked on five toned prints and four colour photos (`run_e_colour.py`, sheets in `outputs/colour/`), and through the
+full pipeline (`run_d_real.py faces-colour`):
+- toned: invented colours are gone (green-blue eyes back to the print's brown, mauve lips back to neutral) with the same
+  restored detail; mean colour shift from the original falls from 1.0–1.9 to 0.3–0.5 (Lab a/b, blurred).
+- colour: real blue eyes, red lips, skin and teeth keep the original colour; no visible loss against CodeFormer alone.
+- Cost on the phone: one Lab conversion and four box filters per 512 px face, no model.
