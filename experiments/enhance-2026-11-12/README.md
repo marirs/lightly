@@ -185,5 +185,16 @@ medal with a tintype portrait (an object rather than a print); at 0.6 a hand-tin
 is skipped too. Missed art: smooth realistic oil portraits and an engraving. Every ordinary photo (Unsplash, test-photos)
 scores 0.25 or less. The test set is small (124 images with faces), so these rates are rough.
 
-Next: convert the classifier to Core ML and TFLite and check that both phones make the same decisions; a larger test set
-of phone copies of real prints would firm up the threshold.
+On the phones (`export_art_classifier.py`, `compare_art_phones.py`; harnesses `phone/EnhanceBench.kt` mode `art` and
+`EnhanceBenchmarkTests.testArtClassifier`): the model takes the five 224 px views and returns one art probability
+(ImageNet normalisation inside). Core ML fp16 moved scores by up to 0.028 and flipped three test decisions at 0.8 on the
+Mac, so iOS uses fp32 too (16.9 MB each platform). Fed the same pixels as PyTorch, all 124 test images with faces:
+
+| Phone | Max score difference from PyTorch | Decisions changed | Time per image |
+|---|---|---|---|
+| Nothing A069, TFLite CPU fp32 | 6e-6 | 0 | 253 ms |
+| iPhone SE 3, Core ML all units (and CPU only) | 5e-6 | 0 | 26 ms |
+| iPhone 11 Pro Max, Core ML all units (and CPU only) | 5e-6 | 0 | 40 ms |
+
+Every phone catches 72/81 artworks and skips 1/43 photos, as on the Mac. Not yet checked: the apps' own resizing into the
+five views (to be compared with these pixels in the full pipeline), and a larger test set of phone copies of real prints.

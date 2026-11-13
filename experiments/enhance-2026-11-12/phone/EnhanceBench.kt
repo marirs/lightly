@@ -29,13 +29,14 @@ internal object EnhanceBench {
     private const val MODEL_FILE = "codeformer-gpu-w0.8-512.tflite"
     private const val FACE_SIZE = 512
 
-    /** [mode]: split16 / split32 (step 1d result), gpu16, gpu32, cpu or probes, from `--es lightly.debug.enhanceMode`. */
+    /** [mode]: art (step 1f), split16 / split32 (step 1d result), gpu16, gpu32, cpu or probes, from `--es lightly.debug.enhanceMode`. */
     fun start(context: Context, mode: String = "gpu16") = thread(name = "lightly-enhance-bench") {
         val folder = File(context.filesDir, "enhance-bench")
         val results = File(context.filesDir, "enhance-bench-results.txt")
         val line = runCatching {
             when (mode) {
                 "probes" -> runProbes(folder)
+                "art" -> runArtClassifier(context, folder)
                 "split16", "split32" -> runSplit(context, folder, fp16 = mode == "split16")
                 else -> runFaces(context, folder, mode)
             }
@@ -84,6 +85,36 @@ internal object EnhanceBench {
         delegate?.close()
         return "$mode kernel cache ${if (kernelCacheExisted) "present" else "empty"}: load $loadMs ms; " +
             faceTimes.joinToString(", ") + "; PSS $before -> $peak MB"
+    }
+
+    /**
+     * Step 1f: photo-or-art classifier (export_art_classifier.py) on the CPU (XNNPACK fp32, 4 threads). Inputs:
+     * art-classifier.tflite and art-views/<name>.u8 (five 224x224 RGB views, uint8 HWC). Writes
+     * art-results.csv (name, score, ms) so the scores can be compared with PyTorch's reference.csv.
+     */
+    private fun runArtClassifier(context: Context, folder: File): String {
+        val interpreter = Interpreter(File(folder, "art-classifier.tflite"), Interpreter.Options().setNumThreads(4))
+        val views = File(folder, "art-views").listFiles { file -> file.name.endsWith(".u8") }.orEmpty().sortedBy { it.name }
+        val input = ByteBuffer.allocateDirect(4 * 5 * 3 * 224 * 224).order(ByteOrder.nativeOrder())
+        val output = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
+        val lines = mutableListOf("name,score,ms")
+        val times = mutableListOf<Long>()
+        for (file in views) {
+            val pixels = file.readBytes()  // [5, 224, 224, 3] uint8 -> model input [5, 3, 224, 224] float in [0, 1]
+            input.clear()
+            for (view in 0 until 5) for (channel in 0 until 3) for (index in 0 until 224 * 224) {
+                input.putFloat((pixels[(view * 224 * 224 + index) * 3 + channel].toInt() and 0xFF) / 255f)
+            }
+            input.rewind(); output.clear()
+            val start = System.nanoTime()
+            interpreter.run(input, output)
+            val ms = (System.nanoTime() - start) / 1_000_000
+            times += ms
+            lines += "${file.nameWithoutExtension},${output.getFloat(0)},$ms"
+        }
+        interpreter.close()
+        File(context.filesDir, "art-results.csv").writeText(lines.joinToString("\n"))
+        return "art classifier: ${views.size} images, median ${times.sorted().getOrElse(times.size / 2) { -1 }} ms"
     }
 
     /**

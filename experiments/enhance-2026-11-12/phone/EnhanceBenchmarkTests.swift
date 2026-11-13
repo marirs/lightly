@@ -66,6 +66,44 @@ final class EnhanceBenchmarkTests: XCTestCase {
                       candidate.file, unitsName, loadSeconds, firstSeconds, times.sorted()[2], before, peak)
     }
 
+    /// Step 1f: photo-or-art classifier (export_art_classifier.py, fp32) on the CPU and on all units. Inputs in
+    /// Documents/enhance-bench: art-classifier.mlmodelc and art-views/<name>.u8 (five 224x224 RGB views, uint8 HWC).
+    /// Writes art-results.csv (name, cpuOnly score, all-units score, all-units ms) for comparison with reference.csv.
+    func testArtClassifier() throws {
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("enhance-bench")
+        let modelURL = folder.appendingPathComponent("art-classifier.mlmodelc")
+        guard FileManager.default.fileExists(atPath: modelURL.path) else { throw XCTSkip("no art classifier") }
+        let models = try [MLComputeUnits.cpuOnly, .all].map { units -> MLModel in
+            let configuration = MLModelConfiguration()
+            configuration.computeUnits = units
+            return try MLModel(contentsOf: modelURL, configuration: configuration)
+        }
+        let viewFiles = try FileManager.default.contentsOfDirectory(at: folder.appendingPathComponent("art-views"),
+                                                                    includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "u8" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        var lines = ["name,cpu_only,all_units,ms"]
+        for file in viewFiles {
+            let pixels = try Data(contentsOf: file)
+            let array = try MLMultiArray(shape: [5, 3, 224, 224], dataType: .float32)
+            let pointer = array.dataPointer.bindMemory(to: Float32.self, capacity: array.count)
+            pixels.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                for view in 0..<5 { for channel in 0..<3 { for index in 0..<(224 * 224) {
+                    pointer[(view * 3 + channel) * 224 * 224 + index] =
+                        Float32(raw[(view * 224 * 224 + index) * 3 + channel]) / 255
+                } } }
+            }
+            let input = try MLDictionaryFeatureProvider(dictionary: ["views": MLFeatureValue(multiArray: array)])
+            let cpuScore = try models[0].prediction(from: input).featureValue(for: "art_probability")!.multiArrayValue![0]
+            let start = CFAbsoluteTimeGetCurrent()
+            let allScore = try models[1].prediction(from: input).featureValue(for: "art_probability")!.multiArrayValue![0]
+            let ms = (CFAbsoluteTimeGetCurrent() - start) * 1000
+            lines.append("\(file.deletingPathExtension().lastPathComponent),\(cpuScore),\(allScore),\(String(format: "%.1f", ms))")
+        }
+        try lines.joined(separator: "\n").write(to: folder.appendingPathComponent("art-results.csv"),
+                                                atomically: true, encoding: .utf8)
+    }
+
     private func footprintMB() -> Double {
         var info = task_vm_info_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
