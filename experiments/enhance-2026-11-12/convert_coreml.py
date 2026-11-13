@@ -4,7 +4,7 @@
   CodeFormer:   one aligned 512x512 face, fidelity w=0.8 baked in (owner preference), fp16 mlprogram.
 Inputs and outputs are float tensors in the models' own ranges ([0,1] for ESRGAN, [-1,1] for CodeFormer).
 Writes coreml/<name>.mlpackage and checks each against PyTorch on a random input.
-Run: .venv/bin/python convert_coreml.py   (CodeFormer runs in a child process: it needs the repo's basicsr)
+Run: .venv/bin/python convert_coreml.py [general|codeformer|codeformer-gn]  (CodeFormer runs in a child process: it needs the repo's basicsr)
 """
 import subprocess
 import sys
@@ -46,7 +46,7 @@ def convert_general() -> None:
     save_and_compare(traced, example, "general-x4v3-256", [ct.TensorType(name="input", shape=example.shape)])
 
 
-def convert_codeformer() -> None:
+def convert_codeformer(reshape_free_group_norm: bool = False) -> None:
     sys.path.insert(0, str(HERE / "repos" / "CodeFormer"))
     import coremltools as ct
     import torch
@@ -58,6 +58,13 @@ def convert_codeformer() -> None:
     net.load_state_dict(torch.load(HERE / "weights/codeformer/codeformer.pth", map_location="cpu",
                                    weights_only=False)["params_ema"])
     net.eval()
+    name = "codeformer-w0.8-512"
+    if reshape_free_group_norm:
+        # Step 1d: same GroupNorm maths without reshaping full-size activations (4x faster on the A069 GPU).
+        sys.path.insert(0, str(HERE))
+        import codeformer_gpu
+        torch.nn.GroupNorm.forward = codeformer_gpu.group_norm_without_big_reshape
+        name = "codeformer-gn-w0.8-512"
 
     class FixedFidelity(torch.nn.Module):
         """CodeFormer with w=0.8 and AdaIN baked in, returning only the restored face."""
@@ -79,18 +86,19 @@ def convert_codeformer() -> None:
     model = ct2.convert(exported, outputs=[ct2.TensorType(name="output")], convert_to="mlprogram",
                         compute_precision=ct2.precision.FLOAT16, minimum_deployment_target=ct2.target.iOS17)
     OUT.mkdir(exist_ok=True)
-    model.save(str(OUT / "codeformer-w0.8-512.mlpackage"))
+    model.save(str(OUT / f"{name}.mlpackage"))
     input_name = model.get_spec().description.input[0].name
     with torch.no_grad():
         expected = wrapped(example).numpy()
     actual = model.predict({input_name: example.numpy()})["output"]
-    print("codeformer-w0.8-512 saved; input", input_name, "max abs difference vs PyTorch (fp16):",
+    print(name, "saved; input", input_name, "max abs difference vs PyTorch (fp16):",
           float(np.abs(actual - expected).max()), "mean:", float(np.abs(actual - expected).mean()), flush=True)
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        {"general": convert_general, "codeformer": convert_codeformer}[sys.argv[1]]()
+        {"general": convert_general, "codeformer": convert_codeformer,
+         "codeformer-gn": lambda: convert_codeformer(reshape_free_group_norm=True)}[sys.argv[1]]()
     else:
         for job in ("general", "codeformer"):
             subprocess.run([sys.executable, __file__, job], check=False)

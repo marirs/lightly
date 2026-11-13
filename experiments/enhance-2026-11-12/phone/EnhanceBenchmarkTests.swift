@@ -10,8 +10,9 @@ final class EnhanceBenchmarkTests: XCTestCase {
         let inputShape: [Int]
     }
 
+    // Step 1d: CodeFormer with the reshape-free GroupNorm (codeformer_gpu.py) against the original.
     private let candidates = [
-        Candidate(file: "general-x4v3-256.mlmodelc", inputShape: [1, 3, 256, 256]),
+        Candidate(file: "codeformer-gn-w0.8-512.mlmodelc", inputShape: [1, 3, 512, 512]),
         Candidate(file: "codeformer-w0.8-512.mlmodelc", inputShape: [1, 3, 512, 512]),
     ]
 
@@ -20,7 +21,8 @@ final class EnhanceBenchmarkTests: XCTestCase {
             .appendingPathComponent("enhance-bench")
         guard FileManager.default.fileExists(atPath: folder.path) else { throw XCTSkip("no models in Documents/enhance-bench") }
         var lines: [String] = []
-        for units in [MLComputeUnits.cpuAndGPU, .all] {  // GPU first: CodeFormer on .all crashed the 11 Pro Max host
+        // GPU first: the original CodeFormer on .all crashes the 11 Pro Max host, so it runs last.
+        for units in [MLComputeUnits.cpuAndGPU, .all] {
             for candidate in candidates {
                 let url = folder.appendingPathComponent(candidate.file)
                 guard FileManager.default.fileExists(atPath: url.path) else { continue }

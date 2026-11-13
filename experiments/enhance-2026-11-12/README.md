@@ -97,3 +97,39 @@ The GPU takes all of general-x4v3 (photo pass ~11 s for 1200 px) but only 1,252 
 leaving two partitions that bounce between GPU and CPU, so CodeFormer is three times slower than on XNNPACK. Best
 current Android split: general-x4v3 on the GPU, CodeFormer on XNNPACK fp16. To get CodeFormer onto the GPU, the
 unsupported operations (likely in its transformer and codebook lookup) would need rewriting or a lighter face model.
+
+## Step 1d: making CodeFormer faster on Android (2026-11-13)
+
+Owner: keep CodeFormer's quality, only make it faster. Result: **4.2 s per face on the A069, down from 9.3 s**, with the
+original model's output (mean 0.6–1.7 of 255 from PyTorch on five real faces, the same order as Core ML fp16 on iOS).
+
+| A069, one aligned 512 px face | Time | Notes |
+|---|---|---|
+| Original, XNNPACK fp16 (step 1c) | 9.3 s | CPU only |
+| Original, GPU fp16 (step 1c) | 30 s | GPU took 1,252 of 2,245 ops |
+| **Split, encoder + decoder on the GPU fp16, transformer on the CPU** | **4.2 s** | encoder 1.3 s, transformer 1.0 s, decoder 1.9 s; ~1.8 GB PSS |
+| Split, model load | 42 s first time, 4.3 s after | GPU kernel cache (`setSerializationParams`), cache files on disk |
+
+How (`codeformer_split.py`, `codeformer_gpu.py`; `convert_tflite.py codeformer-split`):
+- CodeFormer is 800 GFLOPs per face, almost all in the encoder and decoder convolutions at 32–512 px. The 16x16 token
+  transformer, topk and codebook lookup are ~2 %, so they run on the CPU as the original code (real topk, no
+  approximation). Chained on the Mac the three TFLite parts match the original CodeFormer to 0.002 of 255.
+- The LiteRT GPU delegate on the A069 (Adreno 710) gave wrong numbers for parts of the original graph, found by cutting
+  the model into stages and comparing GPU (fp32) with the phone's CPU on a real face (`convert_gpu_probes.py`,
+  `phone/EnhanceBench.kt` probes mode). Rewritten with the same maths for the GPU parts:
+  - GroupNorm: decoder activations reach ~39,000, so its squares overflowed fp16 (all-NaN output); it is now scaled
+    by the tensor's maximum (eps scaled with it) with staged spatial means, and no full-size reshape.
+  - VQGAN attention blocks: `reshape-then-transpose @ B` and `A @ B` products came out wrong on the GPU (errors as big
+    as the values); every product is now `A @ B^T` on channels-last rows. Each fix was checked on the phone.
+- A first single-model attempt (sharpened-softmax codebook, `check_gpu_codebook.py`) measured 2.4 s but its output was
+  all NaN on the phone, so that figure is void; its transformer could not be made GPU-correct (see `codeformer_gpu.py`).
+
+Real-face check (`export_phone_faces.py` → phone → `compare_phone_faces.py android-split16`): black-and-white family and
+group, sepia portrait, colour portrait and the painting; the phone column matches PyTorch by eye.
+
+iOS: the same GroupNorm rewrite in Core ML was slower (SE 3 0.87 s vs 0.69 s, 11 Pro Max 2.59 s vs 2.33 s, CPU + GPU)
+and its fp16 output was wrong (26–41 of 255), so iOS keeps the step 1c model. The rewritten model did run on the 11 Pro
+Max Neural Engine without the crash (2.59 s), no faster than its GPU.
+
+Open: the GPU kernel cache is a file the size of the model (~350 MB for the single model; split not yet measured) and the
+first load takes ~42 s; the transformer on the CPU could try XNNPACK fp16 (1.0 s now).
