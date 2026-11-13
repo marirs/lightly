@@ -4,7 +4,10 @@ import android.content.Context
 import android.os.Debug
 import android.util.Log
 import com.lightlylabs.lightly.editor.ThreadedXnnpackDelegate
+import org.tensorflow.lite.Delegate
 import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegate
+import org.tensorflow.lite.gpu.GpuDelegateFactory
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -28,7 +31,8 @@ internal object EnhanceBench {
         val lines = mutableListOf<String>()
         // adb created the model folder, so the app cannot write there: results go to its private files (run-as).
         val results = File(context.filesDir, "enhance-bench-results.txt")
-        for ((fp16, label) in listOf(false to "xnnpack-fp32", true to "xnnpack-fp16")) {
+        // XNNPACK results (2026-11-13): general 1.9 s / CodeFormer 9.3 s fp16. This pass tries LiteRT's GPU delegate.
+        for ((fp16, label) in listOf(true to "gpu-fp16", false to "gpu-fp32")) {
             for ((file, size) in candidates) {
                 val model = File(folder, file)
                 if (!model.exists()) continue
@@ -45,8 +49,12 @@ internal object EnhanceBench {
     private fun measure(model: File, size: Int, fp16: Boolean, label: String): String {
         val before = pssMb()
         val threads = ThreadedXnnpackDelegate.performanceCoreCount()
-        val delegate = ThreadedXnnpackDelegate.create(threads, if (fp16) XNNPACK_FLAG_FORCE_FP16 else 0)
-            ?: return "${model.name} [$label] no delegate"
+        val delegate: Delegate = if (label.startsWith("gpu")) {
+            GpuDelegate(GpuDelegateFactory.Options().setPrecisionLossAllowed(fp16))
+        } else {
+            ThreadedXnnpackDelegate.create(threads, if (fp16) XNNPACK_FLAG_FORCE_FP16 else 0)
+                ?: return "${model.name} [$label] no delegate"
+        }
         val loadStart = System.nanoTime()
         val options = Interpreter.Options().setNumThreads(threads).addDelegate(delegate).setUseXNNPACK(false)
         val interpreter = Interpreter(model, options)

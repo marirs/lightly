@@ -83,3 +83,17 @@ Conclusions:
   model (GPEN-256 or GFPGAN's lighter variants), or a lower tile resolution for the photo pass.
 - App size: CodeFormer adds ~180 MB on iOS (fp16) and ~190–380 MB on Android; an on-demand download would avoid
   doubling the app.
+
+### LiteRT GPU delegate on the A069 (2026-11-13)
+
+`EnhanceBench.kt` with `GpuDelegate` (litert-gpu 1.4.2, scratch build only):
+
+| Model | XNNPACK fp16 | GPU fp16 | GPU fp32 |
+|---|---|---|---|
+| general-x4v3, 256 px tile | 1.9 s, ~750 MB | **0.56 s, ~180 MB** | 1.4 s |
+| CodeFormer 0.8, 512 px face | **9.3 s**, ~1.5 GB | 30 s, ~1.4 GB (load 16 s) | 31 s |
+
+The GPU takes all of general-x4v3 (photo pass ~11 s for 1200 px) but only 1,252 of CodeFormer's 2,245 operations,
+leaving two partitions that bounce between GPU and CPU, so CodeFormer is three times slower than on XNNPACK. Best
+current Android split: general-x4v3 on the GPU, CodeFormer on XNNPACK fp16. To get CodeFormer onto the GPU, the
+unsupported operations (likely in its transformer and codebook lookup) would need rewriting or a lighter face model.
