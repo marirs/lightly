@@ -198,3 +198,26 @@ Mac, so iOS uses fp32 too (16.9 MB each platform). Fed the same pixels as PyTorc
 
 Every phone catches 72/81 artworks and skips 1/43 photos, as on the Mac. Not yet checked: the apps' own resizing into the
 five views (to be compared with these pixels in the full pipeline), and a larger test set of phone copies of real prints.
+
+## Step 2a: the apps' own face models instead of RetinaFace and ParseNet (Mac, 2026-11-13)
+
+CodeFormer's pipeline finds faces with RetinaFace ResNet-50 (104 MB) and cuts the paste-back mask with ParseNet (81 MB).
+Both apps already ship BlazeFace full range (Android), Apple Vision face rectangles (iOS), Face Mesh V2 and selfie
+multiclass. `run_g_app_models.py` (with `vision_faces.swift` for Vision) restores the ten real photos' faces with each
+replacement; the difference is measured against CodeFormer's own pipeline inside its paste mask, 0-255 per pixel, and
+crops are in `outputs/app-models/sheets/` (input, reference, mesh, multiclass, Android, iOS).
+
+| Variant | Faces | Median difference | Largest |
+|---|---|---|---|
+| RetinaFace points moved by up to 0.5 px (baseline: CodeFormer's own sensitivity) | 34 | 3.2 | 5.4 |
+| Face Mesh 5 points (iris centres, nose tip, mouth corners), ParseNet mask | 34 | 3.7 | 5.8 |
+| RetinaFace points, multiclass face-skin mask (holes filled) | 34 | 1.9 | 4.2 |
+| Android: BlazeFace -> Face Mesh -> multiclass | 11 | 3.3 | 5.2 |
+| iOS: Vision -> Face Mesh -> multiclass | 32 | 4.0 | 6.0 |
+
+- Alignment and mask: Face Mesh points and the multiclass mask change the result no more than half a pixel of
+  alignment does, and the crops look the same by eye. ParseNet is not needed.
+- Detection is the gap. RetinaFace finds 34 faces. Vision finds 32: it misses a child in eTOiqGqdCf8 (eye gap 18 px) and
+  the bearded man with his hand at his chin in q8ZnolGToXw (eye gap 259 px). BlazeFace on the whole photo (as the app
+  runs it) finds 11: none of the group faces with eye gaps of 16-28 px. Run again on overlapping tiles (1 x 1, 2 x 2
+  and 3 x 3 grids, each tile 1.5 x its cell) it finds 30, still missing q8ZnolGToXw and two in eTOiqGqdCf8.
