@@ -12,6 +12,7 @@ photos, then speed and memory on the iPhone 11 Pro Max, iPhone SE 3 and Nothing 
 | Face restore | GFPGAN v1.4 | `GFPGANv1.4.pth` | 337 MB | `e2cd4703…ad` | github.com/TencentARC/GFPGAN, release v1.3.0 |
 | Face restore | CodeFormer | `codeformer.pth` | 369 MB | `1009e537…b7` | github.com/sczhou/CodeFormer, release v0.1.0 |
 | Face restore, lighter | GPEN-BFR-512 | `GPEN-BFR-512.pth` | 272 MB | `f1002c41…51` | github.com/yangxy/GPEN (Alibaba OSS mirror) |
+| Face detection (step 2b) | RetinaFace MobileNet-0.25 | `detection_mobilenet0.25_Final.pth` | 1.7 MB | `2979b33f…20` | github.com/xinntao/facexlib, release v0.1.0 (2026-11-14, owner's approval); copied to `repos/CodeFormer/weights/facelib/` |
 
 Full hashes: `shasum -a 256 weights/*/*.pth`.
 
@@ -204,7 +205,7 @@ five views (to be compared with these pixels in the full pipeline), and a larger
 CodeFormer's pipeline finds faces with RetinaFace ResNet-50 (104 MB) and cuts the paste-back mask with ParseNet (81 MB).
 Both apps already ship BlazeFace full range (Android), Apple Vision face rectangles (iOS), Face Mesh V2 and selfie
 multiclass. `run_g_app_models.py` (with `vision_faces.swift` for Vision) restores the ten real photos' faces with each
-replacement; the difference is measured against CodeFormer's own pipeline inside its paste mask, 0-255 per pixel, and
+replacement (sheet columns: input, reference, mesh, multiclass, Android, iOS, then step 2b's MobileNet and MobileNet + mesh); the difference is measured against CodeFormer's own pipeline inside its paste mask, 0-255 per pixel, and
 crops are in `outputs/app-models/sheets/` (input, reference, mesh, multiclass, Android, iOS).
 
 | Variant | Faces | Median difference | Largest |
@@ -221,3 +222,32 @@ crops are in `outputs/app-models/sheets/` (input, reference, mesh, multiclass, A
   the bearded man with his hand at his chin in q8ZnolGToXw (eye gap 259 px). BlazeFace on the whole photo (as the app
   runs it) finds 11: none of the group faces with eye gaps of 16-28 px. Run again on overlapping tiles (1 x 1, 2 x 2
   and 3 x 3 grids, each tile 1.5 x its cell) it finds 30, still missing q8ZnolGToXw and two in eTOiqGqdCf8.
+
+## Step 2b: one small detector for both apps (Mac, 2026-11-14)
+
+RetinaFace MobileNet-0.25 (1.7 MB, the small model of CodeFormer's own detector family) in `run_g_app_models.py`
+(`mobilenet_two_sizes`): detection at CodeFormer's size (short side 640) plus faces found only at 960. At 640 alone it
+missed one 19 px eye-gap face in the 11-person group; at 960 alone it lost the large face in wobEQvA3A9A and gave wrong
+eye points for Q-lUWYs7Ms0, so the 640 detections stay and 960 only adds faces where nothing overlaps.
+
+| Detector | Ten real photos (RetinaFace ResNet-50 finds 34) | 56 Met photos (ResNet-50 finds 64) |
+|---|---|---|
+| Apple Vision (iOS) | 32 | – |
+| BlazeFace full range, whole photo (Android today) | 11 | – |
+| BlazeFace on 1/2x2/3x3 tiles | 30 | – |
+| **MobileNet-0.25, 640 + 960** | **34, none extra** | 61 + 2 that ResNet-50 misses |
+
+The Met disagreements were checked by eye (on the helper's image: `FaceRestoreHelper.read_image` enlarges anything under
+512 px on its short side, so its coordinates are in that image): both detectors' extra faces are real faces, the
+MobileNet misses are two faces with 16 px eye gaps, and one profile face is found by both but with different eye points.
+No invented faces from either.
+
+Restored and pasted with the multiclass mask, MobileNet's own five points differ from the reference by a median 4.3
+(largest 6.5) and Face Mesh points seeded from its boxes by 4.1 (6.3), against 3.2 (5.4) for half a pixel of jitter on
+the reference's own points; by eye the faces match. On the smallest child in eTOiqGqdCf8 (eye gap 18 px), several
+alignments, the iOS path included, make CodeFormer add a faint ring like glasses around the eyes that the reference
+does not have: CodeFormer's own variation on tiny faces, not the detector.
+
+Proposed pipeline for both apps: MobileNet-0.25 at 640 + 960 -> Face Mesh points where its presence is >= 0.5 (else
+MobileNet's own) -> CodeFormer 0.8 -> colour from the original -> multiclass face-skin paste mask. RetinaFace ResNet-50
+and ParseNet (185 MB together) are not needed. Not yet measured: MobileNet's speed and output on the phones.

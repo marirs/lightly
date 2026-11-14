@@ -11,6 +11,8 @@ pastes it with:
   multiclass RetinaFace 5 points, selfie multiclass face-skin mask                 -> the paste mask alone
   android    BlazeFace full range -> Face Mesh -> multiclass                        -> what Android would do
   ios        Apple Vision rectangles (vision.json from vision_faces.swift) -> Face Mesh -> multiclass
+  mobile     RetinaFace MobileNet-0.25 at two sizes (step 2b, mobilenet_two_sizes) and its own 5 points -> multiclass
+  mobile-mesh  RetinaFace MobileNet-0.25 boxes -> Face Mesh -> multiclass
 
 Per face it reports the mean difference from the reference inside the reference's paste mask (0-255) and writes
 side-by-side crops to outputs/app-models/sheets/. Faces are matched to the reference by eye midpoint.
@@ -162,8 +164,8 @@ class Restorer:
         self.net.eval()
         self.helper_class = FaceRestoreHelper
 
-    def helper(self):
-        return self.helper_class(SCALE, face_size=512, crop_ratio=(1, 1), det_model="retinaface_resnet50",
+    def helper(self, det_model="retinaface_resnet50"):
+        return self.helper_class(SCALE, face_size=512, crop_ratio=(1, 1), det_model=det_model,
                                  save_ext="png", use_parse=True, device=self.device)
 
     def restore(self, cropped):
@@ -256,6 +258,25 @@ def paste_with_masks(helper, background, face_masks):
     return image.astype(np.uint8), masks
 
 
+def mobilenet_two_sizes(restorer, low):
+    """RetinaFace MobileNet-0.25 at the reference's size (short side 640), plus faces only a 960 pass finds.
+
+    At 640 it missed one 19 px eye-gap face in the 11-person group; at 960 it found that but lost the large face in
+    wobEQvA3A9A and gave wrong eye points for Q-lUWYs7Ms0. So the 640 detections stay, and a 960 detection is added only
+    where nothing at 640 overlaps it (IoU < 0.3)."""
+    def detect(size):
+        helper = restorer.helper("retinaface_mobile0.25")
+        helper.read_image(low)
+        helper.get_face_landmarks_5(only_center_face=False, resize=size, eye_dist_threshold=5)
+        return [(np.asarray(box), np.asarray(five)) for box, five in zip(helper.det_faces, helper.all_landmarks_5)]
+
+    found = detect(640)
+    for box, five in detect(960):
+        if all(iou(box[:4], kept[:4]) < 0.3 for kept, _ in found):
+            found.append((box, five))
+    return found
+
+
 def eye_midpoint(five):
     return (np.asarray(five[0]) + np.asarray(five[1])) / 2
 
@@ -317,6 +338,14 @@ def main():
         # iOS: Vision rectangle, upright first pass (no keypoints), crop 1.6 x the box (SunglassesAnalysis).
         ios_fives, ios_presence = mesh_fives([(np.array([x + w / 2, y + h / 2]), max(w, h) * 1.6, 0.0)
                                               for x, y, w, h in vision.get(folder.name, [])])
+        # Step 2b: RetinaFace MobileNet-0.25 (1.7 MB), same settings as the reference; its own five points, and Face Mesh
+        # points seeded from its boxes (kept only where the mesh accepts the face, else its own points).
+        mobile = mobilenet_two_sizes(restorer, low)
+        mobile_fives = [five for _, five in mobile]
+        mobile_boxes = [box[:4] for box, _ in mobile]
+        mobile_mesh, mobile_presence = mesh_fives([((b[:2] + b[2:]) / 2, (b[2:] - b[:2]).max() * 1.5,
+                                                    math.atan2(*(f[1] - f[0])[::-1])) for b, f in zip(mobile_boxes, mobile_fives)])
+        mobile_mesh = [m if p >= 0.5 else f for m, p, f in zip(mobile_mesh, mobile_presence, mobile_fives)]
         android_keep = [i for i, p in enumerate(android_presence) if p >= 0.5]
         ios_keep = [i for i, p in enumerate(ios_presence) if p >= 0.5]
         android_fives = [android_fives[i] for i in android_keep]
@@ -332,17 +361,20 @@ def main():
             "multiclass": paste(helper, low, background, reference_fives, restorer, multiclass, cache=cache),
             "android": paste(helper, low, background, android_fives, restorer, multiclass, cache=cache) if android_fives else (cv2.resize(background, (low.shape[1] * SCALE, low.shape[0] * SCALE)), []),
             "ios": paste(helper, low, background, ios_fives, restorer, multiclass, cache=cache) if ios_fives else (cv2.resize(background, (low.shape[1] * SCALE, low.shape[0] * SCALE)), []),
+            "mobile": paste(helper, low, background, mobile_fives, restorer, multiclass, cache=cache) if mobile_fives else (cv2.resize(background, (low.shape[1] * SCALE, low.shape[0] * SCALE)), []),
+            "mobile-mesh": paste(helper, low, background, mobile_mesh, restorer, multiclass, cache=cache) if mobile_mesh else (cv2.resize(background, (low.shape[1] * SCALE, low.shape[0] * SCALE)), []),
         }
         for name, (image, _) in results.items():
             cv2.imwrite(str(OUT / f"{folder.name}-{name}.png"), image)
         reference_image, reference_masks = results["reference"]
-        found = {"android": match(reference_fives, android_fives), "ios": match(reference_fives, ios_fives)}
+        found = {"android": match(reference_fives, android_fives), "ios": match(reference_fives, ios_fives),
+                 "mobile": match(reference_fives, mobile_fives), "mobile-mesh": match(reference_fives, mobile_mesh)}
         faces = []
         rows = []
         for index, five in enumerate(reference_fives):
             soft = reference_masks[index][0] > 0.5
             row = {"eye_gap": round(float(np.linalg.norm(five[0] - five[1])), 1)}
-            for name in ("jitter", "mesh", "multiclass", "android", "ios"):
+            for name in ("jitter", "mesh", "multiclass", "android", "ios", "mobile", "mobile-mesh"):
                 if name in found and found[name][index] is None:
                     row[name] = None
                     continue
@@ -350,7 +382,7 @@ def main():
                 row[name] = round(float(difference[soft].mean()), 2)
             faces.append(row)
             rows.append(np.hstack([face_crop(cv2.resize(low, None, fx=SCALE, fy=SCALE, interpolation=cv2.INTER_CUBIC), five)]
-                                  + [face_crop(results[n][0], five) for n in ("reference", "mesh", "multiclass", "android", "ios")]))
+                                  + [face_crop(results[n][0], five) for n in ("reference", "mesh", "multiclass", "android", "ios", "mobile", "mobile-mesh")]))
         if rows:
             cv2.imwrite(str(OUT / "sheets" / f"{folder.name}.jpg"), np.vstack(rows), [cv2.IMWRITE_JPEG_QUALITY, 92])
         report[folder.name] = {"retinaface": len(reference_fives), "blazeface": len(detections),
@@ -358,6 +390,8 @@ def main():
                                "vision_mesh_ok": len(ios_fives),
                                "android_extra": len(android_fives) - sum(f is not None for f in found["android"]),
                                "ios_extra": len(ios_fives) - sum(f is not None for f in found["ios"]),
+                               "mobilenet": len(mobile_fives),
+                               "mobilenet_extra": len(mobile_fives) - sum(f is not None for f in found["mobile"]),
                                "faces": faces}
         print(folder.name, json.dumps(report[folder.name]), flush=True)
     (OUT / "report.json").write_text(json.dumps(report, indent=1))
