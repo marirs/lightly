@@ -235,7 +235,7 @@ eye points for Q-lUWYs7Ms0, so the 640 detections stay and 960 only adds faces w
 | Apple Vision (iOS) | 32 | – |
 | BlazeFace full range, whole photo (Android today) | 11 | – |
 | BlazeFace on 1/2x2/3x3 tiles | 30 | – |
-| **MobileNet-0.25, 640 + 960** | **34, none extra** | 61 + 2 that ResNet-50 misses |
+| **MobileNet-0.25, 640 + 960** | **34, none extra** | 62 (2 missed; a profile face counted as found) + 2 real faces ResNet-50 misses |
 
 The Met disagreements were checked by eye (on the helper's image: `FaceRestoreHelper.read_image` enlarges anything under
 512 px on its short side, so its coordinates are in that image): both detectors' extra faces are real faces, the
