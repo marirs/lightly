@@ -251,3 +251,50 @@ does not have: CodeFormer's own variation on tiny faces, not the detector.
 Proposed pipeline for both apps: MobileNet-0.25 at 640 + 960 -> Face Mesh points where its presence is >= 0.5 (else
 MobileNet's own) -> CodeFormer 0.8 -> colour from the original -> multiclass face-skin paste mask. RetinaFace ResNet-50
 and ParseNet (185 MB together) are not needed. Not yet measured: MobileNet's speed and output on the phones.
+
+## Step 2c: the full pipeline on the phones (2026-11-15)
+
+The proposed pipeline (step 2b) end to end on the ten real photos, on all three phones. `phone_pipeline.py` is the Mac
+copy and defines every step (its docstring lists them); `phone/EnhancePipeline.kt` (EnhanceBench mode `pipeline`) and
+`phone/EnhancePipelineTests.swift` repeat it line for line with plain float code, so phone/Mac differences come from the
+model runtimes only. `export_face_detector.py` converts RetinaFace MobileNet-0.25 for the phones (1.8 MB, Core ML and
+TFLite fp32, both within 4e-5 of PyTorch) on fixed square canvases: 1024 for the 640 pass, 1536 for the 960 pass.
+`compare_phone_pipeline.py` measures the outputs (square around each face, side 3 x eye gap, 0-255) and writes sheets
+to `outputs/phone-pipeline/sheets/`.
+
+Simplifications against CodeFormer's own pipeline, chosen so both phones can repeat them exactly: least squares
+instead of LMEDS for the alignment (same matrix to 1e-6 on five good points), plain bilinear warps, PIL-style
+resizes, the background on 256 px tiles averaged 2 x 2 instead of one pass and a Lanczos reduction. Together with
+step 2b's detector, Face Mesh points and multiclass mask they move the faces by a median 3.6 of 255 from CodeFormer's
+own output (largest 7.0), the same as step 2b's MobileNet + Face Mesh variant (3.5, largest 7.9); the background
+moves by 0.57 on average.
+
+| Phone, runtimes | Faces vs Mac copy, median (largest) | Time per photo, median (range) | CodeFormer per face | Background (2x) | Peak memory |
+|---|---|---|---|---|---|
+| iPhone SE 3, CodeFormer on the Neural Engine | 0.55 (**13.4**) | 3.8 s (1.1-8.0) | 0.17 s | 0.6-1.3 s | 661 MB |
+| iPhone SE 3, CodeFormer on CPU + GPU | 0.27 (0.80) | 6.2 s (1.1-13.1) | 0.74 s | 0.6-1.4 s | 960 MB |
+| iPhone 11 Pro Max, CodeFormer on CPU + GPU | 0.31 (0.69) | 14.6 s (4.5-35.3) | 2.45 s | 2.5-5.7 s | 1.3 GB |
+| Nothing A069, LiteRT (CodeFormer split, step 1d) | 0.44 (1.12) | 58.5 s (25.6-104.7) | 4.25 s | 16-33 s | 2.5 GB PSS |
+
+Other models on all phones: the painting classifier gives the Mac's scores to 6e-6 through the pipeline's own resizing
+(the step 1f decisions unchanged on all ten photos; SpeUAC9IOng, a painting, is skipped at 0.994), detection finds the
+same 29 faces as the Mac, and the face points agree to under 1 px (0.003 px on the A069). Detection takes ~0.5 s on
+the iPhones (0.7 s on the 11 Pro Max) and 2.4 s on the A069.
+
+Findings:
+- **The SE 3's Neural Engine is not safe for CodeFormer.** On Q-lUWYs7Ms0 (a large profile face) it painted a bright
+  blotch over the lips, and a small white speck on another face in eTOiqGqdCf8. Forcing CPU + GPU on the same phone
+  (`enhance-bench/codeformer-cpu-gpu`) removes both and matches the Mac. Per the quality-over-speed rule, CodeFormer
+  runs on CPU + GPU on every iPhone (the 11 Pro Max's Neural Engine path already crashed, step 1c).
+- The A069 is slow but correct: ~4.3 s per face, and the 4x background pass (48 GPU tiles for a 1200 x 1676 photo)
+  takes 16-33 s, the largest single cost. Peak memory stays at ~2.5 GB PSS.
+- The plain-loop image code is unoptimised harness code: colour + mask take 0.3-0.5 s per face on the iPhones and
+  3.1 s on the A069, and pasting a large face up to 7 s on the iPhones and 36 s on the A069 (mostly the Gaussian blur
+  of the soft square, whose kernel grows with the face). Production needs vectorised or GPU versions of the same maths.
+  The first A069 run used a debuggable build, where the same code was 4-5 times slower; the table is the
+  non-debuggable `benchmark` build type.
+- The smallest child in eTOiqGqdCf8 (eye gap 18 px) gets the faint glasses-like ring from step 2b on every phone and
+  on the Mac: CodeFormer's variation on tiny faces with these points, not a phone difference.
+- CodeFormer's own helper saves 16-bit PNGs when a grey photo's restored face overshoots 256 (7fsmqjUKrCc reaches
+  257), so `outputs/app-models/7fsmqjUKrCc-*.png` read back black through `cv2.imread`; step 2a's numbers were
+  computed in memory and stand.

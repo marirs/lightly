@@ -29,7 +29,7 @@ internal object EnhanceBench {
     private const val MODEL_FILE = "codeformer-gpu-w0.8-512.tflite"
     private const val FACE_SIZE = 512
 
-    /** [mode]: art (step 1f), split16 / split32 (step 1d result), gpu16, gpu32, cpu or probes, from `--es lightly.debug.enhanceMode`. */
+    /** [mode]: pipeline (step 2c), art (step 1f), split16 / split32 (step 1d result), gpu16, gpu32, cpu or probes, from `--es lightly.debug.enhanceMode`. */
     fun start(context: Context, mode: String = "gpu16") = thread(name = "lightly-enhance-bench") {
         val folder = File(context.filesDir, "enhance-bench")
         val results = File(context.filesDir, "enhance-bench-results.txt")
@@ -37,6 +37,8 @@ internal object EnhanceBench {
             when (mode) {
                 "probes" -> runProbes(folder)
                 "art" -> runArtClassifier(context, folder)
+                // Step 2c: the whole pipeline on real photos (EnhancePipeline.kt).
+                "pipeline" -> EnhancePipeline(context).run()
                 "split16", "split32" -> runSplit(context, folder, fp16 = mode == "split16")
                 else -> runFaces(context, folder, mode)
             }
