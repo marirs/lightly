@@ -379,3 +379,31 @@ where the photo is grey). Sheets of eye crops in `outputs/ring-study/` (git-igno
 The ring is CodeFormer inventing detail on very small faces, not a Face Mesh fault: Face Mesh is the steadier source
 and stays. Not addressed here (product decision): whether faces below some eye gap should be restored at all - at
 5-10 px CodeFormer invents features in every source.
+
+## Step 2g: the smallest face worth restoring (Mac, 2026-11-16)
+
+`size_cutoff_study.py`: 24 sharp faces (eye gap >= 60 px; experiments/test-photos and lut3d/photos) cut out with
+context and shrunk to eye gaps of 6-30 px, "clean" (shrunk only) and "old" (also blurred, sigma 0.6 px, JPEG 75).
+Each enhanced to 2x as the pipeline does, with the face restored or with the background only (general-x4v3), and
+compared with the truth on the face square: LPIPS (AlexNet, lower is closer) and PSNR. Seven entries are not frontal
+faces (five profiles, whose square holds a nose and cheek, and two ResNet-50 detections on hair and an ear) and are
+left out of the numbers. Sheets in `outputs/size-cutoff/` (git-ignored).
+
+| Eye gap | clean: LPIPS background / restored, restored closer | old: LPIPS background / restored, restored closer |
+|---|---|---|
+| 6 px | 0.194 / 0.174, 15 of 17 | 0.304 / 0.271, 16 of 17 |
+| 8 px | 0.166 / 0.157, 12 of 17 | 0.282 / 0.233, 15 of 17 |
+| 10 px | 0.158 / 0.140, 15 of 17 | 0.253 / 0.220, 14 of 17 |
+| 12 px | 0.147 / 0.127, 14 of 17 | 0.240 / 0.220, 15 of 17 |
+| 16 px | 0.127 / 0.101, 15 of 17 | 0.229 / 0.174, 16 of 17 |
+| 20-30 px | 0.106-0.111 / 0.073-0.091, 17 of 17 | 0.154-0.194 / 0.120-0.155, 16 of 17 |
+
+PSNR is the same either way (within 1.4 dB). By eye: at 6 px the background-only face is a blob and the restored one
+is a plausible face with invented details (teeth, smile, glasses fading); from 8 px restoration is mostly faithful
+(glasses, expression and likeness kept; one face, portrait_medium_01, gets odd eyes at 8 px). On profiles restoration
+adds grainy skin texture (profile_bw_woman_01), a separate issue.
+
+So there is no evidence for a cutoff around 12-15 px: it would drop faces restoration clearly helps. At most a
+cutoff at 8 px (faces of 5-7 px left as background) would avoid the most invented 6 px results. Limits: synthetic
+shrinking and blur, not real old-print damage (step 2f's Met faces show invented glasses at 5-20 px); LPIPS only, no
+identity measure (ArcFace would need a download).
