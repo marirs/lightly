@@ -325,3 +325,37 @@ The longest times are the first photo (models loading, ~3 s for the art classifi
 (CodeFormer: 0.7 s per face on the SE 3, 2.4 s on the 11 Pro Max, 4.3 s on the A069). Peak memory unchanged (SE 3
 ~900 MB, 11 Pro Max ~1.2 GB, A069 ~2.5 GB PSS). On the A069 the 2x background (general-x4v3, 16-33 s) is now
 most of every photo's time, then CodeFormer; on the iPhones CodeFormer and the background (0.6-5.4 s) dominate.
+
+## Step 2e: background tiles without seams (2026-11-16)
+
+The background pass is model-bound (step 1c: 0.56 s per 256 px GPU tile on the A069), so no exact speed-up was left
+in the harness. `tile_study.py` instead compared tile layouts with one general-x4v3 pass over the whole photo
+(PyTorch fp32 on MPS, ten photos; cost = tile pixels / photo pixels):
+
+| Layout (tile / kept context / placement) | Tiles | Cost | vs one pass: mean | worst 99.9% | worst pixel |
+|---|---|---|---|---|---|
+| 256 / 10 / clamped (steps 2c-2d) | 354 | 1.52x | 0.023 | 3.31 | 30.2 |
+| 256 / 10 / even | 295 | 1.27x | 0.014 | 3.03 | 33.8 |
+| 256 / 16 / even | 360 | 1.54x | 0.001 | 0.20 | 1.3 |
+| 384 / 16 / even | 164 | 1.59x | 0.000 | 0.00 | 0.0 |
+| 512 / 16 / even | 93 | 1.57x | 0.000 | 0.00 | 0.0 |
+
+Steps 2c-2d's 10 px of context leaves seams (rare pixels up to 30 of 255 off along tile edges); 16 px removes them,
+and 384 / 512 px tiles with 16 px reproduce the one-pass result exactly. `even`: the fewest windows that keep the
+context, spread evenly, overlaps split at their middle (`phone_pipeline.tile_windows`, repeated in both harnesses).
+The harnesses now default to 384 / 16 / even (`enhance-bench/background-tile` = 512 selects 512); the converters take
+the tile side (`convert_tflite.py general 384`, `convert_coreml.py general 384`). The Mac copy moves by 0.01 on faces
+and 0.02 on the background from step 2c (`outputs/phone-pipeline/mac-2c`), and stays as close to CodeFormer's own
+pipeline (faces median 3.60, largest 7.04).
+
+On the phones every output agrees with the new Mac copy as closely as before (faces median 0.27 SE 3, 0.31 11 Pro
+Max, 0.44 A069), but bigger tiles are not faster per pixel on any GPU, so the seam-free layouts cost time:
+
+| Phone, background per photo | 256 / 10 clamped (2d) | 384 / 16 even | 512 / 16 even |
+|---|---|---|---|
+| iPhone SE 3 | 0.64-1.39 s | 0.76-1.40 s | 0.87-2.96 s |
+| iPhone 11 Pro Max | 2.5-5.4 s | 3.2-5.7 s | 3.0-6.4 s |
+| Nothing A069 | 16-33 s | 21-36 s | not run |
+
+Peak memory with 384 tiles: +0-100 MB on the iPhones, A069 ~2.7 GB PSS (2.66 before). 256 / 16 / even was measured on
+the Mac only: same cost as steps 2c-2d (1.54x vs 1.52x) with the seams down to 1.3 of 255 at worst.

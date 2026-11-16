@@ -33,7 +33,8 @@ import kotlin.math.sqrt
  * into a scratch build only, started by EnhanceBench mode `pipeline`.
  *
  * Inputs in <files>/enhance-bench: art-classifier.tflite, face-detector-640/960.tflite, face_landmarks_detector.tflite,
- * selfie_multiclass_256x256.tflite, general-x4v3-256.tflite, codeformer-encoder/-middle/-decoder.tflite (step 1d split)
+ * selfie_multiclass_256x256.tflite, general-x4v3-<tile>.tflite (384, or 512 when enhance-bench/background-tile holds 512),
+ * codeformer-encoder/-middle/-decoder.tflite (step 1d split)
  * and photos/<id>.png. Outputs in <files>/pipeline-out: <id>.png and <id>.json (as phone_pipeline.py, plus memory).
  * <files> is the external files folder (Android/data/<package>/files) when it holds enhance-bench, else filesDir.
  *
@@ -69,7 +70,7 @@ internal class EnhancePipeline(private val context: Context) {
         val detectors = DETECTION_SIZES.keys.associateWith { cpu("face-detector-$it.tflite") }
         val mesh = cpu("face_landmarks_detector.tflite")
         val multiclass = cpu("selfie_multiclass_256x256.tflite")
-        val upscaler = gpu("general-x4v3-256.tflite", "general-x4v3-256-v1-fp16")
+        val upscaler = gpu("general-x4v3-$tile.tflite", "general-x4v3-$tile-v1-fp16")
         val encoder = gpu("codeformer-encoder.tflite", "codeformer-encoder-v1-fp16")
         val middle = cpu("codeformer-middle.tflite")
         val decoder = gpu("codeformer-decoder.tflite", "codeformer-decoder-v1-fp16")
@@ -250,24 +251,23 @@ internal class EnhancePipeline(private val context: Context) {
         }
     }
 
+    /** Step 2e background tile: 384 px, or what enhance-bench/background-tile holds (512 to compare). */
+    private val tile: Int by lazy { File(folder, "background-tile").takeIf { it.exists() }?.readText()?.trim()?.toInt() ?: 384 }
+
+    /** general-x4v3 on `tile` px windows laid out by tileWindows; the 4x result is averaged 2 x 2 to 2x. */
     private fun upscaleBackground(model: Interpreter, rgb: Image): Image {
-        val keep = TILE - 2 * TILE_PAD
         val out = Image(rgb.w * SCALE, rgb.h * SCALE, 3)
-        val input = floatBuffer(3 * TILE * TILE)
-        val output = floatBuffer(3 * TILE * 4 * TILE * 4)
-        val up = 4 * TILE
-        for (y in 0 until rgb.h step keep) for (x in 0 until rgb.w step keep) {
-            val wx = min(max(x - TILE_PAD, 0), rgb.w - TILE)
-            val wy = min(max(y - TILE_PAD, 0), rgb.h - TILE)
+        val input = floatBuffer(3 * tile * tile)
+        val output = floatBuffer(3 * tile * 4 * tile * 4)
+        val up = 4 * tile
+        for ((y, ch, wy) in tileWindows(rgb.h, tile, TILE_PAD)) for ((x, cw, wx) in tileWindows(rgb.w, tile, TILE_PAD)) {
             input.clear()
-            for (c in 0 until 3) for (ty in 0 until TILE) for (tx in 0 until TILE) {
+            for (c in 0 until 3) for (ty in 0 until tile) for (tx in 0 until tile) {
                 input.putFloat(rgb.d[((wy + ty) * rgb.w + wx + tx) * 3 + c] / 255f)
             }
             output.clear()
             model.run(input.rewind(), output)
             val values = output.floats()
-            val cw = min(keep, rgb.w - x)
-            val ch = min(keep, rgb.h - y)
             val ox = (x - wx) * 4
             val oy = (y - wy) * 4
             for (c in 0 until 3) for (yy in 0 until ch * 2) for (xx in 0 until cw * 2) {
@@ -352,8 +352,7 @@ internal class EnhancePipeline(private val context: Context) {
             doubleArrayOf(201.26117, 371.41043), doubleArrayOf(313.08905, 371.15118),
         )
         private val CROP_BORDER_RGB = floatArrayOf(132f, 133f, 135f)   // CodeFormer's (135, 133, 132) in BGR
-        private const val TILE = 256
-        private const val TILE_PAD = 10
+        private const val TILE_PAD = 16   // step 2e: at least 16 px of context, equal to one pass (step 2c: 10)
     }
 }
 
@@ -802,6 +801,20 @@ private fun decodeDetections(loc: FloatArray, score: FloatArray, landmarks: Floa
         if (gap >= 5.0) found += Detection(boxes[best], score[i].toDouble(), five)
     }
     return found
+}
+
+/**
+ * phone_pipeline.tile_windows: per axis (kept start, kept length, window start). The fewest `tile` px windows that
+ * overlap by at least 2 x pad, spread evenly; each overlap is split at its middle. Sides shorter than a tile are not
+ * handled (the bench photos are 800 px and more).
+ */
+private fun tileWindows(size: Int, tile: Int, pad: Int): List<Triple<Int, Int, Int>> {
+    require(size >= tile) { "photo side $size smaller than a background tile" }
+    if (size == tile) return listOf(Triple(0, size, 0))
+    val n = Math.floorDiv(size - tile + (tile - 2 * pad) - 1, tile - 2 * pad) + 1
+    val starts = IntArray(n) { Math.rint(it.toDouble() * (size - tile) / (n - 1)).toInt() }   // Python round: halves to even
+    val cuts = IntArray(n + 1) { if (it == 0) 0 else if (it == n) size else (starts[it - 1] + tile + starts[it]) / 2 }
+    return List(n) { Triple(cuts[it], cuts[it + 1] - cuts[it], starts[it]) }
 }
 
 /** export_art_classifier.five_views_uint8 geometry with this file's resize, rounded to uint8. */

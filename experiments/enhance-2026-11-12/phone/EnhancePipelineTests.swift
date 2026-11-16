@@ -8,7 +8,8 @@ import XCTest
 /// the scratch build's LightlyTests only; skips when its inputs are absent.
 ///
 /// Inputs in the host app's Documents/enhance-bench (copied with devicectl): art-classifier.mlmodelc,
-/// face-detector-640/960.mlmodelc, general-x4v3-256.mlmodelc, codeformer-w0.8-512.mlmodelc and photos/<id>.png. Face
+/// face-detector-640/960.mlmodelc, general-x4v3-<tile>.mlmodelc (384, or 512 when enhance-bench/background-tile holds 512),
+/// codeformer-w0.8-512.mlmodelc and photos/<id>.png. Face
 /// Mesh and selfie multiclass are the app's own models (face_landmarks_256_fp16, selfie_multiclass_256_fp16), from the
 /// app bundle or, when copied there, enhance-bench.
 /// Outputs in Documents/pipeline-out: <id>.png and <id>.json.
@@ -26,7 +27,10 @@ final class EnhancePipelineTests: XCTestCase {
         [192.98138, 239.94708], [318.90277, 240.1936], [256.63416, 314.01935], [201.26117, 371.41043], [313.08905, 371.15118],
     ]
     private static let cropBorderRGB: [Float] = [132, 133, 135]   // CodeFormer's (135, 133, 132) in BGR
-    private static let tile = 256, tilePad = 10
+    /// Step 2e background windows: `tile` px (384, or what enhance-bench/background-tile holds), at least 16 px of
+    /// context on every inner side, equal to one pass over the photo (step 2c: 256 px, 10 px).
+    private var tile = 384
+    private static let tilePad = 16
 
     private struct Models {
         let art: MLModel, detectors: [Int: MLModel], mesh: MLModel, multiclass: MLModel, upscaler: MLModel, codeformer: MLModel
@@ -57,13 +61,14 @@ final class EnhancePipelineTests: XCTestCase {
             return FileManager.default.fileExists(atPath: copy.path) ? copy : Bundle.main.url(forResource: name, withExtension: "mlmodelc")!
         }
         var log: [String] = []
+        if let text = try? String(contentsOf: bench("background-tile"), encoding: .utf8), let side = Int(text.trimmingCharacters(in: .whitespacesAndNewlines)) { tile = side }
         let loadStart = CFAbsoluteTimeGetCurrent()
         let models = Models(
             art: try load(bench("art-classifier.mlmodelc"), .all),
             detectors: try [640: load(bench("face-detector-640.mlmodelc"), .all), 960: load(bench("face-detector-960.mlmodelc"), .all)],
             mesh: try load(bundled("face_landmarks_256_fp16"), .all),
             multiclass: try load(bundled("selfie_multiclass_256_fp16"), .all),
-            upscaler: try load(bench("general-x4v3-256.mlmodelc"), .all),
+            upscaler: try load(bench("general-x4v3-\(tile).mlmodelc"), .all),
             codeformer: try load(bench("codeformer-w0.8-512.mlmodelc"), isA13 ? .cpuAndGPU : .all))
         log.append(String(format: "%@ models loaded in %.1f s (CodeFormer on %@), footprint %.0f MB", Self.machine(),
                           CFAbsoluteTimeGetCurrent() - loadStart, isA13 ? "CPU + GPU" : "all units", Self.footprintMB()))
@@ -250,18 +255,18 @@ final class EnhancePipelineTests: XCTestCase {
         return out
     }
 
+    /// general-x4v3 on `tile` px windows laid out by tileWindows; the 4x result is averaged 2 x 2 to 2x.
     private func upscaleBackground(_ model: MLModel, _ rgb: Image) throws -> Image {
-        let tile = Self.tile, keep = tile - 2 * Self.tilePad, up = 4 * tile
+        let tile = self.tile, up = 4 * tile
         var out = Image(w: rgb.w * 2, h: rgb.h * 2, c: 3)
-        for y in stride(from: 0, to: rgb.h, by: keep) { for x in stride(from: 0, to: rgb.w, by: keep) {
-            let wx = min(max(x - Self.tilePad, 0), rgb.w - tile), wy = min(max(y - Self.tilePad, 0), rgb.h - tile)
+        for (y, ch, wy) in tileWindows(rgb.h, tile, Self.tilePad) { for (x, cw, wx) in tileWindows(rgb.w, tile, Self.tilePad) {
             let input = try array([1, 3, tile, tile]) { p in
                 for c in 0..<3 { for ty in 0..<tile { for tx in 0..<tile {
                     p[(c * tile + ty) * tile + tx] = rgb.d[((wy + ty) * rgb.w + wx + tx) * 3 + c] / 255
                 } } }
             }
             let values = try predict(model, ["input": input], ["output"])["output"]!
-            let cw = min(keep, rgb.w - x), ch = min(keep, rgb.h - y), ox = (x - wx) * 4, oy = (y - wy) * 4
+            let ox = (x - wx) * 4, oy = (y - wy) * 4
             for c in 0..<3 { for yy in 0..<(ch * 2) { for xx in 0..<(cw * 2) {
                 var sum: Float = 0
                 for dy in 0..<2 { for dx in 0..<2 {
@@ -737,6 +742,18 @@ private func decodeDetections(loc: [Float], score: [Float], landmarks: [Float], 
         if (gap.x * gap.x + gap.y * gap.y).squareRoot() >= 5 { found.append(Detection(box: boxes[best], score: Double(score[i]), five: five)) }
     }
     return found
+}
+
+/// phone_pipeline.tile_windows: per axis (kept start, kept length, window start). The fewest `tile` px windows that
+/// overlap by at least 2 x pad, spread evenly; each overlap is split at its middle. Sides shorter than a tile are not
+/// handled (the bench photos are 800 px and more).
+private func tileWindows(_ size: Int, _ tile: Int, _ pad: Int) -> [(Int, Int, Int)] {
+    precondition(size >= tile, "photo side \(size) smaller than a background tile")
+    if size == tile { return [(0, size, 0)] }
+    let step = tile - 2 * pad, n = (size - tile + step - 1) / step + 1
+    let starts = (0..<n).map { Int((Double($0) * Double(size - tile) / Double(n - 1)).rounded(.toNearestOrEven)) }   // Python round
+    let cuts = [0] + (0..<(n - 1)).map { (starts[$0] + tile + starts[$0 + 1]) / 2 } + [size]
+    return (0..<n).map { (cuts[$0], cuts[$0 + 1] - cuts[$0], starts[$0]) }
 }
 
 /// export_art_classifier.five_views_uint8 geometry with this file's resize, rounded to uint8.

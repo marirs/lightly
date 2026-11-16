@@ -18,7 +18,8 @@ not at a different resize or blur. Steps per photo (RGB, float32 in 0-255 throug
     grey photos (CodeFormer's is_gray) go grey and take the crop's channel means and spreads (its adain_npy).
  6. Paste mask: selfie multiclass on the restored face (512 -> 256), face-skin class, enclosed holes filled; blurred
     twice (101 px, sigma 11), 10 px edge cleared, combined with CodeFormer's eroded and blurred square mask.
- 7. Background: realesr-general-x4v3 on 256 px tiles (236 px kept, 10 px overlap), 4x output averaged 2 x 2 to 2x.
+ 7. Background: realesr-general-x4v3 on evenly spaced 384 px tiles with at least 16 px of context (step 2e; equal to
+    one pass over the photo), 4x output averaged 2 x 2 to 2x.
  8. Each face warped back (bilinear) and blended with its mask.
 
 Differences from CodeFormer's own pipeline, all measured against it in README step 2c: least squares instead of
@@ -30,6 +31,7 @@ Run: .venv/bin/python phone_pipeline.py [photo ids...]
 """
 import json
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -53,7 +55,9 @@ FACE_SKIN = 3
 FACE_TEMPLATE = np.array([[192.98138, 239.94708], [318.90277, 240.1936], [256.63416, 314.01935],
                           [201.26117, 371.41043], [313.08905, 371.15118]], np.float64)
 CROP_BORDER_RGB = np.array([132.0, 133.0, 135.0], np.float32)   # CodeFormer's borderValue (135, 133, 132) in BGR
-TILE, TILE_PAD = 256, 10
+# Step 2e: 384 px windows with at least 16 px of context on every inner side (step 2c: 256 px clamped, 10 px, whose
+# seams left up to 30 of 255 against one pass over the photo; tile_study.py). PIPELINE_TILE=512 selects 512 px windows.
+TILE, TILE_PAD = int(os.environ.get("PIPELINE_TILE", "384")), 16
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -417,18 +421,30 @@ def five_views(rgb: np.ndarray) -> np.ndarray:
     return np.clip(np.round(np.stack(views)), 0, 255).astype(np.uint8)
 
 
+def tile_windows(size: int, tile: int = None, pad: int = None) -> list:
+    """Per axis: (kept start, kept length, window start). The fewest windows of `tile` px that overlap by at least
+    2 x pad, spread evenly (window i starts at round(i * (size - tile) / (n - 1))); each overlap is split at its middle,
+    so every kept pixel has at least `pad` px of context on its inner sides. A photo axis no longer than a tile is
+    window (the harnesses only see photos of 800 px and more on each side; smaller ones are not handled)."""
+    tile = TILE if tile is None else tile
+    pad = TILE_PAD if pad is None else pad
+    assert size >= tile, "photo side smaller than a background tile"
+    if size == tile:
+        return [(0, size, 0)]
+    n = math.ceil((size - tile) / (tile - 2 * pad)) + 1
+    starts = [round(i * (size - tile) / (n - 1)) for i in range(n)]   # Python round: halves to even
+    cuts = [0] + [(starts[i] + tile + starts[i + 1]) // 2 for i in range(n - 1)] + [size]
+    return [(cuts[i], cuts[i + 1] - cuts[i], starts[i]) for i in range(n)]
+
+
 def upscale_background(model: Tflite, rgb: np.ndarray) -> np.ndarray:
-    """realesr-general-x4v3 on 256 px windows; each keeps its central 236 px (10 px overlap), clamped inside the
-    photo at the edges; the 4x result is averaged 2 x 2 to 2x."""
+    """realesr-general-x4v3 on TILE px windows laid out by tile_windows; the 4x result is averaged 2 x 2 to 2x."""
     h, w = rgb.shape[:2]
-    keep = TILE - 2 * TILE_PAD
     out = np.zeros((h * SCALE, w * SCALE, 3), np.float32)
-    for y in range(0, h, keep):
-        for x in range(0, w, keep):
-            wx, wy = min(max(x - TILE_PAD, 0), w - TILE), min(max(y - TILE_PAD, 0), h - TILE)
+    for y, ch, wy in tile_windows(h):
+        for x, cw, wx in tile_windows(w):
             tile = rgb[wy:wy + TILE, wx:wx + TILE] / 255
             up = np.clip(model.run(tile.transpose(2, 0, 1)[None])[0][0], 0, 1).transpose(1, 2, 0) * 255
-            cw, ch = min(keep, w - x), min(keep, h - y)
             region = up[(y - wy) * 4:(y - wy + ch) * 4, (x - wx) * 4:(x - wx + cw) * 4]
             out[y * 2:(y + ch) * 2, x * 2:(x + cw) * 2] = region.reshape(ch * 2, 2, cw * 2, 2, 3).mean((1, 3))
     return out
@@ -478,7 +494,7 @@ class Pipeline:
         self.detector = Detector()
         self.mesh = FaceMesh()
         self.multiclass = Tflite(HERE.parent / "android-vision" / "models" / "selfie_multiclass_256x256.tflite")
-        self.upscaler = Tflite(TFLITE / "general-x4v3-256.tflite")
+        self.upscaler = Tflite(TFLITE / f"general-x4v3-{TILE}.tflite")
         self.codeformer = CodeFormer()
 
     def enhance(self, rgb: np.ndarray):

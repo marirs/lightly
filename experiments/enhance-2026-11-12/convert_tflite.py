@@ -29,13 +29,14 @@ def convert(module, example, name: str) -> None:
           float(np.abs(actual - expected).max()), float(np.abs(actual - expected).mean()), flush=True)
 
 
-def convert_general() -> None:
+def convert_general(side: int = 256) -> None:
+    """side: the square tile (step 2e adds 384 and 512 for 16 px overlaps; 256 stays the step 1-2d model)."""
     import torch
     from realesrgan.archs.srvgg_arch import SRVGGNetCompact
 
     net = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=32, upscale=4, act_type="prelu")
     net.load_state_dict(torch.load(HERE / "weights/realesr-general-x4v3/realesr-general-x4v3.pth", map_location="cpu")["params"])
-    convert(net, torch.rand(1, 3, 256, 256), "general-x4v3-256")
+    convert(net, torch.rand(1, 3, side, side), f"general-x4v3-{side}")
 
 
 def convert_codeformer(gpu_friendly: bool = False) -> None:
@@ -127,7 +128,7 @@ def convert_codeformer_split() -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        {"general": convert_general, "codeformer": convert_codeformer,
+        {"general": lambda: convert_general(int(sys.argv[2]) if len(sys.argv) > 2 else 256), "codeformer": convert_codeformer,
          "codeformer-gpu": lambda: convert_codeformer(gpu_friendly=True), "codeformer-split": convert_codeformer_split}[sys.argv[1]]()
     else:
         for job in ("general", "codeformer"):

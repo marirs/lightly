@@ -32,7 +32,8 @@ def save_and_compare(traced, example, name: str, mlmodel_inputs) -> None:
           "mean:", float(np.abs(actual - expected).mean()), flush=True)
 
 
-def convert_general() -> None:
+def convert_general(side: int = 256) -> None:
+    """side: the square tile (step 2e adds 384 and 512 for 16 px overlaps; 256 stays the step 1-2d model)."""
     import coremltools as ct
     import torch
     from realesrgan.archs.srvgg_arch import SRVGGNetCompact
@@ -41,9 +42,9 @@ def convert_general() -> None:
     state = torch.load(HERE / "weights/realesr-general-x4v3/realesr-general-x4v3.pth", map_location="cpu")
     net.load_state_dict(state["params"])
     net.eval()
-    example = torch.rand(1, 3, 256, 256)
+    example = torch.rand(1, 3, side, side)
     traced = torch.jit.trace(net, example)
-    save_and_compare(traced, example, "general-x4v3-256", [ct.TensorType(name="input", shape=example.shape)])
+    save_and_compare(traced, example, f"general-x4v3-{side}", [ct.TensorType(name="input", shape=example.shape)])
 
 
 def convert_codeformer(reshape_free_group_norm: bool = False) -> None:
@@ -97,7 +98,7 @@ def convert_codeformer(reshape_free_group_norm: bool = False) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        {"general": convert_general, "codeformer": convert_codeformer,
+        {"general": lambda: convert_general(int(sys.argv[2]) if len(sys.argv) > 2 else 256), "codeformer": convert_codeformer,
          "codeformer-gn": lambda: convert_codeformer(reshape_free_group_norm=True)}[sys.argv[1]]()
     else:
         for job in ("general", "codeformer"):
