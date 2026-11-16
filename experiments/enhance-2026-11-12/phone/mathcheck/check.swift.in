@@ -1,0 +1,35 @@
+
+// Enhance step 2d check workload, appended to each Swift image-maths section by phone/mathcheck/run.sh (same as Check.kt.in).
+// ---- check workload (same as Check.kt.in) ----
+struct Rng { var s: UInt64; mutating func next() -> UInt64 { s = s &* 6364136223846793005 &+ 1442695040888963407; return s >> 33 } }
+func hash(_ a: [Float]) -> Int { a.reduce(17) { $0 &* 31 &+ Int($1.bitPattern) } }
+var rng = Rng(s: 7)
+func timed(_ name: String, _ block: () -> [Float]) {
+    let t = Date(); let r = block()
+    print(name.padding(toLength: 14, withPad: " ", startingAt: 0), hash(r), Int(Date().timeIntervalSince(t) * 1000), "ms")
+}
+fileprivate func runCheck() {
+    let angle = 0.2
+    let ca = 0.4 * cos(angle), sa = 0.4 * sin(angle)
+    let toFace = [ca, -sa, 256 - (ca * 700 - sa * 950), sa, ca, 256 - (sa * 700 + ca * 950)]
+    let photo = Image(w: 1400, h: 1900, c: 3, d: (0..<(1400 * 1900 * 3)).map { _ in Float(rng.next() % 256) })
+    var big = Image(w: 2800, h: 3800, c: 3, d: (0..<(2800 * 3800 * 3)).map { _ in Float(rng.next() % 256) })
+    let restored = Image(w: 512, h: 512, c: 3, d: (0..<(512 * 512 * 3)).map { _ in Float(rng.next() % 200) + 28 })
+    var crop = Image(w: 1, h: 1, c: 3)
+    timed("warp crop") { crop = warpBilinear(photo, invertAffine(toFace), 512, 512, border: [132, 133, 135]); return crop.d }
+    timed("resize 224") { resize(photo, 224, 224).d }
+    timed("resize 448") { resize(photo, 448, 608).d }
+    timed("colour") { originalColour(restored, crop).d }
+    var blob = Image(w: 256, h: 256, c: 1)
+    for y in 0..<256 { for x in 0..<256 { blob.d[y * 256 + x] = (x - 128) * (x - 128) + (y - 140) * (y - 140) < 8100 ? 255 : 0 } }
+    let maskPlane = resize(blob, 512, 512).d
+    timed("mask blur") { gaussianBlur(gaussianBlur(maskPlane, 512, 512, size: 101, sigma: 11), 512, 512, size: 101, sigma: 11) }
+    let square = warpBilinear(Image(w: 512, h: 512, c: 1, d: [Float](repeating: 1, count: 512 * 512)), toFace, 1400, 1900, border: [0]).d
+    print("square sum", square.reduce(0, +))
+    timed("erode 4") { erode(square, 1400, 1900, size: 4) }
+    timed("erode 160") { erode(square, 1400, 1900, size: 160) }
+    timed("blur 161") { gaussianBlur(erode(square, 1400, 1900, size: 160), 1400, 1900, size: 161, sigma: 0) }
+    timed("blur 7 noise") { gaussianBlur(Array(photo.d[0..<(1400 * 1900)]), 1400, 1900, size: 7, sigma: 0) }
+    timed("paste") { pasteFace(&big, restored, maskPlane.map { $0 / 255 }, toFace); return big.d }
+}
+runCheck()

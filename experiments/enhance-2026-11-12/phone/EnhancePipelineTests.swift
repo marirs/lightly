@@ -367,25 +367,27 @@ private func resampleTaps(_ inSize: Int, _ outSize: Int) -> [(first: Int, weight
 fileprivate func resize(_ image: Image, _ width: Int, _ height: Int) -> Image {
     let tx = resampleTaps(image.w, width), ty = resampleTaps(image.h, height), c = image.c
     var horizontal = [Float](repeating: 0, count: width * image.h * c)
-    image.d.withUnsafeBufferPointer { src in
-        for y in 0..<image.h { for x in 0..<width {
+    image.d.withUnsafeBufferPointer { src in horizontal.withUnsafeMutableBufferPointer { dst in
+        parallelFor(image.h) { y in for x in 0..<width {
             let (first, weights) = tx[x]
             for ch in 0..<c {
                 var sum: Float = 0
                 for i in 0..<weights.count { sum += weights[i] * src[(y * image.w + first + i) * c + ch] }
-                horizontal[(y * width + x) * c + ch] = sum
+                dst[(y * width + x) * c + ch] = sum
             }
         } }
-    }
+    } }
     var out = Image(w: width, h: height, c: c)
-    for y in 0..<height {
-        let (first, weights) = ty[y]
-        for x in 0..<width { for ch in 0..<c {
-            var sum: Float = 0
-            for i in 0..<weights.count { sum += weights[i] * horizontal[((first + i) * width + x) * c + ch] }
-            out.d[(y * width + x) * c + ch] = sum
-        } }
-    }
+    horizontal.withUnsafeBufferPointer { src in out.d.withUnsafeMutableBufferPointer { dst in
+        parallelFor(height) { y in
+            let (first, weights) = ty[y]
+            for x in 0..<width { for ch in 0..<c {
+                var sum: Float = 0
+                for i in 0..<weights.count { sum += weights[i] * src[((first + i) * width + x) * c + ch] }
+                dst[(y * width + x) * c + ch] = sum
+            } }
+        }
+    } }
     return out
 }
 
@@ -393,8 +395,8 @@ fileprivate func resize(_ image: Image, _ width: Int, _ height: Int) -> Image {
 fileprivate func warpBilinear(_ source: Image, _ m: [Double], _ width: Int, _ height: Int, border: [Float]) -> Image {
     let c = source.c
     var out = Image(w: width, h: height, c: c)
-    source.d.withUnsafeBufferPointer { src in
-        for v in 0..<height { for u in 0..<width {
+    source.d.withUnsafeBufferPointer { src in out.d.withUnsafeMutableBufferPointer { dst in
+        parallelFor(height) { v in for u in 0..<width {
             let x = m[0] * Double(u) + m[1] * Double(v) + m[2], y = m[3] * Double(u) + m[4] * Double(v) + m[5]
             let x0 = Int(floor(x)), y0 = Int(floor(y))
             let fx = Float(x - Double(x0)), fy = Float(y - Double(y0))
@@ -404,10 +406,10 @@ fileprivate func warpBilinear(_ source: Image, _ m: [Double], _ width: Int, _ he
                 }
                 let top = tap(y0, x0) * (1 - fx) + tap(y0, x0 + 1) * fx
                 let bottom = tap(y0 + 1, x0) * (1 - fx) + tap(y0 + 1, x0 + 1) * fx
-                out.d[(v * width + u) * c + ch] = top * (1 - fy) + bottom * fy
+                dst[(v * width + u) * c + ch] = top * (1 - fy) + bottom * fy
             }
         } }
-    }
+    } }
     return out
 }
 
@@ -434,50 +436,111 @@ private func reflect(_ index: Int, _ size: Int) -> Int {
     return i < size ? i : period - 1 - i
 }
 
-/// Separable weighted sum along x then y; `border` maps an out-of-range index into the plane.
-private func separableSum(_ plane: [Float], _ w: Int, _ h: Int, _ weights: [Float], offset: Int, border: (Int, Int) -> Int) -> [Float] {
-    let rowIndex = (0..<w).map { x in weights.indices.map { border(x + $0 - offset, w) } }
-    let columnIndex = (0..<h).map { y in weights.indices.map { border(y + $0 - offset, h) } }
-    var horizontal = [Float](repeating: 0, count: w * h)
-    for y in 0..<h { for x in 0..<w {
-        var sum: Float = 0
-        let index = rowIndex[x]
-        for i in 0..<weights.count { sum += weights[i] * plane[y * w + index[i]] }
-        horizontal[y * w + x] = sum
-    } }
+// Step 2d speed-ups. Every loop below gives bit-identical results to the step 2c loops: each output value is computed
+// with the same float operations in the same order, only on all cores and with exact shortcuts (see each function).
+
+/// body(index) for every index on all cores; callers only write disjoint outputs, so the order does not matter.
+private func parallelFor(_ count: Int, _ body: (Int) -> Void) {
+    DispatchQueue.concurrentPerform(iterations: count, execute: body)
+}
+
+/// w x h plane -> h x w plane, in 32 x 32 blocks for the cache.
+private func transpose(_ plane: [Float], _ w: Int, _ h: Int) -> [Float] {
     var out = [Float](repeating: 0, count: w * h)
-    for y in 0..<h {
-        let index = columnIndex[y]
-        for x in 0..<w {
-            var sum: Float = 0
-            for i in 0..<weights.count { sum += weights[i] * horizontal[index[i] * w + x] }
-            out[y * w + x] = sum
+    let block = 32
+    plane.withUnsafeBufferPointer { src in out.withUnsafeMutableBufferPointer { dst in
+        parallelFor((h + block - 1) / block) { by in
+            let y0 = by * block, y1 = min(y0 + block, h)
+            var x0 = 0
+            while x0 < w {
+                let x1 = min(x0 + block, w)
+                for y in y0..<y1 { for x in x0..<x1 { dst[x * h + y] = src[y * w + x] } }
+                x0 = x1
+            }
         }
-    }
+    } }
     return out
+}
+
+/// One axis of separableSum: out[y, x] = sum of weights[i] * plane[y, border(x + i - offset)], accumulated from 0 in
+/// tap order (step 2c's loop). Shortcut: when all taps of an inside window hold one value c, the terms are all
+/// weights[i] * c, so the same accumulation is done once per row and value and reused - the masks are mostly flat 0
+/// and 1 areas. Equal floats are the same value (0 and -0 both give +0 sums), so the result does not change.
+private func weightedRows(_ plane: [Float], _ w: Int, _ h: Int, _ weights: [Float], offset: Int, border: (Int, Int) -> Int) -> [Float] {
+    let taps = weights.count
+    let columns = (0..<(w * taps)).map { border($0 / taps + $0 % taps - offset, w) }
+    var out = [Float](repeating: 0, count: w * h)
+    plane.withUnsafeBufferPointer { src in weights.withUnsafeBufferPointer { wt in columns.withUnsafeBufferPointer { col in
+        out.withUnsafeMutableBufferPointer { dst in
+            parallelFor(h) { y in
+                let row = y * w
+                var runEnd = [Int](repeating: w - 1, count: w)   // last index of the run of equal values that starts at x
+                if w > 1 { for x in stride(from: w - 2, through: 0, by: -1) { runEnd[x] = src[row + x + 1] == src[row + x] ? runEnd[x + 1] : x } }
+                var flatValue = Float.nan                        // NaN equals nothing, so the first flat window computes its sum
+                var flatSum: Float = 0
+                for x in 0..<w {
+                    let first = x - offset
+                    if first >= 0 && first + taps <= w && runEnd[first] >= first + taps - 1 {
+                        let value = src[row + first]
+                        if value != flatValue {
+                            var sum: Float = 0
+                            for i in 0..<taps { sum += wt[i] * value }
+                            flatValue = value
+                            flatSum = sum
+                        }
+                        dst[row + x] = flatSum
+                    } else {
+                        var sum: Float = 0
+                        let base = x * taps
+                        for i in 0..<taps { sum += wt[i] * src[row + col[base + i]] }
+                        dst[row + x] = sum
+                    }
+                }
+            }
+        }
+    } } }
+    return out
+}
+
+/// Separable weighted sum along x then y; the y pass runs as an x pass on the transposed plane (same sums).
+private func separableSum(_ plane: [Float], _ w: Int, _ h: Int, _ weights: [Float], offset: Int, border: (Int, Int) -> Int) -> [Float] {
+    let horizontal = weightedRows(plane, w, h, weights, offset: offset, border: border)
+    let vertical = weightedRows(transpose(horizontal, w, h), h, w, weights, offset: offset, border: border)
+    return transpose(vertical, h, w)
 }
 
 fileprivate func gaussianBlur(_ plane: [Float], _ w: Int, _ h: Int, size: Int, sigma: Double) -> [Float] {
     separableSum(plane, w, h, gaussianKernel(size, sigma), offset: size / 2, border: reflect101)
 }
 
+/// Per row, the minimum over [x - anchor, x - anchor + size - 1] with positions outside the row ignored. van Herk /
+/// Gil-Werman: block-wise prefix and suffix minima, three comparisons per pixel whatever the size (step 2c looped over
+/// the whole window). A minimum does not depend on the order it is taken in, so the result is the same.
+private func minRows(_ plane: [Float], _ w: Int, _ h: Int, size: Int) -> [Float] {
+    let anchor = size / 2, n = w + size - 1             // padded row: index j holds x = j - anchor, +inf outside
+    var out = [Float](repeating: 0, count: w * h)
+    plane.withUnsafeBufferPointer { src in out.withUnsafeMutableBufferPointer { dst in
+        parallelFor(h) { y in
+            let row = y * w
+            var prefix = [Float](repeating: 0, count: n), suffix = [Float](repeating: 0, count: n)
+            for j in 0..<n {
+                let x = j - anchor
+                let value = x >= 0 && x < w ? src[row + x] : Float.infinity
+                prefix[j] = j % size == 0 ? value : min(prefix[j - 1], value)
+                suffix[j] = value
+            }
+            if n > 1 { for j in stride(from: n - 2, through: 0, by: -1) where j % size != size - 1 { suffix[j] = min(suffix[j + 1], suffix[j]) } }
+            for x in 0..<w { dst[row + x] = min(suffix[x], prefix[x + size - 1]) }
+        }
+    } }
+    return out
+}
+
 /// OpenCV erode, size x size rectangle, anchor size / 2; outside the plane counts as the maximum.
 fileprivate func erode(_ plane: [Float], _ w: Int, _ h: Int, size: Int) -> [Float] {
     if size <= 1 { return plane }
-    let anchor = size / 2
-    var horizontal = [Float](repeating: 0, count: w * h)
-    for y in 0..<h { for x in 0..<w {
-        var m = Float.infinity
-        for i in 0..<size { let xx = x + i - anchor; if xx >= 0 && xx < w { m = min(m, plane[y * w + xx]) } }
-        horizontal[y * w + x] = m
-    } }
-    var out = [Float](repeating: 0, count: w * h)
-    for y in 0..<h { for x in 0..<w {
-        var m = Float.infinity
-        for i in 0..<size { let yy = y + i - anchor; if yy >= 0 && yy < h { m = min(m, horizontal[yy * w + x]) } }
-        out[y * w + x] = m
-    } }
-    return out
+    let horizontal = minRows(plane, w, h, size: size)
+    return transpose(minRows(transpose(horizontal, w, h), h, w, size: size), h, w)
 }
 
 private func boxMeanReflect(_ plane: [Float], _ w: Int, _ h: Int, radius: Int) -> [Float] {
@@ -524,12 +587,14 @@ fileprivate func originalColour(_ restored: Image, _ original: Image, radius: In
     let w = restored.w, h = restored.h, n = w * h
     var restoredLab = [Float](repeating: 0, count: n * 3), originalLab = [Float](repeating: 0, count: n * 3)
     func unit(_ v: Float) -> Float { min(max(v, 0), 255) / 255 }
-    for i in 0..<n {
-        let r = rgbToLab(unit(restored.d[i * 3]), unit(restored.d[i * 3 + 1]), unit(restored.d[i * 3 + 2]))
-        restoredLab[i * 3] = r.0; restoredLab[i * 3 + 1] = r.1; restoredLab[i * 3 + 2] = r.2
-        let o = rgbToLab(unit(original.d[i * 3]), unit(original.d[i * 3 + 1]), unit(original.d[i * 3 + 2]))
-        originalLab[i * 3] = o.0; originalLab[i * 3 + 1] = o.1; originalLab[i * 3 + 2] = o.2
-    }
+    restoredLab.withUnsafeMutableBufferPointer { rl in originalLab.withUnsafeMutableBufferPointer { ol in
+        parallelFor(n) { i in
+            let r = rgbToLab(unit(restored.d[i * 3]), unit(restored.d[i * 3 + 1]), unit(restored.d[i * 3 + 2]))
+            rl[i * 3] = r.0; rl[i * 3 + 1] = r.1; rl[i * 3 + 2] = r.2
+            let o = rgbToLab(unit(original.d[i * 3]), unit(original.d[i * 3 + 1]), unit(original.d[i * 3 + 2]))
+            ol[i * 3] = o.0; ol[i * 3 + 1] = o.1; ol[i * 3 + 2] = o.2
+        }
+    } }
     let guide = (0..<n).map { restoredLab[$0 * 3] / 100 }
     let meanGuide = boxMeanReflect(guide, w, h, radius: radius)
     let guideSquared = boxMeanReflect(guide.map { $0 * $0 }, w, h, radius: radius)
@@ -544,9 +609,11 @@ fileprivate func originalColour(_ restored: Image, _ original: Image, radius: In
         return (0..<n).map { meanSlope[$0] * guide[$0] + meanOffset[$0] }
     }
     var out = Image(w: w, h: h, c: 3)
-    for i in 0..<n {
-        let (r, g, b) = labToRGB(restoredLab[i * 3], channels[0][i], channels[1][i])
-        out.d[i * 3] = min(max(r, 0), 1) * 255; out.d[i * 3 + 1] = min(max(g, 0), 1) * 255; out.d[i * 3 + 2] = min(max(b, 0), 1) * 255
+    out.d.withUnsafeMutableBufferPointer { dst in
+        parallelFor(n) { i in
+            let (r, g, b) = labToRGB(restoredLab[i * 3], channels[0][i], channels[1][i])
+            dst[i * 3] = min(max(r, 0), 1) * 255; dst[i * 3 + 1] = min(max(g, 0), 1) * 255; dst[i * 3 + 2] = min(max(b, 0), 1) * 255
+        }
     }
     return out
 }
@@ -710,11 +777,14 @@ private func pasteFace(_ image: inout Image, _ restored: Image, _ faceMask: [Flo
     let softSquare = gaussianBlur(erode(square, rw, rh, size: edge * 2), rw, rh, size: edge * 2 + 1, sigma: 0)
     let parse = warpBilinear(Image(w: 512, h: 512, c: 1, d: faceMask), shift, rw, rh, border: [0]).d
     let pasted = warpBilinear(restored, shift, rw, rh, border: [0, 0, 0])
-    for v in 0..<rh { for u in 0..<rw {
-        let i = v * rw + u, soft = min(parse[i], softSquare[i])
-        for c in 0..<3 {
-            let at = ((y0 + v) * image.w + x0 + u) * 3 + c
-            image.d[at] = soft * (pasted.d[i * 3 + c] * square[i]) + (1 - soft) * image.d[at]
-        }
-    } }
+    let imageWidth = image.w
+    image.d.withUnsafeMutableBufferPointer { dst in
+        parallelFor(rh) { v in for u in 0..<rw {
+            let i = v * rw + u, soft = min(parse[i], softSquare[i])
+            for c in 0..<3 {
+                let at = ((y0 + v) * imageWidth + x0 + u) * 3 + c
+                dst[at] = soft * (pasted.d[i * 3 + c] * square[i]) + (1 - soft) * dst[at]
+            }
+        } }
+    }
 }

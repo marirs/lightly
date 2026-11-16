@@ -1,0 +1,35 @@
+package PKG
+import kotlin.math.*
+
+/** Same deterministic workloads through this package's maths; returns name -> (bit hash, ms). */
+fun check(): List<Triple<String, Int, Long>> {
+    val results = mutableListOf<Triple<String, Int, Long>>()
+    fun hash(a: FloatArray) = a.fold(17) { h, v -> 31 * h + java.lang.Float.floatToRawIntBits(v) }
+    fun timed(name: String, block: () -> FloatArray) {
+        val t = System.nanoTime(); val r = block(); results += Triple(name, hash(r), (System.nanoTime() - t) / 1_000_000)
+    }
+    val rng = java.util.Random(7)
+    // A big rotated face: photo -> face similarity with scale 0.25 (face ~2000 px wide in the 2x output).
+    val angle = 0.2
+    val ca = 0.4 * cos(angle); val sa = 0.4 * sin(angle)
+    val toFace = doubleArrayOf(ca, -sa, 256 - (ca * 700 - sa * 950), sa, ca, 256 - (sa * 700 + ca * 950))
+    val photo = Image(1400, 1900, 3).also { for (i in it.d.indices) it.d[i] = rng.nextInt(256).toFloat() }
+    val big = Image(2800, 3800, 3).also { for (i in it.d.indices) it.d[i] = rng.nextInt(256).toFloat() }
+    val restored = Image(512, 512, 3).also { for (i in it.d.indices) it.d[i] = (rng.nextGaussian() * 60 + 128).toFloat() }
+    var crop = Image(1, 1, 3)
+    timed("warp crop") { crop = warpBilinear(photo, invertAffine(toFace), 512, 512, floatArrayOf(132f, 133f, 135f)); crop.d }
+    timed("resize 224") { resize(photo, 224, 224).d }
+    timed("resize 448") { resize(photo, 448, 608).d }
+    timed("colour") { originalColour(restored, crop).d }
+    val blob = Image(256, 256, 1).also { img -> for (y in 0 until 256) for (x in 0 until 256) img.d[y * 256 + x] = if ((x - 128) * (x - 128) + (y - 140) * (y - 140) < 90 * 90) 255f else 0f }
+    val maskPlane = resize(blob, 512, 512).d
+    timed("mask blur") { gaussianBlur(gaussianBlur(maskPlane, 512, 512, 101, 11.0), 512, 512, 101, 11.0) }
+    val square = warpBilinear(Image(512, 512, 1).also { it.d.fill(1f) }, toFace, 1400, 1900, floatArrayOf(0f)).d
+    println("square sum " + square.sum())
+    timed("erode 4") { erode(square, 1400, 1900, 4) }
+    timed("erode 160") { erode(square, 1400, 1900, 160) }
+    timed("blur 161") { gaussianBlur(erode(square, 1400, 1900, 160), 1400, 1900, 161, 0.0) }
+    timed("blur 7 noise") { gaussianBlur(photo.d.copyOfRange(0, 1400 * 1900), 1400, 1900, 7, 0.0) }
+    timed("paste") { pasteFace(big, restored, maskPlane.map { it / 255f }.toFloatArray(), toFace); big.d }
+    return results
+}

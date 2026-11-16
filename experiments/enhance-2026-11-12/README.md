@@ -298,3 +298,30 @@ Findings:
 - CodeFormer's own helper saves 16-bit PNGs when a grey photo's restored face overshoots 256 (7fsmqjUKrCc reaches
   257), so `outputs/app-models/7fsmqjUKrCc-*.png` read back black through `cv2.imread`; step 2a's numbers were
   computed in memory and stand.
+
+## Step 2d: the same image maths, faster (2026-11-16)
+
+Step 2c's plain loops (colour, mask, paste) rewritten in both phone harnesses with the same float operations in the
+same order per output value, so the results are bit-identical; only the work is spread and shortcut:
+- every row loop (resize, warp, Lab conversions, guided filter, blend) runs on all cores;
+- erode uses a van Herk / Gil-Werman sliding minimum (three comparisons per pixel at any size; a minimum does not
+  depend on the order it is taken in);
+- the separable blur runs its vertical pass as a horizontal pass on the transposed plane, and where all taps of a
+  window hold one value it reuses that value's tap-order sum (the paste masks are mostly flat 0 and 1 areas).
+
+`phone/mathcheck/run.sh` compiles the image-maths sections of the step 2c commit (8f37b2f) and the current files for
+the Mac (Kotlin on the JVM, Swift natively), runs the same workloads through both and compares bit patterns: all
+identical. Pasting a 1280 px face there: Kotlin 16.1 -> 1.1 s, Swift 19.2 -> 0.38 s.
+
+On the phones (same photos and models as step 2c; CodeFormer on CPU + GPU on both iPhones):
+
+| Phone | Output vs step 2c | Time per photo, median (range) | Paste, largest face | Colour + mask per face |
+|---|---|---|---|---|
+| iPhone SE 3 | faces median 0.03, largest 0.53 (CodeFormer GPU run-to-run; painting photo identical) | 3.0 s (1.1-13.8), was 6.2 s | 0.33 s, was 5.9 s | 0.19 s, was 0.36 s |
+| iPhone 11 Pro Max | pixel-identical | 9.2 s (4.3-33.2), was 14.6 s | 0.45 s, was 6.9 s | 0.30 s, was 0.46 s |
+| Nothing A069 | pixel-identical | 41.7 s (25.6-87.1), was 58.5 s | 2.2 s, was 36 s | 1.4 s, was 3.0 s |
+
+The longest times are the first photo (models loading, ~3 s for the art classifier alone) and photos with many faces
+(CodeFormer: 0.7 s per face on the SE 3, 2.4 s on the 11 Pro Max, 4.3 s on the A069). Peak memory unchanged (SE 3
+~900 MB, 11 Pro Max ~1.2 GB, A069 ~2.5 GB PSS). On the A069 the 2x background (general-x4v3, 16-33 s) is now
+most of every photo's time, then CodeFormer; on the iPhones CodeFormer and the background (0.6-5.4 s) dominate.

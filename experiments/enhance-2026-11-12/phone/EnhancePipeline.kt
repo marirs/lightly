@@ -12,6 +12,7 @@ import org.tensorflow.lite.gpu.GpuDelegateFactory
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.stream.IntStream
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cbrt
@@ -403,16 +404,16 @@ private fun resize(image: Image, width: Int, height: Int): Image {
     val ty = resampleTaps(image.h, height)
     val c = image.c
     val horizontal = Image(width, image.h, c)
-    for (y in 0 until image.h) for (x in 0 until width) {
+    parallelFor(image.h) { y -> for (x in 0 until width) {
         val weights = tx.weights[x]
         for (ch in 0 until c) {
             var sum = 0f
             for (i in weights.indices) sum += weights[i] * image.d[(y * image.w + tx.first[x] + i) * c + ch]
             horizontal.d[(y * width + x) * c + ch] = sum
         }
-    }
+    } }
     val out = Image(width, height, c)
-    for (y in 0 until height) {
+    parallelFor(height) { y ->
         val weights = ty.weights[y]
         for (x in 0 until width) for (ch in 0 until c) {
             var sum = 0f
@@ -430,7 +431,7 @@ private fun warpBilinear(source: Image, m: DoubleArray, width: Int, height: Int,
     val sw = source.w
     val sh = source.h
     val src = source.d
-    for (v in 0 until height) for (u in 0 until width) {
+    parallelFor(height) { v -> for (u in 0 until width) {
         val x = m[0] * u + m[1] * v + m[2]
         val y = m[3] * u + m[4] * v + m[5]
         val x0 = floor(x).toInt()
@@ -453,7 +454,7 @@ private fun warpBilinear(source: Image, m: DoubleArray, width: Int, height: Int,
             val d = (if (i10 >= 0) src[i10 + ch] else b) * (1 - fx) + (if (i11 >= 0) src[i11 + ch] else b) * fx
             out.d[at + ch] = t * (1 - fy) + d * fy
         }
-    }
+    } }
     return out
 }
 
@@ -482,53 +483,110 @@ private fun reflect(index: Int, size: Int): Int {
     return if (i < size) i else period - 1 - i
 }
 
-/** Separable weighted sum along x then y; the border rule is applied through index tables built once per axis. */
-private fun separableSum(plane: FloatArray, w: Int, h: Int, weights: FloatArray, offset: Int, border: (Int, Int) -> Int): FloatArray {
-    val taps = weights.size
-    val columns = IntArray(w * taps) { border(it / taps + it % taps - offset, w) }
-    val rows = IntArray(h * taps) { border(it / taps + it % taps - offset, h) * w }
-    val horizontal = FloatArray(w * h)
-    for (y in 0 until h) {
-        val row = y * w
-        for (x in 0 until w) {
-            var acc = 0f
-            val base = x * taps
-            for (i in 0 until taps) acc += weights[i] * plane[row + columns[base + i]]
-            horizontal[row + x] = acc
-        }
-    }
+// Step 2d speed-ups. Every loop below gives bit-identical results to the step 2c loops: each output value is computed
+// with the same float operations in the same order, only on all cores and with exact shortcuts (see each function).
+
+/** body(index) for every index on all cores; callers only write disjoint outputs, so the order does not matter. */
+private fun parallelFor(count: Int, body: (Int) -> Unit) {
+    IntStream.range(0, count).parallel().forEach { body(it) }
+}
+
+/** w x h plane -> h x w plane, in 32 x 32 blocks for the cache. */
+private fun transpose(plane: FloatArray, w: Int, h: Int): FloatArray {
     val out = FloatArray(w * h)
-    for (y in 0 until h) {
-        val base = y * taps
-        for (x in 0 until w) {
-            var acc = 0f
-            for (i in 0 until taps) acc += weights[i] * horizontal[rows[base + i] + x]
-            out[y * w + x] = acc
+    val block = 32
+    parallelFor((h + block - 1) / block) { by ->
+        val y0 = by * block
+        val y1 = min(y0 + block, h)
+        var x0 = 0
+        while (x0 < w) {
+            val x1 = min(x0 + block, w)
+            for (y in y0 until y1) for (x in x0 until x1) out[x * h + y] = plane[y * w + x]
+            x0 = x1
         }
     }
     return out
 }
 
+/**
+ * One axis of separableSum: out[y, x] = sum of weights[i] * plane[y, border(x + i - offset)], accumulated from 0f in
+ * tap order (step 2c's loop). Shortcut: when all taps of an inside window hold one value c, the terms are all
+ * weights[i] * c, so the same accumulation is done once per row and value and reused - the masks are mostly flat 0
+ * and 1 areas. Equal floats are the same value (0f and -0f both give +0f sums), so the result does not change.
+ */
+private fun weightedRows(plane: FloatArray, w: Int, h: Int, weights: FloatArray, offset: Int, border: (Int, Int) -> Int): FloatArray {
+    val taps = weights.size
+    val columns = IntArray(w * taps) { border(it / taps + it % taps - offset, w) }
+    val out = FloatArray(w * h)
+    parallelFor(h) { y ->
+        val row = y * w
+        val runEnd = IntArray(w)                    // last index of the run of equal values that starts at x
+        runEnd[w - 1] = w - 1
+        for (x in w - 2 downTo 0) runEnd[x] = if (plane[row + x + 1] == plane[row + x]) runEnd[x + 1] else x
+        var flatValue = Float.NaN                   // NaN equals nothing, so the first flat window computes its sum
+        var flatSum = 0f
+        for (x in 0 until w) {
+            val first = x - offset
+            if (first >= 0 && first + taps <= w && runEnd[first] >= first + taps - 1) {
+                val value = plane[row + first]
+                if (value != flatValue) {
+                    var acc = 0f
+                    for (i in 0 until taps) acc += weights[i] * value
+                    flatValue = value
+                    flatSum = acc
+                }
+                out[row + x] = flatSum
+            } else {
+                var acc = 0f
+                val base = x * taps
+                for (i in 0 until taps) acc += weights[i] * plane[row + columns[base + i]]
+                out[row + x] = acc
+            }
+        }
+    }
+    return out
+}
+
+/** Separable weighted sum along x then y; the y pass runs as an x pass on the transposed plane (same sums). */
+private fun separableSum(plane: FloatArray, w: Int, h: Int, weights: FloatArray, offset: Int, border: (Int, Int) -> Int): FloatArray {
+    val horizontal = weightedRows(plane, w, h, weights, offset, border)
+    val vertical = weightedRows(transpose(horizontal, w, h), h, w, weights, offset, border)
+    return transpose(vertical, h, w)
+}
+
 private fun gaussianBlur(plane: FloatArray, w: Int, h: Int, size: Int, sigma: Double): FloatArray =
     separableSum(plane, w, h, gaussianKernel(size, sigma), size / 2, ::reflect101)
+
+/**
+ * Per row, the minimum over [x - anchor, x - anchor + size - 1] with positions outside the row ignored. van Herk /
+ * Gil-Werman: block-wise prefix and suffix minima, three comparisons per pixel whatever the size (step 2c looped over
+ * the whole window). A minimum does not depend on the order it is taken in, so the result is the same.
+ */
+private fun minRows(plane: FloatArray, w: Int, h: Int, size: Int): FloatArray {
+    val anchor = size / 2
+    val n = w + size - 1                            // padded row: index j holds x = j - anchor, +inf outside
+    val out = FloatArray(w * h)
+    parallelFor(h) { y ->
+        val row = y * w
+        val prefix = FloatArray(n)
+        val suffix = FloatArray(n)
+        for (j in 0 until n) {
+            val x = j - anchor
+            val value = if (x in 0 until w) plane[row + x] else Float.POSITIVE_INFINITY
+            prefix[j] = if (j % size == 0) value else min(prefix[j - 1], value)
+            suffix[j] = value
+        }
+        for (j in n - 2 downTo 0) if (j % size != size - 1) suffix[j] = min(suffix[j + 1], suffix[j])
+        for (x in 0 until w) out[row + x] = min(suffix[x], prefix[x + size - 1])
+    }
+    return out
+}
 
 /** OpenCV erode, size x size rectangle, anchor size / 2; outside the plane counts as the maximum. */
 private fun erode(plane: FloatArray, w: Int, h: Int, size: Int): FloatArray {
     if (size <= 1) return plane.copyOf()
-    val anchor = size / 2
-    val horizontal = FloatArray(w * h)
-    for (y in 0 until h) for (x in 0 until w) {
-        var m = Float.POSITIVE_INFINITY
-        for (i in 0 until size) { val xx = x + i - anchor; if (xx in 0 until w) m = min(m, plane[y * w + xx]) }
-        horizontal[y * w + x] = m
-    }
-    val out = FloatArray(w * h)
-    for (y in 0 until h) for (x in 0 until w) {
-        var m = Float.POSITIVE_INFINITY
-        for (i in 0 until size) { val yy = y + i - anchor; if (yy in 0 until h) m = min(m, horizontal[yy * w + x]) }
-        out[y * w + x] = m
-    }
-    return out
+    val horizontal = minRows(plane, w, h, size)
+    return transpose(minRows(transpose(horizontal, w, h), h, w, size), h, w)
 }
 
 private fun boxMeanReflect(plane: FloatArray, w: Int, h: Int, radius: Int): FloatArray {
@@ -583,7 +641,7 @@ private fun originalColour(restored: Image, original: Image, radius: Int = 8, ep
     val h = restored.h
     val restoredLab = FloatArray(n * 3)
     val originalLab = FloatArray(n * 3)
-    for (i in 0 until n) {
+    parallelFor(n) { i ->
         rgbToLab(restored.d[i * 3].coerceIn(0f, 255f) / 255f, restored.d[i * 3 + 1].coerceIn(0f, 255f) / 255f,
             restored.d[i * 3 + 2].coerceIn(0f, 255f) / 255f, restoredLab, i * 3)
         rgbToLab(original.d[i * 3].coerceIn(0f, 255f) / 255f, original.d[i * 3 + 1].coerceIn(0f, 255f) / 255f,
@@ -604,7 +662,7 @@ private fun originalColour(restored: Image, original: Image, radius: Int = 8, ep
         FloatArray(n) { meanSlope[it] * guide[it] + meanOffset[it] }
     }
     val out = Image(w, h, 3)
-    for (i in 0 until n) {
+    parallelFor(n) { i ->
         labToRgb(restoredLab[i * 3], channels[0][i], channels[1][i], out.d, i * 3)
         for (ch in 0 until 3) out.d[i * 3 + ch] = out.d[i * 3 + ch].coerceIn(0f, 1f) * 255f
     }
@@ -790,12 +848,12 @@ private fun pasteFace(image: Image, restored: Image, faceMask: FloatArray, toFac
     val softSquare = gaussianBlur(erode(square, rw, rh, edge * 2), rw, rh, edge * 2 + 1, 0.0)
     val parse = warpBilinear(Image(512, 512, 1, faceMask), shift, rw, rh, floatArrayOf(0f)).d
     val pasted = warpBilinear(restored, shift, rw, rh, floatArrayOf(0f, 0f, 0f))
-    for (v in 0 until rh) for (u in 0 until rw) {
+    parallelFor(rh) { v -> for (u in 0 until rw) {
         val i = v * rw + u
         val soft = min(parse[i], softSquare[i])
         for (c in 0 until 3) {
             val at = ((y0 + v) * image.w + x0 + u) * 3 + c
             image.d[at] = soft * (pasted.d[i * 3 + c] * square[i]) + (1 - soft) * image.d[at]
         }
-    }
+    } }
 }
