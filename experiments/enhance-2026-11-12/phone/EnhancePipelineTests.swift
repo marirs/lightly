@@ -19,6 +19,9 @@ import XCTest
 final class EnhancePipelineTests: XCTestCase {
     private static let scale = 2
     private static let artThreshold: Float = 0.8
+    // Step 2g: faces with a detector eye gap under 8 px are left to the background upscale; below that CodeFormer
+    // invents the face rather than restoring it (owner's choice, 2026-11-16).
+    private static let restoreEyeGapMin = 8.0
     private static let detectionSizes = [640: 1024, 960: 1536]
     private static let detectorMeanRGB: [Float] = [123, 117, 104]
     private static let meshFive = [468, 473, 1, 61, 291]
@@ -120,10 +123,17 @@ final class EnhancePipelineTests: XCTestCase {
             notePeak()
             t = CFAbsoluteTimeGetCurrent()
             for detection in found {
+                let eyes = detection.five[0] - detection.five[1]
+                if (eyes.x * eyes.x + eyes.y * eyes.y).squareRoot() < Self.restoreEyeGapMin {
+                    // Too small to restore: no Face Mesh run; five_used keeps the detector's points for the reports.
+                    faces.append(["box": detection.box, "score": detection.score, "five": detection.five.map { [$0.x, $0.y] },
+                                  "restored": false, "five_used": detection.five.map { [$0.x, $0.y] }])
+                    continue
+                }
                 let (five, presence) = try meshFive(models.mesh, rgb, detection)
                 used.append(five)
                 faces.append(["box": detection.box, "score": detection.score, "five": detection.five.map { [$0.x, $0.y] },
-                              "mesh_presence": presence, "five_used": five.map { [$0.x, $0.y] }])
+                              "restored": true, "mesh_presence": presence, "five_used": five.map { [$0.x, $0.y] }])
             }
             times["mesh"] = CFAbsoluteTimeGetCurrent() - t
         }
@@ -260,9 +270,11 @@ final class EnhancePipelineTests: XCTestCase {
         let tile = self.tile, up = 4 * tile
         var out = Image(w: rgb.w * 2, h: rgb.h * 2, c: 3)
         for (y, ch, wy) in tileWindows(rgb.h, tile, Self.tilePad) { for (x, cw, wx) in tileWindows(rgb.w, tile, Self.tilePad) {
+            // Mirrored reads only matter for a photo side under a tile; otherwise mirrorIndex is the identity.
+            let rows = (0..<tile).map { mirrorIndex(wy + $0, rgb.h) }, columns = (0..<tile).map { mirrorIndex(wx + $0, rgb.w) }
             let input = try array([1, 3, tile, tile]) { p in
                 for c in 0..<3 { for ty in 0..<tile { for tx in 0..<tile {
-                    p[(c * tile + ty) * tile + tx] = rgb.d[((wy + ty) * rgb.w + wx + tx) * 3 + c] / 255
+                    p[(c * tile + ty) * tile + tx] = rgb.d[(rows[ty] * rgb.w + columns[tx]) * 3 + c] / 255
                 } } }
             }
             let values = try predict(model, ["input": input], ["output"])["output"]!
@@ -745,15 +757,22 @@ private func decodeDetections(loc: [Float], score: [Float], landmarks: [Float], 
 }
 
 /// phone_pipeline.tile_windows: per axis (kept start, kept length, window start). The fewest `tile` px windows that
-/// overlap by at least 2 x pad, spread evenly; each overlap is split at its middle. Sides shorter than a tile are not
-/// handled (the bench photos are 800 px and more).
+/// overlap by at least 2 x pad, spread evenly; each overlap is split at its middle. A side no longer than a
+/// tile is one window whose reads past the photo are mirrored in (mirrorIndex).
 private func tileWindows(_ size: Int, _ tile: Int, _ pad: Int) -> [(Int, Int, Int)] {
-    precondition(size >= tile, "photo side \(size) smaller than a background tile")
-    if size == tile { return [(0, size, 0)] }
+    // A side no longer than a tile is one window from 0; its reads past the photo are mirrored in (mirrorIndex).
+    if size <= tile { return [(0, size, 0)] }
     let step = tile - 2 * pad, n = (size - tile + step - 1) / step + 1
     let starts = (0..<n).map { Int((Double($0) * Double(size - tile) / Double(n - 1)).rounded(.toNearestOrEven)) }   // Python round
     let cuts = [0] + (0..<(n - 1)).map { (starts[$0] + tile + starts[$0 + 1]) / 2 } + [size]
     return (0..<n).map { (cuts[$0], cuts[$0 + 1] - cuts[$0], starts[$0]) }
+}
+
+/// phone_pipeline.mirror_index: reflect without repeating the edge pixel, as often as needed; identity inside.
+private func mirrorIndex(_ i: Int, _ size: Int) -> Int {
+    if size == 1 { return 0 }
+    let period = 2 * (size - 1), j = i % period
+    return j >= size ? period - j : j
 }
 
 /// export_art_classifier.five_views_uint8 geometry with this file's resize, rounded to uint8.

@@ -407,3 +407,17 @@ So there is no evidence for a cutoff around 12-15 px: it would drop faces restor
 cutoff at 8 px (faces of 5-7 px left as background) would avoid the most invented 6 px results. Limits: synthetic
 shrinking and blur, not real old-print damage (step 2f's Met faces show invented glasses at 5-20 px); LPIPS only, no
 identity measure (ArcFace would need a download).
+
+**Decision (owner, 2026-11-16): 8 px.** `phone_pipeline.py` and both harnesses still detect faces down to a 5 px eye
+gap (so the 640/960 overlap rule is unchanged) but leave faces whose detector eye gap is under 8 px
+(`RESTORE_EYE_GAP_MIN`) to the background upscale: no Face Mesh, no CodeFormer, `"restored": false` in the record.
+None of the ten bench photos has such a face, so their outputs are unchanged. Checked on the Mac with
+Ar9j8V6oMzo shrunk to 0.4: the faces of 6.4-7.8 px are identical to the background upscale, those of 8.2-10.2 px
+are restored.
+
+**Photos with a side under 384 px.** `tile_windows` used to refuse them. A side no longer than a tile is now one
+window from 0 whose reads past the photo are mirrored in (`mirror_index`: reflect without repeating the edge pixel,
+PyTorch's `reflect`, which Real-ESRGAN's own pre-pad uses; repeated as often as needed). It is the identity inside
+the photo, so larger photos read exactly the same pixels: Q-lUWYs7Ms0 and eTOiqGqdCf8 match the saved step 2e Mac
+outputs exactly. A portrait shrunk to 100, 250 and 383 px wide runs through with no edge marks. The harnesses carry
+the same change (Swift parses; neither has been run on a phone since).

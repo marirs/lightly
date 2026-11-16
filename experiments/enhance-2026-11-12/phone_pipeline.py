@@ -9,6 +9,8 @@ not at a different resize or blur. Steps per photo (RGB, float32 in 0-255 throug
  2. Faces: RetinaFace MobileNet-0.25 (export_face_detector.py) on the photo resized to short side 640 and 960, each
     drawn at the top left of a fixed square canvas filled with the network's mean colour; score > 0.8, NMS 0.4, eye
     gap >= 5 px (CodeFormer's settings); 960 detections kept only where no 640 box overlaps (IoU < 0.3) (step 2b).
+    Faces whose detector eye gap is under RESTORE_EYE_GAP_MIN (8 px) are recorded but left to the background upscale:
+    below that CodeFormer invents the face rather than restoring it (step 2g).
  3. Face points: Face Mesh V2 on a rotated crop (box x 1.5, rolled to the detector's eye line), refined once on its
     own points; its iris centres, nose tip and mouth corners are used when its face presence is >= 0.5, otherwise
     the detector's five points.
@@ -49,6 +51,9 @@ ART_THRESHOLD = 0.8
 DETECTION_SIZES = {640: 1024, 960: 1536}   # short side -> square canvas (export_face_detector.CANVASES)
 DETECTOR_MEAN_RGB = np.array([123.0, 117.0, 104.0], np.float32)
 SCORE_THRESHOLD, NMS_THRESHOLD, EXTRA_IOU, EYE_GAP_MIN = 0.8, 0.4, 0.3, 5.0
+# Step 2g (size_cutoff_study.py): restoring still scores closer to the truth at 6 px, but by eye the 6 px faces are
+# invented (teeth, smiles, glasses lost); from 8 px they are mostly faithful. Owner chose 8 px (2026-11-16).
+RESTORE_EYE_GAP_MIN = 8.0
 MESH_FIVE = [468, 473, 1, 61, 291]
 MESH_PRESENCE_MIN = 0.5
 FACE_SKIN = 3
@@ -424,17 +429,27 @@ def five_views(rgb: np.ndarray) -> np.ndarray:
 def tile_windows(size: int, tile: int = None, pad: int = None) -> list:
     """Per axis: (kept start, kept length, window start). The fewest windows of `tile` px that overlap by at least
     2 x pad, spread evenly (window i starts at round(i * (size - tile) / (n - 1))); each overlap is split at its middle,
-    so every kept pixel has at least `pad` px of context on its inner sides. A photo axis no longer than a tile is
-    window (the harnesses only see photos of 800 px and more on each side; smaller ones are not handled)."""
+    so every kept pixel has at least `pad` px of context on its inner sides. A photo axis no longer than a tile is one
+    window starting at 0; its rows or columns past the photo are mirrored in (mirror_index)."""
     tile = TILE if tile is None else tile
     pad = TILE_PAD if pad is None else pad
-    assert size >= tile, "photo side smaller than a background tile"
-    if size == tile:
+    if size <= tile:
         return [(0, size, 0)]
     n = math.ceil((size - tile) / (tile - 2 * pad)) + 1
     starts = [round(i * (size - tile) / (n - 1)) for i in range(n)]   # Python round: halves to even
     cuts = [0] + [(starts[i] + tile + starts[i + 1]) // 2 for i in range(n - 1)] + [size]
     return [(cuts[i], cuts[i + 1] - cuts[i], starts[i]) for i in range(n)]
+
+
+def mirror_index(i: int, size: int) -> int:
+    """Reflect without repeating the edge pixel (PyTorch's 'reflect' pad, which Real-ESRGAN's own pre_pad uses),
+    repeated for as long as needed: a 100 px axis fills a 384 px window. Identity for 0 <= i < size, so photos of a
+    tile or more on each side read exactly the pixels they read before."""
+    if size == 1:
+        return 0
+    period = 2 * (size - 1)
+    j = i % period
+    return period - j if j >= size else j
 
 
 def upscale_background(model: Tflite, rgb: np.ndarray) -> np.ndarray:
@@ -443,7 +458,9 @@ def upscale_background(model: Tflite, rgb: np.ndarray) -> np.ndarray:
     out = np.zeros((h * SCALE, w * SCALE, 3), np.float32)
     for y, ch, wy in tile_windows(h):
         for x, cw, wx in tile_windows(w):
-            tile = rgb[wy:wy + TILE, wx:wx + TILE] / 255
+            rows = [mirror_index(wy + t, h) for t in range(TILE)]
+            columns = [mirror_index(wx + t, w) for t in range(TILE)]
+            tile = rgb[np.ix_(rows, columns)] / 255
             up = np.clip(model.run(tile.transpose(2, 0, 1)[None])[0][0], 0, 1).transpose(1, 2, 0) * 255
             region = up[(y - wy) * 4:(y - wy + ch) * 4, (x - wx) * 4:(x - wx + cw) * 4]
             out[y * 2:(y + ch) * 2, x * 2:(x + cw) * 2] = region.reshape(ch * 2, 2, cw * 2, 2, 3).mean((1, 3))
@@ -515,14 +532,22 @@ class Pipeline:
             times["detect"] = time.perf_counter() - t
             t = time.perf_counter()
             for detection in found:
+                detector_five = np.array(detection["five"])
+                if np.linalg.norm(detector_five[0] - detector_five[1]) < RESTORE_EYE_GAP_MIN:
+                    # Too small to restore: no Face Mesh run; five_used keeps the detector's points for the reports.
+                    faces.append({**detection, "restored": False, "five_used": detection["five"]})
+                    continue
                 five, presence = self.mesh.five(rgb, detection)
-                faces.append({**detection, "mesh_presence": presence, "five_used": np.asarray(five).tolist()})
+                faces.append({**detection, "restored": True, "mesh_presence": presence,
+                              "five_used": np.asarray(five).tolist()})
             times["mesh"] = time.perf_counter() - t
         t = time.perf_counter()
         image = upscale_background(self.upscaler, rgb)
         times["background"] = time.perf_counter() - t
         times["codeformer"] = times["colour_and_mask"] = times["paste"] = 0.0
         for face in faces:
+            if not face["restored"]:
+                continue
             to_face = similarity(np.array(face["five_used"]), FACE_TEMPLATE)
             crop = warp_bilinear(rgb, invert_affine(to_face), 512, 512, CROP_BORDER_RGB)
             t = time.perf_counter()

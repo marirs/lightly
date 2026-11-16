@@ -121,7 +121,11 @@ internal class EnhancePipeline(private val context: Context) {
             times["detect"] = seconds(t)
             notePss()
             t = System.nanoTime()
-            for (detection in found) faces += meshFive(models.mesh, rgb, detection)
+            for (detection in found) {
+                val gap = Math.hypot(detection.five[0][0] - detection.five[1][0], detection.five[0][1] - detection.five[1][1])
+                // Too small to restore: no Face Mesh run; fiveUsed keeps the detector's points for the reports.
+                faces += if (gap < RESTORE_EYE_GAP_MIN) Face(detection, null, detection.five) else meshFive(models.mesh, rgb, detection)
+            }
             times["mesh"] = seconds(t)
         }
         t = System.nanoTime()
@@ -130,6 +134,7 @@ internal class EnhancePipeline(private val context: Context) {
         notePss()
         times["codeformer"] = 0.0; times["colour_and_mask"] = 0.0; times["paste"] = 0.0
         for (face in faces) {
+            if (!face.restored) continue
             val toFace = similarity(face.fiveUsed, FACE_TEMPLATE)
             val crop = warpBilinear(rgb, invertAffine(toFace), 512, 512, CROP_BORDER_RGB)
             t = System.nanoTime()
@@ -262,8 +267,11 @@ internal class EnhancePipeline(private val context: Context) {
         val up = 4 * tile
         for ((y, ch, wy) in tileWindows(rgb.h, tile, TILE_PAD)) for ((x, cw, wx) in tileWindows(rgb.w, tile, TILE_PAD)) {
             input.clear()
+            // Mirrored reads only matter for a photo side under a tile; otherwise mirrorIndex is the identity.
+            val rows = IntArray(tile) { mirrorIndex(wy + it, rgb.h) }
+            val columns = IntArray(tile) { mirrorIndex(wx + it, rgb.w) }
             for (c in 0 until 3) for (ty in 0 until tile) for (tx in 0 until tile) {
-                input.putFloat(rgb.d[((wy + ty) * rgb.w + wx + tx) * 3 + c] / 255f)
+                input.putFloat(rgb.d[(rows[ty] * rgb.w + columns[tx]) * 3 + c] / 255f)
             }
             output.clear()
             model.run(input.rewind(), output)
@@ -344,6 +352,9 @@ internal class EnhancePipeline(private val context: Context) {
         private const val NMS_THRESHOLD = 0.4
         private const val EXTRA_IOU = 0.3
         private const val EYE_GAP_MIN = 5.0
+        // Step 2g: faces with a detector eye gap under 8 px are left to the background upscale; below that CodeFormer
+        // invents the face rather than restoring it (owner's choice, 2026-11-16).
+        private const val RESTORE_EYE_GAP_MIN = 8.0
         private val MESH_FIVE = intArrayOf(468, 473, 1, 61, 291)
         private const val MESH_PRESENCE_MIN = 0.5
         private const val FACE_SKIN = 3
@@ -363,12 +374,16 @@ private class Image(val w: Int, val h: Int, val c: Int, val d: FloatArray = Floa
 
 private class Detection(val box: DoubleArray, val score: Double, val five: Array<DoubleArray>)
 
-private class Face(val detection: Detection, val presence: Double, val fiveUsed: Array<DoubleArray>) {
+/** presence is null for a face too small to restore (no Face Mesh run). */
+private class Face(val detection: Detection, val presence: Double?, val fiveUsed: Array<DoubleArray>) {
+    val restored: Boolean get() = presence != null
+
     fun json(): JSONObject = JSONObject()
         .put("box", JSONArray(detection.box.toList()))
         .put("score", detection.score)
         .put("five", JSONArray(detection.five.map { JSONArray(it.toList()) }))
-        .put("mesh_presence", presence)
+        .put("restored", restored)
+        .apply { if (presence != null) put("mesh_presence", presence) }
         .put("five_used", JSONArray(fiveUsed.map { JSONArray(it.toList()) }))
 }
 
@@ -805,16 +820,24 @@ private fun decodeDetections(loc: FloatArray, score: FloatArray, landmarks: Floa
 
 /**
  * phone_pipeline.tile_windows: per axis (kept start, kept length, window start). The fewest `tile` px windows that
- * overlap by at least 2 x pad, spread evenly; each overlap is split at its middle. Sides shorter than a tile are not
- * handled (the bench photos are 800 px and more).
+ * overlap by at least 2 x pad, spread evenly; each overlap is split at its middle. A side no longer than a
+ * tile is one window whose reads past the photo are mirrored in (mirrorIndex).
  */
 private fun tileWindows(size: Int, tile: Int, pad: Int): List<Triple<Int, Int, Int>> {
-    require(size >= tile) { "photo side $size smaller than a background tile" }
-    if (size == tile) return listOf(Triple(0, size, 0))
+    // A side no longer than a tile is one window from 0; its reads past the photo are mirrored in (mirrorIndex).
+    if (size <= tile) return listOf(Triple(0, size, 0))
     val n = Math.floorDiv(size - tile + (tile - 2 * pad) - 1, tile - 2 * pad) + 1
     val starts = IntArray(n) { Math.rint(it.toDouble() * (size - tile) / (n - 1)).toInt() }   // Python round: halves to even
     val cuts = IntArray(n + 1) { if (it == 0) 0 else if (it == n) size else (starts[it - 1] + tile + starts[it]) / 2 }
     return List(n) { Triple(cuts[it], cuts[it + 1] - cuts[it], starts[it]) }
+}
+
+/** phone_pipeline.mirror_index: reflect without repeating the edge pixel, as often as needed; identity inside. */
+private fun mirrorIndex(i: Int, size: Int): Int {
+    if (size == 1) return 0
+    val period = 2 * (size - 1)
+    val j = i % period
+    return if (j >= size) period - j else j
 }
 
 /** export_art_classifier.five_views_uint8 geometry with this file's resize, rounded to uint8. */
