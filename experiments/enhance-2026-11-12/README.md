@@ -359,3 +359,23 @@ Max, 0.44 A069), but bigger tiles are not faster per pixel on any GPU, so the se
 
 Peak memory with 384 tiles: +0-100 MB on the iPhones, A069 ~2.7 GB PSS (2.66 before). 256 / 16 / even was measured on
 the Mac only: same cost as steps 2c-2d (1.54x vs 1.52x) with the seams down to 1.3 of 255 at worst.
+
+## Step 2f: the glasses-like ring on tiny faces (Mac, 2026-11-16)
+
+`ring_study.py` restores small faces (eye gap under 30 px) under 5 alignments per point source - the points and 4
+sub-pixel jitters (+-0.5 px) - for the pipeline's Face Mesh points, MobileNet-0.25's own five and, where it finds the
+face, RetinaFace ResNet-50's (the reference), exactly as phone_pipeline.py (CodeFormer 0.8, original colour, grey
+where the photo is grey). Sheets of eye crops in `outputs/ring-study/` (git-ignored), checked by eye.
+
+- eTOiqGqdCf8's child (18 px): Face Mesh points draw the ring in 4-5 of 5 alignments (`eTOiqGqdCf8-3.png`: 5 of 9);
+  MobileNet and the reference never do. Its other 18 px child is fine with Face Mesh and squints with the reference.
+- The other 22 small faces in the ten photos: no invented rings from any source; real glasses come out with every
+  source. MobileNet's points misalign one face (AuOuX46ny1c, dark band over the eyes in all 5).
+- 48 small faces in the Met photographs (art-test/photo, mostly 5-20 px; the run stopped at the 600 s cap after
+  photo 764820, and four photos longer than 1.6:1 were skipped): invented glasses with Face Mesh on 2 faces (3
+  alignments), with MobileNet on 5 faces (8 alignments); MobileNet's jitters also give broken or dark eyes more
+  often. ResNet-50 finds only a few of these faces.
+
+The ring is CodeFormer inventing detail on very small faces, not a Face Mesh fault: Face Mesh is the steadier source
+and stays. Not addressed here (product decision): whether faces below some eye gap should be restored at all - at
+5-10 px CodeFormer invents features in every source.
