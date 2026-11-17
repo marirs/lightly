@@ -52,6 +52,17 @@ final class EnhanceEngineTests: XCTestCase {
         XCTAssertEqual(EnhanceEngine.detectionScale(width: 1000, height: 3000, short: 960, canvas: 1536), 1536.0 / 3000)
     }
 
+    /// Python's input_size (phone_pipeline.input_size, printed 2026-11-17): the owner's 2000 px long-side cap.
+    func testInputSizeCapsTheLongSideAt2000() {
+        let cases: [((Int, Int), (Int, Int))] = [((4032, 3024), (2000, 1500)), ((3000, 1000), (2000, 667)),
+                                                ((1000, 2001), (1000, 2000)), ((2000, 10), (2000, 10)),
+                                                ((5000, 1), (2000, 1)), ((1200, 1676), (1200, 1676))]
+        for (input, expected) in cases {
+            let size = EnhanceEngine.inputSize(width: input.0, height: input.1)
+            XCTAssertEqual([size.width, size.height], [expected.0, expected.1], "\(input)")
+        }
+    }
+
     // MARK: - A whole photo
 
     /// A 480 x 400 crop of eTOiqGqdCf8 (two faces, one the child of step 2f's ring) through the bundled models against

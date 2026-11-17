@@ -490,3 +490,12 @@ Every face was aligned with Face Mesh points on every phone. Model loading on th
 kernels compiled into the cache), 1.7-2.1 s after; PSS about 700 MB for the crop. The iPhone numbers match the harness;
 the A069 is faster than the harness's step 2e figure for this photo, not investigated further (the outputs agree).
 Largest single-pixel differences (11-39) are the GPU and Neural Engine noise already seen in step 2c.
+
+## Step 3d: the 2000 px input cap (2026-11-17)
+
+Owner's decision: photos longer than 2000 px on the long side are shrunk to that long side before enhancing (so the
+output is at most 4000 px long). `phone_pipeline.input_size` sets the size (half-up rounding, at least 1 px), and the
+same antialiased `resize` as every other step shrinks the photo, kept in floats. The iOS and Android engines do the
+same (`EnhanceEngine.inputSize` / `EnhanceMaths.inputSize`), with unit tests on the Python values: 4032 x 3024 ->
+2000 x 1500, 3000 x 1000 -> 2000 x 667, 1000 x 2001 -> 1000 x 2000. Every bench photo is 1200 px wide and under the
+cap, so the earlier outputs and phone results stand.

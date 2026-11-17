@@ -59,6 +59,18 @@ class EnhanceMathsTest {
         assertEquals(1536.0 / 3000, EnhanceMaths.detectionScale(1000, 3000, 960, 1536), 0.0)
     }
 
+    /** Python's input_size (phone_pipeline.input_size, printed 2026-11-17): the owner's 2000 px long-side cap. */
+    @Test
+    fun inputSizeCapsTheLongSideAt2000() {
+        val cases = listOf(
+            (4032 to 3024) to (2000 to 1500), (3000 to 1000) to (2000 to 667), (1000 to 2001) to (1000 to 2000),
+            (2000 to 10) to (2000 to 10), (5000 to 1) to (2000 to 1), (1200 to 1676) to (1200 to 1676),
+        )
+        for ((input, expected) in cases) {
+            assertEquals("$input", expected, EnhanceMaths.inputSize(input.first, input.second, EnhanceEngine.INPUT_LONG_SIDE_MAX))
+        }
+    }
+
     @Test
     fun collapsedOrNonFinitePointsCannotAlign() {
         val face = arrayOf(doubleArrayOf(100.0, 100.0), doubleArrayOf(130.0, 100.0), doubleArrayOf(115.0, 115.0),

@@ -475,6 +475,14 @@ internal object EnhanceMaths {
     }
 
     /** phone_pipeline.detection_scale: short side to `short`, unless the long side would pass the canvas (over 1.6 : 1). */
+    /** phone_pipeline.input_size: unchanged up to [cap] on the long side, else shrunk to it (half-up rounding). */
+    fun inputSize(w: Int, h: Int, cap: Int): Pair<Int, Int> {
+        val long = max(w, h)
+        if (long <= cap) return w to h
+        fun shrink(side: Int) = max(1, (side.toDouble() * cap / long + 0.5).toInt())
+        return shrink(w) to shrink(h)
+    }
+
     fun detectionScale(w: Int, h: Int, short: Int, canvas: Int): Double {
         val scale = short.toDouble() / min(w, h)
         return if ((max(w, h) * scale).toInt() <= canvas) scale else canvas.toDouble() / max(w, h)

@@ -54,6 +54,7 @@ SCORE_THRESHOLD, NMS_THRESHOLD, EXTRA_IOU, EYE_GAP_MIN = 0.8, 0.4, 0.3, 5.0
 # Step 2g (size_cutoff_study.py): restoring still scores closer to the truth at 6 px, but by eye the 6 px faces are
 # invented (teeth, smiles, glasses lost); from 8 px they are mostly faithful. Owner chose 8 px (2026-11-16).
 RESTORE_EYE_GAP_MIN = 8.0
+INPUT_LONG_SIDE_MAX = 2000   # owner, 2026-11-17: larger photos are shrunk to this long side first (output 2x that)
 MESH_FIVE = [468, 473, 1, 61, 291]
 MESH_PRESENCE_MIN = 0.5
 FACE_SKIN = 3
@@ -351,6 +352,14 @@ class Detector:
         return decode_detections(loc, score, landmarks, self.priors[short], scale)
 
 
+def input_size(w: int, h: int, cap: int = INPUT_LONG_SIDE_MAX) -> tuple:
+    """The size a photo is enhanced at: unchanged up to `cap` on the long side, else shrunk to it (half-up rounding)."""
+    long = max(w, h)
+    if long <= cap:
+        return w, h
+    return max(1, int(w * cap / long + 0.5)), max(1, int(h * cap / long + 0.5))
+
+
 def detection_scale(w: int, h: int, short: int, canvas: int) -> float:
     """The short side goes to `short`; a photo longer than the canvas allows (over 1.6 : 1) has its long side fitted
     to the canvas instead, so it is detected at a lower resolution rather than refused. Photos that fitted before keep
@@ -522,6 +531,9 @@ class Pipeline:
 
     def enhance(self, rgb: np.ndarray):
         times, record = {}, {}
+        w, h = input_size(rgb.shape[1], rgb.shape[0])
+        if (w, h) != (rgb.shape[1], rgb.shape[0]):
+            rgb = resize(rgb, w, h)   # stays float, like every other step (rounded only at the end)
         t = time.perf_counter()
         views = five_views(rgb)
         record["art"] = float(self.art.run(views.transpose(0, 3, 1, 2) / 255)[0].ravel()[0])

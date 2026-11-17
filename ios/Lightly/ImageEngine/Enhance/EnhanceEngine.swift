@@ -15,8 +15,8 @@ import Foundation
 ///     lips, step 2c), the original colour put back, a face-skin paste mask (the app's selfie multiclass model).
 ///
 /// DEFERRED(enhance-ui): nothing calls this yet. The Lightly 2 design has no Enhance screen; the screen, its states
-/// and the largest photo it accepts wait for an approved design. Memory grows with the photo: the 2x float image alone
-/// is 24 bytes per input pixel (a 2000 x 1500 photo: 72 MB), so the caller must bound the input.
+/// wait for an approved design. Photos longer than 2000 px are shrunk to that long side first (owner, 2026-11-17), which
+/// bounds memory: the 2x float image alone is 48 bytes per working pixel (2000 x 1500: 144 MB).
 final class EnhanceEngine: @unchecked Sendable {
     // @unchecked: MLModel is not Sendable. One engine runs one photo at a time (`lock`); the models are only read.
 
@@ -43,7 +43,7 @@ final class EnhanceEngine: @unchecked Sendable {
     enum PointSource: Equatable { case faceMesh, detector }
 
     struct Result {
-        /// 2x the input, 8-bit sRGB, opaque.
+        /// 2x the input (2x the 2000 px cap for larger photos), 8-bit sRGB, opaque.
         let image: CGImage
         let isPainting: Bool
         let faces: [Face]
@@ -53,6 +53,8 @@ final class EnhanceEngine: @unchecked Sendable {
     static let artThreshold: Float = 0.8
     /// Step 2g: below an 8 px eye gap CodeFormer invents the face rather than restoring it (owner's choice, 2026-11-16).
     static let restoreEyeGapMin = 8.0
+    /// Owner, 2026-11-17: photos longer than 2000 px are shrunk to that long side before enhancing (output 4000 px).
+    static let inputLongSideMax = 2000
     static let tile = 384
     static let tilePad = 16
     static let detectionSizes = [640: 1024, 960: 1536]   // short side -> square canvas
@@ -112,8 +114,11 @@ final class EnhanceEngine: @unchecked Sendable {
         return Result(image: Self.cgImage(image), isPainting: isPainting, faces: faces)
     }
 
-    func enhance(_ rgb: EnhanceMaths.Image, isCancelled: () -> Bool) throws -> (EnhanceMaths.Image, Bool, [Face]) {
+    func enhance(_ photo: EnhanceMaths.Image, isCancelled: () -> Bool) throws -> (EnhanceMaths.Image, Bool, [Face]) {
         func checkpoint() throws { if isCancelled() { throw Failure.cancelled } }
+        let size = Self.inputSize(width: photo.w, height: photo.h)
+        // Same antialiased resize as every other step (phone_pipeline.resize), kept in floats.
+        let rgb = size == (photo.w, photo.h) ? photo : EnhanceMaths.resize(photo, size.width, size.height)
         let isPainting = try artProbability(rgb) >= Self.artThreshold
         try checkpoint()
         var faces: [Face] = [], restoreFives: [[SIMD2<Double>]] = []
@@ -252,6 +257,14 @@ final class EnhanceEngine: @unchecked Sendable {
 
     /// The photo's short side goes to `short`, unless its long side would then pass the canvas (photos longer than
     /// 1.6 : 1): then the long side fits the canvas. Photos that fit keep exactly that scale. phone_pipeline.detection_scale.
+    /// phone_pipeline.input_size: unchanged up to `cap` on the long side, else shrunk to it (half-up rounding).
+    static func inputSize(width: Int, height: Int, cap: Int = inputLongSideMax) -> (width: Int, height: Int) {
+        let long = max(width, height)
+        guard long > cap else { return (width, height) }
+        func shrink(_ side: Int) -> Int { max(1, Int(Double(side) * Double(cap) / Double(long) + 0.5)) }
+        return (shrink(width), shrink(height))
+    }
+
     static func detectionScale(width: Int, height: Int, short: Int, canvas: Int) -> Double {
         let scale = Double(short) / Double(min(width, height))
         return Int(Double(max(width, height)) * scale) <= canvas ? scale : Double(canvas) / Double(max(width, height))

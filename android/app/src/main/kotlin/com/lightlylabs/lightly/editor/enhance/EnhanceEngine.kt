@@ -35,9 +35,9 @@ import kotlin.math.sin
  *  6. faces: CodeFormer w 0.8 split in three (step 1d: encoder and decoder on the GPU delegate, the transformer on the
  *     CPU), the original colour put back, a face-skin paste mask (the app's selfie multiclass model).
  *
- * DEFERRED(enhance-ui): nothing calls this yet. The Lightly 2 design has no Enhance screen; the screen, its states and
- * the largest photo it accepts wait for an approved design. Memory grows with the photo: the 2x float image alone is
- * 48 bytes per input pixel here (FloatArray RGB), so the caller must bound the input.
+ * DEFERRED(enhance-ui): nothing calls this yet. The Lightly 2 design has no Enhance screen; the screen and its states
+ * wait for an approved design. Photos longer than 2000 px are shrunk to that long side first (owner, 2026-11-17), which
+ * bounds memory: the 2x float image alone is 48 bytes per working pixel (2000 x 1500: 144 MB).
  * DEFERRED(enhance-asset-pack): release packaging (Play install-time asset pack, owner decision) waits for the screen;
  * debug builds carry the models in assets/enhance (app/build.gradle.kts).
  *
@@ -78,7 +78,7 @@ class EnhanceEngine private constructor(
     )
 
     class Result(
-        /** 2x the input, ARGB_8888, opaque. */
+        /** 2x the input (2x the 2000 px cap for larger photos), ARGB_8888, opaque. */
         val image: Bitmap,
         val isPainting: Boolean,
         val faces: List<Face>,
@@ -91,8 +91,11 @@ class EnhanceEngine private constructor(
         return Result(bitmap(image), isPainting, faces)
     }
 
-    internal fun enhance(rgb: Image, isCancelled: () -> Boolean): Triple<Image, Boolean, List<Face>> {
+    internal fun enhance(photo: Image, isCancelled: () -> Boolean): Triple<Image, Boolean, List<Face>> {
         fun checkpoint() { if (isCancelled()) throw Failure.Cancelled() }
+        val (width, height) = EnhanceMaths.inputSize(photo.w, photo.h, INPUT_LONG_SIDE_MAX)
+        // Same antialiased resize as every other step (phone_pipeline.resize), kept in floats.
+        val rgb = if (width == photo.w && height == photo.h) photo else EnhanceMaths.resize(photo, width, height)
         val isPainting = artProbability(rgb) >= ART_THRESHOLD
         checkpoint()
         val faces = mutableListOf<Face>()
@@ -327,6 +330,8 @@ class EnhanceEngine private constructor(
         const val ART_THRESHOLD = 0.8
         /** Step 2g: below an 8 px eye gap CodeFormer invents the face rather than restoring it (owner, 2026-11-16). */
         const val RESTORE_EYE_GAP_MIN = 8.0
+        /** Owner, 2026-11-17: photos longer than 2000 px are shrunk to that long side before enhancing (output 4000). */
+        const val INPUT_LONG_SIDE_MAX = 2000
         const val TILE = 384
         const val TILE_PAD = 16
         val DETECTION_SIZES = mapOf(640 to 1024, 960 to 1536)   // short side -> square canvas
