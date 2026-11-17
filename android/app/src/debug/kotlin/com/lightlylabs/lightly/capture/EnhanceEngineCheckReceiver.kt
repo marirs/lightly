@@ -16,12 +16,13 @@ import java.io.File
  * output.json beside it (experiments/enhance-2026-11-12/engine_check.py makes the input and the Mac copy's output to compare).
  * Nothing in the app opens Enhance yet (DEFERRED(enhance-ui)); this is how the engine is checked on a device or emulator:
  *
+ *   adb shell am broadcast -n com.lightlylabs.lightly/.capture.EnhanceEngineCheckReceiver   (creates the folder)
  *   adb push input.png /sdcard/Android/data/com.lightlylabs.lightly/files/engine-check/input.png
  *   adb shell am broadcast -n com.lightlylabs.lightly/.capture.EnhanceEngineCheckReceiver
  *   ... wait for "ENHANCE-CHECK done" in logcat, then pull output.png from the same folder
  *
- * The folder is the external files folder's engine-check when it exists (adb can push there, and the benchmark build
- * is not debuggable, so run-as cannot reach filesDir), else filesDir/engine-check (run-as, debug builds).
+ * The folder is engine-check in the external files folder (adb can push there; the benchmark build is not debuggable,
+ * so run-as cannot reach filesDir). The app creates it: a folder adb creates there is not readable by the app.
  *
  * The work runs on its own thread: CodeFormer takes minutes on the emulator's CPU kernels, longer than a receiver may.
  */
@@ -32,12 +33,11 @@ class EnhanceEngineCheckReceiver : BroadcastReceiver() {
     }
 
     private fun runCheck(context: Context) {
-        val folder = context.getExternalFilesDir(null)?.let { File(it, "engine-check") }?.takeIf { it.isDirectory }
-            ?: File(context.filesDir, "engine-check")
+        val folder = File(context.getExternalFilesDir(null) ?: context.filesDir, "engine-check").apply { mkdirs() }
         try {
             val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888; inScaled = false; inPremultiplied = false }
             val photo = BitmapFactory.decodeFile(File(folder, "input.png").absolutePath, options)
-                ?: error("no files/engine-check/input.png")
+                ?: error("no engine-check/input.png in ${folder.absolutePath}")
             val loadStart = System.nanoTime()
             val result = EnhanceEngine.load(context).use { engine ->
                 val loadMs = (System.nanoTime() - loadStart) / 1_000_000
