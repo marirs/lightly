@@ -169,10 +169,9 @@ internal class EnhancePipeline(private val context: Context) {
 
     private fun detect(model: Interpreter, rgb: Image, short: Int): List<Detection> {
         val canvas = DETECTION_SIZES.getValue(short)
-        val scale = short.toDouble() / min(rgb.w, rgb.h)
+        val scale = detectionScale(rgb.w, rgb.h, short, canvas)
         val nw = (rgb.w * scale).toInt()
         val nh = (rgb.h * scale).toInt()
-        require(max(nw, nh) <= canvas) { "photo too long for the $canvas canvas ($nw x $nh)" }
         val small = resize(rgb, nw, nh)
         val input = floatBuffer(3 * canvas * canvas)
         for (c in 0 until 3) for (y in 0 until canvas) for (x in 0 until canvas) {
@@ -830,6 +829,12 @@ private fun tileWindows(size: Int, tile: Int, pad: Int): List<Triple<Int, Int, I
     val starts = IntArray(n) { Math.rint(it.toDouble() * (size - tile) / (n - 1)).toInt() }   // Python round: halves to even
     val cuts = IntArray(n + 1) { if (it == 0) 0 else if (it == n) size else (starts[it - 1] + tile + starts[it]) / 2 }
     return List(n) { Triple(cuts[it], cuts[it + 1] - cuts[it], starts[it]) }
+}
+
+/** phone_pipeline.detection_scale: short side to `short`, unless the long side would pass the canvas (over 1.6 : 1). */
+private fun detectionScale(w: Int, h: Int, short: Int, canvas: Int): Double {
+    val scale = short.toDouble() / min(w, h)
+    return if ((max(w, h) * scale).toInt() <= canvas) scale else canvas.toDouble() / max(w, h)
 }
 
 /** phone_pipeline.mirror_index: reflect without repeating the edge pixel, as often as needed; identity inside. */

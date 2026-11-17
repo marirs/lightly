@@ -339,10 +339,8 @@ class Detector:
     def detect(self, rgb: np.ndarray, short: int):
         h, w = rgb.shape[:2]
         canvas = DETECTION_SIZES[short]
-        scale = short / min(h, w)
+        scale = detection_scale(w, h, short, canvas)
         nh, nw = int(h * scale), int(w * scale)
-        if max(nh, nw) > canvas:
-            raise ValueError(f"photo too long for the {canvas} canvas ({nw} x {nh})")
         board = np.broadcast_to(DETECTOR_MEAN_RGB, (canvas, canvas, 3)).copy()
         board[:nh, :nw] = resize(rgb, nw, nh)
         # The model's own output order: names from the converted signature are not stable, so pick by shape.
@@ -351,6 +349,14 @@ class Detector:
         landmarks = next(o for o in outputs if o.shape[-1] == 10)[0]
         score = next(o for o in outputs if o.ndim == 2)[0]
         return decode_detections(loc, score, landmarks, self.priors[short], scale)
+
+
+def detection_scale(w: int, h: int, short: int, canvas: int) -> float:
+    """The short side goes to `short`; a photo longer than the canvas allows (over 1.6 : 1) has its long side fitted
+    to the canvas instead, so it is detected at a lower resolution rather than refused. Photos that fitted before keep
+    exactly the scale they had."""
+    scale = short / min(h, w)
+    return scale if int(max(h, w) * scale) <= canvas else canvas / max(h, w)
 
 
 def decode_detections(loc, score, landmarks, prior, scale):

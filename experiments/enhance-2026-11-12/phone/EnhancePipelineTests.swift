@@ -211,9 +211,8 @@ final class EnhancePipelineTests: XCTestCase {
 
     private func detect(_ model: MLModel, _ rgb: Image, short: Int) throws -> [Detection] {
         let canvas = Self.detectionSizes[short]!
-        let scale = Double(short) / Double(min(rgb.w, rgb.h))
+        let scale = detectionScale(rgb.w, rgb.h, short, canvas)
         let nw = Int(Double(rgb.w) * scale), nh = Int(Double(rgb.h) * scale)
-        guard max(nw, nh) <= canvas else { throw NSError(domain: "photo too long for the \(canvas) canvas", code: 1) }
         let small = resize(rgb, nw, nh)
         let input = try array([1, 3, canvas, canvas]) { p in
             for c in 0..<3 { for y in 0..<canvas { for x in 0..<canvas {
@@ -766,6 +765,12 @@ private func tileWindows(_ size: Int, _ tile: Int, _ pad: Int) -> [(Int, Int, In
     let starts = (0..<n).map { Int((Double($0) * Double(size - tile) / Double(n - 1)).rounded(.toNearestOrEven)) }   // Python round
     let cuts = [0] + (0..<(n - 1)).map { (starts[$0] + tile + starts[$0 + 1]) / 2 } + [size]
     return (0..<n).map { (cuts[$0], cuts[$0 + 1] - cuts[$0], starts[$0]) }
+}
+
+/// phone_pipeline.detection_scale: short side to `short`, unless the long side would pass the canvas (over 1.6 : 1).
+private func detectionScale(_ w: Int, _ h: Int, _ short: Int, _ canvas: Int) -> Double {
+    let scale = Double(short) / Double(min(w, h))
+    return Int(Double(max(w, h)) * scale) <= canvas ? scale : Double(canvas) / Double(max(w, h))
 }
 
 /// phone_pipeline.mirror_index: reflect without repeating the edge pixel, as often as needed; identity inside.

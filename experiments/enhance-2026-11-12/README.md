@@ -421,3 +421,31 @@ PyTorch's `reflect`, which Real-ESRGAN's own pre-pad uses; repeated as often as 
 the photo, so larger photos read exactly the same pixels: Q-lUWYs7Ms0 and eTOiqGqdCf8 match the saved step 2e Mac
 outputs exactly. A portrait shrunk to 100, 250 and 383 px wide runs through with no edge marks. The harnesses carry
 the same change (Swift parses; neither has been run on a phone since).
+
+## Step 3a: the engine in the iOS app (2026-11-17)
+
+`ios/Lightly/ImageEngine/Enhance/`: `EnhanceMaths.swift` is the harness's image maths moved verbatim into an
+`enum EnhanceMaths` namespace (no arithmetic changed); `EnhanceEngine.swift` is the pipeline (painting check, two
+detector passes, 8 px restore cutoff, Face Mesh points, 384 px background tiles, CodeFormer on CPU + GPU, original
+colour, face-skin paste mask). Models: `ios/Tools/bundle_enhance_models.sh` compiles the five packages in `coreml/`
+as `enhance-*.mlmodelc` (SHA-256 of each weights file recorded); Face Mesh and the multiclass segmenter are the
+Sunglasses models already in the app. Nothing in the app opens Enhance yet (no approved screen), so Release builds
+leave the models out until `LIGHTLY_ENHANCE_MODELS_IN_RELEASE` is YES; Debug builds bundle them.
+
+Changes from the harness, all in the engine (no image maths changed):
+- **Long photos.** The detector canvases (1024 / 1536 for short side 640 / 960) refused photos longer than 1.6 : 1.
+  Now the long side is fitted to the canvas instead (`detection_scale`, also in phone_pipeline.py and both
+  harnesses); photos that fitted keep exactly their old scale.
+- **Non-finite and collapsed outputs.** Detections with a non-finite box or point are dropped; Face Mesh points that
+  are non-finite, or whose eyes are under 1 px apart, fall back to the detector's points; a non-finite CodeFormer
+  output fails the run (`modelFailed`) instead of pasting NaN.
+- **Output reads** use `MLMultiArray.withUnsafeBufferPointer(ofType:)` with strides, not `dataPointer`.
+- **Cancellation** is polled between model runs (`.cancelled`).
+- **Simulator.** On the iOS 27 simulator every model except the detector returned all zeros with the GPU compute
+  units (black output, collapsed mesh points); under the simulator the engine uses CPU only.
+
+Checked with `LightlyTests/EnhanceEngineTests` on an iPhone 17 simulator (iOS 27.0), 7 tests pass: tile windows
+equal phone_pipeline's for 1200 and 1676 px and cover every pixel once with >= 16 px context; mirror index; detection
+scale; cancellation; a 150 x 100 photo gives 300 x 200; and `engine_check.py`'s fixture (a 480 x 400 crop of
+eTOiqGqdCf8 with two faces, 17 and 14 px, both aligned by Face Mesh) differs from the Mac copy by a mean 0.16 of 255
+over the whole image. Not yet run on the review iPhones from the app build.
