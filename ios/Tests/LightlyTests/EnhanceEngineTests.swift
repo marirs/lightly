@@ -56,29 +56,34 @@ final class EnhanceEngineTests: XCTestCase {
 
     /// A 480 x 400 crop of eTOiqGqdCf8 (two faces, one the child of step 2f's ring) through the bundled models against
     /// the Mac copy's output (experiments/enhance-2026-11-12/engine_check.py). Both are git-ignored experiment outputs,
-    /// so the test skips on a checkout without them; the models
+    /// so the test skips without them. On a phone they are read from the host app's Documents/engine-check instead
+    /// (copied there with devicectl), and the result is written beside them as output.png; the models
     /// are bundled in Debug builds only (Tools/bundle_enhance_models.sh). Tolerances: Core ML here runs other kernels
     /// than PyTorch/LiteRT on the Mac (step 2c measured iPhone vs Mac faces at a median 1-2 of 255).
     func testWholePhotoAgreesWithTheMacCopy() throws {
         let experiment = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("experiments/enhance-2026-11-12/outputs")
-        let input = experiment.appendingPathComponent("engine-check/input.png")
-        let reference = experiment.appendingPathComponent("engine-check/mac.png")
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let onHost = FileManager.default.fileExists(atPath: experiment.appendingPathComponent("engine-check/input.png").path)
+        let folder = onHost ? experiment.appendingPathComponent("engine-check") : documents.appendingPathComponent("engine-check")
+        let input = folder.appendingPathComponent("input.png"), reference = folder.appendingPathComponent("mac.png")
         guard FileManager.default.fileExists(atPath: input.path), FileManager.default.fileExists(atPath: reference.path) else {
-            throw XCTSkip("experiment outputs not on this machine")
+            throw XCTSkip("no engine-check fixture (experiments/enhance-2026-11-12/engine_check.py)")
         }
         let bundle = Bundle(for: EnhanceEngine.self)
         guard EnhanceEngine.isAvailable(in: bundle) else { throw XCTSkip("Enhance models not bundled in this build") }
         let engine = try EnhanceEngine(bundle: bundle)
 
+        let start = CFAbsoluteTimeGetCurrent()
         let result = try engine.enhance(try Self.load(input))
+        print(String(format: "ENHANCE-ENGINE enhanced in %.2f s", CFAbsoluteTimeGetCurrent() - start))
         XCTAssertFalse(result.isPainting)
         XCTAssertEqual(result.faces.count, 2)
         XCTAssertTrue(result.faces.allSatisfy(\.restored))
         print("ENHANCE-ENGINE faces \(result.faces.map { "\(Int($0.eyeGap)) px \($0.pointSource.map { "\($0)" } ?? "-")" })")
-        // Kept beside the reference for a look (git-ignored): the simulator's result.
-        if let destination = CGImageDestinationCreateWithURL(experiment.appendingPathComponent("engine-check/ios-test.png") as CFURL,
+        // Kept beside the reference for a look (git-ignored): this run's result.
+        if let destination = CGImageDestinationCreateWithURL(folder.appendingPathComponent(onHost ? "ios-test.png" : "output.png") as CFURL,
                                                              "public.png" as CFString, 1, nil) {
             CGImageDestinationAddImage(destination, result.image, nil)
             CGImageDestinationFinalize(destination)

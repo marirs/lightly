@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Benchmark build only: simpleperf and the Android Studio profiler may attach from the shell (adb). -->
+<!-- Benchmark build only: simpleperf and the Android Studio profiler may attach from the shell (adb), and the Enhance
+     engine check. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <profileable android:shell="true" />
+        <!-- The Enhance engine check (src/debug/.../EnhanceEngineCheckReceiver.kt, shared with this build type): the
+             benchmark build is not debuggable, so it times the engine as a user would run it. -->
+        <receiver
+            android:name="com.lightlylabs.lightly.capture.EnhanceEngineCheckReceiver"
+            android:exported="true" />
     </application>
 </manifest>
