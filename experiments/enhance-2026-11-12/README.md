@@ -472,3 +472,21 @@ Checked:
   the output equals the Mac copy's to within 1 of 255 at every pixel (mean 0.000).
 - Not yet run from the app build on the A069 or the moto edge 60 (the GPU delegate path); the harness measured it in
   steps 2c-2e.
+
+## Step 3c: the app engine on the review phones (2026-11-17)
+
+Built from a clean clone of master (ceff665): iOS Debug configuration with optimised Swift (`-O`, whole module) and
+the Enhance models bundled, run as `EnhanceEngineTests` from the phones' app; Android benchmark build (not debuggable),
+run through `EnhanceEngineCheckReceiver`. Compared with the Mac copy (mean difference over the image, and per face in
+compare_phone_pipeline's face squares, of 255):
+
+| Phone | engine_check crop (2 faces), warm | vs Mac: image / faces | eTOiqGqdCf8, 1200 x 854, 5 faces | vs Mac: image / faces | harness step 2e, same photo |
+|---|---|---|---|---|---|
+| iPhone SE 3 | 2.5 s | 0.04 / 0.44-0.48 | 5.6 s | 0.05 / 0.16-0.84 | 5.8 s |
+| iPhone 11 Pro Max | 7.5 s (20.1 s first run) | 0.04 / 0.22-0.67 | 17.5 s | 0.05 / 0.31-0.51 | 18.7 s |
+| Nothing A069 | 14.1 s | 0.15 / 0.70-1.12 | 37.5 s | 0.16 / 0.42-0.80 | 64.0 s |
+
+Every face was aligned with Face Mesh points on every phone. Model loading on the A069: 12.3 s the first time (GPU
+kernels compiled into the cache), 1.7-2.1 s after; PSS about 700 MB for the crop. The iPhone numbers match the harness;
+the A069 is faster than the harness's step 2e figure for this photo, not investigated further (the outputs agree).
+Largest single-pixel differences (11-39) are the GPU and Neural Engine noise already seen in step 2c.
