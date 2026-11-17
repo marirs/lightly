@@ -499,3 +499,20 @@ same antialiased `resize` as every other step shrinks the photo, kept in floats.
 same (`EnhanceEngine.inputSize` / `EnhanceMaths.inputSize`), with unit tests on the Python values: 4032 x 3024 ->
 2000 x 1500, 3000 x 1000 -> 2000 x 667, 1000 x 2001 -> 1000 x 2000. Every bench photo is 1200 px wide and under the
 cap, so the earlier outputs and phone results stand.
+
+## Step 3e: a photo at the cap on the review phones (2026-11-17)
+
+`engine_check.py --large`: the whole of eTOiqGqdCf8 enlarged 2.5x to 3000 x 2135 px, which the engine shrinks to the
+cap (2000 x 1423, 2.8 MP) and returns at 4000 x 2846. Mac copy: 5 faces (eye gaps 30-43 px), all restored, 15 s.
+Builds from master at b8c8da6 (iOS Debug with optimised Swift; Android benchmark build), two runs each:
+
+| Phone | Enhance (2nd run) | Peak memory | vs Mac: mean / 99.9th pct / max (of 255) |
+|---|---|---|---|
+| iPhone SE 3 | 6.5 s | 1.07 GB physical footprint (test host app, models loaded) | 0.06 / 2 / 88 |
+| iPhone 11 Pro Max | 21.0 s | 1.31 GB | 0.06 / 1 / 63 |
+| Nothing A069 (7.6 GB RAM) | 76.6 s | 2.65 GB PSS, sampled every 2 s (includes GPU buffers) | 0.17 / 3 / 61 |
+
+Every face was aligned with Face Mesh points and restored on every phone; output sizes match. The A069 loaded the models
+in 44.6 s the first time after a fresh install (GPU kernels compiled into the cache), 5.3 s after. No run failed or
+was killed. The single-pixel maxima are higher than step 3c's (11-39) but the 99.9th percentile is 1-3.
+The iOS whole-photo test now takes the expected face count from the fixture's mac.json and prints the peak footprint.

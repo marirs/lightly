@@ -88,10 +88,13 @@ final class EnhanceEngineTests: XCTestCase {
 
         let start = CFAbsoluteTimeGetCurrent()
         let result = try engine.enhance(try Self.load(input))
-        print(String(format: "ENHANCE-ENGINE enhanced in %.2f s", CFAbsoluteTimeGetCurrent() - start))
+        print(String(format: "ENHANCE-ENGINE enhanced in %.2f s, peak footprint %d MB", CFAbsoluteTimeGetCurrent() - start,
+                     Self.peakFootprintMB()))
         XCTAssertFalse(result.isPainting)
-        XCTAssertEqual(result.faces.count, 2)
-        XCTAssertTrue(result.faces.allSatisfy(\.restored))
+        // The Mac copy's faces (mac.json): the crop's two, or another fixture's (engine_check.py --large: five).
+        let macFaces = try Self.macFaces(folder.appendingPathComponent("mac.json"))
+        XCTAssertEqual(result.faces.count, macFaces.count)
+        XCTAssertEqual(result.faces.filter(\.restored).count, macFaces.restored)
         print("ENHANCE-ENGINE faces \(result.faces.map { "\(Int($0.eyeGap)) px \($0.pointSource.map { "\($0)" } ?? "-")" })")
         // Kept beside the reference for a look (git-ignored): this run's result.
         if let destination = CGImageDestinationCreateWithURL(folder.appendingPathComponent(onHost ? "ios-test.png" : "output.png") as CFURL,
@@ -129,6 +132,24 @@ final class EnhanceEngineTests: XCTestCase {
         XCTAssertEqual(result.image.width, 300)
         XCTAssertEqual(result.image.height, 200)
         XCTAssertTrue(result.faces.isEmpty)
+    }
+
+    /// Face count and restored count in the Mac copy's record; the crop's (2, 2) when an older fixture has no record.
+    private static func macFaces(_ url: URL) throws -> (count: Int, restored: Int) {
+        guard let data = try? Data(contentsOf: url) else { return (2, 2) }
+        let record = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let faces = record?["faces"] as? [[String: Any]] ?? []
+        return (faces.count, faces.filter { $0["restored"] as? Bool == true }.count)
+    }
+
+    /// The process's peak physical footprint (what iOS counts against its memory limit).
+    private static func peakFootprintMB() -> Int {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let status = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        return status == KERN_SUCCESS ? Int(info.ledger_phys_footprint_peak / 1_048_576) : -1
     }
 
     private static func load(_ url: URL) throws -> CGImage {
