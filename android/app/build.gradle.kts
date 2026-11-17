@@ -94,6 +94,29 @@ val visionModelsRelease = (findProperty("lightlyVisionModels") as String?) != "f
 fun visionModelsEnabled(buildType: String) =
     visionModels.values.all { visionModelsDirectory.resolve(it[0]).isFile } && (isInternalBuild(buildType) || visionModelsRelease)
 
+// --- Enhance models (1.3) ---------------------------------------------------------------------
+//
+// experiments/enhance-2026-11-12/tflite (git-ignored; convert_tflite.py): the painting classifier, the face detector at
+// two canvases, realesr-general-x4v3 on 384 px tiles and CodeFormer split in three (step 1d). Each is checked against
+// its SHA-256 and copied into assets/enhance; Face Mesh and the multiclass model come from the vision models above.
+// FEATURE GATE: nothing opens Enhance yet (DEFERRED(enhance-ui): the screen waits for an approved design), so release
+// builds leave the models out unless -PlightlyEnhanceModelsInRelease=true. DEFERRED(enhance-asset-pack): when Enhance
+// ships, release builds carry these through a Play install-time asset pack (owner decision); CodeFormer alone is 360 MB.
+val enhanceModelsDirectory: File = (findProperty("lightlyEnhanceModelsDir") as String?)?.let(::File)
+    ?: rootDir.parentFile.resolve("experiments/enhance-2026-11-12/tflite")
+val enhanceModels = mapOf(
+    "art-classifier.tflite" to "5d8077ec027344cd760382449900a331000ff82366ea3f1c43eb9cd109f9ddd0",
+    "face-detector-640.tflite" to "1485470715ab074c900b6155ed33b46ad05162c7883eaaf4b503a5fe54c9a8a9",
+    "face-detector-960.tflite" to "b41c1c269ead868122d174d498d229164aadcbd8fe62cef14ddaaf82f8912b16",
+    "general-x4v3-384.tflite" to "f8f37ea017dc0e50f6135b1c1ed7dd5b54ef19421befe54f3aa1f28a2ef4f8bc",
+    "codeformer-encoder.tflite" to "2c2216e76a9125fd85ff280d9e5a8a4cbb135b7f03185b492bc99b6b006ab54c",
+    "codeformer-middle.tflite" to "b1307cf12611b71a3b726b47f42eaa8e2bc1ccb0993283bafa275094aca615fc",
+    "codeformer-decoder.tflite" to "f00bcf705f25c826f5fa2dceea1b6d0d75133ba530ba388f1268aca900b6f209",
+)
+val enhanceModelsInRelease = (findProperty("lightlyEnhanceModelsInRelease") as String?) == "true"
+fun enhanceModelsEnabled(buildType: String) =
+    enhanceModels.keys.all { enhanceModelsDirectory.resolve(it).isFile } && (isInternalBuild(buildType) || enhanceModelsInRelease)
+
 /** Marketing version and build number shared with iOS (version.properties, scripts/version.sh). */
 /** "1.0.0", or "1.0.0-dev" when ios/, android/ or shared/ has uncommitted changes (scripts/version.sh decides both). */
 val lightlyMarketingVersion: String = providers.exec {
@@ -199,6 +222,7 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.window)
     implementation(libs.litert)
+    implementation(libs.litert.gpu)
 
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.junit)
@@ -715,6 +739,35 @@ abstract class BundleVisionModelsTask : DefaultTask() {
     }
 }
 
+/** The Enhance models into assets/enhance, each checked against its SHA-256 (streamed: CodeFormer's parts are large). */
+abstract class BundleEnhanceModelsTask : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val modelsDirectory: DirectoryProperty
+
+    /** file name -> SHA-256 */
+    @get:Input
+    abstract val models: MapProperty<String, String>
+
+    @get:OutputDirectory
+    abstract val assetsDirectory: DirectoryProperty
+
+    @TaskAction
+    fun bundle() {
+        val root = assetsDirectory.get().asFile
+        root.deleteRecursively()
+        val target = root.resolve("enhance").apply { mkdirs() }
+        for ((name, expected) in models.get()) {
+            val file = modelsDirectory.get().asFile.resolve(name)
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input -> val buffer = ByteArray(1 shl 16); while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) } }
+            val actual = digest.digest().joinToString("") { "%02x".format(it) }
+            if (actual != expected) throw GradleException("Enhance model $name has SHA-256 $actual, expected $expected")
+            file.copyTo(target.resolve(name))
+        }
+    }
+}
+
 // --- Merged-manifest privacy check ----------------------------------------------------------------
 //
 // LiteRT approval condition: the merged manifest gains no INTERNET permission, no Google datatransport
@@ -940,6 +993,14 @@ androidComponents {
                 models.set((visionModels + optionalVisionModels.filterValues { visionModelsDirectory.resolve(it[0]).isFile }).mapValues { (_, v) -> v.joinToString("|") })
             }
             variant.sources.assets?.addGeneratedSourceDirectory(bundleVisionModels, BundleVisionModelsTask::assetsDirectory)
+        }
+
+        if (enhanceModelsEnabled(variant.buildType ?: "")) {
+            val bundleEnhanceModels = tasks.register<BundleEnhanceModelsTask>("bundle${variantName}EnhanceModels") {
+                modelsDirectory.set(enhanceModelsDirectory)
+                models.set(enhanceModels)
+            }
+            variant.sources.assets?.addGeneratedSourceDirectory(bundleEnhanceModels, BundleEnhanceModelsTask::assetsDirectory)
         }
 
         val verifyPrivacy = tasks.register<VerifyManifestPrivacyTask>("verify${variantName}ManifestPrivacy") {

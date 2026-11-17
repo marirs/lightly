@@ -449,3 +449,26 @@ equal phone_pipeline's for 1200 and 1676 px and cover every pixel once with >= 1
 scale; cancellation; a 150 x 100 photo gives 300 x 200; and `engine_check.py`'s fixture (a 480 x 400 crop of
 eTOiqGqdCf8 with two faces, 17 and 14 px, both aligned by Face Mesh) differs from the Mac copy by a mean 0.16 of 255
 over the whole image. Not yet run on the review iPhones from the app build.
+
+## Step 3b: the engine in the Android app (2026-11-17)
+
+`android/app/src/main/kotlin/com/lightlylabs/lightly/editor/enhance/`: `EnhanceMaths.kt` is the harness's image maths
+moved verbatim into `internal object EnhanceMaths`; `EnhanceEngine.kt` is the pipeline with the same departures as
+iOS (long photos, non-finite and collapsed points, non-finite CodeFormer output, cancellation). Runtimes as measured:
+general-x4v3 and CodeFormer's encoder and decoder on the LiteRT GPU delegate (fp16, kernel cache), the transformer and
+the small models on XNNPACK; on the emulator everything runs on LiteRT's built-in CPU kernels. New dependency:
+`litert-gpu` 1.4.2 (the version measured; already used by the harness), the merged-manifest privacy check passes.
+
+`app/build.gradle.kts` checks the seven `tflite/` models against their SHA-256 and copies them into `assets/enhance`
+for debug and benchmark builds; release builds leave them out unless `-PlightlyEnhanceModelsInRelease=true` (no screen
+yet; release packaging through a Play install-time asset pack waits for it). Face Mesh and the multiclass model are the
+vision models already in `assets/vision`.
+
+Checked:
+- `EnhanceMathsTest` (JVM, 5 pass): the same tile windows as phone_pipeline for 1200 and 1676 px, coverage and context,
+  mirror index, detection scale, and the alignment check refusing collapsed or non-finite points.
+- Emulator (Pixel 9 Pro AVD, debug build): `EnhanceEngineCheckReceiver` (debug source set only) on `engine_check.py`'s
+  fixture: models loaded in 0.3 s, enhanced in 70 s on the CPU kernels, both faces restored with Face Mesh points;
+  the output equals the Mac copy's to within 1 of 255 at every pixel (mean 0.000).
+- Not yet run from the app build on the A069 or the moto edge 60 (the GPU delegate path); the harness measured it in
+  steps 2c-2e.

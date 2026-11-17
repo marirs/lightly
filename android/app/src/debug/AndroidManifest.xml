@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: the Enhance engine check (EnhanceEngineCheckReceiver), started by adb. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name="com.lightlylabs.lightly.capture.EnhanceEngineCheckReceiver"
+            android:exported="true" />
+    </application>
+</manifest>
