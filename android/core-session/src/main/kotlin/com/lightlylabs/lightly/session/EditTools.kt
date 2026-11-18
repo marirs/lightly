@@ -279,7 +279,20 @@ data class FaceEdit(
 // --- edit -------------------------------------------------------------------------------------------
 
 @Serializable
-data class EditTool(val geometry: Geometry, val adjust: Adjust, val remove: RemoveTool)
+data class EditTool(
+    val geometry: Geometry, val adjust: Adjust, val remove: RemoveTool,
+    /** `edit.enhance` (rendering-v2 revision 11, owner-approved 2026-11-18). Optional on read and on write: missing means
+     *  not enhanced, so recipes written before it stay valid and byte-identical. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val enhance: EnhanceTool? = null,
+)
+
+/**
+ * `edit.enhance`: [result] is the stored Enhance engine result (the source capped at a 2000 px long side, then 2x), which
+ * replaces the source under every other stage (rendering-v2 §7.6); [painting] records that the engine kept faces as
+ * painted, for the panel's note.
+ */
+@Serializable
+data class EnhanceTool(val result: DerivedRef, val painting: Boolean)
 
 @Serializable
 data class Perspective(val vertical: Double, val horizontal: Double) { init { requireSlider(vertical, "perspective"); requireSlider(horizontal, "perspective") } }

@@ -192,6 +192,17 @@ struct EditRecipe: Equatable, Sendable {
         var geometry: Geometry
         var adjust: Adjust
         var remove: Remove
+        /// `edit.enhance` (rendering-v2 revision 11, owner-approved 2026-11-18). Optional on read and on write: missing
+        /// means not enhanced, so recipes written before it keep their bytes.
+        var enhance: Enhance? = nil
+    }
+
+    /// Edit › Enhance: `result` is the stored engine result (the source capped at a 2000 px long side, then 2x), which
+    /// replaces the source under every other stage (rendering-v2 §7.6); `painting` records that the engine kept faces as
+    /// painted, for the panel's note.
+    struct Enhance: Equatable, Sendable {
+        var result: DerivedRef
+        var painting: Bool
     }
 
     struct Geometry: Equatable, Sendable {

@@ -13,6 +13,7 @@ This contract defines the ordered pipeline that renders a whole Lightly edit. It
 
 | # | Stage | Frame | Recipe source |
 |---|---|---|---|
+| 0 | `edit.enhance` | source (full resolution) | `tools.edit.enhance` (revision 11) |
 | 1 | `edit.remove` | source (full resolution) | `tools.edit.remove` |
 | 2 | `auto` | source | `editState.auto` (ia3dlut LUT, strength) |
 | 3 | `develop.global` | source | preset `recipe.global` × `look.strength` |
@@ -543,6 +544,14 @@ Stage 11, in the frame (after crop and effects, before border, so a border never
 - **Paint:** `colour` at `opacity / 100`, anti-aliased, composited over the frame (sRGB, source-over). No shadow or outline (the on-screen selection frame and handles are never rendered).
 - Preview and export run the same layout at their resolutions; every quantity is a fraction of the frame, so the text covers the same part of the photo at any size. Text rasterises through each platform's text engine, so it is outside the §8 pixel tolerances; layout (box size and position) must agree within 0.5 % of the frame's short edge.
 
+### 7.6 `edit.enhance` (revision 11, owner-approved design 2026-11-18)
+The optional `edit.enhance` (missing means not enhanced, so earlier recipes render unchanged) names a stored result of the Enhance engine (`experiments/enhance-2026-11-12`, ported in both apps): the source shrunk to a 2000 px long side when longer (antialiased triangle resize), then enlarged 2× with small and soft faces restored, unless the engine found a painting (`painting`: faces kept as painted, only the 2× enlargement). Stage 0 replaces the source with that result, so every later stage runs on it unchanged:
+- Every coordinate in the recipe is already a fraction of the source (points, rects, crop) and every resolution-relative radius a fraction of its long edge (§2), so no stored value changes. The result's aspect differs from the source's by at most the rounding of one pixel.
+- Remove patches (stage 1) stay in the original source's pixels: they are composited scaled by result size / source size, as on any preview. Remove keeps working on the original source, so a removal never needs the Enhance engine again, and Enhance never needs the Remove model.
+- Scene mattes, depth maps and face landmarks stay computed on the original source (all fractions, §2).
+- Preview: the result is resampled to the preview's own size (the size of the original's preview), so preview-resolution mattes line up exactly. Export: the result at full size, so a saved copy is twice the source (up to 4000 px on the long side).
+- A missing or unreadable result renders without it, never re-enhanced silently (README, `derivedRef`).
+
 ### 7.2 Perspective (revision 2)
 
 Perspective runs in the frame produced by quarter turns and flips, W × H pixels, centre c = (W/2, H/2). With k = 0.3, v = vertical and h = horizontal:
@@ -582,5 +591,6 @@ Against `shared/fixtures/rendering/index.json` (revision 2): grain noise within 
 | 8 | 2026-10-11 | Light leak images (owner): `effects.lightLeak.style` may name a leak-pack image, screened over the frame (§Light leak). The drawn styles are unchanged. | No |
 | 9 | 2026-10-13 | Portrait › Sunglasses (owner-approved design `docs/ui/proposals/portrait-sunglasses-v2.html`): `portrait.sunglasses` (§7.5) in stage 8 after Smile, reading the optional `faceEdit.sunglasses` (missing means none), so earlier recipes render unchanged. The ten pairs come from the sunglasses pack. Amended 2026-10-14 before release (owner report on a group selfie): roll tries also around upright, the pair fitted to the face width (1.07 × cheeks), 2 × 2 shading samples, ear and far-arm occluders, the turn raised from 25 mm, a wider and deeper eye band, a nose-only face occluder off profile, a tighter paint-out (0.8 %), and the head continued backwards, and the paint-out takes lens glare and fills past a turned face's outline from the background; the pair seated on the nose (never uncovering a painted-out area) and no face occluder near frontal; the turn raise only from 40° of turn, the ear boxes at each face's own ear the arms angled to the top of the ear, and the profile walk across the face from the near iris's height (2026-10-20). | No |
 | 10 | 2026-10-31 | Effects › Ink (owner-approved design `docs/ui/proposals/ink-2026-10-31`): the optional `effects.ink` (§6 Ink), first in the effects stage: the photo through a stroke ink on paper, or an overlay ink multiplied over the frame. Missing means none, so earlier recipes render unchanged. | No |
+| 11 | 2026-11-18 | Edit › Enhance (owner-approved design 2026-11-18, `experiments/enhance-screen-proposal-2026-11-18`): the optional `edit.enhance` (§7.6), stage 0: a stored Enhance result replaces the source under every other stage. Missing means not enhanced, so earlier recipes render unchanged. | No |
 
 Revision 6 (2026-10-08, user-reported light-leak corner): rotate the continuous radial field without clipping it to the original rectangle. This removes the hard diagonal seam. Stops, colours, intensity and the zero-rotation image are unchanged.

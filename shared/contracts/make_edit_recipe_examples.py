@@ -35,6 +35,7 @@ SEGMENTATION = {"id": "subject-segmentation", "version": "2025.1"}
 DEPTH_MODEL = {"id": "monocular-depth", "version": "2025.1"}
 FACE_DETECTOR = {"id": "face-landmarks", "version": "2025.1"}
 INPAINT_MODEL = {"id": "inpaint", "version": "2025.1"}
+ENHANCE_MODEL = {"id": "enhance", "version": "2026-11-12"}
 
 
 def derived(seed: str, model: dict, width: int, height: int) -> dict:
@@ -183,6 +184,11 @@ def examples() -> dict[str, dict]:
          "result": {"status": "applied", "patch": derived("9e", INPAINT_MODEL, 412, 160)}},
         {"radius": 0.03, "points": [[0.2, 0.8]], "result": {"status": "failed", "patch": None}}]
     out["edit-remove-strokes"] = s
+    s = neutral_state(revision=3)
+    # Edit › Enhance (rendering-v2 revision 11, owner-approved 2026-11-18): the 4032 x 3024 source enhanced at the
+    # 2000 px cap, so the result is 4000 x 3000; a photograph, not a painting.
+    s["tools"]["edit"]["enhance"] = {"result": derived("e7", ENHANCE_MODEL, 4000, 3000), "painting": False}
+    out["edit-enhance"] = s
 
     s = neutral_state(look=LOOK_PORTRAIT_GLOW, revision=4)
     s["tools"]["effects"]["lightLeak"].update(enabled=True, style="amber", intensity=60, x=80, y=10, rotation=-30)

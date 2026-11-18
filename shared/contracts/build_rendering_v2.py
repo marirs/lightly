@@ -27,7 +27,7 @@ PRESETS = REPO / "experiments/presets"
 # 10 = effects.ink (owner-approved 2026-10-31), first in the effects stage: the photo through an ink stroke on paper,
 #      or an overlay ink multiplied over the frame.
 # 5 = background.replace composites the estimated foreground colour (Germer multilevel), not the observed pixel.
-CONTRACT_REVISION = 10
+CONTRACT_REVISION = 11
 
 
 def num(lo, hi, default, unit, note=None, integer=False):
@@ -188,6 +188,14 @@ def watermark_constants() -> dict:
 
 def stages():
     return [
+        {"order": 0, "id": "edit.enhance", "frame": "source (full resolution); replaced by the stored Enhance result",
+         "recipe": "editState.tools.edit.enhance",
+         "operators": [{"id": "enhance", "params": {"result": {"type": "derivedRef", "note": "see edit-recipe-v1 enhance"}},
+                        "note": "revision 11 (rendering-v2.md §7.6): optional, missing means not enhanced. The stored result "
+                                "(the source capped at a 2000 px long side, then 2x) replaces the source under every later stage; "
+                                "every recipe coordinate and radius is a fraction, so none changes. Preview resamples the result "
+                                "to the original preview's size. Never recomputed silently.",
+                        "status": "owner-approved design 2026-11-18"}]},
         {"order": 1, "id": "edit.remove", "frame": "source (full resolution; strokes stored in source coordinates)",
          "recipe": "editState.tools.edit.remove",
          "operators": [{"id": "inpaint", "params": {"strokes": {"type": "array", "note": "see edit-recipe-v1 removeStroke"}},

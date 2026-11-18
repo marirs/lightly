@@ -332,7 +332,9 @@ enum EditRecipeCodec {
     }
 
     private static func readEdit(_ r: Reader) throws -> EditRecipe.Edit {
-        try r.requireExactly(["geometry", "adjust", "remove"])
+        // enhance is optional (rendering-v2 revision 11, 2026-11-18): missing = not enhanced.
+        let hasEnhance = r.raw("enhance") != nil
+        try r.requireExactly(["geometry", "adjust", "remove"] + (hasEnhance ? ["enhance"] : []))
         let g = try r.object("geometry")
         try g.requireExactly(["quarterTurns", "flipHorizontal", "flipVertical", "perspective", "straighten", "crop"])
         let perspective = try g.object("perspective"); try perspective.requireExactly(["vertical", "horizontal"])
@@ -364,7 +366,13 @@ enum EditRecipeCodec {
             return EditRecipe.RemoveStroke(radius: try s.number("radius", 0...0.5, excludingMinimum: true),
                                            points: try s.points("points"), status: status, patch: patch)
         }
-        return EditRecipe.Edit(geometry: geometry, adjust: adjust, remove: EditRecipe.Remove(strokes: strokes))
+        let enhance = try hasEnhance ? readEnhance(r.object("enhance")) : nil
+        return EditRecipe.Edit(geometry: geometry, adjust: adjust, remove: EditRecipe.Remove(strokes: strokes), enhance: enhance)
+    }
+
+    private static func readEnhance(_ r: Reader) throws -> EditRecipe.Enhance {
+        try r.requireExactly(["result", "painting"])
+        return .init(result: try readDerived(r.object("result")), painting: try r.bool("painting"))
     }
 
     private static func readEffects(_ r: Reader) throws -> EditRecipe.Effects {
@@ -623,7 +631,7 @@ enum EditRecipeCodec {
                 .object([("radius", number($0.radius)), ("points", .array($0.points.map { point($0) })),
                          ("result", .object([("status", .string($0.status.rawValue)), ("patch", derived($0.patch))]))])
             }))]))
-        ])
+        ] + (t.edit.enhance.map { e in [("enhance", CanonicalJSON.object([("result", derived(e.result)), ("painting", .bool(e.painting))]))] } ?? []))
         let fx = t.effects
         let effects = CanonicalJSON.object([
             ("lightLeak", .object([("enabled", .bool(fx.lightLeak.enabled)), ("style", .string(fx.lightLeak.style.rawValue)),
