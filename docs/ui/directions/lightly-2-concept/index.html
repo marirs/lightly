@@ -305,6 +305,15 @@ function portraitPanel(s) {
   const names = { skin: 'Skin', under: 'Under-eye', eyes: 'Eyes', teeth: 'Teeth', smile: 'Smile', hair: 'Hair &amp; Beard' };
   return col(4, faces + tabs(Object.entries(names).map(([k, l]) => [k, l, k === 'skin' && !!p.smooth]), sub) + resetRow(names[sub], !!p.smooth) + body);
 }
+// Owner amendment (2026-11-18, approved proposal experiments/enhance-screen-proposal-2026-11-18): Edit › Enhance (1.3),
+// the last Edit tab, follows Edit › Remove: one action, the same progress card with Cancel on the photo, the same failure
+// notice, and the section's Reset. No sliders: the strength is fixed by the engine.
+function enhanceBody(e) {
+  if (e.op === 'enhancing') return notice('info', '<span>Enhancing…</span>', quietBtn('Cancel'));
+  if (e.op === 'enhanceFailed') return notice('warn', "<span><b>Couldn't enhance this photo.</b> Your other edits are kept.</span>", quietBtn('Try again'));
+  if (e.enhanced) return note(e.painting ? 'This looks like a painting, so faces are kept as painted. The rest is twice the size.' : 'Twice the size, with soft faces restored.');
+  return primary('Enhance photo') + note('Doubles the size and restores small or soft faces, on this phone.' + (e.large ? ' Photos over 2000 px are enhanced at 2000 px, so they come out at up to 4000 px.' : ''));
+}
 function editPanel(s) {
   const e = s.ed || {}; const sub = e.sub || 'crop'; let body = '';
   if (sub === 'crop') body = note(e.cropApplied ? 'Tap the photo to adjust the crop.' : 'Drag a corner or an edge.');
@@ -320,8 +329,9 @@ function editPanel(s) {
     else if (e.op === 'failed') body = notice('warn', "<span><b>Couldn't remove that area.</b> Try a smaller stroke. Your other edits are kept.</span>", quietBtn('Try again'));
     else body = slider('Brush size', 35) + `<div style="display: flex; align-items: center; gap: 10px">${quietBtn('Undo stroke', { dim: !e.strokes })}${note('Brush over anything you want removed.')}</div>`;
   }
-  const names = { crop: 'Crop', rotate: 'Rotate', straighten: 'Straighten', perspective: 'Perspective', adjust: 'Adjust', remove: 'Remove' };
-  return col(6, tabs(Object.entries(names).map(([k, l]) => [k, l]), sub) + resetRow(names[sub], !!e.touched) + body);
+  if (sub === 'enhance') body = enhanceBody(e);
+  const names = { crop: 'Crop', rotate: 'Rotate', straighten: 'Straighten', perspective: 'Perspective', adjust: 'Adjust', remove: 'Remove', enhance: 'Enhance' };
+  return col(6, tabs(Object.entries(names).map(([k, l]) => [k, l]), sub) + resetRow(names[sub], sub === 'enhance' ? !!e.enhanced : !!e.touched) + body);
 }
 // Owner amendment (2026-10-11): real light leaks from the owner's film-burn clips (leak pack, shared/leaks/out, local only).
 const LEAKS = [["leak-edf0a0ecd85d", "Gold Fringe"], ["leak-fc36430bd1c4", "Gold Edge"], ["leak-972907fc15c7", "Honey Beam"], ["leak-efa9e8c211ee", "Amber Border"], ["leak-6088a418cde2", "Amber Edge"], ["leak-42da5097a4f2", "Saffron Edge"], ["leak-da6688b7c54b", "Amber Fringe"], ["leak-39416c4d630b", "Honey Fringe"], ["leak-32544197e693", "Tangerine Fringe"], ["leak-0c9dff4a1873", "Honey Edge"], ["leak-7847ab9f6837", "Saffron Fringe"], ["leak-d164ec7a0302", "Copper Fringe"], ["leak-5069e1b0b479", "Copper Edge"], ["leak-6b3eaf9abc02", "Gold Border"], ["leak-0d68bf9d4088", "Copper Border"], ["leak-b643626da293", "Tangerine Edge"]];
@@ -456,6 +466,7 @@ function photo(s, W, H) {
   if (tool === 'effects' && fx.sub === 'sel' && fx.sel) m.push('<span style="position: absolute; left: 40%; top: 58%; width: 26px; height: 26px; border-radius: 13px; border: 2px solid #FFFFFF; background: #C2684A; box-shadow: 0 2px 8px rgba(0,0,0,0.4)"></span>');
   const op = bg.op === 'separating' ? 'Finding the subject…' : bg.op === 'depth' ? 'Estimating depth…' : (s.ed || {}).op === 'removing' ? 'Removing…' : null;
   if (op) m.push(progressCard(op, true));
+  if ((s.ed || {}).op === 'enhancing') m.push(progressCard('Enhancing…', true, (s.ed || {}).pct));
   if (s.photoProgress) m.push(progressCard(s.photoProgress, false, s.photoProgressPct));
   let wmark = '';
   if (s.wm && s.wm.type && s.wm.type !== 'none' && !s.compare) {
@@ -784,7 +795,15 @@ const J = [
     ['ed-adjust-detail', 'Adjust · Detail', ED('edit', 'lake', { ed: { sub: 'adjust', group: 'detail', touched: true } })],
     ['ed-remove', 'Remove · brush over unwanted objects', ED('edit', 'field', { ed: { sub: 'remove', touched: true, strokes: true } })],
     ['ed-removing', 'Removing · cancellable', ED('edit', 'field', { ed: { sub: 'remove', op: 'removing', touched: true } })],
-    ['ed-remove-failed', 'Remove failed · edits kept', ED('edit', 'field', { ed: { sub: 'remove', op: 'failed', touched: true }, dev: HONEY })]]],
+    ['ed-remove-failed', 'Remove failed · edits kept', ED('edit', 'field', { ed: { sub: 'remove', op: 'failed', touched: true }, dev: HONEY })],
+    // Owner amendment (2026-11-18): Edit › Enhance.
+    ['ed-enhance', 'Enhance · one action', ED('edit', 'smile', { ed: { sub: 'enhance' } })],
+    ['ed-enhance-large', 'Enhance · a photo over 2000 px', ED('edit', 'lake', { ed: { sub: 'enhance', large: true } })],
+    ['ed-enhancing', 'Enhancing · progress on the photo, cancellable', ED('edit', 'smile', { ed: { sub: 'enhance', op: 'enhancing', pct: 45 } })],
+    ['ed-enhanced', 'Enhanced · Reset and Undo undo it', ED('edit', 'smile', { ed: { sub: 'enhance', enhanced: true }, toast: 'Enhanced' })],
+    ['ed-enhanced-edited', 'Enhanced · other edits stay adjustable', ED('edit', 'woman', { ed: { sub: 'enhance', enhanced: true }, ...EDITED })],
+    ['ed-enhanced-painting', 'Enhanced · a painting: faces kept as painted', ED('edit', 'street', { ed: { sub: 'enhance', enhanced: true, painting: true } })],
+    ['ed-enhance-failed', 'Enhance failed · edits kept', ED('edit', 'smile', { ed: { sub: 'enhance', op: 'enhanceFailed' }, dev: HONEY })]]],
   ['Effects', [
     ['fx-leak', 'Light Leaks · choosing a leak turns it on', ED('effects', 'sunset', { fx: { sub: 'leak', leak: true } })],
     ['fx-leak-none', 'Light Leaks · none chosen', ED('effects', 'sunset', { fx: { sub: 'leak' } })],
