@@ -169,8 +169,19 @@ class EditorViewModel(
     private var removeJob: Job? = null
     private val inpainter: Inpainter? by lazy { env.inpainter() }
 
+    /** Edit › Enhance: stored results (recipe derivedRef), the running enhance, and results at the display's size. */
+    private val enhanceResults = com.lightlylabs.lightly.editor.enhance.EnhanceResultStore(env.enhanceResultDirectory)
+    private var enhanceJob: Job? = null
+    /** Results at the display proxy's size by digest: the committed one and the one Undo or Redo goes back to. */
+    private val enhancedDisplays = object : LinkedHashMap<String, Rgba8Image>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Rgba8Image>?) = size > 2
+    }
+    /** Results the store no longer has: rendered without them (rendering-v2 §7.6), never re-enhanced silently. */
+    private val missingEnhanceResults = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     /** The display proxy with the applied Remove patches composited, keyed by their digests. */
-    @Volatile private var patchedDisplay: Pair<List<String>, Rgba8Image>? = null
+    // Keyed by the display image too: an Enhance result replaces the display under the patches (rendering-v2 §7.6).
+    @Volatile private var patchedDisplay: Triple<List<String>, Rgba8Image, Rgba8Image>? = null
 
     /** Notified when Change background › "+" asks for a photo (the Activity launches the picker). */
     var onChooseBackgroundPhoto: () -> Unit = {}
@@ -225,6 +236,7 @@ class EditorViewModel(
         savedState.remove<String>(KEY_SESSION)
         // A newly chosen photo starts a new session: no recovery can name the previous patches again.
         removePatches.clearAll()
+        enhanceResults.clearAll()
         loadPhoto(assetId, restoredSession = null)
     }
 
@@ -249,8 +261,12 @@ class EditorViewModel(
         sunglassesRemovalJob?.cancel()
         portraitSession.reset()
         removeJob?.cancel()
+        enhanceJob?.cancel()
         // Memory only: a restore of this photo reads its patches back from disk.
         removePatches.clearMemory()
+        enhanceResults.clearMemory()
+        synchronized(enhancedDisplays) { enhancedDisplays.clear() }
+        missingEnhanceResults.clear()
         patchedDisplay = null
         val generation = ++photoGeneration
         state.value = EditorUiState(phase = EditorPhase.Loading)
@@ -1141,6 +1157,95 @@ class EditorViewModel(
         }
     }
 
+    // --- Edit › Enhance (owner-approved design 2026-11-18, Lightly 2 mockup `ed-enhance*`) ----------------------
+
+    /** The Edit tabs in the approved order; Enhance last, only when this build carries its models. */
+    val editTabs: List<EditSub> get() = EditSub.entries.filter { it != EditSub.ENHANCE || env.enhancer != null }
+
+    /** The approved `ed-enhance-large` note: photos over 2000 px are enhanced at 2000 px. */
+    val enhanceShrinksPhoto: Boolean get() = photo?.loaded?.source?.fingerprint?.let {
+        maxOf(it.pixelWidth, it.pixelHeight) > com.lightlylabs.lightly.editor.enhance.EnhanceEngine.INPUT_LONG_SIDE_MAX
+    } ?: false
+
+    /**
+     * "Enhance photo" and "Try again": the engine on the full-resolution photo, off the main thread. ONE undo step when
+     * the result lands; cancelled or failed, nothing changes.
+     */
+    fun enhancePhoto() {
+        val current = photo?.takeIf { isCurrent(it.generation) } ?: return
+        val enhancer = env.enhancer ?: return
+        if (state.value.edit.enhanceOp == EnhanceOp.ENHANCING || state.value.session?.current?.tools?.edit?.enhance != null) return
+        // The Remove and portrait models are not needed while enhancing; their memory goes to the Enhance models.
+        releaseModelsIfIdle("enhance")
+        state.update { it.copy(edit = it.edit.copy(enhanceOp = EnhanceOp.ENHANCING, enhanceProgress = 0f)) }
+        val display = current.loaded.display
+        enhanceJob = scope.launch {
+            val started = System.nanoTime()
+            val result = runCatching {
+                kotlinx.coroutines.withContext(env.removeDispatcher ?: env.prefetchDispatcher) {
+                    com.lightlylabs.lightly.shell.DebugProcessingReview.pause()
+                    val job = coroutineContext[Job]
+                    val source = current.loaded.fullResolution.decode()
+                    val output = enhancer.enhance(source, { job?.isActive == false }) { fraction ->
+                        val shown = (fraction.coerceIn(0.0, 1.0) * 100).toInt() / 100f
+                        state.update { if (it.edit.enhanceOp == EnhanceOp.ENHANCING && shown > it.edit.enhanceProgress) it.copy(edit = it.edit.copy(enhanceProgress = shown)) else it }
+                    }
+                    if (job?.isActive == false) throw CancellationException()
+                    val digest = enhanceResults.put(output.image)
+                    val shown = BackgroundSession.resize(output.image, display.width, display.height)
+                    Triple(digest, output, shown)
+                }
+            }
+            if (!isCurrent(current.generation) || !coroutineContext.isActive) return@launch
+            val (digest, output, shown) = result.getOrElse { failure ->
+                if (failure is CancellationException || failure is com.lightlylabs.lightly.editor.enhance.EnhanceEngine.Failure.Cancelled) return@launch
+                runCatching { android.util.Log.w("LightlyEnhance", "enhance failed: $failure") }
+                state.update { it.copy(edit = it.edit.copy(enhanceOp = EnhanceOp.FAILED)) }
+                return@launch
+            }
+            runCatching { android.util.Log.i("LightlyEnhance", "enhance: -> ${output.image.width}x${output.image.height}, painting ${output.painting}, ${(System.nanoTime() - started) / 1_000_000} ms") }
+            synchronized(enhancedDisplays) { enhancedDisplays[digest] = shown }
+            state.update { it.copy(edit = it.edit.copy(enhanceOp = EnhanceOp.IDLE, enhanceProgress = 0f)) }
+            val ref = com.lightlylabs.lightly.session.DerivedRef(digest, ENHANCE_MODEL, output.image.width, output.image.height)
+            commitEdit { e -> e.copy(enhance = com.lightlylabs.lightly.session.EnhanceTool(ref, output.painting)) }
+            showToast("Enhanced")
+        }
+    }
+
+    /** Enhancing › Cancel: nothing changes, as Removing › Cancel. The engine stops at its next checkpoint. */
+    fun cancelEnhance() {
+        if (state.value.edit.enhanceOp != EnhanceOp.ENHANCING) return
+        enhanceJob?.cancel()
+        enhanceJob = null
+        state.update { it.copy(edit = it.edit.copy(enhanceOp = EnhanceOp.IDLE, enhanceProgress = 0f)) }
+        showToast(OPERATION_CANCELLED)
+    }
+
+    /**
+     * The display proxy replaced by the recipe's Enhance result at the same size (rendering-v2 §7.6), so every
+     * display-resolution mask and patch lines up; null when not enhanced or the result is missing.
+     */
+    private fun enhancedDisplay(edit: EditState, display: Rgba8Image): Rgba8Image? {
+        val digest = edit.tools.edit.enhance?.result?.sha256 ?: return null
+        synchronized(enhancedDisplays) { enhancedDisplays[digest] }?.let { return it }
+        if (digest in missingEnhanceResults) return null
+        val full = enhanceResults[digest] ?: run {
+            missingEnhanceResults += digest
+            runCatching { android.util.Log.w("LightlyEnhance", "result ${digest.take(12)} missing; rendered without it") }
+            return null
+        }
+        val shown = BackgroundSession.resize(full, display.width, display.height)
+        synchronized(enhancedDisplays) { enhancedDisplays[digest] = shown }
+        return shown
+    }
+
+    /** Save copy's source: the full-size Enhance result when the recipe has one (rendering-v2 §7.6). */
+    private fun exportSource(loaded: LoadedPhoto, committed: EditState): com.lightlylabs.lightly.export.FullResolutionSource {
+        val digest = committed.tools.edit.enhance?.result?.sha256 ?: return loaded.fullResolution
+        val stored = enhanceResults[digest] ?: return loaded.fullResolution
+        return com.lightlylabs.lightly.export.FullResolutionSource { stored }
+    }
+
     // --- Border (slice 5) -------------------------------------------------------------------------
 
     /** The Border tab on screen: the shown tab, else the recipe's type (prototype `ui.sub || b.type`). */
@@ -1946,7 +2051,7 @@ class EditorViewModel(
                 withContext(env.renderDispatcher) {
                     val library = env.library.await()
                     val frame = EditPipeline(library.model, env.previewRenderer, leaks = env.leaks, inks = env.inks)
-                        .renderSelectiveColourInput(patched(display, edit), edit, planOf(library, edit), sourceStages(edit, library, BackgroundSession.SETTLED_CAP))
+                        .renderSelectiveColourInput(patched(enhancedDisplay(edit, display) ?: display, edit), edit, planOf(library, edit), sourceStages(edit, library, BackgroundSession.SETTLED_CAP))
                     com.lightlylabs.lightly.develop.SelectiveColour.sample(frame, frameX, frameY)
                 }
             }.getOrNull()
@@ -2410,9 +2515,9 @@ class EditorViewModel(
     private fun patched(display: Rgba8Image, edit: EditState): Rgba8Image {
         val digests = EditMapping.patchDigests(edit)
         if (digests.isEmpty()) return display
-        patchedDisplay?.takeIf { it.first == digests }?.let { return it.second }
+        patchedDisplay?.takeIf { it.first == digests && it.third === display }?.let { return it.second }
         val image = RemoveEngine.composite(digests.mapNotNull { removePatches[it] }, display)
-        patchedDisplay = digests to image
+        patchedDisplay = Triple(digests, image, display)
         return image
     }
 
@@ -2485,6 +2590,8 @@ class EditorViewModel(
 
     fun resetEdits(section: String = "all", adjustment: String? = null) {
         if (section == "all" || section == "edit") { cancelRemove(); clearEraseDraft() }
+        if ((section == "all" || section == "edit") && state.value.edit.enhanceOp == EnhanceOp.ENHANCING) cancelEnhance()
+        if (section == "edit" && adjustment == "enhance") state.update { it.copy(edit = it.edit.copy(enhanceOp = EnhanceOp.IDLE)) }
         val session = state.value.session ?: return
         val next = resetRecipe(session.current, section, adjustment)
         commit(session.commit { next }, if (section == "all" && state.value.auto == AutoState.APPLIED) AutoState.OFF else state.value.auto)
@@ -2525,6 +2632,7 @@ class EditorViewModel(
                 "perspective" -> t.edit.copy(geometry = t.edit.geometry.copy(perspective = n.edit.geometry.perspective))
                 "adjust" -> t.edit.copy(adjust = n.edit.adjust)
                 "remove" -> t.edit.copy(remove = n.edit.remove)
+                "enhance" -> t.edit.copy(enhance = null)
                 else -> n.edit
             }))
             "background" -> r.copy(tools = t.copy(background = when (adjustment) {
@@ -2611,7 +2719,7 @@ class EditorViewModel(
                 val renderer = env.previewRenderer.cancellable { renderJob?.isActive == false }
                 val library = env.library.await()
                 val edit = request.payload.state ?: return@PreviewRenderer PreviewFrame(original, env.preparePreviewBitmap(original))
-                val display = previewSource(original, edit)
+                val display = previewSource(enhancedDisplay(edit, original) ?: original, edit)
                 val start = System.nanoTime()
                 val plan = planOf(library, edit)
                 // Interaction priority must not change pixels: use the same plan, source and Background cap
@@ -3010,6 +3118,15 @@ class EditorViewModel(
         }
 
         /** Holds an approved Remove state for a capture with the stroke the person drew, without running the model. */
+        /** Captures of `ed-enhancing` (the mockup's 45 %) and `ed-enhance-failed`: the state without running the engine. */
+        fun holdEnhance(op: EnhanceOp, progress: Float) {
+            enhanceJob?.cancel()
+            state.update { it.copy(edit = it.edit.copy(enhanceOp = op, enhanceProgress = progress)) }
+        }
+
+        /** Captures of `ed-enhanced*`: the real engine, as the person runs it (one undo step). */
+        fun enhance() = enhancePhoto()
+
         fun holdRemove(op: RemoveOp, stroke: Pair<List<Pair<Double, Double>>, Double>) {
             val geometry = displayGeometry() ?: return
             val points = stroke.first.map { (x, y) -> geometry.sourceFromFrame(x, y) }
@@ -3189,6 +3306,8 @@ class EditorViewModel(
 
         /** Prototype `cancelOp` toast. */
         const val OPERATION_CANCELLED = "Cancelled · nothing changed"
+        /** The stored model of an Enhance result (`derivedRef.model`), as iOS EditorSession.enhanceModel. */
+        val ENHANCE_MODEL = com.lightlylabs.lightly.session.ModelRef("enhance", "2026-11-12")
         /** Tapping the unavailable Auto (owner amendment 2026-10-05); the same words as iOS. */
         const val AUTO_UNAVAILABLE = "Automatic correction isn't available. Presets still work."
         private const val TOAST_MILLIS = 1400L

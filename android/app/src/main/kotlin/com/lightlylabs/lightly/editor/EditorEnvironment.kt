@@ -154,6 +154,13 @@ class EditorEnvironment(
     val inpainter: () -> Inpainter? = { null },
     /** Private storage for Remove patches (recipe derivedRef), so a recovered session keeps its fills; null = memory only. */
     val removePatchDirectory: java.io.File? = null,
+    /**
+     * Edit › Enhance (owner-approved design 2026-11-18): runs the engine; null when this build does not carry its models
+     * (release bundles until the Enhance gate adds the :enhance-models pack), which hides the Enhance tab.
+     */
+    val enhancer: com.lightlylabs.lightly.editor.enhance.Enhancer? = null,
+    /** Private storage for Enhance results (recipe derivedRef), beside the Remove patches; null = memory only. */
+    val enhanceResultDirectory: java.io.File? = null,
     /** Portrait › Sunglasses (rendering-v2 §7.5): the two models (null when not packaged) and the bundled pack. */
     val sunglassesAnalyzer: () -> com.lightlylabs.lightly.vision.sunglasses.SunglassesAnalyzer? = { null },
     val sunglasses: SunglassesLibrary = SunglassesLibrary.NONE,

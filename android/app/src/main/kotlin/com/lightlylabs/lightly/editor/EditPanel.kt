@@ -61,6 +61,10 @@ object EditTags {
     const val UNDO_STROKE = "edit-undo-stroke"
     const val TRY_AGAIN = "edit-try-again"
     const val CANCEL = "edit-cancel"
+    const val ENHANCE_RUN = "edit-enhance-run"
+    const val ENHANCE_NOTE = "edit-enhance-note"
+    /** The progress card on the photo while enhancing. */
+    const val ENHANCE_PROGRESS = "edit-enhance-progress"
     /** The photo's Remove layer (brush touches, the stroke under the finger, "Removing…"). */
     const val REMOVE_MARKS = "edit-remove-marks"
     /** The stroke under the finger while brushing (the only Remove mark drawn on the photo). */
@@ -75,7 +79,7 @@ object EditTags {
 fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
     // Lightly 2 `editPanel`, a 6 dp column: the tabs, the reset row, the tab's controls.
     val edit = ui.session?.current?.tools?.edit ?: return@Column
-    OptionTabs(EditSub.entries.map { it to it.label }, ui.edit.sub, vm::selectEditSub, tagPrefix = "edit-tab")
+    OptionTabs(vm.editTabs.map { it to it.label }, ui.edit.sub, vm::selectEditSub, tagPrefix = "edit-tab")
     if (ui.edit.sub == EditSub.REMOVE) Box(Modifier.heightIn(min = 36.dp), contentAlignment = Alignment.CenterStart) {
         Text("Eraser", style = l2TextStyle(17.sp, FontWeight.Bold, lightlyColors.ink))
     } else ResetRow(vm, "edit", ui.edit.sub.label, ui.edit.sub.name.lowercase())
@@ -142,6 +146,27 @@ fun EditPanel(vm: EditorViewModel, ui: EditorUiState, roomy: Boolean) = Column(M
             }
         }
         EditSub.REMOVE -> RemoveBody(vm, ui, hasStrokes = edit.remove.strokes.isNotEmpty())
+        EditSub.ENHANCE -> EnhanceBody(vm, ui, edit.enhance)
+    }
+}
+
+/**
+ * Lightly 2 `enhanceBody` (owner-approved 2026-11-18): one action; while it runs the same notice and Cancel as the progress
+ * card on the photo; the failure notice with Try again; once enhanced, a note saying what changed.
+ */
+@Composable
+private fun EnhanceBody(vm: EditorViewModel, ui: EditorUiState, enhanced: com.lightlylabs.lightly.session.EnhanceTool?) {
+    when (ui.edit.enhanceOp) {
+        EnhanceOp.ENHANCING -> Notice(LightlyIcons.Info, AnnotatedString("Enhancing…"), listOf("Cancel" to vm::cancelEnhance))
+        EnhanceOp.FAILED -> Notice(LightlyIcons.Warn, boldLead("Couldn't enhance this photo.", " Your other edits are kept."), listOf("Try again" to vm::enhancePhoto))
+        EnhanceOp.IDLE -> if (enhanced != null) {
+            PanelNote(if (enhanced.painting) "This looks like a painting, so faces are kept as painted. The rest is twice the size."
+                      else "Twice the size, with soft faces restored.", Modifier.testTagResource(EditTags.ENHANCE_NOTE))
+        } else {
+            LightlyButton("Enhance photo", ButtonKind.PRIMARY, vm::enhancePhoto, tag = EditTags.ENHANCE_RUN)
+            PanelNote(if (vm.enhanceShrinksPhoto) "Doubles the size and restores small or soft faces, on this phone. Photos over 2000 px are enhanced at 2000 px, so they come out at up to 4000 px."
+                      else "Doubles the size and restores small or soft faces, on this phone.", Modifier.testTagResource(EditTags.ENHANCE_NOTE))
+        }
     }
 }
 

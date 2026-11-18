@@ -5,13 +5,17 @@ import com.lightlylabs.lightly.session.EditState
 import com.lightlylabs.lightly.session.GrainStyle
 
 /** Prototype `editPanel` tabs, in order. */
-enum class EditSub(val label: String) { CROP("Crop"), ROTATE("Rotate"), STRAIGHTEN("Straighten"), PERSPECTIVE("Perspective"), ADJUST("Adjust"), REMOVE("Eraser") }
+// Enhance (owner-approved design 2026-11-18) last, shown only when the build carries its models (EditorViewModel.editTabs).
+enum class EditSub(val label: String) { CROP("Crop"), ROTATE("Rotate"), STRAIGHTEN("Straighten"), PERSPECTIVE("Perspective"), ADJUST("Adjust"), REMOVE("Eraser"), ENHANCE("Enhance") }
 
 /** Adjust › groups (prototype `ui.group`). */
 enum class AdjustGroup(val label: String) { LIGHT("Light"), COLOUR("Colour"), DETAIL("Detail") }
 
 /** Edit › Remove's operation (approved `ed-removing`, `ed-remove-failed`). */
 enum class RemoveOp { IDLE, REMOVING, FAILED }
+
+/** Edit › Enhance's operation (approved `ed-enhancing`, `ed-enhance-failed`). */
+enum class EnhanceOp { IDLE, ENHANCING, FAILED }
 
 /** A stroke brushed on the photo, in source coordinates, while it is removed or after it failed. */
 data class PendingRemoveStroke(val points: List<Pair<Double, Double>>, val radius: Double)
@@ -32,6 +36,9 @@ data class EditUi(
     val removeOp: RemoveOp = RemoveOp.IDLE,
     val pendingStroke: PendingRemoveStroke? = null,
     val eraseDraft: List<PendingRemoveStroke> = emptyList(),
+    val enhanceOp: EnhanceOp = EnhanceOp.IDLE,
+    /** Share of the Enhance work done, 0..1 (the progress card's bar). */
+    val enhanceProgress: Float = 0f,
 )
 
 /** Prototype `effectsPanel` tabs. */
@@ -125,7 +132,7 @@ object ToolUsed {
         val a = e.adjust
         return e.geometry.crop.aspect != CropAspect.ORIGINAL || e.geometry.quarterTurns != 0 || e.geometry.flipHorizontal || e.geometry.straighten != 0.0 ||
             listOf(a.exposure, a.contrast, a.highlights, a.shadows, a.temp, a.tint, a.saturation, a.vibrance, a.sharpness, a.clarity, a.noise).any { it != 0.0 } ||
-            e.remove.strokes.isNotEmpty() || pendingStroke
+            e.remove.strokes.isNotEmpty() || pendingStroke || e.enhance != null
     }
 
     // Mockup `used(s, 'effects')`: leak, grain, vignette or Selective Colour (fx.sel); Ink added with the approved proposal

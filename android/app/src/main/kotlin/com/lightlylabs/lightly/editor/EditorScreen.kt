@@ -251,7 +251,7 @@ private fun EditorContent(vm: EditorViewModel, ui: EditorUiState, model: Develop
     val stage: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier) {
             // While cropping, a pinch resizes the crop frame instead of zooming the photo.
-            Stage(ui, Modifier.fillMaxSize(), previewState = vm.uiState.takeIf { ui.tool == EditorTool.DEVELOP || (ui.tool == EditorTool.EFFECTS && ui.effects.sub != EffectsSub.INK) }, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui); TextMarks(vm, ui, textGesture) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), cropPending = vm.hasPendingCrop(ui),
+            Stage(ui, Modifier.fillMaxSize(), previewState = vm.uiState.takeIf { ui.tool == EditorTool.DEVELOP || (ui.tool == EditorTool.EFFECTS && ui.effects.sub != EffectsSub.INK) }, overlay = { BackgroundMarks(vm, ui); PortraitMarks(vm, ui); EditMarks(vm, ui); TextMarks(vm, ui, textGesture); EnhanceProgressMark(vm, ui) }, inspection = !vm.isCropEditing(ui), cropEditing = vm.isCropEditing(ui), cropPending = vm.hasPendingCrop(ui),
                 cropTouches = if (vm.isCropEditing(ui) && !ui.showsOriginal) { photo -> CropTouches(vm, photo) } else null, onPhotoBox = vm::onStagePhotoMeasured, onPreviewFootprint = vm::onPreviewFootprint,
                 inspectionYields = textGesture::ownsPointers, onEmptyDoubleTap = actions.cycleTheme,
                 photoActionsWidthDp = if (photoActionsShown && showsPolaroid) photoActionsWidthDp else null)

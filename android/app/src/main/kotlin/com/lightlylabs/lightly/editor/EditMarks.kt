@@ -44,6 +44,18 @@ import kotlin.math.max
  *   centred over the photo with Cancel.
  * - Light Leaks: dragging on the photo moves the leak.
  */
+/**
+ * Edit › Enhance (approved `ed-enhancing`): the progress card with its bar and Cancel, centred on the photo whichever tool
+ * is open, until the result lands.
+ */
+@Composable
+fun EnhanceProgressMark(vm: EditorViewModel, ui: EditorUiState) {
+    if (ui.edit.enhanceOp != EnhanceOp.ENHANCING || ui.showsOriginal) return
+    Box(Modifier.fillMaxSize().testTagResource(EditTags.ENHANCE_PROGRESS), contentAlignment = Alignment.Center) {
+        ProgressBox("Enhancing…", null, ui.edit.enhanceProgress, cancel = vm::cancelEnhance)
+    }
+}
+
 @Composable
 fun EditMarks(vm: EditorViewModel, ui: EditorUiState) {
     if (ui.showsOriginal) return

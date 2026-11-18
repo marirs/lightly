@@ -35,8 +35,7 @@ import kotlin.math.sin
  *  6. faces: CodeFormer w 0.8 split in three (step 1d: encoder and decoder on the GPU delegate, the transformer on the
  *     CPU), the original colour put back, a face-skin paste mask (the app's selfie multiclass model).
  *
- * DEFERRED(enhance-ui): nothing calls this yet. The Lightly 2 design has no Enhance screen; the screen and its states
- * wait for an approved design. Photos longer than 2000 px are shrunk to that long side first (owner, 2026-11-17), which
+ * Edit › Enhance (owner-approved design 2026-11-18) runs it from EditorViewModel.enhancePhoto. Photos longer than 2000 px are shrunk to that long side first (owner, 2026-11-17), which
  * bounds memory: the 2x float image alone is 48 bytes per working pixel (2000 x 1500: 144 MB).
  * Models: assets/enhance in every build. Debug and benchmark builds carry them in the app module; release bundles in the
  * :enhance-models Play install-time asset pack, whose assets join the app's (enabled with the screen: Enhance gate in
@@ -85,14 +84,18 @@ class EnhanceEngine private constructor(
         val faces: List<Face>,
     )
 
-    /** Enhances [photo] (already upright). [isCancelled] is polled between model runs; a cancelled run throws. */
+    /**
+     * Enhances [photo] (already upright). [isCancelled] is polled between model runs; a cancelled run throws.
+     * [progress] gets the share of the work done, 0..1, for the panel's bar (approved `ed-enhancing`); it never changes
+     * the maths.
+     */
     @Synchronized
-    fun enhance(photo: Bitmap, isCancelled: () -> Boolean = { false }): Result {
-        val (image, isPainting, faces) = enhance(floatRgb(photo), isCancelled)
+    fun enhance(photo: Bitmap, isCancelled: () -> Boolean = { false }, progress: (Double) -> Unit = {}): Result {
+        val (image, isPainting, faces) = enhance(floatRgb(photo), isCancelled, progress)
         return Result(bitmap(image), isPainting, faces)
     }
 
-    internal fun enhance(photo: Image, isCancelled: () -> Boolean): Triple<Image, Boolean, List<Face>> {
+    internal fun enhance(photo: Image, isCancelled: () -> Boolean, progress: (Double) -> Unit = {}): Triple<Image, Boolean, List<Face>> {
         fun checkpoint() { if (isCancelled()) throw Failure.Cancelled() }
         val (width, height) = EnhanceMaths.inputSize(photo.w, photo.h, INPUT_LONG_SIDE_MAX)
         // Same antialiased resize as every other step (phone_pipeline.resize), kept in floats.
@@ -119,11 +122,20 @@ class EnhanceEngine private constructor(
             }
         }
         checkpoint()
-        val image = upscaleBackground(rgb, ::checkpoint)
+        progress(PROGRESS_BEFORE_UPSCALE)
+        val tiles = EnhanceMaths.tileWindows(rgb.h, TILE, TILE_PAD).size * EnhanceMaths.tileWindows(rgb.w, TILE, TILE_PAD).size
+        val steps = maxOf(tiles + restoreFives.size, 1).toDouble()
+        var done = 0
+        val stepDone = {
+            done += 1
+            progress(PROGRESS_BEFORE_UPSCALE + (1 - PROGRESS_BEFORE_UPSCALE) * done / steps)
+        }
+        val image = upscaleBackground(rgb, ::checkpoint, stepDone)
         val grey = EnhanceMaths.isGrey(rgb)
         for (five in restoreFives) {
             checkpoint()
             restoreFace(five, rgb, grey, image)
+            stepDone()
         }
         return Triple(image, isPainting, faces)
     }
@@ -273,7 +285,7 @@ class EnhanceEngine private constructor(
     }
 
     /** general-x4v3 on 384 px windows laid out by tileWindows; the 4x result is averaged 2 x 2 to 2x. */
-    private fun upscaleBackground(rgb: Image, checkpoint: () -> Unit): Image {
+    private fun upscaleBackground(rgb: Image, checkpoint: () -> Unit, tileDone: () -> Unit = {}): Image {
         val out = Image(rgb.w * SCALE, rgb.h * SCALE, 3)
         val input = floatBuffer(3 * TILE * TILE)
         val output = floatBuffer(3 * TILE * 4 * TILE * 4)
@@ -299,6 +311,7 @@ class EnhanceEngine private constructor(
                 }
                 out.d[((y * 2 + yy) * out.w + x * 2 + xx) * 3 + c] = sum / 4f * 255f
             }
+            tileDone()
         }
         return out
     }
@@ -327,6 +340,9 @@ class EnhanceEngine private constructor(
     }
 
     companion object {
+        /** The bar's share for the painting check and face finding; the rest split evenly over tiles and restored faces. */
+        const val PROGRESS_BEFORE_UPSCALE = 0.06
+
         const val SCALE = 2
         const val ART_THRESHOLD = 0.8
         /** Step 2g: below an 8 px eye gap CodeFormer invents the face rather than restoring it (owner, 2026-11-16). */

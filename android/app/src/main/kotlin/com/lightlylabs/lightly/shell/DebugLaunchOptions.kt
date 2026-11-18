@@ -477,6 +477,21 @@ object DebugLaunchOptions {
                 // Injected for the capture: the approved failure state with the stroke the person drew.
                 api.prototypeStroke()?.let { api.holdRemove(com.lightlylabs.lightly.editor.RemoveOp.FAILED, it) }
             }
+            // Edit › Enhance (owner-approved 2026-11-18): `ed-enhance-large` needs a photo over 2000 px, `ed-enhanced-painting` a painting.
+            "ed-enhance", "ed-enhance-large" -> edit(com.lightlylabs.lightly.editor.EditSub.ENHANCE, light)
+            "ed-enhancing" -> { edit(com.lightlylabs.lightly.editor.EditSub.ENHANCE, light); api.holdEnhance(com.lightlylabs.lightly.editor.EnhanceOp.ENHANCING, 0.45f) }
+            "ed-enhance-failed" -> {
+                api.applyPreset("daylight", 37)
+                edit(com.lightlylabs.lightly.editor.EditSub.ENHANCE, light)
+                api.holdEnhance(com.lightlylabs.lightly.editor.EnhanceOp.FAILED, 0f)
+            }
+            "ed-enhanced", "ed-enhanced-painting" -> { edit(com.lightlylabs.lightly.editor.EditSub.ENHANCE, light); api.enhance() }
+            "ed-enhanced-edited" -> {
+                api.applyPreset("daylight", 37)
+                api.effects { it.copy(vignette = it.vignette.copy(enabled = true)) }
+                edit(com.lightlylabs.lightly.editor.EditSub.ENHANCE, light)
+                api.enhance()
+            }
             // Not a prototype screen: the export check (docs/v1/slice4-android.md) saves one recipe with
             // geometry, Adjust, a real Remove stroke and Effects, and the saved JPEG is inspected.
             "s4-export" -> {

@@ -179,6 +179,21 @@ object AndroidEditorEnvironment {
                 // The fills' earlier location (filesDir) is removed: it could be copied by a device transfer.
                 java.io.File(app.filesDir, "remove-patches").deleteRecursively()
             },
+            // Edit › Enhance: the models load on each run and close with it (about 0.5 GB the editor need not keep).
+            enhancer = if (com.lightlylabs.lightly.editor.enhance.EnhanceEngine.isAvailable(app)) {
+                com.lightlylabs.lightly.editor.enhance.Enhancer { photo, isCancelled, progress ->
+                    com.lightlylabs.lightly.editor.enhance.EnhanceEngine.load(app).use { engine ->
+                        val result = engine.enhance(photo.toBitmap(), isCancelled, progress)
+                        val pixels = ByteArray(result.image.width * result.image.height * 4)
+                        result.image.copyPixelsToBuffer(java.nio.ByteBuffer.wrap(pixels))
+                        result.image.recycle()
+                        com.lightlylabs.lightly.editor.enhance.EnhanceOutput(
+                            com.lightlylabs.lightly.render.image.Rgba8Image(result.image.width, result.image.height, pixels), result.isPainting)
+                    }
+                }
+            } else null,
+            // As the Remove patches: image pixels of an unfinished edit, so in noBackupFilesDir.
+            enhanceResultDirectory = java.io.File(app.noBackupFilesDir, "enhance-results"),
             preferredBorder = preferredBorder,
             signatures = signatureStore(app),
             watermarkFonts = WatermarkFonts(app.assets),
