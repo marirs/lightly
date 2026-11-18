@@ -670,6 +670,16 @@ struct EditorScreen: View {
                 default:
                     EmptyView()
                 }
+                // Edit › Enhance (approved `ed-enhancing`): the progress card with its bar and Cancel, centred on the
+                // photo whichever tool is open, until the result lands.
+                if session.enhanceState == .enhancing {
+                    ProgressBox(title: "Enhancing…", barFraction: CGFloat(session.enhanceProgress)) {
+                        ProgressCancelButton(identifier: "edit.enhance.progress.cancel") { session.cancelEnhance() }
+                    }
+                    .accessibilityIdentifier("edit.enhance.progress")
+                    .accessibilityValue(Text("\(Int((session.enhanceProgress * 100).rounded())) %"))
+                    .frame(width: size.width, height: size.height)   // centred on the photo (`progressCard`: 50 % / 50 %)
+                }
             }
         }
     }

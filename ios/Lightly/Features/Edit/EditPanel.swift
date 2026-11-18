@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class EditPanelModel {
-    enum Sub: String, CaseIterable { case crop, rotate, straighten, perspective, adjust, remove }
+    enum Sub: String, CaseIterable { case crop, rotate, straighten, perspective, adjust, remove, enhance }
     enum Group: String, CaseIterable { case light, colour, detail }
 
     let session: EditorSession
@@ -37,7 +37,15 @@ final class EditPanelModel {
         let adjust = [a.exposure, a.contrast, a.highlights, a.shadows, a.temp, a.tint, a.saturation, a.vibrance,
                       a.sharpness, a.clarity, a.noise].contains { $0 != 0 }
         return g.cropAspect != .original || g.quarterTurns != 0 || g.flipHorizontal || g.straighten != 0 || adjust
-            || !edit.remove.strokes.isEmpty || session.pendingRemoveStroke != nil
+            || !edit.remove.strokes.isEmpty || session.pendingRemoveStroke != nil || edit.enhance != nil
+    }
+
+    /// The Edit tabs in the approved order; Enhance (owner-approved 2026-11-18) last, only when this build carries its
+    /// models.
+    var tabs: [(Sub, String, Bool)] {
+        [(.crop, "Crop", false), (.rotate, "Rotate", false), (.straighten, "Straighten", false),
+         (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Eraser", false)]
+            + (EditorSession.enhanceIsAvailable ? [(.enhance, "Enhance", false)] : [])
     }
 }
 
@@ -56,8 +64,7 @@ struct EditPanelView: View {
     /// Lightly 2 `editPanel`, a 6 pt column: the tabs, the reset row, the tab's controls.
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            PanelTabs(items: [(EditPanelModel.Sub.crop, "Crop", false), (.rotate, "Rotate", false), (.straighten, "Straighten", false),
-                              (.perspective, "Perspective", false), (.adjust, "Adjust", false), (.remove, "Eraser", false)],
+            PanelTabs(items: model.tabs,
                       selected: model.sub, wraps: wraps, identifierPrefix: "edit.sub") { model.sub = $0 }
             if model.sub == .remove {
                 Text("Eraser").l2Text(17, weight: .bold).frame(minHeight: 36)
@@ -71,6 +78,7 @@ struct EditPanelView: View {
             case .perspective: perspective
             case .adjust: adjustControls
             case .remove: remove
+            case .enhance: enhance
             }
         }
     }
@@ -159,6 +167,34 @@ struct EditPanelView: View {
                     identifier: "slider.\(label.lowercased().replacingOccurrences(of: " ", with: ""))",
                     onChange: { v in session.previewEdit { $0.adjust[keyPath: key] = v.rounded() } },
                     onEnd: { v in session.commitEdit { $0.adjust[keyPath: key] = v.rounded() } })
+    }
+
+    // MARK: Enhance
+
+    /// Lightly 2 `enhanceBody` (owner-approved 2026-11-18): one action; while it runs the same notice and Cancel as the
+    /// progress card on the photo; the failure notice with Try again; once enhanced, a note saying what changed.
+    @ViewBuilder
+    private var enhance: some View {
+        switch session.enhanceState {
+        case .enhancing:
+            L2Notice(icon: .info, text: "Enhancing…",
+                     actions: [(title: "Cancel", identifier: "edit.enhance.cancel", action: { session.cancelEnhance() })])
+        case .failed:
+            L2Notice(icon: .warn, bold: "Couldn't enhance this photo.", text: " Your other edits are kept.",
+                     actions: [(title: "Try again", identifier: "edit.enhance.retry", action: { session.enhancePhoto() })])
+        case .idle:
+            if let enhanced = model.edit.enhance {
+                L2Note(enhanced.painting ? "This looks like a painting, so faces are kept as painted. The rest is twice the size."
+                                         : "Twice the size, with soft faces restored.", identifier: "edit.enhance.note")
+            } else {
+                Button("Enhance photo") { session.enhancePhoto() }
+                    .buttonStyle(L2WideButtonStyle(kind: .primary))
+                    .accessibilityIdentifier("edit.enhance.run")
+                L2Note(session.enhanceShrinksPhoto
+                       ? "Doubles the size and restores small or soft faces, on this phone. Photos over 2000 px are enhanced at 2000 px, so they come out at up to 4000 px."
+                       : "Doubles the size and restores small or soft faces, on this phone.", identifier: "edit.enhance.note")
+            }
+        }
     }
 
     // MARK: Remove

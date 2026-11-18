@@ -14,10 +14,15 @@ import Foundation
 ///  6. faces: CodeFormer w 0.8 on CPU + GPU on every iPhone (never the Neural Engine: the SE 3's painted a blotch on
 ///     lips, step 2c), the original colour put back, a face-skin paste mask (the app's selfie multiclass model).
 ///
-/// DEFERRED(enhance-ui): nothing calls this yet. The Lightly 2 design has no Enhance screen; the screen, its states
-/// wait for an approved design. Photos longer than 2000 px are shrunk to that long side first (owner, 2026-11-17), which
-/// bounds memory: the 2x float image alone is 48 bytes per working pixel (2000 x 1500: 144 MB).
-final class EnhanceEngine: @unchecked Sendable {
+/// Edit › Enhance (owner-approved design 2026-11-18) runs it from EditorSession.enhancePhoto. Photos longer than 2000 px
+/// are shrunk to that long side first (owner, 2026-11-17), which bounds memory: the 2x float image alone is 48 bytes per
+/// working pixel (2000 x 1500: 144 MB).
+/// What Edit › Enhance runs (EditorSession): the engine, or a stand-in in tests.
+protocol Enhancing: Sendable {
+    func enhance(_ photo: CGImage, isCancelled: () -> Bool, progress: (Double) -> Void) throws -> EnhanceEngine.Result
+}
+
+final class EnhanceEngine: Enhancing, @unchecked Sendable {
     // @unchecked: MLModel is not Sendable. One engine runs one photo at a time (`lock`); the models are only read.
 
     enum Failure: Error, Equatable {
@@ -105,16 +110,22 @@ final class EnhanceEngine: @unchecked Sendable {
     }
 
     /// Enhances `photo` (already upright). `isCancelled` is polled between model runs; a cancelled run throws
-    /// `.cancelled` and leaves nothing behind.
-    func enhance(_ photo: CGImage, isCancelled: () -> Bool = { false }) throws -> Result {
+    /// `.cancelled` and leaves nothing behind. `progress` gets the share of the work done, 0...1, for the panel's bar
+    /// (the approved `ed-enhancing` progress card); it never changes the maths.
+    func enhance(_ photo: CGImage, isCancelled: () -> Bool = { false }, progress: (Double) -> Void = { _ in }) throws -> Result {
         lock.lock()
         defer { lock.unlock() }
         let rgb = Self.floatRGB(photo)
-        let (image, isPainting, faces) = try enhance(rgb, isCancelled: isCancelled)
+        let (image, isPainting, faces) = try enhance(rgb, isCancelled: isCancelled, progress: progress)
         return Result(image: Self.cgImage(image), isPainting: isPainting, faces: faces)
     }
 
-    func enhance(_ photo: EnhanceMaths.Image, isCancelled: () -> Bool) throws -> (EnhanceMaths.Image, Bool, [Face]) {
+    /// The share of the bar given to the painting check and face finding; the rest is split evenly between background
+    /// tiles and restored faces (a face takes about as long as a tile on the review phones).
+    static let progressBeforeUpscale = 0.06
+
+    func enhance(_ photo: EnhanceMaths.Image, isCancelled: () -> Bool,
+                 progress: (Double) -> Void = { _ in }) throws -> (EnhanceMaths.Image, Bool, [Face]) {
         func checkpoint() throws { if isCancelled() { throw Failure.cancelled } }
         let size = Self.inputSize(width: photo.w, height: photo.h)
         // Same antialiased resize as every other step (phone_pipeline.resize), kept in floats.
@@ -141,11 +152,20 @@ final class EnhanceEngine: @unchecked Sendable {
             }
         }
         try checkpoint()
-        var image = try upscaleBackground(rgb, checkpoint: checkpoint)
+        progress(Self.progressBeforeUpscale)
+        let tiles = EnhanceMaths.tileWindows(rgb.h, Self.tile, Self.tilePad).count * EnhanceMaths.tileWindows(rgb.w, Self.tile, Self.tilePad).count
+        let steps = Double(max(tiles + restoreFives.count, 1))
+        var done = 0
+        func stepDone() {
+            done += 1
+            progress(Self.progressBeforeUpscale + (1 - Self.progressBeforeUpscale) * Double(done) / steps)
+        }
+        var image = try upscaleBackground(rgb, checkpoint: checkpoint, tileDone: stepDone)
         let grey = EnhanceMaths.isGrey(rgb)
         for five in restoreFives {
             try checkpoint()
             try restoreFace(five, from: rgb, grey: grey, into: &image)
+            stepDone()
         }
         return (image, isPainting, faces)
     }
@@ -330,7 +350,8 @@ final class EnhanceEngine: @unchecked Sendable {
     }
 
     /// general-x4v3 on 384 px windows laid out by tileWindows; the 4x result is averaged 2 x 2 to 2x.
-    private func upscaleBackground(_ rgb: EnhanceMaths.Image, checkpoint: () throws -> Void) throws -> EnhanceMaths.Image {
+    private func upscaleBackground(_ rgb: EnhanceMaths.Image, checkpoint: () throws -> Void,
+                                   tileDone: () -> Void = {}) throws -> EnhanceMaths.Image {
         let tile = Self.tile, up = 4 * tile
         var out = EnhanceMaths.Image(w: rgb.w * 2, h: rgb.h * 2, c: 3)
         for (y, ch, wy) in EnhanceMaths.tileWindows(rgb.h, tile, Self.tilePad) {
@@ -353,6 +374,7 @@ final class EnhanceEngine: @unchecked Sendable {
                     } }
                     out.d[((y * 2 + yy) * out.w + x * 2 + xx) * 3 + c] = sum / 4 * 255
                 } } }
+                tileDone()
             }
         }
         return out

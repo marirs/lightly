@@ -39,6 +39,8 @@ enum EditorTestSupport {
         previewLongEdge: Int = 640,
         inpainter: (any Inpainting)? = nil,
         removePatches: RemovePatchStore = RemovePatchStore(),
+        enhancer: (any Enhancing)? = nil,
+        enhanceResults: EnhanceResultStore = EnhanceResultStore(),
         sessionStore: EditSessionStore? = nil,
         restoring: PersistedEditSession? = nil
     ) async throws -> EditorSession {
@@ -48,6 +50,11 @@ enum EditorTestSupport {
                                     personDetector: personDetector, libraryWriter: writer, exporter: exporter,
                                     saveSettings: settings, previewLongEdge: previewLongEdge,
                                     inpainterLoader: { inpainter }, removePatches: removePatches,
+                                    enhanceResults: enhanceResults,
+                                    enhanceEngineLoader: {
+                                        guard let enhancer else { throw EnhanceEngine.Failure.modelUnavailable("no engine in this test") }
+                                        return enhancer
+                                    },
                                     sessionStore: sessionStore, restoring: restoring)
         session.start()
         await session.waitUntilReady()

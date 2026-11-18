@@ -90,6 +90,8 @@ final class AppState {
     let signatures: SignatureStore
     /// Remove patches beside the edit (`derivedRef`), shared by the sessions of this launch.
     let removePatches: RemovePatchStore
+    /// Edit › Enhance results beside the edit (`derivedRef`), kept and cleared with the Remove patches.
+    let enhanceResults: EnhanceResultStore
     /// The working session on disk while it has unsaved edits (restored after the system ends the app).
     let sessionStore: EditSessionStore
     /// A stored session waiting for its editor (`editorSession(for:)` consumes it).
@@ -134,6 +136,7 @@ final class AppState {
         favourites: FavouritePresetsStore? = nil,
         signatures: SignatureStore? = nil,
         removePatches: RemovePatchStore = .applicationSupport(),
+        enhanceResults: EnhanceResultStore = .applicationSupport(),
         sessionStore: EditSessionStore = .applicationSupport(),
         presetCatalogue: DevelopPresetCatalogue = .empty,
         releaseContent: ReleaseContent = .none,
@@ -152,6 +155,7 @@ final class AppState {
         self.favourites = favourites ?? FavouritePresetsStore(catalogue: presetCatalogue)
         self.signatures = signatures ?? SignatureStore.applicationSupport()
         self.removePatches = removePatches
+        self.enhanceResults = enhanceResults
         self.sessionStore = sessionStore
         self.presetCatalogue = presetCatalogue
         self.releaseContent = releaseContent
@@ -184,6 +188,7 @@ final class AppState {
             saveSettings: { preferences.saveCopySettings },
             signatures: signatures,
             removePatches: removePatches,
+            enhanceResults: enhanceResults,
             sessionStore: sessionStore,
             restoring: restoring)
         editorSessions[photo.id] = session
@@ -256,6 +261,7 @@ final class AppState {
             // A new photo starts a new edit: the previous edit's Remove patches go. (A restore of
             // the same edit after the app was killed would keep them; iOS has no such path yet.)
             removePatches.removeAll()
+            enhanceResults.removeAll()
             if let previous = selectedPhoto, previous.id != photo.id {
                 // Switching photos ends the previous session; its in-flight
                 // renders must not land after the new photo is shown.
@@ -346,6 +352,7 @@ final class AppState {
             DiagnosticTrace.note("restore: declined (another scene, a photo already open, or the original unreadable); stored session cleared")
             sessionStore.clear()
             removePatches.removeAll()
+            enhanceResults.removeAll()
             return
         }
         #if DEBUG

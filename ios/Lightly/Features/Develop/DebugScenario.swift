@@ -79,6 +79,10 @@ struct DebugScenario {
         case "ed-adjust-colour": return EditorUI(tool: .edit, editSub: .adjust, editGroup: .colour)
         case "ed-adjust-detail": return EditorUI(tool: .edit, editSub: .adjust, editGroup: .detail)
         case "ed-remove", "ed-removing", "ed-remove-failed": return EditorUI(tool: .edit, editSub: .remove)
+        // Edit › Enhance (owner-approved 2026-11-18): `ed-enhance-large` needs a photo over 2000 px (`--open-photo`).
+        case "ed-enhance", "ed-enhance-large", "ed-enhancing", "ed-enhanced", "ed-enhanced-edited", "ed-enhanced-painting",
+             "ed-enhance-failed":
+            return EditorUI(tool: .edit, editSub: .enhance)
         case "fx-leak", "fx-leak-none": return EditorUI(tool: .effects, effectsSub: .leak)
         case "fx-selective": return EditorUI(tool: .effects, effectsSub: .selective)
         case "fx-ink-none", "fx-ink", "fx-ink-bold", "fx-ink-paper", "fx-ink-bloom", "fx-ink-splatter", "fx-ink-combined":
@@ -287,6 +291,20 @@ struct DebugScenario {
             // Device memory checks (2026-10-07): the process's peak footprint once the stroke is removed,
             // before any save (the ledger peak only grows), then Save copy if requested.
             DiagnosticTrace.note("scenario ed-remove: removed, peakFootprint=\(SaveTiming.peakFootprintMB().map(String.init) ?? "?")MB")
+            await saveCopyIfRequested(session: session, screenID: screenID)
+        case "ed-enhancing": session.debugHoldEnhanceState(.enhancing, progress: 0.45)
+        case "ed-enhance-failed":
+            preset("daylight", 37)
+            session.debugHoldEnhanceState(.failed, progress: 0)
+        // The real engine: `ed-enhanced-painting` needs a painting (`--open-photo`).
+        case "ed-enhanced", "ed-enhanced-painting":
+            await session.debugEnhance()
+            DiagnosticTrace.note("scenario \(screenID): enhanced, peakFootprint=\(SaveTiming.peakFootprintMB().map(String.init) ?? "?")MB")
+            await saveCopyIfRequested(session: session, screenID: screenID)
+        case "ed-enhanced-edited":
+            preset("daylight", 37)
+            effects { $0.vignette.enabled = true }
+            await session.debugEnhance()
             await saveCopyIfRequested(session: session, screenID: screenID)
         case "ed-removing", "ed-remove-failed":
             if screenID == "ed-remove-failed" { preset("daylight", 37) }

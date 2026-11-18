@@ -282,6 +282,8 @@ final class EditorSession {
          inpainterLoader: @escaping @Sendable () -> (any Inpainting)? = { LamaInpainter.loadBundled() },
          signatures: SignatureStore? = nil,
          removePatches: RemovePatchStore = RemovePatchStore(),
+         enhanceResults: EnhanceResultStore = EnhanceResultStore(),
+         enhanceEngineLoader: @escaping @Sendable () throws -> any Enhancing = { try EnhanceEngine() },
          sessionStore: EditSessionStore? = nil,
          restoring: PersistedEditSession? = nil) {
         self.photo = photo
@@ -298,6 +300,8 @@ final class EditorSession {
         // (tests) signatures live in memory only.
         self.signatures = signatures ?? SignatureStore(directory: nil)
         self.removePatches = removePatches
+        self.enhanceResults = enhanceResults
+        self.enhanceEngineLoader = enhanceEngineLoader
         self.sessionStore = sessionStore
         self.restoring = restoring
         let source = Self.sourceReference(for: photo)
@@ -1204,7 +1208,8 @@ final class EditorSession {
             await gate?()
             let lab = try? await Task.detached(priority: .userInitiated) {
                 // Stages up to Selective Colour only: no border, no watermark.
-                let frame = try Self.renderFrameBeforeBorder(job, base: base.pixels, width: base.width, height: base.height,
+                let source = job.enhancedBase.map { (pixels: $0.pixels, width: $0.width, height: $0.height) } ?? base
+                let frame = try Self.renderFrameBeforeBorder(job, base: source.pixels, width: source.width, height: source.height,
                                                              renderer: renderer, cache: cache)
                 return SelectiveColourEvaluator.sample(frame.pixels, width: frame.width, height: frame.height,
                                                        xFraction: frameX, yFraction: frameY)
@@ -1438,6 +1443,147 @@ final class EditorSession {
         commitEdit { $0.remove.strokes.append(contentsOf: applied) }
     }
 
+    // MARK: - Edit › Enhance (owner-approved design 2026-11-18, docs/ui/directions/lightly-2-concept `ed-enhance*`)
+
+    /// Edit › Enhance's operation: the approved `ed-enhancing` (progress on the photo, cancellable) and
+    /// `ed-enhance-failed` ("Couldn't enhance this photo." with Try again).
+    enum EnhanceState: Equatable { case idle, enhancing, failed }
+
+    /// The stored model id and version of an Enhance result (`derivedRef.model`): the pipeline measured in
+    /// experiments/enhance-2026-11-12 and moved into EnhanceEngine.
+    nonisolated static let enhanceModel = EditRecipe.ModelRef(id: "enhance", version: "2026-11-12")
+
+    private(set) var enhanceState: EnhanceState = .idle
+    /// Share of the work done while enhancing, 0...1 (the progress card's bar).
+    private(set) var enhanceProgress: Double = 0
+    @ObservationIgnored let enhanceResults: EnhanceResultStore
+    @ObservationIgnored private let enhanceEngineLoader: @Sendable () throws -> any Enhancing
+    @ObservationIgnored private var enhanceTask: Task<Void, Never>?
+    /// The enhanced results at the preview's size, by digest: the current one and the one Undo goes back to.
+    @ObservationIgnored private var enhancedBases: [String: EnhancedBase] = [:]
+    @ObservationIgnored private var enhancedBaseLoading: Set<String> = []
+    /// Results the store no longer has: rendered without them (rendering-v2 §7.6), never re-enhanced silently.
+    @ObservationIgnored private var enhancedBaseMissing: Set<String> = []
+
+    /// Edit › Enhance shows only when every Enhance model is in this build (Debug builds, and release builds once the
+    /// release gate bundles them: ios/Tools/bundle_enhance_models.sh).
+    nonisolated static let enhanceIsAvailable = EnhanceEngine.isAvailable()
+
+    /// The approved `ed-enhance-large` note: photos over 2000 px are enhanced at 2000 px.
+    var enhanceShrinksPhoto: Bool { max(photo.image.width, photo.image.height) > EnhanceEngine.inputLongSideMax }
+
+    /// "Enhance photo" and "Try again". One undo step when the result lands; the photo and every other edit stay as
+    /// they are until then.
+    func enhancePhoto() {
+        guard enhanceState != .enhancing, recipe.tools.edit.enhance == nil, let base = previewBase else { return }
+        // The Remove model is not needed while enhancing; its memory goes to the Enhance models instead.
+        releaseRemoveModelIfIdle()
+        enhanceState = .enhancing
+        enhanceProgress = 0
+        let image = photo.image
+        let store = enhanceResults
+        let loader = enhanceEngineLoader
+        let previewWidth = base.width, previewHeight = base.height
+        let relay = EnhanceProgressRelay { [weak self] fraction in
+            Task { @MainActor in
+                guard let self, self.enhanceState == .enhancing else { return }
+                self.enhanceProgress = max(self.enhanceProgress, fraction)
+            }
+        }
+        let awake = KeepAwake.begin("enhance")
+        let started = ContinuousClock.now
+        enhanceTask = Task { [weak self] in
+            defer { KeepAwake.end(awake) }
+            #if DEBUG
+            await DebugScenario.processingReviewPause("enhance")
+            #endif
+            let work = Task.detached(priority: .userInitiated) { () throws -> EnhanceOutcome in
+                // The models load on each run (seconds) and go with the engine: about 0.5 GB the editor need not keep.
+                let engine = try loader()
+                let result = try engine.enhance(image, isCancelled: { Task.isCancelled }, progress: relay.report)
+                try Task.checkCancellation()
+                let digest = try store.add(result.image)
+                guard let base = EnhancedBase.make(result.image, width: previewWidth, height: previewHeight) else {
+                    throw EnhanceEngine.Failure.modelFailed("preview of the result")
+                }
+                return EnhanceOutcome(digest: digest, width: result.image.width, height: result.image.height,
+                                      painting: result.isPainting, base: base)
+            }
+            do {
+                let outcome = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
+                try Task.checkCancellation()
+                DiagnosticTrace.note("enhance: \(image.width)x\(image.height) -> \(outcome.width)x\(outcome.height), painting \(outcome.painting), \(Self.milliseconds(ContinuousClock.now - started)) ms")
+                self?.finishEnhance(outcome)
+            } catch is CancellationError {
+                return
+            } catch EnhanceEngine.Failure.cancelled {
+                return
+            } catch {
+                DiagnosticTrace.note("enhance failed: \(String(describing: error))")
+                guard let self, !Task.isCancelled, !self.isClosed, self.enhanceState == .enhancing else { return }
+                self.enhanceState = .failed
+            }
+        }
+    }
+
+    /// Enhancing › Cancel: nothing changes ("Cancelled · nothing changed"), as Removing › Cancel. The engine stops at
+    /// its next checkpoint (between model runs) and its result is discarded.
+    func cancelEnhance() {
+        guard enhanceState == .enhancing else { return }
+        enhanceTask?.cancel()
+        enhanceTask = nil
+        enhanceState = .idle
+        enhanceProgress = 0
+        showToast("Cancelled · nothing changed")
+    }
+
+    private func finishEnhance(_ outcome: EnhanceOutcome) {
+        guard !isClosed, enhanceState == .enhancing else { return }
+        keepEnhancedBase(outcome.base, digest: outcome.digest)
+        enhanceState = .idle
+        enhanceTask = nil
+        let result = EditRecipe.DerivedRef(sha256: outcome.digest, model: Self.enhanceModel, width: outcome.width, height: outcome.height)
+        commitEdit { $0.enhance = .init(result: result, painting: outcome.painting) }
+        showToast("Enhanced")
+    }
+
+    /// The result at the preview's size for `target`, or nil (not enhanced, or still loading: the load renders again
+    /// when it lands).
+    private func enhancedBase(for target: EditRecipe) -> EnhancedBase? {
+        guard let digest = target.tools.edit.enhance?.result.sha256 else { return nil }
+        if let base = enhancedBases[digest] { return base }
+        loadEnhancedBase(digest)
+        return nil
+    }
+
+    private func loadEnhancedBase(_ digest: String) {
+        guard let base = previewBase, !enhancedBaseLoading.contains(digest), !enhancedBaseMissing.contains(digest) else { return }
+        enhancedBaseLoading.insert(digest)
+        let store = enhanceResults
+        let width = base.width, height = base.height
+        Task { [weak self] in
+            let made = await Task.detached(priority: .userInitiated) { () -> EnhancedBase? in
+                store.image(digest).flatMap { EnhancedBase.make($0, width: width, height: height) }
+            }.value
+            guard let self, !self.isClosed else { return }
+            self.enhancedBaseLoading.remove(digest)
+            guard let made else {
+                self.enhancedBaseMissing.insert(digest)
+                DiagnosticTrace.note("enhance: result \(digest.prefix(12)) missing; rendered without it")
+                return
+            }
+            self.keepEnhancedBase(made, digest: digest)
+            self.renderCommitted()
+        }
+    }
+
+    private func keepEnhancedBase(_ base: EnhancedBase, digest: String) {
+        // Two at most (7.7 MB each at 1600 x 1200): the committed one and the one an Undo or Redo goes back to.
+        let wanted = Set(history.compactMap { $0.tools.edit.enhance?.result.sha256 }.suffix(1) + [digest])
+        enhancedBases = enhancedBases.filter { wanted.contains($0.key) }
+        enhancedBases[digest] = base
+    }
+
     /// The preset's own finishing, for the Effects notice ("already includes its own grain").
     var appliedPresetFinishing: PresetRecipe.Finishing? {
         guard let preset = appliedPreset, (recipe.look?.strength ?? 0) > 0 else { return nil }
@@ -1449,6 +1595,8 @@ final class EditorSession {
     /// One undoable operation; cached assets stay available to Undo.
     func resetEdits(section: String = "all", adjustment: String? = nil) {
         if section == "all" || section == "edit" { cancelRemove(); clearEraseDraft() }
+        if (section == "all" || section == "edit") && enhanceState == .enhancing { cancelEnhance() }
+        if section == "edit" && adjustment == "enhance" && enhanceState == .failed { enhanceState = .idle }
         let next = recipeAfterReset(section: section, adjustment: adjustment)
         if section == "all", autoState == .applied { autoState = .off }
         commit(next)
@@ -1495,6 +1643,7 @@ final class EditorSession {
             case "perspective": next.tools.edit.geometry.perspectiveHorizontal = 0; next.tools.edit.geometry.perspectiveVertical = 0
             case "adjust": next.tools.edit.adjust = neutral.edit.adjust
             case "remove": next.tools.edit.remove = neutral.edit.remove
+            case "enhance": next.tools.edit.enhance = nil
             default: next.tools.edit = neutral.edit
             }
         case "background":
@@ -1683,6 +1832,9 @@ final class EditorSession {
         var effects: EditRecipe.Effects = EditRecipe.Tools.neutral(grainSeed: 0).effects
         /// The applied Remove strokes' patches, in order (full-resolution source pixels).
         var removePatches: [RemovePatch] = []
+        /// Edit › Enhance's result at the preview's size: the preview base for this job (rendering-v2 §7.6). Save copy
+        /// reads the full-size result from the store instead.
+        var enhancedBase: EnhancedBase?
         /// Save copy has already composited `removePatches` into the base it passes (its own buffer, in place), so the
         /// render must not composite them again. Previews leave this false: their base is shared and never mutated.
         var removePatchesInBase = false
@@ -1762,7 +1914,7 @@ final class EditorSession {
         guard let base = previewBase, let renderer = library.renderer, let cache = library.cache else { return }
         let prefixCache = PreviewPrefixCache()
         scheduler = LatestWinsRenderScheduler(supersedesRunning: { new, running in new.dragFrame && !running.dragFrame }) { job in
-            let source = base
+            let source = job.enhancedBase.map { (pixels: $0.pixels, width: $0.width, height: $0.height) } ?? base
             let frame = try Self.renderPixels(job, base: source.pixels, width: source.width, height: source.height,
                                               renderer: renderer, cache: cache, prefixCache: prefixCache)
             return try MetalLUTRenderer.makeImage(rgba8: frame.pixels, width: frame.width, height: frame.height)
@@ -2009,6 +2161,9 @@ final class EditorSession {
         }
         job.dragFrame = dragFrame && dragBase != nil
         if job.dragFrame { job.canvasKey = nil; job.frameKey = nil }
+        // Enhanced, but the result is still loading: this frame is drawn from the original and must never be cached
+        // under the enhanced recipe's keys (the load renders again when it lands).
+        if target.tools.edit.enhance != nil && job.enhancedBase == nil { job.canvasKey = nil; job.frameKey = nil; job.prefixKey = nil }
         // A new preset shows its colours at once (owner report 2026-10-11: a tapped preset took time to show; Lightroom
         // is instant): first a frame without the pixel stages (the LUT on the GPU, ~20 ms), then the full frame. Only
         // when nothing else is in use, so the fast frame never shows other edits missing. Neither key is set on the fast
@@ -2114,7 +2269,13 @@ final class EditorSession {
         releaseRemoveModelIfIdle()
         DiagnosticTrace.note("save started \(self.photo.image.width)x\(self.photo.image.height)")
         let job = committedJob()
-        let image = photo.image
+        // Edit › Enhance: the stored full-size result replaces the source (rendering-v2 §7.6); a result the store no
+        // longer has is left out, as on the preview, never re-enhanced silently.
+        let enhancedDigest = recipe.tools.edit.enhance?.result.sha256
+        let enhanceStore = enhanceResults
+        let photoImage = photo.image
+        let sourceSize = recipe.tools.edit.enhance.map { (width: $0.result.width, height: $0.result.height) }
+            ?? (width: photo.image.width, height: photo.image.height)
         let originalData = photo.originalData
         let settings = saveSettings()
         let exporter = exporter
@@ -2126,8 +2287,9 @@ final class EditorSession {
                 #if DEBUG
                 await DebugScenario.processingReviewPause("saving")
                 #endif
-                let timing = SaveTiming(width: image.width, height: image.height)
+                let timing = SaveTiming(width: sourceSize.width, height: sourceSize.height)
                 let work = Task.detached(priority: .userInitiated) { () -> Data in
+                    let image = enhancedDigest.flatMap { enhanceStore.image($0) } ?? photoImage
                     var pixels = try timing.measure("bytes") { try MetalLUTRenderer.rgba8Bytes(of: image) }
                     // The fills go into this buffer in place (it is the only reference): the render then needs no
                     // copy of the frame to composite them (2026-10-07, iPhone 11 Pro Max, 48 MP: Save copy with fills
@@ -2206,6 +2368,7 @@ final class EditorSession {
         job.watermarkContent = watermarkContent(for: target.tools.watermark)
         job.displayPhotoSize = renderReferencePhotoSize ?? displayedPhotoSize
         job.removePatches = removePatches.patches(for: target.tools.edit.remove.strokes)
+        job.enhancedBase = enhancedBase(for: target)
     }
 
     /// Stage 12's content for a watermark, resolved against the saved signatures and logos.
@@ -2397,7 +2560,8 @@ final class EditorSession {
     func exportedData() async throws -> Data {
         guard let renderer = library.renderer, let cache = library.cache else { throw LightlyError.exportFailed }
         let job = committedJob()
-        let image = photo.image
+        // As Save copy: an Enhance result replaces the source (rendering-v2 §7.6).
+        let image = recipe.tools.edit.enhance.flatMap { enhanceResults.image($0.result.sha256) } ?? photo.image
         let pixels = try MetalLUTRenderer.rgba8Bytes(of: image)
         let rendered = try Self.renderPixels(job, base: pixels, width: image.width, height: image.height, renderer: renderer, cache: cache)
         let output = try MetalLUTRenderer.makeImage(rgba8: rendered.pixels, width: rendered.width, height: rendered.height)
@@ -2418,6 +2582,7 @@ final class EditorSession {
         subjectTask?.cancel()
         depthTask?.cancel()
         removeTask?.cancel()
+        enhanceTask?.cancel()
         let scheduler = scheduler
         Task { await scheduler?.close() }
     }
@@ -2439,6 +2604,20 @@ final class EditorSession {
     }
 
     #if DEBUG
+    /// Holds an approved Enhance state for a capture (`ed-enhancing` at the mockup's 45 %, `ed-enhance-failed`) without
+    /// running the engine.
+    func debugHoldEnhanceState(_ state: EnhanceState, progress: Double) {
+        enhanceTask?.cancel()
+        enhanceState = state
+        enhanceProgress = progress
+    }
+
+    /// Captures of `ed-enhanced*`: enhances with the real engine, as the person does (one undo step), awaited.
+    func debugEnhance() async {
+        enhancePhoto()
+        await enhanceTask?.value
+    }
+
     /// Holds an approved Remove state for a capture (`ed-removing`, `ed-remove-failed`) with the
     /// stroke the person drew, without running the model.
     func debugHoldRemoveState(_ state: RemoveState, stroke: EditRecipe.RemoveStroke) {
