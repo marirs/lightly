@@ -2448,7 +2448,7 @@ class EditorViewModel(
                 renderRegion(source, rect).also { PortraitSession.applyPatches(it.pixels, rect, portraitPatches) }
             }
         }
-        val job = ExportJob(sourceHandle = loaded.source.assetId, original = loaded.fullResolution, plan = exportPlan, spec = env.newImageSpec(loaded.source))
+        val job = ExportJob(sourceHandle = loaded.source.assetId, original = exportSource(loaded, committed), plan = exportPlan, spec = env.newImageSpec(loaded.source))
         if (env.exporter.start(job) !is ExportStart.Started) return false
         savingRecipe = committed
         return true
