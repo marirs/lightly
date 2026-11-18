@@ -1,0 +1,10 @@
+# Enhance (1.3) models: file name and SHA-256, one per line. Read by app/build.gradle.kts (debug and benchmark builds copy
+# them into the app's assets/enhance) and enhance-models/build.gradle.kts (release bundles carry them in this asset pack).
+# The files come from experiments/enhance-2026-11-12/tflite (git-ignored; convert_tflite.py).
+art-classifier.tflite 5d8077ec027344cd760382449900a331000ff82366ea3f1c43eb9cd109f9ddd0
+face-detector-640.tflite 1485470715ab074c900b6155ed33b46ad05162c7883eaaf4b503a5fe54c9a8a9
+face-detector-960.tflite b41c1c269ead868122d174d498d229164aadcbd8fe62cef14ddaaf82f8912b16
+general-x4v3-384.tflite f8f37ea017dc0e50f6135b1c1ed7dd5b54ef19421befe54f3aa1f28a2ef4f8bc
+codeformer-encoder.tflite 2c2216e76a9125fd85ff280d9e5a8a4cbb135b7f03185b492bc99b6b006ab54c
+codeformer-middle.tflite b1307cf12611b71a3b726b47f42eaa8e2bc1ccb0993283bafa275094aca615fc
+codeformer-decoder.tflite f00bcf705f25c826f5fa2dceea1b6d0d75133ba530ba388f1268aca900b6f209

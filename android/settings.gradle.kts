@@ -31,3 +31,5 @@ include(":core-decode")
 include(":core-model")
 include(":core-export")
 include(":app")
+// Enhance (1.3) models as a Play install-time asset pack: release bundles only (app/build.gradle.kts, Enhance gate).
+include(":enhance-models")

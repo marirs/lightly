@@ -38,8 +38,9 @@ import kotlin.math.sin
  * DEFERRED(enhance-ui): nothing calls this yet. The Lightly 2 design has no Enhance screen; the screen and its states
  * wait for an approved design. Photos longer than 2000 px are shrunk to that long side first (owner, 2026-11-17), which
  * bounds memory: the 2x float image alone is 48 bytes per working pixel (2000 x 1500: 144 MB).
- * DEFERRED(enhance-asset-pack): release packaging (Play install-time asset pack, owner decision) waits for the screen;
- * debug builds carry the models in assets/enhance (app/build.gradle.kts).
+ * Models: assets/enhance in every build. Debug and benchmark builds carry them in the app module; release bundles in the
+ * :enhance-models Play install-time asset pack, whose assets join the app's (enabled with the screen: Enhance gate in
+ * app/build.gradle.kts).
  *
  * Not thread-safe: one photo at a time per engine ([enhance] is synchronized). [close] frees the interpreters and
  * GPU delegates.

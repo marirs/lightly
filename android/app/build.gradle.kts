@@ -97,25 +97,23 @@ fun visionModelsEnabled(buildType: String) =
 // --- Enhance models (1.3) ---------------------------------------------------------------------
 //
 // experiments/enhance-2026-11-12/tflite (git-ignored; convert_tflite.py): the painting classifier, the face detector at
-// two canvases, realesr-general-x4v3 on 384 px tiles and CodeFormer split in three (step 1d). Each is checked against
-// its SHA-256 and copied into assets/enhance; Face Mesh and the multiclass model come from the vision models above.
+// two canvases, realesr-general-x4v3 on 384 px tiles and CodeFormer split in three (step 1d), listed with their SHA-256
+// in enhance-models/models.sha256. Face Mesh and the multiclass model come from the vision models above.
+// Two deliveries of the same assets/enhance files, each checked against its SHA-256:
+//  - debug and benchmark builds copy them into this module's assets (APKs from assemble* carry no asset packs);
+//  - release bundles carry them in the :enhance-models install-time asset pack (CodeFormer alone is 360 MB, too much
+//    for the base module), added only with -PlightlyEnhanceModelsInRelease=true.
 // FEATURE GATE: nothing opens Enhance yet (DEFERRED(enhance-ui): the screen waits for an approved design), so release
-// builds leave the models out unless -PlightlyEnhanceModelsInRelease=true. DEFERRED(enhance-asset-pack): when Enhance
-// ships, release builds carry these through a Play install-time asset pack (owner decision); CodeFormer alone is 360 MB.
+// bundles leave the pack out by default.
 val enhanceModelsDirectory: File = (findProperty("lightlyEnhanceModelsDir") as String?)?.let(::File)
     ?: rootDir.parentFile.resolve("experiments/enhance-2026-11-12/tflite")
-val enhanceModels = mapOf(
-    "art-classifier.tflite" to "5d8077ec027344cd760382449900a331000ff82366ea3f1c43eb9cd109f9ddd0",
-    "face-detector-640.tflite" to "1485470715ab074c900b6155ed33b46ad05162c7883eaaf4b503a5fe54c9a8a9",
-    "face-detector-960.tflite" to "b41c1c269ead868122d174d498d229164aadcbd8fe62cef14ddaaf82f8912b16",
-    "general-x4v3-384.tflite" to "f8f37ea017dc0e50f6135b1c1ed7dd5b54ef19421befe54f3aa1f28a2ef4f8bc",
-    "codeformer-encoder.tflite" to "2c2216e76a9125fd85ff280d9e5a8a4cbb135b7f03185b492bc99b6b006ab54c",
-    "codeformer-middle.tflite" to "b1307cf12611b71a3b726b47f42eaa8e2bc1ccb0993283bafa275094aca615fc",
-    "codeformer-decoder.tflite" to "f00bcf705f25c826f5fa2dceea1b6d0d75133ba530ba388f1268aca900b6f209",
-)
+val enhanceModels: Map<String, String> = rootDir.resolve("enhance-models/models.sha256").readLines()
+    .filter { it.isNotBlank() && !it.startsWith("#") }
+    .associate { line -> line.trim().split(Regex("\\s+")).let { (name, sha) -> name to sha } }
 val enhanceModelsInRelease = (findProperty("lightlyEnhanceModelsInRelease") as String?) == "true"
+/** Whether this build type copies the models into the app module itself (release uses the asset pack instead). */
 fun enhanceModelsEnabled(buildType: String) =
-    enhanceModels.keys.all { enhanceModelsDirectory.resolve(it).isFile } && (isInternalBuild(buildType) || enhanceModelsInRelease)
+    isInternalBuild(buildType) && enhanceModels.keys.all { enhanceModelsDirectory.resolve(it).isFile }
 
 /** Marketing version and build number shared with iOS (version.properties, scripts/version.sh). */
 /** "1.0.0", or "1.0.0-dev" when ios/, android/ or shared/ has uncommitted changes (scripts/version.sh decides both). */
@@ -186,7 +184,13 @@ android {
     sourceSets.getByName("benchmark").kotlin.srcDir("src/debug/kotlin")
 
     // The depth and Remove models are memory-mapped from the APK, which needs them stored uncompressed.
+    // (The bundle's uncompressed globs cover the Enhance asset pack too: its models are memory-mapped the same way.)
     androidResources { noCompress += "tflite" }
+
+    // Enhance (1.3) release delivery: the install-time asset pack, only when Enhance ships (see the Enhance gate above).
+    // A bundle of a debug or benchmark build with the flag would carry the models twice (app assets and the pack), so
+    // the flag is for release bundles only.
+    if (enhanceModelsInRelease) assetPacks += ":enhance-models"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
