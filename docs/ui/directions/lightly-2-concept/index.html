@@ -800,9 +800,9 @@ const J = [
     ['ed-enhance', 'Enhance · one action', ED('edit', 'smile', { ed: { sub: 'enhance' } })],
     ['ed-enhance-large', 'Enhance · a photo over 2000 px', ED('edit', 'lake', { ed: { sub: 'enhance', large: true } })],
     ['ed-enhancing', 'Enhancing · progress on the photo, cancellable', ED('edit', 'smile', { ed: { sub: 'enhance', op: 'enhancing', pct: 45 } })],
-    ['ed-enhanced', 'Enhanced · Reset and Undo undo it', ED('edit', 'smile', { ed: { sub: 'enhance', enhanced: true }, toast: 'Enhanced' })],
-    ['ed-enhanced-edited', 'Enhanced · other edits stay adjustable', ED('edit', 'woman', { ed: { sub: 'enhance', enhanced: true }, ...EDITED })],
-    ['ed-enhanced-painting', 'Enhanced · a painting: faces kept as painted', ED('edit', 'street', { ed: { sub: 'enhance', enhanced: true, painting: true } })],
+    ['ed-enhanced', 'Enhanced · Reset and Undo undo it', ED('edit', 'smile', { ed: { sub: 'enhance', enhanced: true, touched: true }, toast: 'Enhanced' })],
+    ['ed-enhanced-edited', 'Enhanced · other edits stay adjustable', ED('edit', 'woman', { ed: { sub: 'enhance', enhanced: true, touched: true }, ...EDITED })],
+    ['ed-enhanced-painting', 'Enhanced · a painting: faces kept as painted', ED('edit', 'street', { ed: { sub: 'enhance', enhanced: true, painting: true, touched: true } })],
     ['ed-enhance-failed', 'Enhance failed · edits kept', ED('edit', 'smile', { ed: { sub: 'enhance', op: 'enhanceFailed' }, dev: HONEY })]]],
   ['Effects', [
     ['fx-leak', 'Light Leaks · choosing a leak turns it on', ED('effects', 'sunset', { fx: { sub: 'leak', leak: true } })],
