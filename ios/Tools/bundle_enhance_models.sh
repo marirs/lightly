@@ -11,9 +11,9 @@
 # experiments/enhance-2026-11-12/coreml. Weights that do not match the recorded SHA-256 fail the build; missing
 # packages only warn (EnhanceEngine then throws .modelUnavailable).
 #
-# FEATURE GATE: nothing in the app opens Enhance yet (DEFERRED(enhance-ui): the screen waits for an approved design),
-# so Release builds leave the models out unless LIGHTLY_ENHANCE_MODELS_IN_RELEASE=YES; Debug builds always bundle them
-# for development and the unit tests.
+# Release gate: Release builds bundle the models only with LIGHTLY_ENHANCE_MODELS_IN_RELEASE=YES (YES since 1.3.0,
+# owner 2026-11-27); Debug builds always bundle them for development and the unit tests. A Release build with the gate
+# on fails when a package is missing: without its models the app hides Enhance, which must never ship by accident.
 set -eu
 
 : "${LIGHTLY_REPO_ROOT:?set in ios/project.yml}"
@@ -38,6 +38,11 @@ bundle_one() {
         fi
     done
     if [ -z "$package" ]; then
+        # A store build must carry Enhance: only Debug may go on without the models (the app then hides Enhance).
+        if [ "${CONFIGURATION:-Debug}" != "Debug" ]; then
+            echo "error: ${name}.mlpackage not found (set LIGHTLY_ENHANCE_MODEL_DIR): a ${CONFIGURATION} build must carry Enhance."
+            exit 1
+        fi
         echo "warning: ${name}.mlpackage not found (set LIGHTLY_ENHANCE_MODEL_DIR). Enhance will be unavailable."
         return 0
     fi

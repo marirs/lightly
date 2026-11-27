@@ -4,7 +4,7 @@ import java.security.MessageDigest
 // CodeFormer alone is 360 MB, past what the base module can carry, so release bundles deliver the models in this pack:
 // Play installs it together with the app, and its assets join the app's own (context.assets reads assets/enhance/*
 // exactly as in debug builds, which carry the same files in the app module instead; APKs built with assemble* never
-// include asset packs). The app adds this pack only when Enhance ships in release (app/build.gradle.kts, Enhance gate).
+// include asset packs). The app adds this pack to release bundles unless -PlightlyEnhanceModelsInRelease=false (app/build.gradle.kts, Enhance gate).
 // The asset-pack plugin ships inside the Android Gradle plugin already on the build classpath (root build.gradle.kts),
 // so it is applied by id without a version of its own.
 plugins {

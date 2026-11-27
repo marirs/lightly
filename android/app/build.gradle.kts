@@ -102,15 +102,15 @@ fun visionModelsEnabled(buildType: String) =
 // Two deliveries of the same assets/enhance files, each checked against its SHA-256:
 //  - debug and benchmark builds copy them into this module's assets (APKs from assemble* carry no asset packs);
 //  - release bundles carry them in the :enhance-models install-time asset pack (CodeFormer alone is 360 MB, too much
-//    for the base module), added only with -PlightlyEnhanceModelsInRelease=true.
-// FEATURE GATE: nothing opens Enhance yet (DEFERRED(enhance-ui): the screen waits for an approved design), so release
-// bundles leave the pack out by default.
+//    for the base module), unless -PlightlyEnhanceModelsInRelease=false.
+// Release gate: on by default since 1.3.0 (owner 2026-11-27; screen approved 2026-11-18). The pack's own task fails the
+// bundle when a model is missing or its SHA-256 differs, so a store bundle never ships without Enhance.
 val enhanceModelsDirectory: File = (findProperty("lightlyEnhanceModelsDir") as String?)?.let(::File)
     ?: rootDir.parentFile.resolve("experiments/enhance-2026-11-12/tflite")
 val enhanceModels: Map<String, String> = rootDir.resolve("enhance-models/models.sha256").readLines()
     .filter { it.isNotBlank() && !it.startsWith("#") }
     .associate { line -> line.trim().split(Regex("\\s+")).let { (name, sha) -> name to sha } }
-val enhanceModelsInRelease = (findProperty("lightlyEnhanceModelsInRelease") as String?) == "true"
+val enhanceModelsInRelease = (findProperty("lightlyEnhanceModelsInRelease") as String?) != "false"
 /** Whether this build type copies the models into the app module itself (release uses the asset pack instead). */
 fun enhanceModelsEnabled(buildType: String) =
     isInternalBuild(buildType) && enhanceModels.keys.all { enhanceModelsDirectory.resolve(it).isFile }
@@ -187,7 +187,7 @@ android {
     // (The bundle's uncompressed globs cover the Enhance asset pack too: its models are memory-mapped the same way.)
     androidResources { noCompress += "tflite" }
 
-    // Enhance (1.3) release delivery: the install-time asset pack, only when Enhance ships (see the Enhance gate above).
+    // Enhance (1.3) release delivery: the install-time asset pack (see the Enhance gate above).
     // A bundle of a debug or benchmark build with the flag would carry the models twice (app assets and the pack), so
     // the flag is for release bundles only.
     if (enhanceModelsInRelease) assetPacks += ":enhance-models"

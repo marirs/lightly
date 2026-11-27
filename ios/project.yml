@@ -31,9 +31,9 @@ settings:
     # Release gate: "pending legal sign-off (training data: Places2)" for the Remove model (LaMa).
     # Set to YES only after the sign-off (docs/v1/remove-evaluation.md §8).
     LIGHTLY_REMOVE_MODEL_TRAINING_DATA_SIGNED_OFF: "YES"  # owner sign-off 2026-10-12: ships in every build
-    # Enhance (1.3) models in Release builds: NO until the Enhance screen has an approved design and ships
-    # (DEFERRED(enhance-ui)); Debug builds always bundle them (Tools/bundle_enhance_models.sh).
-    LIGHTLY_ENHANCE_MODELS_IN_RELEASE: "NO"
+    # Enhance (1.3) models in Release builds: YES since the owner switched Enhance on for 1.3.0 (2026-11-27; screen
+    # approved 2026-11-18). Debug builds always bundle them (Tools/bundle_enhance_models.sh).
+    LIGHTLY_ENHANCE_MODELS_IN_RELEASE: "YES"
 
 targets:
   Lightly:
@@ -326,8 +326,8 @@ aggregateTargets:
       - name: Bundle sunglasses models
         script: '"${SRCROOT}/Tools/bundle_sunglasses_models.sh"'
         basedOnDependencyAnalysis: false
-      # Enhance (1.3): five git-ignored Core ML packages from experiments/enhance-2026-11-12/coreml. Debug only until the
-      # Enhance screen exists (LIGHTLY_ENHANCE_MODELS_IN_RELEASE below).
+      # Enhance (1.3): five git-ignored Core ML packages from experiments/enhance-2026-11-12/coreml, in every build
+      # while LIGHTLY_ENHANCE_MODELS_IN_RELEASE (above) is YES.
       - name: Bundle Enhance models
         script: '"${SRCROOT}/Tools/bundle_enhance_models.sh"'
         basedOnDependencyAnalysis: false
